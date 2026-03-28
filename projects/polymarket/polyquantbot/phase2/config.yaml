@@ -1,0 +1,22 @@
+trading:
+  poll_interval_seconds: 20
+  min_ev_threshold: 0.02
+  max_position_pct: 0.10
+  max_concurrent_positions: 3
+  max_trades_per_cycle: 2
+  max_total_exposure_pct: 0.30
+  summary_every_n_cycles: 5
+
+paper:
+  enabled: true
+  initial_balance: 1000.0
+  slippage_bps: 50
+  market_depth_threshold: 50.0
+
+execution:
+  fee_pct: 0.02
+
+position:
+  tp_pct: 0.10
+  sl_pct: 0.05
+  timeout_minutes: 30
