@@ -31,11 +31,18 @@ Called only when team needs help from ChatGPT/Gemini/Grok.
 - projects/          — all trading projects
 
 ## KNOWLEDGE BASE (read before every task)
-- PROJECT_STATE.md
+Primary reference (read this first):
+- docs/KNOWLEDGE_BASE.md
+
+Full reference docs:
+- docs/pico.pdf
+- docs/advancee_trade_strategy.pdf
 - docs/formulas.md
 - docs/system_specs.md
 - docs/prediction_market_api_context.md
-- docs/ssrn-3247865.pdf (151 trading strategies)
+
+Project state (always check):
+- PROJECT_STATE.md (ROOT)
 
 ## PROJECT FOLDERS & OWNERSHIP
 All owned by FORGE-X (you):
