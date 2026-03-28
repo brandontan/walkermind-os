@@ -81,6 +81,13 @@ All owned by FORGE-X (you):
 - Dedup check before every order
 - Kill switch must exist in every bot
 
+## PUSH RULES
+- Never push more than 5 files at once
+- Always push in small batches
+- Confirm each batch before next
+- Never push all files in one commit
+- If timeout occurs, split into smaller batches
+
 ## LATENCY TARGETS
 - Data ingestion:    <100ms
 - Signal generation: <200ms
