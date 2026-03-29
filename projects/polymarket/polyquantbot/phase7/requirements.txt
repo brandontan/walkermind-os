@@ -1,0 +1,23 @@
+# Phase 7 — Live Trading Requirements
+# Extends Phase 6 requirements with WebSocket + CLOB client dependencies
+
+# Core async
+aiohttp>=3.9.0
+aiosqlite>=0.19.0
+httpx>=0.25.0
+
+# WebSocket
+websockets>=12.0
+
+# Polymarket CLOB client (live order execution)
+py-clob-client>=0.16.0
+
+# Config & env
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+
+# Structured logging
+structlog>=23.2.0
+
+# Phase 6.6 inherited (ensure compatible versions)
+# (no additional deps from Phase 6.6 patches)

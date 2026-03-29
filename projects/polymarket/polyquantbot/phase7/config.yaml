@@ -1,0 +1,67 @@
+# Phase 7 Configuration
+# Inherits all Phase 6.6 execution/risk/position settings.
+# Add Phase 7-specific overrides here.
+
+websocket:
+  url: "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+  heartbeat_timeout_s: 30
+  reconnect_base_delay_s: 1.0
+  reconnect_max_delay_s: 60.0
+  depth_levels: 5
+
+execution:
+  # Inherited from Phase 6.6 config.yaml (execution block)
+  slippage_bps: 50
+  taker_fee_pct: 0.02
+  maker_fee_pct: 0.01
+  base_alpha_buffer: 0.005
+  max_alpha_buffer: 0.05
+  volatility_scale: 2.0
+  maker_spread_threshold: 0.02
+  fill_prob_threshold: 0.60
+  hybrid_ev_multiplier: 2.0
+  min_order_size: 5.0
+  lot_step: 1.0
+  liquidity_cap_pct: 0.10
+  max_slippage_pct: 0.03
+
+position:
+  default_vol: 0.02
+  max_position_pct: 0.10
+  daily_loss_limit: -2000
+  max_drawdown_pct: 0.08
+  kelly_fraction: 0.25
+
+trade_flow:
+  window: 100              # trades to aggregate for imbalance computation
+
+latency:
+  spike_multiplier: 3.0   # flag spike if > 3x rolling mean
+  spike_abs_threshold_ms: 500.0
+
+feedback:
+  pending_expire_age_s: 300   # expire pending orders after 5 minutes
+
+# Risk (SENTINEL — unchanged from Phase 6.6)
+risk:
+  max_concurrent_positions: 5
+  min_liquidity: 10000
+  min_ev_threshold: 0.0
+  correlation_limit: 0.40
+  var_confidence: 0.95
+  profit_factor_min: 1.5
+
+# Correlation (Phase 6.6)
+correlation:
+  window: 50
+  shrinkage: 0.1
+  ema_alpha: 0.1
+  recompute_interval: 10
+  limit: 0.40
+
+# Volatility filter (Phase 6.6)
+volatility:
+  high_threshold: 0.05
+  halt_above: 0.10
+  lookback: 20
+  default_vol: 0.02
