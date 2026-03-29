@@ -1,0 +1,37 @@
+trading:
+  poll_interval_seconds: 20
+  min_ev_threshold: 0.02
+  max_position_pct: 0.10
+  max_concurrent_positions: 3
+  max_trades_per_cycle: 2
+  max_total_exposure_pct: 0.30
+  summary_every_n_cycles: 5
+  market_depth_threshold: 50.0
+  fee_pct: 0.02
+
+paper:
+  enabled: true
+  initial_balance: 1000.0
+  slippage_bps: 50
+
+exit:
+  take_profit_pct: 0.10
+  stop_loss_pct: 0.05
+  timeout_minutes: 30
+
+circuit_breaker:
+  max_consecutive_losses: 3
+  max_api_failures: 5
+  latency_breach_threshold_ms: 1000
+  cooldown_seconds: 120
+
+latency_budgets:
+  signal_ms: 200
+  execution_ms: 500
+  total_ms: 1000
+
+health:
+  port: 8080
+
+telegram:
+  chat_id: "${TELEGRAM_CHAT_ID}"
