@@ -1,0 +1,103 @@
+# Phase 6.6 — Final Hardening Configuration
+# Extends Phase 6 config with stabilization parameters.
+# All Phase 6 blocks are preserved; new blocks added below.
+
+trading:
+  poll_interval_seconds: 20
+  min_ev_threshold: 0.02
+  max_concurrent_positions: 5
+  max_trades_per_cycle: 2
+  max_total_exposure_pct: 0.30
+  summary_every_n_cycles: 5
+
+paper:
+  enabled: true
+  initial_balance: 1000.0
+  slippage_bps: 50
+  market_depth_threshold: 50.0
+
+execution:
+  mode: adaptive
+  taker_fee_pct: 0.02
+  maker_fee_pct: 0.01
+  slippage_bps: 50
+  max_slippage_pct: 0.03
+  base_alpha_buffer: 0.005
+  max_alpha_buffer: 0.05
+  volatility_scale: 2.0
+  maker_spread_threshold: 0.02
+  maker_timeout_ms: 3000
+  hybrid_ev_multiplier: 2.0
+  min_order_size: 5.0
+  lot_step: 1.0
+  liquidity_cap_pct: 0.10
+  fill_prob_threshold: 0.60
+  max_partial_retries: 1
+  partial_slippage_bps: 75
+  market_depth_threshold: 50.0
+  # Phase 6.6 addition:
+  high_vol_threshold: 0.03       # volatility > this → halve position size
+
+capital_allocator:
+  max_position_pct: 0.10
+  max_open_positions: 5
+  min_order_size: 5.0
+
+# Phase 6.6 — Stabilized correlation matrix
+correlation:
+  window: 50                     # rolling return window size
+  min_data_points: 30            # minimum returns required before computing
+  recompute_interval: 10         # recompute every N market-data ticks
+  threshold: 0.7                 # coefficient above this is "significant"
+  shrinkage_factor: 0.7          # Ledoit-Wolf shrinkage toward identity (0=none, 1=full)
+  ema_alpha: 0.3                 # EMA smoothing across cycles (higher=faster)
+  max_corr_adjustment: 0.3       # Phase 6 engine compat: max log-odds shift
+
+# Phase 6.6 — Market maker inventory hard stop
+market_maker:
+  enabled: false
+  spread_pct: 0.02
+  size: 10.0
+  min_order_size: 5.0
+  cooldown_seconds: 60
+  inventory_limit_pct: 0.2       # fraction of max_position defining inventory limit
+  hard_stop_multiplier: 1.5      # inventory_limit_pct * max_position * this = hard limit
+
+position:
+  tp_pct: 0.10                   # static fallback (overridden by adaptive exit)
+  sl_pct: 0.05                   # static fallback (overridden by adaptive exit)
+  timeout_minutes: 30
+  # Phase 6.6 adaptive exit:
+  default_vol: 0.02              # fallback volatility if < 20 returns available
+  tp_vol_multiplier: 2.0         # tp_pct = clamp(tp_vol_multiplier * vol, 0.02, 0.15)
+  sl_vol_multiplier: 1.0         # sl_pct = clamp(sl_vol_multiplier * vol, 0.01, 0.10)
+  tp_min: 0.02
+  tp_max: 0.15
+  sl_min: 0.01
+  sl_max: 0.10
+
+strategy:
+  enabled:
+    bayesian: true
+    momentum: true
+    mean_reversion: true
+    arbitrage: true
+  disable_threshold: 0.4
+  min_trades: 20
+  momentum_threshold: 0.02
+  mean_reversion_k: 2.0
+  fee_margin: 0.02
+
+circuit_breaker:
+  max_consecutive_losses: 3
+  max_api_failures: 5
+  latency_breach_threshold_ms: 1000
+  cooldown_seconds: 120
+
+latency_budgets:
+  signal_ms: 200
+  execution_ms: 500
+  total_ms: 1000
+
+health:
+  port: 8080
