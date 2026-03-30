@@ -72,6 +72,7 @@ class ExitMonitor:
         take_profit_pct: float = _TAKE_PROFIT_PCT,
         stop_loss_pct: float = _STOP_LOSS_PCT,
         check_interval_sec: float = _CHECK_INTERVAL_SEC,
+        market_cache=None,      # Phase7MarketCache — provides real-time bid/ask
     ) -> None:
         """Initialise the exit monitor.
 
@@ -82,6 +83,8 @@ class ExitMonitor:
             take_profit_pct: Exit threshold for profit (e.g. 0.15 = 15%).
             stop_loss_pct: Exit threshold for loss (e.g. -0.08 = -8%).
             check_interval_sec: Interval between position scans.
+            market_cache: Optional Phase7MarketCache for real-time bid/ask prices.
+                If None, exits are skipped when no price is available.
         """
         self._executor = executor
         self._tracker = position_tracker
@@ -89,6 +92,7 @@ class ExitMonitor:
         self._take_profit_pct = take_profit_pct
         self._stop_loss_pct = stop_loss_pct
         self._check_interval_sec = check_interval_sec
+        self._market_cache = market_cache
 
         # Serialises all concurrent exit decisions
         self._exit_lock = asyncio.Lock()
@@ -103,6 +107,7 @@ class ExitMonitor:
             take_profit_pct=take_profit_pct,
             stop_loss_pct=stop_loss_pct,
             check_interval_sec=check_interval_sec,
+            has_market_cache=market_cache is not None,
         )
 
     # ── Main loop ─────────────────────────────────────────────────────────────
@@ -220,20 +225,43 @@ class ExitMonitor:
     ) -> tuple[Optional[float], str]:
         """Evaluate whether a position should be exited.
 
+        Uses real-time best bid/ask from market_cache if available.
+        For a YES (long) position the relevant exit price is the best bid
+        (what we can sell at); for a NO position it is the best ask
+        (what we must pay to close).
+
         Returns:
             (exit_price, reason) if exit should be triggered.
-            (None, "") if position should be held.
-
-        Note: In a real system, exit_price would come from the current
-        orderbook. Here we use entry_price as a placeholder — the live
-        execution layer will route to the best available price.
+            (None, "") if position should be held or price is unavailable.
         """
         if record.entry_price <= 0:
             return None, ""
 
-        # Placeholder: in production, current_price comes from market_cache
-        # For now, use entry as the base to allow TP/SL logic wiring
-        current_price = record.entry_price  # replace with live price feed
+        # Resolve current market price from MarketCache (real-time best bid/ask).
+        # Fall back to None if the cache is absent or has no valid quote —
+        # a missing price is safer than a forced close at a stale/zero price.
+        current_price: Optional[float] = None
+        if self._market_cache is not None:
+            if record.side == "YES":
+                # Closing a YES position means selling; best bid is the exit price.
+                bid = self._market_cache.get_bid(record.market_id)
+                if bid > 0:
+                    current_price = bid
+            else:
+                # Closing a NO position means buying back the YES token at the ask price.
+                ask = self._market_cache.get_ask(record.market_id)
+                if 0 < ask <= 1.0:
+                    current_price = ask
+
+        if current_price is None:
+            # No valid market price — skip exit rather than force-close at bad price.
+            log.debug(
+                "exit_monitor_skip_no_price",
+                market_id=record.market_id,
+                side=record.side,
+                position_id=record.position_id,
+            )
+            return None, ""
 
         pnl_pct = (current_price - record.entry_price) / record.entry_price
         if record.side == "NO":

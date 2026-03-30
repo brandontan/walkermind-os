@@ -1016,7 +1016,7 @@ class TestRiskComplianceStandalone:
 
     def test_metrics_validator_default_targets(self, metrics_validator) -> None:
         assert metrics_validator._ev_capture_target == 0.75
-        assert metrics_validator._fill_rate_target == 0.60
+        assert metrics_validator._fill_rate_target == 0.70
         assert metrics_validator._p95_latency_target == 500.0
         assert metrics_validator._max_drawdown_target == 0.08
 
@@ -1029,11 +1029,11 @@ class TestMetricsValidatorGOLIVEGate:
     """Verify GO-LIVE gate logic: all 5 gates must pass for approval."""
 
     def _seed_passing_session(self, v) -> None:
-        for _ in range(12):
+        for _ in range(35):
             v.record_ev_signal(expected_ev=0.10, actual_ev=0.10)
             v.record_fill(filled=True)
             v.record_latency(200.0)
-        for i in range(12):
+        for i in range(35):
             v.record_pnl_sample(float(i * 5))
 
     def test_all_gates_pass(self, metrics_validator) -> None:
@@ -1043,7 +1043,7 @@ class TestMetricsValidatorGOLIVEGate:
         assert result.reason == "all_gates_passed"
 
     def test_min_trades_gate_blocks_go_live(self, metrics_validator) -> None:
-        # Only 5 fills — below min_trades=10
+        # Only 5 fills — below min_trades=30
         for _ in range(5):
             metrics_validator.record_ev_signal(0.10, 0.10)
             metrics_validator.record_fill(filled=True)

@@ -331,34 +331,68 @@ class PositionTracker:
         async with self._lock:
             return sum(r.size for r in self._positions.values() if r.state == PositionState.OPEN)
 
-    async def force_close_all(self, reason: str) -> int:
+    async def force_close_all(self, reason: str, market_cache=None) -> int:
         """Force-close all OPEN positions. Called by RiskGuard on kill switch.
 
+        Attempts to use real-time best bid/ask from market_cache for accurate
+        PnL. Falls back to exit_price=0.0 with a warning when no valid price
+        is available (e.g. cache unavailable during WS outage).
+
         Uses snapshot pattern:
-            1. Snapshot market_ids under lock.
+            1. Snapshot open position records under lock.
             2. Release lock.
-            3. Call close() for each — close() re-acquires lock per call.
+            3. Look up best bid/ask from market_cache per position.
+            4. Call close() for each — re-acquires lock per call.
 
         Args:
             reason: Audit log reason for all closes.
+            market_cache: Optional Phase7MarketCache for real-time exit prices.
 
         Returns:
             Number of positions closed.
         """
-        # Step 1: snapshot under lock
+        # Step 1: snapshot full records under lock (need side/size/entry_price)
         async with self._lock:
-            open_market_ids = [
-                mid for mid, r in self._positions.items()
+            open_records = [
+                r.copy()
+                for r in self._positions.values()
                 if r.state == PositionState.OPEN
             ]
 
         # Step 2: close each outside lock
         closed_count = 0
-        for market_id in open_market_ids:
+        for record in open_records:
+            # Resolve exit price from market_cache (best bid for YES, best ask for NO)
+            exit_price = 0.0
+            if market_cache is not None:
+                if record.side == "YES":
+                    bid = market_cache.get_bid(record.market_id)
+                    if bid > 0:
+                        exit_price = bid
+                else:
+                    ask = market_cache.get_ask(record.market_id)
+                    if 0 < ask <= 1.0:
+                        exit_price = ask
+
+            if exit_price <= 0:
+                log.warning(
+                    "force_close_no_valid_price",
+                    market_id=record.market_id,
+                    side=record.side,
+                    reason=reason,
+                )
+
+            # Compute realised PnL only when we have a valid price
+            realised_pnl = 0.0
+            if exit_price > 0:
+                realised_pnl = (exit_price - record.entry_price) * record.size
+                if record.side == "NO":
+                    realised_pnl = -realised_pnl
+
             ok = await self.close(
-                market_id=market_id,
-                exit_price=0.0,   # price not known — emergency close
-                realised_pnl=0.0,
+                market_id=record.market_id,
+                exit_price=exit_price,
+                realised_pnl=realised_pnl,
                 close_reason=reason,
                 correlation_id=f"force_close:{reason}",
             )
@@ -368,7 +402,7 @@ class PositionTracker:
         log.warning(
             "force_close_all_complete",
             closed_count=closed_count,
-            total_open_found=len(open_market_ids),
+            total_open_found=len(open_records),
             reason=reason,
         )
         return closed_count
