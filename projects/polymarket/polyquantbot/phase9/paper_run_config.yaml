@@ -51,6 +51,7 @@ circuit_breaker:
   error_window_size: 20            # rolling window (number of calls)
   latency_threshold_ms: 600.0      # trigger if p95 latency > 600ms
   cooldown_sec: 60.0               # pause trading for N sec after trigger
+  consecutive_failures_threshold: 3  # trigger if N consecutive failures occur
 
 # ── Health monitor ────────────────────────────────────────────────────────────
 health:
@@ -76,10 +77,13 @@ metrics:
   ev_target_capture_ratio: 0.75    # GO-LIVE gate: must capture >= 75% of EV
   fill_rate_target: 0.60           # GO-LIVE gate: fill rate >= 60%
   p95_latency_target_ms: 500.0     # GO-LIVE gate: p95 latency < 500ms
-  max_drawdown_target: 0.10        # GO-LIVE gate: max drawdown < 10%
+  max_drawdown_target: 0.08        # GO-LIVE gate: max drawdown < 8%
+  min_trades: 10                   # GO-LIVE gate: minimum filled orders required
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 websocket:
   reconnect_base_delay_sec: 1.0
   reconnect_max_delay_sec: 60.0
   heartbeat_timeout_sec: 30.0
+  heartbeat_pause_sec: 30.0        # pause trading if WS down < this
+  heartbeat_kill_sec: 60.0         # trigger kill switch if WS down >= this

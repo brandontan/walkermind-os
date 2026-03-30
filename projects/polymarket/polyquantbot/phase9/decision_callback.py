@@ -52,6 +52,9 @@ log = structlog.get_logger()
 _CALL_TIMEOUT_S: float = 0.5       # 500ms max per external call
 _MAX_RETRIES: int = 3
 _RETRY_BASE_DELAY: float = 0.2     # seconds — exponential backoff
+_STALE_DATA_THRESHOLD_S: float = 2.0   # reject market data older than 2s
+_SLIPPAGE_LIMIT_STRICT: float = 0.02   # maker (limit) order slippage tolerance
+_SLIPPAGE_TAKER_RELAXED: float = 0.05  # taker order slippage tolerance
 
 
 # ── Data types ────────────────────────────────────────────────────────────────
@@ -124,6 +127,7 @@ class DecisionCallback:
         strategy_engine,
         telegram,
         config: dict,
+        system_state=None,
     ) -> None:
         """Initialise the decision callback with all injected dependencies.
 
@@ -136,6 +140,7 @@ class DecisionCallback:
             strategy_engine: Phase 6 StrategyEngine or StrategyManager.
             telegram: TelegramLive instance.
             config: Full paper_run_config dict.
+            system_state: Optional SystemStateManager for RUNNING|PAUSED|HALTED gating.
         """
         self._risk_guard = risk_guard
         self._order_guard = order_guard
@@ -144,6 +149,7 @@ class DecisionCallback:
         self._integrator = phase66_integrator
         self._strategy = strategy_engine
         self._telegram = telegram
+        self._system_state = system_state
 
         # Config values
         risk_cfg = config.get("risk", {})
@@ -211,9 +217,27 @@ class DecisionCallback:
             DecisionOutput with result of the full pipeline.
         """
 
+        # ── Step 0: SYSTEM_STATE check ────────────────────────────────────────
+        if self._system_state is not None and not self._system_state.is_running:
+            return self._skip(t0, cid, "system_state_not_running")
+
         # ── Step 1: Risk guard fast-path ──────────────────────────────────────
         if self._risk_guard.disabled:
             return self._skip(t0, cid, "risk_guard_disabled")
+
+        # ── Step 1b: Stale data guard ─────────────────────────────────────────
+        event_ts = float(inp.market_ctx.get("timestamp", 0))
+        data_age_s = time.time() - event_ts
+        if event_ts > 0 and data_age_s > _STALE_DATA_THRESHOLD_S:
+            self._log_rejection(
+                market_id=inp.market_id,
+                reason="stale_data",
+                ev=0.0,
+                fill_prob=0.0,
+                cid=cid,
+                detail=f"age={data_age_s:.3f}s>threshold={_STALE_DATA_THRESHOLD_S}s",
+            )
+            return self._skip(t0, cid, "stale_data")
 
         # ── Step 2: Generate signal ───────────────────────────────────────────
         try:
@@ -252,6 +276,7 @@ class DecisionCallback:
         if signal.ev < self._min_ev:
             self._log_rejection(
                 market_id=inp.market_id, reason="ev_fail", cid=cid,
+                ev=float(signal.ev), fill_prob=0.0,
                 detail=f"ev={signal.ev:.4f}, min={self._min_ev:.4f}",
             )
             return self._skip(t0, cid, f"ev_below_threshold:{signal.ev:.4f}")
@@ -283,6 +308,7 @@ class DecisionCallback:
         if adjusted_size <= 0:
             self._log_rejection(
                 market_id=inp.market_id, reason="risk_fail", cid=cid,
+                ev=float(signal.ev), fill_prob=0.0,
                 detail="adjusted_size=0, sizing_rejected",
             )
             return self._skip(t0, cid, "sizing_rejected")
@@ -301,16 +327,36 @@ class DecisionCallback:
         if fill_prob < self._min_fill_prob:
             self._log_rejection(
                 market_id=inp.market_id, reason="liquidity_fail", cid=cid,
+                ev=float(signal.ev), fill_prob=fill_prob,
                 detail=f"fill_prob={fill_prob:.4f}, min={self._min_fill_prob:.4f}",
             )
             return self._skip(t0, cid, f"fill_prob_too_low:{fill_prob:.3f}")
+
+        # ── Step 6b: Slippage guard ───────────────────────────────────────────
+        price = float(inp.market_ctx.get("p_market", signal.p_model))
+        order_mode = getattr(signal, "mode", "limit")  # "limit" or "taker"
+        slippage_ok = self._check_slippage(
+            mode=order_mode,
+            signal_price=float(getattr(signal, "p_model", price)),
+            market_price=price,
+            cid=cid,
+        )
+        if not slippage_ok:
+            self._log_rejection(
+                market_id=inp.market_id,
+                reason="slippage",
+                ev=float(signal.ev),
+                fill_prob=fill_prob,
+                cid=cid,
+                detail=f"mode={order_mode},signal_price={getattr(signal, 'p_model', price):.4f},market_price={price:.4f}",
+            )
+            return self._skip(t0, cid, f"slippage_exceeded:{order_mode}")
 
         # ── Step 7: Risk guard check before order_guard ───────────────────────
         if self._risk_guard.disabled:
             return self._skip(t0, cid, "risk_guard_disabled_pre_order")
 
         # ── Step 8: Order guard dedup ─────────────────────────────────────────
-        price = float(inp.market_ctx.get("p_market", signal.p_model))
         side = signal.outcome  # "YES" | "NO"
 
         signature = self._order_guard.compute_signature(
@@ -327,6 +373,7 @@ class DecisionCallback:
         if not claimed:
             self._log_rejection(
                 market_id=inp.market_id, reason="dedup_fail", cid=cid,
+                ev=float(signal.ev), fill_prob=fill_prob,
                 detail="order_guard_duplicate_blocked",
             )
             return self._skip(t0, cid, "order_guard_duplicate_blocked")
@@ -612,6 +659,8 @@ class DecisionCallback:
         market_id: str,
         reason: str,
         cid: str,
+        ev: float = 0.0,
+        fill_prob: float = 0.0,
         detail: str = "",
     ) -> None:
         """Emit a structured trade_rejected log entry.
@@ -622,6 +671,8 @@ class DecisionCallback:
             {
                 "event": "trade_rejected",
                 "reason": str,          # "ev_fail" | "liquidity_fail" | "risk_fail" | "dedup_fail"
+                "ev": float,            # signal EV at time of rejection
+                "fill_prob": float,     # fill probability at time of rejection
                 "market_id": str,
                 "timestamp": int,       # Unix epoch seconds
                 "detail": str,          # optional human-readable detail
@@ -632,17 +683,61 @@ class DecisionCallback:
             market_id: Polymarket condition ID of the rejected trade.
             reason: Rejection category (ev_fail / liquidity_fail / risk_fail / dedup_fail).
             cid: Correlation ID for request tracing.
+            ev: Signal EV at time of rejection.
+            fill_prob: Fill probability at time of rejection.
             detail: Optional extra detail string.
         """
         log.warning(
             "trade_rejected",
             event="trade_rejected",
             reason=reason,
+            ev=round(ev, 6),
+            fill_prob=round(fill_prob, 4),
             market_id=market_id,
             timestamp=int(time.time()),
             detail=detail,
             correlation_id=cid,
         )
+
+    def _check_slippage(
+        self,
+        mode: str,
+        signal_price: float,
+        market_price: float,
+        cid: str,
+    ) -> bool:
+        """Check slippage tolerance.
+
+        Maker (limit) orders: strict tolerance (2%).
+        Taker orders: relaxed tolerance (5%) — takers always incur some slippage.
+
+        Args:
+            mode: "limit" (maker) or "taker".
+            signal_price: Price from strategy signal (p_model).
+            market_price: Current market price.
+            cid: Correlation ID.
+
+        Returns:
+            True if within tolerance, False if slippage exceeds limit.
+        """
+        if signal_price <= 0 or market_price <= 0:
+            return True  # no valid prices to compare
+
+        slippage = abs(signal_price - market_price) / max(signal_price, 1e-9)
+        threshold = _SLIPPAGE_TAKER_RELAXED if mode == "taker" else _SLIPPAGE_LIMIT_STRICT
+
+        if slippage > threshold:
+            log.warning(
+                "slippage_exceeded",
+                mode=mode,
+                slippage=round(slippage, 4),
+                threshold=threshold,
+                signal_price=round(signal_price, 6),
+                market_price=round(market_price, 6),
+                correlation_id=cid,
+            )
+            return False
+        return True
 
     # ── Metrics export ────────────────────────────────────────────────────────
 

@@ -22,9 +22,12 @@ Output (metrics.json)::
         "fill_rate": float,
         "p95_latency": float,
         "drawdown": float,
-        "gate_passed": bool,
+        "total_trades": int,
+        "pass": bool,
+        "reason": str,
         "gate_details": {...},
-        "session_summary": {...}
+        "session_summary": {...},
+        "generated_at": str
     }
 
 Usage::
@@ -61,7 +64,9 @@ class MetricsResult:
         fill_rate: Filled orders / submitted orders.
         p95_latency: 95th percentile execution latency in milliseconds.
         drawdown: Maximum peak-to-trough PnL drawdown (fraction).
-        gate_passed: True if all GO-LIVE gate checks pass.
+        total_trades: Number of filled orders in the session.
+        pass_result: True if all GO-LIVE gate checks pass.
+        reason: Human-readable explanation of pass/fail result.
         gate_details: Per-metric pass/fail details.
         session_summary: Additional session statistics.
     """
@@ -69,7 +74,9 @@ class MetricsResult:
     fill_rate: float
     p95_latency: float
     drawdown: float
-    gate_passed: bool
+    total_trades: int
+    pass_result: bool
+    reason: str
     gate_details: dict
     session_summary: dict
 
@@ -94,8 +101,9 @@ class MetricsValidator:
         ev_capture_target: float = 0.75,
         fill_rate_target: float = 0.60,
         p95_latency_target_ms: float = 500.0,
-        max_drawdown_target: float = 0.10,
+        max_drawdown_target: float = 0.08,
         output_file: str = "metrics.json",
+        min_trades: int = 10,
     ) -> None:
         """Initialise the validator.
 
@@ -103,14 +111,16 @@ class MetricsValidator:
             ev_capture_target: Minimum EV capture ratio for GO-LIVE (default 0.75).
             fill_rate_target: Minimum fill rate for GO-LIVE (default 0.60).
             p95_latency_target_ms: Maximum p95 latency for GO-LIVE (default 500ms).
-            max_drawdown_target: Maximum drawdown fraction for GO-LIVE (default 0.10).
+            max_drawdown_target: Maximum drawdown fraction for GO-LIVE (default 0.08).
             output_file: Path to write metrics.json output.
+            min_trades: Minimum filled orders required for GO-LIVE (default 10).
         """
         self._ev_capture_target = ev_capture_target
         self._fill_rate_target = fill_rate_target
         self._p95_latency_target = p95_latency_target_ms
         self._max_drawdown_target = max_drawdown_target
         self._output_file = output_file
+        self._min_trades = min_trades
 
         # Raw data accumulators
         self._expected_ev_samples: list[float] = []    # theoretical EVs per signal
@@ -128,6 +138,7 @@ class MetricsValidator:
             fill_rate_target=fill_rate_target,
             p95_latency_target_ms=p95_latency_target_ms,
             max_drawdown_target=max_drawdown_target,
+            min_trades=min_trades,
         )
 
     # ── Factory ───────────────────────────────────────────────────────────────
@@ -147,8 +158,9 @@ class MetricsValidator:
             ev_capture_target=float(metrics_cfg.get("ev_target_capture_ratio", 0.75)),
             fill_rate_target=float(metrics_cfg.get("fill_rate_target", 0.60)),
             p95_latency_target_ms=float(metrics_cfg.get("p95_latency_target_ms", 500.0)),
-            max_drawdown_target=float(metrics_cfg.get("max_drawdown_target", 0.10)),
+            max_drawdown_target=float(metrics_cfg.get("max_drawdown_target", 0.08)),
             output_file=str(metrics_cfg.get("output_file", "metrics.json")),
+            min_trades=int(metrics_cfg.get("min_trades", 10)),
         )
 
     # ── Recording API ─────────────────────────────────────────────────────────
@@ -241,9 +253,32 @@ class MetricsValidator:
                 "target": self._max_drawdown_target,
                 "passed": drawdown <= self._max_drawdown_target,
             },
+            "min_trades": {
+                "value": self._orders_filled,
+                "target": self._min_trades,
+                "passed": self._orders_filled >= self._min_trades,
+            },
         }
 
-        gate_passed = all(v["passed"] for v in gate_details.values())
+        # Min trades guard: insufficient data overrides all other gates
+        if self._orders_filled < self._min_trades:
+            gate_passed = False
+            reason = f"insufficient_trades:{self._orders_filled}<{self._min_trades}"
+        else:
+            gate_passed = all(v["passed"] for v in gate_details.values())
+            if gate_passed:
+                reason = "all_gates_passed"
+            else:
+                reason = "unknown_gate_failed"
+                # Report the first failing gate (deterministic order from dict)
+                for gate_name, detail in gate_details.items():
+                    if not detail["passed"]:
+                        # Use > for metrics where lower is better (latency, drawdown),
+                        # and < for metrics where higher is better (ev_capture, fill_rate, min_trades)
+                        higher_is_worse = gate_name in ("p95_latency_ms", "max_drawdown")
+                        op = ">" if higher_is_worse else "<"
+                        reason = f"{gate_name}_failed:{detail['value']}{op}{detail['target']}"
+                        break
 
         session_duration_s = time.time() - self._session_start
         session_summary = {
@@ -263,7 +298,9 @@ class MetricsValidator:
             fill_rate=round(fill_rate, 4),
             p95_latency=round(p95_latency, 2),
             drawdown=round(drawdown, 4),
-            gate_passed=gate_passed,
+            total_trades=self._orders_filled,
+            pass_result=gate_passed,
+            reason=reason,
             gate_details=gate_details,
             session_summary=session_summary,
         )
@@ -274,7 +311,9 @@ class MetricsValidator:
             fill_rate=result.fill_rate,
             p95_latency_ms=result.p95_latency,
             max_drawdown=result.drawdown,
-            gate_passed=gate_passed,
+            total_trades=result.total_trades,
+            pass_result=gate_passed,
+            reason=reason,
         )
 
         return result
@@ -296,7 +335,9 @@ class MetricsValidator:
             "fill_rate": result.fill_rate,
             "p95_latency": result.p95_latency,
             "drawdown": result.drawdown,
-            "gate_passed": result.gate_passed,
+            "total_trades": result.total_trades,
+            "pass": result.pass_result,
+            "reason": result.reason,
             "gate_details": result.gate_details,
             "session_summary": result.session_summary,
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -322,7 +363,8 @@ class MetricsValidator:
         """
         log.info(
             "go_live_gate_check",
-            gate_passed=result.gate_passed,
+            pass_result=result.pass_result,
+            reason=result.reason,
             ev_capture_ratio=result.ev_capture_ratio,
             ev_target=self._ev_capture_target,
             fill_rate=result.fill_rate,
@@ -331,6 +373,8 @@ class MetricsValidator:
             latency_target=self._p95_latency_target,
             max_drawdown=result.drawdown,
             drawdown_target=self._max_drawdown_target,
+            total_trades=result.total_trades,
+            min_trades=self._min_trades,
         )
 
         for metric, detail in result.gate_details.items():
@@ -343,12 +387,12 @@ class MetricsValidator:
                 passed=detail["passed"],
             )
 
-        if result.gate_passed:
+        if result.pass_result:
             log.info("go_live_gate_PASSED — system ready for live trading")
         else:
             log.warning("go_live_gate_FAILED — do not proceed to live trading")
 
-        return result.gate_passed
+        return result.pass_result
 
     # ── Internal computation helpers ──────────────────────────────────────────
 
