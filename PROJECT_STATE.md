@@ -1,379 +1,202 @@
-# PROJECT STATE — AI Trading Team
-> Owner: Bayue Walker
-> Last Updated: [UPDATE THIS DATE EVERY SESSION]
-> Status: 🔧 SETUP PHASE
+# PROJECT STATE — WALKER AI TEAM
+
+Last Updated: 2026-03-30  
+Current Phase: Phase 9.1 — Hardening & Stability Fix 🚧  
+Status: IN PROGRESS  
 
 ---
 
-## 👤 FOUNDER
-- Name: Bayue Walker
-- Access: Smartphone only (Android)
-- Primary AI: Claude Projects (11 agents)
-- Secondary AI: Gemini Gems (backup + mobile)
-- Dev Environment: Replit (mobile-accessible)
-- Version Control: GitHub (GitHub Mobile app)
+## 🧠 SYSTEM OVERVIEW
+
+Project: AI-powered trading bots & automation infrastructure  
+Owner: Bayue Walker  
+
+Agents:
+- COMMANDER → orchestration & decision making  
+- FORGE-X → backend systems & execution engine  
+- BRIEFER → prompt generation, UI, and reporting  
+
+Platforms:
+- Polymarket  
+- TradingView  
+- MT4/MT5  
+- Kalshi  
+
+Tech Stack:
+- Python (asyncio)  
+- Pine Script  
+- MQL4/5  
+- React + TypeScript  
 
 ---
 
-## 🎯 PROJECT MISSION
-Build an AI-powered trading system consisting of:
-- Automated trading bots
-- Custom indicators
-- Expert Advisors (EA)
-- Trading tools & dashboards
+## ⚙️ CURRENT SYSTEM STATE
 
-Across multiple platforms, running 24/7 on server.
-Team builds until program runs well → STANDBY → wait for next order.
+The system is in late-stage pre-production, focusing on **stability, safety, and execution correctness** before go-live.
 
----
+Core architecture is complete, including:
+- Async event-driven pipeline  
+- Strategy + EV engine  
+- Execution layer with live data  
+- Monitoring + control systems  
 
-## 🏗️ SYSTEM ARCHITECTURE
-
-### Primary Platform
-- **Polymarket** — CLOB prediction markets (primary focus)
-
-### Secondary Platforms
-- **Kalshi** — prediction markets (arb target)
-- **TradingView** — charting, Pine Script indicators & strategies
-- **MT4 / MT5** — Expert Advisors & custom indicators
-- **Binance / crypto** — data source & CEX price reference
-
-### Tech Stack
-```
-Language:    Python 3.11+ (asyncio, aiohttp, websockets)
-Scripting:   Pine Script v5 (TradingView)
-EA Language: MQL4 (MT4) / MQL5 (MT5)
-Frontend:    React + TypeScript / HTML CSS JS
-Database:    PostgreSQL + Redis + InfluxDB (time-series)
-Blockchain:  Polygon PoS, EIP-1559, CTF contracts
-Deployment:  Replit / VPS server
-Version Ctrl: GitHub (branch-based per agent)
-```
+Current focus:
+→ Hardening the system to ensure **zero-crash, deterministic behavior under live conditions**
 
 ---
 
-## 👥 AI TRADING TEAM — 11 AGENTS
+## ✅ COMPLETED PHASES
 
-### 🏛️ SUPERVISOR
-| Agent | Role | Claude Project |
-|-------|------|---------------|
-| **COMMAND** | Supervisor — orchestrates all agents | ✅ Created |
+- Phase 1 — Foundation  
+  Repo, infrastructure, core connections  
 
-### 📊 STRATEGY DIVISION
-| Agent | Role | Claude Project |
-|-------|------|---------------|
-| **QUANT** | Quantitative trader — signals & sizing | ✅ Created |
-| **ORACLE** | Market intelligence — data fetcher & sentiment | ✅ Created |
+- Phase 2 — Strategy Engine  
+  Signal generation, EV calculation, position sizing  
 
-### 🔨 BUILDER DIVISION
-| Agent | Role | Claude Project |
-|-------|------|---------------|
-| **FORGE-X** | Backend engineer — core bot engine | ✅ Created |
-| **PIXEL** | Pine Script & MQL EA developer | ✅ Created |
-| **CANVAS** | Frontend & dashboard engineer | ✅ Created |
-| **CONNECT** | Integration & pipeline engineer | ✅ Created |
+- Phase 3 — Intelligence Layer  
+  Risk models, market scanner, Bayesian updates  
 
-### 🛡️ GUARDIAN DIVISION
-| Agent | Role | Claude Project |
-|-------|------|---------------|
-| **SENTINEL** | Risk management — writes risk code | ✅ Created |
-| **SCOUT** | Arbitrage scanner — writes scanner code | ✅ Created |
-| **EVALUATOR** | Performance analyst — writes reporting code | ✅ Created |
+- Phase 4 — Production Architecture  
+  System structure for live deployment  
 
-### 🌐 EXTERNAL
-| Agent | Role | Claude Project |
-|-------|------|---------------|
-| **BRIEFER** | Prompt maker for external AI assistance | ✅ Created |
+- Phase 5 — Multi-Strategy Edge Engine  
+  Multiple alpha sources  
 
----
+- Phase 6 — EV-Aware Alpha Engine (Paper Trading)  
+  Initial production-grade logic  
 
-## 📋 TEAM OPERATIONAL RULES
+- Phase 6.5 — Execution Layer  
+  Gateway, routing, fill tracking  
 
-### BUILD MODE (when order received)
-1. COMMAND receives order from founder
-2. COMMAND analyzes → gives suggestions → asks approval
-3. Founder approves → COMMAND delegates to agents
-4. Agents build → test → deploy
-5. COMMAND reports: "Program running ✅"
-6. Team enters STANDBY MODE
+- Phase 6.6 — Final Hardening  
+  Correlation, volatility control, market-making logic, adaptive exits  
 
-### STANDBY MODE (after successful deploy)
-- Full team idle — zero self-initiative
-- Bot runs automatically 24/7
-- Wait for: New Build / Maintenance / Feature / Bug Fix
+- Phase 7 — Live Data & Execution  
+  WebSocket orderbook, live orders, latency handling, feedback loops  
 
-### MAINTENANCE MODE (if issue reported)
-- Founder reports bug/issue
-- COMMAND identifies responsible agent
-- Agent fixes → tests → redeploys
-- Confirm resolved to founder
+- Phase 8 — Control Loop & Monitoring  
+  Position tracker, fill/exit monitor, kill switch, Telegram alerts, health checks  
 
-### DONE CRITERIA (every program must meet ALL)
-```
-✓ Code pushed to GitHub main branch
-✓ README complete and accurate
-✓ SENTINEL reviewed all risk logic
-✓ Program running without error 24+ hours
-✓ Founder confirms: "running well ✅"
-✓ Team enters STANDBY
-```
+- Phase 9 — Production Orchestrator  
+  Async pipeline, circuit breaker, decision bridge, metrics validator  
 
 ---
 
-## 📁 GITHUB REPOSITORY STRUCTURE
+## 🚧 IN PROGRESS
 
-```
-trading-ai-team/
-│
-├── strategy/               ← QUANT + ORACLE
-│   ├── signals.py
-│   ├── sizing.py
-│   ├── backtest.py
-│   ├── config.yaml
-│   └── oracle/
-│       ├── news_fetcher.py
-│       ├── sentiment.py
-│       ├── drift_detector.py
-│       └── data_schema.py
-│
-├── engine/                 ← FORGE-X
-│   ├── core/
-│   │   ├── order_manager.py
-│   │   └── execution.py
-│   ├── api/
-│   ├── db/
-│   └── utils/
-│
-├── indicators/             ← PIXEL
-│   ├── pinescript/
-│   ├── mql4/
-│   └── mql5/
-│
-├── frontend/               ← CANVAS
-│   └── src/
-│       ├── components/
-│       ├── pages/
-│       ├── hooks/
-│       └── services/
-│
-├── integrations/           ← CONNECT
-│   ├── webhooks/
-│   ├── brokers/
-│   ├── alerts/
-│   └── deploy/
-│
-├── risk/                   ← SENTINEL
-│   ├── sentinel.py
-│   ├── rules.yaml
-│   ├── kill_switch.py
-│   └── audit_log.py
-│
-├── strategy/scout/         ← SCOUT
-│   ├── arb_scanner.py
-│   ├── fee_calculator.py
-│   └── opportunity_log.py
-│
-├── analytics/              ← EVALUATOR
-│   ├── metrics.py
-│   ├── evaluator.py
-│   ├── report_generator.py
-│   └── reports/
-│
-├── tools/briefer/          ← BRIEFER
-│   ├── templates/
-│   └── logs/
-│
-├── .env.example
-├── requirements.txt
-├── docker-compose.yml
-├── PROJECT_STATE.md        ← THIS FILE
-└── README.md
-```
+### Phase 9.1 — Hardening & Stability Fix
 
-### Branch Naming Convention
-```
-feature/[agent-name]/[task-name]
-Example: feature/forge/websocket-connection
-         feature/quant/momentum-strategy
-         feature/sentinel/drawdown-rules
-```
+Focus: eliminate failure modes before go-live
+
+- Metrics alignment  
+  → GO-LIVE thresholds + minimum trade requirements  
+
+- Decision fail-safe  
+  → guarantee no system crash  
+
+- SYSTEM_STATE management  
+  → RUNNING / PAUSED / HALTED  
+
+- Heartbeat control  
+  → pause logic + kill escalation  
+
+- Stale data guard  
+
+- Slippage guard  
+  → maker/taker aware execution  
+
+- Partial fill handling  
+  → incremental fills + weighted average price  
+
+- Rejection logging standardization  
+
+- Full system audit  
+  → async safety  
+  → race condition detection  
+  → retry logic validation  
 
 ---
 
-## 🎯 PERFORMANCE TARGETS (all bots must meet)
+## ❌ NOT STARTED
 
-```
-Win Rate:          >70%
-Avg Profit/Trade:  >$15
-Max Drawdown:      <5%
-Sharpe Ratio:      >2.5
-Profit Factor:     >1.5
-```
+- Phase 10 — Go-Live Activation + Multi-Exchange  
+  Polymarket ↔ Kalshi integration  
 
-### Latency Budget
-```
-Data Ingestion:    <100ms
-Signal Generation: <200ms
-Order Execution:   <500ms  ← main bottleneck
-End-to-End:        <1000ms
-```
+- Phase 11 — Strategy Scaling  
+  Multi-strategy router + adaptive weighting  
+
+- Phase 12 — Full Automation  
+  Dashboard + capital scaling  
 
 ---
 
-## 🛡️ RISK PARAMETERS (SENTINEL enforces in code)
+## 🎯 NEXT PRIORITY
 
-```yaml
-# /risk/rules.yaml
-max_position_pct: 0.10          # 10% bankroll per position
-max_concurrent_positions: 5
-daily_loss_limit: -2000         # USD — pause if hit
-max_drawdown_pct: 0.08          # 8% → block all trades
-kelly_fraction: 0.25            # NEVER full Kelly
-min_liquidity: 10000            # USD market depth
-min_ev_threshold: 0.0           # EV must be positive
-correlation_limit: 0.40         # max correlated exposure
-var_confidence: 0.95
-profit_factor_min: 1.5          # PF < 1.5 → review strategy
-```
+Complete Phase 9.1 hardening  
 
-### CRITICAL RULE
-```
-⚠️ NEVER use full Kelly on 5-min markets!
-→ Always use Fractional Kelly: f_final = 0.25 × f_kelly
-```
+Then:
+
+1. Run 24-hour paper trading test  
+2. Validate GO-LIVE metrics  
+3. Confirm system stability under continuous load  
 
 ---
 
-## 📈 TRADING STRATEGIES (to be implemented)
+## ⚠️ KNOWN ISSUES
 
-### Level 1 — Beginner (build first)
-- [ ] SMA Crossover — moving average signals
-- [ ] Momentum — M = Pt − Pt-n trend riding
+- WebSocket stability & reconnect behavior  
+  → not yet validated under long-run conditions  
 
-### Level 2 — Intermediate
-- [ ] Mean Reversion — bet on return to average
-- [ ] Bayesian Signal Processing — update beliefs with data
-- [ ] Mispricing Score — Z-score entry filter
+- Fill model vs real fills  
+  → not validated in live environment  
 
-### Level 3 — Advanced
-- [ ] ML/DL pattern recognition
-- [ ] Bayesian Fusion — multi-signal combination
-- [ ] Market Cost Function: C(q) = β·ln(Σ e^(qi/2))
+- Potential race condition in SYSTEM_STATE  
+  → currently being fixed  
 
-### Arbitrage Strategies
-- [ ] CEX vs PM spread arb (500ms lag exploit)
-- [ ] CLOB spread capture
-- [ ] Polymarket vs Kalshi cross-platform arb
-- [ ] Both-sides volatility compression
-- [ ] Resolution arbitrage
+- Latency measurement incomplete  
+  → currently only RTT, not full execution path  
 
 ---
 
-## 🏗️ BUILD ROADMAP (every program follows this)
+## 🧾 COMMIT CONTEXT
 
-```
-Phase 1 — Foundation
-  Step 1: Foundations & Setup
-  Step 2: Data Infrastructure
+Latest commit message:
 
-Phase 2 — Strategy
-  Step 3: Trading Strategies
-  Step 4: Backtesting
-
-Phase 3 — Intelligence
-  Step 5: ML / Deep Learning (if needed)
-  Step 6: Real-Time Trading Engine
-
-Phase 4 — Production
-  Step 7: Deployment
-  Step 8: Final Pipeline — DONE → STANDBY
-```
+"update: phase 9.1 hardening in progress, stability audit ongoing"
 
 ---
 
-## 📊 CURRENT BUILD STATUS
+## 📊 SYSTEM STATUS SUMMARY
 
-### ✅ Completed
-- Claude Projects setup (11 agents created)
-- Team architecture defined
-- GitHub repo structure defined
-- Risk parameters defined
-- Performance targets defined
-
-### 🔄 In Progress
-- Knowledge files creation (formulas.md, system_specs.md)
-- GitHub repository creation
-
-### ⏳ Not Started
-- [ ] GitHub repo: trading-ai-team
-- [ ] First bot build (Phase 1)
-- [ ] Polymarket data pipeline
-- [ ] First strategy implementation
-- [ ] SENTINEL risk engine
-- [ ] Dashboard
-
-### 🎯 Next Priority
-→ Create GitHub repo
-→ Upload Knowledge files to all agents
-→ Start Phase 1: Foundation with COMMAND + FORGE-X
+System maturity: ADVANCED  
+Trading readiness: TESTNET (pre go-live)  
+Stability: MEDIUM → targeting HIGH  
 
 ---
 
-## ⚠️ KNOWN DECISIONS & CONSTRAINTS
+## 📌 NOTES FOR AGENTS
 
-```
-1. Smartphone only — no laptop/desktop
-   → All tools must be mobile-accessible
-
-2. Claude Pro usage limit
-   → Rotate: Claude (planning) + Gemini (research)
-   → Use Poe.com as overflow
-
-3. NEVER full Kelly
-   → Always fractional Kelly α = 0.25
-
-4. SENTINEL must review before ANY live execution
-   → No exceptions, even for small amounts
-
-5. Every program must run 24+ hours error-free
-   → Before founder confirms DONE
-
-6. Surgical code changes preferred
-   → No unnecessary rewrites
-```
+- COMMANDER has final authority  
+- FORGE-X standards must be enforced  
+- All trading risk rules are mandatory  
+- Read latest PHASE report before starting any task  
+- No feature expansion before stability is confirmed  
 
 ---
 
-## 🔄 HOW TO UPDATE THIS FILE
+## 🔁 WORKFLOW
 
-After every working session, update:
-1. `Last Updated` date at top
-2. `Current Build Status` section
-3. Any new decisions made
-4. Any bugs discovered
-5. Any completed items
-
-Then re-upload to Knowledge section of ALL 11 agents.
+1. COMMANDER defines objective  
+2. FORGE-X builds / fixes system  
+3. BRIEFER generates prompts / UI / reports  
+4. Phase report created  
+5. Repeat until go-live  
 
 ---
 
-## 📞 COMMUNICATION PROTOCOL
+## 📁 KEY PATHS
 
-When agents communicate tasks:
-```
-FROM: [AGENT]
-TO: [AGENT]
-PRIORITY: High/Medium/Low
-TYPE: Build/Fix/Review/Info
-
-TASK: [specific atomic task]
-INPUT: [what they need]
-OUTPUT: [what to deliver]
-BRANCH: feature/[agent]/[task]
-DEPENDS ON: [other task or "none"]
-```
-
----
-
-*This document is the single source of truth for the AI Trading Team.
-Always read this before starting any task.*
+projects/polymarket/polyquantbot/  
+projects/tradingview/  
+projects/mt5/  
+frontend/
