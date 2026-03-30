@@ -171,6 +171,14 @@ DATA → SIGNAL → RISK → EXECUTION → MONITORING
 
 ---
 
+## DATA VALIDATION (MANDATORY)
+
+- Never trust external data
+- Validate schema, timestamp, and value ranges
+- Reject malformed or stale data
+
+---
+
 ## RISK RULES (MANDATORY)
 
 - NEVER full Kelly → α = 0.25  
