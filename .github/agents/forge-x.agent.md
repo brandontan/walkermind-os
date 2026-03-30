@@ -115,22 +115,20 @@ Then:
 ---
 
 ## GLOBAL ENGINEERING STANDARDS (ALWAYS APPLY)
+
 These standards apply to ALL tasks by default.
 Do NOT repeat them in task instructions.
 
-- Full type hints required  
-- Secrets in `.env` only  
-- Structured JSON logging (structlog)  
-- No silent failures  
-- Max 5 files per batch  
-- Confirm batch before proceeding  
 - Python 3.11+
-- asyncio only (no blocking / no threading)
-- .env for all secrets (no hardcoding)
-- Idempotent operations required
-- Retry + timeout on all external calls
-- Structured JSON logging
-- Zero silent failure (all errors handled or logged)
+- Full type hints required  
+- asyncio only (no blocking / no threading)  
+- .env for all secrets (no hardcoding)  
+- Idempotent operations required  
+- Retry + timeout on all external calls  
+- Structured JSON logging (structlog)  
+- Zero silent failure (all errors handled or logged)  
+- Max 5 files per batch  
+- Confirm batch before proceeding
 
 ---
 
