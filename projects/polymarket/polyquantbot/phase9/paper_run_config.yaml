@@ -34,8 +34,10 @@ order_guard:
 
 # ── Execution ─────────────────────────────────────────────────────────────────
 execution:
+  DRY_RUN: true                    # paper trades only — takes precedence over run.dry_run
+  timeout_ms: 1000                 # end-to-end pipeline budget (ms); api_timeout_sec covers per-call budget
   max_retries: 3
-  api_timeout_sec: 0.5             # 500ms max per external call
+  api_timeout_sec: 0.5             # per-call timeout for individual CLOB API requests (500ms)
   min_order_size_usd: 5.0
 
 # ── Exit conditions ───────────────────────────────────────────────────────────
@@ -56,8 +58,8 @@ circuit_breaker:
 # ── Health monitor ────────────────────────────────────────────────────────────
 health:
   check_interval_sec: 30.0
-  latency_warn_ms: 500.0
-  fill_rate_warn: 0.50
+  latency_threshold_ms: 600        # alert / circuit-breaker threshold (ms)
+  fill_rate_threshold: 0.70        # alert if fill rate drops below this
   exposure_limit_pct: 0.45
 
 # ── Fill monitor ──────────────────────────────────────────────────────────────
@@ -75,10 +77,10 @@ telegram:
 metrics:
   output_file: "metrics.json"
   ev_target_capture_ratio: 0.75    # GO-LIVE gate: must capture >= 75% of EV
-  fill_rate_target: 0.60           # GO-LIVE gate: fill rate >= 60%
+  fill_rate_target: 0.70           # GO-LIVE gate: fill rate >= 70%
   p95_latency_target_ms: 500.0     # GO-LIVE gate: p95 latency < 500ms
   max_drawdown_target: 0.08        # GO-LIVE gate: max drawdown < 8%
-  min_trades: 10                   # GO-LIVE gate: minimum filled orders required
+  min_trades: 30                   # GO-LIVE gate: minimum filled orders required
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 websocket:

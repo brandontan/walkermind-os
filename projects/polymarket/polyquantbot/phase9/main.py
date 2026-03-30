@@ -636,12 +636,12 @@ class Phase9Orchestrator:
                         heartbeat_kill_sec=heartbeat_kill_sec,
                     )
                     await self._risk_guard.trigger_kill_switch(
-                        f"ws_disconnect_duration:{disconnect_duration:.0f}s"
+                        "ws_timeout"
                     )
                     if self._system_state:
                         await self._system_state.transition(
                             SystemStateManager.HALTED,
-                            f"ws_disconnect_duration:{disconnect_duration:.0f}s",
+                            "ws_timeout",
                         )
                     self._running = False
                     break

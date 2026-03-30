@@ -194,8 +194,8 @@ class DecisionCallback:
             return await self._run_pipeline(inp, t0, cid)
         except Exception as exc:  # noqa: BLE001
             log.error(
-                "decision_callback_unhandled_exception",
-                event="decision_callback_unhandled_exception",
+                "decision_error",
+                event="decision_error",
                 error=str(exc),
                 market_id=inp.market_id,
                 correlation_id=cid,
@@ -275,7 +275,7 @@ class DecisionCallback:
         # ── Step 4: EV threshold gate (SENTINEL) ──────────────────────────────
         if signal.ev < self._min_ev:
             self._log_rejection(
-                market_id=inp.market_id, reason="ev_fail", cid=cid,
+                market_id=inp.market_id, reason="low_ev", cid=cid,
                 ev=float(signal.ev), fill_prob=0.0,
                 detail=f"ev={signal.ev:.4f}, min={self._min_ev:.4f}",
             )
@@ -307,7 +307,7 @@ class DecisionCallback:
 
         if adjusted_size <= 0:
             self._log_rejection(
-                market_id=inp.market_id, reason="risk_fail", cid=cid,
+                market_id=inp.market_id, reason="risk_block", cid=cid,
                 ev=float(signal.ev), fill_prob=0.0,
                 detail="adjusted_size=0, sizing_rejected",
             )
@@ -326,7 +326,7 @@ class DecisionCallback:
 
         if fill_prob < self._min_fill_prob:
             self._log_rejection(
-                market_id=inp.market_id, reason="liquidity_fail", cid=cid,
+                market_id=inp.market_id, reason="low_fill_prob", cid=cid,
                 ev=float(signal.ev), fill_prob=fill_prob,
                 detail=f"fill_prob={fill_prob:.4f}, min={self._min_fill_prob:.4f}",
             )
@@ -372,7 +372,7 @@ class DecisionCallback:
         )
         if not claimed:
             self._log_rejection(
-                market_id=inp.market_id, reason="dedup_fail", cid=cid,
+                market_id=inp.market_id, reason="duplicate", cid=cid,
                 ev=float(signal.ev), fill_prob=fill_prob,
                 detail="order_guard_duplicate_blocked",
             )
@@ -670,7 +670,7 @@ class DecisionCallback:
 
             {
                 "event": "trade_rejected",
-                "reason": str,          # "ev_fail" | "liquidity_fail" | "risk_fail" | "dedup_fail"
+                "reason": str,          # "low_ev" | "low_fill_prob" | "risk_block" | "duplicate" | "stale_data"
                 "ev": float,            # signal EV at time of rejection
                 "fill_prob": float,     # fill probability at time of rejection
                 "market_id": str,
@@ -681,7 +681,7 @@ class DecisionCallback:
 
         Args:
             market_id: Polymarket condition ID of the rejected trade.
-            reason: Rejection category (ev_fail / liquidity_fail / risk_fail / dedup_fail).
+            reason: Rejection category (low_ev / low_fill_prob / risk_block / duplicate / stale_data).
             cid: Correlation ID for request tracing.
             ev: Signal EV at time of rejection.
             fill_prob: Fill probability at time of rejection.
