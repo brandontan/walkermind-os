@@ -43,6 +43,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import math
 import os
 import statistics
 import time
@@ -428,7 +429,11 @@ class MetricsValidator:
             return 0.0
 
         sorted_samples = sorted(self._latency_samples_ms)
-        idx = max(0, int(len(sorted_samples) * 0.95) - 1)
+        # Nearest-rank method: ceil(0.95 * N) - 1 gives the correct p95 index.
+        # Using int() (floor) underestimates p95 for sample sizes where 0.95*N
+        # is not an integer (e.g. N=10: int(9.5)-1=8 → index 8 (9th element, p90)
+        # vs ceil(9.5)-1=9 → index 9 (10th element, true p95)).
+        idx = max(0, math.ceil(len(sorted_samples) * 0.95) - 1)
         return sorted_samples[idx]
 
     def _compute_max_drawdown(self) -> float:

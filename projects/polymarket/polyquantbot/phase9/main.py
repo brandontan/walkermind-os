@@ -318,6 +318,7 @@ class Phase9Orchestrator:
         self._ws_heartbeat_paused: bool = False  # True when trading paused for WS reconnect
         self._system_state: Optional[SystemStateManager] = None
         self._ws_disconnect_at: float = 0.0  # Unix timestamp when WS first disconnected
+        self._shutdown_lock: asyncio.Lock = asyncio.Lock()  # prevents concurrent double-shutdown
 
         # Apply DRY_RUN from config if not overridden by env
         if config.get("run", {}).get("dry_run", True):
@@ -475,6 +476,7 @@ class Phase9Orchestrator:
             telegram=self._telegram,
             config=cfg,
             system_state=self._system_state,
+            position_tracker=self._position_tracker,
         )
 
         # 13. MetricsValidator — post-run metric computation
@@ -539,6 +541,10 @@ class Phase9Orchestrator:
                 return_when=asyncio.FIRST_EXCEPTION,
             )
             for task in done:
+                # task.exception() raises CancelledError if the task was
+                # cancelled — always check cancelled() first.
+                if task.cancelled():
+                    continue
                 exc = task.exception()
                 if exc:
                     log.error(
@@ -547,6 +553,11 @@ class Phase9Orchestrator:
                         error=str(exc),
                         exc_info=True,
                     )
+            # Cancel any remaining pending tasks so they don't leak.
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
         except asyncio.CancelledError:
             log.info("phase9_run_cancelled")
 
@@ -829,10 +840,12 @@ class Phase9Orchestrator:
             6. Compute and write metrics.
             7. Send daily summary Telegram alert.
         """
-        if not self._running:
-            return
+        # Use a lock to prevent concurrent double-shutdown (e.g. signal + duration_timer).
+        async with self._shutdown_lock:
+            if not self._running:
+                return
+            self._running = False
 
-        self._running = False
         log.info("phase9_shutdown_start")
 
         # 1. Cancel background tasks
@@ -1028,7 +1041,9 @@ async def _async_main(config_path: str, log_level: str, log_format: str) -> None
 
     # Build and start orchestrator
     orchestrator = Phase9Orchestrator(config)
-    loop = asyncio.get_event_loop()
+    # asyncio.get_running_loop() is the correct call inside an async context
+    # (get_event_loop() is deprecated in Python 3.10+ inside a running loop).
+    loop = asyncio.get_running_loop()
     _install_signal_handlers(orchestrator, loop)
 
     try:

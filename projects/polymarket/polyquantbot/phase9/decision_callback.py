@@ -128,6 +128,7 @@ class DecisionCallback:
         telegram,
         config: dict,
         system_state=None,
+        position_tracker=None,
     ) -> None:
         """Initialise the decision callback with all injected dependencies.
 
@@ -141,6 +142,8 @@ class DecisionCallback:
             telegram: TelegramLive instance.
             config: Full paper_run_config dict.
             system_state: Optional SystemStateManager for RUNNING|PAUSED|HALTED gating.
+            position_tracker: Optional PositionTracker for real open market IDs
+                passed to Phase 6.6 correlation filter.
         """
         self._risk_guard = risk_guard
         self._order_guard = order_guard
@@ -150,6 +153,7 @@ class DecisionCallback:
         self._strategy = strategy_engine
         self._telegram = telegram
         self._system_state = system_state
+        self._position_tracker = position_tracker
 
         # Config values
         risk_cfg = config.get("risk", {})
@@ -283,13 +287,14 @@ class DecisionCallback:
 
         # ── Step 5: Apply Phase 6.6 sizing pipeline ───────────────────────────
         raw_size = self._compute_raw_size(signal, inp.market_ctx)
+        open_market_ids = await self._get_open_market_ids()
         try:
             adjusted_size = await asyncio.wait_for(
                 self._integrator.apply_sizing(
                     signal_market_id=inp.market_id,
                     signal_strategy=getattr(signal, "strategy", "unknown"),
                     raw_size=raw_size,
-                    open_position_market_ids=self._get_open_market_ids(),
+                    open_position_market_ids=open_market_ids,
                     correlation_id=cid,
                 ),
                 timeout=_CALL_TIMEOUT_S,
@@ -606,16 +611,18 @@ class DecisionCallback:
         size = round(f_final * balance, 2)
         return size
 
-    def _get_open_market_ids(self) -> list[str]:
+    async def _get_open_market_ids(self) -> list[str]:
         """Return list of currently open position market IDs.
 
-        Tries to get from fill_monitor tracking (best effort).
-        Falls back to empty list if unavailable.
+        Queries PositionTracker for the authoritative open position list so
+        the Phase 6.6 correlation filter can exclude already-open markets.
+        Falls back to empty list if position_tracker is unavailable.
         """
+        if self._position_tracker is None:
+            return []
         try:
-            fill_status = self._fill_monitor.status()
-            # tracked orders are pending fills — approximate proxy for open markets
-            return []  # position_tracker is the authoritative source
+            snapshot = await self._position_tracker.open_positions_snapshot()
+            return [pos.market_id for pos in snapshot]
         except Exception:  # noqa: BLE001
             return []
 
