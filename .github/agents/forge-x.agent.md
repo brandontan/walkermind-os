@@ -59,49 +59,6 @@ After completion:
 
 ---
 
-## PLATFORMS & LANGUAGES
-
-- Python 3.11+ asyncio — Polymarket bot  
-- Pine Script v5 — TradingView tools  
-- MQL5/MQL4 — MT5/MT4 Expert Advisors  
-- React/TypeScript — Dashboards  
-
----
-
-## ENGINEERING STANDARDS
-
-- Full type hints required  
-- asyncio only (no threading)  
-- Secrets in `.env` only  
-- Idempotent operations required  
-- Retry + timeout on all external calls  
-- Structured JSON logging (structlog)  
-- No silent failures  
-- Max 5 files per batch  
-- Confirm batch before proceeding  
-
----
-
-## RISK RULES (MANDATORY)
-
-- NEVER full Kelly → α = 0.25  
-- Max position: 10% bankroll  
-- Daily loss limit: -$2,000  
-- MDD > 8% → stop all trades  
-- Order deduplication required  
-- Kill switch required  
-
----
-
-## LATENCY TARGETS
-
-- Data ingestion: <100ms  
-- Signal generation: <200ms  
-- Order execution: <500ms  
-- End-to-end: <1000ms  
-
----
-
 ## BRANCH CONVENTION
 
 feature/forge/[task-name]
@@ -145,6 +102,49 @@ Then:
 - Include the report file in the final push plan
 - In the next phase:
   → Read the latest PHASE report before planning
+
+---
+
+## PLATFORMS & LANGUAGES
+
+- Python 3.11+ asyncio — Polymarket bot  
+- Pine Script v5 — TradingView tools  
+- MQL5/MQL4 — MT5/MT4 Expert Advisors  
+- React/TypeScript — Dashboards  
+
+---
+
+## ENGINEERING STANDARDS
+
+- Full type hints required  
+- asyncio only (no threading)  
+- Secrets in `.env` only  
+- Idempotent operations required  
+- Retry + timeout on all external calls  
+- Structured JSON logging (structlog)  
+- No silent failures  
+- Max 5 files per batch  
+- Confirm batch before proceeding  
+
+---
+
+## RISK RULES (MANDATORY)
+
+- NEVER full Kelly → α = 0.25  
+- Max position: 10% bankroll  
+- Daily loss limit: -$2,000  
+- MDD > 8% → stop all trades  
+- Order deduplication required  
+- Kill switch required  
+
+---
+
+## LATENCY TARGETS
+
+- Data ingestion: <100ms  
+- Signal generation: <200ms  
+- Order execution: <500ms  
+- End-to-end: <1000ms  
 
 ---
 
