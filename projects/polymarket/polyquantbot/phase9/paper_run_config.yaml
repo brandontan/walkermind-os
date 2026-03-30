@@ -1,0 +1,85 @@
+# Phase 9 — Paper Trading Configuration
+# Used for 24-hour paper trading run before GO-LIVE gating.
+# DRY_RUN mode: all orders logged, none submitted to exchange.
+
+# ── Run mode ──────────────────────────────────────────────────────────────────
+run:
+  dry_run: true                    # DRY_RUN=true → paper trades only
+  run_duration_hours: 24           # 0 = run indefinitely
+  log_level: "INFO"                # DEBUG | INFO | WARNING | ERROR
+  log_format: "json"               # json | pretty
+
+# ── Markets ───────────────────────────────────────────────────────────────────
+markets:
+  # List of Polymarket condition IDs to subscribe to.
+  # Each market must meet the minimum liquidity requirement below.
+  market_ids: []                   # populated at runtime from config or env
+  min_liquidity_usd: 10000.0       # skip markets with depth < $10k
+  max_markets: 20                  # subscribe to at most N markets
+
+# ── Risk constraints (SENTINEL enforced) ──────────────────────────────────────
+risk:
+  daily_loss_limit: -2000.0        # USD — kill switch if breached
+  max_drawdown_pct: 0.08           # 8% drawdown → block all trades
+  max_position_pct: 0.10           # 10% bankroll per position
+  max_concurrent_positions: 5
+  kelly_fraction: 0.25             # NEVER full Kelly
+  min_ev_threshold: 0.0            # EV must be positive
+  correlation_limit: 0.40          # max correlated exposure
+  min_fill_prob: 0.50              # reject orders with fill_prob < threshold
+
+# ── Order guard ───────────────────────────────────────────────────────────────
+order_guard:
+  order_timeout_sec: 30.0          # evict stale signatures after this time
+
+# ── Execution ─────────────────────────────────────────────────────────────────
+execution:
+  max_retries: 3
+  api_timeout_sec: 0.5             # 500ms max per external call
+  min_order_size_usd: 5.0
+
+# ── Exit conditions ───────────────────────────────────────────────────────────
+exit:
+  take_profit_pct: 0.15            # close position at +15% PnL
+  stop_loss_pct: -0.08             # close position at -8% PnL
+  check_interval_sec: 5.0
+
+# ── Circuit breaker ───────────────────────────────────────────────────────────
+circuit_breaker:
+  enabled: true
+  error_rate_threshold: 0.30       # trigger if >30% of calls fail in window
+  error_window_size: 20            # rolling window (number of calls)
+  latency_threshold_ms: 800.0      # trigger if p95 latency > 800ms
+  cooldown_sec: 60.0               # pause trading for N sec after trigger
+
+# ── Health monitor ────────────────────────────────────────────────────────────
+health:
+  check_interval_sec: 30.0
+  latency_warn_ms: 500.0
+  fill_rate_warn: 0.50
+  exposure_limit_pct: 0.45
+
+# ── Fill monitor ──────────────────────────────────────────────────────────────
+fill_monitor:
+  order_timeout_sec: 30.0
+  max_retry: 5
+  poll_interval_sec: 2.0
+
+# ── Telegram alerts ───────────────────────────────────────────────────────────
+telegram:
+  enabled: true                    # set false to disable alerts in testing
+  # TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID loaded from .env
+
+# ── Metrics output ────────────────────────────────────────────────────────────
+metrics:
+  output_file: "metrics.json"
+  ev_target_capture_ratio: 0.70    # GO-LIVE gate: must capture >= 70% of EV
+  fill_rate_target: 0.80           # GO-LIVE gate: fill rate >= 80%
+  p95_latency_target_ms: 500.0     # GO-LIVE gate: p95 latency < 500ms
+  max_drawdown_target: 0.05        # GO-LIVE gate: max drawdown < 5%
+
+# ── WebSocket ─────────────────────────────────────────────────────────────────
+websocket:
+  reconnect_base_delay_sec: 1.0
+  reconnect_max_delay_sec: 60.0
+  heartbeat_timeout_sec: 30.0
