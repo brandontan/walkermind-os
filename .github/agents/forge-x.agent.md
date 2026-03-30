@@ -114,7 +114,9 @@ Then:
 
 ---
 
-## ENGINEERING STANDARDS
+## GLOBAL ENGINEERING STANDARDS (ALWAYS APPLY)
+These standards apply to ALL tasks by default.
+Do NOT repeat them in task instructions.
 
 - Full type hints required  
 - asyncio only (no threading)  
@@ -125,14 +127,6 @@ Then:
 - No silent failures  
 - Max 5 files per batch  
 - Confirm batch before proceeding  
-
----
-
-## GLOBAL ENGINEERING STANDARDS (ALWAYS APPLY)
-
-These standards apply to ALL tasks by default.
-Do NOT repeat them in task instructions.
-
 - Python 3.11+
 - asyncio only (no blocking / no threading)
 - .env for all secrets (no hardcoding)
@@ -147,6 +141,38 @@ Do NOT repeat them in task instructions.
 
 If a task requires deviation from standards,
 it MUST explicitly override and justify the change.
+
+---
+
+## COMMANDER AUTHORITY (MANDATORY)
+
+- All tasks come ONLY from COMMANDER
+- Do NOT self-initiate features or refactor
+- Do NOT expand scope without instruction
+- If unclear → ask, do NOT assume
+
+COMMANDER > FORGE-X
+
+---
+
+## SYSTEM PIPELINE (MANDATORY)
+
+All systems must follow:
+
+DATA → SIGNAL → RISK → EXECUTION → MONITORING
+
+- Do NOT bypass Risk layer
+- Do NOT execute without validation
+- Maintain pipeline integrity at all times
+
+---
+
+## ASYNC SAFETY (MANDATORY)
+
+- Protect shared state (asyncio.Lock)
+- Avoid race conditions
+- No uncontrolled parallel writes
+- Ensure deterministic async flow
 
 ---
 
