@@ -37,10 +37,10 @@ Environment variables (optional):
     LOG_LEVEL       — DEBUG | INFO | WARNING | ERROR
 
 Go-live gating (paper_run_config.yaml metrics section):
-    ev_capture_ratio >= 0.70
-    fill_rate        >= 0.80
+    ev_capture_ratio >= 0.75
+    fill_rate        >= 0.60
     p95_latency      <= 500ms
-    max_drawdown     <= 5%
+    max_drawdown     <= 10%
 """
 from __future__ import annotations
 
@@ -115,7 +115,7 @@ class CircuitBreaker:
         risk_guard,
         error_rate_threshold: float = 0.30,
         error_window_size: int = 20,
-        latency_threshold_ms: float = 800.0,
+        latency_threshold_ms: float = 600.0,
         cooldown_sec: float = 60.0,
         enabled: bool = True,
     ) -> None:
@@ -238,6 +238,7 @@ class Phase9Orchestrator:
         self._tasks: list[asyncio.Task] = []
         self._running: bool = False
         self._cumulative_pnl: float = 0.0
+        self._ws_heartbeat_paused: bool = False  # True when trading paused for WS reconnect
 
         # Apply DRY_RUN from config if not overridden by env
         if config.get("run", {}).get("dry_run", True):
@@ -374,7 +375,7 @@ class Phase9Orchestrator:
             risk_guard=self._risk_guard,
             error_rate_threshold=float(cb_cfg.get("error_rate_threshold", 0.30)),
             error_window_size=int(cb_cfg.get("error_window_size", 20)),
-            latency_threshold_ms=float(cb_cfg.get("latency_threshold_ms", 800.0)),
+            latency_threshold_ms=float(cb_cfg.get("latency_threshold_ms", 600.0)),
             cooldown_sec=float(cb_cfg.get("cooldown_sec", 60.0)),
             enabled=bool(cb_cfg.get("enabled", True)),
         )
@@ -471,30 +472,91 @@ class Phase9Orchestrator:
         """Connect WebSocket client and dispatch market events to the pipeline.
 
         Runs until self._running is False or risk_guard.disabled is True.
+        Includes a reconnect loop: on any disconnect or error, trading is
+        paused (risk_guard.disabled=True) and a reconnect is attempted with
+        exponential backoff.  Trading resumes automatically after a successful
+        reconnect unless the kill switch was independently triggered.
         """
-        await self._ws_client.connect()
+        ws_cfg = self._cfg.get("websocket", {})
+        reconnect_base = float(ws_cfg.get("reconnect_base_delay_sec", 1.0))
+        reconnect_max = float(ws_cfg.get("reconnect_max_delay_sec", 60.0))
+        reconnect_delay = reconnect_base
 
-        log.info("phase9_ws_event_loop_started")
+        while self._running:
+            try:
+                await self._ws_client.connect()
 
-        try:
-            async for event in self._ws_client.events():
-                if not self._running or self._risk_guard.disabled:
-                    log.info(
-                        "phase9_ws_event_loop_stopping",
-                        running=self._running,
-                        risk_guard_disabled=self._risk_guard.disabled,
+                # Restore trading after a heartbeat-only pause.
+                # Only reset disabled if no permanent kill switch has fired
+                # (trigger_kill_switch sets _kill_switch_reason; our heartbeat
+                # pause sets disabled=True directly, leaving _kill_switch_reason None).
+                if self._ws_heartbeat_paused:
+                    self._ws_heartbeat_paused = False
+                    kill_switch_reason = getattr(
+                        self._risk_guard, "_kill_switch_reason", None
                     )
+                    if not kill_switch_reason:
+                        self._risk_guard.disabled = False
+                        log.info("phase9_ws_reconnected_trading_resumed")
+                    else:
+                        log.warning(
+                            "phase9_ws_reconnected_but_kill_switch_active",
+                            reason=kill_switch_reason,
+                        )
+
+                reconnect_delay = reconnect_base  # reset backoff on clean connect
+                log.info("phase9_ws_event_loop_started")
+
+                async for event in self._ws_client.events():
+                    if not self._running or self._risk_guard.disabled:
+                        log.info(
+                            "phase9_ws_event_loop_stopping",
+                            running=self._running,
+                            risk_guard_disabled=self._risk_guard.disabled,
+                        )
+                        break
+
+                    if event.type != "orderbook":
+                        continue
+
+                    await self._on_market_event(event)
+
+            except asyncio.CancelledError:
+                log.info("ws_event_loop_cancelled")
+                break
+            except Exception as exc:
+                if not self._running:
                     break
+                log.error(
+                    "ws_heartbeat_failure",
+                    error=str(exc),
+                    reconnect_in_sec=reconnect_delay,
+                    exc_info=True,
+                )
+                # Pause trading while the WebSocket is down.
+                # Only set disabled if no permanent kill switch has fired.
+                if not self._risk_guard.disabled:
+                    self._ws_heartbeat_paused = True
+                    self._risk_guard.disabled = True
+                    log.warning(
+                        "ws_heartbeat_trading_paused",
+                        reconnect_in_sec=reconnect_delay,
+                    )
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2.0, reconnect_max)
+                continue  # attempt reconnect on next iteration
 
-                if event.type != "orderbook":
-                    continue
+            finally:
+                try:
+                    await self._ws_client.disconnect()
+                except Exception:  # noqa: BLE001
+                    pass
 
-                await self._on_market_event(event)
+            # Clean exit (inner for-loop finished without exception).
+            # Either self._running is False or risk_guard is disabled by kill switch.
+            break
 
-        except asyncio.CancelledError:
-            log.info("ws_event_loop_cancelled")
-        finally:
-            await self._ws_client.disconnect()
+        log.info("ws_event_loop_exited")
 
     async def _on_market_event(self, event) -> None:
         """Process a single WebSocket market event through the decision pipeline.

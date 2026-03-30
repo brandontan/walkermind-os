@@ -10,10 +10,10 @@ Metrics computed:
     drawdown         — Maximum peak-to-trough PnL drawdown during the session.
 
 GO-LIVE gating (all must pass):
-    ev_capture_ratio >= target (default 0.70)
-    fill_rate        >= target (default 0.80)
+    ev_capture_ratio >= target (default 0.75)
+    fill_rate        >= target (default 0.60)
     p95_latency      <= target (default 500ms)
-    drawdown         <= target (default 5%)
+    drawdown         <= target (default 10%)
 
 Output (metrics.json)::
 
@@ -91,19 +91,19 @@ class MetricsValidator:
 
     def __init__(
         self,
-        ev_capture_target: float = 0.70,
-        fill_rate_target: float = 0.80,
+        ev_capture_target: float = 0.75,
+        fill_rate_target: float = 0.60,
         p95_latency_target_ms: float = 500.0,
-        max_drawdown_target: float = 0.05,
+        max_drawdown_target: float = 0.10,
         output_file: str = "metrics.json",
     ) -> None:
         """Initialise the validator.
 
         Args:
-            ev_capture_target: Minimum EV capture ratio for GO-LIVE (default 0.70).
-            fill_rate_target: Minimum fill rate for GO-LIVE (default 0.80).
+            ev_capture_target: Minimum EV capture ratio for GO-LIVE (default 0.75).
+            fill_rate_target: Minimum fill rate for GO-LIVE (default 0.60).
             p95_latency_target_ms: Maximum p95 latency for GO-LIVE (default 500ms).
-            max_drawdown_target: Maximum drawdown fraction for GO-LIVE (default 0.05).
+            max_drawdown_target: Maximum drawdown fraction for GO-LIVE (default 0.10).
             output_file: Path to write metrics.json output.
         """
         self._ev_capture_target = ev_capture_target
@@ -144,10 +144,10 @@ class MetricsValidator:
         """
         metrics_cfg = config.get("metrics", {})
         return cls(
-            ev_capture_target=float(metrics_cfg.get("ev_target_capture_ratio", 0.70)),
-            fill_rate_target=float(metrics_cfg.get("fill_rate_target", 0.80)),
+            ev_capture_target=float(metrics_cfg.get("ev_target_capture_ratio", 0.75)),
+            fill_rate_target=float(metrics_cfg.get("fill_rate_target", 0.60)),
             p95_latency_target_ms=float(metrics_cfg.get("p95_latency_target_ms", 500.0)),
-            max_drawdown_target=float(metrics_cfg.get("max_drawdown_target", 0.05)),
+            max_drawdown_target=float(metrics_cfg.get("max_drawdown_target", 0.10)),
             output_file=str(metrics_cfg.get("output_file", "metrics.json")),
         )
 

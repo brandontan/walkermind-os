@@ -171,7 +171,8 @@ class DecisionCallback:
         """Process a market event through the full decision → execution pipeline.
 
         This is the primary entry point called from the orchestrator on each
-        WebSocket market event.
+        WebSocket market event.  The entire pipeline is wrapped in a top-level
+        fail-safe try/except so that no unhandled exception can crash the caller.
 
         Args:
             inp: DecisionInput with market_id and market_ctx.
@@ -182,6 +183,33 @@ class DecisionCallback:
         t0 = time.perf_counter()
         cid = inp.correlation_id
         self._total_calls += 1
+
+        try:
+            return await self._run_pipeline(inp, t0, cid)
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "decision_callback_unhandled_exception",
+                event="decision_callback_unhandled_exception",
+                error=str(exc),
+                market_id=inp.market_id,
+                correlation_id=cid,
+                exc_info=True,
+            )
+            return self._skip(t0, cid, f"unhandled_exception:{type(exc).__name__}")
+
+    async def _run_pipeline(self, inp: DecisionInput, t0: float, cid: str) -> "DecisionOutput":
+        """Execute the full decision → execution pipeline.
+
+        Called exclusively from __call__ which wraps it in a fail-safe guard.
+
+        Args:
+            inp: DecisionInput with market_id and market_ctx.
+            t0: perf_counter timestamp at pipeline start.
+            cid: Correlation ID.
+
+        Returns:
+            DecisionOutput with result of the full pipeline.
+        """
 
         # ── Step 1: Risk guard fast-path ──────────────────────────────────────
         if self._risk_guard.disabled:
@@ -222,12 +250,9 @@ class DecisionCallback:
 
         # ── Step 4: EV threshold gate (SENTINEL) ──────────────────────────────
         if signal.ev < self._min_ev:
-            log.debug(
-                "decision_callback_ev_below_threshold",
-                correlation_id=cid,
-                market_id=inp.market_id,
-                ev=signal.ev,
-                min_ev=self._min_ev,
+            self._log_rejection(
+                market_id=inp.market_id, reason="ev_fail", cid=cid,
+                detail=f"ev={signal.ev:.4f}, min={self._min_ev:.4f}",
             )
             return self._skip(t0, cid, f"ev_below_threshold:{signal.ev:.4f}")
 
@@ -256,6 +281,10 @@ class DecisionCallback:
             return self._skip(t0, cid, f"sizing_error:{exc}")
 
         if adjusted_size <= 0:
+            self._log_rejection(
+                market_id=inp.market_id, reason="risk_fail", cid=cid,
+                detail="adjusted_size=0, sizing_rejected",
+            )
             return self._skip(t0, cid, "sizing_rejected")
 
         # ── Step 6: Compute fill probability ──────────────────────────────────
@@ -270,11 +299,9 @@ class DecisionCallback:
         )
 
         if fill_prob < self._min_fill_prob:
-            log.debug(
-                "decision_callback_fill_prob_rejected",
-                fill_prob=fill_prob,
-                min_fill_prob=self._min_fill_prob,
-                correlation_id=cid,
+            self._log_rejection(
+                market_id=inp.market_id, reason="liquidity_fail", cid=cid,
+                detail=f"fill_prob={fill_prob:.4f}, min={self._min_fill_prob:.4f}",
             )
             return self._skip(t0, cid, f"fill_prob_too_low:{fill_prob:.3f}")
 
@@ -298,6 +325,10 @@ class DecisionCallback:
             correlation_id=cid,
         )
         if not claimed:
+            self._log_rejection(
+                market_id=inp.market_id, reason="dedup_fail", cid=cid,
+                detail="order_guard_duplicate_blocked",
+            )
             return self._skip(t0, cid, "order_guard_duplicate_blocked")
 
         # ── Step 9: Execute order ─────────────────────────────────────────────
@@ -337,6 +368,20 @@ class DecisionCallback:
                 price=price,
                 size=adjusted_size,
                 fill_prob=fill_prob,
+                correlation_id=cid,
+            )
+
+            # ── Step 13: Log expected fill for EV capture validation ──────────
+            log.info(
+                "fill_expected",
+                event="fill_expected",
+                market_id=inp.market_id,
+                expected_ev=round(float(signal.ev), 6),
+                fill_prob=round(fill_prob, 4),
+                side=side,
+                price=price,
+                size=adjusted_size,
+                timestamp=int(time.time()),
                 correlation_id=cid,
             )
 
@@ -561,6 +606,43 @@ class DecisionCallback:
         """Record a latency sample for metrics computation."""
         self._latency_samples.append(latency_ms)
         self._total_latency_ms += latency_ms
+
+    def _log_rejection(
+        self,
+        market_id: str,
+        reason: str,
+        cid: str,
+        detail: str = "",
+    ) -> None:
+        """Emit a structured trade_rejected log entry.
+
+        Produces a warning-level log with the exact schema required for
+        downstream rejection analysis:
+
+            {
+                "event": "trade_rejected",
+                "reason": str,          # "ev_fail" | "liquidity_fail" | "risk_fail" | "dedup_fail"
+                "market_id": str,
+                "timestamp": int,       # Unix epoch seconds
+                "detail": str,          # optional human-readable detail
+                "correlation_id": str
+            }
+
+        Args:
+            market_id: Polymarket condition ID of the rejected trade.
+            reason: Rejection category (ev_fail / liquidity_fail / risk_fail / dedup_fail).
+            cid: Correlation ID for request tracing.
+            detail: Optional extra detail string.
+        """
+        log.warning(
+            "trade_rejected",
+            event="trade_rejected",
+            reason=reason,
+            market_id=market_id,
+            timestamp=int(time.time()),
+            detail=detail,
+            correlation_id=cid,
+        )
 
     # ── Metrics export ────────────────────────────────────────────────────────
 
