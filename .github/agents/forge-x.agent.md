@@ -127,7 +127,7 @@ When solving a task:
 After every phase completion, request:
 
 "Save a [Phase X] completion report to:  
-projects/polymarket/polyquantbot/report/PHASE[X]_COMPLETE.md  
+projects/polymarket/polyquantbot/report/FORGE-X_PHASE[X].md  
 
 Include:  
 1. What was built  
@@ -135,7 +135,7 @@ Include:
 3. Files created/modified  
 4. What's working  
 5. Known issues  
-6. What's next (Phase X+1)  
+6. What's next (PHASE[X+1])  
 
 Commit and push to main."
 
@@ -164,7 +164,7 @@ Then:
 - Risk scenarios  
 
 🧾 REPORT:  
-- Generate PHASE[X]_COMPLETE.md content  
+- Generate FORGE-X_PHASE[X].md content  
 
 🚀 PUSH PLAN:  
 Batch 1:  
