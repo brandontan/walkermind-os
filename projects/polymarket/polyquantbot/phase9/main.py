@@ -94,6 +94,65 @@ def _configure_logging(level: str = "INFO", fmt: str = "json") -> None:
 log = structlog.get_logger()
 
 
+# ── SystemStateManager ────────────────────────────────────────────────────────
+
+class SystemStateManager:
+    """Async-safe SYSTEM_STATE manager.
+
+    States:
+        RUNNING — normal operation, all trading enabled.
+        PAUSED  — temporary pause (WS disconnect < 60s), trades blocked.
+        HALTED  — permanent stop (kill switch / WS disconnect >= 60s).
+
+    Thread-safety: asyncio.Lock ensures atomic transitions.
+    """
+
+    RUNNING = "RUNNING"
+    PAUSED  = "PAUSED"
+    HALTED  = "HALTED"
+
+    def __init__(self) -> None:
+        self._mode: str = self.RUNNING
+        self._reason: Optional[str] = None
+        self._lock: asyncio.Lock = asyncio.Lock()
+
+    @property
+    def mode(self) -> str:
+        return self._mode
+
+    @property
+    def reason(self) -> Optional[str]:
+        return self._reason
+
+    @property
+    def is_running(self) -> bool:
+        return self._mode == self.RUNNING
+
+    async def transition(self, new_mode: str, reason: Optional[str] = None) -> None:
+        """Atomically transition to new_mode.
+
+        Args:
+            new_mode: RUNNING | PAUSED | HALTED
+            reason: Human-readable reason for this transition.
+        """
+        async with self._lock:
+            if self._mode == new_mode:
+                return
+            old_mode = self._mode
+            self._mode = new_mode
+            self._reason = reason
+            log.info(
+                "system_state_transition",
+                old_mode=old_mode,
+                new_mode=new_mode,
+                reason=reason,
+            )
+
+    def snapshot(self) -> dict:
+        """Return current state as a dict."""
+        return {"mode": self._mode, "reason": self._reason}
+
+
 # ── CircuitBreaker ─────────────────────────────────────────────────────────────
 
 class CircuitBreaker:
@@ -118,6 +177,7 @@ class CircuitBreaker:
         latency_threshold_ms: float = 600.0,
         cooldown_sec: float = 60.0,
         enabled: bool = True,
+        consecutive_failures_threshold: int = 3,
     ) -> None:
         """Initialise the circuit breaker.
 
@@ -128,6 +188,7 @@ class CircuitBreaker:
             latency_threshold_ms: Trigger if p95 latency exceeds this (ms).
             cooldown_sec: Suppress re-trigger for this many seconds after fire.
             enabled: If False, circuit breaker is a no-op.
+            consecutive_failures_threshold: Trigger if N consecutive failures occur.
         """
         self._risk_guard = risk_guard
         self._error_threshold = error_rate_threshold
@@ -135,11 +196,13 @@ class CircuitBreaker:
         self._latency_threshold = latency_threshold_ms
         self._cooldown = cooldown_sec
         self._enabled = enabled
+        self._consecutive_failures_threshold = consecutive_failures_threshold
 
         self._error_window: deque[bool] = deque(maxlen=error_window_size)
         self._latency_window: deque[float] = deque(maxlen=error_window_size)
         self._last_trigger_at: float = 0.0
         self._trigger_count: int = 0
+        self._consecutive_failures: int = 0
 
         log.info(
             "circuit_breaker_initialized",
@@ -147,6 +210,7 @@ class CircuitBreaker:
             latency_threshold_ms=latency_threshold_ms,
             cooldown_sec=cooldown_sec,
             enabled=enabled,
+            consecutive_failures_threshold=consecutive_failures_threshold,
         )
 
     async def record(
@@ -167,6 +231,19 @@ class CircuitBreaker:
 
         self._error_window.append(not success)
         self._latency_window.append(latency_ms)
+
+        # Track consecutive failures for rapid failure detection
+        if not success:
+            self._consecutive_failures += 1
+        else:
+            self._consecutive_failures = 0
+
+        if self._consecutive_failures >= self._consecutive_failures_threshold:
+            await self._trigger(
+                reason=f"consecutive_failures:{self._consecutive_failures}",
+                correlation_id=correlation_id,
+            )
+            return
 
         if time.time() - self._last_trigger_at < self._cooldown:
             return
@@ -239,6 +316,8 @@ class Phase9Orchestrator:
         self._running: bool = False
         self._cumulative_pnl: float = 0.0
         self._ws_heartbeat_paused: bool = False  # True when trading paused for WS reconnect
+        self._system_state: Optional[SystemStateManager] = None
+        self._ws_disconnect_at: float = 0.0  # Unix timestamp when WS first disconnected
 
         # Apply DRY_RUN from config if not overridden by env
         if config.get("run", {}).get("dry_run", True):
@@ -286,6 +365,9 @@ class Phase9Orchestrator:
             daily_loss_limit=float(risk_cfg.get("daily_loss_limit", -2000.0)),
             max_drawdown_pct=float(risk_cfg.get("max_drawdown_pct", 0.08)),
         )
+
+        # 1b. SystemStateManager — RUNNING|PAUSED|HALTED state machine
+        self._system_state = SystemStateManager()
 
         # 2. PositionTracker — tracks all open/closed positions
         from ..phase8.position_tracker import PositionTracker
@@ -378,6 +460,7 @@ class Phase9Orchestrator:
             latency_threshold_ms=float(cb_cfg.get("latency_threshold_ms", 600.0)),
             cooldown_sec=float(cb_cfg.get("cooldown_sec", 60.0)),
             enabled=bool(cb_cfg.get("enabled", True)),
+            consecutive_failures_threshold=int(cb_cfg.get("consecutive_failures_threshold", 3)),
         )
 
         # 12. DecisionCallback — strategy → execution bridge
@@ -391,6 +474,7 @@ class Phase9Orchestrator:
             strategy_engine=self._strategy_engine,
             telegram=self._telegram,
             config=cfg,
+            system_state=self._system_state,
         )
 
         # 13. MetricsValidator — post-run metric computation
@@ -481,6 +565,8 @@ class Phase9Orchestrator:
         reconnect_base = float(ws_cfg.get("reconnect_base_delay_sec", 1.0))
         reconnect_max = float(ws_cfg.get("reconnect_max_delay_sec", 60.0))
         reconnect_delay = reconnect_base
+        heartbeat_pause_sec = float(ws_cfg.get("heartbeat_pause_sec", 30.0))
+        heartbeat_kill_sec = float(ws_cfg.get("heartbeat_kill_sec", 60.0))
 
         while self._running:
             try:
@@ -498,6 +584,8 @@ class Phase9Orchestrator:
                     if not kill_switch_reason:
                         self._risk_guard.disabled = False
                         log.info("phase9_ws_reconnected_trading_resumed")
+                        if self._system_state and self._system_state.mode == SystemStateManager.PAUSED:
+                            await self._system_state.transition(SystemStateManager.RUNNING, "ws_reconnected")
                     else:
                         log.warning(
                             "phase9_ws_reconnected_but_kill_switch_active",
@@ -533,13 +621,43 @@ class Phase9Orchestrator:
                     reconnect_in_sec=reconnect_delay,
                     exc_info=True,
                 )
-                # Pause trading while the WebSocket is down.
-                # Only set disabled if no permanent kill switch has fired.
-                if not self._risk_guard.disabled:
+                # Track disconnect start time
+                if not self._ws_heartbeat_paused:
+                    self._ws_disconnect_at = time.time()
                     self._ws_heartbeat_paused = True
+
+                disconnect_duration = time.time() - self._ws_disconnect_at
+
+                if disconnect_duration >= heartbeat_kill_sec:
+                    # WS down >= 60s → kill switch
+                    log.error(
+                        "ws_heartbeat_kill_switch",
+                        disconnect_duration_sec=round(disconnect_duration, 1),
+                        heartbeat_kill_sec=heartbeat_kill_sec,
+                    )
+                    await self._risk_guard.trigger_kill_switch(
+                        f"ws_disconnect_duration:{disconnect_duration:.0f}s"
+                    )
+                    if self._system_state:
+                        await self._system_state.transition(
+                            SystemStateManager.HALTED,
+                            f"ws_disconnect_duration:{disconnect_duration:.0f}s",
+                        )
+                    self._running = False
+                    break
+                elif disconnect_duration >= heartbeat_pause_sec:
+                    # WS down >= 30s but < 60s → PAUSED
+                    if self._system_state and self._system_state.is_running:
+                        await self._system_state.transition(
+                            SystemStateManager.PAUSED,
+                            f"ws_disconnect:{disconnect_duration:.0f}s",
+                        )
+
+                if not self._risk_guard.disabled:
                     self._risk_guard.disabled = True
                     log.warning(
                         "ws_heartbeat_trading_paused",
+                        disconnect_duration_sec=round(disconnect_duration, 1),
                         reconnect_in_sec=reconnect_delay,
                     )
                 await asyncio.sleep(reconnect_delay)
@@ -567,6 +685,9 @@ class Phase9Orchestrator:
         if self._risk_guard.disabled:
             return
 
+        if self._system_state and not self._system_state.is_running:
+            return
+
         t0 = time.perf_counter()
         cid = str(uuid.uuid4())
 
@@ -590,6 +711,18 @@ class Phase9Orchestrator:
             "balance": 10000.0,  # paper run default
             "timestamp": event.timestamp,
         }
+
+        # Stale data guard: reject if market data is more than 2s old.
+        # Threshold matches decision_callback._STALE_DATA_THRESHOLD_S.
+        event_age_s = time.time() - float(market_ctx.get("timestamp", 0))
+        if event_age_s > 2.0:  # noqa: PLR2004 — matches _STALE_DATA_THRESHOLD_S
+            log.warning(
+                "stale_market_data_rejected",
+                market_id=event.market_id,
+                age_sec=round(event_age_s, 3),
+                correlation_id=cid,
+            )
+            return
 
         # Update Phase 6.6 integrator with tick data
         latency_ms = (time.perf_counter() - t0) * 1000

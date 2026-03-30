@@ -92,6 +92,7 @@ class TrackedOrder:
     retry_count: int = 0
     filled_size: float = 0.0
     avg_fill_price: float = 0.0
+    last_confirmed_fill_size: float = 0.0  # tracks fill size last sent to position_tracker
 
 
 # ── FillMonitor ───────────────────────────────────────────────────────────────
@@ -249,10 +250,34 @@ class FillMonitor:
             # Not tracked — possibly filled immediately at submission; ignore.
             return
 
-        order.filled_size = round(filled_size, 6)
-        order.avg_fill_price = round(avg_price, 6)
+        # Compute incremental fill delta (avoid double counting)
+        prev_filled = order.filled_size
+        new_filled = round(filled_size, 6)
 
-        if order.filled_size >= order.size * 0.999:  # allow 0.1% rounding tolerance
+        if new_filled <= prev_filled + 1e-9:
+            # No new fill since last update, skip
+            log.debug(
+                "fill_monitor_ws_fill_no_delta",
+                order_id=order_id,
+                prev_filled=prev_filled,
+                new_filled=new_filled,
+                correlation_id=cid,
+            )
+            return
+
+        # Compute VWAP for the cumulative fill
+        if prev_filled > 0 and order.avg_fill_price > 0:
+            delta = new_filled - prev_filled
+            order.avg_fill_price = round(
+                (prev_filled * order.avg_fill_price + delta * avg_price) / new_filled,
+                6,
+            )
+        else:
+            order.avg_fill_price = round(avg_price, 6)
+
+        order.filled_size = new_filled
+
+        if order.filled_size >= order.size * 0.999:
             order.status = OrderStatus.FILLED
             log.info(
                 "fill_monitor_ws_fill_complete",
@@ -270,6 +295,7 @@ class FillMonitor:
                 market_id=order.market_id,
                 filled_size=order.filled_size,
                 requested_size=order.size,
+                fill_delta=round(new_filled - prev_filled, 6),
                 avg_price=order.avg_fill_price,
                 correlation_id=cid,
             )
@@ -396,22 +422,40 @@ class FillMonitor:
         filled_size = float(status_info.get("filled_size", 0.0))
         avg_price = float(status_info.get("avg_price", order.price))
 
-        order.filled_size = round(filled_size, 6)
-        order.avg_fill_price = round(avg_price, 6)
-
-        if status == "filled" or order.filled_size >= order.size * 0.999:
+        if status == "filled" or round(filled_size, 6) >= order.size * 0.999:
+            order.filled_size = round(filled_size, 6)
+            order.avg_fill_price = round(avg_price, 6)
             order.status = OrderStatus.FILLED
             await self._confirm_fill(order)
 
         elif status == "partial":
             order.status = OrderStatus.PARTIAL
-            log.info(
-                "fill_monitor_partial_fill",
-                order_id=order.order_id,
-                filled_size=order.filled_size,
-                requested_size=order.size,
-                correlation_id=cid,
-            )
+
+            # Compute incremental fill delta (avoid double counting)
+            new_filled = round(filled_size, 6)
+            prev_filled = order.filled_size
+
+            if new_filled > prev_filled + 1e-9:
+                delta = new_filled - prev_filled
+                # Update VWAP
+                if prev_filled > 0 and order.avg_fill_price > 0:
+                    order.avg_fill_price = round(
+                        (prev_filled * order.avg_fill_price + delta * avg_price) / new_filled,
+                        6,
+                    )
+                else:
+                    order.avg_fill_price = round(avg_price, 6)
+                order.filled_size = new_filled
+
+                log.info(
+                    "fill_monitor_partial_fill",
+                    order_id=order.order_id,
+                    filled_size=order.filled_size,
+                    fill_delta=round(delta, 6),
+                    requested_size=order.size,
+                    avg_fill_price=order.avg_fill_price,
+                    correlation_id=cid,
+                )
 
         elif status in ("rejected", "cancelled"):
             order.status = OrderStatus.CANCELLED
@@ -425,28 +469,44 @@ class FillMonitor:
             )
 
     async def _confirm_fill(self, order: TrackedOrder) -> None:
-        """Confirm a completed fill and open position in PositionTracker.
+        """Confirm a completed fill and open incremental position in PositionTracker.
+
+        Uses last_confirmed_fill_size to avoid double-counting partial fills
+        that were already reported in a previous call.
 
         Args:
             order: The fully-filled TrackedOrder.
         """
         cid = order.correlation_id
 
-        # Open position in tracker
+        # Compute incremental fill not yet reported to position_tracker
+        fill_delta = round(order.filled_size - order.last_confirmed_fill_size, 6)
+
+        if fill_delta <= 1e-9:
+            # Already fully reported — just clean up
+            self._mark_processed(order.order_id)
+            self._tracked.pop(order.order_id, None)
+            return
+
+        # Open/add incremental position in tracker
         await self._tracker.open(
             market_id=order.market_id,
             side=order.side,
-            size=order.filled_size,
+            size=fill_delta,
             entry_price=order.avg_fill_price,
             correlation_id=cid,
         )
+
+        order.last_confirmed_fill_size = order.filled_size
 
         log.info(
             "fill_monitor_fill_confirmed",
             order_id=order.order_id,
             market_id=order.market_id,
             side=order.side,
-            filled_size=order.filled_size,
+            fill_delta=fill_delta,
+            total_filled=order.filled_size,
+            requested_size=order.size,
             avg_fill_price=order.avg_fill_price,
             retry_count=order.retry_count,
             correlation_id=cid,
