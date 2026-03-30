@@ -128,6 +128,28 @@ Then:
 
 ---
 
+## GLOBAL ENGINEERING STANDARDS (ALWAYS APPLY)
+
+These standards apply to ALL tasks by default.
+Do NOT repeat them in task instructions.
+
+- Python 3.11+
+- asyncio only (no blocking / no threading)
+- .env for all secrets (no hardcoding)
+- Idempotent operations required
+- Retry + timeout on all external calls
+- Structured JSON logging
+- Zero silent failure (all errors handled or logged)
+
+---
+
+### Exception Rule
+
+If a task requires deviation from standards,
+it MUST explicitly override and justify the change.
+
+---
+
 ## RISK RULES (MANDATORY)
 
 - NEVER full Kelly → α = 0.25  
