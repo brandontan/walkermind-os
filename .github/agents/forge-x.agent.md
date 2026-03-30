@@ -119,10 +119,7 @@ These standards apply to ALL tasks by default.
 Do NOT repeat them in task instructions.
 
 - Full type hints required  
-- asyncio only (no threading)  
 - Secrets in `.env` only  
-- Idempotent operations required  
-- Retry + timeout on all external calls  
 - Structured JSON logging (structlog)  
 - No silent failures  
 - Max 5 files per batch  
