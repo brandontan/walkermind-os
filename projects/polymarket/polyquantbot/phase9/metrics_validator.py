@@ -67,6 +67,9 @@ class MetricsResult:
         drawdown: Maximum peak-to-trough PnL drawdown (fraction).
         total_trades: Number of filled orders in the session.
         pass_result: True if all GO-LIVE gate checks pass.
+        go_live_ready: Alias for pass_result — True when the system meets all
+                       GO-LIVE conditions and execution in LIVE mode is
+                       permitted.  Used by GoLiveController and SENTINEL.
         reason: Human-readable explanation of pass/fail result.
         gate_details: Per-metric pass/fail details.
         session_summary: Additional session statistics.
@@ -77,6 +80,7 @@ class MetricsResult:
     drawdown: float
     total_trades: int
     pass_result: bool
+    go_live_ready: bool
     reason: str
     gate_details: dict
     session_summary: dict
@@ -301,6 +305,7 @@ class MetricsValidator:
             drawdown=round(drawdown, 4),
             total_trades=self._orders_filled,
             pass_result=gate_passed,
+            go_live_ready=gate_passed,
             reason=reason,
             gate_details=gate_details,
             session_summary=session_summary,
@@ -365,6 +370,7 @@ class MetricsValidator:
         log.info(
             "go_live_gate_check",
             pass_result=result.pass_result,
+            go_live_ready=result.go_live_ready,
             reason=result.reason,
             ev_capture_ratio=result.ev_capture_ratio,
             ev_target=self._ev_capture_target,
