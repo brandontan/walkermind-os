@@ -156,10 +156,10 @@ def metrics_validator():
     from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
     return MetricsValidator(
         ev_capture_target=0.75,
-        fill_rate_target=0.60,
+        fill_rate_target=0.70,
         p95_latency_target_ms=500.0,
         max_drawdown_target=0.08,
-        min_trades=10,
+        min_trades=30,
     )
 
 
