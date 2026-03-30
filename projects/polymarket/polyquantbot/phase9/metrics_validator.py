@@ -4,10 +4,15 @@ Computes and validates all trading session metrics after a paper or live run.
 Outputs a structured metrics.json for auditing and GO-LIVE decision.
 
 Metrics computed:
-    ev_capture_ratio — Fraction of theoretical EV actually captured.
-    fill_rate        — Fraction of submitted orders that got filled.
-    p95_latency      — 95th percentile execution latency (ms).
-    drawdown         — Maximum peak-to-trough PnL drawdown during the session.
+    ev_capture_ratio       — Fraction of theoretical EV actually captured.
+    fill_rate              — Fraction of submitted orders that got filled.
+    p95_latency            — 95th percentile execution latency (ms).
+    drawdown               — Maximum peak-to-trough PnL drawdown during the session.
+    fill_accuracy          — Fraction of fills within slippage threshold (default 0.0).
+    avg_slippage_bps       — Average fill slippage across all trades (bps).
+    p95_slippage_bps       — 95th-percentile slippage (bps).
+    worst_slippage_bps     — Largest absolute slippage observed (bps).
+    execution_success_rate — Fraction of submitted orders that were filled.
 
 GO-LIVE gating (all must pass):
     ev_capture_ratio >= target (default 0.75)
@@ -23,6 +28,11 @@ Output (metrics.json)::
         "p95_latency": float,
         "drawdown": float,
         "total_trades": int,
+        "fill_accuracy": float,
+        "avg_slippage_bps": float,
+        "p95_slippage_bps": float,
+        "worst_slippage_bps": float,
+        "execution_success_rate": float,
         "pass": bool,
         "reason": str,
         "gate_details": {...},
@@ -36,6 +46,7 @@ Usage::
     validator.record_ev_signal(expected_ev=0.05)
     validator.record_fill(filled=True)
     validator.record_pnl_sample(pnl=12.5)
+    validator.record_slippage(slippage_bps=12.5)
     metrics = validator.compute()
     validator.write(metrics, output_path="metrics.json")
     passed = validator.gate_check(metrics)
@@ -73,6 +84,11 @@ class MetricsResult:
         reason: Human-readable explanation of pass/fail result.
         gate_details: Per-metric pass/fail details.
         session_summary: Additional session statistics.
+        fill_accuracy: Fraction of fills within slippage threshold.
+        avg_slippage_bps: Average fill slippage across all trades (bps).
+        p95_slippage_bps: 95th-percentile slippage (bps).
+        worst_slippage_bps: Largest absolute slippage observed (bps).
+        execution_success_rate: Fraction of submitted orders that were filled.
     """
     ev_capture_ratio: float
     fill_rate: float
@@ -84,6 +100,12 @@ class MetricsResult:
     reason: str
     gate_details: dict
     session_summary: dict
+    # ── Execution quality metrics (Phase 10.2) ──────────────────────────────
+    fill_accuracy: float = 0.0
+    avg_slippage_bps: float = 0.0
+    p95_slippage_bps: float = 0.0
+    worst_slippage_bps: float = 0.0
+    execution_success_rate: float = 1.0
 
 
 # ── MetricsValidator ──────────────────────────────────────────────────────────
@@ -136,6 +158,9 @@ class MetricsValidator:
         self._orders_submitted: int = 0
         self._orders_filled: int = 0
         self._session_start: float = time.time()
+        # ── Phase 10.2: Execution quality accumulators ────────────────────
+        self._slippage_samples_bps: list[float] = []   # per-fill slippage in bps
+        self._slippage_threshold_bps: float = 50.0     # threshold for fill_accuracy
 
         log.info(
             "metrics_validator_initialized",
@@ -224,6 +249,29 @@ class MetricsValidator:
         for latency in callback_metrics.get("latency_samples_ms", []):
             self.record_latency(latency)
 
+    def record_slippage(self, slippage_bps: float) -> None:
+        """Record a per-fill slippage sample.
+
+        Args:
+            slippage_bps: Slippage for one fill in basis points.
+                          Positive = filled worse than expected.
+        """
+        self._slippage_samples_bps.append(slippage_bps)
+
+    def ingest_fill_aggregate(self, aggregate: object) -> None:
+        """Bulk-ingest execution quality metrics from a FillAggregate.
+
+        Accepts a :class:`~execution.fill_tracker.FillAggregate` (or any
+        duck-typed object with the same attributes) and records a
+        representative slippage sample from ``avg_slippage_bps``.
+
+        Args:
+            aggregate: Object with at least an ``avg_slippage_bps`` attribute.
+        """
+        avg = getattr(aggregate, "avg_slippage_bps", None)
+        if avg is not None:
+            self._slippage_samples_bps.append(float(avg))
+
     # ── Computation ───────────────────────────────────────────────────────────
 
     def compute(self) -> MetricsResult:
@@ -236,6 +284,12 @@ class MetricsValidator:
         fill_rate = self._compute_fill_rate()
         p95_latency = self._compute_p95_latency()
         drawdown = self._compute_max_drawdown()
+        # Phase 10.2 execution quality metrics
+        avg_slippage_bps = self._compute_avg_slippage()
+        p95_slippage_bps = self._compute_p95_slippage()
+        worst_slippage_bps = self._compute_worst_slippage()
+        fill_accuracy = self._compute_fill_accuracy()
+        execution_success_rate = fill_rate  # mirrors fill_rate unless separate data
 
         gate_details = {
             "ev_capture_ratio": {
@@ -296,6 +350,7 @@ class MetricsValidator:
             "latency_samples": len(self._latency_samples_ms),
             "pnl_snapshots": len(self._pnl_timeline),
             "final_cumulative_pnl": round(self._pnl_timeline[-1], 2) if self._pnl_timeline else 0.0,
+            "slippage_samples": len(self._slippage_samples_bps),
         }
 
         result = MetricsResult(
@@ -309,6 +364,11 @@ class MetricsValidator:
             reason=reason,
             gate_details=gate_details,
             session_summary=session_summary,
+            fill_accuracy=round(fill_accuracy, 4),
+            avg_slippage_bps=round(avg_slippage_bps, 2),
+            p95_slippage_bps=round(p95_slippage_bps, 2),
+            worst_slippage_bps=round(worst_slippage_bps, 2),
+            execution_success_rate=round(execution_success_rate, 4),
         )
 
         log.info(
@@ -320,6 +380,11 @@ class MetricsValidator:
             total_trades=result.total_trades,
             pass_result=gate_passed,
             reason=reason,
+            avg_slippage_bps=result.avg_slippage_bps,
+            p95_slippage_bps=result.p95_slippage_bps,
+            worst_slippage_bps=result.worst_slippage_bps,
+            fill_accuracy=result.fill_accuracy,
+            execution_success_rate=result.execution_success_rate,
         )
 
         return result
@@ -342,6 +407,11 @@ class MetricsValidator:
             "p95_latency": result.p95_latency,
             "drawdown": result.drawdown,
             "total_trades": result.total_trades,
+            "fill_accuracy": result.fill_accuracy,
+            "avg_slippage_bps": result.avg_slippage_bps,
+            "p95_slippage_bps": result.p95_slippage_bps,
+            "worst_slippage_bps": result.worst_slippage_bps,
+            "execution_success_rate": result.execution_success_rate,
             "pass": result.pass_result,
             "reason": result.reason,
             "gate_details": result.gate_details,
@@ -462,3 +532,47 @@ class MetricsValidator:
                 max_dd = max(max_dd, dd)
 
         return max(0.0, max_dd)
+
+    # ── Phase 10.2: Execution quality helpers ─────────────────────────────────
+
+    def _compute_avg_slippage(self) -> float:
+        """Compute average slippage across all recorded samples.
+
+        Returns 0.0 if no slippage samples recorded.
+        """
+        if not self._slippage_samples_bps:
+            return 0.0
+        return sum(self._slippage_samples_bps) / len(self._slippage_samples_bps)
+
+    def _compute_p95_slippage(self) -> float:
+        """Compute 95th-percentile slippage using nearest-rank method.
+
+        Returns 0.0 if no slippage samples recorded.
+        """
+        if not self._slippage_samples_bps:
+            return 0.0
+        sorted_samples = sorted(self._slippage_samples_bps)
+        idx = max(0, math.ceil(len(sorted_samples) * 0.95) - 1)
+        return sorted_samples[idx]
+
+    def _compute_worst_slippage(self) -> float:
+        """Compute worst (largest absolute) slippage observed.
+
+        Returns 0.0 if no slippage samples recorded.
+        """
+        if not self._slippage_samples_bps:
+            return 0.0
+        return max(abs(s) for s in self._slippage_samples_bps)
+
+    def _compute_fill_accuracy(self) -> float:
+        """Compute fraction of fills within the slippage threshold.
+
+        Returns 1.0 if no slippage samples recorded (no data = no violation).
+        """
+        if not self._slippage_samples_bps:
+            return 1.0
+        within = sum(
+            1 for s in self._slippage_samples_bps
+            if abs(s) <= self._slippage_threshold_bps
+        )
+        return within / len(self._slippage_samples_bps)
