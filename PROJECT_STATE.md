@@ -1,6 +1,6 @@
 # PROJECT STATE — WALKER AI TEAM
 
-Last Updated: 2026-03-31 12:08:20  
+Last Updated: 2026-03-31 12:10:31  
 Current Phase: Phase 10.4 — Live Paper Run 🟡  
 Status: Phase 10.4 🟡 (Live Paper Run in Progress)
 
@@ -154,3 +154,40 @@ Complete 24H Phase 10.4 run → validate GO-LIVE metrics → implement Phase 10.
 Latest commit message:
 
 "update: phase 10.3 validated, phase 10.4 live paper run in progress, preparing phase 10.5 go-live activation"
+
+---
+
+## 📊 SYSTEM STATUS SUMMARY
+
+System maturity: ADVANCED  
+Trading readiness: TESTNET (pre go-live)  
+Stability: MEDIUM → targeting HIGH  
+
+---
+
+## 📌 NOTES FOR AGENTS
+
+- COMMANDER has final authority  
+- FORGE-X standards must be enforced  
+- All trading risk rules are mandatory  
+- Read latest PHASE report before starting any task  
+- No feature expansion before stability is confirmed  
+
+---
+
+## 🔁 WORKFLOW
+
+1. COMMANDER defines objective  
+2. FORGE-X builds / fixes system  
+3. BRIEFER generates prompts / UI / reports  
+4. Phase report created  
+5. Repeat until go-live  
+
+---
+
+## 📁 KEY PATHS
+
+projects/polymarket/polyquantbot/  
+projects/tradingview/  
+projects/mt5/  
+frontend/
