@@ -228,7 +228,55 @@ Verdict must be one of:
 - BLOCKED / CONDITIONAL / APPROVED  
 
 🛠 FIX RECOMMENDATIONS  
-- Clear actionable fixes  
+- Clear actionable fixes
+
+---
+
+## TELEGRAM VALIDATION
+
+| Check | Result |
+|------|--------|
+| Alerts sent successfully | YES / NO |
+| Retry triggered | YES / NO |
+| Missing alerts | YES / NO |
+| Checkpoint delivery (1h) | OK / FAIL |
+
+Conclusion:
+PASS / FAIL
+
+---
+
+## TELEGRAM NOTIFICATION
+
+1. TelegramLive MUST be enabled:
+   - TELEGRAM_BOT_TOKEN present
+   - TELEGRAM_CHAT_ID present
+
+2. If Telegram is disabled:
+   → FAIL test immediately
+
+3. All following events MUST trigger Telegram alert:
+
+   - error events
+   - execution blocked
+   - latency warning
+   - slippage warning
+   - kill switch trigger
+   - WS reconnect
+   - periodic checkpoint (every 1 hour)
+
+4. If Telegram send fails:
+   - retry 3x
+   - if still fails:
+       → mark as CRITICAL ISSUE
+
+5. Sentinel must verify:
+   - alerts actually delivered
+   - not just queued internally
+
+6. At least 1 checkpoint message per hour must be received
+
+7. Missing alerts = FAIL validation
 
 ---
 
