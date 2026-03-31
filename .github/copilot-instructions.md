@@ -29,6 +29,23 @@ All code must follow:
 
 ---
 
+## PROJECT_STATE (STRICT PARTIAL)
+
+Rules:
+- Only update specified sections
+- DO NOT rewrite entire file
+- Preserve all other sections exactly
+- Do not modify other sections
+
+Update this section only :
+- STATUS
+- COMPLETED
+- IN PROGRESS
+- NEXT PRIORITY
+- KNOWN ISSUES
+  
+---
+
 ## TRADING SYSTEM SAFETY (MANDATORY)
 
 - NEVER use full Kelly → α = 0.25
