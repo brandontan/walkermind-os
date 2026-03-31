@@ -131,6 +131,9 @@ class MetricsValidator:
         max_drawdown_target: float = 0.08,
         output_file: str = "metrics.json",
         min_trades: int = 30,
+        telegram=None,
+        slippage_warn_bps: float = 50.0,
+        latency_warn_ms: float = 500.0,
     ) -> None:
         """Initialise the validator.
 
@@ -141,6 +144,9 @@ class MetricsValidator:
             max_drawdown_target: Maximum drawdown fraction for GO-LIVE (default 0.08).
             output_file: Path to write metrics.json output.
             min_trades: Minimum filled orders required for GO-LIVE (default 30).
+            telegram: Optional TelegramLive instance for threshold warning alerts.
+            slippage_warn_bps: Slippage threshold (bps) above which a warning alert fires.
+            latency_warn_ms: Latency threshold (ms) above which a warning alert fires.
         """
         self._ev_capture_target = ev_capture_target
         self._fill_rate_target = fill_rate_target
@@ -148,6 +154,9 @@ class MetricsValidator:
         self._max_drawdown_target = max_drawdown_target
         self._output_file = output_file
         self._min_trades = min_trades
+        self._telegram = telegram
+        self._slippage_warn_bps = slippage_warn_bps
+        self._latency_warn_ms = latency_warn_ms
 
         # Raw data accumulators
         self._expected_ev_samples: list[float] = []    # theoretical EVs per signal
@@ -194,6 +203,14 @@ class MetricsValidator:
         )
 
     # ── Recording API ─────────────────────────────────────────────────────────
+
+    def set_telegram(self, telegram) -> None:
+        """Attach a TelegramLive instance for threshold warning alerts.
+
+        Args:
+            telegram: TelegramLive instance (or any object with alert_error()).
+        """
+        self._telegram = telegram
 
     def record_ev_signal(
         self,
@@ -257,6 +274,74 @@ class MetricsValidator:
                           Positive = filled worse than expected.
         """
         self._slippage_samples_bps.append(slippage_bps)
+
+    async def warn_slippage(
+        self,
+        slippage_bps: float,
+        context: str = "",
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Fire a Telegram warning if slippage exceeds the warn threshold.
+
+        Fires only when a TelegramLive instance has been injected.
+        Never raises — failures are logged only.
+
+        Args:
+            slippage_bps: Observed slippage in basis points.
+            context: Optional context string (market, side, etc.).
+            correlation_id: Request trace ID.
+        """
+        if slippage_bps <= self._slippage_warn_bps:
+            return
+        log.warning(
+            "metrics_slippage_threshold_exceeded",
+            slippage_bps=slippage_bps,
+            threshold_bps=self._slippage_warn_bps,
+            context=context,
+        )
+        if self._telegram:
+            try:
+                await self._telegram.alert_error(
+                    error=f"Slippage {slippage_bps:.1f}bps exceeds threshold {self._slippage_warn_bps:.1f}bps",
+                    context=context or "metrics_validator:slippage_warn",
+                    correlation_id=correlation_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("metrics_slippage_alert_failed", error=str(exc))
+
+    async def warn_latency(
+        self,
+        latency_ms: float,
+        context: str = "",
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Fire a Telegram warning if latency exceeds the warn threshold.
+
+        Fires only when a TelegramLive instance has been injected.
+        Never raises — failures are logged only.
+
+        Args:
+            latency_ms: Observed latency in milliseconds.
+            context: Optional context string (operation, market, etc.).
+            correlation_id: Request trace ID.
+        """
+        if latency_ms <= self._latency_warn_ms:
+            return
+        log.warning(
+            "metrics_latency_threshold_exceeded",
+            latency_ms=latency_ms,
+            threshold_ms=self._latency_warn_ms,
+            context=context,
+        )
+        if self._telegram:
+            try:
+                await self._telegram.alert_error(
+                    error=f"Latency {latency_ms:.0f}ms exceeds threshold {self._latency_warn_ms:.0f}ms",
+                    context=context or "metrics_validator:latency_warn",
+                    correlation_id=correlation_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("metrics_latency_alert_failed", error=str(exc))
 
     def ingest_fill_aggregate(self, aggregate: object) -> None:
         """Bulk-ingest execution quality metrics from a FillAggregate.

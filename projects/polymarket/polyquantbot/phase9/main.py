@@ -178,6 +178,7 @@ class CircuitBreaker:
         cooldown_sec: float = 60.0,
         enabled: bool = True,
         consecutive_failures_threshold: int = 3,
+        telegram=None,
     ) -> None:
         """Initialise the circuit breaker.
 
@@ -189,6 +190,7 @@ class CircuitBreaker:
             cooldown_sec: Suppress re-trigger for this many seconds after fire.
             enabled: If False, circuit breaker is a no-op.
             consecutive_failures_threshold: Trigger if N consecutive failures occur.
+            telegram: Optional TelegramLive instance for alert_kill notifications.
         """
         self._risk_guard = risk_guard
         self._error_threshold = error_rate_threshold
@@ -197,6 +199,7 @@ class CircuitBreaker:
         self._cooldown = cooldown_sec
         self._enabled = enabled
         self._consecutive_failures_threshold = consecutive_failures_threshold
+        self._telegram = telegram
 
         self._error_window: deque[bool] = deque(maxlen=error_window_size)
         self._latency_window: deque[float] = deque(maxlen=error_window_size)
@@ -283,6 +286,12 @@ class CircuitBreaker:
             trigger_count=self._trigger_count,
             correlation_id=correlation_id,
         )
+
+        if self._telegram:
+            await self._telegram.alert_kill(
+                reason=f"circuit_breaker:{reason}",
+                correlation_id=correlation_id,
+            )
 
         await self._risk_guard.trigger_kill_switch(f"circuit_breaker:{reason}")
 
@@ -434,10 +443,12 @@ class Phase9Orchestrator:
         # 8. Strategy engine — signal generation (Phase 6 StrategyManager)
         self._strategy_engine = _SimpleStrategyAdapter(cfg)
 
-        # 9. TelegramLive — real-time alert system
+        # 9. TelegramLive — real-time alert system.
+        # alerts_enabled (top-level) overrides telegram.enabled and is
+        # intentionally independent of trading_mode (PAPER or LIVE).
         from .telegram_live import TelegramLive
-        tg_enabled = tg_cfg.get("enabled", True)
-        self._telegram = TelegramLive.from_env(enabled=tg_enabled)
+        alerts_enabled = bool(cfg.get("alerts_enabled", tg_cfg.get("enabled", True)))
+        self._telegram = TelegramLive.from_env(enabled=alerts_enabled)
         await self._telegram.start()
 
         # 10. HealthMonitor — latency/exposure monitoring
@@ -462,6 +473,7 @@ class Phase9Orchestrator:
             cooldown_sec=float(cb_cfg.get("cooldown_sec", 60.0)),
             enabled=bool(cb_cfg.get("enabled", True)),
             consecutive_failures_threshold=int(cb_cfg.get("consecutive_failures_threshold", 3)),
+            telegram=self._telegram,
         )
 
         # 12. DecisionCallback — strategy → execution bridge
@@ -482,6 +494,7 @@ class Phase9Orchestrator:
         # 13. MetricsValidator — post-run metric computation
         from .metrics_validator import MetricsValidator
         self._metrics_validator = MetricsValidator.from_config(cfg)
+        self._metrics_validator.set_telegram(self._telegram)
 
         # 14. WebSocket client — Polymarket CLOB real-time feed
         market_ids = list(mkt_cfg.get("market_ids", []))
@@ -794,6 +807,12 @@ class Phase9Orchestrator:
                 correlation_id=cid,
                 exc_info=True,
             )
+            if self._telegram:
+                await self._telegram.alert_error(
+                    error=str(exc),
+                    context=f"event_pipeline:{event.market_id}",
+                    correlation_id=cid,
+                )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

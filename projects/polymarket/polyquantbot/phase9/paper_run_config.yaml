@@ -2,6 +2,10 @@
 # Used for 24-hour paper trading run before GO-LIVE gating.
 # DRY_RUN mode: all orders logged, none submitted to exchange.
 
+# ── Trading mode ──────────────────────────────────────────────────────────────
+trading_mode: PAPER               # PAPER | LIVE — alerts fire in both modes
+alerts_enabled: true              # Telegram alerts active regardless of trading_mode
+
 # ── Run mode ──────────────────────────────────────────────────────────────────
 run:
   dry_run: true                    # DRY_RUN=true → paper trades only
