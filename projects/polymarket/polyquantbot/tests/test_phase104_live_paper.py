@@ -658,6 +658,8 @@ class TestLP18RunControllerStartAlert:
     """LP-18: RunController.start() enqueues start alert before running."""
 
     async def test_start_alert_enqueued(self) -> None:
+        import tempfile
+
         from projects.polymarket.polyquantbot.phase10.run_controller import (
             RunController,
         )
@@ -670,17 +672,20 @@ class TestLP18RunControllerStartAlert:
             pass
 
         runner.run = _fast_run  # type: ignore[method-assign]
-
-        controller = RunController(runner, duration_s=0.1)
-
-        # Mock telegram stop to avoid queue drain waiting
         runner._telegram.stop = AsyncMock()
         runner._telegram.start = AsyncMock()
 
-        await controller.start()
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as fh:
+            tmp_path = fh.name
 
-        # At least the start alert should have been enqueued
-        assert controller.final_report is not None
+        try:
+            controller = RunController(runner, duration_s=0.1, report_output_path=tmp_path)
+            await controller.start()
+            # At least the final report should have been built
+            assert controller.final_report is not None
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
