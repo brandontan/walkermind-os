@@ -43,6 +43,14 @@ from typing import Optional
 
 import structlog
 
+from ..telegram.message_formatter import (
+    format_checkpoint,
+    format_error,
+    format_kill_alert,
+    format_metrics,
+    format_state_change,
+)
+
 log = structlog.get_logger()
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -195,12 +203,14 @@ class TelegramLive:
             fill_prob: Expected fill probability from Phase 6.6.
             correlation_id: Request trace ID.
         """
-        msg = (
-            f"🟢 *POSITION OPEN*\n"
-            f"Market: `{market_id[:16]}...`\n"
-            f"Side: `{side}` @ `{price:.4f}`\n"
-            f"Size: `${size:.2f}` | Fill Prob: `{fill_prob:.1%}`"
-        )
+        data = {
+            "market": market_id[:16] + "...",
+            "side": side,
+            "price": price,
+            "size_usd": size,
+            "fill_prob": fill_prob,
+        }
+        msg = "🟢 *POSITION OPEN*\n" + format_metrics(data, title="POSITION OPEN")
         await self._enqueue(AlertType.OPEN, msg, correlation_id)
 
     async def alert_close(
@@ -228,13 +238,16 @@ class TelegramLive:
         """
         pnl_emoji = "✅" if realised_pnl >= 0 else "🔴"
         pnl_sign = "+" if realised_pnl >= 0 else ""
-        msg = (
-            f"{pnl_emoji} *POSITION CLOSE*\n"
-            f"Market: `{market_id[:16]}...`\n"
-            f"Side: `{side}` | Entry: `{entry_price:.4f}` → Exit: `{exit_price:.4f}`\n"
-            f"Size: `${size:.2f}` | PnL: `{pnl_sign}${realised_pnl:.2f}`\n"
-            f"Reason: `{reason}`"
-        )
+        data = {
+            "market": market_id[:16] + "...",
+            "side": side,
+            "entry": entry_price,
+            "exit": exit_price,
+            "size_usd": size,
+            "pnl": f"{pnl_sign}${realised_pnl:.2f}",
+            "reason": reason,
+        }
+        msg = f"{pnl_emoji} *POSITION CLOSE*\n" + format_metrics(data, title="POSITION CLOSE")
         await self._enqueue(AlertType.CLOSE, msg, correlation_id)
 
     async def alert_kill(
@@ -248,11 +261,7 @@ class TelegramLive:
             reason: Human-readable kill switch trigger reason.
             correlation_id: Request trace ID.
         """
-        msg = (
-            f"🚨 *KILL SWITCH ACTIVATED*\n"
-            f"Reason: `{reason}`\n"
-            f"All trading halted immediately."
-        )
+        msg = format_kill_alert(reason=reason, correlation_id=correlation_id or "")
         await self._enqueue(AlertType.KILL, msg, correlation_id)
 
     async def alert_daily(
@@ -274,13 +283,19 @@ class TelegramLive:
             p95_latency_ms: p95 execution latency in milliseconds.
             correlation_id: Request trace ID.
         """
-        pnl_emoji = "📈" if pnl >= 0 else "📉"
         pnl_sign = "+" if pnl >= 0 else ""
-        msg = (
-            f"{pnl_emoji} *DAILY SUMMARY*\n"
-            f"PnL: `{pnl_sign}${pnl:.2f}` | Trades: `{trades}`\n"
-            f"Win Rate: `{win_rate:.1%}` | Fill Rate: `{fill_rate:.1%}`\n"
-            f"p95 Latency: `{p95_latency_ms:.0f}ms`"
+        data = {
+            "pnl": f"{pnl_sign}${pnl:.2f}",
+            "trades": trades,
+            "win_rate": win_rate,
+            "fill_rate": fill_rate,
+            "p95_latency_ms": p95_latency_ms,
+        }
+        msg = format_checkpoint(
+            elapsed_h=0.0,
+            metrics=data,
+            label="DAILY",
+            correlation_id=correlation_id or "",
         )
         await self._enqueue(AlertType.DAILY, msg, correlation_id)
 
@@ -297,10 +312,11 @@ class TelegramLive:
             context: Additional context (module, operation, etc.).
             correlation_id: Request trace ID.
         """
-        msg = (
-            f"⚠️ *CRITICAL ERROR*\n"
-            f"Context: `{context}`\n"
-            f"Error: `{error[:200]}`"
+        msg = format_error(
+            context=context or "trading_system",
+            error=error,
+            severity="CRITICAL",
+            correlation_id=correlation_id or "",
         )
         await self._enqueue(AlertType.ERROR, msg, correlation_id)
 
@@ -319,11 +335,18 @@ class TelegramLive:
             reason: Disconnect reason.
             correlation_id: Request trace ID.
         """
-        msg = (
-            f"🔄 *WS RECONNECT*\n"
-            f"Attempt: `#{attempt}` | Backoff: `{delay_s:.1f}s`\n"
-            f"Reason: `{reason or 'unknown'}`"
+        data = {
+            "attempt": attempt,
+            "backoff_s": delay_s,
+            "reason": reason or "unknown",
+        }
+        msg = format_state_change(
+            previous="disconnected",
+            current="reconnecting",
+            reason=f"attempt #{attempt} backoff {delay_s:.1f}s — {reason or 'unknown'}",
+            initiated_by="ws_client",
         )
+        msg = "🔄 *WS RECONNECT*\n" + format_metrics(data, title="WS RECONNECT")
         await self._enqueue(AlertType.RECONNECT, msg, correlation_id)
 
     # ── Internal ──────────────────────────────────────────────────────────────

@@ -95,6 +95,7 @@ from typing import Callable, Optional
 import structlog
 
 from ..connectors.kalshi_client import KalshiClient
+from ..core.system_state import SystemStateManager
 from ..execution.live_executor import GatedExecutionResult, LiveExecutor as GatedLiveExecutor
 from ..execution.simulator import ExecutionSimulator
 from ..phase10.arb_detector import ArbDetector
@@ -110,6 +111,7 @@ from ..phase7.engine.orderbook import OrderBookManager
 from ..phase7.infra.ws_client import PolymarketWSClient, WSEvent
 from ..phase9.metrics_validator import MetricsValidator
 from ..phase9.telegram_live import TelegramLive
+from ..telegram.message_formatter import format_error, format_execution_blocked
 
 log = structlog.get_logger()
 
@@ -189,6 +191,7 @@ class Phase10PipelineRunner:
         gated_executor: Optional[GatedLiveExecutor] = None,
         simulator: Optional[ExecutionSimulator] = None,
         telegram: Optional[TelegramLive] = None,
+        system_state_manager: Optional[SystemStateManager] = None,
     ) -> None:
         """Initialise the pipeline runner.
 
@@ -219,6 +222,8 @@ class Phase10PipelineRunner:
             gated_executor: Phase 10.5 gated live executor (optional).
             simulator: ExecutionSimulator for PAPER mode (optional).
             telegram: TelegramLive alert dispatcher (optional).
+            system_state_manager: Phase 10.7 runtime state gate (optional).
+                When provided, execution is blocked unless state is RUNNING.
         """
         self._ws = ws_client
         self._books = orderbook_manager
@@ -241,11 +246,14 @@ class Phase10PipelineRunner:
         self._gated_executor = gated_executor
         self._simulator = simulator
         self._telegram = telegram
+        self._state_manager = system_state_manager
 
         self._running: bool = False
         self._event_count: int = 0
         self._order_count: int = 0
         self._arb_signals_total: int = 0
+        # In-memory metrics snapshot store (Phase 10.7)
+        self._metrics_snapshots: list[dict] = []
 
         log.info(
             "phase10_pipeline_runner_initialized",
@@ -254,6 +262,7 @@ class Phase10PipelineRunner:
             arb_poll_interval_s=arb_poll_interval_s,
             live_mode_controller_attached=live_mode_controller is not None,
             telegram_attached=telegram is not None,
+            system_state_manager_attached=system_state_manager is not None,
         )
 
     # ── Factory ───────────────────────────────────────────────────────────────
@@ -602,6 +611,27 @@ class Phase10PipelineRunner:
         trade_size_usd = float(request.size)
         expected_ev = float(getattr(request, "expected_ev", 0.0))
 
+        # ── Phase 10.7: SystemStateManager gate (ALWAYS first) ───────────────
+        if self._state_manager is not None and not self._state_manager.is_execution_allowed():
+            state_snap = self._state_manager.snapshot()
+            block_reason = f"system_state:{state_snap['state']}:{state_snap['reason']}"
+            log.warning(
+                "phase10_execution_blocked_system_state",
+                market_id=request.market_id,
+                state=state_snap["state"],
+                reason=state_snap["reason"],
+                correlation_id=request.correlation_id,
+            )
+            self._metrics.record_fill(filled=False)
+            await self._notify_telegram_async(
+                "system_state_blocked",
+                market_id=request.market_id,
+                reason=block_reason,
+                state=state_snap["state"],
+                correlation_id=request.correlation_id,
+            )
+            return None
+
         # ── CONTROL LAYER: LiveModeController (ALWAYS first) ──────────────────
         live_enabled = (
             self._live_ctrl.is_live_enabled()
@@ -893,30 +923,57 @@ class Phase10PipelineRunner:
             reason = str(kwargs.get("reason", ""))
             status = str(kwargs.get("status", ""))
             latency_ms = kwargs.get("latency_ms", 0)
+            state = str(kwargs.get("state", ""))
+            correlation_id = str(kwargs.get("correlation_id", ""))
 
-            if event == "live_enabled":
+            if event == "system_state_blocked":
+                msg = format_execution_blocked(
+                    market_id=market_id,
+                    reason=reason,
+                    state=state,
+                    correlation_id=correlation_id,
+                )
+                await self._telegram.alert_error(
+                    error=f"execution_blocked:{state}",
+                    context=msg,
+                    correlation_id=correlation_id or None,
+                )
+            elif event == "live_enabled":
                 msg = f"🟢 LIVE MODE ENABLED | market={market_id[:24]}"
+                await self._telegram.alert_error(
+                    error=f"pipeline_event:{event}",
+                    context=msg,
+                )
             elif event == "live_disabled":
                 msg = f"🔴 LIVE MODE DISABLED | market={market_id[:24]} reason={reason}"
+                await self._telegram.alert_error(
+                    error=f"pipeline_event:{event}",
+                    context=msg,
+                )
             elif event == "execution_success":
                 msg = (
                     f"✅ LIVE EXECUTION SUCCESS | market={market_id[:24]}"
                     f" status={status} latency={latency_ms}ms"
+                )
+                await self._telegram.alert_error(
+                    error=f"pipeline_event:{event}",
+                    context=msg,
                 )
             elif event == "execution_failure":
                 msg = (
                     f"❌ LIVE EXECUTION FAILURE | market={market_id[:24]}"
                     f" status={status}"
                 )
+                await self._telegram.alert_error(
+                    error=f"pipeline_event:{event}",
+                    context=msg,
+                )
             elif event == "paper_fallback":
                 msg = f"📄 PAPER FALLBACK | market={market_id[:24]} reason={reason}"
-            else:
-                return
-
-            await self._telegram.alert_error(
-                error=f"pipeline_event:{event}",
-                context=msg,
-            )
+                await self._telegram.alert_error(
+                    error=f"pipeline_event:{event}",
+                    context=msg,
+                )
         except Exception as exc:  # noqa: BLE001
             log.warning(
                 "phase10_telegram_notify_failed",
@@ -1013,6 +1070,20 @@ class Phase10PipelineRunner:
                 latency_p95_ms=global_latency.p95_ms if global_latency else None,
                 latency_mean_ms=global_latency.mean_ms if global_latency else None,
             )
+
+            # Phase 10.7: persist metrics snapshot in memory
+            snapshot: dict = {
+                "timestamp": time.time(),
+                "go_live_mode": go_live_status["mode"],
+                "trades_today": go_live_status["trades_today"],
+                "total_orders": self._order_count,
+                "total_events": self._event_count,
+                "latency_p95_ms": global_latency.p95_ms if global_latency else None,
+            }
+            self._metrics_snapshots.append(snapshot)
+            # Keep only the last 1440 snapshots (~24h at 1-min intervals)
+            if len(self._metrics_snapshots) > 1440:
+                self._metrics_snapshots = self._metrics_snapshots[-1440:]
 
     # ── Background: feedback expiry ───────────────────────────────────────────
 

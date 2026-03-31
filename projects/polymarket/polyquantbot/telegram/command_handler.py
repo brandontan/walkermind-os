@@ -1,4 +1,4 @@
-"""Phase 10.6 — CommandHandler: Routes Telegram commands to system actions.
+"""Phase 10.6/10.7 — CommandHandler: Routes Telegram commands to system actions.
 
 Handles the following bot commands:
     /status          — return current system state + config snapshot
@@ -8,6 +8,7 @@ Handles the following bot commands:
     /set_risk [v]    — update risk multiplier (0.0–1.0)
     /set_max_position [v] — update max position (0.0–0.10)
     /metrics         — return current metrics snapshot
+    /prelive_check   — run PreLiveValidator and return structured result
 
 Design:
     - All commands are idempotent.
@@ -18,6 +19,7 @@ Design:
     - Structured JSON logging on every command.
     - Retry Telegram send 3× with timeout 3s before falling back.
     - On critical failure: fall back to PAUSED state.
+    - ALL message text produced via telegram.message_formatter (no raw strings).
 
 Thread-safety: single asyncio event loop only.
 """
@@ -32,6 +34,15 @@ import structlog
 
 from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
+from .message_formatter import (
+    format_command_response,
+    format_error,
+    format_kill_alert,
+    format_metrics,
+    format_prelive_check,
+    format_state_change,
+    format_status,
+)
 
 log = structlog.get_logger()
 
@@ -79,6 +90,7 @@ class CommandHandler:
                         returns a dict of current metrics.
         telegram_sender: Async callable(chat_id, text) for sending responses.
         chat_id: Target chat/channel ID for responses.
+        prelive_validator: Optional PreLiveValidator for /prelive_check command.
     """
 
     def __init__(
@@ -88,12 +100,14 @@ class CommandHandler:
         metrics_source: Optional[object] = None,
         telegram_sender: Optional[object] = None,
         chat_id: str = "",
+        prelive_validator: Optional[object] = None,
     ) -> None:
         self._state = state_manager
         self._config = config_manager
         self._metrics_source = metrics_source
         self._sender = telegram_sender
         self._chat_id = chat_id
+        self._prelive_validator = prelive_validator
         self._lock = asyncio.Lock()
 
         log.info(
@@ -101,6 +115,7 @@ class CommandHandler:
             chat_id=chat_id,
             has_metrics_source=metrics_source is not None,
             has_sender=telegram_sender is not None,
+            has_prelive_validator=prelive_validator is not None,
         )
 
     # ── Primary dispatch ───────────────────────────────────────────────────────
@@ -151,7 +166,12 @@ class CommandHandler:
                 await self._state.pause(reason=f"command_handler_critical_error:{cmd}")
                 result = CommandResult(
                     success=False,
-                    message=f"⚠️ Critical error handling `/{cmd}`. System paused for safety.",
+                    message=format_error(
+                        context=f"command_handler:/{cmd}",
+                        error=str(exc),
+                        severity="CRITICAL",
+                        correlation_id=cid,
+                    ),
                 )
 
         log.info(
@@ -187,24 +207,30 @@ class CommandHandler:
             return await self._handle_set_max_position(value)
         if cmd == "metrics":
             return await self._handle_metrics()
+        if cmd == "prelive_check":
+            return await self._handle_prelive_check()
 
         return CommandResult(
             success=False,
-            message=(
-                "❓ Unknown command. Available: "
-                "/status /pause /resume /kill /set_risk /set_max_position /metrics"
+            message=format_command_response(
+                command="unknown",
+                success=False,
+                message=(
+                    "Unknown command. Available: "
+                    "/status /pause /resume /kill /set_risk /set_max_position "
+                    "/metrics /prelive_check"
+                ),
             ),
         )
 
     async def _handle_status(self) -> CommandResult:
         snap_state = self._state.snapshot()
         snap_cfg = self._config.snapshot()
-        msg = (
-            f"📊 *SYSTEM STATUS*\n"
-            f"State: `{snap_state['state']}`\n"
-            f"Reason: `{snap_state['reason']}`\n"
-            f"Risk multiplier: `{snap_cfg.risk_multiplier:.3f}`\n"
-            f"Max position: `{snap_cfg.max_position:.3f}`"
+        msg = format_status(
+            state=snap_state["state"],
+            reason=snap_state["reason"],
+            risk_multiplier=snap_cfg.risk_multiplier,
+            max_position=snap_cfg.max_position,
         )
         return CommandResult(
             success=True,
@@ -217,17 +243,30 @@ class CommandHandler:
         if current is SystemState.HALTED:
             return CommandResult(
                 success=False,
-                message="🚫 Cannot pause — system is already HALTED.",
+                message=format_command_response(
+                    command="pause",
+                    success=False,
+                    message="Cannot pause — system is already HALTED.",
+                ),
             )
         if current is SystemState.PAUSED:
             return CommandResult(
                 success=True,
-                message="⏸️ System is already PAUSED.",
+                message=format_command_response(
+                    command="pause",
+                    success=True,
+                    message="System is already PAUSED.",
+                ),
             )
         await self._state.pause(reason="operator_telegram_command")
         return CommandResult(
             success=True,
-            message="⏸️ System PAUSED. Use /resume to restart.",
+            message=format_state_change(
+                previous=current.value,
+                current="PAUSED",
+                reason="operator_telegram_command",
+                initiated_by="telegram",
+            ),
             payload={"state": "PAUSED"},
         )
 
@@ -236,23 +275,40 @@ class CommandHandler:
         if current is SystemState.HALTED:
             return CommandResult(
                 success=False,
-                message="🚫 Cannot resume — system is HALTED. Manual restart required.",
+                message=format_command_response(
+                    command="resume",
+                    success=False,
+                    message="Cannot resume — system is HALTED. Manual restart required.",
+                ),
             )
         if current is SystemState.RUNNING:
             return CommandResult(
                 success=True,
-                message="▶️ System is already RUNNING.",
+                message=format_command_response(
+                    command="resume",
+                    success=True,
+                    message="System is already RUNNING.",
+                ),
             )
         success = await self._state.resume(reason="operator_telegram_command")
         if success:
             return CommandResult(
                 success=True,
-                message="▶️ System RESUMED. Trading is now ACTIVE.",
+                message=format_state_change(
+                    previous=current.value,
+                    current="RUNNING",
+                    reason="operator_telegram_command",
+                    initiated_by="telegram",
+                ),
                 payload={"state": "RUNNING"},
             )
         return CommandResult(
             success=False,
-            message="❌ Resume failed. Check system logs.",
+            message=format_command_response(
+                command="resume",
+                success=False,
+                message="Resume failed. Check system logs.",
+            ),
         )
 
     async def _handle_kill(self) -> CommandResult:
@@ -260,12 +316,16 @@ class CommandHandler:
         if current is SystemState.HALTED:
             return CommandResult(
                 success=True,
-                message="🛑 System is already HALTED.",
+                message=format_command_response(
+                    command="kill",
+                    success=True,
+                    message="System is already HALTED.",
+                ),
             )
         await self._state.halt(reason="operator_kill_command")
         return CommandResult(
             success=True,
-            message="🛑 *KILL SWITCH ACTIVATED*. All trading halted permanently.",
+            message=format_kill_alert(reason="operator_kill_command"),
             payload={"state": "HALTED"},
         )
 
@@ -273,18 +333,31 @@ class CommandHandler:
         if value is None:
             return CommandResult(
                 success=False,
-                message="❌ Usage: /set_risk [0.1–1.0]",
+                message=format_command_response(
+                    command="set_risk",
+                    success=False,
+                    message="Usage: /set_risk [0.1–1.0]",
+                ),
             )
         try:
             applied = await self._config.set_risk_multiplier(float(value))
         except (ValueError, TypeError) as exc:
             return CommandResult(
                 success=False,
-                message=f"❌ Invalid risk value: {exc}",
+                message=format_error(
+                    context="set_risk",
+                    error=str(exc),
+                    severity="ERROR",
+                ),
             )
         return CommandResult(
             success=True,
-            message=f"✅ Risk multiplier updated to `{applied:.3f}`.",
+            message=format_command_response(
+                command="set_risk",
+                success=True,
+                message=f"Risk multiplier updated to `{applied:.3f}`.",
+                payload={"risk_multiplier": applied},
+            ),
             payload={"risk_multiplier": applied},
         )
 
@@ -292,18 +365,31 @@ class CommandHandler:
         if value is None:
             return CommandResult(
                 success=False,
-                message="❌ Usage: /set_max_position [0–0.1]",
+                message=format_command_response(
+                    command="set_max_position",
+                    success=False,
+                    message="Usage: /set_max_position [0–0.1]",
+                ),
             )
         try:
             applied = await self._config.set_max_position(float(value))
         except (ValueError, TypeError) as exc:
             return CommandResult(
                 success=False,
-                message=f"❌ Invalid max_position value: {exc}",
+                message=format_error(
+                    context="set_max_position",
+                    error=str(exc),
+                    severity="ERROR",
+                ),
             )
         return CommandResult(
             success=True,
-            message=f"✅ Max position updated to `{applied:.3f}`.",
+            message=format_command_response(
+                command="set_max_position",
+                success=True,
+                message=f"Max position updated to `{applied:.3f}`.",
+                payload={"max_position": applied},
+            ),
             payload={"max_position": applied},
         )
 
@@ -311,7 +397,11 @@ class CommandHandler:
         if self._metrics_source is None:
             return CommandResult(
                 success=False,
-                message="⚠️ Metrics source not configured.",
+                message=format_command_response(
+                    command="metrics",
+                    success=False,
+                    message="Metrics source not configured.",
+                ),
             )
         try:
             if hasattr(self._metrics_source, "snapshot"):
@@ -324,16 +414,67 @@ class CommandHandler:
         except Exception as exc:  # noqa: BLE001
             return CommandResult(
                 success=False,
-                message=f"❌ Failed to read metrics: {exc}",
+                message=format_error(
+                    context="metrics",
+                    error=str(exc),
+                    severity="ERROR",
+                ),
             )
 
-        msg = "📈 *METRICS SNAPSHOT*\n" + "\n".join(
-            f"`{k}`: `{v}`" for k, v in (data.items() if isinstance(data, dict) else {})
-        )
-        if not isinstance(data, dict):
-            msg = f"📈 *METRICS*\n`{data}`"
+        if isinstance(data, dict):
+            msg = format_metrics(data)
+        else:
+            msg = format_metrics({"value": str(data)})
 
-        return CommandResult(success=True, message=msg, payload=data if isinstance(data, dict) else {})
+        return CommandResult(
+            success=True,
+            message=msg,
+            payload=data if isinstance(data, dict) else {},
+        )
+
+    async def _handle_prelive_check(self) -> CommandResult:
+        """Run PreLiveValidator and return formatted structured result."""
+        log.info("command_prelive_check_invoked")
+
+        if self._prelive_validator is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="prelive_check",
+                    success=False,
+                    message="PreLiveValidator not configured.",
+                ),
+            )
+
+        try:
+            result = self._prelive_validator.run()
+            result_dict = result.to_dict() if hasattr(result, "to_dict") else vars(result)
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "command_prelive_check_error",
+                error=str(exc),
+                exc_info=True,
+            )
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="prelive_check",
+                    error=str(exc),
+                    severity="ERROR",
+                ),
+            )
+
+        log.info(
+            "command_prelive_check_complete",
+            status=result_dict.get("status"),
+            reason=result_dict.get("reason"),
+        )
+
+        return CommandResult(
+            success=result_dict.get("status") == "PASS",
+            message=format_prelive_check(result_dict),
+            payload=result_dict,
+        )
 
     # ── Telegram send with retry ───────────────────────────────────────────────
 
