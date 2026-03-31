@@ -1,6 +1,6 @@
-"""Phase 10.5 — LiveExecutor (execution layer): Gated LIVE order placement.
+"""Phase 10.6 — LiveExecutor (execution layer): Gated LIVE order placement.
 
-Wraps the Phase 7 LiveExecutor with mandatory Phase 10.5 safety layers:
+Wraps the Phase 7 LiveExecutor with mandatory Phase 10.5/10.6 safety layers:
 
     1. LiveModeController.is_live_enabled()  — must pass on every call.
     2. ExecutionGuard.validate()             — pre-trade risk/dedup check.
@@ -13,9 +13,15 @@ FAIL-CLOSED design::
     Any check failure          → BLOCKED result returned; no exchange call made.
     LiveModeController blocked → PAPER fallback; logged at WARNING.
     ExecutionGuard rejected    → order rejected; logged at WARNING.
-    Redis unavailable          → dedup skipped; execution still attempted.
+    Redis unavailable (LIVE)   → CriticalExecutionError raised (fail-closed).
+    Redis unavailable (PAPER)  → dedup skipped; execution still attempted.
     Exchange error             → retry with backoff; re-raise on max retries.
     Unhandled exception        → BLOCKED result; never silently re-raises.
+
+Phase 10.6 Redis enforcement::
+
+    If MODE=LIVE and redis_client is None → raises CriticalExecutionError.
+    This is checked at __init__ time so misconfiguration is caught early.
 
 Idempotency::
 
@@ -36,8 +42,10 @@ from typing import Optional
 
 import structlog
 
+from ..core.exceptions import CriticalExecutionError
 from ..execution.fill_tracker import FillTracker
 from ..phase10.execution_guard import ExecutionGuard
+from ..phase10.go_live_controller import TradingMode
 from ..phase10.live_mode_controller import LiveModeController
 from ..phase7.core.execution.live_executor import (
     ExecutionRequest,
@@ -81,12 +89,18 @@ class GatedExecutionResult:
 
 
 class LiveExecutor:
-    """Phase 10.5 gated live executor.
+    """Phase 10.6 gated live executor.
 
     Wraps :class:`phase7.core.execution.live_executor.LiveExecutor` with
     :class:`~phase10.live_mode_controller.LiveModeController` and
     :class:`~phase10.execution_guard.ExecutionGuard` as mandatory pre-execution
     gates.
+
+    Phase 10.6 enforcement: if ``live_mode_controller.mode`` is
+    :attr:`TradingMode.LIVE` and ``redis_client`` is ``None``,
+    :class:`~core.exceptions.CriticalExecutionError` is raised at
+    construction time.  Redis is mandatory for order deduplication in
+    LIVE mode.
 
     Args:
         live_mode_controller: Phase 10.5 stateless LIVE gate.
@@ -95,6 +109,9 @@ class LiveExecutor:
         fill_tracker: Fill audit recorder.
         redis_client: Optional Redis client for dedup (skipped if None).
         dedup_ttl_s: Redis key TTL in seconds.
+
+    Raises:
+        CriticalExecutionError: When MODE=LIVE and redis_client is None.
     """
 
     def __init__(
@@ -106,6 +123,13 @@ class LiveExecutor:
         redis_client: Optional[object] = None,
         dedup_ttl_s: int = _DEDUP_TTL_S,
     ) -> None:
+        # Phase 10.6: fail-closed Redis enforcement in LIVE mode
+        if live_mode_controller.mode is TradingMode.LIVE and redis_client is None:
+            raise CriticalExecutionError(
+                "Redis is required in LIVE mode but redis_client is None. "
+                "Connect Redis before enabling LIVE trading."
+            )
+
         self._live_ctrl = live_mode_controller
         self._guard = execution_guard
         self._executor = phase7_executor

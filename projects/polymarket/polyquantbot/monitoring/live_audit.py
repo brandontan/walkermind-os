@@ -1,4 +1,4 @@
-"""Phase 10.5 — LiveAuditLogger: Immutable audit trail for LIVE executions.
+"""Phase 10.6 — LiveAuditLogger: Immutable audit trail for LIVE executions.
 
 Writes a structured record to PostgreSQL BEFORE and AFTER every LIVE order.
 No execution should proceed without a ``pre_execution`` record, and every
@@ -29,6 +29,13 @@ Design principles:
     - Idempotent inserts — correlation_id used as natural dedup key.
     - Async non-blocking — all DB operations use asyncpg.
 
+Phase 10.6 enforcement:
+
+    - ``is_db_connected()`` — reports whether the DB pool is active.
+    - In LIVE mode, callers MUST verify ``is_db_connected()`` before
+      forwarding to execution.  A helper ``assert_db_connected_for_live()``
+      raises :class:`~core.exceptions.CriticalAuditError` if not connected.
+
 Environment variables:
 
     DATABASE_URL — PostgreSQL DSN (postgresql://user:pass@host:5432/db)
@@ -37,6 +44,9 @@ Usage::
 
     audit = LiveAuditLogger.from_env()
     await audit.connect()
+
+    # Phase 10.6: enforce DB in LIVE mode
+    audit.assert_db_connected_for_live(mode=TradingMode.LIVE)
 
     await audit.write_pre(
         market_id="0xabc", side="YES", size_usd=100.0,
@@ -62,6 +72,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 import structlog
+
+from ..core.exceptions import CriticalAuditError
 
 log = structlog.get_logger()
 
@@ -231,6 +243,38 @@ class LiveAuditLogger:
             await self._pool.close()  # type: ignore[union-attr]
             self._pool = None
         log.info("live_audit_logger_closed")
+
+    # ── Phase 10.6: DB connection status ──────────────────────────────────────
+
+    def is_db_connected(self) -> bool:
+        """Return True when the DB pool is active (not log-only and pool set).
+
+        Returns:
+            True if a real DB connection pool is available.
+        """
+        return not self._log_only and self._pool is not None
+
+    def assert_db_connected_for_live(self, mode: object = None) -> None:
+        """Raise CriticalAuditError if in LIVE mode and DB is not connected.
+
+        Used by LiveModeController and other callers to enforce fail-closed
+        behaviour: LIVE trading MUST NOT proceed without a DB connection.
+
+        Args:
+            mode: TradingMode value.  If TradingMode.LIVE and DB is not
+                  connected, raises CriticalAuditError.
+
+        Raises:
+            CriticalAuditError: When MODE=LIVE and DB is not connected.
+        """
+        # Import here to avoid circular imports
+        from ..phase10.go_live_controller import TradingMode  # noqa: PLC0415
+
+        if mode is TradingMode.LIVE and not self.is_db_connected():
+            raise CriticalAuditError(
+                "PostgreSQL is required in LIVE mode but DB is not connected. "
+                "Connect the database before enabling LIVE trading."
+            )
 
     # ── Public write API ──────────────────────────────────────────────────────
 
