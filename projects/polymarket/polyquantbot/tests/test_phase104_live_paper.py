@@ -29,6 +29,7 @@ Scenarios covered:
   LP-22  ASYNC SAFETY — 20 concurrent signals produce no race condition
   LP-23  CHECKPOINT — checkpoint triggered at elapsed interval
   LP-24  PAPER MODE — from_config always creates PAPER runner
+  LP-25  TELEGRAM ENFORCEMENT — start() raises RuntimeError when Telegram disabled
 """
 from __future__ import annotations
 
@@ -859,7 +860,7 @@ class TestLP24FromConfigPaperMode:
                 start=AsyncMock(),
                 stop=AsyncMock(),
                 _queue=asyncio.Queue(),
-                _enabled=False,
+                enabled=False,
                 alert_error=AsyncMock(),
                 alert_kill=AsyncMock(),
             ),
@@ -868,3 +869,36 @@ class TestLP24FromConfigPaperMode:
 
         assert runner._go_live.mode is TradingMode.PAPER
         assert runner._simulator._send_real_orders is False
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# LP-25  TELEGRAM ENFORCEMENT — start() raises when Telegram is disabled
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+class TestLP25TelegramEnforcement:
+    """LP-25: start() raises RuntimeError when TelegramLive.enabled is False."""
+
+    async def test_start_raises_when_telegram_disabled(self) -> None:
+        """LivePaperRunner.start() must raise RuntimeError if Telegram is off."""
+        from projects.polymarket.polyquantbot.phase10.live_paper_runner import (
+            LivePaperRunner,
+        )
+        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+
+        runner, *_ = _make_runner()
+        # Replace telegram with a disabled instance (no env vars)
+        runner._telegram = TelegramLive(bot_token="", chat_id="", enabled=False)
+
+        with pytest.raises(RuntimeError, match="TELEGRAM_BOT_TOKEN"):
+            await runner.start()
+
+    async def test_start_succeeds_when_telegram_enabled(self) -> None:
+        """LivePaperRunner.start() must not raise when Telegram is enabled."""
+        runner, *_ = _make_runner()
+        # Default _make_runner creates TelegramLive with enabled=True
+        assert runner._telegram.enabled is True
+
+        # start() should complete without raising
+        await runner.start()
+        await runner._telegram.stop()

@@ -344,7 +344,18 @@ class LivePaperRunner:
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
-        """Start Telegram worker and prepare for run()."""
+        """Start Telegram worker and prepare for run().
+
+        Raises:
+            RuntimeError: If ``TelegramLive`` is disabled (missing credentials).
+                The 24H live paper observation requires Telegram monitoring.
+        """
+        if not self._telegram.enabled:
+            raise RuntimeError(
+                "TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured. "
+                "24H live paper observation requires Telegram monitoring. "
+                "Set the env vars and restart."
+            )
         await self._telegram.start()
         log.info("live_paper_runner_telegram_started")
 
