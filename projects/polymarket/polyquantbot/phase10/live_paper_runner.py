@@ -84,10 +84,8 @@ log = structlog.get_logger()
 
 _DEFAULT_WS_URL = "wss://clob.polymarket.com"
 _DEFAULT_HEALTH_LOG_S: float = 60.0
-_DEFAULT_CHECKPOINT_INTERVALS: tuple[float, ...] = (
-    6 * 3600.0,   # 6 hours
-    12 * 3600.0,  # 12 hours
-    24 * 3600.0,  # 24 hours
+_DEFAULT_CHECKPOINT_INTERVALS: tuple[float, ...] = tuple(
+    h * 3600.0 for h in range(1, 25)  # hourly: 1h … 24h (24 checkpoints)
 )
 _STALE_DATA_THRESHOLD_S: float = 5.0
 _DEPTH_LEVELS: int = 5
