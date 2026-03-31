@@ -79,29 +79,34 @@ When solving a task:
 
 ---
 
-## FORGE-X REPORT SYSTEM (MANDATORY)
+## FORGE-X REPORT SYSTEM (MANDATORY — UPDATED)
 
-After every phase completion, request:
+Every task execution MUST include report generation as the FINAL STEP.
 
-"Save a [Phase X] completion report to:  
-projects/polymarket/polyquantbot/report/FORGE-X_PHASE[X].md  
+Execution flow:
+BUILD → VALIDATE → REPORT → COMMIT
 
-Include:  
-1. What was built  
-2. Current system architecture  
-3. Files created/modified  
-4. What's working  
-5. Known issues  
-6. What's next (PHASE[X+1])  
+Rules:
 
-Commit and push to main."
+1. MUST generate report file:
+projects/polymarket/polyquantbot/report/FORGE-X_PHASE[X].md
 
-Then:
+2. Report MUST include:
+- What was built
+- Current system architecture
+- Files created/modified
+- What's working
+- Known issues
+- What's next (Phase X+1)
 
-- Ensure report content is generated
-- Include the report file in the final push plan
-- In the next phase:
-  → Read the latest PHASE report before planning
+3. Report MUST be committed in the SAME commit as implementation
+
+4. If report is missing:
+→ TASK IS NOT COMPLETE
+
+5. COMMANDER MUST read report before next phase
+
+No separate report request step allowed.
 
 ---
 
@@ -229,10 +234,11 @@ Update this section only :
 
 ⚠️ EDGE CASES:  
 - Failure handling  
-- Risk scenarios  
+- Risk scenarios
 
-🧾 REPORT:  
-- Generate FORGE-X_PHASE[X].md content  
+🧾 REPORT:
+- MUST include FORGE-X_PHASE[X].md content
+- MUST reflect actual implementation (no placeholder)
 
 🚀 PUSH PLAN:  
 Batch 1:  
