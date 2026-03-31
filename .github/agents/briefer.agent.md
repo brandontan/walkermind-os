@@ -190,6 +190,15 @@ Reports must be:
 
 ---
 
+## PHASE REPORT AWARENESS
+
+- Always use FORGE-X_PHASE[X].md as single source of truth
+- Do NOT generate report from assumptions
+- Do NOT override system report content
+- Only reformat / visualize existing report
+
+---
+
 ## ENGINEERING RULES
 
 - TypeScript strict mode
