@@ -265,7 +265,7 @@ class TestSCS06SlippageSpikeAlert:
 
         logged_events: list[dict] = []
 
-        def _capture(**event_dict):  # type: ignore[no-untyped-def]
+        def _capture(**event_dict: Any) -> dict:
             logged_events.append(dict(event_dict))
             return event_dict
 
@@ -939,7 +939,7 @@ class TestSCS18ReconciliationReport:
 class TestSCS19SlippageDistribution:
     """Slippage aggregation produces correct avg / p95 / worst."""
 
-    def _populate_tracker(self, n: int = 20) -> "FillTracker":  # type: ignore[name-defined]
+    def _populate_tracker(self, n: int = 20) -> Any:
         from projects.polymarket.polyquantbot.execution.fill_tracker import FillTracker
         tracker = FillTracker(slippage_threshold_bps=100.0)
         for i in range(n):
