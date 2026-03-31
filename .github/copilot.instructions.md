@@ -6,7 +6,6 @@ All Copilot outputs must align with the COMMANDER system and FORGE-X engineering
 
 ## COMMAND AUTHORITY (HIGHEST PRIORITY)
 
-- Always follow instructions from COMMANDER
 - Do not override or reinterpret COMMANDER decisions
 - If unclear:
   → Ask for clarification instead of guessing
@@ -44,20 +43,6 @@ Update this section only :
 - NEXT PRIORITY
 - KNOWN ISSUES
   
----
-
-## TRADING SYSTEM SAFETY (MANDATORY)
-
-- NEVER use full Kelly → α = 0.25
-- Max position: 10% bankroll
-- Daily loss limit: -$2,000
-- MDD > 8% → stop trading
-- Order deduplication required
-- Kill switch required
-
-If any code violates risk rules:
-→ Flag immediately
-
 ---
 
 ## CODE REVIEW BEHAVIOR
