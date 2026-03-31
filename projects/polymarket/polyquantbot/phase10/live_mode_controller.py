@@ -1,4 +1,4 @@
-"""Phase 10.5 — LiveModeController: Controlled GO-LIVE activation gate.
+"""Phase 10.6 — LiveModeController: Controlled GO-LIVE activation gate.
 
 Performs a fully stateless, per-execution check against live metrics and
 risk state to determine whether LIVE trading is currently permitted.
@@ -14,11 +14,19 @@ GO-LIVE conditions (ALL must pass on every check)::
     drawdown          <= 0.08   (configurable)
     kill_switch       == False  (RiskGuard.disabled must be False)
 
+Phase 10.6 infra validation (LIVE mode only)::
+
+    redis_connected   == True   (redis_client provided)
+    db_connected      == True   (audit_logger.is_db_connected() == True)
+    telegram_ok       == True   (telegram_configured == True)
+
 Failure behaviour::
 
     Any single failure  → immediate fallback to PAPER (no tolerance)
     kill_switch active  → HARD STOP (no retry, no bypass)
     borderline metrics  → BLOCKED (strict inequality, no tolerance)
+    redis missing       → BLOCKED (CriticalExecutionError would follow)
+    db missing          → BLOCKED (CriticalAuditError would follow)
 
 Public API::
 
@@ -74,11 +82,17 @@ class LiveModeController:
     ``mode`` is explicitly set to :attr:`TradingMode.LIVE`.  In all other
     cases it returns ``False`` immediately.
 
+    Phase 10.6 adds infra validation: when MODE=LIVE, Redis, DB, and Telegram
+    must all be configured.  Missing infrastructure blocks LIVE immediately.
+
     Args:
         mode: Desired trading mode (PAPER is the safe default).
         metrics_validator: Live MetricsValidator instance.
         risk_guard: Live RiskGuard instance (kill-switch source of truth).
         thresholds: Optional override thresholds.
+        redis_client: Optional Redis client (required in LIVE mode).
+        audit_logger: Optional LiveAuditLogger (DB required in LIVE mode).
+        telegram_configured: Whether Telegram is configured (required in LIVE).
     """
 
     def __init__(
@@ -87,11 +101,17 @@ class LiveModeController:
         metrics_validator: Optional[object] = None,
         risk_guard: Optional[object] = None,
         thresholds: Optional[LiveModeThresholds] = None,
+        redis_client: Optional[object] = None,
+        audit_logger: Optional[object] = None,
+        telegram_configured: bool = False,
     ) -> None:
         self._mode = mode
         self._metrics_validator = metrics_validator
         self._risk_guard = risk_guard
         self._thresholds = thresholds or LiveModeThresholds()
+        self._redis_client = redis_client
+        self._audit_logger = audit_logger
+        self._telegram_configured = telegram_configured
 
         log.info(
             "live_mode_controller_initialized",
@@ -100,6 +120,9 @@ class LiveModeController:
             fill_rate_min=self._thresholds.fill_rate_min,
             p95_latency_max_ms=self._thresholds.p95_latency_max_ms,
             drawdown_max=self._thresholds.drawdown_max,
+            redis_connected=redis_client is not None,
+            db_connected=self._is_db_connected(),
+            telegram_configured=telegram_configured,
         )
 
     # ── Factory ───────────────────────────────────────────────────────────────
@@ -265,7 +288,36 @@ class LiveModeController:
                 f"{drawdown:.4f}>{self._thresholds.drawdown_max:.4f}"
             )
 
+        # ── Phase 10.6: Infrastructure validation (LIVE only) ────────────────
+        if self._redis_client is None:
+            log.warning("live_mode_controller_no_redis")
+            return "no_redis_client"
+
+        if not self._is_db_connected():
+            log.warning("live_mode_controller_no_db")
+            return "no_db_connected"
+
+        if not self._telegram_configured:
+            log.warning("live_mode_controller_telegram_not_configured")
+            return "telegram_not_configured"
+
         return ""
+
+    def _is_db_connected(self) -> bool:
+        """Check whether the audit logger has an active DB connection.
+
+        Returns:
+            True if audit_logger.is_db_connected() returns True, else False.
+        """
+        if self._audit_logger is None:
+            return False
+        is_connected = getattr(self._audit_logger, "is_db_connected", None)
+        if callable(is_connected):
+            try:
+                return bool(is_connected())
+            except Exception:  # noqa: BLE001
+                return False
+        return False
 
     def _read_metric(self, attr: str, default: float) -> float:
         """Safely read a numeric metric from MetricsValidator.

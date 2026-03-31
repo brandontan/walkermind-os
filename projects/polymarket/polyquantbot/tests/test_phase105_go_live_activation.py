@@ -75,6 +75,30 @@ def _make_metrics_validator(
     return mv
 
 
+def _make_audit_logger(db_connected: bool = True) -> MagicMock:
+    """Stub LiveAuditLogger for Phase 10.6 infra checks."""
+    audit = MagicMock()
+    audit.is_db_connected.return_value = db_connected
+    return audit
+
+
+def _make_redis_client() -> MagicMock:
+    """Stub Redis client for Phase 10.6 infra checks."""
+    redis = MagicMock()
+    redis.exists = AsyncMock(return_value=False)
+    redis.setex = AsyncMock()
+    return redis
+
+
+def _make_live_infra() -> dict:
+    """Return the Phase 10.6 infra kwargs required for LIVE mode controllers."""
+    return {
+        "redis_client": _make_redis_client(),
+        "audit_logger": _make_audit_logger(db_connected=True),
+        "telegram_configured": True,
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # GL-01 – GL-11  LiveModeController
 # ══════════════════════════════════════════════════════════════════════════════
@@ -123,6 +147,7 @@ class TestLiveModeControllerAllMetricsPass:
             mode=TradingMode.LIVE,
             metrics_validator=_make_metrics_validator(),
             risk_guard=_make_risk_guard(disabled=False),
+            **_make_live_infra(),
         )
         assert ctrl.is_live_enabled() is True
         assert ctrl.get_block_reason() == ""
@@ -159,6 +184,7 @@ class TestLiveModeControllerBorderlineMetrics:
             mode=TradingMode.LIVE,
             metrics_validator=_make_metrics_validator(ev_capture=0.75),
             risk_guard=_make_risk_guard(),
+            **_make_live_infra(),
         )
         assert ctrl.is_live_enabled() is True  # >= 0.75
 
@@ -185,6 +211,7 @@ class TestLiveModeControllerBorderlineMetrics:
             mode=TradingMode.LIVE,
             metrics_validator=_make_metrics_validator(fill_rate=0.60),
             risk_guard=_make_risk_guard(),
+            **_make_live_infra(),
         )
         assert ctrl.is_live_enabled() is True
 
@@ -211,6 +238,7 @@ class TestLiveModeControllerBorderlineMetrics:
             mode=TradingMode.LIVE,
             metrics_validator=_make_metrics_validator(p95_latency=500.0),
             risk_guard=_make_risk_guard(),
+            **_make_live_infra(),
         )
         assert ctrl.is_live_enabled() is True
 
@@ -237,6 +265,7 @@ class TestLiveModeControllerBorderlineMetrics:
             mode=TradingMode.LIVE,
             metrics_validator=_make_metrics_validator(drawdown=0.08),
             risk_guard=_make_risk_guard(),
+            **_make_live_infra(),
         )
         assert ctrl.is_live_enabled() is True
 
@@ -304,6 +333,7 @@ class TestLiveModeControllerSetMode:
             mode=TradingMode.PAPER,
             metrics_validator=_make_metrics_validator(),
             risk_guard=_make_risk_guard(),
+            **_make_live_infra(),
         )
         assert ctrl.is_live_enabled() is False
         ctrl.set_mode(TradingMode.LIVE)
@@ -319,6 +349,7 @@ class TestLiveModeControllerSetMode:
             mode=TradingMode.LIVE,
             metrics_validator=_make_metrics_validator(),
             risk_guard=_make_risk_guard(),
+            **_make_live_infra(),
         )
         assert ctrl.is_live_enabled() is True
         ctrl.set_mode(TradingMode.PAPER)
@@ -549,10 +580,12 @@ def _make_live_mode_ctrl(live: bool = True) -> object:
     from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
 
     mode = TradingMode.LIVE if live else TradingMode.PAPER
+    infra = _make_live_infra() if live else {}
     ctrl = LiveModeController(
         mode=mode,
         metrics_validator=_make_metrics_validator(),
         risk_guard=_make_risk_guard(disabled=False),
+        **infra,
     )
     return ctrl
 
@@ -614,10 +647,12 @@ class TestGatedLiveExecutorBlockedByGuard:
     async def test_blocked_guard_reject(self) -> None:
         from projects.polymarket.polyquantbot.execution.live_executor import LiveExecutor
 
+        redis = _make_redis_client()
         executor = LiveExecutor(
             live_mode_controller=_make_live_mode_ctrl(live=True),
             execution_guard=_make_execution_guard(pass_validation=False),
             phase7_executor=_make_phase7_executor(),
+            redis_client=redis,
         )
         result = await executor.execute(
             _make_execution_request(),
