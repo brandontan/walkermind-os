@@ -72,6 +72,34 @@ Do NOT test features outside current phase scope
 
 ---
 
+## REPORT VALIDATION (MANDATORY)
+
+Before any testing:
+
+- Verify FORGE-X_PHASE[X].md exists
+- Verify report is complete (all 6 sections filled)
+
+If report missing or incomplete:
+→ STOP testing
+→ GO-LIVE STATUS = BLOCKED
+→ Reason: "Missing or invalid phase report"
+
+---
+
+## PRE-LIVE INFRA VALIDATION
+
+Before GO-LIVE approval, MUST verify:
+
+- Redis connected
+- PostgreSQL connected
+- Telegram configured
+- Phase report exists and valid
+
+If any missing:
+→ GO-LIVE = BLOCKED
+
+---
+
 ## TESTING MODES
 
 ### FUNCTIONAL
