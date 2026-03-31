@@ -1,43 +1,31 @@
-# System Specifications
+# Complete System Specifications
 
-## Overview
+## Platform Specifications
+- **OS:** Linux 5.4 or later
+- **Architecture:** x86_64
+- **Database:** PostgreSQL 12
+- **Networking:** Ethernet 10Gbps minimum
 
-This document outlines the system specifications for the Walker AI project. It provides detailed information about the infrastructure, software, and hardware requirements.
+## Tech Stack
+- **Frontend:** React.js, Redux
+- **Backend:** Node.js, Express.js
+- **APIs:** RESTful APIs, WebSocket for real-time data
+- **Deployment:** Docker, Kubernetes
 
-## Infrastructure Requirements
+## Engineering Standards
+- **Code Quality:** Follow ESLint and Prettier for JavaScript
+- **Version Control:** Git branching strategy (feature/bugfix/release)
+- **Testing:** Unit tests with Jest, integration tests with Mocha
 
-1. **Server**: Dual Quad-Core CPU  
-2. **Memory**: Minimum 32 GB RAM  
-3. **Storage**: At least 1 TB SSD
+## Trading Risk Rules
+- **Maximum Drawdown:** 5%
+- **Stop-Loss Orders:** Automatic stop-loss orders for every trade
+- **Diversification:** No single asset to exceed 10% of portfolio value
 
-## Software Requirements
+## Latency Targets
+- **Order Execution Time:** < 10ms
+- **Data Ingestion Latency:** < 50ms
+- **API Response Time:** < 100ms
 
-- **Operating System**: Linux (Ubuntu 20.04 or later)  
-- **Database**: PostgreSQL 12.5+  
-- **Framework**: TensorFlow 2.6+
-
-## Hardware Requirements
-
-### Minimum Configuration
-- CPU: Dual-Core  
-- RAM: 8 GB  
-- Storage: 256 GB HDD  
-
-### Recommended Configuration
-- CPU: Quad-Core  
-- RAM: 16 GB  
-- Storage: 512 GB SSD  
-
-## Networking Requirements
-
-- Minimum bandwidth: 100 Mbps  
-- Latency: Less than 30ms  
-
-## Security Requirements
-
-1. **Firewall**: Must implement a network firewall.  
-2. **Encryption**: Data encryption at rest and in transit.
-
-## Conclusion
-
-These specifications ensure the Walker AI system operates efficiently and effectively. For further information, please refer to the technical team.
+## Additional Details
+For the latest updates and detailed documentation, please refer to our internal documentation portal.
