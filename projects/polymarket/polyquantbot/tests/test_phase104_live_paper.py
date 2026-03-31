@@ -819,14 +819,14 @@ class TestLP23CheckpointTriggered:
 
     async def test_checkpoint_enqueues_alert(self) -> None:
         runner, *_ = _make_runner()
-        runner._start_ts = time.time() - 7_200  # simulate 2h elapsed
+        runner._start_ts = time.time() - 3_700  # simulate ~1h elapsed
 
-        await runner._send_checkpoint(6 * 3600.0)
+        await runner._send_checkpoint(1 * 3600.0)
 
         assert not runner._telegram._queue.empty()
         alert = runner._telegram._queue.get_nowait()
         assert "CHECKPOINT" in alert.message
-        assert "6H" in alert.message or "6" in alert.message
+        assert "1H" in alert.message or "1" in alert.message
 
 
 # ═════════════════════════════════════════════════════════════════════════════
