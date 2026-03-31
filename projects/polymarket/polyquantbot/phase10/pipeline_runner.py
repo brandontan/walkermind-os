@@ -95,9 +95,12 @@ from typing import Callable, Optional
 import structlog
 
 from ..connectors.kalshi_client import KalshiClient
+from ..execution.live_executor import GatedExecutionResult, LiveExecutor as GatedLiveExecutor
+from ..execution.simulator import ExecutionSimulator
 from ..phase10.arb_detector import ArbDetector
 from ..phase10.execution_guard import ExecutionGuard
 from ..phase10.go_live_controller import GoLiveController, TradingMode
+from ..phase10.live_mode_controller import LiveModeController
 from ..phase7.analytics.execution_feedback import ExecutionFeedbackTracker
 from ..phase7.analytics.latency_tracker import LatencyTracker
 from ..phase7.analytics.trade_flow import TradeFlowAnalyzer
@@ -106,6 +109,7 @@ from ..phase7.engine.market_cache_patch import Phase7MarketCache
 from ..phase7.engine.orderbook import OrderBookManager
 from ..phase7.infra.ws_client import PolymarketWSClient, WSEvent
 from ..phase9.metrics_validator import MetricsValidator
+from ..phase9.telegram_live import TelegramLive
 
 log = structlog.get_logger()
 
@@ -181,6 +185,10 @@ class Phase10PipelineRunner:
         arb_poll_interval_s: float = _DEFAULT_ARB_POLL_S,
         health_log_interval_s: float = _DEFAULT_HEALTH_LOG_S,
         depth_levels: int = _DEPTH_LEVELS,
+        live_mode_controller: Optional[LiveModeController] = None,
+        gated_executor: Optional[GatedLiveExecutor] = None,
+        simulator: Optional[ExecutionSimulator] = None,
+        telegram: Optional[TelegramLive] = None,
     ) -> None:
         """Initialise the pipeline runner.
 
@@ -204,6 +212,13 @@ class Phase10PipelineRunner:
             arb_poll_interval_s: Seconds between Kalshi polls.
             health_log_interval_s: Seconds between pipeline health log lines.
             depth_levels: Orderbook depth levels to aggregate.
+            live_mode_controller: Phase 10.5 stateless LIVE gate (optional;
+                built from go_live_controller config when not provided).
+                When not provided the pipeline falls back to PAPER-only via
+                the legacy GoLiveController path.
+            gated_executor: Phase 10.5 gated live executor (optional).
+            simulator: ExecutionSimulator for PAPER mode (optional).
+            telegram: TelegramLive alert dispatcher (optional).
         """
         self._ws = ws_client
         self._books = orderbook_manager
@@ -222,6 +237,10 @@ class Phase10PipelineRunner:
         self._arb_poll_interval = arb_poll_interval_s
         self._health_log_interval = health_log_interval_s
         self._depth_levels = depth_levels
+        self._live_ctrl = live_mode_controller
+        self._gated_executor = gated_executor
+        self._simulator = simulator
+        self._telegram = telegram
 
         self._running: bool = False
         self._event_count: int = 0
@@ -233,6 +252,8 @@ class Phase10PipelineRunner:
             market_count=len(market_ids),
             go_live_mode=go_live_controller.mode.value,
             arb_poll_interval_s=arb_poll_interval_s,
+            live_mode_controller_attached=live_mode_controller is not None,
+            telegram_attached=telegram is not None,
         )
 
     # ── Factory ───────────────────────────────────────────────────────────────
@@ -559,12 +580,16 @@ class Phase10PipelineRunner:
         market_ctx: dict,
         lat_event: LatencyEvent,
     ) -> Optional[ExecutionResult]:
-        """Apply Phase 10 gates then execute the order.
+        """Apply Phase 10.5 strict gating then execute the order.
+
+        The control layer (LiveModeController) is ALWAYS executed first.
+        Based on its result the order is routed to either the gated live
+        executor (LIVE path) or the simulator (PAPER fallback).
 
         Gates (in order):
-          1. GoLiveController.allow_execution()  — PAPER mode or caps block here.
-          2. ExecutionGuard.validate()           — liquidity/slippage/size/dedup.
-          3. LiveExecutor.execute()              — actual placement.
+          1. LiveModeController.is_live_enabled() — stateless, re-checked here.
+          2a. LIVE path  → GatedLiveExecutor (ExecutionGuard + Redis dedup inside).
+          2b. PAPER path → ExecutionSimulator or legacy LiveExecutor (dry_run).
 
         Args:
             request: Validated ExecutionRequest from decision callback.
@@ -577,20 +602,189 @@ class Phase10PipelineRunner:
         trade_size_usd = float(request.size)
         expected_ev = float(getattr(request, "expected_ev", 0.0))
 
-        # ── Gate 1: GoLiveController ──────────────────────────────────────────
-        if not self._go_live.allow_execution(trade_size_usd=trade_size_usd):
-            log.debug(
-                "phase10_execution_blocked_go_live",
-                market_id=request.market_id,
-                mode=self._go_live.mode.value,
-            )
-            self._metrics.record_fill(filled=False)
-            return None
+        # ── CONTROL LAYER: LiveModeController (ALWAYS first) ──────────────────
+        live_enabled = (
+            self._live_ctrl.is_live_enabled()
+            if self._live_ctrl is not None
+            else False
+        )
 
-        # ── Gate 2: ExecutionGuard ────────────────────────────────────────────
+        if not live_enabled:
+            # PAPER fallback — run through simulator or legacy dry-run executor.
+            block_reason = (
+                self._live_ctrl.get_block_reason()
+                if self._live_ctrl is not None
+                else "no_live_mode_controller"
+            )
+            log.debug(
+                "phase10_execution_paper_fallback",
+                market_id=request.market_id,
+                block_reason=block_reason,
+            )
+            await self._notify_telegram_async(
+                "paper_fallback",
+                market_id=request.market_id,
+                reason=block_reason,
+            )
+            # Legacy GoLiveController gate (maintained for backwards compatibility)
+            if not self._go_live.allow_execution(trade_size_usd=trade_size_usd):
+                self._metrics.record_fill(filled=False)
+                return None
+
+            # ── Paper execution (simulator preferred, legacy executor fallback) ──
+            if self._simulator is not None:
+                orderbook = market_ctx.get("orderbook", {})
+                lat_event.order_sent_ts = time.time()
+                self._order_count += 1
+                try:
+                    sim_result = await self._simulator.execute(
+                        order_id=request.correlation_id,
+                        market_id=request.market_id,
+                        side=request.side,
+                        expected_price=request.price,
+                        size_usd=trade_size_usd,
+                        orderbook=orderbook,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    log.error(
+                        "phase10_simulator_error",
+                        market_id=request.market_id,
+                        correlation_id=request.correlation_id,
+                        error=str(exc),
+                        exc_info=True,
+                    )
+                    self._metrics.record_fill(filled=False)
+                    return None
+                lat_event.fill_received_ts = time.time()
+                lat_event.total_latency_ms = (
+                    lat_event.fill_received_ts - lat_event.data_received_ts
+                ) * 1000.0
+                self._metrics.record_latency(lat_event.total_latency_ms)
+                self._metrics.record_fill(filled=sim_result.success)
+                self._metrics.record_ev_signal(
+                    expected_ev=expected_ev, actual_ev=0.0
+                )
+                self._metrics.record_pnl_sample(cumulative_pnl=0.0)
+                self._go_live.record_trade(size_usd=trade_size_usd)
+                return ExecutionResult(
+                    order_id=sim_result.order_id,
+                    status="submitted" if sim_result.success else "rejected",
+                    filled_size=sim_result.filled_size,
+                    avg_price=sim_result.simulated_price,
+                    latency_ms=lat_event.total_latency_ms,
+                    correlation_id=request.correlation_id,
+                    is_paper=True,
+                )
+            # Fallback to legacy Phase 7 executor (dry_run enforced upstream)
+            return await self._legacy_execute(
+                request, market_ctx, lat_event, expected_ev, trade_size_usd
+            )
+
+        # ── LIVE PATH: GatedLiveExecutor ──────────────────────────────────────
+        if self._gated_executor is not None:
+            lat_event.order_sent_ts = time.time()
+            self._order_count += 1
+
+            await self._notify_telegram_async(
+                "live_enabled",
+                market_id=request.market_id,
+            )
+
+            gated_result = await self._gated_executor.execute(request, market_ctx)
+
+            lat_event.fill_received_ts = time.time()
+            lat_event.total_latency_ms = (
+                lat_event.fill_received_ts - lat_event.data_received_ts
+            ) * 1000.0
+
+            if not gated_result.allowed:
+                log.warning(
+                    "phase10_live_execution_blocked",
+                    market_id=request.market_id,
+                    reason=gated_result.block_reason,
+                )
+                self._metrics.record_fill(filled=False)
+                await self._notify_telegram_async(
+                    "live_disabled",
+                    market_id=request.market_id,
+                    reason=gated_result.block_reason,
+                )
+                return None
+
+            result = gated_result.result
+            if result is None:
+                self._metrics.record_fill(filled=False)
+                return None
+
+            self._metrics.record_latency(lat_event.total_latency_ms)
+            filled = result.status in ("filled", "partial", "submitted")
+            self._metrics.record_fill(filled=filled)
+
+            actual_ev = 0.0
+            if result.status in ("filled", "partial") and result.avg_price > 0:
+                mid = float(market_ctx.get("mid", request.price))
+                actual_ev = result.filled_size * abs(mid - result.avg_price)
+
+            self._metrics.record_ev_signal(
+                expected_ev=expected_ev, actual_ev=actual_ev
+            )
+            self._metrics.record_pnl_sample(cumulative_pnl=actual_ev)
+            self._go_live.record_trade(size_usd=trade_size_usd)
+            self._cache.on_execution_latency(
+                request.market_id, lat_event.total_latency_ms
+            )
+
+            exec_success = result.status in ("filled", "partial", "submitted")
+            tg_event = "execution_success" if exec_success else "execution_failure"
+            await self._notify_telegram_async(
+                tg_event,
+                market_id=request.market_id,
+                status=result.status,
+                latency_ms=round(lat_event.total_latency_ms, 2),
+            )
+
+            log.info(
+                "phase10_live_order_executed",
+                correlation_id=request.correlation_id,
+                market_id=request.market_id,
+                order_id=result.order_id,
+                status=result.status,
+                latency_ms=round(lat_event.total_latency_ms, 2),
+                is_paper=result.is_paper,
+            )
+            return result
+
+        # Fallback: no gated executor — use legacy Phase 7 executor
+        return await self._legacy_execute(
+            request, market_ctx, lat_event, expected_ev, trade_size_usd
+        )
+
+    async def _legacy_execute(
+        self,
+        request: ExecutionRequest,
+        market_ctx: dict,
+        lat_event: LatencyEvent,
+        expected_ev: float,
+        trade_size_usd: float,
+    ) -> Optional[ExecutionResult]:
+        """Legacy execution path via Phase 7 LiveExecutor.
+
+        Retained for backwards compatibility when no gated executor or
+        simulator is configured.
+
+        Args:
+            request: ExecutionRequest.
+            market_ctx: Market context dict.
+            lat_event: LatencyEvent (mutated in-place).
+            expected_ev: Expected EV from signal.
+            trade_size_usd: Trade size in USD.
+
+        Returns:
+            ExecutionResult or None if guard rejects.
+        """
+        # ── ExecutionGuard (Phase 10 pre-trade check) ─────────────────────────
         liquidity_usd = float(market_ctx.get("depth", 0.0))
         spread = float(market_ctx.get("spread", 0.02))
-        # Estimate slippage as half the spread (conservative)
         slippage_pct = spread * 0.5
 
         guard_sig = (
@@ -628,30 +822,20 @@ class Phase10PipelineRunner:
             lat_event.fill_received_ts - lat_event.data_received_ts
         ) * 1000.0
 
-        # Record latency + fill to MetricsValidator
         self._metrics.record_latency(lat_event.total_latency_ms)
         filled = result.status in ("filled", "partial", "submitted")
         self._metrics.record_fill(filled=filled)
 
-        # Compute actual EV from fill (zero for unfilled / paper trades)
         actual_ev = 0.0
         if result.status in ("filled", "partial") and result.avg_price > 0:
             mid = float(market_ctx.get("mid", request.price))
             actual_ev = result.filled_size * abs(mid - result.avg_price)
 
-        # Single record_ev_signal call with both expected and actual
         self._metrics.record_ev_signal(expected_ev=expected_ev, actual_ev=actual_ev)
-
-        # PnL sample: per-trade realised EV as a simple running proxy
         self._metrics.record_pnl_sample(cumulative_pnl=actual_ev)
-
-        # Record trade in GoLiveController daily counters
         self._go_live.record_trade(size_usd=trade_size_usd)
-
-        # Update cache with execution latency
         self._cache.on_execution_latency(request.market_id, result.latency_ms)
 
-        # Feedback tracking
         sample = self._latency_tracker.record(
             market_id=request.market_id,
             order_id=result.order_id,
@@ -692,6 +876,53 @@ class Phase10PipelineRunner:
         )
 
         return result
+
+    async def _notify_telegram_async(self, event: str, **kwargs: object) -> None:
+        """Send a non-blocking Telegram alert for a pipeline event.
+
+        Never raises — all failures are caught and logged.
+
+        Args:
+            event: Event type string (e.g. ``"live_enabled"``, ``"execution_success"``).
+            **kwargs: Additional context for the message.
+        """
+        if self._telegram is None:
+            return
+        try:
+            market_id = str(kwargs.get("market_id", ""))
+            reason = str(kwargs.get("reason", ""))
+            status = str(kwargs.get("status", ""))
+            latency_ms = kwargs.get("latency_ms", 0)
+
+            if event == "live_enabled":
+                msg = f"🟢 LIVE MODE ENABLED | market={market_id[:24]}"
+            elif event == "live_disabled":
+                msg = f"🔴 LIVE MODE DISABLED | market={market_id[:24]} reason={reason}"
+            elif event == "execution_success":
+                msg = (
+                    f"✅ LIVE EXECUTION SUCCESS | market={market_id[:24]}"
+                    f" status={status} latency={latency_ms}ms"
+                )
+            elif event == "execution_failure":
+                msg = (
+                    f"❌ LIVE EXECUTION FAILURE | market={market_id[:24]}"
+                    f" status={status}"
+                )
+            elif event == "paper_fallback":
+                msg = f"📄 PAPER FALLBACK | market={market_id[:24]} reason={reason}"
+            else:
+                return
+
+            await self._telegram.alert_error(
+                error=f"pipeline_event:{event}",
+                context=msg,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "phase10_telegram_notify_failed",
+                event=event,
+                error=str(exc),
+            )
 
     # ── Background: Kalshi arb polling ────────────────────────────────────────
 
