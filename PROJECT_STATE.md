@@ -1,8 +1,8 @@
 # PROJECT STATE — WALKER AI TEAM
 
-Last Updated: 2026-04-01 04:37:20  
-Current Phase: Phase 10.9 — Final Paper Run (PRODUCTION_DRY_RUN) ✅  
-Status: Phase 10.9 ✅ (SENTINEL Final Validation — GO-LIVE APPROVED)
+Last Updated: 2026-04-01  
+Current Phase: Phase 11 — LIVE Deployment ✅  
+Status: Phase 11 Complete → Pre-Refactor 🔧
 
 ---
 
@@ -134,42 +134,62 @@ Current focus:
    SENTINEL GO-LIVE VERDICT: ✅ APPROVED  
    513 tests total, 0 fail  
 
+- Phase 11 — LIVE Deployment ✅  
+   Explicit opt-in guard (`ENABLE_LIVE_TRADING=true`) preventing accidental PAPER → LIVE  
+   Pre-LIVE startup validation (8 checks, all must pass via `run_prelive_validation()`)  
+   `LiveConfig` with `LiveModeGuardError` for config-layer safety  
+   `LiveTradeLogger` — per-trade structured log + JSONL append-only file  
+   `LiveExecutor` wired with trade logger + Telegram alerts  
+   Telegram: `format_live_mode_activated()` + `format_real_trade_executed()`  
+   32 new tests (LD-01–LD-32), 545 tests total, 0 fail
+
 ---
 
 ## 🚧 IN PROGRESS
 
-### Phase 11 — Strategy Scaling
-
-Focus: Redis metrics persistence + WebSocket health dashboard + LIVE activation checklist
+- None (system stable before refactor)
 
 ---
 
 ## ❌ NOT STARTED
 
-- Phase 11 — Strategy Scaling  
-   Multi-strategy router + adaptive weighting  
+- Proper Strategy Layer (modular, multi-strategy ready)
 
-- Phase 12 — Full Automation  
-   Dashboard + capital scaling
+- Backtesting engine
+
+- Advanced Intelligence layer (Bayesian, sentiment, drift)
+
+- Capital allocation engine (multi-strategy scaling)
 
 ---
 
 ## 🎯 NEXT PRIORITY
 
-Phase 11 — Redis metrics persistence + real-time dashboard + drawdown auto-halt + LIVE activation runbook
+STRUCTURE REFACTOR — domain-based architecture alignment
+
+Goals:
+- Flatten phase-based folders into domain modules (`ingestion/`, `strategy/`, `intelligence/`, `risk/`, `execution/`, `monitoring/`)
+- Extract signal logic out of the pipeline into a standalone `strategy/` layer
+- Separate intelligence/probability models into a dedicated `intelligence/` module
+- Standardize report structure per agent (FORGE-X, SENTINEL, BRIEFER)
+- Enable clean multi-strategy extension without cross-phase coupling
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
-- Metrics snapshots are in-memory only (Redis persistence planned for Phase 11)  
+### Architecture (Pre-Refactor)
+- Phase-based folder structure (`phase2/`–`phase11/`) is non-scalable  
+- Signal logic is mixed into the pipeline runner (not a standalone strategy layer)  
+- Intelligence layer is not fully separated (Bayesian model lives inside strategy code)  
+- Reports are not structured per agent (FORGE-X / SENTINEL / BRIEFER mixed in one folder)  
+- Multi-strategy extension requires cross-phase coupling — hard to add new alpha sources
 
+### Infrastructure
+- Metrics snapshots are in-memory only (Redis persistence not yet implemented)  
 - Webhook server requires TLS termination in production (nginx/caddy)  
-
-- PreLiveValidator latency field uses fallback chain (p95_latency → p95_latency_ms)  
-
+- PreLiveValidator latency field uses fallback chain (`p95_latency` → `p95_latency_ms`)  
 - Telegram delivery not yet tested on real network (non-stub)  
-
 - SIGNAL_DEBUG_MODE must be set in `.env` before starting the 6H live paper run
 
 ---
@@ -178,7 +198,7 @@ Phase 11 — Redis metrics persistence + real-time dashboard + drawdown auto-hal
 
 Latest commit message:
 
-"sentinel: Phase 10.8 signal activation re-run — 6H minimum, 2H validation, critical_failure flag, 498 tests"
+"update: pre-refactor system state snapshot before architecture restructuring"
 
 ---
 
