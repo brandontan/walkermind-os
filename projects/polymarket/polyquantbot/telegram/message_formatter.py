@@ -22,7 +22,7 @@ Design:
 from __future__ import annotations
 
 import time
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -437,4 +437,70 @@ def format_execution_blocked(
     if correlation_id:
         lines.append(f"Trace: `{correlation_id[:32]}`")
     lines.append(f"_at {_ts_utc()}_")
+    return "\n".join(lines)
+
+
+def format_multi_strategy_report(
+    strategy_breakdown: Dict[str, dict],
+    conflicts_count: int,
+    skipped_trades: int,
+    total_signals: int,
+    total_trades: int,
+) -> str:
+    """Format a 📊 MULTI-STRATEGY REPORT Telegram message.
+
+    Args:
+        strategy_breakdown: Mapping of strategy_id → metrics dict (from
+            :meth:`MultiStrategyMetrics.snapshot`).  Each dict is expected to
+            contain ``signals_generated``, ``trades_executed``, ``win_rate``,
+            and ``ev_capture_rate`` keys.
+        conflicts_count: Total number of conflict events recorded.
+        skipped_trades: Total trades skipped due to conflicts.
+        total_signals: Aggregate signals across all strategies.
+        total_trades: Aggregate trades across all strategies.
+
+    Returns:
+        Formatted Telegram-compatible report string starting with '📊'.
+    """
+    import datetime
+
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sep = "─" * 37
+
+    lines = [
+        f"📊 MULTI-STRATEGY REPORT | {_safe(ts)}",
+        sep,
+        (
+            f"Signals: {_safe(total_signals)} | "
+            f"Trades: {_safe(total_trades)} | "
+            f"Conflicts: {_safe(conflicts_count)} | "
+            f"Skipped: {_safe(skipped_trades)}"
+        ),
+        sep,
+        "STRATEGIES:",
+    ]
+
+    for strategy_id, metrics in strategy_breakdown.items():
+        sigs = _safe(metrics.get("signals_generated", 0))
+        trades = _safe(metrics.get("trades_executed", 0))
+        wr_raw = metrics.get("win_rate", 0.0)
+        try:
+            wr = f"{float(wr_raw) * 100:.1f}%"
+        except (TypeError, ValueError):
+            wr = _safe(wr_raw)
+        ev_raw = metrics.get("ev_capture_rate", 0.0)
+        try:
+            ev = f"{float(ev_raw):.3f}"
+        except (TypeError, ValueError):
+            ev = _safe(ev_raw)
+        lines.append(
+            f"  {_safe(strategy_id):<16} "
+            f"sigs={sigs} trades={trades} wr={wr} ev={ev}"
+        )
+
+    lines.append(sep)
+    lines.append(
+        f"MODE: PAPER | conflicts={_safe(conflicts_count)} skipped={_safe(skipped_trades)}"
+    )
+
     return "\n".join(lines)
