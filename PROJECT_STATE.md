@@ -145,14 +145,14 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ---
 
-🎯 NEXT PRIORITY
+## 🎯 NEXT PRIORITY
 
 1. Multi-strategy pipeline integration (clean architecture)
 2. Controlled LIVE deployment (small capital, staged scaling)
 
 ---
 
-⚠️ KNOWN ISSUES
+## ⚠️ KNOWN ISSUES
 
 - Metrics persistence still in-memory (Redis integration pending)
 - Intelligence not fully affecting execution decisions yet
@@ -161,7 +161,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ---
 
-📊 SYSTEM STATUS
+## 📊 SYSTEM STATUS
 
 Architecture: CLEAN ✅
 Stability: HIGH ✅
@@ -169,7 +169,7 @@ Trading Readiness: READY (controlled deployment) 🟢
 
 ---
 
-📌 OPERATION RULES
+## 📌 OPERATION RULES
 
 - No phase-based structure allowed
 - No backward compatibility allowed
@@ -178,6 +178,6 @@ Trading Readiness: READY (controlled deployment) 🟢
 
 ---
 
-🧾 COMMIT MESSAGE
+## 🧾 COMMIT MESSAGE
 
 "update: final corrected project state after strict cleanup and domain architecture completion"
