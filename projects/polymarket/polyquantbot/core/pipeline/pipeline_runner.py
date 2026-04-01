@@ -112,6 +112,7 @@ from ...data.websocket.ws_client import PolymarketWSClient, WSEvent
 from ...monitoring.metrics_validator import MetricsValidator
 from ...telegram.telegram_live import TelegramLive
 from ...telegram.message_formatter import format_error, format_execution_blocked
+from ...strategy.orchestrator import MultiStrategyOrchestrator, OrchestratorResult
 
 log = structlog.get_logger()
 
@@ -192,6 +193,7 @@ class Phase10PipelineRunner:
         simulator: Optional[ExecutionSimulator] = None,
         telegram: Optional[TelegramLive] = None,
         system_state_manager: Optional[SystemStateManager] = None,
+        multi_strategy_orchestrator: Optional[MultiStrategyOrchestrator] = None,
     ) -> None:
         """Initialise the pipeline runner.
 
@@ -224,6 +226,10 @@ class Phase10PipelineRunner:
             telegram: TelegramLive alert dispatcher (optional).
             system_state_manager: Phase 10.7 runtime state gate (optional).
                 When provided, execution is blocked unless state is RUNNING.
+            multi_strategy_orchestrator: Optional Phase 12 orchestrator.
+                When provided, each orderbook tick is evaluated by all
+                registered strategies before the decision_callback is invoked.
+                Conflict-detected ticks are skipped automatically.
         """
         self._ws = ws_client
         self._books = orderbook_manager
@@ -247,6 +253,7 @@ class Phase10PipelineRunner:
         self._simulator = simulator
         self._telegram = telegram
         self._state_manager = system_state_manager
+        self._multi_strategy_orchestrator = multi_strategy_orchestrator
 
         self._running: bool = False
         self._event_count: int = 0
@@ -522,6 +529,20 @@ class Phase10PipelineRunner:
         market_ctx = self._cache.get_market_context(market_id)
         market_ctx["orderbook_valid"] = snap.is_valid
         market_ctx["flow_imbalance"] = self._cache.get_trade_flow_imbalance(market_id)
+
+        # Phase 12: Multi-strategy evaluation (PAPER mode enforced in orchestrator)
+        if self._multi_strategy_orchestrator is not None:
+            orch_result: OrchestratorResult = await self._multi_strategy_orchestrator.run(
+                market_id, market_ctx
+            )
+            # Log result; if conflict detected → skip execution for this tick
+            if orch_result.skipped:
+                log.info(
+                    "phase12_conflict_skip",
+                    market_id=market_id,
+                    reason="conflict_detected",
+                )
+                return
 
         try:
             order_request: Optional[ExecutionRequest] = await self._decision_callback(
