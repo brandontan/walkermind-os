@@ -42,6 +42,7 @@ import structlog
 
 from .allocator import AllocationDecision, StrategyAllocator
 from .base.base_strategy import SignalResult
+from .capital_allocator import DynamicCapitalAllocator
 from .conflict_resolver import ConflictResolver
 from .router import RouterResult, StrategyRouter
 from .implementations import STRATEGY_REGISTRY
@@ -97,7 +98,7 @@ class MultiStrategyOrchestrator:
         self,
         router: StrategyRouter,
         resolver: ConflictResolver,
-        allocator: StrategyAllocator,
+        allocator: "StrategyAllocator | DynamicCapitalAllocator",
         metrics: MultiStrategyMetrics,
         force_paper: bool = True,
     ) -> None:
@@ -230,7 +231,7 @@ class MultiStrategyOrchestrator:
 
         router = StrategyRouter.from_registry()
         resolver = ConflictResolver()
-        allocator = StrategyAllocator(
+        allocator = DynamicCapitalAllocator(
             strategy_names=strategy_names,
             bankroll=bankroll,
         )
