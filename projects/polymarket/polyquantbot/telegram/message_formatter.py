@@ -289,6 +289,54 @@ def format_checkpoint(
     return "\n".join(lines)
 
 
+def format_no_signal_alert(
+    idle_s: float,
+    signal_count: int,
+) -> str:
+    """Format a no-signal-activity CRITICAL alert.
+
+    Args:
+        idle_s: Seconds since the last signal was generated.
+        signal_count: Total signals generated so far in this run.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    idle_h = idle_s / 3600.0
+    lines = [
+        "⚠️ *NO SIGNAL ACTIVITY*",
+        f"No signal generated in `{idle_h:.1f}h`",
+        f"Total signals this run: `{signal_count}`",
+        "Check: edge threshold, market liquidity, WS feed.",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_no_trade_alert(
+    idle_s: float,
+    order_count: int,
+) -> str:
+    """Format a no-trade-activity CRITICAL alert.
+
+    Args:
+        idle_s: Seconds since the last simulated order was placed.
+        order_count: Total simulated orders placed so far in this run.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    idle_h = idle_s / 3600.0
+    lines = [
+        "⚠️ *NO TRADE ACTIVITY*",
+        f"No order placed in `{idle_h:.1f}h`",
+        f"Total orders this run: `{order_count}`",
+        "Check: signal engine, execution guard, simulator.",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
 def format_execution_blocked(
     market_id: str,
     reason: str,
