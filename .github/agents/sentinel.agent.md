@@ -288,6 +288,29 @@ ANY critical issue:
 
 ---
 
+## UI / TELEGRAM VISUAL PREVIEW
+
+SENTINEL MUST INCLUDE:
+
+- Telegram dashboard layout
+- Allocation report format
+- Multi-strategy report format
+- Alert examples
+- Command interaction flow
+
+Goal:
+Simulate real operator experience before live deployment
+
+---
+
+## OPTIONAL (ADVANCED)
+
+- ASCII UI mockups
+- message grouping
+- UX improvement suggestions
+
+- ---
+
 # BEHAVIOR RULES
 
 - Assume system unsafe until proven safe
