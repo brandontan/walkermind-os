@@ -23,6 +23,10 @@ class SignalResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
+# Alias for forward compatibility with pipeline references
+Signal = SignalResult
+
+
 class BaseStrategy(ABC):
     """
     Abstract base class for all trading strategies.
