@@ -1,8 +1,8 @@
 # PROJECT STATE — WALKER AI TEAM
 
-Last Updated: 2026-03-31 16:59:33  
-Current Phase: Phase 10.7 — Pre-LIVE Gate ✅  
-Status: Phase 10.7 ✅ (Pre-LIVE Gate Complete)
+Last Updated: 2026-04-01 03:23:57  
+Current Phase: Phase 10.8 — Signal Activation Re-Run ✅  
+Status: Phase 10.8 ✅ (Signal Activation & 2H Validation Complete)
 
 ---
 
@@ -116,6 +116,16 @@ Current focus:
    SystemStateManager integrated into execution pipeline  
    465 tests, 0 fail  
 
+- Phase 10.8 — Signal Activation Re-Run ✅  
+   SIGNAL_DEBUG_MODE support (edge threshold 0.05 → 0.02)  
+   SignalEngine with forced test-signal fallback (30m silence → auto $1 test signal)  
+   SignalMetrics tracking (generated / skipped with reason breakdown)  
+   ActivityMonitor (1H inactivity CRITICAL alert)  
+   RunController: 6H minimum duration enforced (ValueError if shorter)  
+   RunController: 2H signal/trade validation (CRITICAL FAILURE if either counter == 0)  
+   critical_failure flag + signal_metrics in final report  
+   498 tests, 0 fail  
+
 ---
 
 ## 🚧 IN PROGRESS
@@ -132,7 +142,7 @@ Focus: Redis metrics persistence + WebSocket health dashboard + LIVE activation 
    Multi-strategy router + adaptive weighting  
 
 - Phase 12 — Full Automation  
-   Dashboard + capital scaling  
+   Dashboard + capital scaling
 
 ---
 
@@ -152,13 +162,15 @@ Phase 11 — Redis metrics persistence + real-time dashboard + drawdown auto-hal
 
 - Telegram delivery not yet tested on real network (non-stub)  
 
+- SIGNAL_DEBUG_MODE must be set in `.env` before starting the 6H live paper run
+
 ---
 
 ## 🧾 COMMIT CONTEXT
 
 Latest commit message:
 
-"update: phase 10.3 validated, phase 10.4 live paper run in progress, preparing phase 10.5 go-live activation"
+"sentinel: Phase 10.8 signal activation re-run — 6H minimum, 2H validation, critical_failure flag, 498 tests"
 
 ---
 

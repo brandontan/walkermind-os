@@ -650,3 +650,131 @@ def test_sa25_build_report_phase_is_10_8():
     report = runner.build_report()
 
     assert report["phase"] == "10.8"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RC-01 … RC-05 — RunController Phase 10.8 validation
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_rc01_minimum_6h_duration_enforced():
+    """RC-01: RunController raises ValueError when duration < 6 hours."""
+    from projects.polymarket.polyquantbot.phase10.run_controller import RunController, _MIN_DURATION_S
+
+    runner, _ = _make_runner_for_signal_test()
+
+    with pytest.raises(ValueError, match="minimum allowed run duration"):
+        RunController(runner=runner, duration_s=_MIN_DURATION_S - 1.0)
+
+
+def test_rc01b_exactly_6h_is_accepted():
+    """RC-01b: RunController accepts exactly 6 hours (boundary condition)."""
+    from projects.polymarket.polyquantbot.phase10.run_controller import RunController, _MIN_DURATION_S
+
+    runner, _ = _make_runner_for_signal_test()
+    ctrl = RunController(runner=runner, duration_s=_MIN_DURATION_S)
+    assert ctrl._duration_s == _MIN_DURATION_S
+
+
+@pytest.mark.asyncio
+async def test_rc02_two_hour_validation_critical_failure_no_signals():
+    """RC-02: 2H validation sets critical_failure when signals_generated == 0."""
+    from unittest.mock import patch
+    from projects.polymarket.polyquantbot.phase10.run_controller import RunController
+
+    runner, _ = _make_runner_for_signal_test()
+    runner._signal_count = 0
+    runner._sim_order_count = 0
+    runner._start_ts = time.time()
+
+    ctrl = RunController(runner=runner, duration_s=6 * 3600.0)
+    ctrl._start_ts = time.time()
+
+    with patch(
+        "projects.polymarket.polyquantbot.phase10.run_controller._SIGNAL_VALIDATION_WINDOW_S",
+        0.0,
+    ):
+        await ctrl._signal_validation()
+
+    assert ctrl.critical_failure is True
+    assert any("signals_generated=0" in r for r in ctrl.critical_failure_reasons)
+
+
+@pytest.mark.asyncio
+async def test_rc03_two_hour_validation_critical_failure_no_orders():
+    """RC-03: 2H validation sets critical_failure when orders_attempted == 0."""
+    from unittest.mock import patch
+    from projects.polymarket.polyquantbot.phase10.run_controller import RunController
+
+    runner, _ = _make_runner_for_signal_test()
+    runner._signal_count = 5
+    runner._sim_order_count = 0
+    runner._start_ts = time.time()
+
+    ctrl = RunController(runner=runner, duration_s=6 * 3600.0)
+    ctrl._start_ts = time.time()
+
+    with patch(
+        "projects.polymarket.polyquantbot.phase10.run_controller._SIGNAL_VALIDATION_WINDOW_S",
+        0.0,
+    ):
+        await ctrl._signal_validation()
+
+    assert ctrl.critical_failure is True
+    assert any("orders_attempted=0" in r for r in ctrl.critical_failure_reasons)
+
+
+@pytest.mark.asyncio
+async def test_rc04_two_hour_validation_passes_when_both_nonzero():
+    """RC-04: 2H validation does NOT set critical_failure when signals > 0 and orders > 0."""
+    from unittest.mock import patch
+    from projects.polymarket.polyquantbot.phase10.run_controller import RunController
+
+    runner, _ = _make_runner_for_signal_test()
+    runner._signal_count = 3
+    runner._sim_order_count = 2
+    runner._start_ts = time.time()
+
+    ctrl = RunController(runner=runner, duration_s=6 * 3600.0)
+    ctrl._start_ts = time.time()
+
+    with patch(
+        "projects.polymarket.polyquantbot.phase10.run_controller._SIGNAL_VALIDATION_WINDOW_S",
+        0.0,
+    ):
+        await ctrl._signal_validation()
+
+    assert ctrl.critical_failure is False
+    assert ctrl.critical_failure_reasons == []
+
+
+@pytest.mark.asyncio
+async def test_rc05_final_report_includes_critical_failure_flag():
+    """RC-05: final_report dict includes critical_failure and signal_metrics after finalize."""
+    from unittest.mock import patch
+    from projects.polymarket.polyquantbot.phase10.run_controller import RunController
+
+    runner, sig_metrics = _make_runner_for_signal_test()
+    runner._signal_count = 0
+    runner._sim_order_count = 0
+    runner._start_ts = time.time()
+
+    ctrl = RunController(runner=runner, duration_s=6 * 3600.0)
+    ctrl._start_ts = time.time()
+
+    with patch(
+        "projects.polymarket.polyquantbot.phase10.run_controller._SIGNAL_VALIDATION_WINDOW_S",
+        0.0,
+    ):
+        await ctrl._signal_validation()
+
+    with patch.object(ctrl, "_report_path", "/tmp/test_phase108_rc05_report.json"):
+        await ctrl._finalize()
+
+    report = ctrl.final_report
+    assert report is not None
+    assert "critical_failure" in report
+    assert report["critical_failure"] is True
+    assert "critical_failure_reasons" in report
+    assert isinstance(report["critical_failure_reasons"], list)
+    assert "signal_metrics" in report

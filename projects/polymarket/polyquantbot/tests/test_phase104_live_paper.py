@@ -680,7 +680,7 @@ class TestLP18RunControllerStartAlert:
             tmp_path = fh.name
 
         try:
-            controller = RunController(runner, duration_s=0.1, report_output_path=tmp_path)
+            controller = RunController(runner, duration_s=6 * 3600.0, report_output_path=tmp_path)
             await controller.start()
             # At least the final report should have been built
             assert controller.final_report is not None
@@ -703,7 +703,7 @@ class TestLP19RunControllerStop:
         )
 
         runner, *_ = _make_runner()
-        controller = RunController(runner, duration_s=3600.0)
+        controller = RunController(runner, duration_s=6 * 3600.0)
 
         # Verify stop_event is initially clear
         assert not controller._stop_event.is_set()
@@ -743,7 +743,7 @@ class TestLP20FinalReportWritten:
 
         try:
             controller = RunController(
-                runner, duration_s=0.1, report_output_path=tmp_path
+                runner, duration_s=6 * 3600.0, report_output_path=tmp_path
             )
             await controller.start()
 
