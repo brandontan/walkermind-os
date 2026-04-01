@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
-Last Updated: 2026-04-02
-Status: Phase 12 Multi-Strategy Integration Complete 🚀
+Last Updated: 2026-04-01
+Status: Phase 13 Dynamic Capital Allocation Complete 🚀
 
 ---
 
@@ -102,6 +102,20 @@ PIPELINE
 
 ---
 
+PHASE 13 — DYNAMIC CAPITAL ALLOCATION
+
+- DynamicCapitalAllocator: score-based weighting in strategy/capital_allocator.py
+- Scoring model: score = (ev * confidence) / (1 + drawdown)
+- Weight normalization: weight_i = score_i / sum(score_all)
+- Position sizing: position_size_i = weight_i × max_position_limit
+- Auto-disable on drawdown > 8%, auto-suppress on win_rate < 40%
+- Telegram format_capital_allocation_report() added
+- MultiStrategyOrchestrator.from_registry() upgraded to DynamicCapitalAllocator
+- 45/45 new tests passing (CA-01 – CA-45)
+- Capital allocation active | ready for live scaling
+
+---
+
 PHASE 12 — MULTI-STRATEGY INTEGRATION
 
 - ConflictResolver: YES/NO conflict detection per market_id
@@ -148,6 +162,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## ❌ NOT STARTED
 
+- Online learning: connect DynamicCapitalAllocator to live metrics feedback loop
+- Telegram /allocation command (CommandHandler integration)
 - Intelligence full integration into execution loop
 - Controlled LIVE deployment (small capital, staged scaling)
 - Backtesting with historical Polymarket data
@@ -157,8 +173,10 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Intelligence full integration into execution decisions
-2. Controlled LIVE deployment (small capital, staged scaling)
+1. Online learning: DynamicCapitalAllocator.update_metrics() from live MultiStrategyMetrics
+2. Telegram /allocation command via CommandHandler
+3. Intelligence full integration into execution decisions
+4. Controlled LIVE deployment (small capital, staged scaling)
 
 ---
 

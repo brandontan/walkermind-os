@@ -440,6 +440,71 @@ def format_execution_blocked(
     return "\n".join(lines)
 
 
+def format_capital_allocation_report(
+    strategy_weights: Dict[str, float],
+    position_sizes: Dict[str, float],
+    disabled_strategies: list,
+    suppressed_strategies: list,
+    total_allocated_usd: float,
+    bankroll: float,
+    mode: str = "PAPER",
+) -> str:
+    """Format a 💰 CAPITAL ALLOCATION REPORT Telegram message.
+
+    Args:
+        strategy_weights: Mapping of strategy_name → normalized weight ∈ [0, 1].
+        position_sizes: Mapping of strategy_name → position size in USD.
+        disabled_strategies: Strategy names that are currently auto-disabled.
+        suppressed_strategies: Strategy names that are weight-suppressed (low win_rate).
+        total_allocated_usd: Total capital allocated across active strategies.
+        bankroll: Total available capital in USD.
+        mode: Trading mode ("PAPER" | "LIVE").
+
+    Returns:
+        Formatted Telegram-compatible report string starting with '💰'.
+    """
+    import datetime
+
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sep = "─" * 37
+    allocation_pct = (total_allocated_usd / bankroll * 100.0) if bankroll > 0 else 0.0
+    # Use dynamic width so long names stay aligned
+    name_width = max((len(n) for n in strategy_weights), default=16) + 2
+
+    lines = [
+        f"💰 CAPITAL ALLOCATION REPORT | {ts}",
+        sep,
+        f"Bankroll: ${round(bankroll, 2)} | Allocated: ${round(total_allocated_usd, 2)} ({allocation_pct:.1f}%) | Mode: {_safe(mode)}",
+        sep,
+        "STRATEGY WEIGHTS & SIZES:",
+    ]
+
+    for name in strategy_weights:
+        weight = strategy_weights.get(name, 0.0)
+        size = position_sizes.get(name, 0.0)
+        status = ""
+        if name in disabled_strategies:
+            status = " [DISABLED]"
+        elif name in suppressed_strategies:
+            status = " [SUPPRESSED]"
+        lines.append(
+            f"  {_safe(name):<{name_width}} "
+            f"weight={weight:.3f} size=${size:.2f}{status}"
+        )
+
+    if disabled_strategies:
+        lines.append(sep)
+        lines.append(f"DISABLED: {', '.join(_safe(s) for s in disabled_strategies)}")
+
+    if suppressed_strategies:
+        lines.append(f"SUPPRESSED: {', '.join(_safe(s) for s in suppressed_strategies)}")
+
+    lines.append(sep)
+    lines.append(f"_as of {_ts_utc()}_")
+
+    return "\n".join(lines)
+
+
 def format_multi_strategy_report(
     strategy_breakdown: Dict[str, dict],
     conflicts_count: int,
