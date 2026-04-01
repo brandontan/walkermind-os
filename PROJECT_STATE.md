@@ -1,8 +1,8 @@
 # PROJECT STATE — WALKER AI TEAM
 
 Last Updated: 2026-04-01  
-Current Phase: Phase 11 — LIVE Deployment ✅  
-Status: Phase 11 Complete → Pre-Refactor 🔧
+Current Phase: Phase 11 — Strategy Implementations ✅  
+Status: Phase 11 Complete → Phase 12 Prep 🔧
 
 ---
 
@@ -141,42 +141,49 @@ Current focus:
    Backward compat shims: phase8/__init__, phase9/__init__, phase10/__init__  
    565 tests, 0 fail  
 
+- Phase 11 — Strategy Implementations & Intelligence Layer ✅  
+   ✅ 3 concrete strategy implementations in strategy/implementations/  
+   EVMomentumStrategy: momentum-based EV signal with fractional Kelly sizing  
+   MeanReversionStrategy: EWMA deviation signal with confidence scaling  
+   LiquidityEdgeStrategy: spread dislocation + depth imbalance signal  
+   ✅ STRATEGY_REGISTRY: dynamic strategy lookup by name  
+   ✅ BayesianConfidence (intelligence/bayesian/): Beta posterior win-rate updater  
+   ✅ DriftDetector (intelligence/drift/): CUSUM-based market regime change detection  
+   46 new tests (SI-01–SI-46), 587 total, 0 fail  
+
 ---
 
 ## 🚧 IN PROGRESS
 
-### Phase 11 — Strategy Scaling
+### Phase 12 — Multi-Strategy Orchestration
 
-Focus: Implement strategy/implementations/ with concrete strategies; upgrade intelligence/ with Bayesian priors; backtest/ engine
+Focus: Wire strategies into pipeline; implement strategy router; add backtesting engine
 
 ---
 
 ## ❌ NOT STARTED
 
-- Proper Strategy Layer (modular, multi-strategy ready)
-
 - Backtesting engine
 
-- Advanced Intelligence layer (Bayesian, sentiment, drift)
-
 - Capital allocation engine (multi-strategy scaling)
+
+- Multi-strategy router (run all 3 strategies in parallel, aggregate signals)
+
+- Sentiment intelligence layer
 
 ---
 
 ## 🎯 NEXT PRIORITY
 
-Phase 11 — Strategy Scaling (implement strategy/implementations/ with 2-3 concrete strategies)
+Phase 12 — Multi-Strategy Orchestration (strategy router + backtest integration)
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
-### Architecture (Pre-Refactor)
-- Phase-based folder structure (`phase2/`–`phase11/`) is non-scalable  
-- Signal logic is mixed into the pipeline runner (not a standalone strategy layer)  
-- Intelligence layer is not fully separated (Bayesian model lives inside strategy code)  
-- Reports are not structured per agent (FORGE-X / SENTINEL / BRIEFER mixed in one folder)  
-- Multi-strategy extension requires cross-phase coupling — hard to add new alpha sources
+### Architecture
+- phase2/–phase9/ legacy folders still present (to be removed gradually)  
+- strategy/features/ is a placeholder (feature engineering layer not yet implemented)  
 
 ### Infrastructure
 - Metrics snapshots are in-memory only (Redis persistence not yet implemented)  
