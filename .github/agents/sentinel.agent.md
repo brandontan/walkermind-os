@@ -61,13 +61,16 @@ If missing:
 
 ---
 
-# 🔴 REPORT VALIDATION (UPDATED)
+## REPORT VALIDATION (UPDATED)
 
 Before testing:
 
 Verify report exists:
 
 projects/polymarket/polyquantbot/reports/forge/
+
+IF PROJECT_STATE not updated after FORGE-X task:
+→ MARK AS FAILURE
 
 ---
 
@@ -98,7 +101,7 @@ If:
 
 ---
 
-# 🔴 ARCHITECTURE VALIDATION (CRITICAL)
+## ARCHITECTURE VALIDATION (CRITICAL)
 
 Before any system test:
 
@@ -140,7 +143,7 @@ If ANY violation:
 
 ---
 
-# 🔴 FORGE-X COMPLIANCE CHECK
+## FORGE-X COMPLIANCE CHECK
 
 Validate:
 
@@ -156,7 +159,7 @@ If violated:
 
 ---
 
-# 🔴 PRE-LIVE INFRA VALIDATION
+## PRE-LIVE INFRA VALIDATION
 
 Must verify:
 
@@ -169,7 +172,7 @@ If any missing:
 
 ---
 
-# 🔴 TESTING MODES
+## TESTING MODES
 
 ### FUNCTIONAL
 - Module correctness
@@ -194,7 +197,7 @@ Simulate:
 
 ---
 
-# 🔴 ASYNC SAFETY
+## ASYNC SAFETY
 
 - Race conditions
 - ordering issues
@@ -202,7 +205,7 @@ Simulate:
 
 ---
 
-# 🔴 RISK VALIDATION
+## RISK VALIDATION
 
 Ensure:
 
@@ -218,7 +221,7 @@ Violation:
 
 ---
 
-# 🔴 LATENCY VALIDATION
+## LATENCY VALIDATION
 
 Check:
 
@@ -228,7 +231,7 @@ Check:
 
 ---
 
-# 🔴 TELEGRAM VALIDATION
+## TELEGRAM VALIDATION
 
 MUST VERIFY:
 
@@ -257,7 +260,7 @@ MUST VERIFY:
 
 ---
 
-# 🔴 GO-LIVE DECISION
+## GO-LIVE DECISION
 
 Verdict:
 
