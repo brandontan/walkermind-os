@@ -2,7 +2,7 @@
 
 Last Updated: 2026-04-01 04:37:20  
 Current Phase: Phase 10.9 — Final Paper Run (PRODUCTION_DRY_RUN) ✅  
-Status: Phase 10.9 ✅ (SENTINEL Final Validation — GO-LIVE APPROVED)
+Status: structure_refactor_complete
 
 ---
 
@@ -134,13 +134,20 @@ Current focus:
    SENTINEL GO-LIVE VERDICT: ✅ APPROVED  
    513 tests total, 0 fail  
 
+- Phase 11 Prep — Domain Architecture Refactor ✅  
+   ✅ Domain-based architecture refactor (Phase 11 prep)  
+   Migrated from phase-numbered to semantic domain modules  
+   risk/, data/, strategy/, intelligence/, backtest/, core/pipeline/, infra/, reports/  
+   Backward compat shims: phase8/__init__, phase9/__init__, phase10/__init__  
+   565 tests, 0 fail  
+
 ---
 
 ## 🚧 IN PROGRESS
 
 ### Phase 11 — Strategy Scaling
 
-Focus: Redis metrics persistence + WebSocket health dashboard + LIVE activation checklist
+Focus: Implement strategy/implementations/ with concrete strategies; upgrade intelligence/ with Bayesian priors; backtest/ engine
 
 ---
 
@@ -156,7 +163,7 @@ Focus: Redis metrics persistence + WebSocket health dashboard + LIVE activation 
 
 ## 🎯 NEXT PRIORITY
 
-Phase 11 — Redis metrics persistence + real-time dashboard + drawdown auto-halt + LIVE activation runbook
+Phase 11 — Strategy Scaling (implement strategy/implementations/ with 2-3 concrete strategies)
 
 ---
 
@@ -170,7 +177,11 @@ Phase 11 — Redis metrics persistence + real-time dashboard + drawdown auto-hal
 
 - Telegram delivery not yet tested on real network (non-stub)  
 
-- SIGNAL_DEBUG_MODE must be set in `.env` before starting the 6H live paper run
+- SIGNAL_DEBUG_MODE must be set in `.env` before starting the 6H live paper run  
+
+- Backward compat shims in phase8-10 __init__.py (intentional — remove gradually)  
+
+- phase7/core/execution/live_executor.py still used directly from core/pipeline (migrate next phase)
 
 ---
 
