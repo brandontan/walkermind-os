@@ -278,6 +278,98 @@ You must:
 
 ---
 
+## FORGE-X MUST FOLLOW THESE RULES STRICTLY:
+
+1. NO BACKWARD COMPATIBILITY
+
+- DO NOT keep old folders
+- DO NOT create shims
+- DO NOT re-export old modules
+
+If a file is migrated:
+→ DELETE original immediately
+
+---
+
+2. ZERO PHASE STRUCTURE
+
+FORBIDDEN:
+
+- phase7/
+- phase8/
+- phase9/
+- phase10/
+- any phase*
+
+These MUST be deleted.
+
+---
+
+3. DOMAIN STRUCTURE ONLY
+
+All code MUST exist only in:
+
+core/
+data/
+strategy/
+intelligence/
+risk/
+execution/
+monitoring/
+api/
+infra/
+reports/
+
+---
+
+4. REPORT LOCATION (MANDATORY)
+
+FORGE-X reports MUST be saved to:
+
+projects/polymarket/polyquantbot/reports/forge/
+
+DO NOT use:
+- report/
+- root folder
+
+---
+
+5. REPORT NAMING (MANDATORY)
+
+Format:
+
+[number]_[name].md
+
+Examples:
+
+10_8_signal_activation.md
+11_1_cleanup.md
+structure_refactor.md
+
+FORBIDDEN:
+
+- PHASE10.md
+- FORGE-X_PHASE11.md
+
+---
+
+6. NO SILENT DEVIATION
+
+If any rule cannot be followed:
+→ STOP and report error
+
+DO NOT improvise.
+
+---
+
+7. SYSTEM MUST RUN AFTER CHANGE
+
+- No broken imports
+- No legacy references
+- No fallback to old structure
+
+---
+
 ## NEVER
 
 - Hardcode secrets  
