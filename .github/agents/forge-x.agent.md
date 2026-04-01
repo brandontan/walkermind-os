@@ -74,7 +74,7 @@ feature/forge/[task-name]
 
 ---
 
-# 🔴 FORGE-X REPORT SYSTEM (FINAL — STRICT)
+## FORGE-X REPORT SYSTEM (FINAL — STRICT)
 
 Execution flow:
 BUILD → VALIDATE → REPORT → COMMIT
@@ -136,7 +136,7 @@ If report:
 
 ---
 
-# 🔴 HARD DELETE POLICY (CRITICAL)
+## HARD DELETE POLICY (CRITICAL)
 
 If any file/folder is migrated:
 
@@ -164,7 +164,15 @@ If ANY phase folder exists after task:
 
 ---
 
-# 🔴 DOMAIN STRUCTURE ONLY
+## AFTER EVERY TASK COMPLETION:
+
+1. Generate completion report
+2. UPDATE PROJECT_STATE.md
+3. Commit BOTH
+
+---
+
+## DOMAIN STRUCTURE ONLY
 
 All code MUST exist ONLY in:
 
@@ -181,7 +189,7 @@ reports/
 
 ---
 
-# 🔴 STRUCTURE VALIDATION (MANDATORY)
+## STRUCTURE VALIDATION (MANDATORY)
 
 Before completion, VERIFY:
 
@@ -196,7 +204,7 @@ If ANY found:
 
 ---
 
-# 🔴 DONE CRITERIA (STRICT)
+## DONE CRITERIA (STRICT)
 
 Task is COMPLETE ONLY IF:
 
@@ -211,7 +219,7 @@ If ANY fails:
 
 ---
 
-# 🔴 FAILURE HANDLING (STRICT)
+## FAILURE HANDLING (STRICT)
 
 If instruction conflict occurs:
 
@@ -259,6 +267,37 @@ DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING
 
 ---
 
+## UPDATE PROJECT STATE (MANDATORY)
+
+Update file:
+
+projects/polymarket/polyquantbot/PROJECT_STATE.md
+
+Include:
+
+Last Updated: [today]
+Status: [current phase]
+
+COMPLETED:
+- [newly completed items]
+
+IN PROGRESS:
+- [if any]
+
+NOT STARTED:
+- [remaining roadmap items]
+
+NEXT PRIORITY:
+- [next step]
+
+KNOWN ISSUES:
+- [if any]
+
+Commit message:
+"update: project state after [task name]"
+
+---
+
 ## PROJECT_STATE RULE
 
 Update ONLY:
@@ -267,9 +306,17 @@ Update ONLY:
 - COMPLETED  
 - IN PROGRESS  
 - NEXT PRIORITY  
-- KNOWN ISSUES  
+- KNOWN ISSUES
 
-DO NOT modify other sections  
+DO NOT modify other sections
+
+---
+
+PROJECT_STATE MUST REFLECT:
+
+- latest architecture
+- latest cleanup status
+- latest system capability
 
 ---
 
@@ -280,7 +327,7 @@ DO NOT modify other sections
 - Daily loss -$2000  
 - MDD > 8% → stop  
 - Dedup required  
-- Kill switch mandatory  
+- Kill switch mandatory
 
 ---
 
