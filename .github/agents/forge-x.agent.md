@@ -313,6 +313,15 @@ DO NOT modify other sections
 
 ---
 
+## SKILLS (read when relevant)
+
+- Claude skill docs (entrypoint): `.claude/skills/web3-polymarket/SKILL.md`
+
+When implementing or advising on anything Polymarket-related (authentication, order placement/cancel, market data, websockets, CTF operations, bridge, gasless relayer),
+consult `.claude/skills/web3-polymarket/` and follow the endpoints/patterns documented there.
+
+---
+
 ## AUTHORITY
 
 COMMANDER > FORGE-X  
