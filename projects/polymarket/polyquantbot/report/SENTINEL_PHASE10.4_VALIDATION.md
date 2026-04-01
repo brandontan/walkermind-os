@@ -6,7 +6,7 @@
 **Phase:** 10.4 — Live Paper Observation (24H PRODUCTION_DRY_RUN)  
 **Branch:** `copilot/run-phase-10-4-live-paper-observation`  
 **Test Command:** `python -m pytest projects/polymarket/polyquantbot/tests/ -v`  
-**Result:** ✅ **465 tests PASSED | 0 FAILED | 0 ERRORS**
+**Result:** ✅ **467 tests PASSED | 0 FAILED | 0 ERRORS**
 
 ---
 
@@ -70,8 +70,9 @@ Phase 10.4 Live Paper Observation — full PRODUCTION_DRY_RUN validation.
 | LP-22 | ASYNC SAFETY — 20 concurrent signals produce no race condition | 1 | ✅ PASS |
 | LP-23 | CHECKPOINT — hourly checkpoint (1H) enqueues Telegram alert | 1 | ✅ PASS |
 | LP-24 | PAPER MODE — from_config always creates PAPER runner | 1 | ✅ PASS |
+| LP-25 | TELEGRAM ENFORCEMENT — start() raises RuntimeError when Telegram disabled | 2 | ✅ PASS |
 
-**Phase 10.4 SENTINEL suite: 31 tests — all PASSED**
+**Phase 10.4 SENTINEL suite: 33 tests — all PASSED**
 
 ---
 
@@ -200,15 +201,16 @@ TelegramLive (error / kill / hourly checkpoint alerts)
 | Fix applied | Changed `_DEFAULT_CHECKPOINT_INTERVALS` to `tuple(h * 3600.0 for h in range(1, 25))` — 24 hourly checkpoints (1H through 24H). |
 | Test updated | LP-23 updated to validate 1H checkpoint delivery. |
 
-### ISSUE-02 — Telegram Credentials Not Validated at PAPER Startup
+### ISSUE-02 — Telegram Credentials Not Validated at PAPER Startup (FIXED ✅)
 
 | Field | Detail |
 |-------|--------|
-| Severity | MEDIUM |
-| Status | ⚠️ OPEN — requires env configuration |
-| Component | `phase9/telegram_live.py` — `from_env()` / `TelegramLive.__init__` |
-| Description | `TelegramLive` silently disables itself if `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHAT_ID` env vars are missing. The system does not raise on startup if Telegram is unconfigured in PAPER mode. Alerts will be silently dropped. |
-| Fix recommendation | Add a startup check that enforces Telegram credentials are present before the 24H run starts (see FIX-02 below). |
+| Severity | CRITICAL |
+| Status | ✅ **FIXED** |
+| Component | `phase10/live_paper_runner.py` — `start()` / `phase9/telegram_live.py` — `enabled` property |
+| Description | `TelegramLive` previously silently disabled itself if env vars were missing. The 24H run could start with zero Telegram monitoring, causing all alerts to be silently dropped. |
+| Fix applied | Added `TelegramLive.enabled` property. `LivePaperRunner.start()` now checks `self._telegram.enabled` and raises `RuntimeError` with a descriptive message if Telegram is not configured. |
+| Test added | LP-25 (2 tests): `test_start_raises_when_telegram_disabled` and `test_start_succeeds_when_telegram_enabled`. |
 
 ### ISSUE-03 — Redis / PostgreSQL Not Required in PAPER Mode
 
@@ -224,7 +226,7 @@ TelegramLive (error / kill / hourly checkpoint alerts)
 
 ## 📊 STABILITY SCORE
 
-**8.5 / 10**
+**9.0 / 10**
 
 | Criterion | Score | Notes |
 |-----------|-------|-------|
@@ -233,14 +235,15 @@ TelegramLive (error / kill / hourly checkpoint alerts)
 | Async safety | 10/10 | 20-concurrent race condition test passes |
 | Failure resilience | 9/10 | WS reconnect, stale data, cache miss all handled |
 | Metrics collection | 9/10 | All required metrics tracked |
-| Telegram alerting | 8/10 | Alert infrastructure correct; delivery not tested on real network |
-| Checkpoint delivery | 9/10 | Fixed to hourly; test LP-23 updated and passes |
-| Infrastructure readiness | 7/10 | Redis/DB not validated in PAPER startup; Telegram silent-disable risk |
+| Telegram alerting | 9/10 | Credentials enforced at startup; real delivery requires production env |
+| Checkpoint delivery | 10/10 | 24 hourly checkpoints; start() blocks if Telegram missing |
+| Infrastructure readiness | 7/10 | Redis/DB not validated in PAPER startup (by design) |
 
 Deductions:
-- −0.5: Telegram token not validated at startup (could silently lose all alerts)
-- −0.5: Redis/PostgreSQL connectivity not verified before PAPER run
-- −0.5: Hourly checkpoint gap required a fix (now resolved)
+- −0.5: Redis/PostgreSQL connectivity not verified before PAPER run (acknowledged by design)
+- −0.5: Real Telegram network delivery requires production env validation
+
+*(Improvement from 8.5 → 9.0: ISSUE-02 Telegram enforcement is now resolved)*
 
 ---
 
@@ -249,6 +252,7 @@ Deductions:
 | Check | Result |
 |-------|--------|
 | TelegramLive initialized with bot_token + chat_id | ✅ YES |
+| Missing credentials → `RuntimeError` at `start()` | ✅ YES (LP-25 — FIXED) |
 | Alert queued on latency spike (>1000ms) | ✅ YES (LP-09) |
 | Alert queued on slippage spike (>50bps) | ✅ YES (LP-10) |
 | Alert queued on kill switch trigger | ✅ YES (LP-11, LP-12) |
@@ -260,9 +264,27 @@ Deductions:
 | Retry on failed send | ✅ YES (TelegramLive retry logic) |
 | Queue overflow handling | ✅ YES (oldest dropped, no block) |
 | Real network delivery tested | ⚠️ NOT TESTED (stub only) |
-| Missing token → silent disable (risk) | ⚠️ NOT ENFORCED AT STARTUP |
 
-**Conclusion:** **CONDITIONAL PASS** — Alert infrastructure is correct and all events trigger queuing. Real HTTP delivery to Telegram must be verified in production with valid `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. A startup enforcement check is recommended.
+**Conclusion:** **CONDITIONAL PASS** — Alert infrastructure is correct, all events trigger queuing, and missing credentials now abort the run at startup. Real HTTP delivery to Telegram must be verified in production with valid `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+
+---
+
+
+## 📊 FULL METRICS
+
+### Metrics Captured
+
+| Metric | Target | Gate |
+|--------|--------|------|
+| `ev_capture_ratio` | ≥ 0.75 | `build_report()` → `go_live_readiness` |
+| `fill_rate` | ≥ 0.60 | `build_report()` |
+| `p95_latency_ms` | ≤ 500 ms | `GoLiveController` |
+| `drawdown` | ≤ 8% | Kill switch triggers at threshold |
+| `execution_success_rate` | tracked | `MetricsValidator.compute().execution_success_rate` |
+| `avg_slippage_bps` | tracked | `FillTracker` + `MetricsValidator.record_slippage()` |
+| `p95_slippage_bps` | tracked | Computed from slippage samples |
+| `worst_slippage_bps` | tracked | Max observed over run |
+| `ws_reconnect_count` | tracked | `PolymarketWSClient.stats().reconnects` |
 
 ---
 
@@ -276,11 +298,13 @@ Deductions:
 
 **Verdict: CONDITIONAL**
 
-All 465 deterministic tests pass. The Phase 10.4 PRODUCTION_DRY_RUN pipeline is functionally correct, risk-safe, and crash-free under all tested scenarios. The hourly checkpoint gap has been fixed.
+All 467 deterministic tests pass. The Phase 10.4 PRODUCTION_DRY_RUN pipeline is functionally correct, risk-safe, and crash-free under all tested scenarios. The hourly checkpoint gap has been fixed.
 
-Two pre-run actions are required before starting the actual 24H live paper observation:
+One pre-run action is required before starting the actual 24H live paper observation:
 
-1. **Telegram credentials** — Provide valid `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in the `.env` file and verify delivery manually.
+1. **Telegram credentials** — Provide valid `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in the `.env` file. The system will raise `RuntimeError` at `start()` if these are missing, preventing silent alert failures.
+
+Optional (recommended for production readiness):
 2. **Redis / PostgreSQL** — Connect Redis and PostgreSQL before the run to ensure infrastructure readiness for the upcoming Phase 10.5 LIVE transition.
 
 > DO NOT proceed to Phase 11 until the 24H run completes and COMMANDER reviews this report.
@@ -312,19 +336,37 @@ _DEFAULT_CHECKPOINT_INTERVALS: tuple[float, ...] = tuple(
 
 ---
 
-### FIX-02 — Enforce Telegram Credentials at PAPER Startup (RECOMMENDED)
+### FIX-02 — Enforce Telegram Credentials at PAPER Startup (COMPLETED ✅)
 
-**Severity:** Medium  
-**File:** `phase10/live_paper_runner.py` or `monitoring/startup_checks.py`  
-**Action:** Before starting the 24H run, verify `TelegramLive.enabled` is `True`. If Telegram is disabled due to missing credentials, raise or log a CRITICAL error and abort the run.
+**Severity:** Critical  
+**Files changed:**
+- `phase9/telegram_live.py` — added `enabled` property
+- `phase10/live_paper_runner.py` — `start()` now enforces credentials
+
+**Change applied:**
 
 ```python
-if not self._telegram.enabled:
-    raise RuntimeError(
-        "TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured. "
-        "24H live paper observation requires Telegram monitoring."
-    )
+# telegram_live.py — new property
+@property
+def enabled(self) -> bool:
+    """Return True when Telegram alerts are active (credentials present)."""
+    return self._enabled
+
+# live_paper_runner.py — start() enforcement
+async def start(self) -> None:
+    if not self._telegram.enabled:
+        raise RuntimeError(
+            "TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured. "
+            "24H live paper observation requires Telegram monitoring. "
+            "Set the env vars and restart."
+        )
+    await self._telegram.start()
+    log.info("live_paper_runner_telegram_started")
 ```
+
+**Tests added:** LP-25 (2 tests):
+- `test_start_raises_when_telegram_disabled` — verifies `RuntimeError` when `enabled=False`
+- `test_start_succeeds_when_telegram_enabled` — verifies clean start when `enabled=True`
 
 ---
 
@@ -362,7 +404,7 @@ if not self._telegram.enabled:
 
 | Test File | Tests | Passed | Failed |
 |-----------|-------|--------|--------|
-| `test_phase104_live_paper.py` | 31 | 31 | 0 |
+| `test_phase104_live_paper.py` | 33 | 33 | 0 |
 | `test_phase107_prelive_gate.py` | 47 | 47 | 0 |
 | `test_phase105_go_live_activation.py` | 41 | 41 | 0 |
 | `test_phase103_runtime_validation.py` | 46 | 46 | 0 |
@@ -373,7 +415,7 @@ if not self._telegram.enabled:
 | `test_phase91_stability.py` | 81 | 81 | 0 |
 | `test_telegram_paper_mode.py` | 29 | 29 | 0 |
 | `test_monitoring.py` | (included) | — | 0 |
-| **TOTAL** | **465** | **465** | **0** |
+| **TOTAL** | **467** | **467** | **0** |
 
 ---
 

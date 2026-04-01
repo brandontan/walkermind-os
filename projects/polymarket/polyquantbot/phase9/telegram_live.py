@@ -151,6 +151,13 @@ class TelegramLive:
 
         return cls(bot_token=token, chat_id=chat_id, enabled=enabled)
 
+    # ── Properties ────────────────────────────────────────────────────────────
+
+    @property
+    def enabled(self) -> bool:
+        """Return True when Telegram alerts are active (credentials present)."""
+        return self._enabled
+
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
