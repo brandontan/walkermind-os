@@ -45,7 +45,7 @@ from projects.polymarket.polyquantbot.monitoring.signal_metrics import (
     SignalMetricsSnapshot,
     SkipReason,
 )
-from projects.polymarket.polyquantbot.signal.signal_engine import SignalEngine
+from projects.polymarket.polyquantbot.strategy.base.signal_engine import SignalEngine
 from projects.polymarket.polyquantbot.monitoring.activity_monitor import ActivityMonitor
 from projects.polymarket.polyquantbot.telegram.message_formatter import (
     format_no_signal_alert,
@@ -115,7 +115,7 @@ async def test_sa01_decision_callback_triggered_logged():
     """SA-01: decision_callback_triggered is logged on every invocation."""
     engine = _make_engine(callback=_noop_callback)
 
-    with patch("projects.polymarket.polyquantbot.signal.signal_engine.log") as mock_log:
+    with patch("projects.polymarket.polyquantbot.strategy.base.signal_engine.log") as mock_log:
         mock_log.debug = MagicMock()
         await engine("0xabc", {})
         calls = [str(c) for c in mock_log.debug.call_args_list]
@@ -437,8 +437,8 @@ def test_sa19_format_no_trade_alert():
 def _make_runner_for_signal_test(callback=None):
     """Build a minimal LivePaperRunner with stubbed dependencies."""
     from unittest.mock import MagicMock, AsyncMock
-    from projects.polymarket.polyquantbot.phase10.live_paper_runner import LivePaperRunner
-    from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+    from projects.polymarket.polyquantbot.core.pipeline.live_paper_runner import LivePaperRunner
+    from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
         GoLiveController, TradingMode,
     )
     from projects.polymarket.polyquantbot.monitoring.signal_metrics import SignalMetrics
@@ -542,7 +542,7 @@ def test_sa22_activity_monitor_is_activity_monitor():
 @pytest.mark.asyncio
 async def test_sa23_guard_rejection_records_signal_metrics_skip():
     """SA-23: ExecutionGuard rejection records a signal_metrics skip."""
-    from projects.polymarket.polyquantbot.phase10.live_paper_runner import LivePaperRunner
+    from projects.polymarket.polyquantbot.core.pipeline.live_paper_runner import LivePaperRunner
 
     runner, sig_metrics = _make_runner_for_signal_test(callback=_signal_callback)
     runner._start_ts = time.time()
@@ -616,7 +616,7 @@ async def test_sa24_execution_attempt_logged(caplog):
     original_info = None
 
     with patch(
-        "projects.polymarket.polyquantbot.phase10.live_paper_runner.log"
+        "projects.polymarket.polyquantbot.core.pipeline.live_paper_runner.log"
     ) as mock_log:
         mock_log.info = MagicMock(side_effect=lambda event, **kw: logged_events.append(event))
         mock_log.warning = MagicMock()
@@ -659,7 +659,7 @@ def test_sa25_build_report_phase_is_10_8():
 
 def test_rc01_minimum_6h_duration_enforced():
     """RC-01: RunController raises ValueError when duration < 6 hours."""
-    from projects.polymarket.polyquantbot.phase10.run_controller import RunController, _MIN_DURATION_S
+    from projects.polymarket.polyquantbot.core.pipeline.run_controller import RunController, _MIN_DURATION_S
 
     runner, _ = _make_runner_for_signal_test()
 
@@ -669,7 +669,7 @@ def test_rc01_minimum_6h_duration_enforced():
 
 def test_rc01b_exactly_6h_is_accepted():
     """RC-01b: RunController accepts exactly 6 hours (boundary condition)."""
-    from projects.polymarket.polyquantbot.phase10.run_controller import RunController, _MIN_DURATION_S
+    from projects.polymarket.polyquantbot.core.pipeline.run_controller import RunController, _MIN_DURATION_S
 
     runner, _ = _make_runner_for_signal_test()
     ctrl = RunController(runner=runner, duration_s=_MIN_DURATION_S)
@@ -680,7 +680,7 @@ def test_rc01b_exactly_6h_is_accepted():
 async def test_rc02_two_hour_validation_critical_failure_no_signals():
     """RC-02: 2H validation sets critical_failure when signals_generated == 0."""
     from unittest.mock import patch
-    from projects.polymarket.polyquantbot.phase10.run_controller import RunController
+    from projects.polymarket.polyquantbot.core.pipeline.run_controller import RunController
 
     runner, _ = _make_runner_for_signal_test()
     runner._signal_count = 0
@@ -691,7 +691,7 @@ async def test_rc02_two_hour_validation_critical_failure_no_signals():
     ctrl._start_ts = time.time()
 
     with patch(
-        "projects.polymarket.polyquantbot.phase10.run_controller._SIGNAL_VALIDATION_WINDOW_S",
+        "projects.polymarket.polyquantbot.core.pipeline.run_controller._SIGNAL_VALIDATION_WINDOW_S",
         0.0,
     ):
         await ctrl._signal_validation()
@@ -704,7 +704,7 @@ async def test_rc02_two_hour_validation_critical_failure_no_signals():
 async def test_rc03_two_hour_validation_critical_failure_no_orders():
     """RC-03: 2H validation sets critical_failure when orders_attempted == 0."""
     from unittest.mock import patch
-    from projects.polymarket.polyquantbot.phase10.run_controller import RunController
+    from projects.polymarket.polyquantbot.core.pipeline.run_controller import RunController
 
     runner, _ = _make_runner_for_signal_test()
     runner._signal_count = 5
@@ -715,7 +715,7 @@ async def test_rc03_two_hour_validation_critical_failure_no_orders():
     ctrl._start_ts = time.time()
 
     with patch(
-        "projects.polymarket.polyquantbot.phase10.run_controller._SIGNAL_VALIDATION_WINDOW_S",
+        "projects.polymarket.polyquantbot.core.pipeline.run_controller._SIGNAL_VALIDATION_WINDOW_S",
         0.0,
     ):
         await ctrl._signal_validation()
@@ -728,7 +728,7 @@ async def test_rc03_two_hour_validation_critical_failure_no_orders():
 async def test_rc04_two_hour_validation_passes_when_both_nonzero():
     """RC-04: 2H validation does NOT set critical_failure when signals > 0 and orders > 0."""
     from unittest.mock import patch
-    from projects.polymarket.polyquantbot.phase10.run_controller import RunController
+    from projects.polymarket.polyquantbot.core.pipeline.run_controller import RunController
 
     runner, _ = _make_runner_for_signal_test()
     runner._signal_count = 3
@@ -739,7 +739,7 @@ async def test_rc04_two_hour_validation_passes_when_both_nonzero():
     ctrl._start_ts = time.time()
 
     with patch(
-        "projects.polymarket.polyquantbot.phase10.run_controller._SIGNAL_VALIDATION_WINDOW_S",
+        "projects.polymarket.polyquantbot.core.pipeline.run_controller._SIGNAL_VALIDATION_WINDOW_S",
         0.0,
     ):
         await ctrl._signal_validation()
@@ -752,7 +752,7 @@ async def test_rc04_two_hour_validation_passes_when_both_nonzero():
 async def test_rc05_final_report_includes_critical_failure_flag():
     """RC-05: final_report dict includes critical_failure and signal_metrics after finalize."""
     from unittest.mock import patch
-    from projects.polymarket.polyquantbot.phase10.run_controller import RunController
+    from projects.polymarket.polyquantbot.core.pipeline.run_controller import RunController
 
     runner, sig_metrics = _make_runner_for_signal_test()
     runner._signal_count = 0
@@ -763,7 +763,7 @@ async def test_rc05_final_report_includes_critical_failure_flag():
     ctrl._start_ts = time.time()
 
     with patch(
-        "projects.polymarket.polyquantbot.phase10.run_controller._SIGNAL_VALIDATION_WINDOW_S",
+        "projects.polymarket.polyquantbot.core.pipeline.run_controller._SIGNAL_VALIDATION_WINDOW_S",
         0.0,
     ):
         await ctrl._signal_validation()

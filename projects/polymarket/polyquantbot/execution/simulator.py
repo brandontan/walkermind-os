@@ -322,7 +322,7 @@ class ExecutionSimulator:
         t_start: float,
     ) -> SimResult:
         """Forward the order to the real executor and record the actual fill."""
-        from ..phase7.core.execution.live_executor import ExecutionRequest
+        from .clob_executor import ExecutionRequest
 
         self._fill_tracker.record_submission(
             order_id=order_id,

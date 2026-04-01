@@ -56,7 +56,7 @@ def _make_ws_event(
     update_type: str = "snapshot",
 ) -> object:
     """Build a minimal WSEvent-like object."""
-    from projects.polymarket.polyquantbot.phase7.infra.ws_client import WSEvent
+    from projects.polymarket.polyquantbot.data.websocket.ws_client import WSEvent
 
     data: dict
     if event_type == "orderbook":
@@ -84,34 +84,34 @@ def _make_runner(
     """Build a LivePaperRunner with all external deps stubbed."""
     from projects.polymarket.polyquantbot.execution.fill_tracker import FillTracker
     from projects.polymarket.polyquantbot.execution.simulator import ExecutionSimulator
-    from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
-    from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+    from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
+    from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
         GoLiveController,
         TradingMode,
     )
-    from projects.polymarket.polyquantbot.phase10.live_paper_runner import (
+    from projects.polymarket.polyquantbot.core.pipeline.live_paper_runner import (
         LivePaperRunner,
     )
-    from projects.polymarket.polyquantbot.phase7.analytics.execution_feedback import (
+    from projects.polymarket.polyquantbot.data.ingestion.execution_feedback import (
         ExecutionFeedbackTracker,
     )
-    from projects.polymarket.polyquantbot.phase7.analytics.latency_tracker import (
+    from projects.polymarket.polyquantbot.data.ingestion.latency_tracker import (
         LatencyTracker,
     )
-    from projects.polymarket.polyquantbot.phase7.analytics.trade_flow import (
+    from projects.polymarket.polyquantbot.data.ingestion.trade_flow import (
         TradeFlowAnalyzer,
     )
-    from projects.polymarket.polyquantbot.phase7.engine.market_cache_patch import (
+    from projects.polymarket.polyquantbot.data.orderbook.market_cache import (
         Phase7MarketCache,
     )
-    from projects.polymarket.polyquantbot.phase7.engine.orderbook import (
+    from projects.polymarket.polyquantbot.data.orderbook.orderbook import (
         OrderBookManager,
     )
-    from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
-    from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+    from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
+    from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
         MetricsValidator,
     )
-    from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+    from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
     ws_client = MagicMock()
     ws_client.connect = AsyncMock()
@@ -189,7 +189,7 @@ class TestLP01PaperEnforcement:
     """LP-01: GoLiveController is always PAPER mode in LivePaperRunner."""
 
     async def test_paper_mode_preserved_when_already_paper(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             TradingMode,
         )
 
@@ -201,24 +201,24 @@ class TestLP01PaperEnforcement:
         from projects.polymarket.polyquantbot.execution.simulator import (
             ExecutionSimulator,
         )
-        from projects.polymarket.polyquantbot.phase10.execution_guard import (
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import (
             ExecutionGuard,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController,
             TradingMode,
         )
-        from projects.polymarket.polyquantbot.phase10.live_paper_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_paper_runner import (
             LivePaperRunner,
         )
-        from projects.polymarket.polyquantbot.phase7.analytics.execution_feedback import ExecutionFeedbackTracker
-        from projects.polymarket.polyquantbot.phase7.analytics.latency_tracker import LatencyTracker
-        from projects.polymarket.polyquantbot.phase7.analytics.trade_flow import TradeFlowAnalyzer
-        from projects.polymarket.polyquantbot.phase7.engine.market_cache_patch import Phase7MarketCache
-        from projects.polymarket.polyquantbot.phase7.engine.orderbook import OrderBookManager
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.data.ingestion.execution_feedback import ExecutionFeedbackTracker
+        from projects.polymarket.polyquantbot.data.ingestion.latency_tracker import LatencyTracker
+        from projects.polymarket.polyquantbot.data.ingestion.trade_flow import TradeFlowAnalyzer
+        from projects.polymarket.polyquantbot.data.orderbook.market_cache import Phase7MarketCache
+        from projects.polymarket.polyquantbot.data.orderbook.orderbook import OrderBookManager
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import MetricsValidator
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         ws = MagicMock()
         ws.connect = AsyncMock()
@@ -279,23 +279,23 @@ class TestLP03RealOrdersSimulatorRaises:
         from projects.polymarket.polyquantbot.execution.simulator import (
             ExecutionSimulator,
         )
-        from projects.polymarket.polyquantbot.phase10.execution_guard import (
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import (
             ExecutionGuard,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController,
         )
-        from projects.polymarket.polyquantbot.phase10.live_paper_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_paper_runner import (
             LivePaperRunner,
         )
-        from projects.polymarket.polyquantbot.phase7.analytics.execution_feedback import ExecutionFeedbackTracker
-        from projects.polymarket.polyquantbot.phase7.analytics.latency_tracker import LatencyTracker
-        from projects.polymarket.polyquantbot.phase7.analytics.trade_flow import TradeFlowAnalyzer
-        from projects.polymarket.polyquantbot.phase7.engine.market_cache_patch import Phase7MarketCache
-        from projects.polymarket.polyquantbot.phase7.engine.orderbook import OrderBookManager
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.data.ingestion.execution_feedback import ExecutionFeedbackTracker
+        from projects.polymarket.polyquantbot.data.ingestion.latency_tracker import LatencyTracker
+        from projects.polymarket.polyquantbot.data.ingestion.trade_flow import TradeFlowAnalyzer
+        from projects.polymarket.polyquantbot.data.orderbook.market_cache import Phase7MarketCache
+        from projects.polymarket.polyquantbot.data.orderbook.orderbook import OrderBookManager
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import MetricsValidator
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         # Need a fake executor for REAL_API mode to even construct the simulator
         fake_executor = MagicMock()
@@ -661,7 +661,7 @@ class TestLP18RunControllerStartAlert:
     async def test_start_alert_enqueued(self) -> None:
         import tempfile
 
-        from projects.polymarket.polyquantbot.phase10.run_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.run_controller import (
             RunController,
         )
 
@@ -698,7 +698,7 @@ class TestLP19RunControllerStop:
     """LP-19: RunController.stop() stops the runner without hanging."""
 
     async def test_stop_sets_stop_event(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.run_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.run_controller import (
             RunController,
         )
 
@@ -725,7 +725,7 @@ class TestLP20FinalReportWritten:
     async def test_final_report_written_to_tmp(self) -> None:
         import tempfile
 
-        from projects.polymarket.polyquantbot.phase10.run_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.run_controller import (
             RunController,
         )
 
@@ -839,10 +839,10 @@ class TestLP24FromConfigPaperMode:
     """LP-24: from_config() always produces a PAPER-mode runner."""
 
     async def test_from_config_paper_mode(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             TradingMode,
         )
-        from projects.polymarket.polyquantbot.phase10.live_paper_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_paper_runner import (
             LivePaperRunner,
         )
 
@@ -855,7 +855,7 @@ class TestLP24FromConfigPaperMode:
         }
 
         with patch(
-            "projects.polymarket.polyquantbot.phase9.telegram_live.TelegramLive.from_env",
+            "projects.polymarket.polyquantbot.telegram.telegram_live.TelegramLive.from_env",
             return_value=MagicMock(
                 start=AsyncMock(),
                 stop=AsyncMock(),
@@ -881,10 +881,10 @@ class TestLP25TelegramEnforcement:
 
     async def test_start_raises_when_telegram_disabled(self) -> None:
         """LivePaperRunner.start() must raise RuntimeError if Telegram is off."""
-        from projects.polymarket.polyquantbot.phase10.live_paper_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_paper_runner import (
             LivePaperRunner,
         )
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         runner, *_ = _make_runner()
         # Replace telegram with a disabled instance (no env vars)

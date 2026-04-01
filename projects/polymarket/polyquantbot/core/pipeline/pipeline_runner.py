@@ -94,7 +94,7 @@ from typing import Callable, Optional
 
 import structlog
 
-from ...connectors.kalshi_client import KalshiClient
+from ...api.kalshi_client import KalshiClient
 from ...core.system_state import SystemStateManager
 from ...execution.live_executor import GatedExecutionResult, LiveExecutor as GatedLiveExecutor
 from ...execution.simulator import ExecutionSimulator
@@ -105,7 +105,7 @@ from .live_mode_controller import LiveModeController
 from ...data.ingestion.execution_feedback import ExecutionFeedbackTracker
 from ...data.ingestion.latency_tracker import LatencyTracker
 from ...data.ingestion.trade_flow import TradeFlowAnalyzer
-from ...phase7.core.execution.live_executor import ExecutionRequest, ExecutionResult, LiveExecutor
+from ...execution.clob_executor import ExecutionRequest, ExecutionResult, LiveExecutor
 from ...data.orderbook.market_cache import Phase7MarketCache
 from ...data.orderbook.orderbook import OrderBookManager
 from ...data.websocket.ws_client import PolymarketWSClient, WSEvent

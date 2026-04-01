@@ -47,8 +47,8 @@ from projects.polymarket.polyquantbot.monitoring.server import MetricsServer
 
 # ── Real source modules ───────────────────────────────────────────────────────
 
-from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
-from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+from projects.polymarket.polyquantbot.monitoring.metrics_validator import MetricsValidator
+from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 from projects.polymarket.polyquantbot.execution.fill_tracker import FillTracker
 
 

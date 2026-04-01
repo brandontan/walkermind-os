@@ -75,7 +75,7 @@ class TestGoLiveControllerPaperMode:
     """TC-01 — PAPER mode always blocks execution."""
 
     def test_paper_mode_blocks_execution(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
         ctrl = GoLiveController(mode=TradingMode.PAPER)
@@ -83,7 +83,7 @@ class TestGoLiveControllerPaperMode:
         assert ctrl.allow_execution() is False
 
     def test_paper_mode_is_default(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
         ctrl = GoLiveController()
@@ -94,7 +94,7 @@ class TestGoLiveControllerMetricsNotSet:
     """TC-02 — LIVE mode with no metrics set blocks execution."""
 
     def test_live_no_metrics_blocked(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
         ctrl = GoLiveController(mode=TradingMode.LIVE)
@@ -105,7 +105,7 @@ class TestGoLiveControllerMetricGates:
     """TC-03 – TC-07 — Individual metric gate failures and a full pass."""
 
     def _live_ctrl(self, **overrides) -> object:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode, GoLiveThresholds,
         )
         thresholds = GoLiveThresholds(
@@ -147,7 +147,7 @@ class TestGoLiveControllerCaps:
     """TC-08 – TC-09 — Daily trade cap and capital cap."""
 
     def _ready_ctrl(self, max_trades: int = 5, max_capital: float = 1000.0):
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
         ctrl = GoLiveController(
@@ -181,7 +181,7 @@ class TestGoLiveControllerFactory:
     """TC-10 — from_config factory."""
 
     def test_from_config_live_mode(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
         config = {
@@ -201,14 +201,14 @@ class TestGoLiveControllerFactory:
         assert ctrl._max_capital_usd == pytest.approx(5000.0)
 
     def test_from_config_defaults_to_paper(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
         ctrl = GoLiveController.from_config({})
         assert ctrl.mode is TradingMode.PAPER
 
     def test_from_config_invalid_mode_falls_back_to_paper(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
         ctrl = GoLiveController.from_config({"go_live": {"mode": "INVALID"}})
@@ -219,10 +219,10 @@ class TestGoLiveControllerSetMetrics:
     """TC-11 — set_metrics ingests MetricsResult."""
 
     def test_set_metrics_from_metrics_result(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import MetricsValidator
 
         ctrl = GoLiveController(mode=TradingMode.LIVE)
         validator = MetricsValidator(min_trades=0)
@@ -247,7 +247,7 @@ class TestExecutionGuardValidation:
     """TC-12 – TC-16 — Individual validation failures and full pass."""
 
     def _guard(self, **kwargs) -> object:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
         return ExecutionGuard(
             min_liquidity_usd=10_000.0,
             max_slippage_pct=0.03,
@@ -290,7 +290,7 @@ class TestExecutionGuardValidation:
         assert "position_size_exceeded" in result.reason
 
     def test_duplicate_signature_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
 
         class _FakeOrderGuard:
             _active = {"0xabc:YES:0.62:100.0": True}
@@ -322,7 +322,7 @@ class TestExecutionGuardFactory:
     """TC-17 — from_config factory."""
 
     def test_from_config_reads_markets_liquidity(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
 
         config = {
             "markets": {"min_liquidity_usd": 20_000.0},
@@ -337,7 +337,7 @@ class TestExecutionGuardFactory:
         assert guard._max_position_usd == pytest.approx(250.0)
 
     def test_from_config_defaults(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard, _MIN_LIQUIDITY_USD
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard, _MIN_LIQUIDITY_USD
 
         guard = ExecutionGuard.from_config({})
         assert guard._min_liquidity_usd == pytest.approx(_MIN_LIQUIDITY_USD)
@@ -351,46 +351,46 @@ class TestKalshiClientHelpers:
     """TC-18 – TC-20 — Pure normalisation helper functions."""
 
     def test_cents_to_probability_normal(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import _cents_to_probability
+        from projects.polymarket.polyquantbot.api.kalshi_client import _cents_to_probability
         assert _cents_to_probability(65) == pytest.approx(0.65)
         assert _cents_to_probability(0) == pytest.approx(0.0)
         assert _cents_to_probability(100) == pytest.approx(1.0)
 
     def test_cents_to_probability_clamps(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import _cents_to_probability
+        from projects.polymarket.polyquantbot.api.kalshi_client import _cents_to_probability
         assert _cents_to_probability(150) == pytest.approx(1.0)
         assert _cents_to_probability(-10) == pytest.approx(0.0)
 
     def test_cents_to_probability_bad_input(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import _cents_to_probability
+        from projects.polymarket.polyquantbot.api.kalshi_client import _cents_to_probability
         assert _cents_to_probability(None) == pytest.approx(0.0)
         assert _cents_to_probability("not_a_number") == pytest.approx(0.0)
 
     def test_normalise_timestamp_epoch_float(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import _normalise_timestamp
+        from projects.polymarket.polyquantbot.api.kalshi_client import _normalise_timestamp
         ts = 1700000000.0
         assert _normalise_timestamp(ts) == pytest.approx(ts)
 
     def test_normalise_timestamp_iso_string(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import _normalise_timestamp
+        from projects.polymarket.polyquantbot.api.kalshi_client import _normalise_timestamp
         # Should return a valid timestamp around the year 2024
         result = _normalise_timestamp("2024-11-05T18:00:00Z")
         assert result > 1700000000.0
         assert result < 1800000000.0
 
     def test_normalise_timestamp_none(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import _normalise_timestamp
+        from projects.polymarket.polyquantbot.api.kalshi_client import _normalise_timestamp
         result = _normalise_timestamp(None)
         assert abs(result - time.time()) < 5.0
 
     def test_map_outcome_yes(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import _map_outcome
+        from projects.polymarket.polyquantbot.api.kalshi_client import _map_outcome
         assert _map_outcome("yes") == "YES"
         assert _map_outcome("YES") == "YES"
         assert _map_outcome("other") == "YES"
 
     def test_map_outcome_no(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import _map_outcome
+        from projects.polymarket.polyquantbot.api.kalshi_client import _map_outcome
         assert _map_outcome("no") == "NO"
         assert _map_outcome("NO") == "NO"
 
@@ -399,7 +399,7 @@ class TestKalshiClientNormalisation:
     """TC-21 – TC-22 — Market and trade normalisation."""
 
     def _client(self):
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import KalshiClient
+        from projects.polymarket.polyquantbot.api.kalshi_client import KalshiClient
         return KalshiClient()
 
     def test_normalise_market_basic(self) -> None:
@@ -443,7 +443,7 @@ class TestKalshiClientFailureFallback:
     """TC-23 – TC-24 — API failures return empty list, no crash."""
 
     async def test_get_markets_returns_empty_on_failure(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import KalshiClient
+        from projects.polymarket.polyquantbot.api.kalshi_client import KalshiClient
 
         client = KalshiClient(max_retries=1)
         # Patch _get to simulate total failure
@@ -455,7 +455,7 @@ class TestKalshiClientFailureFallback:
         assert markets == []
 
     async def test_get_trades_returns_empty_on_failure(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import KalshiClient
+        from projects.polymarket.polyquantbot.api.kalshi_client import KalshiClient
 
         client = KalshiClient(max_retries=1)
 
@@ -467,7 +467,7 @@ class TestKalshiClientFailureFallback:
         assert trades == []
 
     async def test_get_markets_handles_unexpected_response_shape(self) -> None:
-        from projects.polymarket.polyquantbot.connectors.kalshi_client import KalshiClient
+        from projects.polymarket.polyquantbot.api.kalshi_client import KalshiClient
 
         client = KalshiClient()
 
@@ -487,7 +487,7 @@ class TestArbDetector:
     """TC-25 – TC-32 — Arbitrage detection logic."""
 
     def _detector(self, threshold: float = 0.04, market_map: Optional[dict] = None):
-        from projects.polymarket.polyquantbot.phase10.arb_detector import ArbDetector
+        from projects.polymarket.polyquantbot.core.pipeline.arb_detector import ArbDetector
         return ArbDetector(
             spread_threshold=threshold,
             min_overlap_words=2,
@@ -591,7 +591,7 @@ class TestMetricsResultGoLiveReady:
         ev_ratio: float = 0.9,
         fill_frac: float = 1.0,
     ):
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import MetricsValidator
 
         v = MetricsValidator(
             ev_capture_target=0.75,

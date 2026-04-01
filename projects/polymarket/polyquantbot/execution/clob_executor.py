@@ -1,4 +1,4 @@
-"""Phase 7 — LiveExecutor.
+"""CLOB Executor — LiveExecutor.
 
 Live order execution via py-clob-client (Polymarket CLOB).
 Supports limit orders, market orders, cancellation, and status polling.

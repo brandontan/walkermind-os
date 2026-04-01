@@ -45,10 +45,10 @@ import structlog
 from ..core.exceptions import CriticalExecutionError
 from ..execution.fill_tracker import FillTracker
 from ..monitoring.live_trade_logger import LiveTradeLogger
-from ..phase10.execution_guard import ExecutionGuard
-from ..phase10.go_live_controller import TradingMode
-from ..phase10.live_mode_controller import LiveModeController
-from ..phase7.core.execution.live_executor import (
+from ..core.pipeline.execution_guard import ExecutionGuard
+from ..core.pipeline.go_live_controller import TradingMode
+from ..core.pipeline.live_mode_controller import LiveModeController
+from .clob_executor import (
     ExecutionRequest,
     ExecutionResult,
     LiveExecutor as _Phase7Executor,

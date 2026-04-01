@@ -2,7 +2,7 @@
 
 Last Updated: 2026-04-01  
 Current Phase: Phase 11 — Strategy Implementations ✅  
-Status: Phase 11 Complete → Phase 12 Prep 🔧
+Status: Phase 11.1 Cleanup Complete → Phase 12 Prep 🔧
 
 ---
 
@@ -151,6 +151,14 @@ Current focus:
    ✅ DriftDetector (intelligence/drift/): CUSUM-based market regime change detection  
    46 new tests (SI-01–SI-46), 587 total, 0 fail  
 
+- Phase 11.1 — Strict Cleanup (Domain Migration)  
+   Removed ALL phase-based folders (phase2–phase10, mvp, signal, connectors, report)  
+   Migrated LiveExecutor → execution/clob_executor.py  
+   Extracted CircuitBreaker → core/circuit_breaker.py  
+   Migrated KalshiClient → api/kalshi_client.py  
+   Fixed all domain + test file imports to domain paths  
+   591 tests pass, 0 failures  
+
 ---
 
 ## 🚧 IN PROGRESS
@@ -182,7 +190,6 @@ Phase 12 — Multi-Strategy Orchestration (strategy router + backtest integratio
 ## ⚠️ KNOWN ISSUES
 
 ### Architecture
-- phase2/–phase9/ legacy folders still present (to be removed gradually)  
 - strategy/features/ is a placeholder (feature engineering layer not yet implemented)  
 
 ### Infrastructure
@@ -190,12 +197,7 @@ Phase 12 — Multi-Strategy Orchestration (strategy router + backtest integratio
 - Webhook server requires TLS termination in production (nginx/caddy)  
 - PreLiveValidator latency field uses fallback chain (`p95_latency` → `p95_latency_ms`)  
 - Telegram delivery not yet tested on real network (non-stub)  
-
 - SIGNAL_DEBUG_MODE must be set in `.env` before starting the 6H live paper run  
-
-- Backward compat shims in phase8-10 __init__.py (intentional — remove gradually)  
-
-- phase7/core/execution/live_executor.py still used directly from core/pipeline (migrate next phase)
 
 ---
 

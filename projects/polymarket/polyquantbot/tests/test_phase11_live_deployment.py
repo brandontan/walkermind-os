@@ -101,7 +101,7 @@ class TestLiveConfig:
         monkeypatch.delenv("ENABLE_LIVE_TRADING", raising=False)
         from projects.polymarket.polyquantbot.config.live_config import LiveConfig
         cfg = LiveConfig.from_env()
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
         assert cfg.trading_mode is TradingMode.PAPER
 
     def test_ld02_from_env_reads_live_mode(self, monkeypatch):
@@ -110,7 +110,7 @@ class TestLiveConfig:
         monkeypatch.setenv("ENABLE_LIVE_TRADING", "true")
         from projects.polymarket.polyquantbot.config.live_config import LiveConfig
         cfg = LiveConfig.from_env()
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
         assert cfg.trading_mode is TradingMode.LIVE
         assert cfg.enable_live_trading is True
 
@@ -134,7 +134,7 @@ class TestLiveConfig:
     def test_ld05_validate_raises_for_max_position_out_of_bounds(self):
         """LD-05 validate raises ValueError for max_position > 0.10."""
         from projects.polymarket.polyquantbot.config.live_config import LiveConfig
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
         cfg = LiveConfig(
             trading_mode=TradingMode.LIVE,
             enable_live_trading=True,
@@ -152,7 +152,7 @@ class TestLiveConfig:
     def test_ld06_validate_raises_for_non_negative_daily_loss(self):
         """LD-06 validate raises ValueError when daily_loss_limit >= 0."""
         from projects.polymarket.polyquantbot.config.live_config import LiveConfig
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
         cfg = LiveConfig(
             trading_mode=TradingMode.LIVE,
             enable_live_trading=True,
@@ -170,7 +170,7 @@ class TestLiveConfig:
     def test_ld07_validate_raises_for_drawdown_out_of_bounds(self):
         """LD-07 validate raises ValueError for drawdown_limit > 0.20."""
         from projects.polymarket.polyquantbot.config.live_config import LiveConfig
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
         cfg = LiveConfig(
             trading_mode=TradingMode.LIVE,
             enable_live_trading=True,
@@ -188,7 +188,7 @@ class TestLiveConfig:
     def test_ld08_validate_raises_for_zero_edge_threshold(self):
         """LD-08 validate raises ValueError for edge_threshold <= 0."""
         from projects.polymarket.polyquantbot.config.live_config import LiveConfig
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
         cfg = LiveConfig(
             trading_mode=TradingMode.LIVE,
             enable_live_trading=True,
@@ -343,7 +343,7 @@ class TestStartupLiveChecks:
     async def test_ld18_paper_mode_skips_validation(self):
         """LD-18 PAPER mode returns immediately without running checks."""
         from projects.polymarket.polyquantbot.core.startup_live_checks import run_prelive_validation
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
         # No metrics_validator or infrastructure — should still pass in PAPER
         await run_prelive_validation(mode=TradingMode.PAPER)  # Must not raise
 
@@ -351,7 +351,7 @@ class TestStartupLiveChecks:
     async def test_ld19_live_mode_passes_with_all_checks_ok(self):
         """LD-19 LIVE mode passes when all PreLive checks pass."""
         from projects.polymarket.polyquantbot.core.startup_live_checks import run_prelive_validation
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         metrics = _make_metrics_validator(ev_capture=0.80, fill_rate=0.70,
                                           p95_latency=300.0, drawdown=0.05)
@@ -374,7 +374,7 @@ class TestStartupLiveChecks:
         from projects.polymarket.polyquantbot.core.startup_live_checks import (
             run_prelive_validation, StartupValidationError
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         metrics = _make_metrics_validator(ev_capture=0.50)  # too low
         risk_guard = _make_risk_guard(disabled=False)
@@ -397,7 +397,7 @@ class TestStartupLiveChecks:
         from projects.polymarket.polyquantbot.core.startup_live_checks import (
             run_prelive_validation, StartupValidationError
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         # No redis → check failure
         metrics = _make_metrics_validator()
@@ -422,7 +422,7 @@ class TestStartupLiveChecks:
         from projects.polymarket.polyquantbot.core.startup_live_checks import (
             run_prelive_validation, StartupValidationError
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         metrics = _make_metrics_validator(ev_capture=0.10)  # will fail
         risk_guard = _make_risk_guard(disabled=False)
@@ -520,7 +520,7 @@ def _make_execution_request(
     size: float = 50.0,
 ) -> object:
     """Build a minimal ExecutionRequest-like object for tests."""
-    from projects.polymarket.polyquantbot.phase7.core.execution.live_executor import ExecutionRequest
+    from projects.polymarket.polyquantbot.execution.clob_executor import ExecutionRequest
     cid = str(uuid.uuid4())
     return ExecutionRequest(
         market_id=market_id,
@@ -537,7 +537,7 @@ def _make_execution_result(
     filled_size: float = 50.0,
     correlation_id: str = "cid-001",
 ) -> object:
-    from projects.polymarket.polyquantbot.phase7.core.execution.live_executor import ExecutionResult
+    from projects.polymarket.polyquantbot.execution.clob_executor import ExecutionResult
     return ExecutionResult(
         order_id=correlation_id,
         status=status,
@@ -551,7 +551,7 @@ def _make_execution_result(
 
 
 def _make_live_mode_controller(is_live: bool = True) -> MagicMock:
-    from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+    from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
     ctrl = MagicMock()
     ctrl.is_live_enabled.return_value = is_live
     ctrl.get_block_reason.return_value = "" if is_live else "paper_mode"

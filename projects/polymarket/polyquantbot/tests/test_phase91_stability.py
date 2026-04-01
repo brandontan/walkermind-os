@@ -61,7 +61,7 @@ class TestSC01ValidSignalFlow:
         self, position_tracker, risk_guard
     ) -> None:
         """WS fill event → FillMonitor marks FILLED → PositionTracker.open()."""
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         executor = StubExecutor(fill_status="filled", fill_size=50.0, fill_price=0.62)
@@ -134,7 +134,7 @@ class TestSC02OrderDedup:
     async def test_fill_monitor_dedup_same_order_id(
         self, position_tracker, risk_guard
     ) -> None:
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         executor = StubExecutor()
@@ -148,7 +148,7 @@ class TestSC02OrderDedup:
     async def test_fill_monitor_processed_set_prevents_reprocess(
         self, position_tracker, risk_guard
     ) -> None:
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         executor = StubExecutor(fill_status="filled", fill_size=50.0, fill_price=0.62)
@@ -190,7 +190,7 @@ class TestSC03LatencySpike:
         assert "latency" in risk_guard.kill_switch_reason.lower()
 
     async def test_normal_latency_does_not_trigger(self, risk_guard) -> None:
-        from projects.polymarket.polyquantbot.phase9.main import CircuitBreaker
+        from projects.polymarket.polyquantbot.core.circuit_breaker import CircuitBreaker
         cb = CircuitBreaker(
             risk_guard=risk_guard,
             error_rate_threshold=0.30,
@@ -205,7 +205,7 @@ class TestSC03LatencySpike:
         assert risk_guard.disabled is False, "Normal latency must not fire circuit breaker"
 
     async def test_circuit_breaker_disabled_flag_is_noop(self, risk_guard) -> None:
-        from projects.polymarket.polyquantbot.phase9.main import CircuitBreaker
+        from projects.polymarket.polyquantbot.core.circuit_breaker import CircuitBreaker
         cb = CircuitBreaker(
             risk_guard=risk_guard,
             error_rate_threshold=0.01,
@@ -230,7 +230,7 @@ class TestSC04APIFailure:
     async def test_fill_monitor_handles_executor_none_response(
         self, position_tracker, risk_guard
     ) -> None:
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         # Executor always returns None for status (simulates API failure)
@@ -260,7 +260,7 @@ class TestSC04APIFailure:
     async def test_fill_monitor_max_retry_exhaustion_no_crash(
         self, position_tracker, risk_guard
     ) -> None:
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         executor = StubExecutor()
@@ -313,7 +313,7 @@ class TestSC05PartialFills:
     """Incremental fill events must aggregate into a correct VWAP."""
 
     def test_vwap_two_partial_ws_fills(self, risk_guard) -> None:
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         executor = StubExecutor()
@@ -341,7 +341,7 @@ class TestSC05PartialFills:
         )
 
     def test_duplicate_ws_fill_event_ignored(self, risk_guard) -> None:
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         executor = StubExecutor()
@@ -362,7 +362,7 @@ class TestSC05PartialFills:
 
     def test_poll_partial_fill_vwap_accumulation(self, risk_guard) -> None:
         """Poll-based partial fill must also accumulate VWAP correctly."""
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor, OrderStatus
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor, OrderStatus
         from .conftest import StubExecutor
 
         executor = StubExecutor()
@@ -504,7 +504,7 @@ class TestSC08DrawdownHalt:
         assert risk_guard.disabled is False, "Zero peak must be a safe no-op"
 
     async def test_risk_guard_status_reflects_drawdown_halt(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
         g = RiskGuard(max_drawdown_pct=0.08)
         await g.check_drawdown(10000.0, 9100.0)
         s = g.status()
@@ -591,7 +591,7 @@ class TestSC10KillSwitchImmediate:
         self, position_tracker, risk_guard
     ) -> None:
         """FillMonitor loop must exit immediately when disabled is set."""
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         executor = StubExecutor()
@@ -699,7 +699,7 @@ class TestSC12MalformedData:
     async def test_fill_monitor_on_ws_fill_unknown_order_no_crash(
         self, position_tracker, risk_guard
     ) -> None:
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         monitor = FillMonitor(StubExecutor(), position_tracker, risk_guard)
@@ -753,7 +753,7 @@ class TestSC13CircuitBreakerBurst:
         assert "consecutive_failures" in risk_guard.kill_switch_reason
 
     async def test_error_rate_window_triggers(self, risk_guard) -> None:
-        from projects.polymarket.polyquantbot.phase9.main import CircuitBreaker
+        from projects.polymarket.polyquantbot.core.circuit_breaker import CircuitBreaker
         cb = CircuitBreaker(
             risk_guard=risk_guard,
             error_rate_threshold=0.30,
@@ -774,7 +774,7 @@ class TestSC13CircuitBreakerBurst:
         assert "error_rate" in risk_guard.kill_switch_reason
 
     async def test_success_resets_consecutive_counter(self, risk_guard) -> None:
-        from projects.polymarket.polyquantbot.phase9.main import CircuitBreaker
+        from projects.polymarket.polyquantbot.core.circuit_breaker import CircuitBreaker
         cb = CircuitBreaker(
             risk_guard=risk_guard,
             error_rate_threshold=0.30,
@@ -857,7 +857,7 @@ class TestSC15TimeoutAndEviction:
     """Stale order signatures must be evicted without corrupting state."""
 
     async def test_stale_signature_evicted(self, risk_guard) -> None:
-        from projects.polymarket.polyquantbot.phase8.order_guard import OrderGuard
+        from projects.polymarket.polyquantbot.risk.order_guard import OrderGuard
 
         guard = OrderGuard(risk_guard=risk_guard, order_timeout_sec=0.01)
         sig = guard.compute_signature("0xmkt-stale", "YES", 0.65, 50.0)
@@ -876,7 +876,7 @@ class TestSC15TimeoutAndEviction:
     async def test_fill_monitor_order_timeout_cancels_cleanly(
         self, position_tracker, risk_guard
     ) -> None:
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import FillMonitor
+        from projects.polymarket.polyquantbot.risk.fill_monitor import FillMonitor
         from .conftest import StubExecutor
 
         executor = StubExecutor()
@@ -921,54 +921,55 @@ class TestSC16SystemStateTransitions:
     """SystemStateManager transitions must be atomic, consistent, and safe."""
 
     async def test_initial_state_is_running(self, system_state) -> None:
-        assert system_state.mode == "RUNNING"
-        assert system_state.is_running is True
+        assert system_state.state.value == "RUNNING"
+        assert system_state.is_execution_allowed() is True
 
     async def test_running_to_paused(self, system_state) -> None:
-        await system_state.transition("PAUSED", reason="ws_disconnect")
-        assert system_state.mode == "PAUSED"
-        assert system_state.is_running is False
+        await system_state.pause(reason="ws_disconnect")
+        assert system_state.state.value == "PAUSED"
+        assert system_state.is_execution_allowed() is False
         assert system_state.reason == "ws_disconnect"
 
     async def test_paused_to_running(self, system_state) -> None:
-        await system_state.transition("PAUSED", reason="ws_disconnect")
-        await system_state.transition("RUNNING", reason="ws_reconnected")
-        assert system_state.mode == "RUNNING"
-        assert system_state.is_running is True
+        await system_state.pause(reason="ws_disconnect")
+        await system_state.resume(reason="ws_reconnected")
+        assert system_state.state.value == "RUNNING"
+        assert system_state.is_execution_allowed() is True
 
     async def test_running_to_halted(self, system_state) -> None:
-        await system_state.transition("HALTED", reason="kill_switch")
-        assert system_state.mode == "HALTED"
-        assert system_state.is_running is False
+        await system_state.halt(reason="kill_switch")
+        assert system_state.state.value == "HALTED"
+        assert system_state.is_execution_allowed() is False
 
     async def test_paused_to_halted(self, system_state) -> None:
-        await system_state.transition("PAUSED", reason="ws_disconnect")
-        await system_state.transition("HALTED", reason="timeout_60s")
-        assert system_state.mode == "HALTED"
+        await system_state.pause(reason="ws_disconnect")
+        await system_state.halt(reason="timeout_60s")
+        assert system_state.state.value == "HALTED"
 
     async def test_same_state_transition_is_noop(self, system_state) -> None:
         """Transitioning to the same state must be idempotent."""
-        await system_state.transition("RUNNING", reason="noop")
-        assert system_state.mode == "RUNNING"
-        assert system_state.reason is None, (
+        prev_reason = system_state.reason
+        await system_state.resume(reason="noop")  # already RUNNING, no-op
+        assert system_state.state.value == "RUNNING"
+        assert system_state.reason == prev_reason, (
             "reason must not be updated when state does not change"
         )
 
     async def test_snapshot_reflects_current_state(self, system_state) -> None:
-        await system_state.transition("PAUSED", reason="test")
+        await system_state.pause(reason="test")
         snap = system_state.snapshot()
-        assert snap["mode"] == "PAUSED"
+        assert snap["state"] == "PAUSED"
         assert snap["reason"] == "test"
 
     async def test_parallel_transitions_are_serialised(self, system_state) -> None:
         """Concurrent transitions must not corrupt state."""
         await asyncio.gather(
-            system_state.transition("PAUSED", reason="concurrent-A"),
-            system_state.transition("HALTED", reason="concurrent-B"),
+            system_state.pause(reason="concurrent-A"),
+            system_state.halt(reason="concurrent-B"),
         )
         # Both transitions run under the lock; state must be one of the valid outcomes
-        assert system_state.mode in ("PAUSED", "HALTED"), (
-            f"State must be valid after concurrent transitions; got {system_state.mode!r}"
+        assert system_state.state.value in ("PAUSED", "HALTED"), (
+            f"State must be valid after concurrent transitions; got {system_state.state.value!r}"
         )
 
 
@@ -980,7 +981,7 @@ class TestRiskComplianceStandalone:
     """Confirm all mandatory risk constants are set to the correct values."""
 
     def test_daily_loss_limit_constant(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import (
+        from projects.polymarket.polyquantbot.risk.risk_guard import (
             _DAILY_LOSS_LIMIT_USD,
         )
         assert _DAILY_LOSS_LIMIT_USD == -2000.0, (
@@ -988,7 +989,7 @@ class TestRiskComplianceStandalone:
         )
 
     def test_max_drawdown_constant(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import (
+        from projects.polymarket.polyquantbot.risk.risk_guard import (
             _MAX_DRAWDOWN_PCT,
         )
         assert _MAX_DRAWDOWN_PCT == 0.08, (
@@ -996,19 +997,19 @@ class TestRiskComplianceStandalone:
         )
 
     def test_order_timeout_constant(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.order_guard import (
+        from projects.polymarket.polyquantbot.risk.order_guard import (
             _ORDER_TIMEOUT_SEC,
         )
         assert _ORDER_TIMEOUT_SEC == 30.0
 
     def test_fill_monitor_timeout_constant(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.fill_monitor import (
+        from projects.polymarket.polyquantbot.risk.fill_monitor import (
             _ORDER_TIMEOUT_SEC as FM_TIMEOUT,
         )
         assert FM_TIMEOUT == 30.0
 
     async def test_risk_guard_default_limits(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
         g = RiskGuard()
         s = g.status()
         assert s["daily_loss_limit"] == -2000.0
@@ -1073,7 +1074,7 @@ class TestMetricsValidatorGOLIVEGate:
         assert result.gate_details["max_drawdown"]["passed"] is False
 
     def test_from_config_factory(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
             MetricsValidator,
         )
         config = {

@@ -44,8 +44,8 @@ from typing import Optional
 import structlog
 
 from ..core.prelive_validator import PreLiveValidator
-from ..phase10.go_live_controller import TradingMode
-from ..phase9.telegram_live import AlertType
+from ..core.pipeline.go_live_controller import TradingMode
+from ..telegram.telegram_live import AlertType
 from ..telegram.message_formatter import (
     format_live_mode_activated,
     format_prelive_check,

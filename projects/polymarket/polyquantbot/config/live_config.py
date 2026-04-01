@@ -38,7 +38,7 @@ from typing import Optional
 
 import structlog
 
-from ..phase10.go_live_controller import TradingMode
+from ..core.pipeline.go_live_controller import TradingMode
 
 log = structlog.get_logger()
 
