@@ -42,11 +42,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
     GoLiveController,
     TradingMode,
 )
-from projects.polymarket.polyquantbot.phase10.run_controller import (
+from projects.polymarket.polyquantbot.core.pipeline.run_controller import (
     RunController,
     _MIN_DURATION_S,
     _SIGNAL_VALIDATION_WINDOW_S,
@@ -55,7 +55,7 @@ from projects.polymarket.polyquantbot.monitoring.signal_metrics import (
     SignalMetrics,
     SkipReason,
 )
-from projects.polymarket.polyquantbot.signal.signal_engine import SignalEngine
+from projects.polymarket.polyquantbot.strategy.base.signal_engine import SignalEngine
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ def _make_runner(
     signal_metrics: SignalMetrics | None = None,
 ):
     """Build a LivePaperRunner stub configured with the given metric values."""
-    from projects.polymarket.polyquantbot.phase10.live_paper_runner import LivePaperRunner
+    from projects.polymarket.polyquantbot.core.pipeline.live_paper_runner import LivePaperRunner
 
     ws = MagicMock()
     ws.stats = MagicMock(return_value=MagicMock(reconnects=ws_reconnects))

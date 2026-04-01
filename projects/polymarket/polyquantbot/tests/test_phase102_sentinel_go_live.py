@@ -400,8 +400,8 @@ class TestSCS07LatencySpikeAlert:
 
     def test_circuit_breaker_halts_on_high_latency(self) -> None:
         """Phase 9 circuit breaker disables trading on sustained latency spikes."""
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
-        from projects.polymarket.polyquantbot.phase9.main import CircuitBreaker
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.core.circuit_breaker import CircuitBreaker
 
         guard = RiskGuard()
 
@@ -427,7 +427,7 @@ class TestSCS08WSDisconnectStaleData:
     """SC-S08: stale market data skips execution without crash."""
 
     async def test_stale_cache_returns_none_for_market(self) -> None:
-        from projects.polymarket.polyquantbot.phase7.engine.market_cache_patch import (
+        from projects.polymarket.polyquantbot.data.orderbook.market_cache import (
             Phase7MarketCache,
         )
         cache = Phase7MarketCache()
@@ -496,7 +496,7 @@ class TestSCS10ExecutionGuardReject:
     """SC-S10: ExecutionGuard rejects invalid trades; no order is sent."""
 
     def test_low_liquidity_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
         guard = ExecutionGuard(min_liquidity_usd=10_000.0)
         result = guard.validate(
             market_id="mkt-g01", side="YES", price=0.60,
@@ -507,7 +507,7 @@ class TestSCS10ExecutionGuardReject:
         assert "liquidity" in result.reason
 
     def test_high_slippage_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
         guard = ExecutionGuard(max_slippage_pct=0.03)
         result = guard.validate(
             market_id="mkt-g02", side="NO", price=0.55,
@@ -518,7 +518,7 @@ class TestSCS10ExecutionGuardReject:
         assert "slippage" in result.reason
 
     def test_oversized_position_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
         guard = ExecutionGuard(max_position_usd=500.0)
         result = guard.validate(
             market_id="mkt-g03", side="YES", price=0.60,
@@ -529,7 +529,7 @@ class TestSCS10ExecutionGuardReject:
         assert "position" in result.reason
 
     def test_all_checks_pass(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
         guard = ExecutionGuard(
             min_liquidity_usd=10_000.0,
             max_slippage_pct=0.03,
@@ -551,21 +551,21 @@ class TestSCS11GoLiveControllerBlock:
     """SC-S11: PAPER mode always blocks execution regardless of metrics."""
 
     def test_paper_mode_blocks_execution(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
         ctrl = GoLiveController(mode=TradingMode.PAPER)
         assert ctrl.allow_execution() is False
 
     def test_live_without_metrics_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
         ctrl = GoLiveController(mode=TradingMode.LIVE)
         assert ctrl.allow_execution() is False
 
     def test_live_with_all_metrics_passing_allows(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
 
@@ -580,7 +580,7 @@ class TestSCS11GoLiveControllerBlock:
         assert ctrl.allow_execution() is True
 
     def test_drawdown_exceeded_blocks_live(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
 
@@ -716,7 +716,7 @@ class TestSCS14TelegramAlertOnAnomaly:
 
     async def test_alert_error_enqueued_when_enabled(self) -> None:
         """alert_error is queued when TelegramLive is enabled."""
-        from projects.polymarket.polyquantbot.phase9.telegram_live import (
+        from projects.polymarket.polyquantbot.telegram.telegram_live import (
             TelegramLive, AlertType,
         )
         tg = TelegramLive(bot_token="tok", chat_id="chat123", enabled=True)
@@ -727,7 +727,7 @@ class TestSCS14TelegramAlertOnAnomaly:
 
     async def test_alert_kill_enqueued_when_enabled(self) -> None:
         """alert_kill is queued when TelegramLive is enabled."""
-        from projects.polymarket.polyquantbot.phase9.telegram_live import (
+        from projects.polymarket.polyquantbot.telegram.telegram_live import (
             TelegramLive, AlertType,
         )
         tg = TelegramLive(bot_token="tok", chat_id="chat123", enabled=True)
@@ -738,14 +738,14 @@ class TestSCS14TelegramAlertOnAnomaly:
 
     async def test_alert_disabled_does_not_enqueue(self) -> None:
         """When disabled=True, no alerts are added to the queue."""
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
         tg = TelegramLive(bot_token="tok", chat_id="chat123", enabled=False)
         await tg.alert_error(error="test_error", context="test")
         assert tg._queue.empty()
 
     async def test_alert_error_message_contains_context(self) -> None:
         """Error alert message references the context field."""
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
         tg = TelegramLive(bot_token="tok", chat_id="chat123", enabled=True)
         await tg.alert_error(error="latency_spike", context="execution_pipeline")
         alert = tg._queue.get_nowait()
@@ -753,7 +753,7 @@ class TestSCS14TelegramAlertOnAnomaly:
 
     async def test_alert_kill_message_contains_reason(self) -> None:
         """Kill alert message references the reason string."""
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
         tg = TelegramLive(bot_token="tok", chat_id="chat123", enabled=True)
         await tg.alert_kill(reason="max_drawdown_exceeded")
         alert = tg._queue.get_nowait()
@@ -761,7 +761,7 @@ class TestSCS14TelegramAlertOnAnomaly:
 
     async def test_queue_full_drops_oldest_and_accepts_new(self) -> None:
         """When queue is full the oldest alert is dropped; new one is accepted."""
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
         tg = TelegramLive(bot_token="tok", chat_id="chat123", enabled=True)
         # Fill queue to capacity
         for i in range(128):
@@ -779,7 +779,7 @@ class TestSCS15DrawdownTriggerSystemPause:
     """SC-S15: drawdown breach triggers kill switch and blocks all execution."""
 
     async def test_drawdown_above_8pct_sets_disabled(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
         guard = RiskGuard(max_drawdown_pct=0.08)
         assert not guard.disabled
         await guard.check_drawdown(peak_balance=10_000.0, current_balance=9_100.0)
@@ -787,8 +787,8 @@ class TestSCS15DrawdownTriggerSystemPause:
 
     async def test_kill_switch_blocks_go_live_controller(self) -> None:
         """Once RiskGuard disabled, GoLiveController should never allow execution."""
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
 
@@ -806,27 +806,27 @@ class TestSCS15DrawdownTriggerSystemPause:
         assert ctrl.allow_execution() is False
 
     async def test_drawdown_below_threshold_does_not_halt(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
         guard = RiskGuard(max_drawdown_pct=0.08)
         await guard.check_drawdown(peak_balance=10_000.0, current_balance=9_500.0)
         assert guard.disabled is False
 
     async def test_kill_switch_reason_recorded(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
         guard = RiskGuard(max_drawdown_pct=0.08)
         await guard.check_drawdown(peak_balance=10_000.0, current_balance=8_000.0)
         assert guard.disabled is True
         assert guard._kill_switch_reason is not None
 
     async def test_daily_loss_limit_triggers_halt(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
         guard = RiskGuard(daily_loss_limit=-2_000.0)
         await guard.check_daily_loss(current_pnl=-2_100.0)
         assert guard.disabled is True
 
     async def test_risk_guard_kill_switch_is_idempotent(self) -> None:
         """Triggering kill switch twice does not raise or change reason."""
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
         guard = RiskGuard()
         await guard.trigger_kill_switch("first_reason")
         await guard.trigger_kill_switch("second_reason")
@@ -966,7 +966,7 @@ class TestSCS19SlippageDistribution:
         assert agg.p95_slippage_bps >= agg.avg_slippage_bps
 
     def test_metrics_validator_slippage_fields(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import MetricsValidator
         validator = MetricsValidator(min_trades=1)
         for bps in [5.0, 10.0, 15.0, 200.0]:
             validator.record_slippage(bps)
@@ -992,7 +992,7 @@ class TestSCS20RiskCompliance:
 
     def test_execution_guard_max_position_usd_10pct_bankroll(self) -> None:
         """Default max_position_usd is 1000 USD (10% of $10k default bankroll)."""
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
         guard = ExecutionGuard()
         result = guard.validate(
             market_id="mkt-risk01", side="YES", price=0.60,
@@ -1003,17 +1003,17 @@ class TestSCS20RiskCompliance:
 
     def test_daily_loss_limit_constant(self) -> None:
         """RiskGuard enforces -$2,000 daily loss limit."""
-        from projects.polymarket.polyquantbot.phase8.risk_guard import _DAILY_LOSS_LIMIT_USD
+        from projects.polymarket.polyquantbot.risk.risk_guard import _DAILY_LOSS_LIMIT_USD
         assert _DAILY_LOSS_LIMIT_USD == pytest.approx(-2_000.0)
 
     def test_max_drawdown_constant(self) -> None:
         """RiskGuard enforces 8% max drawdown."""
-        from projects.polymarket.polyquantbot.phase8.risk_guard import _MAX_DRAWDOWN_PCT
+        from projects.polymarket.polyquantbot.risk.risk_guard import _MAX_DRAWDOWN_PCT
         assert _MAX_DRAWDOWN_PCT == pytest.approx(0.08)
 
     def test_go_live_controller_daily_trade_cap(self) -> None:
         """GoLiveController caps daily trades to max_trades_per_day."""
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController, TradingMode,
         )
 

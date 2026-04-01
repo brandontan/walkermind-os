@@ -344,7 +344,7 @@ class ExitMonitor:
             # Determine exit side (opposite of entry side)
             exit_side = "NO" if record.side == "YES" else "YES"
 
-            from ..phase7.core.execution.live_executor import ExecutionRequest
+            from ..execution.clob_executor import ExecutionRequest
             exit_request = ExecutionRequest(
                 market_id=record.market_id,
                 side=exit_side,

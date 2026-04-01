@@ -131,7 +131,7 @@ def stub_telegram() -> StubTelegram:
 @pytest.fixture
 async def risk_guard():
     """Fresh RiskGuard with default limits."""
-    from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+    from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
     guard = RiskGuard(daily_loss_limit=-2000.0, max_drawdown_pct=0.08)
     return guard
 
@@ -139,21 +139,21 @@ async def risk_guard():
 @pytest.fixture
 async def position_tracker(risk_guard):
     """Fresh PositionTracker wired to a default RiskGuard."""
-    from projects.polymarket.polyquantbot.phase8.position_tracker import PositionTracker
+    from projects.polymarket.polyquantbot.risk.position_tracker import PositionTracker
     return PositionTracker(risk_guard=risk_guard)
 
 
 @pytest.fixture
 async def order_guard(risk_guard):
     """Fresh OrderGuard wired to a default RiskGuard."""
-    from projects.polymarket.polyquantbot.phase8.order_guard import OrderGuard
+    from projects.polymarket.polyquantbot.risk.order_guard import OrderGuard
     return OrderGuard(risk_guard=risk_guard, order_timeout_sec=30.0)
 
 
 @pytest.fixture
 def metrics_validator():
     """Fresh MetricsValidator with production defaults."""
-    from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
+    from projects.polymarket.polyquantbot.monitoring.metrics_validator import MetricsValidator
     return MetricsValidator(
         ev_capture_target=0.75,
         fill_rate_target=0.70,
@@ -166,14 +166,14 @@ def metrics_validator():
 @pytest.fixture
 def system_state():
     """Fresh SystemStateManager in RUNNING state."""
-    from projects.polymarket.polyquantbot.phase9.main import SystemStateManager
+    from projects.polymarket.polyquantbot.core.system_state import SystemStateManager
     return SystemStateManager()
 
 
 @pytest.fixture
 async def circuit_breaker(risk_guard):
     """CircuitBreaker with tight thresholds for fast test triggering."""
-    from projects.polymarket.polyquantbot.phase9.main import CircuitBreaker
+    from projects.polymarket.polyquantbot.core.circuit_breaker import CircuitBreaker
     return CircuitBreaker(
         risk_guard=risk_guard,
         error_rate_threshold=0.30,

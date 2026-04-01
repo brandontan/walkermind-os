@@ -88,31 +88,31 @@ def _make_runner(
     kalshi_markets: Optional[list] = None,
 ):
     """Build a Phase10PipelineRunner with all external deps stubbed out."""
-    from projects.polymarket.polyquantbot.phase10.arb_detector import ArbDetector
-    from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
-    from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+    from projects.polymarket.polyquantbot.core.pipeline.arb_detector import ArbDetector
+    from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
+    from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
         GoLiveController,
         TradingMode,
     )
-    from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+    from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
         Phase10PipelineRunner,
     )
-    from projects.polymarket.polyquantbot.phase7.analytics.execution_feedback import (
+    from projects.polymarket.polyquantbot.data.ingestion.execution_feedback import (
         ExecutionFeedbackTracker,
     )
-    from projects.polymarket.polyquantbot.phase7.analytics.latency_tracker import (
+    from projects.polymarket.polyquantbot.data.ingestion.latency_tracker import (
         LatencyTracker,
     )
-    from projects.polymarket.polyquantbot.phase7.analytics.trade_flow import (
+    from projects.polymarket.polyquantbot.data.ingestion.trade_flow import (
         TradeFlowAnalyzer,
     )
-    from projects.polymarket.polyquantbot.phase7.engine.market_cache_patch import (
+    from projects.polymarket.polyquantbot.data.orderbook.market_cache import (
         Phase7MarketCache,
     )
-    from projects.polymarket.polyquantbot.phase7.engine.orderbook import (
+    from projects.polymarket.polyquantbot.data.orderbook.orderbook import (
         OrderBookManager,
     )
-    from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+    from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
         MetricsValidator,
     )
 
@@ -182,7 +182,7 @@ class TestPaperModeBlocksExecution:
     """TR-01 — GoLiveController in PAPER mode returns None from _gated_execute."""
 
     async def test_paper_mode_blocks_gated_execute(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -203,7 +203,7 @@ class TestPaperModeBlocksExecution:
 
     async def test_paper_mode_records_fill_false(self) -> None:
         """PAPER mode should record a non-fill in MetricsValidator."""
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -231,7 +231,7 @@ class TestLiveModeAllowsExecution:
     """TR-02 — GoLiveController allows execution in LIVE mode with passing metrics."""
 
     async def test_live_mode_executes_when_metrics_pass(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -255,7 +255,7 @@ class TestLiveModeAllowsExecution:
         executor.execute.assert_called_once()
 
     async def test_live_mode_blocked_without_metrics(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -285,7 +285,7 @@ class TestExecutionGuardLiquidityGate:
     """TR-03 — Pipeline rejects order when depth is below min_liquidity."""
 
     async def test_low_liquidity_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -319,7 +319,7 @@ class TestExecutionGuardPositionSizeGate:
     """TR-04 — Pipeline rejects order when size exceeds max_position_usd."""
 
     async def test_oversized_position_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -377,8 +377,8 @@ class TestArbSignalsNotExecuted:
 
     async def test_arb_counter_increments_on_signal(self) -> None:
         """arb_signals_total increases when spread exceeds threshold."""
-        from projects.polymarket.polyquantbot.phase10.arb_detector import ArbDetector
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.arb_detector import ArbDetector
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             Phase10PipelineRunner,
         )
 
@@ -417,7 +417,7 @@ class TestLatencyTracking:
     """TR-06, TR-13 — LatencyEvent fields are set through pipeline execution."""
 
     async def test_latency_event_total_ms_positive(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -440,7 +440,7 @@ class TestLatencyTracking:
 
     async def test_latency_event_not_set_when_blocked(self) -> None:
         """PAPER mode: order_sent_ts stays 0 (execution never reached)."""
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -467,7 +467,7 @@ class TestMetricsRecording:
     """TR-07, TR-08 — MetricsValidator accumulates data through pipeline."""
 
     async def test_fill_recorded_on_successful_execution(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -489,7 +489,7 @@ class TestMetricsRecording:
         assert runner._metrics._orders_submitted == 3
 
     async def test_latency_recorded_on_execution(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -519,10 +519,10 @@ class TestFromConfigPaperMode:
     """TR-09 — from_config with PAPER mode sets dry_run=True on the executor."""
 
     def test_paper_config_builds_in_paper_mode(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             TradingMode,
         )
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             Phase10PipelineRunner,
         )
 
@@ -532,9 +532,9 @@ class TestFromConfigPaperMode:
         }
 
         with patch(
-            "projects.polymarket.polyquantbot.phase10.pipeline_runner.PolymarketWSClient"
+            "projects.polymarket.polyquantbot.core.pipeline.pipeline_runner.PolymarketWSClient"
         ) as mock_ws_cls, patch(
-            "projects.polymarket.polyquantbot.phase10.pipeline_runner.LiveExecutor"
+            "projects.polymarket.polyquantbot.core.pipeline.pipeline_runner.LiveExecutor"
         ) as mock_exec_cls:
             mock_ws_cls.return_value = MagicMock()
             mock_exec_cls.return_value = MagicMock()
@@ -556,7 +556,7 @@ class TestGoLiveCounterUpdates:
     """TR-10 — record_trade() called after successful execution."""
 
     async def test_trade_counter_increments(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             LatencyEvent,
         )
 
@@ -591,7 +591,7 @@ class TestStaleDataSkipsExecution:
         runner, executor, *_ = _make_runner(go_live_mode="PAPER")
         runner._decision_callback = callback
 
-        from projects.polymarket.polyquantbot.phase7.infra.ws_client import WSEvent
+        from projects.polymarket.polyquantbot.data.websocket.ws_client import WSEvent
 
         event = WSEvent(
             type="orderbook",
@@ -667,7 +667,7 @@ class TestGoLiveStatusIntegration:
     """set_metrics_for_go_live() propagates to GoLiveController."""
 
     def test_set_metrics_for_go_live_enables_live(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             TradingMode,
         )
 
@@ -679,7 +679,7 @@ class TestGoLiveStatusIntegration:
         assert runner._go_live._metrics_ready is True
 
     def test_mode_property_reflects_go_live_controller(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             TradingMode,
         )
 

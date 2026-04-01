@@ -544,7 +544,7 @@ class TestExecutionSimulatorPaperMode:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _make_validator(**kwargs):
-    from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
+    from projects.polymarket.polyquantbot.monitoring.metrics_validator import MetricsValidator
     return MetricsValidator(
         ev_capture_target=0.75,
         fill_rate_target=0.70,

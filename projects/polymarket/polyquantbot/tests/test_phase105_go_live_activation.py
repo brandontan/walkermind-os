@@ -108,10 +108,10 @@ class TestLiveModeControllerPaperMode:
     """GL-01: PAPER mode always blocks LIVE."""
 
     def test_paper_mode_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.PAPER,
@@ -121,10 +121,10 @@ class TestLiveModeControllerPaperMode:
         assert ctrl.is_live_enabled() is False
 
     def test_paper_mode_block_reason(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.PAPER,
@@ -138,10 +138,10 @@ class TestLiveModeControllerAllMetricsPass:
     """GL-02: All metrics passing enables LIVE."""
 
     def test_all_metrics_pass(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -157,10 +157,10 @@ class TestLiveModeControllerKillSwitch:
     """GL-03: Kill switch hard-blocks LIVE regardless of metrics."""
 
     def test_kill_switch_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -175,10 +175,10 @@ class TestLiveModeControllerBorderlineMetrics:
     """GL-04 – GL-07: Borderline metrics block with strict inequality."""
 
     def test_ev_capture_at_threshold_passes(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -189,10 +189,10 @@ class TestLiveModeControllerBorderlineMetrics:
         assert ctrl.is_live_enabled() is True  # >= 0.75
 
     def test_ev_capture_below_threshold_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -202,10 +202,10 @@ class TestLiveModeControllerBorderlineMetrics:
         assert ctrl.is_live_enabled() is False  # GL-04
 
     def test_fill_rate_at_threshold_passes(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -216,10 +216,10 @@ class TestLiveModeControllerBorderlineMetrics:
         assert ctrl.is_live_enabled() is True
 
     def test_fill_rate_below_threshold_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -229,10 +229,10 @@ class TestLiveModeControllerBorderlineMetrics:
         assert ctrl.is_live_enabled() is False  # GL-05
 
     def test_p95_latency_at_limit_passes(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -243,10 +243,10 @@ class TestLiveModeControllerBorderlineMetrics:
         assert ctrl.is_live_enabled() is True
 
     def test_p95_latency_above_limit_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -256,10 +256,10 @@ class TestLiveModeControllerBorderlineMetrics:
         assert ctrl.is_live_enabled() is False  # GL-06
 
     def test_drawdown_at_limit_passes(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -270,10 +270,10 @@ class TestLiveModeControllerBorderlineMetrics:
         assert ctrl.is_live_enabled() is True
 
     def test_drawdown_above_limit_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -287,10 +287,10 @@ class TestLiveModeControllerBlockReason:
     """GL-08: get_block_reason returns descriptive string."""
 
     def test_ev_capture_block_reason(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -306,10 +306,10 @@ class TestLiveModeControllerNoRiskGuard:
     """GL-09: No risk_guard injected → fail closed (block)."""
 
     def test_no_risk_guard_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -324,10 +324,10 @@ class TestLiveModeControllerSetMode:
     """GL-10: set_mode switches between PAPER and LIVE."""
 
     def test_switch_paper_to_live(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.PAPER,
@@ -340,10 +340,10 @@ class TestLiveModeControllerSetMode:
         assert ctrl.is_live_enabled() is True
 
     def test_switch_live_to_paper(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         ctrl = LiveModeController(
             mode=TradingMode.LIVE,
@@ -360,10 +360,10 @@ class TestLiveModeControllerFromConfig:
     """GL-11: from_config parses thresholds correctly."""
 
     def test_from_config_live_mode(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         cfg = {"go_live": {"mode": "LIVE", "ev_capture_min": 0.80}}
         ctrl = LiveModeController.from_config(
@@ -375,10 +375,10 @@ class TestLiveModeControllerFromConfig:
         assert ctrl._thresholds.ev_capture_min == 0.80
 
     def test_from_config_invalid_mode_falls_back_to_paper(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
             LiveModeController,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
         cfg = {"go_live": {"mode": "INVALID_MODE"}}
         ctrl = LiveModeController.from_config(cfg)
@@ -394,7 +394,7 @@ class TestCapitalAllocatorValid:
     """GL-12: Valid allocation within all caps."""
 
     def test_basic_allocation(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
         )
 
@@ -407,7 +407,7 @@ class TestCapitalAllocatorValid:
         assert result.position_size_usd == pytest.approx(160.0)  # 10k * 2% * 0.8
 
     def test_full_signal_uses_per_trade_cap(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
         )
 
@@ -424,7 +424,7 @@ class TestCapitalAllocatorConcurrentCap:
     """GL-13: concurrent_trades cap raises CapitalAllocationError."""
 
     def test_max_concurrent_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
             CapitalAllocationError,
         )
@@ -442,7 +442,7 @@ class TestCapitalAllocatorTotalExposureCap:
     """GL-14: total_exposure cap raises CapitalAllocationError."""
 
     def test_exposure_at_cap_blocks(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
             CapitalAllocationError,
         )
@@ -460,7 +460,7 @@ class TestCapitalAllocatorInitialCap:
     """GL-15: initial_cap exceeded raises CapitalAllocationError."""
 
     def test_initial_cap_exceeded(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
             CapitalAllocationError,
         )
@@ -487,7 +487,7 @@ class TestCapitalAllocatorZeroSignal:
     """GL-16: zero signal_strength returns zero size."""
 
     def test_zero_signal_returns_zero(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
         )
 
@@ -504,7 +504,7 @@ class TestCapitalAllocatorInvalidBankroll:
     """GL-17: invalid bankroll raises ValueError."""
 
     def test_negative_bankroll_raises(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
         )
 
@@ -512,7 +512,7 @@ class TestCapitalAllocatorInvalidBankroll:
             CapitalAllocator(bankroll=-1.0)
 
     def test_zero_bankroll_raises(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
         )
 
@@ -524,7 +524,7 @@ class TestCapitalAllocatorFromConfig:
     """GL-18: from_config parses correctly."""
 
     def test_from_config(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
         )
 
@@ -544,7 +544,7 @@ class TestCapitalAllocatorDeterministic:
     """GL-19: deterministic — same input → same output."""
 
     def test_same_input_same_output(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.capital_allocator import (
+        from projects.polymarket.polyquantbot.core.pipeline.capital_allocator import (
             CapitalAllocator,
         )
 
@@ -560,7 +560,7 @@ class TestCapitalAllocatorDeterministic:
 
 
 def _make_execution_request(market_id: str = "0xabc") -> object:
-    from projects.polymarket.polyquantbot.phase7.core.execution.live_executor import (
+    from projects.polymarket.polyquantbot.execution.clob_executor import (
         ExecutionRequest,
     )
 
@@ -574,10 +574,10 @@ def _make_execution_request(market_id: str = "0xabc") -> object:
 
 
 def _make_live_mode_ctrl(live: bool = True) -> object:
-    from projects.polymarket.polyquantbot.phase10.live_mode_controller import (
+    from projects.polymarket.polyquantbot.core.pipeline.live_mode_controller import (
         LiveModeController,
     )
-    from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+    from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
     mode = TradingMode.LIVE if live else TradingMode.PAPER
     infra = _make_live_infra() if live else {}
@@ -591,7 +591,7 @@ def _make_live_mode_ctrl(live: bool = True) -> object:
 
 
 def _make_execution_guard(pass_validation: bool = True) -> object:
-    from projects.polymarket.polyquantbot.phase10.execution_guard import (
+    from projects.polymarket.polyquantbot.core.pipeline.execution_guard import (
         ExecutionGuard,
         ValidationResult,
     )
@@ -606,7 +606,7 @@ def _make_execution_guard(pass_validation: bool = True) -> object:
 
 
 def _make_phase7_executor(status: str = "submitted") -> object:
-    from projects.polymarket.polyquantbot.phase7.core.execution.live_executor import (
+    from projects.polymarket.polyquantbot.execution.clob_executor import (
         ExecutionResult,
     )
 
@@ -746,7 +746,7 @@ class TestGatedLiveExecutorRetry:
 
     async def test_retries_then_succeeds(self) -> None:
         from projects.polymarket.polyquantbot.execution.live_executor import LiveExecutor
-        from projects.polymarket.polyquantbot.phase7.core.execution.live_executor import (
+        from projects.polymarket.polyquantbot.execution.clob_executor import (
             ExecutionResult,
         )
 
@@ -890,14 +890,14 @@ class TestLiveAuditLoggerDbFailure:
 
 def _make_runner_with_live_ctrl(live: bool = False):
     """Build a minimal Phase10PipelineRunner with LiveModeController wired."""
-    from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+    from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
         Phase10PipelineRunner,
     )
-    from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+    from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
         GoLiveController,
         TradingMode,
     )
-    from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
+    from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
 
     go_live = GoLiveController(mode=TradingMode.PAPER)
     guard = ExecutionGuard(min_liquidity_usd=1.0, max_position_usd=10_000.0)
@@ -944,10 +944,10 @@ class TestPipelineRunnerLiveCtrlAlwaysFirst:
 
     async def test_live_ctrl_checked_when_not_live(self) -> None:
         runner = _make_runner_with_live_ctrl(live=False)
-        from projects.polymarket.polyquantbot.phase7.core.execution.live_executor import (
+        from projects.polymarket.polyquantbot.execution.clob_executor import (
             ExecutionRequest,
         )
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import LatencyEvent
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import LatencyEvent
 
         req = ExecutionRequest(
             market_id="0xabc", side="YES", price=0.62, size=100.0
@@ -970,10 +970,10 @@ class TestPipelineRunnerSimulatorUsedForPaper:
 
     async def test_simulator_called_on_paper_fallback(self) -> None:
         runner = _make_runner_with_live_ctrl(live=False)
-        from projects.polymarket.polyquantbot.phase7.core.execution.live_executor import (
+        from projects.polymarket.polyquantbot.execution.clob_executor import (
             ExecutionRequest,
         )
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import LatencyEvent
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import LatencyEvent
 
         req = ExecutionRequest(
             market_id="0xabc", side="YES", price=0.62, size=100.0
@@ -1000,16 +1000,16 @@ class TestPipelineRunnerGatedExecutorUsedForLive:
     """GL-31: gated_executor used when live_mode_controller allows."""
 
     async def test_gated_executor_called_on_live(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             Phase10PipelineRunner,
             LatencyEvent,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController,
             TradingMode,
         )
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
-        from projects.polymarket.polyquantbot.phase7.core.execution.live_executor import (
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.execution.clob_executor import (
             ExecutionRequest,
             ExecutionResult,
         )
@@ -1083,16 +1083,16 @@ class TestPipelineRunnerTelegramLiveEnabled:
     """GL-32 / GL-33: telegram notified on live events."""
 
     async def test_telegram_called_on_live_enabled(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+        from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
             Phase10PipelineRunner,
             LatencyEvent,
         )
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController,
             TradingMode,
         )
-        from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
-        from projects.polymarket.polyquantbot.phase7.core.execution.live_executor import (
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
+        from projects.polymarket.polyquantbot.execution.clob_executor import (
             ExecutionRequest,
             ExecutionResult,
         )

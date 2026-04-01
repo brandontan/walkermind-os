@@ -16,7 +16,7 @@ Design:
 Usage::
 
     from projects.polymarket.polyquantbot.monitoring.startup_checks import run_startup_checks
-    from projects.polymarket.polyquantbot.phase10.go_live_controller import TradingMode
+    from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import TradingMode
 
     run_startup_checks(
         mode=TradingMode.LIVE,

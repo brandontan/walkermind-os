@@ -76,31 +76,31 @@ def _make_runner(
     executor_status: str = "submitted",
 ):
     """Build Phase10PipelineRunner with all external dependencies stubbed."""
-    from projects.polymarket.polyquantbot.phase10.arb_detector import ArbDetector
-    from projects.polymarket.polyquantbot.phase10.execution_guard import ExecutionGuard
-    from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+    from projects.polymarket.polyquantbot.core.pipeline.arb_detector import ArbDetector
+    from projects.polymarket.polyquantbot.core.pipeline.execution_guard import ExecutionGuard
+    from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
         GoLiveController,
         TradingMode,
     )
-    from projects.polymarket.polyquantbot.phase10.pipeline_runner import (
+    from projects.polymarket.polyquantbot.core.pipeline.pipeline_runner import (
         Phase10PipelineRunner,
     )
-    from projects.polymarket.polyquantbot.phase7.analytics.execution_feedback import (
+    from projects.polymarket.polyquantbot.data.ingestion.execution_feedback import (
         ExecutionFeedbackTracker,
     )
-    from projects.polymarket.polyquantbot.phase7.analytics.latency_tracker import (
+    from projects.polymarket.polyquantbot.data.ingestion.latency_tracker import (
         LatencyTracker,
     )
-    from projects.polymarket.polyquantbot.phase7.analytics.trade_flow import (
+    from projects.polymarket.polyquantbot.data.ingestion.trade_flow import (
         TradeFlowAnalyzer,
     )
-    from projects.polymarket.polyquantbot.phase7.engine.market_cache_patch import (
+    from projects.polymarket.polyquantbot.data.orderbook.market_cache import (
         Phase7MarketCache,
     )
-    from projects.polymarket.polyquantbot.phase7.engine.orderbook import (
+    from projects.polymarket.polyquantbot.data.orderbook.orderbook import (
         OrderBookManager,
     )
-    from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+    from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
         MetricsValidator,
     )
 
@@ -166,7 +166,7 @@ class TestRT01TelegramAlertQueued:
     """RT-01: alert_error enqueues a message when Telegram is enabled."""
 
     async def test_alert_error_sentinel_test_queued(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         tg = TelegramLive(bot_token="TEST_TOKEN", chat_id="TEST_CHAT", enabled=True)
         assert tg._queue.empty()
@@ -179,7 +179,7 @@ class TestRT01TelegramAlertQueued:
         assert alert.alert_type.value == "ERROR"
 
     async def test_alert_error_correlation_id_attached(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         tg = TelegramLive(bot_token="T", chat_id="C", enabled=True)
         cid = str(uuid.uuid4())
@@ -198,7 +198,7 @@ class TestRT02TelegramDeliveryLatency:
     """RT-02: worker dequeues alert within 2 s when HTTP is stubbed."""
 
     async def test_worker_dequeues_within_2s(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         tg = TelegramLive(bot_token="T", chat_id="C", enabled=True)
 
@@ -233,7 +233,7 @@ class TestRT03TelegramDisabledNoEnv:
     """RT-03: TelegramLive.from_env() disables safely when token is absent."""
 
     def test_from_env_no_token_disabled(self, monkeypatch) -> None:
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
         monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
@@ -241,7 +241,7 @@ class TestRT03TelegramDisabledNoEnv:
         assert not tg._enabled
 
     async def test_disabled_alert_error_no_queue(self, monkeypatch) -> None:
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
         monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
@@ -259,7 +259,7 @@ class TestRT04PipelineWiring:
     """RT-04: Full pipeline wiring is intact; orderbook event flows through."""
 
     async def test_orderbook_event_updates_cache(self) -> None:
-        from projects.polymarket.polyquantbot.phase7.infra.ws_client import WSEvent
+        from projects.polymarket.polyquantbot.data.websocket.ws_client import WSEvent
 
         runner, *_ = _make_runner()
         event = WSEvent(
@@ -315,7 +315,7 @@ class TestRT06SequentialEvents:
     """RT-06: Multiple sequential orderbook events processed without error."""
 
     async def test_20_sequential_events_no_crash(self) -> None:
-        from projects.polymarket.polyquantbot.phase7.infra.ws_client import WSEvent
+        from projects.polymarket.polyquantbot.data.websocket.ws_client import WSEvent
 
         runner, *_ = _make_runner()
         for i in range(20):
@@ -344,7 +344,7 @@ class TestRT07PaperModeBlocksExecution:
     """RT-07: GoLiveController in PAPER mode returns False for allow_execution."""
 
     def test_paper_mode_blocks_allow_execution(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController,
             TradingMode,
         )
@@ -353,7 +353,7 @@ class TestRT07PaperModeBlocksExecution:
         assert ctrl.allow_execution(trade_size_usd=100.0) is False
 
     async def test_paper_mode_executor_never_called(self) -> None:
-        from projects.polymarket.polyquantbot.phase7.infra.ws_client import WSEvent
+        from projects.polymarket.polyquantbot.data.websocket.ws_client import WSEvent
 
         runner, executor, *_ = _make_runner(go_live_mode="PAPER")
 
@@ -382,7 +382,7 @@ class TestRT07PaperModeBlocksExecution:
         executor.execute.assert_not_awaited()
 
     def test_paper_mode_string_value(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController,
             TradingMode,
         )
@@ -400,7 +400,7 @@ class TestRT08ExecutionGuardRejects:
     """RT-08: ExecutionGuard blocks orders that fail validation."""
 
     def test_low_liquidity_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import (
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import (
             ExecutionGuard,
         )
 
@@ -417,7 +417,7 @@ class TestRT08ExecutionGuardRejects:
         assert "liquidity" in result.reason.lower()
 
     def test_slippage_exceeded_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import (
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import (
             ExecutionGuard,
         )
 
@@ -434,7 +434,7 @@ class TestRT08ExecutionGuardRejects:
         assert "slippage" in result.reason.lower()
 
     def test_oversized_position_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import (
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import (
             ExecutionGuard,
         )
 
@@ -481,7 +481,7 @@ class TestRT10WSDisconnectNoCrash:
     """RT-10: Pipeline handles WS disconnect gracefully."""
 
     async def test_ws_disconnect_no_crash(self) -> None:
-        from projects.polymarket.polyquantbot.phase7.infra.ws_client import (
+        from projects.polymarket.polyquantbot.data.websocket.ws_client import (
             PolymarketWSClient,
         )
 
@@ -516,7 +516,7 @@ class TestRT11CacheMissSkipsExecution:
     """RT-11: Orderbook event for unknown market skips execution silently."""
 
     async def test_unknown_market_skips_callback(self) -> None:
-        from projects.polymarket.polyquantbot.phase7.infra.ws_client import WSEvent
+        from projects.polymarket.polyquantbot.data.websocket.ws_client import WSEvent
 
         runner, executor, *_ = _make_runner()
         callback_called = False
@@ -549,7 +549,7 @@ class TestRT12LatencySpikeRecorded:
     """RT-12: MetricsValidator records latency spike; p95 reflects spike."""
 
     def test_latency_spike_recorded(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
             MetricsValidator,
         )
 
@@ -564,7 +564,7 @@ class TestRT12LatencySpikeRecorded:
         assert result.p95_latency >= 1200.0 * 0.9  # p95 captures the spike
 
     def test_latency_spike_does_not_crash(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
             MetricsValidator,
         )
 
@@ -583,10 +583,10 @@ class TestRT13SlippageSpikeAlert:
     """RT-13: MetricsValidator fires Telegram alert when slippage_bps > 50."""
 
     async def test_slippage_spike_triggers_alert_error(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
             MetricsValidator,
         )
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         tg = TelegramLive(bot_token="T", chat_id="C", enabled=True)
         validator = MetricsValidator(min_trades=0, slippage_warn_bps=50.0)
@@ -598,10 +598,10 @@ class TestRT13SlippageSpikeAlert:
         assert not tg._queue.empty(), "Slippage spike must enqueue an alert"
 
     def test_slippage_below_threshold_no_alert(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
             MetricsValidator,
         )
-        from projects.polymarket.polyquantbot.phase9.telegram_live import TelegramLive
+        from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
 
         tg = TelegramLive(bot_token="T", chat_id="C", enabled=True)
         validator = MetricsValidator(min_trades=0, slippage_warn_bps=50.0)
@@ -621,7 +621,7 @@ class TestRT14ConcurrentSignalsNoRace:
     """RT-14: 50 concurrent orderbook events → no state corruption."""
 
     async def test_50_concurrent_events_no_crash(self) -> None:
-        from projects.polymarket.polyquantbot.phase7.infra.ws_client import WSEvent
+        from projects.polymarket.polyquantbot.data.websocket.ws_client import WSEvent
 
         runner, *_ = _make_runner()
 
@@ -681,7 +681,7 @@ class TestRT16StabilityRun:
     """RT-16: 50 event cycles run without crash or exception."""
 
     async def test_50_cycle_stability_run(self) -> None:
-        from projects.polymarket.polyquantbot.phase7.infra.ws_client import WSEvent
+        from projects.polymarket.polyquantbot.data.websocket.ws_client import WSEvent
 
         runner, *_ = _make_runner()
         errors: list[Exception] = []
@@ -705,7 +705,7 @@ class TestRT16StabilityRun:
         assert not errors, f"Errors during stability run: {errors}"
 
     async def test_stop_after_cycles_clean(self) -> None:
-        from projects.polymarket.polyquantbot.phase7.infra.ws_client import WSEvent
+        from projects.polymarket.polyquantbot.data.websocket.ws_client import WSEvent
 
         runner, *_ = _make_runner()
         for i in range(10):
@@ -735,7 +735,7 @@ class TestRT17MetricsMonotonic:
     """RT-17: Metric counters increase monotonically over cycles."""
 
     def test_fill_counter_increases_monotonically(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
             MetricsValidator,
         )
 
@@ -750,7 +750,7 @@ class TestRT17MetricsMonotonic:
             assert b >= a, "Fill counter must be non-decreasing"
 
     def test_latency_samples_accumulate(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.metrics_validator import (
+        from projects.polymarket.polyquantbot.monitoring.metrics_validator import (
             MetricsValidator,
         )
 
@@ -770,7 +770,7 @@ class TestRT18KillSwitchDisablesExecution:
     """RT-18: trigger_kill_switch sets disabled=True; GoLiveController blocks."""
 
     async def test_kill_switch_sets_disabled(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard()
         assert guard.disabled is False
@@ -778,8 +778,8 @@ class TestRT18KillSwitchDisablesExecution:
         assert guard.disabled is True
 
     async def test_kill_switch_blocks_go_live(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController,
             TradingMode,
         )
@@ -793,14 +793,14 @@ class TestRT18KillSwitchDisablesExecution:
         assert ctrl.allow_execution(trade_size_usd=50.0) is False
 
     async def test_kill_switch_reason_preserved(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard()
         await guard.trigger_kill_switch(reason="max_drawdown")
         assert guard._kill_switch_reason == "max_drawdown"
 
     async def test_kill_switch_idempotent(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard()
         await guard.trigger_kill_switch(reason="first")
@@ -818,21 +818,21 @@ class TestRT19DailyLossKillSwitch:
     """RT-19: RiskGuard fires kill switch on daily loss breach."""
 
     async def test_daily_loss_breach_fires_kill(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard(daily_loss_limit=-2000.0)
         await guard.check_daily_loss(current_pnl=-2500.0)  # breach
         assert guard.disabled is True
 
     async def test_daily_loss_within_limit_no_kill(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard(daily_loss_limit=-2000.0)
         await guard.check_daily_loss(current_pnl=-1000.0)  # within limit
         assert guard.disabled is False
 
     async def test_daily_loss_exact_limit_no_kill(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard(daily_loss_limit=-2000.0)
         await guard.check_daily_loss(current_pnl=-1999.99)  # within limit (less negative than -2000)
@@ -848,22 +848,22 @@ class TestRT20DrawdownKillSwitch:
     """RT-20: Drawdown > 8% triggers kill switch and GoLiveController blocks."""
 
     async def test_drawdown_breach_fires_kill(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard(max_drawdown_pct=0.08)
         await guard.check_drawdown(peak_balance=10_000.0, current_balance=9_000.0)
         assert guard.disabled is True  # 10% drawdown > 8% threshold
 
     async def test_drawdown_within_limit_no_kill(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard(max_drawdown_pct=0.08)
         await guard.check_drawdown(peak_balance=10_000.0, current_balance=9_500.0)
         assert guard.disabled is False  # 5% < 8%
 
     async def test_drawdown_go_live_blocked_when_risk_disabled(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController,
             TradingMode,
         )
@@ -885,7 +885,7 @@ class TestRT21KellyPositionCap:
     """RT-21: Fractional Kelly (α=0.25) enforced via max_position_usd ≤ 10%."""
 
     def test_position_cap_10pct_bankroll(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import (
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import (
             ExecutionGuard,
         )
 
@@ -905,7 +905,7 @@ class TestRT21KellyPositionCap:
         assert result_ok.passed is True
 
     def test_position_exceeds_10pct_bankroll_rejected(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.execution_guard import (
+        from projects.polymarket.polyquantbot.core.pipeline.execution_guard import (
             ExecutionGuard,
         )
 
@@ -944,7 +944,7 @@ class TestRT22NoRiskBypass:
     """RT-22: Once disabled, RiskGuard cannot be re-enabled via normal calls."""
 
     async def test_disabled_guard_check_daily_loss_noop(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard()
         await guard.trigger_kill_switch(reason="test_bypass_check")
@@ -955,7 +955,7 @@ class TestRT22NoRiskBypass:
         assert guard.disabled is True
 
     async def test_disabled_guard_check_drawdown_noop(self) -> None:
-        from projects.polymarket.polyquantbot.phase8.risk_guard import RiskGuard
+        from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
 
         guard = RiskGuard()
         await guard.trigger_kill_switch(reason="test_bypass_check")
@@ -965,7 +965,7 @@ class TestRT22NoRiskBypass:
         assert guard.disabled is True
 
     async def test_paper_mode_stays_blocked_after_kill(self) -> None:
-        from projects.polymarket.polyquantbot.phase10.go_live_controller import (
+        from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
             GoLiveController,
             TradingMode,
         )

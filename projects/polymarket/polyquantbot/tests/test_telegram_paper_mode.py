@@ -23,12 +23,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from projects.polymarket.polyquantbot.phase9.telegram_live import (
+from projects.polymarket.polyquantbot.telegram.telegram_live import (
     Alert,
     AlertType,
     TelegramLive,
 )
-from projects.polymarket.polyquantbot.phase9.metrics_validator import MetricsValidator
+from projects.polymarket.polyquantbot.monitoring.metrics_validator import MetricsValidator
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -221,7 +221,7 @@ class TestTP07QueueFull:
     """When the queue reaches maxsize, the oldest alert is dropped."""
 
     async def test_queue_overflow_drops_oldest(self) -> None:
-        from projects.polymarket.polyquantbot.phase9.telegram_live import _QUEUE_MAXSIZE
+        from projects.polymarket.polyquantbot.telegram.telegram_live import _QUEUE_MAXSIZE
         tg = TelegramLive(
             bot_token="tok",
             chat_id="chat",

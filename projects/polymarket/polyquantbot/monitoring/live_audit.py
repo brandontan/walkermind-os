@@ -268,7 +268,7 @@ class LiveAuditLogger:
             CriticalAuditError: When MODE=LIVE and DB is not connected.
         """
         # Import here to avoid circular imports
-        from ..phase10.go_live_controller import TradingMode  # noqa: PLC0415
+        from ..core.pipeline.go_live_controller import TradingMode  # noqa: PLC0415
 
         if mode is TradingMode.LIVE and not self.is_db_connected():
             raise CriticalAuditError(
