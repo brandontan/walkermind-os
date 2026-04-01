@@ -1,4 +1,13 @@
-"""Phase 10.4 — LivePaperRunner: Real WS + Paper Execution Observation.
+"""Phase 10.8 — LivePaperRunner: Signal Activation & Debug.
+
+Extends Phase 10.4 with:
+  - Signal debug logging per tick (SIGNAL_DEBUG_MODE)
+  - Signal counter metrics via SignalMetrics
+  - Forced test-signal fallback after 30 min silence
+  - ActivityMonitor: CRITICAL alerts for signal / trade inactivity
+  - Execution-path logging on every simulated order attempt
+
+Original Phase 10.4 description — LivePaperRunner: Real WS + Paper Execution Observation.
 
 Connects to the live Polymarket WebSocket feed and runs the full trading
 pipeline in PAPER mode using ExecutionSimulator (no real orders).
@@ -77,6 +86,9 @@ from ..phase7.infra.ws_client import PolymarketWSClient, WSEvent
 from ..phase8.risk_guard import RiskGuard
 from ..phase9.metrics_validator import MetricsValidator
 from ..phase9.telegram_live import TelegramLive
+from ..monitoring.activity_monitor import ActivityMonitor
+from ..monitoring.signal_metrics import SignalMetrics, SkipReason
+from ..signal.signal_engine import SignalEngine
 
 log = structlog.get_logger()
 
@@ -90,6 +102,7 @@ _DEFAULT_CHECKPOINT_INTERVALS: tuple[float, ...] = tuple(
 _STALE_DATA_THRESHOLD_S: float = 5.0
 _DEPTH_LEVELS: int = 5
 _SLIPPAGE_THRESHOLD_BPS: float = 50.0
+_ACTIVITY_ALERT_WINDOW_S: float = 3600.0  # 1 hour → CRITICAL inactivity alert
 
 
 # ── Metrics snapshot ──────────────────────────────────────────────────────────
@@ -165,6 +178,8 @@ class LivePaperRunner:
         health_log_interval_s: float = _DEFAULT_HEALTH_LOG_S,
         checkpoint_intervals_s: tuple[float, ...] = _DEFAULT_CHECKPOINT_INTERVALS,
         depth_levels: int = _DEPTH_LEVELS,
+        signal_metrics: Optional[SignalMetrics] = None,
+        signal_debug_mode: Optional[bool] = None,
     ) -> None:
         """Initialise the live paper runner.
 
@@ -191,6 +206,10 @@ class LivePaperRunner:
             checkpoint_intervals_s: Tuple of elapsed seconds at which to send
                 Telegram checkpoint summaries.
             depth_levels: Orderbook depth levels to aggregate.
+            signal_metrics: Optional SignalMetrics instance; created internally
+                if not provided.
+            signal_debug_mode: Override SIGNAL_DEBUG_MODE env var for the
+                embedded SignalEngine.  None means read from env.
         """
         # Enforce PAPER mode — this is non-negotiable for Phase 10.4
         if go_live_controller.mode is not TradingMode.PAPER:
@@ -221,10 +240,29 @@ class LivePaperRunner:
         self._risk = risk_guard
         self._telegram = telegram
         self._market_ids = market_ids
-        self._decision_callback = decision_callback
         self._health_log_interval = health_log_interval_s
         self._checkpoint_intervals = sorted(checkpoint_intervals_s)
         self._depth_levels = depth_levels
+
+        # ── Phase 10.8: Signal metrics & debug engine ─────────────────────────
+        self._signal_metrics: SignalMetrics = signal_metrics or SignalMetrics()
+
+        if decision_callback is not None:
+            self._decision_callback: Optional[Callable] = SignalEngine(
+                decision_callback=decision_callback,
+                signal_metrics=self._signal_metrics,
+                debug_mode=signal_debug_mode,
+            )
+        else:
+            self._decision_callback = None
+
+        # ── Phase 10.8: Activity monitor ──────────────────────────────────────
+        self._activity_monitor: ActivityMonitor = ActivityMonitor(
+            telegram=telegram,
+            signal_source=lambda: self._signal_count,
+            order_source=lambda: self._sim_order_count,
+            alert_window_s=_ACTIVITY_ALERT_WINDOW_S,
+        )
 
         # Runtime counters
         self._running: bool = False
@@ -339,6 +377,7 @@ class LivePaperRunner:
             ),
             checkpoint_intervals_s=checkpoint_intervals,
             depth_levels=int(ws_cfg.get("depth_levels", _DEPTH_LEVELS)),
+            signal_debug_mode=cfg.get("signal_debug", {}).get("enabled"),
         )
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -360,9 +399,10 @@ class LivePaperRunner:
         log.info("live_paper_runner_telegram_started")
 
     async def stop(self) -> None:
-        """Gracefully stop the pipeline and flush Telegram alerts."""
+        """Gracefully stop the pipeline, activity monitor, and flush Telegram alerts."""
         log.info("live_paper_runner_stopping")
         self._running = False
+        self._activity_monitor.stop()
         await self._ws.disconnect()
         await self._telegram.stop()
         log.info("live_paper_runner_stopped")
@@ -406,6 +446,9 @@ class LivePaperRunner:
             ),
             asyncio.create_task(
                 self._checkpoint_loop(), name="lp_checkpoint"
+            ),
+            asyncio.create_task(
+                self._activity_monitor.run(), name="lp_activity_monitor"
             ),
         ]
 
@@ -653,10 +696,28 @@ class LivePaperRunner:
                 market_id=market_id,
                 reason=validation.reason,
             )
+            # Map validation reason string to a structured SkipReason.
+            # Check the most specific reasons first; fall back to RISK_BLOCK.
+            reason_lower = (validation.reason or "").lower()
+            if "duplicate" in reason_lower:
+                skip_reason = SkipReason.DUPLICATE
+            elif "liquidity" in reason_lower:
+                skip_reason = SkipReason.LOW_LIQUIDITY
+            else:
+                skip_reason = SkipReason.RISK_BLOCK
+            self._signal_metrics.record_skip(skip_reason)
             self._metrics.record_fill(filled=False)
             return None
 
         # ── Simulate execution ────────────────────────────────────────────────
+        log.info(
+            "live_paper_runner_execution_attempt",
+            market_id=market_id,
+            side=side,
+            price=price,
+            size_usd=size_usd,
+            is_debug_signal=signal.get("is_debug_signal", False),
+        )
         order_sent_ts = time.time()
         self._sim_order_count += 1
 
@@ -743,6 +804,7 @@ class LivePaperRunner:
             if not self._running:
                 break
             snap = self.snapshot()
+            sig_snap = self._signal_metrics.snapshot()
             log.info(
                 "live_paper_runner_health",
                 elapsed_s=round(snap.elapsed_s, 0),
@@ -756,6 +818,8 @@ class LivePaperRunner:
                 drawdown=round(snap.drawdown, 4),
                 ws_reconnects=snap.ws_reconnect_count,
                 kill_switch_active=snap.kill_switch_active,
+                total_signals_generated=sig_snap.total_generated,
+                total_signals_skipped=sig_snap.total_skipped,
             )
 
     # ── Background: checkpoint loop ───────────────────────────────────────────
@@ -863,7 +927,7 @@ class LivePaperRunner:
         )
 
         return {
-            "phase": "10.4",
+            "phase": "10.8",
             "mode": "PAPER",
             "runtime_summary": {
                 "elapsed_s": round(snap.elapsed_s, 1),
@@ -873,6 +937,7 @@ class LivePaperRunner:
                 "total_fills": snap.fill_count,
                 "ws_reconnects": snap.ws_reconnect_count,
             },
+            "signal_metrics": self._signal_metrics.snapshot().to_dict(),
             "metrics_table": {
                 "ev_capture_ratio": round(metrics.ev_capture_ratio, 4),
                 "fill_rate": round(metrics.fill_rate, 4),

@@ -750,7 +750,7 @@ class TestLP20FinalReportWritten:
             assert os.path.exists(tmp_path)
             with open(tmp_path) as f:
                 data = json.load(f)
-            assert data["phase"] == "10.4"
+            assert data["phase"] == "10.8"
             assert data["mode"] == "PAPER"
         finally:
             if os.path.exists(tmp_path):
