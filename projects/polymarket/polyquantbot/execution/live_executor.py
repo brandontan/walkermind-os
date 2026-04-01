@@ -44,6 +44,7 @@ import structlog
 
 from ..core.exceptions import CriticalExecutionError
 from ..execution.fill_tracker import FillTracker
+from ..monitoring.live_trade_logger import LiveTradeLogger
 from ..phase10.execution_guard import ExecutionGuard
 from ..phase10.go_live_controller import TradingMode
 from ..phase10.live_mode_controller import LiveModeController
@@ -52,6 +53,7 @@ from ..phase7.core.execution.live_executor import (
     ExecutionResult,
     LiveExecutor as _Phase7Executor,
 )
+from ..telegram.message_formatter import format_real_trade_executed
 
 log = structlog.get_logger()
 
@@ -122,6 +124,8 @@ class LiveExecutor:
         fill_tracker: Optional[FillTracker] = None,
         redis_client: Optional[object] = None,
         dedup_ttl_s: int = _DEDUP_TTL_S,
+        live_trade_logger: Optional[LiveTradeLogger] = None,
+        telegram: Optional[object] = None,
     ) -> None:
         # Phase 10.6: fail-closed Redis enforcement in LIVE mode
         if live_mode_controller.mode is TradingMode.LIVE and redis_client is None:
@@ -136,11 +140,15 @@ class LiveExecutor:
         self._fill_tracker = fill_tracker or FillTracker()
         self._redis = redis_client
         self._dedup_ttl = dedup_ttl_s
+        self._live_trade_logger = live_trade_logger
+        self._telegram = telegram
 
         log.info(
             "gated_live_executor_initialized",
             redis_enabled=redis_client is not None,
             dedup_ttl_s=dedup_ttl_s,
+            live_trade_logger_enabled=live_trade_logger is not None,
+            telegram_enabled=telegram is not None,
         )
 
     # ── Primary API ───────────────────────────────────────────────────────────
@@ -296,6 +304,14 @@ class LiveExecutor:
             latency_ms=round(elapsed, 2),
         )
 
+        # ── Phase 11: Live trade logging + Telegram alert ─────────────────────
+        if (
+            inner_result
+            and inner_result.status in ("filled", "partial")
+            and self._live_ctrl.mode is TradingMode.LIVE
+        ):
+            await self._emit_live_trade(request, inner_result, cid)
+
         return GatedExecutionResult(
             allowed=True,
             block_reason="",
@@ -351,6 +367,75 @@ class LiveExecutor:
                 await asyncio.sleep(delay)
 
         raise last_exc or RuntimeError("max_retries_exceeded")
+
+    async def _emit_live_trade(
+        self,
+        request: ExecutionRequest,
+        result: ExecutionResult,
+        correlation_id: str,
+    ) -> None:
+        """Emit live trade log record and Telegram alert.
+
+        Called after every successful LIVE fill (filled or partial).
+        Never raises — all errors are caught and logged.
+
+        Args:
+            request: Original order request.
+            result: Execution result from Phase 7 executor.
+            correlation_id: Request trace ID.
+        """
+        price = result.avg_price if result.avg_price else request.price
+        size_usd = float(result.filled_size) if result.filled_size else float(request.size)
+        status = result.status
+
+        # Live trade logger
+        if self._live_trade_logger is not None:
+            try:
+                await self._live_trade_logger.log_trade(
+                    market=request.market_id,
+                    side=request.side,
+                    price=price,
+                    size_usd=size_usd,
+                    correlation_id=correlation_id,
+                    status=status,
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "gated_executor_live_trade_logger_error",
+                    correlation_id=correlation_id,
+                    error=str(exc),
+                )
+
+        # Telegram REAL TRADE EXECUTED alert
+        if self._telegram is not None:
+            try:
+                msg = format_real_trade_executed(
+                    market=request.market_id,
+                    side=request.side,
+                    price=price,
+                    size_usd=size_usd,
+                    timestamp=int(time.time() * 1000),
+                    status=status,
+                    correlation_id=correlation_id,
+                )
+                alert_fn = getattr(self._telegram, "alert_open", None)
+                if callable(alert_fn):
+                    await asyncio.wait_for(
+                        alert_fn(
+                            market_id=request.market_id,
+                            side=request.side,
+                            price=price,
+                            size=size_usd,
+                            correlation_id=correlation_id,
+                        ),
+                        timeout=5.0,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "gated_executor_telegram_alert_error",
+                    correlation_id=correlation_id,
+                    error=str(exc),
+                )
 
     async def _check_dedup(self, dedup_key: str, correlation_id: str) -> bool:
         """Check Redis dedup cache.

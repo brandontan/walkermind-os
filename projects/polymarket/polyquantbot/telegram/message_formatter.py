@@ -337,6 +337,80 @@ def format_no_trade_alert(
     return "\n".join(lines)
 
 
+def format_live_mode_activated(
+    checks: Optional[dict] = None,
+    correlation_id: str = "",
+) -> str:
+    """Format a LIVE MODE ACTIVATED system alert.
+
+    Sent once when the system successfully transitions to LIVE trading.
+
+    Args:
+        checks: Optional dict of pre-live check results (check_name → bool).
+        correlation_id: Optional session trace ID.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "🚀 *LIVE MODE ACTIVATED*",
+        "PolyQuantBot is now executing REAL trades.",
+        "",
+        "All pre-live checks passed:",
+    ]
+    if checks:
+        for name, passed in checks.items():
+            icon = "✅" if passed else "❌"
+            label = name.replace("_", " ").title()
+            lines.append(f"  {icon} `{label}`")
+    if correlation_id:
+        lines.append(f"Session: `{correlation_id[:32]}`")
+    lines.append(f"_at {_ts_utc()}_")
+    return "\n".join(lines)
+
+
+def format_real_trade_executed(
+    market: str,
+    side: str,
+    price: float,
+    size_usd: float,
+    timestamp: int,
+    status: str = "filled",
+    correlation_id: str = "",
+) -> str:
+    """Format a REAL TRADE EXECUTED alert.
+
+    Sent after every successful LIVE order execution.
+
+    Args:
+        market: Polymarket condition ID (truncated for display).
+        side: "YES" | "NO".
+        price: Execution price.
+        size_usd: Filled size in USD.
+        timestamp: Unix epoch milliseconds.
+        status: Execution status ("filled" | "partial" | "rejected").
+        correlation_id: Optional request trace ID.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    status_emoji = {"filled": "💰", "partial": "🟡", "rejected": "❌"}.get(
+        status.lower(), "💰"
+    )
+    lines = [
+        f"{status_emoji} *REAL TRADE EXECUTED*",
+        f"Market: `{_safe(market, 24)}`",
+        f"Side: `{side}`",
+        f"Price: `{price:.4f}`",
+        f"Size: `${size_usd:.2f}`",
+        f"Status: `{status}`",
+    ]
+    if correlation_id:
+        lines.append(f"Trace: `{correlation_id[:32]}`")
+    lines.append(f"_at {_ts_utc()}_")
+    return "\n".join(lines)
+
+
 def format_execution_blocked(
     market_id: str,
     reason: str,
