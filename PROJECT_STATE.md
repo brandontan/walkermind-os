@@ -1,8 +1,8 @@
 # PROJECT STATE — WALKER AI TEAM
 
 Last Updated: 2026-04-01  
-Current Phase: Phase 11 — Strategy Implementations ✅  
-Status: Phase 11.1 Cleanup Complete → Phase 12 Prep 🔧
+Current Phase: Phase 12 — Multi-Strategy Orchestration ✅  
+Status: Phase 12 Complete → Phase 12.1 Prep 🔧
 
 ---
 
@@ -159,23 +159,30 @@ Current focus:
    Fixed all domain + test file imports to domain paths  
    591 tests pass, 0 failures  
 
+- Phase 12 — Multi-Strategy Orchestration ✅  
+   MarketFeatures (strategy/features/): spread, depth_imbalance, VWAP proxy, price velocity  
+   StrategyRouter (strategy/router.py): parallel asyncio eval, best-edge-wins dedup, error isolation  
+   StrategyAllocator (strategy/allocator.py): Bayesian confidence weighting, exposure caps  
+   BacktestEngine (backtest/engine.py): event-driven backtesting, PnL metrics, drawdown/Sharpe  
+   46 new tests (MS-01–MS-46), 637 total, 0 fail  
+
 ---
 
 ## 🚧 IN PROGRESS
 
-### Phase 12 — Multi-Strategy Orchestration
+### Phase 12.1 — Pipeline Integration
 
-Focus: Wire strategies into pipeline; implement strategy router; add backtesting engine
+Focus: Wire StrategyRouter + StrategyAllocator into the production pipeline_runner
 
 ---
 
 ## ❌ NOT STARTED
 
-- Backtesting engine
+- Backtesting calibration with historical Polymarket data
 
-- Capital allocation engine (multi-strategy scaling)
+- Capital allocation engine (live per-strategy scaling with pipeline integration)
 
-- Multi-strategy router (run all 3 strategies in parallel, aggregate signals)
+- Multi-strategy pipeline wiring (StrategyRouter → pipeline_runner.py integration)
 
 - Sentiment intelligence layer
 
@@ -183,14 +190,16 @@ Focus: Wire strategies into pipeline; implement strategy router; add backtesting
 
 ## 🎯 NEXT PRIORITY
 
-Phase 12 — Multi-Strategy Orchestration (strategy router + backtest integration)
+Phase 12.1 — Pipeline Integration (StrategyRouter + StrategyAllocator wired into pipeline_runner)
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
 ### Architecture
-- strategy/features/ is a placeholder (feature engineering layer not yet implemented)  
+- strategy/features/ feature store is in-memory only (persistence deferred to Phase 13)  
+- BacktestEngine PnL model is simplified (immediate-exit at next tick mid price)  
+- StrategyRouter + StrategyAllocator not yet wired into production pipeline_runner  
 
 ### Infrastructure
 - Metrics snapshots are in-memory only (Redis persistence not yet implemented)  
@@ -205,7 +214,7 @@ Phase 12 — Multi-Strategy Orchestration (strategy router + backtest integratio
 
 Latest commit message:
 
-"update: pre-refactor system state snapshot before architecture restructuring"
+"feat: Phase 12 — multi-strategy router, allocator, backtest engine, feature engineering"
 
 ---
 
