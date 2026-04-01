@@ -134,20 +134,20 @@ Current focus:
    SENTINEL GO-LIVE VERDICT: ✅ APPROVED  
    513 tests total, 0 fail  
 
-- Phase 11 — LIVE Deployment ✅  
-   Explicit opt-in guard (`ENABLE_LIVE_TRADING=true`) preventing accidental PAPER → LIVE  
-   Pre-LIVE startup validation (8 checks, all must pass via `run_prelive_validation()`)  
-   `LiveConfig` with `LiveModeGuardError` for config-layer safety  
-   `LiveTradeLogger` — per-trade structured log + JSONL append-only file  
-   `LiveExecutor` wired with trade logger + Telegram alerts  
-   Telegram: `format_live_mode_activated()` + `format_real_trade_executed()`  
-   32 new tests (LD-01–LD-32), 545 tests total, 0 fail
+- Phase 11 Prep — Domain Architecture Refactor ✅  
+   ✅ Domain-based architecture refactor (Phase 11 prep)  
+   Migrated from phase-numbered to semantic domain modules  
+   risk/, data/, strategy/, intelligence/, backtest/, core/pipeline/, infra/, reports/  
+   Backward compat shims: phase8/__init__, phase9/__init__, phase10/__init__  
+   565 tests, 0 fail  
 
 ---
 
 ## 🚧 IN PROGRESS
 
-- None (system stable before refactor)
+### Phase 11 — Strategy Scaling
+
+Focus: Implement strategy/implementations/ with concrete strategies; upgrade intelligence/ with Bayesian priors; backtest/ engine
 
 ---
 
@@ -165,14 +165,7 @@ Current focus:
 
 ## 🎯 NEXT PRIORITY
 
-STRUCTURE REFACTOR — domain-based architecture alignment
-
-Goals:
-- Flatten phase-based folders into domain modules (`ingestion/`, `strategy/`, `intelligence/`, `risk/`, `execution/`, `monitoring/`)
-- Extract signal logic out of the pipeline into a standalone `strategy/` layer
-- Separate intelligence/probability models into a dedicated `intelligence/` module
-- Standardize report structure per agent (FORGE-X, SENTINEL, BRIEFER)
-- Enable clean multi-strategy extension without cross-phase coupling
+Phase 11 — Strategy Scaling (implement strategy/implementations/ with 2-3 concrete strategies)
 
 ---
 
@@ -190,7 +183,12 @@ Goals:
 - Webhook server requires TLS termination in production (nginx/caddy)  
 - PreLiveValidator latency field uses fallback chain (`p95_latency` → `p95_latency_ms`)  
 - Telegram delivery not yet tested on real network (non-stub)  
-- SIGNAL_DEBUG_MODE must be set in `.env` before starting the 6H live paper run
+
+- SIGNAL_DEBUG_MODE must be set in `.env` before starting the 6H live paper run  
+
+- Backward compat shims in phase8-10 __init__.py (intentional — remove gradually)  
+
+- phase7/core/execution/live_executor.py still used directly from core/pipeline (migrate next phase)
 
 ---
 
