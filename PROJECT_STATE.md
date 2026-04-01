@@ -1,8 +1,8 @@
 # PROJECT STATE — WALKER AI TEAM
 
-Last Updated: 2026-04-01 04:37:20  
-Current Phase: Phase 10.9 — Final Paper Run (PRODUCTION_DRY_RUN) ✅  
-Status: structure_refactor_complete
+Last Updated: 2026-04-01  
+Current Phase: Phase 11 — LIVE Deployment ✅  
+Status: Phase 11 Complete → Pre-Refactor 🔧
 
 ---
 
@@ -153,11 +153,13 @@ Focus: Implement strategy/implementations/ with concrete strategies; upgrade int
 
 ## ❌ NOT STARTED
 
-- Phase 11 — Strategy Scaling  
-   Multi-strategy router + adaptive weighting  
+- Proper Strategy Layer (modular, multi-strategy ready)
 
-- Phase 12 — Full Automation  
-   Dashboard + capital scaling
+- Backtesting engine
+
+- Advanced Intelligence layer (Bayesian, sentiment, drift)
+
+- Capital allocation engine (multi-strategy scaling)
 
 ---
 
@@ -169,12 +171,17 @@ Phase 11 — Strategy Scaling (implement strategy/implementations/ with 2-3 conc
 
 ## ⚠️ KNOWN ISSUES
 
-- Metrics snapshots are in-memory only (Redis persistence planned for Phase 11)  
+### Architecture (Pre-Refactor)
+- Phase-based folder structure (`phase2/`–`phase11/`) is non-scalable  
+- Signal logic is mixed into the pipeline runner (not a standalone strategy layer)  
+- Intelligence layer is not fully separated (Bayesian model lives inside strategy code)  
+- Reports are not structured per agent (FORGE-X / SENTINEL / BRIEFER mixed in one folder)  
+- Multi-strategy extension requires cross-phase coupling — hard to add new alpha sources
 
+### Infrastructure
+- Metrics snapshots are in-memory only (Redis persistence not yet implemented)  
 - Webhook server requires TLS termination in production (nginx/caddy)  
-
-- PreLiveValidator latency field uses fallback chain (p95_latency → p95_latency_ms)  
-
+- PreLiveValidator latency field uses fallback chain (`p95_latency` → `p95_latency_ms`)  
 - Telegram delivery not yet tested on real network (non-stub)  
 
 - SIGNAL_DEBUG_MODE must be set in `.env` before starting the 6H live paper run  
@@ -189,7 +196,7 @@ Phase 11 — Strategy Scaling (implement strategy/implementations/ with 2-3 conc
 
 Latest commit message:
 
-"sentinel: Phase 10.8 signal activation re-run — 6H minimum, 2H validation, critical_failure flag, 498 tests"
+"update: pre-refactor system state snapshot before architecture restructuring"
 
 ---
 
