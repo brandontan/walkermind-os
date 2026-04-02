@@ -265,15 +265,25 @@ async def main() -> None:
         Routing:
             callback_query with ``action:*`` data → CallbackRouter
                 (uses editMessageText — single active message, no duplicates)
+            Reply keyboard text (e.g. "📊 Trade") → on_text_message()
+                (maps to action:* and routes via CallbackRouter)
             Text commands (``/status``, ``/kill``, etc.) → CommandRouter
                 (uses sendMessage — always creates new message)
         """
         import aiohttp as _aio
         from .telegram.command_router import CommandRouter
         from .telegram.command_handler import CommandResult as _CR
+        from .telegram.ui.reply_keyboard import (
+            get_main_reply_keyboard,
+            REPLY_MENU_MAP,
+            _REPLY_KB_READY_MSG,
+        )
         CommandResult = _CR
         router = CommandRouter(handler=cmd_handler)
         offset = 0
+        # chat_id → message_id of the active inline message (used for editMessageText
+        # when reply keyboard buttons are pressed without an existing callback_query)
+        _inline_msg_ids: dict[int, int] = {}
         log.info("telegram_polling_started")
 
         async def _send_result(session, reply_chat_id, result, callback_query_id=None):
@@ -298,9 +308,59 @@ async def main() -> None:
             if keyboard:
                 payload["reply_markup"] = {"inline_keyboard": keyboard}
             try:
-                await session.post(f"{_tg_api}/sendMessage", json=payload)
+                resp = await session.post(f"{_tg_api}/sendMessage", json=payload)
+                resp_data = await resp.json()
+                sent_msg_id = (
+                    resp_data.get("result", {}).get("message_id")
+                    if resp_data.get("ok")
+                    else None
+                )
+                if sent_msg_id:
+                    _inline_msg_ids[reply_chat_id] = sent_msg_id
             except Exception as exc:
                 log.warning("polling_send_message_failed", error=str(exc))
+
+        async def _on_text_message(session, chat_id: int, text: str) -> None:
+            """Handle reply keyboard button presses.
+
+            Maps button label → action and dispatches through CallbackRouter
+            so the single active inline message is edited in-place.
+            If no active inline message exists for this chat, sends a new one
+            and tracks its message_id.
+            """
+            action = REPLY_MENU_MAP.get(text)
+            if not action:
+                return
+            log.info("reply_menu_click", action=action, text=text)
+            inline_msg_id = _inline_msg_ids.get(chat_id)
+            if inline_msg_id:
+                # Synthesise a minimal callback_query so CallbackRouter can
+                # editMessageText on the active inline message.
+                synthetic_cq: dict = {
+                    "id": "reply_kb",
+                    "data": f"action:{action}",
+                    "from": {"id": chat_id},
+                    "message": {
+                        "message_id": inline_msg_id,
+                        "chat": {"id": chat_id},
+                    },
+                }
+                await _callback_router.route(session, synthetic_cq)
+            else:
+                # No active inline message yet — create one (same as /start inline
+                # portion) and track its message_id for future edits.
+                from .telegram.ui.keyboard import build_main_menu
+                from .telegram.ui.screens import main_screen
+                snap_state = state_manager.snapshot()
+                result_obj = CommandResult(
+                    success=True,
+                    message=main_screen(
+                        mode=mode,
+                        state=snap_state.get("state", "UNKNOWN"),
+                    ),
+                    payload={"_keyboard": build_main_menu()},
+                )
+                await _send_result(session, chat_id, result_obj)
 
         async with _aio.ClientSession() as session:
             while True:
@@ -353,18 +413,40 @@ async def main() -> None:
                                     )
                             continue
 
-                        # ── Regular text command ───────────────────────────
+                        # ── Regular text / reply-keyboard click ───────────
                         msg = update.get("message") or update.get("edited_message")
                         if not msg:
                             continue
                         text = (msg.get("text") or "").strip()
+                        reply_chat = msg.get("chat", {}).get("id")
+
                         if not text.startswith("/"):
+                            # ── Reply keyboard menu click ──────────────────
+                            if reply_chat and text in REPLY_MENU_MAP:
+                                await _on_text_message(session, reply_chat, text)
                             continue
+
                         text = text.split("@")[0]
                         msg["text"] = text
+                        cmd_name = text.lstrip("/").split()[0].lower()
                         result = await router.route_update(update)
-                        reply_chat = msg.get("chat", {}).get("id")
                         if reply_chat:
+                            # ── /start: send reply keyboard first ─────────
+                            if cmd_name in ("start", "help", "menu", "main_menu"):
+                                try:
+                                    await session.post(
+                                        f"{_tg_api}/sendMessage",
+                                        json={
+                                            "chat_id": reply_chat,
+                                            "text": _REPLY_KB_READY_MSG,
+                                            "reply_markup": get_main_reply_keyboard(),
+                                        },
+                                    )
+                                except Exception as exc:
+                                    log.warning(
+                                        "reply_keyboard_send_failed",
+                                        error=str(exc),
+                                    )
                             await _send_result(session, reply_chat, result)
 
                 except asyncio.CancelledError:

@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Telegram Full Inline Enforcement COMPLETE ✅
+Status: Telegram Hybrid UI COMPLETE ✅
 
 ---
 
@@ -37,6 +37,17 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+TELEGRAM HYBRID UI
+
+- telegram/ui/reply_keyboard.py: get_main_reply_keyboard(), REPLY_MENU_MAP, get_reply_keyboard_remove()
+- main.py: /start sends ReplyKeyboardMarkup (bottom menu) + inline message
+- main.py: reply keyboard button presses intercepted → _on_text_message() → CallbackRouter (editMessageText)
+- main.py: _send_result() tracks inline message_id per chat for future edits
+- Single active inline message maintained — zero stacking
+- Report: reports/forge/TELEGRAM_HYBRID_UI.md
+
+---
 
 TELEGRAM FULL INLINE ENFORCEMENT
 
