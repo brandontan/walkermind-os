@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Signal Alpha Active + Telegram Hard Clean COMPLETE ✅
+Status: Telegram Full Inline Enforcement COMPLETE ✅
 
 ---
 
@@ -37,6 +37,18 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+TELEGRAM FULL INLINE ENFORCEMENT
+
+- callback_router.py: log.info("INLINE_UPDATE", action=action) added after action: parse
+- All menu navigation uses editMessageText exclusively — zero message stacking
+- sendMessage used ONLY as fallback when editMessageText fails (logged at WARNING)
+- sendMessage used ONLY for /start (creates initial single active message)
+- All inline actions: status, wallet, settings (risk/mode/strategy/notify/auto), control (pause/resume/halt)
+- Legacy actions (health/performance/strategies) remain hard-blocked
+- Report: reports/forge/TELEGRAM_INLINE_ENFORCEMENT.md
+
+---
 
 FOUNDATION
 
