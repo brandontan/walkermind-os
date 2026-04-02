@@ -174,7 +174,7 @@ async def main() -> None:
 
     # ── Heartbeat task (configurable, smart — only sends on activity change) ──
     _heartbeat_interval_s = int(os.environ.get("HEARTBEAT_INTERVAL_MIN", "30")) * 60
-    _heartbeat_enabled = os.environ.get("HEARTBEAT_ENABLED", "true").lower() != "false"
+    _heartbeat_enabled = False  # disabled — use /status command instead
 
     async def _heartbeat_loop() -> None:
         """Send Telegram ALIVE only when something changed, or at forced interval."""
@@ -264,6 +264,8 @@ async def main() -> None:
                         text = (msg.get("text") or "").strip()
                         if not text.startswith("/"):
                             continue
+                        # Strip @botname suffix (e.g. /help@Krusader_polybot → /help)
+                        text = text.split("@")[0]
                         result = await router.route_update(update)
                         if result and result.message:
                             reply_chat = msg.get("chat", {}).get("id")
