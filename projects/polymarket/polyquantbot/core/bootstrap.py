@@ -237,7 +237,8 @@ async def _fetch_active_markets(
       - active (active == True)
       - have volume >= min_liquidity
 
-    Returns the top *max_markets* condition IDs sorted by volume descending.
+    Delegates the HTTP fetch (with retry, timeout, and graceful fallback) to
+    :func:`core.market.market_client.get_active_markets`.
 
     Args:
         gamma_url: Gamma API base URL.
@@ -245,43 +246,15 @@ async def _fetch_active_markets(
         max_markets: Maximum number of markets to return.
 
     Returns:
-        List of condition IDs (may be empty if none qualify).
-
-    Raises:
-        RuntimeError: On network / HTTP errors so the caller can hard-fail.
+        Tuple of (ws_ids, market_meta).  ws_ids may be empty if no markets
+        qualify or if the Gamma API is unreachable.
     """
-    try:
-        import aiohttp  # optional dependency
-    except ImportError as exc:
-        raise RuntimeError(
-            "aiohttp is required for automatic market discovery. "
-            "Install it with: pip install aiohttp"
-        ) from exc
+    from .market.market_client import get_active_markets
 
-    url = f"{gamma_url.rstrip('/')}/markets"
-    params: dict[str, Any] = {
-        "active": "true",
-        "closed": "false",
-        "limit": 100,
-    }
+    log.info("bootstrap_market_discovery_start", gamma_url=gamma_url, min_liquidity=min_liquidity)
 
-    log.info("bootstrap_market_discovery_start", url=url, min_liquidity=min_liquidity)
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-            if resp.status != 200:
-                raise RuntimeError(
-                    f"Gamma API returned HTTP {resp.status} while fetching markets."
-                )
-            data = await resp.json()
-
-    # Gamma returns a list or a dict with a 'markets' key — handle both shapes.
-    if isinstance(data, dict):
-        markets: list[dict] = data.get("markets", [])
-    elif isinstance(data, list):
-        markets = data
-    else:
-        markets = []
+    markets = await get_active_markets(gamma_url=gamma_url)
+    log.info("condition_ids_loaded", count=len(markets))
 
     # Filter by liquidity (volume field names vary across API versions).
     qualifying: list[dict] = []

@@ -294,12 +294,15 @@ class TestDiscoverMarkets:
             market_ids, market_meta = await self._run({"MAX_MARKETS": "2"})
         assert len(market_ids) == 2
 
-    # PB-24
+    # PB-24  HTTP errors are now retried then fall back gracefully so the
+    #        pipeline doesn't crash; discover_markets still raises because zero
+    #        qualifying markets result from the empty market list.
     async def test_raises_on_gamma_http_error(self):
         session = _mock_aiohttp_response(503, {})
         with patch("aiohttp.ClientSession", return_value=session):
-            with pytest.raises(RuntimeError, match="HTTP 503"):
-                await self._run({})
+            with patch("asyncio.sleep"):  # skip retry back-off delays
+                with pytest.raises(RuntimeError, match="zero qualifying"):
+                    await self._run({})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
