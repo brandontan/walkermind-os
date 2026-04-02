@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Telegram Cleanup + Pipeline Fix COMPLETE ✅
+Status: Market Discovery Fix COMPLETE ✅
 
 ---
 
@@ -57,6 +57,17 @@ RAILWAY DEPLOYMENT
 - projects/__init__.py + projects/polymarket/__init__.py (import resolution)
 - projects/polymarket/polyquantbot/main.py (async main with env validation)
 - Fail-fast on missing LIVE env vars; graceful warning for missing MARKET_IDS
+
+---
+
+MARKET DISCOVERY FIX
+
+- core/market/market_client.py: get_active_markets() with retry×3, 5s timeout, graceful fallback
+- core/market/__init__.py: package init exposing get_active_markets + extract_condition_ids
+- core/bootstrap.py: _fetch_active_markets() delegates HTTP fetch to market_client
+- markets_fetched + condition_ids_loaded log events confirmed in pipeline flow
+- Graceful fallback: API failure → empty list → logged → pipeline continues without crash
+- 27 bootstrap tests pass (PB-01–PB-27); PB-24 updated to reflect new graceful behavior
 
 ---
 
