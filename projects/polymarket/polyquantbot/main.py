@@ -101,7 +101,7 @@ async def main() -> None:
     tg = TelegramLive.from_env()
     await tg.start()
     chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
-    telegram_sender = tg.alert_error if tg.enabled else None
+    telegram_sender = None  # polling loop handles all command replies directly
 
     # ── System activation monitor ──────────────────────────────────────────────
     from .monitoring.system_activation import SystemActivationMonitor
