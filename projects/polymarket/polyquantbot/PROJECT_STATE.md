@@ -1,7 +1,7 @@
 # PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Phase 11.4 complete — critical production fixes: wallet persistence, fee model correction, mode switch wiring
+Status: Phase 11.5 SENTINEL validation complete — 60/60 tests pass, system GO-LIVE approved
 
 ---
 
@@ -20,6 +20,7 @@ Status: Phase 11.4 complete — critical production fixes: wallet persistence, f
 - system-activation-final — Telegram production-ready (6 new alert methods); SystemActivationMonitor (event/signal counters, 10s log, 60s assert); WSClientStats connection state; main.py Telegram init fix + startup alert + heartbeat task
 - full-wiring-activation — WS client wired into main.py (MARKET_IDS env var); event loop calls activation_monitor.record_event(); LivePaperRunner wired with activation_monitor (record_signal, record_trade) + alert_signal/alert_trade Telegram hooks; heartbeat ws_connected fixed to use ws_client.stats().connected
 - Phase 11.4 — Critical production fixes: SQLite wallet persistence, fee = trade_size × 0.5%, LiveModeController.enable_live/paper() wired into MenuRouter, PreLiveValidator gate on LIVE switch, Telegram UI reflects real mode
+- Phase 11.5 SENTINEL — Full system validation (ST-01–ST-60): multi-user isolation, wallet persistence, fee system, mode switching, Telegram stability, failure simulation, burst load, data integrity — 60/60 PASS, GO-LIVE APPROVED
 
 ---
 
