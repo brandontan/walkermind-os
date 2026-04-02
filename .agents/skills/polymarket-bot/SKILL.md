@@ -1,90 +1,123 @@
 ---
-name: polymarket-bot-builder-v2
-
-description: >
-  Production-grade Polymarket trading system skill aligned with Walker AI architecture.
-  Supports multi-strategy, capital allocation, risk enforcement, and async execution.
+name: polymarket-bot-builder
+description: "Specialized skill for building production-grade Polymarket trading bots. Supports multi-strategy, capital allocation, risk management, and execution systems."
 ---
 
-🔥 POLYQUANTBOT BUILDER (V2 — FINAL)
+# Polymarket Bot Builder Skill
 
-🧠 SYSTEM CONTEXT
+## Project Context
 
-Repo: github.com/bayuewalker/walker-ai-team
-Bot: projects/polymarket/polyquantbot/
-Owner: Bayue Walker
+**Repo:** github.com/bayuewalker/walker-ai-team
+**Bot location:** projects/polymarket/polyquantbot/
+**Owner:** Bayue Walker — sole decision maker
 
 ---
 
-🏗 ARCHITECTURE (LOCKED)
+## Architecture Overview (UPDATED — FINAL)
 
-DATA (WebSocket + API)
-   ↓
+```
+MARKET DATA (Gamma API + CLOB WebSocket)
+        ↓
 STRATEGY (multi-strategy engine)
-   ↓
+        ↓
 CONFLICT RESOLUTION (YES vs NO → SKIP)
-   ↓
+        ↓
 CAPITAL ALLOCATION (dynamic weighting)
-   ↓
+        ↓
 INTELLIGENCE (Bayesian + Drift)
-   ↓
+        ↓
 RISK (hard limits)
-   ↓
-EXECUTION (paper/live)
-   ↓
-MONITORING (metrics + alerts)
+        ↓
+EXECUTION (CLOB paper/live)
+        ↓
+STATE (PostgreSQL + Redis)
+        ↓
+NOTIFICATIONS (Telegram)
+        ↓
+ANALYTICS (metrics + reports)
+```
+
+NOTE:
+
+- This is a multi-strategy system
+- All signals MUST include "strategy_id"
+- SENTINEL is NOT part of runtime execution
 
 ---
 
-🔒 HARD RULES
+## Execution Mode Control (CRITICAL)
 
-- NO phase folders
-- NO legacy structure
-- NO backward compatibility
-- Domain-based only
+```python
+MODE = "PAPER"  # or "LIVE"
+ENABLE_LIVE_TRADING = False
 
----
-
-⚙️ EXECUTION CONTROL (CRITICAL)
-
-MODE = PAPER | LIVE
-ENABLE_LIVE_TRADING = true | false
+def is_live_execution_enabled() -> bool:
+    return MODE == "LIVE" and ENABLE_LIVE_TRADING
+```
 
 ---
 
-Behavior:
+## Core APIs
 
-- PAPER → simulator only
-- LIVE + false → dry-run
-- LIVE + true → real execution
+### Polymarket Gamma API
+
+```
+BASE_URL = "https://gamma-api.polymarket.com"
+```
+
+### Polymarket CLOB API
+
+```
+BASE_URL = "https://clob.polymarket.com"
+```
+
+### Intelligence API
+
+```
+BASE_URL = "https://narrative.agent.heisenberg.so"
+```
 
 ---
 
-🧠 MULTI-STRATEGY SYSTEM
+## Core Formulas
 
-Each strategy:
+```python
+def calculate_ev(p_model: float, decimal_odds: float) -> float:
+    b = decimal_odds - 1
+    return p_model * b - (1 - p_model)
 
-- independent signal generation
-- tagged with strategy_id
+def calculate_edge(p_model: float, p_market: float) -> float:
+    return p_model - p_market
+
+def calculate_kelly(p: float, b: float, alpha: float = 0.25) -> float:
+    q = 1 - p
+    return alpha * ((p * b - q) / b)
+```
 
 ---
 
-Conflict Rule:
+## Conflict Resolution
 
-YES + NO → SKIP (no trade)
+```python
+def resolve_conflict(signals: list):
+    sides = set(s.side for s in signals)
+    if "YES" in sides and "NO" in sides:
+        return None  # SKIP
+    return signals[0]
+```
 
 ---
 
-💰 CAPITAL ALLOCATION (CORE)
+## Capital Allocation (CORE)
 
-def calculate_score(ev, confidence, drawdown):
+```python
+def calculate_score(ev: float, confidence: float, drawdown: float) -> float:
     return (ev * confidence) / (1 + drawdown)
 
-def normalize_weights(scores):
+def normalize_weights(scores: list[float]) -> list[float]:
     total = sum(scores)
-    return [s / total for s in scores]
-
----
+    return [s / total for s in scores] if total > 0 else [0 for _ in scores]
+```
 
 Constraints:
 
@@ -93,69 +126,89 @@ Constraints:
 
 ---
 
-🛡 RISK SYSTEM (RUNTIME)
+## Risk Rules (Runtime)
+
+```python
+RISK_CONFIG = {
+    "max_position_pct": 0.10,
+    "max_concurrent_positions": 5,
+    "daily_loss_limit": -2000.0,
+    "max_drawdown_pct": 0.08,
+}
 
 def check_risk(order, portfolio):
-    if portfolio.drawdown > 0.08:
+    if portfolio.drawdown > RISK_CONFIG["max_drawdown_pct"]:
         return False
-    if portfolio.daily_loss < -2000:
+    if portfolio.daily_pnl < RISK_CONFIG["daily_loss_limit"]:
         return False
     return True
+```
+
+NOTE:
+
+- This is RUNTIME risk system
+- SENTINEL is only for validation (pre-live)
 
 ---
 
-❗ SENTINEL (IMPORTANT)
-
-- NOT part of runtime
-- ONLY validation agent
-
----
-
-🛠 ENGINEERING STANDARDS
+## Engineering Patterns
 
 - asyncio only
-- retry + timeout
+- retry + timeout required
 - idempotent orders
 - structured logging
 - no silent failure
 
 ---
 
-🔁 DEDUP REQUIRED
+## Telegram Integration
 
-Every order must be idempotent.
-
----
-
-📊 TELEGRAM
-
-- alerts
+- trade alerts
 - allocation report
 - system status
 
 ---
 
-⚡ LATENCY TARGET
+## Latency Targets
 
-- ingestion <100ms
-- signal <200ms
-- execution <500ms
-
----
-
-🚨 COMMON ERRORS
-
-- mixing signal & execution ❌
-- no execution guard ❌
-- no allocation ❌
-- ignoring conflict ❌
+```
+ingestion  <100ms
+signal     <200ms
+execution  <500ms
+```
 
 ---
 
-🎯 PRINCIPLE
+## File Structure (UPDATED — NO LEGACY)
 
-This is NOT a single-strategy bot.
+```
+projects/polymarket/polyquantbot/
+├── core/
+├── data/
+├── strategy/
+├── intelligence/
+├── risk/
+├── execution/
+├── monitoring/
+├── api/
+├── infra/
+├── backtest/
+├── reports/
+```
 
-This is a:
+---
 
-🔥 MULTI-STRATEGY CAPITAL-ALLOCATED TRADING SYSTEM
+## System Rules (CRITICAL)
+
+- NO phase folders
+- NO backward compatibility
+- NO legacy structure
+- Always use domain-based architecture
+
+---
+
+## Push Rules
+
+- Max 5 files per batch
+- Branch: feature/forge/[task-name]
+- Commit incrementally
