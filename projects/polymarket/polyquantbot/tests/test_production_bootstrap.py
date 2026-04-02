@@ -217,7 +217,7 @@ class TestDiscoverMarkets:
         "execution_guard": {"min_liquidity_usd": 10_000.0},
     }
 
-    async def _run(self, env: dict, cfg: dict | None = None) -> list[str]:
+    async def _run(self, env: dict, cfg: dict | None = None) -> tuple[list[str], list[dict]]:
         from projects.polymarket.polyquantbot.core.bootstrap import discover_markets
 
         with patch.dict(os.environ, env, clear=True):
@@ -225,16 +225,16 @@ class TestDiscoverMarkets:
 
     # PB-16
     async def test_returns_explicit_market_ids(self):
-        ids = await self._run({"MARKET_IDS": "0xaaa,0xbbb,0xccc"})
-        assert ids == ["0xaaa", "0xbbb", "0xccc"]
+        market_ids, market_meta = await self._run({"MARKET_IDS": "0xaaa,0xbbb,0xccc"})
+        assert market_ids == ["0xaaa", "0xbbb", "0xccc"]
 
     # PB-17
     async def test_calls_gamma_api_when_no_market_ids(self):
         markets = [_make_gamma_market("0xaaa", 25_000), _make_gamma_market("0xbbb", 15_000)]
         session = _mock_aiohttp_response(200, markets)
         with patch("aiohttp.ClientSession", return_value=session):
-            ids = await self._run({})
-        assert "0xaaa" in ids
+            market_ids, market_meta = await self._run({})
+        assert "0xaaa" in market_ids
 
     # PB-18
     async def test_filters_below_min_liquidity(self):
@@ -244,9 +244,9 @@ class TestDiscoverMarkets:
         ]
         session = _mock_aiohttp_response(200, markets)
         with patch("aiohttp.ClientSession", return_value=session):
-            ids = await self._run({})
-        assert "0xhigh" in ids
-        assert "0xlow" not in ids
+            market_ids, market_meta = await self._run({})
+        assert "0xhigh" in market_ids
+        assert "0xlow" not in market_ids
 
     # PB-19
     async def test_returns_top_n_sorted_by_volume(self):
@@ -260,8 +260,8 @@ class TestDiscoverMarkets:
         ]
         session = _mock_aiohttp_response(200, markets)
         with patch("aiohttp.ClientSession", return_value=session):
-            ids = await self._run({"MAX_MARKETS": "3"})
-        assert ids == ["0x1st", "0x2nd", "0x3rd"]
+            market_ids, market_meta = await self._run({"MAX_MARKETS": "3"})
+        assert market_ids == ["0x1st", "0x2nd", "0x3rd"]
 
     # PB-20
     async def test_raises_when_discovery_empty(self):
@@ -275,24 +275,24 @@ class TestDiscoverMarkets:
         markets = [_make_gamma_market("0xlist", 20_000)]
         session = _mock_aiohttp_response(200, markets)
         with patch("aiohttp.ClientSession", return_value=session):
-            ids = await self._run({})
-        assert "0xlist" in ids
+            market_ids, market_meta = await self._run({})
+        assert "0xlist" in market_ids
 
     # PB-22
     async def test_handles_dict_response(self):
         markets = [_make_gamma_market("0xdict", 20_000)]
         session = _mock_aiohttp_response(200, {"markets": markets})
         with patch("aiohttp.ClientSession", return_value=session):
-            ids = await self._run({})
-        assert "0xdict" in ids
+            market_ids, market_meta = await self._run({})
+        assert "0xdict" in market_ids
 
     # PB-23
     async def test_respects_max_markets_env(self):
         markets = [_make_gamma_market(f"0x{i:03}", 10_000 + i * 1_000) for i in range(10)]
         session = _mock_aiohttp_response(200, markets)
         with patch("aiohttp.ClientSession", return_value=session):
-            ids = await self._run({"MAX_MARKETS": "2"})
-        assert len(ids) == 2
+            market_ids, market_meta = await self._run({"MAX_MARKETS": "2"})
+        assert len(market_ids) == 2
 
     # PB-24
     async def test_raises_on_gamma_http_error(self):
@@ -315,13 +315,13 @@ class TestRunBootstrap:
         with patch.dict(os.environ, env, clear=True):
             with patch(
                 "projects.polymarket.polyquantbot.core.bootstrap.discover_markets",
-                new=AsyncMock(return_value=mock_ids),
+                new=AsyncMock(return_value=(mock_ids, [])),
             ):
                 return await run_bootstrap()
 
     # PB-25
     async def test_returns_cfg_and_market_ids(self):
-        cfg, ids = await self._run(_FULL_ENV)
+        cfg, ids, meta = await self._run(_FULL_ENV)
         assert isinstance(cfg, dict)
         assert isinstance(ids, list)
         assert len(ids) > 0

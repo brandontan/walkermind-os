@@ -175,42 +175,32 @@ class CallbackRouter:
         """
         log.info("callback_dispatching", action=action)
 
+        # ── Hard block: legacy UI actions are permanently disabled ──────────
+        if action in ("health", "performance", "strategies"):
+            raise RuntimeError("LEGACY UI DISABLED")
+
         # Lazy imports — avoids circular deps and speeds up module load
-        from .status import handle_status, handle_performance, handle_health, handle_strategies
+        from .status import handle_status
         from .wallet import handle_wallet, handle_wallet_balance, handle_wallet_exposure
         from .settings import handle_settings, handle_settings_strategy, handle_mode_confirm_switch
         from .control import handle_control, handle_pause, handle_resume, handle_kill
 
         # ── Navigation ─────────────────────────────────────────────────────
-        if action in ("back_main", "start", "menu"):
+        if action in ("back_main", "back", "start", "menu"):
             snap = self._state.snapshot()
             return (
                 main_screen(mode=self._mode, state=snap.get("state", "UNKNOWN")),
                 build_main_menu(),
             )
 
-        # ── Status ─────────────────────────────────────────────────────────
-        if action == "status":
+        # ── Status / Refresh ───────────────────────────────────────────────
+        if action in ("status", "refresh"):
             return await handle_status(
                 state_manager=self._state,
                 config_manager=self._config,
                 cmd_handler=self._cmd,
                 mode=self._mode,
             )
-
-        if action == "performance":
-            return await handle_performance(cmd_handler=self._cmd, mode=self._mode)
-
-        if action == "health":
-            return await handle_health(
-                state_manager=self._state,
-                config_manager=self._config,
-                cmd_handler=self._cmd,
-                mode=self._mode,
-            )
-
-        if action == "strategies":
-            return await handle_strategies(cmd_handler=self._cmd)
 
         # ── Wallet ─────────────────────────────────────────────────────────
         if action == "wallet":
@@ -277,16 +267,6 @@ class CallbackRouter:
 
         if action == "noop":
             return noop_screen(), []
-
-        # ── Strategy toggles ───────────────────────────────────────────────
-        if action.startswith("strategy_toggle_"):
-            strategy_id = action[len("strategy_toggle_"):]
-            log.info("callback_strategy_toggle_received", strategy_id=strategy_id)
-            return (
-                f"⚙️ Strategy `{strategy_id}` selected.\n"
-                "_Full toggle logic wires through MultiStrategyMetrics._",
-                build_settings_menu(),
-            )
 
         # ── Unknown ────────────────────────────────────────────────────────
         log.warning("callback_unknown_action", action=action)

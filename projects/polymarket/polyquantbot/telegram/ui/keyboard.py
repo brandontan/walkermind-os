@@ -50,9 +50,7 @@ def build_main_menu() -> InlineKeyboard:
 def build_status_menu() -> InlineKeyboard:
     """Status detail actions."""
     return [
-        [_btn("🔄 Refresh",     "status"),      _btn("📈 Performance", "performance")],
-        [_btn("🏥 Health",       "health"),       _btn("📋 Strategies",  "strategies")],
-        [_btn("🏠 Main Menu",    "back_main")],
+        [_btn("🔄 Refresh", "refresh"), _btn("🏠 Main Menu", "back_main")],
     ]
 
 
