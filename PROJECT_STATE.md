@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Phase 14 Live Deployment Stage 1 ACTIVE 🔴
+Status: Phase 14.1 Feedback Loop & Adaptive Learning ACTIVE 🔴
 
 ---
 
@@ -102,6 +102,21 @@ PIPELINE
 
 ---
 
+PHASE 14.1 — LIVE FEEDBACK LOOP & ADAPTIVE LEARNING
+
+- FeedbackLoop orchestrator: execution/feedback_loop.py
+- TradeResult model: execution/trade_result.py (trade_id idempotency key)
+- ExecutionRequest: strategy_id + expected_ev fields added
+- LiveExecutor: trade_result_callback hook fires after every fill
+- MultiStrategyMetrics.update_trade_result(): idempotent, updates wins/losses/pnl/ev
+- DynamicCapitalAllocator.update_from_metrics(): live metrics → weight recomputation
+- Telegram: format_live_performance_update() + alert_live_performance() added
+- Feedback loop flow: execution → metrics.update → allocator.update → telegram
+- Works in PAPER and LIVE mode; pipeline stable; no duplicate updates
+- Adaptive: strategy weights shift based on real trade outcomes trade-by-trade
+
+---
+
 PHASE 14 — LIVE DEPLOYMENT STAGE 1
 
 - LiveDeploymentStage1 controller: core/live_deployment_stage1.py
@@ -171,13 +186,15 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 ## 🚧 IN PROGRESS
 
 - LIVE Stage 1 monitoring: safety watch active for first 10 trades
-- Online learning: connect DynamicCapitalAllocator to live metrics feedback loop
+- Wire drawdown_provider from RiskGuard into FeedbackLoop
 
 ---
 
 ## ❌ NOT STARTED
 
-- Online learning: connect DynamicCapitalAllocator to live metrics feedback loop (post Stage 1)
+- Market resolution PnL: update TradeResult.pnl when Polymarket settles
+- Bayesian updater integration: pass posterior confidence as ev_adjustment
+- Telegram /performance command (CommandHandler integration)
 - Telegram /allocation command (CommandHandler integration)
 - Intelligence full integration into execution loop
 - Stage 2 LIVE deployment (higher capital, remove Stage 1 constraints)
@@ -188,11 +205,12 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Monitor first 10 real trades via LiveDeploymentStage1.monitor_trade()
-2. Online learning: DynamicCapitalAllocator.update_metrics() from live MultiStrategyMetrics
-3. Telegram /allocation command via CommandHandler
-4. Intelligence full integration into execution decisions
-5. Stage 2 LIVE deployment (increase limits after Stage 1 validated)
+1. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
+2. Market resolution PnL updates (TradeResult post-settlement)
+3. Bayesian updater: pass posterior confidence as ev_adjustment
+4. Telegram /performance command via CommandHandler
+5. Intelligence full integration into execution decisions
+6. Stage 2 LIVE deployment (increase limits after Stage 1 validated)
 
 ---
 
@@ -210,6 +228,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 Architecture: CLEAN ✅
 Stability: HIGH ✅
 Trading Readiness: LIVE (Stage 1 active, safety watch ON) 🔴
+Feedback Loop: ACTIVE ✅
+System Adaptive: YES ✅
 
 ---
 
@@ -224,4 +244,4 @@ Trading Readiness: LIVE (Stage 1 active, safety watch ON) 🔴
 
 ## 🧾 COMMIT MESSAGE
 
-"phase14: activate live trading stage 1 — LiveDeploymentStage1, safe limits, fail-safe, 30 tests"
+"phase14.1: live feedback loop — TradeResult, FeedbackLoop, adaptive metrics + allocation"

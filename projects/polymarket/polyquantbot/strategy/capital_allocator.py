@@ -388,6 +388,65 @@ class DynamicCapitalAllocator:
             adjusted_size_usd=adjusted,
         )
 
+    def update_from_metrics(
+        self,
+        strategy_name: str,
+        strategy_metrics: "StrategyMetricsSnapshot",  # type: ignore[name-defined]
+        drawdown: float = 0.0,
+        ev_adjustment: float = 0.0,
+    ) -> None:
+        """Update allocator from a live :class:`StrategyMetrics` snapshot.
+
+        This is the primary entry point for the feedback loop.  It translates
+        :class:`~monitoring.multi_strategy_metrics.StrategyMetrics` data (from
+        real trade outcomes) into the allocator's scoring model.
+
+        The ``bayesian_confidence`` fed into the scoring model is derived as::
+
+            confidence = clamp(ev_capture_rate + ev_adjustment, 0.0, 1.0)
+
+        This lets the caller pass an optional Bayesian or model-derived
+        adjustment on top of the raw EV capture rate.
+
+        Args:
+            strategy_name:    Name of the strategy to update.
+            strategy_metrics: A duck-typed object exposing ``win_rate``,
+                              ``ev_capture_rate``, and ``total_pnl`` — as
+                              returned by :meth:`MultiStrategyMetrics.get_metrics`.
+            drawdown:         Current drawdown fraction ∈ [0, 1] (default 0.0).
+                              Typically supplied by RiskGuard or PositionTracker.
+            ev_adjustment:    Optional Bayesian or model-derived adjustment added
+                              to ``ev_capture_rate`` before clamping to [0, 1].
+
+        Raises:
+            KeyError: If *strategy_name* is not registered.
+        """
+        win_rate = float(getattr(strategy_metrics, "win_rate", 0.0))
+        ev_capture = float(getattr(strategy_metrics, "ev_capture_rate", 0.0))
+        pnl = float(getattr(strategy_metrics, "total_pnl", 0.0))
+
+        # Derive Bayesian confidence as ev_capture + optional adjustment
+        raw_confidence = ev_capture + ev_adjustment
+        bayesian_confidence = max(0.0, min(1.0, raw_confidence))
+
+        log.info(
+            "dynamic_capital_allocator.update_from_metrics",
+            strategy=strategy_name,
+            win_rate=round(win_rate, 4),
+            ev_capture=round(ev_capture, 4),
+            total_pnl=round(pnl, 4),
+            drawdown=round(drawdown, 4),
+            bayesian_confidence=round(bayesian_confidence, 4),
+        )
+
+        self.update_metrics(
+            strategy_name=strategy_name,
+            ev_capture=ev_capture,
+            win_rate=win_rate,
+            bayesian_confidence=bayesian_confidence,
+            drawdown=drawdown,
+        )
+
     # ── Outcome recording (Bayesian feedback loop) ────────────────────────────
 
     def record_outcome(self, strategy_name: str, won: bool) -> None:

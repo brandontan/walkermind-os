@@ -47,6 +47,7 @@ from .message_formatter import (
     format_checkpoint,
     format_error,
     format_kill_alert,
+    format_live_performance_update,
     format_metrics,
     format_state_change,
 )
@@ -326,6 +327,39 @@ class TelegramLive:
             correlation_id=correlation_id or "",
         )
         await self._enqueue(AlertType.ERROR, msg, correlation_id)
+
+    async def alert_live_performance(
+        self,
+        strategy_data: dict,
+        total_allocated_usd: float,
+        bankroll: float,
+        disabled: list,
+        suppressed: list,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Send 📈 LIVE PERFORMANCE UPDATE alert from the feedback loop.
+
+        Dispatched by :class:`~execution.feedback_loop.FeedbackLoop` after
+        each strategy's metrics and allocation weights are refreshed from real
+        trade outcomes.
+
+        Args:
+            strategy_data: Mapping of strategy_name → dict with keys
+                ``pnl``, ``win_rate``, ``trades``, ``weight``, ``size_usd``.
+            total_allocated_usd: Total capital currently allocated.
+            bankroll: Total available bankroll in USD.
+            disabled: Auto-disabled strategy names.
+            suppressed: Win-rate-suppressed strategy names.
+            correlation_id: Optional trace ID.
+        """
+        msg = format_live_performance_update(
+            strategy_data=strategy_data,
+            total_allocated_usd=total_allocated_usd,
+            bankroll=bankroll,
+            disabled=disabled,
+            suppressed=suppressed,
+        )
+        await self._enqueue(AlertType.DAILY, msg, correlation_id)
 
     async def alert_reconnect(
         self,
