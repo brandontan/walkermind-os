@@ -1,127 +1,271 @@
-# CLAUDE.md — Walker AI Trading Team
+## CLAUDE.md — Walker AI Trading Team (FINAL)
+
 Owner: Bayue Walker
-Repo: https://github.com/bayuewalker/walker-ai-team
+Repo: github.com/bayuewalker/walker-ai-team
 
-## PROJECT OVERVIEW
-AI-powered algorithmic trading system.
-Multi-agent team building trading bots,
-indicators, Expert Advisors, and tools.
+---
 
-## AI TEAM — 3 AGENTS ONLY
+## 🧠 PROJECT OVERVIEW
 
-### COMMANDER (Claude Project)
-Master AI agent — combines all domain expertise.
-Handles: planning, strategy, decisions, task generation.
-All orders start here.
+AI-powered trading system for prediction markets.
 
-### FORGE-X (Claude Code — YOU)
-Senior full-stack engineer.
-Handles: ALL coding tasks across all languages.
-Python, Pine Script, MQL4/5, React, HTML/CSS/JS.
-Reads knowledge directly from this GitHub repo.
-Builds, tests, deploys until program runs on server.
+System is designed as a multi-strategy portfolio engine with:
 
-### BRIEFER (Claude Project)
-Prompt maker for external AI assistance.
-Called only when team needs help from ChatGPT/Gemini/Grok.
+- real-time execution
+- dynamic capital allocation
+- strict risk enforcement
+- production-grade architecture
 
-## REPO STRUCTURE
-- PROJECT_STATE.md    — current build status (ROOT)
-- docs/              — knowledge base (read first)
-- projects/          — all trading projects
+---
 
-## KNOWLEDGE BASE (read before every task)
-Primary reference (read this first):
-- docs/KNOWLEDGE_BASE.md
+## 👥 AI TEAM — 4 AGENTS
 
-Full reference docs:
-- docs/pico.pdf
-- docs/advancee_trade_strategy.pdf
-- docs/formulas.md
-- docs/system_specs.md
-- docs/prediction_market_api_context.md
+COMMANDER (Claude Project)
 
-Project state (always check):
-- PROJECT_STATE.md (ROOT)
+- Planning, validation, decisions
+- Generates all tasks
+- Final authority
 
-## PROJECT FOLDERS & OWNERSHIP
-All owned by FORGE-X (you):
-- projects/polymarket/             → Python trading bot
-- projects/tradingview/indicators/ → Pine Script v5
-- projects/tradingview/strategies/ → Pine Script v5
-- projects/mt5/ea/                 → MQL5 Expert Advisors
-- projects/mt5/indicators/         → MQL5 indicators
+---
 
-## YOUR WORKFLOW (FORGE-X)
-1. Read CLAUDE.md (this file)
-2. Read PROJECT_STATE.md for current status
-3. Read relevant docs/ files for context
-4. Execute task from COMMANDER
-5. Build → test → commit → push
-6. Create PR for review
-7. Report completion
+## FORGE-X (Claude Code)
 
-## CODING STANDARDS
-- Python 3.11+ with full type hints
-- asyncio for all async operations
-- Structured JSON logging everywhere
-- All secrets in .env only — never hardcode
-- Idempotency on all orders (dedup required)
-- Retry + timeout on all external API calls
-- No hardcoded values — use config.yaml
-- Every function needs docstring
-- No silent failures — explicit error handling
+- Implementation (ALL code)
+- Builds production-ready systems
+- Must follow strict engineering rules
 
-## RISK RULES (non-negotiable in every bot)
-- NEVER full Kelly → always α = 0.25
-- Max position: 10% bankroll
-- Daily loss limit: -$2,000
-- Max drawdown 8% → stop all trades
-- Liquidity minimum: $10,000
-- Dedup check before every order
-- Kill switch must exist in every bot
+---
 
-## PUSH RULES
-- Never push more than 5 files at once
-- Always push in small batches
-- Confirm each batch before next
-- Never push all files in one commit
-- If timeout occurs, split into smaller batches
+## SENTINEL
 
+- Testing & validation ONLY
+- Pre-live and post-build validation
+- NEVER part of runtime execution
 
-## LATENCY TARGETS
-- Data ingestion:    <100ms
-- Signal generation: <200ms
-- Order execution:   <500ms ← optimize hard
-- End-to-end:        <1000ms
+---
 
-## PERFORMANCE TARGETS
-- Win Rate:     >70%
-- Sharpe Ratio: >2.5
-- Max Drawdown: <5%
-- Profit Factor: >1.5
+## BRIEFER
 
-## BRANCH CONVENTION
-feature/forge/[task-name]
+- Prompt generation
+- UI / report design
+- External AI coordination
+
+---
+
+## 🏗 SYSTEM ARCHITECTURE (LOCKED)
+
+Pipeline:
+
+DATA → STRATEGY → CONFLICT → ALLOCATION → INTELLIGENCE → RISK → EXECUTION → MONITORING
+
+---
+
+Domain Structure (MANDATORY):
+
+- core/
+- data/
+- strategy/
+- intelligence/
+- risk/
+- execution/
+- monitoring/
+- api/
+- infra/
+- backtest/
+- reports/
+
+---
+
+## ❌ FORBIDDEN:
+
+- phase1/, phase2/, ...
+- backward compatibility layers
+- shim imports
+
+---
+
+## 🔒 CORE SYSTEM RULES
+
+1. NO LEGACY STRUCTURE
+
+- ZERO phase folders allowed
+- ZERO old imports allowed
+- DELETE, do NOT migrate with compatibility
+
+---
+
+2. REPORT STRUCTURE (MANDATORY)
+
+All reports MUST go to:
+
+projects/polymarket/polyquantbot/reports/
+
+Per agent:
+
+- reports/forge/
+- reports/sentinel/
+- reports/briefer/
+
+---
+
+Naming:
+
+[number]_[name].md
+
 Examples:
-  feature/forge/polymarket-websocket
-  feature/forge/momentum-signal
-  feature/forge/sentinel-risk-engine
-  feature/forge/pine-rsi-indicator
-  feature/forge/mt5-momentum-ea
 
-## PLATFORMS & LANGUAGES
-Python:      Polymarket bot, backend engine
-Pine Script: TradingView indicators & strategies
-MQL5:        MT5 Expert Advisors & indicators
-MQL4:        MT4 Expert Advisors & indicators
-React/JS:    Dashboards & monitoring UI
+- 11_1_cleanup.md
+- 12_multi_strategy.md
+- 13_capital_allocation.md
 
-## KEY APIs
-Polymarket CLOB: https://clob.polymarket.com
-Polymarket Gamma: https://gamma-api.polymarket.com
-PM Intelligence: https://narrative.agent.heisenberg.so
-Network: Polygon PoS (Chain ID: 137)
+---
 
-## CURRENT PRIORITY
-See PROJECT_STATE.md for latest status.
+3. PROJECT STATE (MANDATORY)
+
+After EVERY FORGE-X task:
+
+- update PROJECT_STATE.md
+- must reflect real system state
+- no outdated info allowed
+
+---
+
+4. FAIL-FAST RULE
+
+If:
+
+- instruction unclear
+- rule conflict
+
+→ STOP and ask
+→ DO NOT improvise
+
+---
+
+## ⚙️ EXECUTION CONTROL SYSTEM
+
+MODE SYSTEM (CRITICAL)
+
+MODE = PAPER | LIVE
+ENABLE_LIVE_TRADING = true | false
+
+---
+
+Behavior:
+
+MODE| ENABLE_LIVE_TRADING| Result
+PAPER| false| simulator
+LIVE| false| dry-run
+LIVE| true| REAL execution
+
+---
+
+## ❗ RULE:
+
+Real trading ONLY allowed if BOTH true.
+
+---
+
+## 🧠 TRADING ENGINE
+
+Multi-Strategy System
+
+- Multiple strategies run in parallel
+- StrategyRouter handles evaluation
+- ConflictResolver enforces:
+
+YES vs NO → SKIP
+
+---
+
+Capital Allocation Engine
+
+Score:
+
+score = (EV × confidence) / (1 + drawdown)
+
+Weight:
+
+weight_i = score_i / sum(score_all)
+
+Position:
+
+position_size = weight × max_position_limit
+
+---
+
+Risk System (HIGHEST PRIORITY)
+
+- max position ≤ 10%
+- max per strategy ≤ 5%
+- max 5 concurrent trades
+- drawdown > 8% → BLOCK ALL
+- daily loss limit → PAUSE
+
+---
+
+## 🧪 SENTINEL ROLE (STRICT)
+
+- Testing ONLY
+- Pre-live validation
+- Stress & failure testing
+
+❌ NOT:
+
+- runtime risk engine
+- execution decision layer
+
+---
+
+## 🛠 ENGINEERING STANDARDS
+
+- Python 3.11+
+- asyncio ONLY
+- full typing
+- structured JSON logging
+- idempotent systems
+- retry + timeout on ALL external calls
+- no silent failure
+
+---
+
+## 📊 DATA & INFRA
+
+- PostgreSQL (state)
+- Redis (real-time cache)
+- InfluxDB (metrics)
+
+---
+
+## 🚀 DEPLOYMENT RULE
+
+NEVER:
+
+- go LIVE without Sentinel validation
+- use full capital immediately
+
+---
+
+ALWAYS:
+
+- start with small capital (≤2%)
+- observe 24–48h
+- scale gradually
+
+---
+
+## 🎯 MISSION
+
+Build → Validate → Deploy → Confirm → STANDBY
+
+System runs 24/7 after deploy.
+Team waits for next instruction.
+
+---
+
+## 🔥 FINAL PRINCIPLE
+
+Correctness > completeness
+Safety > profit
+Clarity > speed
+No ambiguity EVER
