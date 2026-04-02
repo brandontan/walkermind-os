@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Market Discovery Fix COMPLETE ✅
+Status: Signal Execution Activation COMPLETE ✅
 
 ---
 
@@ -68,6 +68,19 @@ MARKET DISCOVERY FIX
 - markets_fetched + condition_ids_loaded log events confirmed in pipeline flow
 - Graceful fallback: API failure → empty list → logged → pipeline continues without crash
 - 27 bootstrap tests pass (PB-01–PB-27); PB-24 updated to reflect new graceful behavior
+
+---
+
+SIGNAL EXECUTION ACTIVATION
+
+- core/signal/signal_engine.py: generate_signals() — edge-based filter, EV calc, fractional Kelly sizing
+- core/execution/executor.py: execute_trade() — paper/live modes, dedup, kill switch, retry, structured logging
+- Risk controls enforced: edge > 2%, liquidity > $10k, max position 10% bankroll, max 5 concurrent
+- Idempotent execution via signal_id dedup set
+- Paper simulation: fills at market price, full size, no real orders
+- LIVE mode: pluggable executor_callback for real CLOB order placement
+- Optional Telegram alert on trade_executed (best-effort)
+- 32 tests pass (SE-01–SE-14, EX-01–EX-18); total test suite: ~804 tests
 
 ---
 
@@ -299,13 +312,13 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Deploy with zero manual config — bootstrap handles credentials + market discovery automatically
-2. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
-3. Market resolution PnL updates (TradeResult post-settlement)
-4. Bayesian updater: pass posterior confidence as ev_adjustment
-5. Telegram /performance command via CommandHandler
-6. Intelligence full integration into execution decisions
-7. Stage 2 LIVE deployment (increase limits after Stage 1 validated)
+1. Wire `execute_trade` into `LivePaperRunner` / `Phase10PipelineRunner` main loop
+2. Replace paper simulation with `ExecutionSimulator` for orderbook-accurate fills
+3. Plug in CLOB executor callback for LIVE mode
+4. Add persistent dedup via Redis for multi-process / restart safety
+5. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
+6. Market resolution PnL updates (TradeResult post-settlement)
+7. Bayesian updater: pass posterior confidence as ev_adjustment
 
 ---
 
