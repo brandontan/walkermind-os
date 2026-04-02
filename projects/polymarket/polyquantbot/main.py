@@ -172,7 +172,11 @@ async def main() -> None:
             cur_events = activation_monitor.event_count
             cur_signals = activation_monitor.signal_count
             cur_trades = activation_monitor.trade_count
-            cur_ws = activation_monitor.ws_connected
+            # Read actual WS connection state from runner if available
+            try:
+                cur_ws = runner._ws._stats.connected if runner is not None else False
+            except Exception:
+                cur_ws = activation_monitor.ws_connected
 
             changed = (
                 cur_events != _last_events
@@ -218,10 +222,49 @@ async def main() -> None:
         startup_s=round(time.time() - start_ts, 3),
     )
 
+    # ── Bootstrap: market discovery + pipeline startup ─────────────────────────
+    from .core.bootstrap import run_bootstrap
+    from .core.pipeline.live_paper_runner import LivePaperRunner
+
+    runner: Optional["LivePaperRunner"] = None
+    pipeline_task = None
+    try:
+        cfg, market_ids = await run_bootstrap()
+
+        runner = LivePaperRunner.from_config(
+            config=cfg,
+            market_ids=market_ids,
+        )
+        await runner.start()
+
+        pipeline_task = asyncio.create_task(runner.run(), name="trading_pipeline")
+        log.info(
+            "polyquantbot_pipeline_started",
+            market_count=len(market_ids),
+            market_ids=market_ids[:5],
+        )
+    except Exception as exc:
+        log.error(
+            "polyquantbot_pipeline_start_failed",
+            error=str(exc),
+            hint="Check market IDs, CLOB credentials, and Gamma API connectivity",
+        )
+        await tg.alert_error(str(exc), context="pipeline_startup")
+
     # ── Keep running until stop signal ────────────────────────────────────────
     await stop_event.wait()
 
     log.info("polyquantbot_shutdown_started")
+    if pipeline_task is not None and not pipeline_task.done():
+        try:
+            await runner.stop()
+        except Exception:
+            pass
+        pipeline_task.cancel()
+        try:
+            await pipeline_task
+        except asyncio.CancelledError:
+            pass
     await activation_monitor.stop()
     await tg.stop()
     await metrics_exporter.stop_logging_loop()
