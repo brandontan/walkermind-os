@@ -1,7 +1,7 @@
 # PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Dashboard MVP built (Phase 13.1)
+Status: WebSocket compatibility fixed (ws-fix-compatibility)
 
 ---
 
@@ -16,6 +16,7 @@ Status: Dashboard MVP built (Phase 13.1)
 - Phase 13 — Capital allocation framework (DynamicCapitalAllocator)
 - Phase 13 SENTINEL — Pre-live validation suite (SV-01–SV-50)
 - Phase 13.1 — Dashboard MVP (React + TypeScript frontend + aiohttp backend)
+- ws-fix-compatibility — WebSocket extra_headers → additional_headers; fail-fast after 5 retries; startup version log
 
 ---
 
@@ -44,7 +45,6 @@ Status: Dashboard MVP built (Phase 13.1)
 
 ## KNOWN ISSUES
 
-- `websockets` module missing in CI environment (pre-existing; unrelated to dashboard)
 - portfolio.balance and portfolio.pnl_today return null until a dedicated PnL
   tracker is wired into DashboardServer
 - Dashboard currently binds to 127.0.0.1 only (no public exposure)
