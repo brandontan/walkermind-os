@@ -29,6 +29,7 @@ Optional environment variables (with defaults):
     MODE / TRADING_MODE    — PAPER | LIVE  (default: PAPER)
     MAX_MARKETS            — int  (default: 5)
     MARKET_IDS             — comma-separated condition IDs; disables auto-discovery
+                             set to "auto" or leave unset to enable auto-discovery
     CLOB_WS_URL            — WebSocket URL override
     MAX_CAPITAL_USD        — float (default: 10000)
     MAX_TRADES_PER_DAY     — int   (default: 200)
@@ -214,9 +215,13 @@ def build_config() -> dict[str, Any]:
 
 
 def _parse_market_ids_from_env() -> list[str]:
-    """Return market IDs explicitly set via MARKET_IDS env var."""
+    """Return market IDs explicitly set via MARKET_IDS env var.
+
+    Returns empty list when MARKET_IDS is unset, empty, or set to "auto"
+    (all of which trigger automatic Gamma API market discovery).
+    """
     raw = _env("MARKET_IDS")
-    if not raw:
+    if not raw or raw.lower() == "auto":
         return []
     return [mid.strip() for mid in raw.split(",") if mid.strip()]
 
