@@ -133,6 +133,8 @@ class CallbackRouter:
 
         action = cb_data[len(ACTION_PREFIX):]
 
+        log.info("INLINE_UPDATE", action=action)
+
         # Step 2: dispatch
         try:
             # Hard block: legacy UI keyword prefix check — catches exact actions
