@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Phase 13.2 Dashboard Integration + Railway Deploy COMPLETE ✅
+Status: Phase 13.3 Telegram Callback Router + Inline UI COMPLETE ✅
 
 ---
 
@@ -125,6 +125,22 @@ PIPELINE
 
 ---
 
+PHASE 13.3 — TELEGRAM CALLBACK ROUTER + INLINE UI
+
+- CallbackRouter: telegram/handlers/callback_router.py (centralized action:* dispatcher)
+- All buttons use action:<name> format — no legacy raw callback_data
+- editMessageText used exclusively — zero duplicate messages per interaction
+- Fallback to sendMessage when message too old or edit fails
+- Handlers: status.py, wallet.py, settings.py, control.py — all return (text, keyboard)
+- Keyboard builders: telegram/ui/keyboard.py — all menus with Back navigation
+- Screen templates: telegram/ui/screens.py — pure Markdown, no side effects
+- Settings screen: risk, mode, strategy, notifications, auto-trade sub-menus
+- Control: pause/resume/halt with state-aware button visibility and idempotency
+- Structured JSON logging on every callback_received/dispatching/edit_success/failure
+- 75 SENTINEL tests: test_telegram_callback_router.py (CB-01–CB-30)
+
+---
+
 PHASE 13.2 — DASHBOARD INTEGRATION + RAILWAY DEPLOY
 
 - DashboardServer: api/dashboard_server.py (HTTP + WebSocket, Bearer auth, Railway PORT)
@@ -240,6 +256,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 - Wire drawdown_provider from RiskGuard into FeedbackLoop
 - Wire RedisClient + DatabaseClient into pipeline startup sequence
 - Wire DynamicCapitalAllocator + MultiStrategyMetrics into CommandHandler in main.py
+- Wire WalletManager into wallet handlers for live balance/exposure data
 
 ---
 
@@ -272,6 +289,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 - Intelligence not fully affecting execution decisions yet
 - Backtest engine uses simplified PnL model
 - Telegram delivery not stress-tested under real network load
+- WalletManager not yet wired into wallet handler (balance/exposure screens show informative stubs)
 
 ---
 
@@ -284,7 +302,8 @@ Feedback Loop: ACTIVE ✅
 System Adaptive: YES ✅
 Persistence Layer: ACTIVE ✅ (Redis + PostgreSQL)
 Restart Recovery: ACTIVE ✅
-Telegram Control: COMPLETE ✅ (8 commands)
+Telegram Control: COMPLETE ✅ (8 commands + inline callback UI)
+Telegram Inline UI: COMPLETE ✅ (CallbackRouter, editMessageText, no duplicate messages)
 Dashboard: ACTIVE ✅ (HTTP + WebSocket, Railway-compatible)
 Railway Deploy: READY ✅ (Procfile + requirements.txt + runtime.txt)
 
