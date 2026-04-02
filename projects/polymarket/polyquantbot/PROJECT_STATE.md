@@ -1,7 +1,7 @@
 # PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Full wiring activation complete — WS → pipeline → signal → trade → Telegram
+Status: Phase 11.3 complete — multi-user Telegram system, wallet auto-creation, inline menus, control layer
 
 ---
 
@@ -25,6 +25,19 @@ Status: Full wiring activation complete — WS → pipeline → signal → trade
 ## IN PROGRESS
 
 - None
+
+---
+
+## COMPLETED (11.3 — Telegram Final System)
+
+- Phase 11.3 — Multi-user Telegram system with wallet auto-creation, inline keyboard menus, callback router, control integration, hidden fee
+  - core/user_context.py: immutable per-request UserContext
+  - wallet/wallet_manager.py: custodial wallet, hidden fee (0.5%), no key export, no withdraw
+  - api/telegram/user_manager.py: UserManager with auto-provisioning on first interaction
+  - api/telegram/menu_handler.py: 6 inline keyboard menu builders
+  - api/telegram/menu_router.py: callback_data → SystemStateManager / WalletManager router
+  - api/telegram/command_handler.py: multi-user TelegramCommandHandler wrapping existing core
+  - api/telegram/webhook.py: WebhookHandler routing message→command / callback_query→menu_router
 
 ---
 
