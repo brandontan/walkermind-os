@@ -571,6 +571,75 @@ def format_multi_strategy_report(
     return "\n".join(lines)
 
 
+def format_live_performance_update(
+    strategy_data: Dict[str, dict],
+    total_allocated_usd: float,
+    bankroll: float,
+    disabled: list,
+    suppressed: list,
+) -> str:
+    """Format a 📈 LIVE PERFORMANCE UPDATE Telegram message.
+
+    Sent by the feedback loop after each strategy's metrics and allocation
+    weights are refreshed from real trade outcomes.
+
+    Args:
+        strategy_data: Mapping of strategy_name → dict with keys:
+            ``pnl`` (float), ``win_rate`` (float), ``trades`` (int),
+            ``weight`` (float), ``size_usd`` (float).
+        total_allocated_usd: Total capital currently allocated across all
+            active strategies.
+        bankroll: Total available bankroll in USD.
+        disabled: Strategy names that are currently auto-disabled.
+        suppressed: Strategy names that are weight-suppressed (low win_rate).
+
+    Returns:
+        Formatted Telegram-compatible report string starting with '📈'.
+    """
+    import datetime
+
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sep = "─" * 37
+    allocation_pct = (total_allocated_usd / bankroll * 100.0) if bankroll > 0 else 0.0
+    name_width = max((len(n) for n in strategy_data), default=16) + 2
+
+    lines = [
+        f"📈 LIVE PERFORMANCE UPDATE | {ts}",
+        sep,
+        f"Bankroll: ${round(bankroll, 2)} | Allocated: ${round(total_allocated_usd, 2)} ({allocation_pct:.1f}%)",
+        sep,
+        "PER-STRATEGY PERFORMANCE:",
+    ]
+
+    for name, data in strategy_data.items():
+        pnl = float(data.get("pnl", 0.0))
+        win_rate = float(data.get("win_rate", 0.0))
+        trades = int(data.get("trades", 0))
+        weight = float(data.get("weight", 0.0))
+        size_usd = float(data.get("size_usd", 0.0))
+        pnl_sign = "+" if pnl >= 0 else ""
+        status = ""
+        if name in disabled:
+            status = " [DISABLED]"
+        elif name in suppressed:
+            status = " [SUPPRESSED]"
+        lines.append(
+            f"  {_safe(name):<{name_width}} "
+            f"pnl={pnl_sign}${pnl:.2f} wr={win_rate * 100:.1f}% "
+            f"n={trades} alloc=${size_usd:.2f} (w={weight:.3f}){status}"
+        )
+
+    if disabled:
+        lines.append(sep)
+        lines.append(f"DISABLED (drawdown): {', '.join(_safe(s) for s in disabled)}")
+    if suppressed:
+        lines.append(f"SUPPRESSED (low win_rate): {', '.join(_safe(s) for s in suppressed)}")
+
+    lines.append(sep)
+    lines.append(f"_as of {_ts_utc()}_")
+    return "\n".join(lines)
+
+
 def format_live_stage1_activated(
     mode: str,
     bankroll: float,
