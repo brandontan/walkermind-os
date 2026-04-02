@@ -328,7 +328,7 @@ End-to-end:        <1000ms
 ---
 
 ## File Structure (UPDATED — NO LEGACY)
-
+```
 projects/polymarket/polyquantbot/
 ├── core/
 ├── data/
@@ -341,20 +341,21 @@ projects/polymarket/polyquantbot/
 ├── infra/
 ├── backtest/
 ├── reports/
-
+```
 ---
 
-System Rules (CRITICAL)
-
+## SYSTEM RULES (CRITICAL)
+```
 - NO phase folders
 - NO backward compatibility
 - NO legacy structure
 - Always use domain-based architecture
-
+```
 ---
 
-Push Rules
-
+## PUSH RULES
+```
 - Max 5 files per batch
 - Branch: feature/forge/[task-name]
 - Commit incrementally
+```
