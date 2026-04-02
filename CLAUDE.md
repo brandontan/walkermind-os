@@ -162,3 +162,12 @@ PROCESS FOR EVERY TASK:
 5. Push max 5 files per batch
 6. Create PR when complete
 7. Report: "Done ✅ — PR created"
+
+---
+
+PUSH RULES:
+- Never push more than 5 files at once
+- Always push in small batches
+- Confirm each batch before next
+- Never push all files in one commit
+- If timeout occurs, split into smaller batches
