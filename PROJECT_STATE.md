@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Phase 15 Production-Ready Infrastructure COMPLETE ✅ | Production Bootstrap COMPLETE ✅ | Railway Deployment Ready ✅
+Status: Phase 13.2 Dashboard Integration + Railway Deploy COMPLETE ✅
 
 ---
 
@@ -125,6 +125,19 @@ PIPELINE
 
 ---
 
+PHASE 13.2 — DASHBOARD INTEGRATION + RAILWAY DEPLOY
+
+- DashboardServer: api/dashboard_server.py (HTTP + WebSocket, Bearer auth, Railway PORT)
+- Endpoints: /api/health (public), /api/metrics, /api/pause, /api/resume, /api/kill, /api/allocation, /api/performance, /ws (all auth-gated except health)
+- WebSocket: live metrics push every 5 s to all connected clients
+- polyquantbot/main.py: async entrypoint — wires all components, starts dashboard as background task
+- Railway files: root main.py, requirements.txt, Procfile, runtime.txt
+- Package markers: projects/__init__.py, projects/polymarket/__init__.py
+- DASHBOARD_ENABLED=true env flag gates dashboard startup
+- No trading logic modified; dashboard isolated in asyncio.Task
+
+---
+
 PHASE 15 — PRODUCTION-READY INFRASTRUCTURE
 
 - RedisClient: infra/redis_client.py (async, fail-safe, retry, typed helpers)
@@ -226,6 +239,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 - LIVE Stage 1 monitoring: safety watch active for first 10 trades
 - Wire drawdown_provider from RiskGuard into FeedbackLoop
 - Wire RedisClient + DatabaseClient into pipeline startup sequence
+- Wire DynamicCapitalAllocator + MultiStrategyMetrics into CommandHandler in main.py
 
 ---
 
@@ -271,6 +285,8 @@ System Adaptive: YES ✅
 Persistence Layer: ACTIVE ✅ (Redis + PostgreSQL)
 Restart Recovery: ACTIVE ✅
 Telegram Control: COMPLETE ✅ (8 commands)
+Dashboard: ACTIVE ✅ (HTTP + WebSocket, Railway-compatible)
+Railway Deploy: READY ✅ (Procfile + requirements.txt + runtime.txt)
 
 ---
 
@@ -285,4 +301,4 @@ Telegram Control: COMPLETE ✅ (8 commands)
 
 ## 🧾 COMMIT MESSAGE
 
-"phase15: production-ready infra — Redis + PostgreSQL persistence, restart recovery, full Telegram control"
+"phase13.2: dashboard integration + Railway deploy — DashboardServer, entrypoint, auth, WebSocket"
