@@ -278,6 +278,7 @@ async def main() -> None:
             REPLY_MENU_MAP,
             _REPLY_KB_READY_MSG,
         )
+        from .telegram.handlers.text_handler import schedule_user_message_delete
         CommandResult = _CR
         router = CommandRouter(handler=cmd_handler)
         offset = 0
@@ -425,15 +426,10 @@ async def main() -> None:
                             if reply_chat and text in REPLY_MENU_MAP:
                                 msg_id = msg.get("message_id")
                                 if msg_id:
-                                    from .telegram.handlers.text_handler import (
-                                        schedule_user_message_delete,
-                                    )
-                                    asyncio.create_task(
-                                        schedule_user_message_delete(
-                                            tg_api=_tg_api,
-                                            chat_id=reply_chat,
-                                            message_id=msg_id,
-                                        )
+                                    await schedule_user_message_delete(
+                                        tg_api=_tg_api,
+                                        chat_id=reply_chat,
+                                        message_id=msg_id,
                                     )
                                 await _on_text_message(session, reply_chat, text)
                             continue

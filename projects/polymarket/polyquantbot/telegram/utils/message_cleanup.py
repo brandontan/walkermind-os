@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 
+import aiohttp
 import structlog
 
 log = structlog.get_logger(__name__)
@@ -31,8 +32,6 @@ async def delete_user_message_later(
     """
     try:
         await asyncio.sleep(delay)
-        import aiohttp  # local import to avoid hard dependency at module load
-
         async with aiohttp.ClientSession() as session:
             await session.post(
                 f"{tg_api}/deleteMessage",
