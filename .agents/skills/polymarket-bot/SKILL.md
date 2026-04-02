@@ -1,5 +1,3 @@
----
-
 name: polymarket-bot-builder-v2
 
 description: >
