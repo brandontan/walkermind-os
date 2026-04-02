@@ -234,6 +234,16 @@ class CommandHandler:
             return await self._handle_performance()
         if cmd == "health":
             return await self._handle_health()
+        if cmd == "settings":
+            return await self._handle_settings()
+        if cmd == "set_markets":
+            return await self._handle_set_markets(value)
+        if cmd == "set_liquidity":
+            return await self._handle_set_liquidity(value)
+        if cmd == "markets":
+            return await self._handle_markets()
+        if cmd == "rediscover":
+            return await self._handle_rediscover()
 
         return CommandResult(
             success=False,
@@ -241,10 +251,12 @@ class CommandHandler:
                 command="unknown",
                 success=False,
                 message=(
-                    "Unknown command. Available: "
-                    "/status /pause /resume /kill /set_risk /set_max_position "
-                    "/metrics /prelive_check /allocation /strategies "
-                    "/performance /health"
+                    "Unknown command. Available:\n"
+                    "/status /pause /resume /kill\n"
+                    "/set_risk /set_max_position\n"
+                    "/metrics /prelive_check\n"
+                    "/allocation /strategies /performance /health\n"
+                    "/settings /set_markets /set_liquidity /markets /rediscover"
                 ),
             ),
         )
@@ -669,6 +681,162 @@ class CommandHandler:
                     context="health", error=str(exc), severity="ERROR"
                 ),
             )
+
+    async def _handle_settings(self) -> CommandResult:
+        """Return all current runtime settings in one view."""
+        snap_cfg = self._config.snapshot()
+        snap_state = self._state.snapshot()
+        lines = [
+            "⚙️ *BOT SETTINGS*\n",
+            f"Mode: `{snap_state.get('state', 'UNKNOWN')}`",
+            f"Trading mode: `{self._mode}`",
+            "",
+            "*Risk & Position*",
+            f"Risk multiplier: `{snap_cfg.risk_multiplier:.3f}`",
+            f"Max position: `{snap_cfg.max_position:.3f}` ({snap_cfg.max_position*100:.1f}%)",
+            "",
+            "*Market Discovery*",
+            f"Max markets: `{snap_cfg.max_markets}`",
+            f"Min liquidity: `${snap_cfg.min_liquidity_usd:,.0f}`",
+            f"Active markets: `{len(snap_cfg.market_ids)}`",
+            "",
+            "_Use /set\\_markets, /set\\_liquidity, /set\\_risk, /set\\_max\\_position to update_",
+        ]
+        return CommandResult(
+            success=True,
+            message="\n".join(lines),
+            payload=snap_cfg.__dict__,
+        )
+
+    async def _handle_set_markets(self, value: Optional[float]) -> CommandResult:
+        """Set max auto-discovered markets: /set_markets [1–50]."""
+        if value is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="set_markets",
+                    success=False,
+                    message="Usage: /set_markets [1–50]  — e.g. /set_markets 10",
+                ),
+            )
+        try:
+            applied = await self._config.set_max_markets(int(value))
+        except (ValueError, TypeError) as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(context="set_markets", error=str(exc), severity="ERROR"),
+            )
+        return CommandResult(
+            success=True,
+            message=format_command_response(
+                command="set_markets",
+                success=True,
+                message=f"Max markets updated to `{applied}`. Use /rediscover to apply now.",
+                payload={"max_markets": applied},
+            ),
+            payload={"max_markets": applied},
+        )
+
+    async def _handle_set_liquidity(self, value: Optional[float]) -> CommandResult:
+        """Set minimum liquidity threshold: /set_liquidity [1000–1000000]."""
+        if value is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="set_liquidity",
+                    success=False,
+                    message="Usage: /set_liquidity [amount]  — e.g. /set_liquidity 25000",
+                ),
+            )
+        try:
+            applied = await self._config.set_min_liquidity_usd(float(value))
+        except (ValueError, TypeError) as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(context="set_liquidity", error=str(exc), severity="ERROR"),
+            )
+        return CommandResult(
+            success=True,
+            message=format_command_response(
+                command="set_liquidity",
+                success=True,
+                message=f"Min liquidity updated to `${applied:,.0f}`. Use /rediscover to apply now.",
+                payload={"min_liquidity_usd": applied},
+            ),
+            payload={"min_liquidity_usd": applied},
+        )
+
+    async def _handle_markets(self) -> CommandResult:
+        """Show currently active market IDs."""
+        snap = self._config.snapshot()
+        ids = snap.market_ids
+        if not ids:
+            return CommandResult(
+                success=True,
+                message=format_command_response(
+                    command="markets",
+                    success=True,
+                    message="No markets active. Run /rediscover to fetch markets.",
+                ),
+            )
+        lines = ["📋 *ACTIVE MARKETS*\n"]
+        for i, mid in enumerate(ids, 1):
+            short = mid[:10] + "..." + mid[-6:] if len(mid) > 20 else mid
+            lines.append(f"`{i}.` `{short}`")
+        lines.append(f"\n_Total: {len(ids)} market(s)_")
+        lines.append("_Use /rediscover to refresh_")
+        return CommandResult(
+            success=True,
+            message="\n".join(lines),
+            payload={"market_ids": ids, "count": len(ids)},
+        )
+
+    async def _handle_rediscover(self) -> CommandResult:
+        """Trigger fresh market discovery from Gamma API with current settings."""
+        log.info("command_rediscover_invoked")
+        snap = self._config.snapshot()
+        try:
+            from ..core.bootstrap import _fetch_active_markets
+            new_ids = await _fetch_active_markets(
+                gamma_url="https://gamma-api.polymarket.com",
+                min_liquidity=snap.min_liquidity_usd,
+                max_markets=snap.max_markets,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error("command_rediscover_failed", error=str(exc))
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="rediscover",
+                    error=str(exc),
+                    severity="ERROR",
+                ),
+            )
+        if not new_ids:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="rediscover",
+                    success=False,
+                    message=(
+                        f"Discovery returned 0 markets "
+                        f"(min_liquidity=${snap.min_liquidity_usd:,.0f}, max={snap.max_markets}).\n"
+                        "Try /set_liquidity with a lower value."
+                    ),
+                ),
+            )
+        self._config.update_market_ids(new_ids)
+        lines = [f"🔍 *REDISCOVER COMPLETE* — {len(new_ids)} market(s)\n"]
+        for i, mid in enumerate(new_ids, 1):
+            short = mid[:10] + "..." + mid[-6:] if len(mid) > 20 else mid
+            lines.append(f"`{i}.` `{short}`")
+        lines.append(f"\n_Filter: min_liquidity=${snap.min_liquidity_usd:,.0f}, max={snap.max_markets}_")
+        log.info("command_rediscover_complete", count=len(new_ids), market_ids=new_ids)
+        return CommandResult(
+            success=True,
+            message="\n".join(lines),
+            payload={"market_ids": new_ids, "count": len(new_ids)},
+        )
 
     # ── Telegram send with retry ───────────────────────────────────────────────
 

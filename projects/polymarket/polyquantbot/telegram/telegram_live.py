@@ -139,7 +139,8 @@ class TelegramLive:
             TELEGRAM_BOT_TOKEN
             TELEGRAM_CHAT_ID
         """
-        token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        # Support both TELEGRAM_TOKEN (Railway convention) and TELEGRAM_BOT_TOKEN
+        token = os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN", "")
         chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 
         if not token or not chat_id:
