@@ -1,5 +1,5 @@
 name: polymarket-bot-builder
-description: "Specialized skill for building production-grade Polymarket trading bots. Supports multi-strategy, capital allocation, risk management, and execution systems."
+description: >Specialized skill for building production-grade Polymarket trading bots. Supports multi-strategy, capital allocation, risk management, and execution systems.
 
 Polymarket Bot Builder Skill
 
