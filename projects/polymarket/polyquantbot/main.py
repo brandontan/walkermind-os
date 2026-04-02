@@ -54,6 +54,17 @@ async def main() -> None:
 
     log.info("polyquantbot_startup", ts=start_ts)
 
+    # ── Entrypoint assertion — confirms correct runtime path ───────────────────
+    print("🚀 NEW TELEGRAM SYSTEM ACTIVE")
+    print("ENTRYPOINT: main.py")
+    log.info(
+        "entrypoint_active",
+        entrypoint="projects/polymarket/polyquantbot/main.py",
+        system="NEW_TELEGRAM_SYSTEM",
+        status="ACTIVE",
+        legacy_menu="DISABLED",
+    )
+
     # ── Load live config from environment ──────────────────────────────────────
     try:
         from .infra.live_config import LiveConfig
