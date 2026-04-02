@@ -84,6 +84,9 @@ class WSClientStats:
     parse_errors: int = 0
     heartbeat_timeouts: int = 0
     last_message_ts: float = field(default_factory=time.time)
+    connected: bool = False
+    reconnect_count: int = 0
+    last_error: str = ""
 
 
 # ── Client ────────────────────────────────────────────────────────────────────
@@ -222,6 +225,9 @@ class PolymarketWSClient:
 
             except (ConnectionClosed, WebSocketException, OSError) as exc:
                 self._stats.reconnects += 1
+                self._stats.reconnect_count += 1
+                self._stats.connected = False
+                self._stats.last_error = str(exc)
                 consecutive_failures += 1
                 log.warning(
                     "ws_disconnected",
@@ -242,6 +248,9 @@ class PolymarketWSClient:
 
             except Exception as exc:  # noqa: BLE001
                 self._stats.reconnects += 1
+                self._stats.reconnect_count += 1
+                self._stats.connected = False
+                self._stats.last_error = str(exc)
                 consecutive_failures += 1
                 log.error(
                     "ws_unexpected_error",
@@ -281,6 +290,7 @@ class PolymarketWSClient:
             ping_timeout=_PING_TIMEOUT,
             open_timeout=10,
         ) as ws:
+            self._stats.connected = True
             log.info("ws_connected", attempt=attempt)
             await self._subscribe(ws)
 
@@ -290,6 +300,8 @@ class PolymarketWSClient:
                 self._stats.messages_received += 1
                 self._stats.last_message_ts = time.time()
                 await self._handle_raw(raw_msg)
+
+        self._stats.connected = False
 
     async def _subscribe(self, ws) -> None:
         """Send subscription message for all configured market IDs."""

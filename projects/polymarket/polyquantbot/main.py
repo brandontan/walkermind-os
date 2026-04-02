@@ -97,17 +97,19 @@ async def main() -> None:
     await metrics_exporter.start_logging_loop()
 
     # ── Telegram (optional) ────────────────────────────────────────────────────
-    telegram_sender: Optional[object] = None
+    from .telegram.telegram_live import TelegramLive
+    tg = TelegramLive.from_env()
+    await tg.start()
     chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
-    bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    if bot_token and chat_id:
-        try:
-            from .telegram.telegram_live import TelegramLive
-            tg = TelegramLive(token=bot_token, chat_id=chat_id)
-            telegram_sender = tg.send_message
-            log.info("telegram_configured", chat_id=chat_id)
-        except Exception as exc:
-            log.warning("telegram_init_failed", error=str(exc))
+    telegram_sender = tg.alert_error if tg.enabled else None
+
+    # ── Startup Telegram notification ─────────────────────────────────────────
+    await tg.alert_startup(mode=mode, market_count=0)
+
+    # ── System activation monitor ──────────────────────────────────────────────
+    from .monitoring.system_activation import SystemActivationMonitor
+    activation_monitor = SystemActivationMonitor()
+    await activation_monitor.start()
 
     # ── Command handler ────────────────────────────────────────────────────────
     from .telegram.command_handler import CommandHandler
@@ -148,6 +150,19 @@ async def main() -> None:
     metrics_server = MetricsServer(exporter=metrics_exporter)
     asyncio.create_task(metrics_server.start(), name="metrics_server")
 
+    # ── Heartbeat task (every 60s) ─────────────────────────────────────────────
+    async def _heartbeat_loop() -> None:
+        while True:
+            await asyncio.sleep(60)
+            await tg.alert_heartbeat(
+                ws_connected=False,
+                event_count=activation_monitor.event_count,
+                signal_count=activation_monitor.signal_count,
+                trade_count=activation_monitor.trade_count,
+            )
+
+    asyncio.create_task(_heartbeat_loop(), name="telegram_heartbeat")
+
     # ── Graceful shutdown handler ──────────────────────────────────────────────
     stop_event = asyncio.Event()
 
@@ -172,6 +187,8 @@ async def main() -> None:
     await stop_event.wait()
 
     log.info("polyquantbot_shutdown_started")
+    await activation_monitor.stop()
+    await tg.stop()
     await metrics_exporter.stop_logging_loop()
     try:
         await metrics_server.stop()

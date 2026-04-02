@@ -832,3 +832,138 @@ def format_live_stage1_activated(
     lines.append(sep)
     lines.append(f"_at {ts}_")
     return "\n".join(lines)
+
+
+# ── System-activation formatters ──────────────────────────────────────────────
+
+
+def format_startup(mode: str, market_count: int) -> str:
+    """Format a bot startup notification.
+
+    Args:
+        mode: Trading mode ("PAPER" | "LIVE").
+        market_count: Number of markets being monitored.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "🚀 *KrusaderBot STARTED*",
+        f"Mode: `{_safe(mode)}`",
+        f"Markets: `{market_count}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_ws_connected(attempt: int = 1) -> str:
+    """Format a WebSocket connected notification.
+
+    Args:
+        attempt: Connection attempt number.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "🔗 *WS CONNECTED*",
+        f"Attempt: `{attempt}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_ws_error(reason: str) -> str:
+    """Format a WebSocket error notification.
+
+    Args:
+        reason: Error reason or exception string.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "⚡ *WS ERROR*",
+        f"Reason: `{_safe(reason, 200)}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_signal_alert(
+    market_id: str,
+    edge: float,
+    size: float,
+) -> str:
+    """Format a signal generated alert.
+
+    Args:
+        market_id: Polymarket condition ID.
+        edge: Computed edge value for the signal.
+        size: Suggested position size in USD.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "📊 *SIGNAL*",
+        f"Market: `{_safe(market_id, 24)}`",
+        f"Edge: `{edge:.4f}`",
+        f"Size: `${size:.2f}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_trade_alert(
+    side: str,
+    price: float,
+    size: float,
+) -> str:
+    """Format a trade executed alert.
+
+    Args:
+        side: Trade side ("YES" | "NO" | "BUY" | "SELL").
+        price: Execution price.
+        size: Trade size in USD.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "✅ *TRADE*",
+        f"Side: `{_safe(side)}`",
+        f"Price: `{price:.4f}`",
+        f"Size: `${size:.2f}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_heartbeat(
+    ws_connected: bool,
+    event_count: int,
+    signal_count: int,
+    trade_count: int,
+) -> str:
+    """Format a periodic system heartbeat message.
+
+    Args:
+        ws_connected: Whether the WebSocket is currently connected.
+        event_count: Total events received since startup.
+        signal_count: Total signals generated since startup.
+        trade_count: Total trades executed since startup.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    ws_status = "connected" if ws_connected else "disconnected"
+    lines = [
+        "💓 *ALIVE*",
+        f"WS: `{ws_status}`",
+        f"Events: `{event_count}`",
+        f"Signals: `{signal_count}`",
+        f"Trades: `{trade_count}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
