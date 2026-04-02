@@ -810,6 +810,12 @@ class CommandHandler:
         """Show currently active market IDs."""
         snap = self._config.snapshot()
         ids = snap.market_ids
+        # Fallback: read directly from runner if config not yet synced
+        if not ids and self._runner is not None:
+            try:
+                ids = list(self._runner._market_ids)
+            except Exception:
+                pass
         if not ids:
             return CommandResult(
                 success=True,
@@ -866,6 +872,13 @@ class CommandHandler:
                 ),
             )
         self._config.update_market_ids(new_ids)
+        # Also update the live runner if wired
+        if self._runner is not None:
+            try:
+                self._runner._market_ids = new_ids
+                log.info("command_rediscover_runner_updated", count=len(new_ids))
+            except Exception as exc:
+                log.warning("command_rediscover_runner_update_failed", error=str(exc))
         lines = [f"🔍 *REDISCOVER COMPLETE* — {len(new_ids)} market(s)\n"]
         for i, mid in enumerate(new_ids, 1):
             short = mid[:10] + "..." + mid[-6:] if len(mid) > 20 else mid

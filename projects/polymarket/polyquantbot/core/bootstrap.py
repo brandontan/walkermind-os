@@ -326,6 +326,8 @@ async def _fetch_active_markets(
         qualifying=len(qualifying),
         selected=len(condition_ids),
         token_ids_count=len(token_ids),
+        using_token_ids=bool(token_ids),
+        ws_ids_sample=ws_ids[:3],   # log first 3 for debugging Events:0
         condition_ids=condition_ids,
     )
     return ws_ids

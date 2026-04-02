@@ -325,6 +325,9 @@ async def main() -> None:
         )
         await runner.start()
 
+        # Sync discovered market IDs into config_manager so /markets shows them
+        config_manager.update_market_ids(market_ids)
+
         # Wire runner into command handler for live /status data
         if hasattr(cmd_handler, "set_runner"):
             cmd_handler.set_runner(runner)
