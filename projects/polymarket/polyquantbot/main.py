@@ -103,9 +103,6 @@ async def main() -> None:
     chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
     telegram_sender = tg.alert_error if tg.enabled else None
 
-    # ── Startup Telegram notification ─────────────────────────────────────────
-    await tg.alert_startup(mode=mode, market_count=0)
-
     # ── System activation monitor ──────────────────────────────────────────────
     from .monitoring.system_activation import SystemActivationMonitor
     activation_monitor = SystemActivationMonitor()
@@ -194,14 +191,24 @@ async def main() -> None:
                 continue
 
             now = time.time()
-            cur_events = activation_monitor.event_count
-            cur_signals = activation_monitor.signal_count
-            cur_trades = activation_monitor.trade_count
-            # Read actual WS connection state from runner if available
-            try:
-                cur_ws = runner._ws._stats.connected if runner is not None else False
-            except Exception:
-                cur_ws = activation_monitor.ws_connected
+            # Pull live stats from runner snapshot if available, else zeros
+            if runner is not None:
+                try:
+                    snap = runner.snapshot()
+                    cur_events = snap.event_count
+                    cur_signals = snap.signal_count
+                    cur_trades = snap.fill_count
+                    cur_ws = runner._ws._stats.connected
+                except Exception:
+                    cur_events = activation_monitor.event_count
+                    cur_signals = activation_monitor.signal_count
+                    cur_trades = activation_monitor.trade_count
+                    cur_ws = False
+            else:
+                cur_events = activation_monitor.event_count
+                cur_signals = activation_monitor.signal_count
+                cur_trades = activation_monitor.trade_count
+                cur_ws = False
 
             changed = (
                 cur_events != _last_events
@@ -256,11 +263,18 @@ async def main() -> None:
     try:
         cfg, market_ids = await run_bootstrap()
 
+        # ── Send STARTUP alert with real market count ──────────────────────────
+        await tg.alert_startup(mode=mode, market_count=len(market_ids))
+
         runner = LivePaperRunner.from_config(
             cfg=cfg,
             market_ids=market_ids,
         )
         await runner.start()
+
+        # Wire runner into command handler for live /status data
+        if hasattr(cmd_handler, "set_runner"):
+            cmd_handler.set_runner(runner)
 
         pipeline_task = asyncio.create_task(runner.run(), name="trading_pipeline")
         log.info(

@@ -124,6 +124,7 @@ class CommandHandler:
         self._risk_guard = risk_guard
         self._mode = mode
         self._lock = asyncio.Lock()
+        self._runner: Optional[object] = None  # wired after pipeline starts
 
         log.info(
             "command_handler_initialized",
@@ -136,6 +137,11 @@ class CommandHandler:
         )
 
     # ── Primary dispatch ───────────────────────────────────────────────────────
+
+    def set_runner(self, runner: object) -> None:
+        """Wire the live pipeline runner for real-time stats in /status."""
+        self._runner = runner
+        log.info("command_handler_runner_wired")
 
     async def handle(
         self,
@@ -264,12 +270,34 @@ class CommandHandler:
     async def _handle_status(self) -> CommandResult:
         snap_state = self._state.snapshot()
         snap_cfg = self._config.snapshot()
+
+        # Pull live pipeline stats if runner is wired
+        pipeline_lines = []
+        if self._runner is not None:
+            try:
+                rs = self._runner.snapshot()
+                ws_ok = self._runner._ws._stats.connected
+                pipeline_lines = [
+                    "",
+                    "*Pipeline*",
+                    f"WS: `{'connected' if ws_ok else 'disconnected'}`",
+                    f"Events: `{rs.event_count}`",
+                    f"Signals: `{rs.signal_count}`",
+                    f"Fills: `{rs.fill_count}`",
+                    f"Markets: `{len(self._runner._market_ids)}`",
+                ]
+            except Exception:
+                pass
+
         msg = format_status(
             state=snap_state["state"],
             reason=snap_state["reason"],
             risk_multiplier=snap_cfg.risk_multiplier,
             max_position=snap_cfg.max_position,
         )
+        if pipeline_lines:
+            msg = msg + "\n" + "\n".join(pipeline_lines)
+
         return CommandResult(
             success=True,
             message=msg,
