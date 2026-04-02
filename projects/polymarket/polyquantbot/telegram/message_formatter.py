@@ -569,3 +569,57 @@ def format_multi_strategy_report(
     )
 
     return "\n".join(lines)
+
+
+def format_live_stage1_activated(
+    mode: str,
+    bankroll: float,
+    max_position_pct: float,
+    max_total_exposure_pct: float,
+    max_concurrent_trades: int,
+    drawdown_limit_pct: float,
+    active_strategies: list,
+    correlation_id: str = "",
+) -> str:
+    """Format the LIVE TRADING ACTIVATED (STAGE 1) Telegram alert.
+
+    Sent once when Stage 1 LIVE trading becomes active.
+
+    Args:
+        mode: Trading mode string (always "LIVE" at this point).
+        bankroll: Total bankroll in USD.
+        max_position_pct: Max position per strategy as a percentage (e.g. 2.0).
+        max_total_exposure_pct: Max total exposure as a percentage (e.g. 5.0).
+        max_concurrent_trades: Hard cap on concurrent open trades.
+        drawdown_limit_pct: Drawdown limit as a percentage (e.g. 5.0).
+        active_strategies: List of active strategy names.
+        correlation_id: Optional session trace ID.
+
+    Returns:
+        Formatted Telegram Markdown message string starting with '🚀'.
+    """
+    import datetime
+
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sep = "─" * 37
+    strategies_str = ", ".join(_safe(s) for s in active_strategies) if active_strategies else "none"
+
+    lines = [
+        f"🚀 *LIVE TRADING ACTIVATED (STAGE 1)*",
+        sep,
+        f"Mode: `{_safe(mode)}`",
+        f"Bankroll: `${bankroll:.2f}`",
+        sep,
+        "STAGE 1 SAFE LIMITS:",
+        f"  Max position/strategy: `{max_position_pct:.1f}%`",
+        f"  Max total exposure:    `{max_total_exposure_pct:.1f}%`",
+        f"  Max concurrent trades: `{max_concurrent_trades}`",
+        f"  Drawdown limit:        `{drawdown_limit_pct:.1f}%`",
+        sep,
+        f"Active strategies: `{_safe(strategies_str)}`",
+    ]
+    if correlation_id:
+        lines.append(f"Session: `{correlation_id[:32]}`")
+    lines.append(sep)
+    lines.append(f"_at {ts}_")
+    return "\n".join(lines)
