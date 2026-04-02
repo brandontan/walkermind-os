@@ -35,10 +35,13 @@ import structlog
 from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
 from .message_formatter import (
+    format_capital_allocation_report,
     format_command_response,
     format_error,
+    format_health_snapshot,
     format_kill_alert,
     format_metrics,
+    format_performance_report,
     format_prelive_check,
     format_state_change,
     format_status,
@@ -91,6 +94,10 @@ class CommandHandler:
         telegram_sender: Async callable(chat_id, text) for sending responses.
         chat_id: Target chat/channel ID for responses.
         prelive_validator: Optional PreLiveValidator for /prelive_check command.
+        allocator: Optional DynamicCapitalAllocator for /allocation command.
+        multi_metrics: Optional MultiStrategyMetrics for /strategies + /performance.
+        risk_guard: Optional RiskGuard for /health drawdown data.
+        mode: Trading mode string ("PAPER" | "LIVE") for /health + /performance.
     """
 
     def __init__(
@@ -101,6 +108,10 @@ class CommandHandler:
         telegram_sender: Optional[object] = None,
         chat_id: str = "",
         prelive_validator: Optional[object] = None,
+        allocator: Optional[object] = None,
+        multi_metrics: Optional[object] = None,
+        risk_guard: Optional[object] = None,
+        mode: str = "PAPER",
     ) -> None:
         self._state = state_manager
         self._config = config_manager
@@ -108,6 +119,10 @@ class CommandHandler:
         self._sender = telegram_sender
         self._chat_id = chat_id
         self._prelive_validator = prelive_validator
+        self._allocator = allocator
+        self._multi_metrics = multi_metrics
+        self._risk_guard = risk_guard
+        self._mode = mode
         self._lock = asyncio.Lock()
 
         log.info(
@@ -116,6 +131,8 @@ class CommandHandler:
             has_metrics_source=metrics_source is not None,
             has_sender=telegram_sender is not None,
             has_prelive_validator=prelive_validator is not None,
+            has_allocator=allocator is not None,
+            has_multi_metrics=multi_metrics is not None,
         )
 
     # ── Primary dispatch ───────────────────────────────────────────────────────
@@ -209,6 +226,14 @@ class CommandHandler:
             return await self._handle_metrics()
         if cmd == "prelive_check":
             return await self._handle_prelive_check()
+        if cmd == "allocation":
+            return await self._handle_allocation()
+        if cmd == "strategies":
+            return await self._handle_strategies()
+        if cmd == "performance":
+            return await self._handle_performance()
+        if cmd == "health":
+            return await self._handle_health()
 
         return CommandResult(
             success=False,
@@ -218,7 +243,8 @@ class CommandHandler:
                 message=(
                     "Unknown command. Available: "
                     "/status /pause /resume /kill /set_risk /set_max_position "
-                    "/metrics /prelive_check"
+                    "/metrics /prelive_check /allocation /strategies "
+                    "/performance /health"
                 ),
             ),
         )
@@ -475,6 +501,174 @@ class CommandHandler:
             message=format_prelive_check(result_dict),
             payload=result_dict,
         )
+
+    async def _handle_allocation(self) -> CommandResult:
+        """Return capital allocation report from DynamicCapitalAllocator."""
+        log.info("command_allocation_invoked")
+        if self._allocator is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="allocation",
+                    success=False,
+                    message="Allocator not configured.",
+                ),
+            )
+        try:
+            snap = self._allocator.allocation_snapshot()
+            msg = format_capital_allocation_report(
+                strategy_weights=snap.strategy_weights,
+                position_sizes=snap.position_sizes,
+                disabled_strategies=snap.disabled_strategies,
+                suppressed_strategies=snap.suppressed_strategies,
+                total_allocated_usd=snap.total_allocated_usd,
+                bankroll=snap.bankroll,
+                mode=self._mode,
+            )
+            return CommandResult(
+                success=True,
+                message=msg,
+                payload={
+                    "strategy_weights": snap.strategy_weights,
+                    "total_allocated_usd": snap.total_allocated_usd,
+                },
+            )
+        except Exception as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="allocation", error=str(exc), severity="ERROR"
+                ),
+            )
+
+    async def _handle_strategies(self) -> CommandResult:
+        """Return per-strategy performance snapshot from MultiStrategyMetrics."""
+        log.info("command_strategies_invoked")
+        if self._multi_metrics is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="strategies",
+                    success=False,
+                    message="MultiStrategyMetrics not configured.",
+                ),
+            )
+        try:
+            snapshot = self._multi_metrics.snapshot()
+            total_signals = self._multi_metrics.total_signals
+            total_trades = self._multi_metrics.total_trades
+            conflicts = self._multi_metrics.total_conflicts
+
+            from .message_formatter import format_multi_strategy_report
+            msg = format_multi_strategy_report(
+                strategy_breakdown=snapshot,
+                conflicts_count=conflicts,
+                skipped_trades=0,
+                total_signals=total_signals,
+                total_trades=total_trades,
+            )
+            return CommandResult(
+                success=True,
+                message=msg,
+                payload={"snapshot": snapshot, "conflicts": conflicts},
+            )
+        except Exception as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="strategies", error=str(exc), severity="ERROR"
+                ),
+            )
+
+    async def _handle_performance(self) -> CommandResult:
+        """Return PnL + win-rate performance report."""
+        log.info("command_performance_invoked")
+        if self._multi_metrics is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="performance",
+                    success=False,
+                    message="MultiStrategyMetrics not configured.",
+                ),
+            )
+        try:
+            snapshot = self._multi_metrics.snapshot()
+            per_pnl: dict = {}
+            per_wr: dict = {}
+            per_trades: dict = {}
+            total_pnl = 0.0
+            for strategy_id, m_data in snapshot.items():
+                per_pnl[strategy_id] = float(m_data.get("total_pnl", 0.0))
+                per_wr[strategy_id] = float(m_data.get("win_rate", 0.0))
+                per_trades[strategy_id] = int(m_data.get("trades_executed", 0))
+                total_pnl += per_pnl[strategy_id]
+
+            msg = format_performance_report(
+                per_strategy_pnl=per_pnl,
+                per_strategy_win_rate=per_wr,
+                per_strategy_trades=per_trades,
+                total_pnl=round(total_pnl, 4),
+                total_trades=self._multi_metrics.total_trades,
+                mode=self._mode,
+            )
+            return CommandResult(
+                success=True,
+                message=msg,
+                payload={
+                    "total_pnl": round(total_pnl, 4),
+                    "total_trades": self._multi_metrics.total_trades,
+                },
+            )
+        except Exception as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="performance", error=str(exc), severity="ERROR"
+                ),
+            )
+
+    async def _handle_health(self) -> CommandResult:
+        """Return full system health snapshot."""
+        log.info("command_health_invoked")
+        try:
+            from ..core.system_snapshot import build_system_snapshot
+            snap = build_system_snapshot(
+                state_manager=self._state,
+                config_manager=self._config,
+                metrics=self._multi_metrics,
+                allocator=self._allocator,
+                risk_guard=self._risk_guard,
+                mode=self._mode,
+            )
+            msg = format_health_snapshot(
+                mode=snap.mode,
+                system_state=snap.system_state,
+                state_reason=snap.state_reason,
+                total_exposure_usd=snap.total_exposure_usd,
+                total_pnl=snap.total_pnl,
+                drawdown=snap.drawdown,
+                bankroll=snap.bankroll,
+                active_strategies=snap.active_strategies,
+                disabled_strategies=snap.disabled_strategies,
+                suppressed_strategies=snap.suppressed_strategies,
+                total_trades=snap.total_trades,
+                total_signals=snap.total_signals,
+                risk_multiplier=snap.risk_multiplier,
+                max_position=snap.max_position,
+            )
+            return CommandResult(
+                success=True,
+                message=msg,
+                payload=snap.to_dict(),
+            )
+        except Exception as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="health", error=str(exc), severity="ERROR"
+                ),
+            )
 
     # ── Telegram send with retry ───────────────────────────────────────────────
 

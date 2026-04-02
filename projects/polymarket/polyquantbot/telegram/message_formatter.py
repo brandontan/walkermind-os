@@ -640,6 +640,146 @@ def format_live_performance_update(
     return "\n".join(lines)
 
 
+def format_health_snapshot(
+    mode: str,
+    system_state: str,
+    state_reason: str,
+    total_exposure_usd: float,
+    total_pnl: float,
+    drawdown: float,
+    bankroll: float,
+    active_strategies: list,
+    disabled_strategies: list,
+    suppressed_strategies: list,
+    total_trades: int,
+    total_signals: int,
+    risk_multiplier: float,
+    max_position: float,
+) -> str:
+    """Format a /health system snapshot message.
+
+    Args:
+        mode: Trading mode ("PAPER" | "LIVE").
+        system_state: Current state ("RUNNING" | "PAUSED" | "HALTED").
+        state_reason: Reason for current state.
+        total_exposure_usd: Total open exposure in USD.
+        total_pnl: Aggregate PnL across all strategies.
+        drawdown: Current max drawdown fraction.
+        bankroll: Total available capital in USD.
+        active_strategies: Strategy names with non-zero weight.
+        disabled_strategies: Auto-disabled strategy names.
+        suppressed_strategies: Weight-suppressed strategy names.
+        total_trades: Aggregate trades count.
+        total_signals: Aggregate signals count.
+        risk_multiplier: Current risk multiplier.
+        max_position: Current max position fraction.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    state_emoji = {"RUNNING": "✅", "PAUSED": "⏸️", "HALTED": "🛑"}.get(
+        system_state.upper(), "❓"
+    )
+    mode_emoji = "🔴" if mode == "LIVE" else "📄"
+    sep = "─" * 37
+
+    active_str = (
+        ", ".join(_safe(s) for s in active_strategies) if active_strategies else "none"
+    )
+    pnl_sign = "+" if total_pnl >= 0 else ""
+    drawdown_pct = drawdown * 100.0
+    exposure_pct = (total_exposure_usd / bankroll * 100.0) if bankroll > 0 else 0.0
+
+    lines = [
+        f"🏥 *SYSTEM HEALTH SNAPSHOT*",
+        sep,
+        f"{state_emoji} State:    `{system_state}` | {mode_emoji} Mode: `{mode}`",
+        f"Reason:   `{_safe(state_reason, 60)}`",
+        sep,
+        "FINANCIALS:",
+        f"  Bankroll:   `${bankroll:.2f}`",
+        f"  Exposure:   `${total_exposure_usd:.2f}` ({exposure_pct:.1f}%)",
+        f"  Total PnL:  `{pnl_sign}${total_pnl:.2f}`",
+        f"  Drawdown:   `{drawdown_pct:.2f}%`",
+        sep,
+        "STRATEGIES:",
+        f"  Active:     `{active_str}`",
+    ]
+    if disabled_strategies:
+        lines.append(
+            f"  Disabled:   `{', '.join(_safe(s) for s in disabled_strategies)}`"
+        )
+    if suppressed_strategies:
+        lines.append(
+            f"  Suppressed: `{', '.join(_safe(s) for s in suppressed_strategies)}`"
+        )
+    lines += [
+        sep,
+        "ACTIVITY:",
+        f"  Signals: `{total_signals}` | Trades: `{total_trades}`",
+        sep,
+        "RISK CONFIG:",
+        f"  Risk multiplier: `{risk_multiplier:.3f}`",
+        f"  Max position:    `{max_position:.3f}`",
+        sep,
+        f"_as of {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_performance_report(
+    per_strategy_pnl: Dict[str, float],
+    per_strategy_win_rate: Dict[str, float],
+    per_strategy_trades: Dict[str, int],
+    total_pnl: float,
+    total_trades: int,
+    mode: str = "PAPER",
+) -> str:
+    """Format a /performance PnL + win-rate report.
+
+    Args:
+        per_strategy_pnl: Mapping strategy_name → total_pnl.
+        per_strategy_win_rate: Mapping strategy_name → win_rate ∈ [0, 1].
+        per_strategy_trades: Mapping strategy_name → trades count.
+        total_pnl: Aggregate PnL across all strategies.
+        total_trades: Aggregate trade count.
+        mode: Trading mode string.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    sep = "─" * 37
+    name_width = (
+        max((len(n) for n in per_strategy_pnl), default=16) + 2
+    )
+    total_pnl_sign = "+" if total_pnl >= 0 else ""
+
+    lines = [
+        "📊 *PERFORMANCE REPORT*",
+        sep,
+        f"Mode: `{mode}` | Trades: `{total_trades}` | PnL: `{total_pnl_sign}${total_pnl:.2f}`",
+        sep,
+        "PER-STRATEGY:",
+    ]
+
+    all_strategies = set(per_strategy_pnl) | set(per_strategy_win_rate)
+    for name in sorted(all_strategies):
+        pnl = per_strategy_pnl.get(name, 0.0)
+        wr = per_strategy_win_rate.get(name, 0.0)
+        trades = per_strategy_trades.get(name, 0)
+        pnl_sign = "+" if pnl >= 0 else ""
+        lines.append(
+            f"  {_safe(name):<{name_width}} "
+            f"pnl={pnl_sign}${pnl:.2f}  wr={wr * 100:.1f}%  n={trades}"
+        )
+
+    lines += [
+        sep,
+        f"_as of {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
 def format_live_stage1_activated(
     mode: str,
     bankroll: float,
