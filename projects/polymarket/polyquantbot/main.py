@@ -239,12 +239,26 @@ async def main() -> None:
     _tg_api = f"https://api.telegram.org/bot{_tg_token}"
 
     async def _polling_loop() -> None:
-        """Long-poll Telegram getUpdates and route commands to CommandRouter."""
+        """Long-poll Telegram getUpdates and route commands + callback_query."""
         import aiohttp as _aio
         from .telegram.command_router import CommandRouter
+        from .telegram.command_handler import CommandResult as _CR
+        CommandResult = _CR
         router = CommandRouter(handler=cmd_handler)
         offset = 0
         log.info("telegram_polling_started")
+
+        async def _send_result(session, chat_id, result, callback_query_id=None):
+            if callback_query_id:
+                await session.post(f"{_tg_api}/answerCallbackQuery",
+                                   json={"callback_query_id": callback_query_id})
+            if not result or not result.message:
+                return
+            payload = {"chat_id": chat_id, "text": result.message, "parse_mode": "Markdown"}
+            keyboard = (result.payload or {}).get("_keyboard")
+            if keyboard:
+                payload["reply_markup"] = {"inline_keyboard": keyboard}
+            await session.post(f"{_tg_api}/sendMessage", json=payload)
 
         async with _aio.ClientSession() as session:
             while True:
@@ -255,29 +269,47 @@ async def main() -> None:
                         timeout=_aio.ClientTimeout(total=15),
                     ) as resp:
                         data = await resp.json()
+
                     for update in data.get("result", []):
                         offset = update["update_id"] + 1
-                        # Only route text commands (start with /)
+
+                        # ── Inline button press ────────────────────────────
+                        cq = update.get("callback_query")
+                        if cq:
+                            cb_data = (cq.get("data") or "").strip()
+                            cb_chat = cq.get("message", {}).get("chat", {}).get("id")
+                            cb_user = cq.get("from", {}).get("id", 0)
+                            if cb_data and cb_chat:
+                                if cb_data.endswith("_prompt"):
+                                    cmd_key = cb_data.replace("_prompt", "")
+                                    await _send_result(session, cb_chat, CommandResult(
+                                        success=True,
+                                        message=f"Type: `/{cmd_key} <value>`"
+                                    ), callback_query_id=cq["id"])
+                                    continue
+                                fake = {"update_id": update["update_id"],
+                                        "message": {"text": f"/{cb_data}",
+                                                    "chat": {"id": cb_chat},
+                                                    "from": {"id": cb_user}}}
+                                result = await router.route_update(fake)
+                                await _send_result(session, cb_chat, result,
+                                                   callback_query_id=cq["id"])
+                            continue
+
+                        # ── Regular text command ───────────────────────────
                         msg = update.get("message") or update.get("edited_message")
                         if not msg:
                             continue
                         text = (msg.get("text") or "").strip()
                         if not text.startswith("/"):
                             continue
-                        # Strip @botname suffix (e.g. /help@Krusader_polybot → /help)
                         text = text.split("@")[0]
+                        msg["text"] = text
                         result = await router.route_update(update)
-                        if result and result.message:
-                            reply_chat = msg.get("chat", {}).get("id")
-                            if reply_chat:
-                                await session.post(
-                                    f"{_tg_api}/sendMessage",
-                                    json={
-                                        "chat_id": reply_chat,
-                                        "text": result.message,
-                                        "parse_mode": "Markdown",
-                                    },
-                                )
+                        reply_chat = msg.get("chat", {}).get("id")
+                        if reply_chat:
+                            await _send_result(session, reply_chat, result)
+
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:

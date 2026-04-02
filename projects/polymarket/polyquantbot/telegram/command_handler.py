@@ -218,24 +218,38 @@ class CommandHandler:
         self, cmd: str, value: Optional[float], cid: str
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
-        if cmd == "start" or cmd == "help":
+        if cmd == "start" or cmd == "help" or cmd == "menu":
             return CommandResult(
                 success=True,
-                message=(
-                    "KrusaderBot ready.\n\n"
-                    "*Commands:*\n"
-                    "/status — live pipeline status\n"
-                    "/settings — view all settings\n"
-                    "/markets — active market IDs\n"
-                    "/rediscover — refresh markets\n"
-                    "/pause — pause trading\n"
-                    "/resume — resume trading\n"
-                    "/set\\_markets N — set max markets (1-50)\n"
-                    "/set\\_liquidity N — set min liquidity\n"
-                    "/set\\_risk N — set risk multiplier\n"
-                    "/performance — P&L summary\n"
-                    "/health — system health check"
-                ),
+                message="*KrusaderBot* — Polymarket AI Trader\nWS: `connected` | Mode: `PAPER`",
+                payload={
+                    "_keyboard": [
+                        [
+                            {"text": "📊 Status",      "callback_data": "status"},
+                            {"text": "⚙️ Settings",    "callback_data": "settings"},
+                        ],
+                        [
+                            {"text": "📋 Markets",     "callback_data": "markets"},
+                            {"text": "🔍 Rediscover",  "callback_data": "rediscover"},
+                        ],
+                        [
+                            {"text": "📈 Performance", "callback_data": "performance"},
+                            {"text": "🏥 Health",      "callback_data": "health"},
+                        ],
+                        [
+                            {"text": "⏸ Pause",        "callback_data": "pause"},
+                            {"text": "▶️ Resume",       "callback_data": "resume"},
+                        ],
+                        [
+                            {"text": "🔢 Set Markets",  "callback_data": "set_markets_prompt"},
+                            {"text": "💧 Set Liquidity","callback_data": "set_liquidity_prompt"},
+                        ],
+                        [
+                            {"text": "📉 Set Risk",     "callback_data": "set_risk_prompt"},
+                            {"text": "🔄 Refresh Menu", "callback_data": "start"},
+                        ],
+                    ]
+                },
             )
         if cmd == "status":
             return await self._handle_status()
