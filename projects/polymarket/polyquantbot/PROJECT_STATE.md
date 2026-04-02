@@ -1,7 +1,7 @@
 # PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Phase 11.5 SENTINEL validation complete — 60/60 tests pass, system GO-LIVE approved
+Status: Full wiring activation complete — WS → pipeline → signal → trade → Telegram
 
 ---
 
@@ -19,27 +19,12 @@ Status: Phase 11.5 SENTINEL validation complete — 60/60 tests pass, system GO-
 - ws-fix-compatibility — WebSocket extra_headers → additional_headers; fail-fast after 5 retries; startup version log
 - system-activation-final — Telegram production-ready (6 new alert methods); SystemActivationMonitor (event/signal counters, 10s log, 60s assert); WSClientStats connection state; main.py Telegram init fix + startup alert + heartbeat task
 - full-wiring-activation — WS client wired into main.py (MARKET_IDS env var); event loop calls activation_monitor.record_event(); LivePaperRunner wired with activation_monitor (record_signal, record_trade) + alert_signal/alert_trade Telegram hooks; heartbeat ws_connected fixed to use ws_client.stats().connected
-- Phase 11.4 — Critical production fixes: SQLite wallet persistence, fee = trade_size × 0.5%, LiveModeController.enable_live/paper() wired into MenuRouter, PreLiveValidator gate on LIVE switch, Telegram UI reflects real mode
-- Phase 11.5 SENTINEL — Full system validation (ST-01–ST-60): multi-user isolation, wallet persistence, fee system, mode switching, Telegram stability, failure simulation, burst load, data integrity — 60/60 PASS, GO-LIVE APPROVED
 
 ---
 
 ## IN PROGRESS
 
 - None
-
----
-
-## COMPLETED (11.3 — Telegram Final System)
-
-- Phase 11.3 — Multi-user Telegram system with wallet auto-creation, inline keyboard menus, callback router, control integration, hidden fee
-  - core/user_context.py: immutable per-request UserContext
-  - wallet/wallet_manager.py: custodial wallet, hidden fee (0.5%), no key export, no withdraw
-  - api/telegram/user_manager.py: UserManager with auto-provisioning on first interaction
-  - api/telegram/menu_handler.py: 6 inline keyboard menu builders
-  - api/telegram/menu_router.py: callback_data → SystemStateManager / WalletManager router
-  - api/telegram/command_handler.py: multi-user TelegramCommandHandler wrapping existing core
-  - api/telegram/webhook.py: WebhookHandler routing message→command / callback_query→menu_router
 
 ---
 
@@ -66,5 +51,3 @@ Status: Phase 11.5 SENTINEL validation complete — 60/60 tests pass, system GO-
   tracker is wired into DashboardServer
 - Dashboard currently binds to 127.0.0.1 only (no public exposure)
 - WS feed only starts when MARKET_IDS env var is set (empty = no feed)
-- aiosqlite must be installed for SQLite persistence (pip install aiosqlite)
-- If prelive_validator is not wired in production bootstrap, switching to LIVE has no gate

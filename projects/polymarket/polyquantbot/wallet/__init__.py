@@ -1,4 +1,4 @@
-"""Custodial wallet subsystem."""
 from .wallet_manager import WalletManager
+from .user_manager import UserManager
 
-__all__ = ["WalletManager"]
+__all__ = ["WalletManager", "UserManager"]
