@@ -150,16 +150,51 @@ async def main() -> None:
     metrics_server = MetricsServer(exporter=metrics_exporter)
     asyncio.create_task(metrics_server.start(), name="metrics_server")
 
-    # ── Heartbeat task (every 60s) ─────────────────────────────────────────────
+    # ── Heartbeat task (configurable, smart — only sends on activity change) ──
+    _heartbeat_interval_s = int(os.environ.get("HEARTBEAT_INTERVAL_MIN", "30")) * 60
+    _heartbeat_enabled = os.environ.get("HEARTBEAT_ENABLED", "true").lower() != "false"
+
     async def _heartbeat_loop() -> None:
+        """Send Telegram ALIVE only when something changed, or at forced interval."""
+        _last_events = 0
+        _last_signals = 0
+        _last_trades = 0
+        _last_ws = False
+        _last_sent_ts = 0.0
+        poll_s = 60.0  # internal poll — check every 60s but only send at interval
+
         while True:
-            await asyncio.sleep(60)
-            await tg.alert_heartbeat(
-                ws_connected=False,
-                event_count=activation_monitor.event_count,
-                signal_count=activation_monitor.signal_count,
-                trade_count=activation_monitor.trade_count,
+            await asyncio.sleep(poll_s)
+            if not _heartbeat_enabled:
+                continue
+
+            now = time.time()
+            cur_events = activation_monitor.event_count
+            cur_signals = activation_monitor.signal_count
+            cur_trades = activation_monitor.trade_count
+            cur_ws = activation_monitor.ws_connected
+
+            changed = (
+                cur_events != _last_events
+                or cur_signals != _last_signals
+                or cur_trades != _last_trades
+                or cur_ws != _last_ws
             )
+            interval_elapsed = (now - _last_sent_ts) >= _heartbeat_interval_s
+
+            # Only send if: activity changed OR forced interval elapsed
+            if changed or interval_elapsed:
+                await tg.alert_heartbeat(
+                    ws_connected=cur_ws,
+                    event_count=cur_events,
+                    signal_count=cur_signals,
+                    trade_count=cur_trades,
+                )
+                _last_events = cur_events
+                _last_signals = cur_signals
+                _last_trades = cur_trades
+                _last_ws = cur_ws
+                _last_sent_ts = now
 
     asyncio.create_task(_heartbeat_loop(), name="telegram_heartbeat")
 

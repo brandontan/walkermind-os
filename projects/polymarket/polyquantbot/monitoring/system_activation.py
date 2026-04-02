@@ -43,6 +43,7 @@ class SystemActivationMonitor:
         self.event_count: int = 0
         self.signal_count: int = 0
         self.trade_count: int = 0
+        self.ws_connected: bool = False
 
         self._running: bool = False
         self._log_task: Optional[asyncio.Task] = None
@@ -62,6 +63,10 @@ class SystemActivationMonitor:
     def record_trade(self) -> None:
         """Increment the trade counter (call on each trade executed)."""
         self.trade_count += 1
+
+    def record_ws_state(self, connected: bool) -> None:
+        """Update the current WebSocket connection state."""
+        self.ws_connected = connected
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
