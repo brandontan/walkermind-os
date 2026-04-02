@@ -29,6 +29,8 @@ import structlog
 
 from ...core.user_context import UserContext
 from ...core.system_state import SystemStateManager
+from ...core.pipeline.live_mode_controller import LiveModeController
+from ...core.prelive_validator import PreLiveValidator
 from ...wallet.wallet_manager import WalletManager
 from .menu_handler import (
     build_control_menu,
@@ -59,6 +61,11 @@ class MenuRouter:
         edit_message_fn: Async fn(chat_id, text, reply_markup, message_id).
         active_strategy: Currently active strategy id (mutable, single-active).
         mode: Current trading mode ("PAPER" | "LIVE").
+        live_mode_controller: Optional LiveModeController — when provided,
+            mode switches call enable_live() / enable_paper() to propagate
+            the change to the execution layer.
+        prelive_validator: Optional PreLiveValidator — when provided,
+            switching to LIVE is blocked unless validation passes.
     """
 
     def __init__(
@@ -69,6 +76,8 @@ class MenuRouter:
         edit_message_fn: EditFn,
         active_strategy: Optional[str] = None,
         mode: str = "PAPER",
+        live_mode_controller: Optional[LiveModeController] = None,
+        prelive_validator: Optional[PreLiveValidator] = None,
     ) -> None:
         self._handler = command_handler
         self._state = state_manager
@@ -76,6 +85,8 @@ class MenuRouter:
         self._edit = edit_message_fn
         self._active_strategy: Optional[str] = active_strategy
         self._mode = mode
+        self._live_ctrl = live_mode_controller
+        self._prelive_validator = prelive_validator
         self._lock = asyncio.Lock()
 
         log.info("menu_router_initialized", mode=mode)
@@ -209,14 +220,14 @@ class MenuRouter:
         if data.startswith("mode_confirm_"):
             new_mode = data.replace("mode_confirm_", "").upper()
             if new_mode in ("PAPER", "LIVE"):
-                self._mode = new_mode
-                log.info("mode_switched", new_mode=new_mode, telegram_user_id=ctx.telegram_user_id)
-            await self._edit(
-                chat_id,
-                f"✅ Mode switched to `{self._mode}`.",
-                build_settings_menu(),
-                message_id,
-            )
+                await self._handle_mode_switch(new_mode, ctx, chat_id, message_id)
+            else:
+                await self._edit(
+                    chat_id,
+                    "❌ Unknown mode. Returning to settings.",
+                    build_settings_menu(),
+                    message_id,
+                )
             return
 
         if data == "settings_strategy":
@@ -298,12 +309,16 @@ class MenuRouter:
         self, ctx: UserContext, chat_id: int, message_id: int
     ) -> None:
         snap = self._state.snapshot()
+        # Reflect real mode from LiveModeController when available
+        real_mode = self._mode
+        if self._live_ctrl is not None:
+            real_mode = self._live_ctrl.mode.value
         lines = [
             "📊 *SYSTEM STATUS*",
             "",
             f"State: `{snap.get('state', 'UNKNOWN')}`",
             f"Reason: `{snap.get('reason', '-')}`",
-            f"Mode: `{self._mode}`",
+            f"Mode: `{real_mode}`",
             f"Wallet: `{ctx.wallet_id}`",
         ]
         await self._edit(chat_id, "\n".join(lines), build_status_menu(), message_id)
@@ -449,6 +464,70 @@ class MenuRouter:
             chat_id,
             "🛑 Trading *HALTED*. Manual restart required.",
             build_control_menu("HALTED"),
+            message_id,
+        )
+
+    async def _handle_mode_switch(
+        self,
+        new_mode: str,
+        ctx: UserContext,
+        chat_id: int,
+        message_id: int,
+    ) -> None:
+        """Handle a confirmed mode switch request.
+
+        When switching to LIVE:
+          1. Runs PreLiveValidator (if configured) — blocks on failure.
+          2. Calls LiveModeController.enable_live() (if configured).
+          3. Updates internal ``_mode`` to reflect the real execution mode.
+
+        When switching to PAPER:
+          1. Calls LiveModeController.enable_paper() (if configured).
+          2. Updates internal ``_mode``.
+        """
+        if new_mode == "LIVE":
+            # Pre-live validation gate
+            if self._prelive_validator is not None:
+                result = self._prelive_validator.run()
+                if result.status != "PASS":
+                    log.warning(
+                        "mode_switch_blocked_prelive",
+                        reason=result.reason,
+                        telegram_user_id=ctx.telegram_user_id,
+                    )
+                    await self._edit(
+                        chat_id,
+                        "❌ Cannot switch to LIVE — validation failed\n"
+                        f"`{result.reason}`",
+                        build_settings_menu(),
+                        message_id,
+                    )
+                    return
+
+            # Wire live mode controller
+            if self._live_ctrl is not None:
+                self._live_ctrl.enable_live()
+
+            self._mode = "LIVE"
+            log.info(
+                "mode_switched_live",
+                telegram_user_id=ctx.telegram_user_id,
+            )
+        else:
+            # Switch to PAPER
+            if self._live_ctrl is not None:
+                self._live_ctrl.enable_paper()
+
+            self._mode = "PAPER"
+            log.info(
+                "mode_switched_paper",
+                telegram_user_id=ctx.telegram_user_id,
+            )
+
+        await self._edit(
+            chat_id,
+            f"✅ Mode switched to `{self._mode}`.",
+            build_settings_menu(),
             message_id,
         )
 

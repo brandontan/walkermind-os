@@ -1,12 +1,13 @@
 """WalletManager — custodial wallet system.
 
-Provides per-user wallet creation and balance tracking.
+Provides per-user wallet creation and balance tracking with SQLite persistence.
 
 Rules:
     - Custodial only: no key export, no withdraw.
     - All operations are idempotent.
-    - Fee applied per-trade at backend; never surfaced in API responses.
+    - Fee applied per-trade at execution layer — fee = trade_size * fee_rate.
     - No global mutable state — all state is instance-scoped.
+    - Persists balance and exposure to SQLite on every write.
 
 Usage::
 
@@ -16,7 +17,7 @@ Usage::
     exposure  = await wm.get_exposure(wallet_id)
 
     # Called by execution layer only — not Telegram UI:
-    await wm.record_trade(wallet_id, gross_pnl=10.50)
+    await wm.record_trade(wallet_id, size=100.0, pnl_net=5.25, fee=0.50)
 """
 from __future__ import annotations
 
@@ -28,10 +29,12 @@ from typing import Optional
 
 import structlog
 
+from ..infra.db.sqlite_client import SQLiteClient
+
 log = structlog.get_logger()
 
 # ── Fee constant (backend only — never exposed) ───────────────────────────────
-_TRADE_FEE_RATE: float = 0.005   # 0.5 % of gross PnL per trade
+_TRADE_FEE_RATE: float = 0.005   # 0.5 % of trade size per trade
 
 
 @dataclass
@@ -46,17 +49,23 @@ class _WalletRecord:
 
 
 class WalletManager:
-    """In-process custodial wallet store.
+    """In-process custodial wallet store with SQLite persistence.
 
     Thread-safety: asyncio single event-loop only.
+
+    Args:
+        db: Optional SQLiteClient for persistence.  When provided, wallets
+            are loaded from the DB on creation and persisted on every write.
+            When None, operates in in-memory mode (no persistence).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, db: Optional[SQLiteClient] = None) -> None:
         self._wallets: dict[str, _WalletRecord] = {}      # wallet_id → record
         self._user_index: dict[int, str] = {}              # user_id → wallet_id
         self._lock = asyncio.Lock()
+        self._db = db
 
-        log.info("wallet_manager_initialized")
+        log.info("wallet_manager_initialized", persistent=db is not None)
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -64,6 +73,7 @@ class WalletManager:
         """Create and register a new wallet for *user_id*.
 
         Idempotent: returns the existing wallet_id if one already exists.
+        Persists the wallet record to SQLite when a DB client is configured.
 
         Args:
             user_id: Telegram user ID.
@@ -87,7 +97,17 @@ class WalletManager:
                 user_id=user_id,
                 wallet_id=wallet_id,
             )
-            return wallet_id
+
+        # Persist outside the lock to avoid blocking
+        if self._db is not None:
+            await self._db.upsert_wallet(
+                wallet_id=wallet_id,
+                balance=record.balance,
+                exposure=record.exposure,
+                updated_at=record.created_at,
+            )
+
+        return wallet_id
 
     async def get_balance(self, wallet_id: str) -> float:
         """Return net balance for *wallet_id*.
@@ -124,44 +144,63 @@ class WalletManager:
     async def record_trade(
         self,
         wallet_id: str,
-        gross_pnl: float,
+        size: float,
+        pnl_net: float,
+        fee: float,
         exposure_delta: float = 0.0,
-    ) -> float:
-        """Record a completed trade and apply the hidden platform fee.
+        user_id: Optional[int] = None,
+    ) -> None:
+        """Record a completed trade and update wallet balance.
 
-        The net PnL (after fee deduction) is added to the wallet balance.
-        This method is called by the execution layer — never by Telegram UI.
+        The fee is calculated as ``size * _TRADE_FEE_RATE`` at the execution
+        layer and passed in here for logging.  This method does NOT re-apply
+        a fee — it only records the trade.
 
         Args:
             wallet_id: Wallet to credit/debit.
-            gross_pnl: Gross trade PnL before fee.
+            size: Trade size in USD (used for fee calculation reference).
+            pnl_net: Net PnL after fee (applied to wallet balance).
+            fee: Fee amount already deducted (= size * fee_rate).
             exposure_delta: Change in open exposure (positive = open, negative = close).
-
-        Returns:
-            Net PnL after fee (for internal use only).
+            user_id: Optional Telegram user ID for DB trade record.
         """
-        net_pnl = self._apply_fee(gross_pnl)
-
         async with self._lock:
             record = self._wallets.get(wallet_id)
             if record is None:
                 log.error("wallet_not_found_record_trade", wallet_id=wallet_id)
-                return net_pnl
+                return
 
-            record.balance += net_pnl
+            record.balance += pnl_net
             record.exposure = max(0.0, record.exposure + exposure_delta)
             record.total_trades += 1
+
+            balance_snapshot = record.balance
+            exposure_snapshot = record.exposure
 
             log.info(
                 "wallet_trade_recorded",
                 wallet_id=wallet_id,
-                gross_pnl=round(gross_pnl, 6),
-                net_pnl=round(net_pnl, 6),
-                new_balance=round(record.balance, 6),
+                size=round(size, 6),
+                fee=round(fee, 6),
+                pnl_net=round(pnl_net, 6),
+                new_balance=round(balance_snapshot, 6),
                 total_trades=record.total_trades,
             )
 
-        return net_pnl
+        # Persist outside the lock to avoid blocking
+        if self._db is not None:
+            await self._db.upsert_wallet(
+                wallet_id=wallet_id,
+                balance=balance_snapshot,
+                exposure=exposure_snapshot,
+            )
+            if user_id is not None:
+                await self._db.insert_trade(
+                    user_id=user_id,
+                    size=size,
+                    fee=fee,
+                    pnl_net=pnl_net,
+                )
 
     async def wallet_id_for_user(self, user_id: int) -> Optional[str]:
         """Look up wallet_id for *user_id*.
@@ -178,19 +217,57 @@ class WalletManager:
     # ── Private ────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _apply_fee(gross_pnl: float) -> float:
-        """Deduct platform fee from gross PnL.
+    def calculate_fee(trade_size: float) -> float:
+        """Calculate the platform fee for a given trade size.
 
-        Fee is only applied when gross_pnl is positive (winning trade).
-        Never surfaced in UI responses.
+        Fee is a fixed percentage of trade size (not PnL).
+        This is the canonical fee calculation — always use this method.
+
+        Negative ``trade_size`` values are clamped to zero (no fee charged
+        on zero-size or invalid trades).
 
         Args:
-            gross_pnl: Pre-fee trade PnL.
+            trade_size: Trade size in USD.  Must be >= 0 in normal usage.
 
         Returns:
-            Net PnL after fee.
+            Fee amount in USD (>= 0).
         """
-        if gross_pnl <= 0.0:
-            return gross_pnl
-        fee = gross_pnl * _TRADE_FEE_RATE
-        return gross_pnl - fee
+        return max(0.0, trade_size) * _TRADE_FEE_RATE
+
+    async def load_from_db(self, wallet_id: str, user_id: int) -> bool:
+        """Reload wallet state from the DB into memory.
+
+        Called on startup to restore persisted state so that in-memory
+        records reflect the last persisted values after a restart.
+
+        Args:
+            wallet_id: Wallet identifier to load.
+            user_id: Telegram user ID that owns this wallet.
+
+        Returns:
+            True if the wallet was found and loaded, False otherwise.
+        """
+        if self._db is None:
+            return False
+        row = await self._db.get_wallet(wallet_id)
+        if row is None:
+            return False
+
+        async with self._lock:
+            if wallet_id not in self._wallets:
+                record = _WalletRecord(wallet_id=wallet_id, user_id=user_id)
+                self._wallets[wallet_id] = record
+                self._user_index[user_id] = wallet_id
+            else:
+                record = self._wallets[wallet_id]
+
+            record.balance = float(row.get("balance", 0.0))
+            record.exposure = float(row.get("exposure", 0.0))
+
+            log.info(
+                "wallet_loaded_from_db",
+                wallet_id=wallet_id,
+                balance=record.balance,
+                exposure=record.exposure,
+            )
+        return True
