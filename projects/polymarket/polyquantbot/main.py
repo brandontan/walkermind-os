@@ -111,6 +111,31 @@ async def main() -> None:
     activation_monitor = SystemActivationMonitor()
     await activation_monitor.start()
 
+    # ── WebSocket client (data feed) ──────────────────────────────────────────
+    from .data.websocket.ws_client import PolymarketWSClient
+    _raw_market_ids = os.getenv("MARKET_IDS", "").strip()
+    market_ids: list[str] = (
+        [mid.strip() for mid in _raw_market_ids.split(",") if mid.strip()]
+        if _raw_market_ids and _raw_market_ids.lower() != "auto"
+        else []
+    )
+    ws_client: Optional[PolymarketWSClient] = None
+    if market_ids:
+        ws_client = PolymarketWSClient.from_env(market_ids=market_ids)
+        await ws_client.connect()
+        log.info("polyquantbot_ws_started", market_count=len(market_ids))
+
+        async def _ws_event_loop() -> None:
+            async for event in ws_client.events():  # type: ignore[union-attr]
+                activation_monitor.record_event()
+
+        asyncio.create_task(_ws_event_loop(), name="ws_event_loop")
+    else:
+        log.warning(
+            "polyquantbot_no_market_ids",
+            hint="Set MARKET_IDS env var (comma-separated condition IDs) to enable WS feed",
+        )
+
     # ── Command handler ────────────────────────────────────────────────────────
     from .telegram.command_handler import CommandHandler
     cmd_handler = CommandHandler(

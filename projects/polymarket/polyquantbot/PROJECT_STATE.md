@@ -1,7 +1,7 @@
 # PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: System activation complete — Telegram production-ready, data flow monitoring active
+Status: Full wiring activation complete — WS → pipeline → signal → trade → Telegram
 
 ---
 
@@ -18,6 +18,7 @@ Status: System activation complete — Telegram production-ready, data flow moni
 - Phase 13.1 — Dashboard MVP (React + TypeScript frontend + aiohttp backend)
 - ws-fix-compatibility — WebSocket extra_headers → additional_headers; fail-fast after 5 retries; startup version log
 - system-activation-final — Telegram production-ready (6 new alert methods); SystemActivationMonitor (event/signal counters, 10s log, 60s assert); WSClientStats connection state; main.py Telegram init fix + startup alert + heartbeat task
+- full-wiring-activation — WS client wired into main.py (MARKET_IDS env var); event loop calls activation_monitor.record_event(); LivePaperRunner wired with activation_monitor (record_signal, record_trade) + alert_signal/alert_trade Telegram hooks; heartbeat ws_connected fixed to use ws_client.stats().connected
 
 ---
 
@@ -39,16 +40,14 @@ Status: System activation complete — Telegram production-ready, data flow moni
 
 ## NEXT PRIORITY
 
-- Wire real WS client stats into main.py heartbeat (ws_connected field)
-- Wire signal pipeline output into SystemActivationMonitor.record_signal()
-- Wire order execution into SystemActivationMonitor.record_trade()
+- Phase 14: Feedback loop (performance-driven weight updates)
 - Surface real balance / pnl_today from live PnL tracker once available
 
 ---
 
 ## KNOWN ISSUES
 
-- Heartbeat reports ws_connected=False (hardcoded) — real WS state wiring is Phase 15 scope
 - portfolio.balance and portfolio.pnl_today return null until a dedicated PnL
   tracker is wired into DashboardServer
 - Dashboard currently binds to 127.0.0.1 only (no public exposure)
+- WS feed only starts when MARKET_IDS env var is set (empty = no feed)

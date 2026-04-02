@@ -88,6 +88,7 @@ from ...monitoring.metrics_validator import MetricsValidator
 from ...telegram.telegram_live import TelegramLive
 from ...monitoring.activity_monitor import ActivityMonitor
 from ...monitoring.signal_metrics import SignalMetrics, SkipReason
+from ...monitoring.system_activation import SystemActivationMonitor
 from ...strategy.base.signal_engine import SignalEngine
 
 log = structlog.get_logger()
@@ -180,6 +181,7 @@ class LivePaperRunner:
         depth_levels: int = _DEPTH_LEVELS,
         signal_metrics: Optional[SignalMetrics] = None,
         signal_debug_mode: Optional[bool] = None,
+        activation_monitor: Optional[SystemActivationMonitor] = None,
     ) -> None:
         """Initialise the live paper runner.
 
@@ -210,6 +212,8 @@ class LivePaperRunner:
                 if not provided.
             signal_debug_mode: Override SIGNAL_DEBUG_MODE env var for the
                 embedded SignalEngine.  None means read from env.
+            activation_monitor: Optional SystemActivationMonitor for tracking
+                event/signal/trade counts end-to-end.
         """
         # Enforce PAPER mode — this is non-negotiable for Phase 10.4
         if go_live_controller.mode is not TradingMode.PAPER:
@@ -263,6 +267,9 @@ class LivePaperRunner:
             order_source=lambda: self._sim_order_count,
             alert_window_s=_ACTIVITY_ALERT_WINDOW_S,
         )
+
+        # ── Full wiring: activation monitor ───────────────────────────────────
+        self._activation_monitor: Optional[SystemActivationMonitor] = activation_monitor
 
         # Runtime counters
         self._running: bool = False
@@ -507,6 +514,8 @@ class LivePaperRunner:
             event: Incoming WSEvent (orderbook or trade).
         """
         self._event_count += 1
+        if self._activation_monitor is not None:
+            self._activation_monitor.record_event()
 
         if event.type == "orderbook":
             await self._handle_orderbook_event(event)
@@ -583,6 +592,13 @@ class LivePaperRunner:
             return
 
         self._signal_count += 1
+        if self._activation_monitor is not None:
+            self._activation_monitor.record_signal()
+        await self._telegram.alert_signal(
+            market_id=market_id,
+            edge=float(signal.get("expected_ev", 0.0)),
+            size=float(signal.get("size_usd", 0.0)),
+        )
 
         await self._simulate_order(
             market_id=market_id,
@@ -738,6 +754,13 @@ class LivePaperRunner:
         filled = sim_result.success
         if filled:
             self._fill_count += 1
+            if self._activation_monitor is not None:
+                self._activation_monitor.record_trade()
+            await self._telegram.alert_trade(
+                side=side,
+                price=sim_result.simulated_price,
+                size=sim_result.filled_size,
+            )
         self._metrics.record_fill(filled=filled)
 
         if filled and sim_result.simulated_price > 0:
