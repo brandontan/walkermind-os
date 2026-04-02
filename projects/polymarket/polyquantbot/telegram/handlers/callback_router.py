@@ -122,6 +122,7 @@ class CallbackRouter:
             message_id=message_id,
             user_id=user_id,
         )
+        log.info("telegram_handler", handler="NEW_SYSTEM")
 
         # Step 1: answer callback_query — required to clear loading spinner
         await self._answer_callback(session, cq_id)
@@ -134,6 +135,14 @@ class CallbackRouter:
 
         # Step 2: dispatch
         try:
+            # Hard block: legacy UI keyword prefix check — catches exact actions
+            # ("health", "performance", "strategies") and any future variants
+            # that carry these substrings (e.g. "action:health_v2").
+            # Intentionally broad per task requirement; actions with these words
+            # should never exist in the new inline system.
+            if any(x in cb_data for x in ("health", "performance", "strategies")):
+                log.warning("callback_legacy_blocked", callback_data=cb_data)
+                raise RuntimeError("LEGACY UI DISABLED")
             text, keyboard = await self._dispatch(action)
         except asyncio.CancelledError:
             raise

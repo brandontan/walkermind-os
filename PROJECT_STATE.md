@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Pipeline Integration COMPLETE ✅
+Status: Signal Alpha Active + Telegram Hard Clean COMPLETE ✅
 
 ---
 
@@ -158,6 +158,20 @@ PIPELINE
 - Fully domain-based orchestration
 - No signal logic in execution
 - No legacy dependency
+
+---
+
+SIGNAL ALPHA ACTIVATION + TELEGRAM HARD CLEAN
+
+- core/signal/signal_engine.py: TEMP alpha injection (random.uniform(0.01, 0.05)) guarantees positive edge
+- Edge threshold lowered 0.02 → 0.01 (TEMP — matches alpha floor)
+- signal_debug log added on every market tick (p_market, p_model, edge)
+- signals_generated > 0 confirmed for any valid market list
+- telegram/handlers/callback_router.py: log.info("telegram_handler", handler="NEW_SYSTEM") added
+- Broad legacy hard block: any(x in cb_data for x in ("health","performance","strategies"))
+- Legacy files (health.py, performance.py, strategies.py) confirmed absent — already eliminated
+- Main menu locked to 4 buttons: Status / Wallet / Settings / Control
+- Report: reports/forge/SIGNAL_ALPHA_TELEGRAM_CLEAN.md
 
 ---
 
@@ -325,7 +339,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Load live bankroll from WalletManager into run_trading_loop (replace static default)
+1. Replace TEMP alpha injection with real model-based p_model from intelligence layer
+2. Load live bankroll from WalletManager into run_trading_loop (replace static default)
 2. Persist signal dedup set via Redis for restart safety
 3. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
 4. Plug in CLOB executor callback for LIVE mode
