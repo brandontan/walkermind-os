@@ -346,19 +346,16 @@ async def main() -> None:
     runner: Optional["LivePaperRunner"] = None
     pipeline_task = None
     try:
-        cfg, market_ids = await run_bootstrap()
+        cfg, market_ids, market_meta = await run_bootstrap()
 
         # ── Send STARTUP alert with real market count ──────────────────────────
         await tg.alert_startup(mode=mode, market_count=len(market_ids))
 
-        runner = LivePaperRunner.from_config(
-            cfg=cfg,
-            market_ids=market_ids,
-        )
+        runner = LivePaperRunner.from_config(cfg=cfg, market_ids=market_ids)
         await runner.start()
 
-        # Sync discovered market IDs into config_manager so /markets shows them
-        config_manager.update_market_ids(market_ids)
+        # Sync discovered market IDs + metadata into config_manager
+        config_manager.update_market_ids(market_ids, market_meta)
 
         # Wire runner into command handler for live /status data
         if hasattr(cmd_handler, "set_runner"):

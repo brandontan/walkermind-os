@@ -114,6 +114,7 @@ class ConfigManager:
             else float(os.environ.get("MIN_LIQUIDITY_USD", str(_DEFAULT_MIN_LIQUIDITY_USD)))
         )
         self._market_ids: List[str] = []
+        self._market_meta: List[dict] = []
         self._lock = asyncio.Lock()
         self._updated_at = time.time()
 
@@ -236,21 +237,19 @@ class ConfigManager:
         )
         return clamped
 
-    def update_market_ids(self, market_ids: List[str]) -> None:
-        """Update the active market IDs list (sync, no lock needed for list replace).
-
-        Args:
-            market_ids: New list of Polymarket condition IDs.
-        """
+    def update_market_ids(self, market_ids: List[str], market_meta: List[dict] = None) -> None:
+        """Update active market IDs and optional metadata."""
         prev_count = len(self._market_ids)
         self._market_ids = list(market_ids)
+        if market_meta is not None:
+            self._market_meta = list(market_meta)
         self._updated_at = time.time()
-        log.info(
-            "config_manager_market_ids_updated",
-            previous_count=prev_count,
-            new_count=len(self._market_ids),
-            market_ids=self._market_ids[:5],
-        )
+        log.info("config_manager_market_ids_updated",
+                 previous_count=prev_count, new_count=len(self._market_ids))
+
+    @property
+    def market_meta(self) -> List[dict]:
+        return list(self._market_meta)
 
     # ── Validation helpers ─────────────────────────────────────────────────────
 

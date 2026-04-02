@@ -299,8 +299,41 @@ async def _fetch_active_markets(
     qualifying.sort(key=lambda x: x["_vol"], reverse=True)
     top = qualifying[:max_markets]
 
-    condition_ids = []
-    token_ids = []
+    # Store rich market metadata for /markets display
+    market_meta = []
+    for m in top:
+        outcomes = m.get("outcomes", [])
+        tokens = m.get("tokens", [])
+        # Parse YES price from outcomePrices or tokens
+        yes_price = None
+        no_price = None
+        outcome_prices = m.get("outcomePrices", [])
+        if outcome_prices and len(outcome_prices) >= 2:
+            try:
+                yes_price = round(float(outcome_prices[0]), 3)
+                no_price = round(float(outcome_prices[1]), 3)
+            except (ValueError, TypeError):
+                pass
+        elif tokens:
+            for t in tokens:
+                outcome = (t.get("outcome") or "").lower()
+                price = t.get("price") or t.get("lastPrice")
+                if price:
+                    try:
+                        if "yes" in outcome:
+                            yes_price = round(float(price), 3)
+                        elif "no" in outcome:
+                            no_price = round(float(price), 3)
+                    except (ValueError, TypeError):
+                        pass
+        market_meta.append({
+            "conditionId": m.get("conditionId", ""),
+            "question": m.get("question") or m.get("title") or m.get("description", "Unknown"),
+            "volume": m.get("_vol", 0),
+            "yes_price": yes_price,
+            "no_price": no_price,
+            "end_date": (m.get("endDate") or m.get("end_date_iso") or "")[:10],
+        })
 
     for m in top:
         # Prefer clobTokenIds (flat list of YES/NO token IDs) for WS subscription
@@ -327,33 +360,18 @@ async def _fetch_active_markets(
         selected=len(condition_ids),
         token_ids_count=len(token_ids),
         using_token_ids=bool(token_ids),
-        ws_ids_sample=ws_ids[:3],   # log first 3 for debugging Events:0
+        ws_ids_sample=ws_ids[:3],
         condition_ids=condition_ids,
     )
-    return ws_ids
+    return ws_ids, market_meta
 
 
-async def discover_markets(cfg: dict[str, Any]) -> list[str]:
-    """Return the list of market IDs to subscribe to.
-
-    If MARKET_IDS is set in the environment, those IDs are used as-is.
-    Otherwise, automatic discovery is performed via the Gamma API.
-
-    A hard RuntimeError is raised if discovery returns zero markets.
-
-    Args:
-        cfg: Pipeline config dict (used to read min_liquidity_usd).
-
-    Returns:
-        Non-empty list of condition IDs.
-
-    Raises:
-        RuntimeError: If no markets are found.
-    """
+async def discover_markets(cfg: dict[str, Any]) -> tuple[list[str], list[dict]]:
+    """Return market IDs + metadata. Auto-discovers via Gamma API if MARKET_IDS not set."""
     explicit = _parse_market_ids_from_env()
     if explicit:
         log.info("bootstrap_using_explicit_market_ids", count=len(explicit))
-        return explicit
+        return explicit, []
 
     max_markets = _env_int("MAX_MARKETS", _DEFAULT_MAX_MARKETS)
     min_liquidity = cfg.get("execution_guard", {}).get(
@@ -361,7 +379,7 @@ async def discover_markets(cfg: dict[str, Any]) -> list[str]:
     )
     gamma_url = _env("GAMMA_API_URL") or _DEFAULT_GAMMA_API_URL
 
-    market_ids = await _fetch_active_markets(
+    market_ids, market_meta = await _fetch_active_markets(
         gamma_url=gamma_url,
         min_liquidity=min_liquidity,
         max_markets=max_markets,
@@ -374,7 +392,7 @@ async def discover_markets(cfg: dict[str, Any]) -> list[str]:
             "Either set MARKET_IDS explicitly or lower MIN_LIQUIDITY_USD."
         )
 
-    return market_ids
+    return market_ids, market_meta
 
 
 # ── Startup log ───────────────────────────────────────────────────────────────
@@ -423,7 +441,7 @@ async def run_bootstrap() -> tuple[dict[str, Any], list[str]]:
     """
     validate_credentials()
     cfg = build_config()
-    market_ids = await discover_markets(cfg)
+    market_ids, market_meta = await discover_markets(cfg)
     mode = cfg["go_live"]["mode"]
     log_startup(mode, market_ids)
-    return cfg, market_ids
+    return cfg, market_ids, market_meta

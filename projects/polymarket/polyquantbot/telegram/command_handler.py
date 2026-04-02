@@ -821,34 +821,50 @@ class CommandHandler:
         )
 
     async def _handle_markets(self) -> CommandResult:
-        """Show currently active market IDs."""
+        """Show currently active markets with name, price and volume."""
         snap = self._config.snapshot()
-        ids = snap.market_ids
-        # Fallback: read directly from runner if config not yet synced
-        if not ids and self._runner is not None:
+        meta = self._config.market_meta
+
+        # Fallback: read from runner if meta not yet loaded
+        if not meta and self._runner is not None:
             try:
                 ids = list(self._runner._market_ids)
             except Exception:
-                pass
-        if not ids:
-            return CommandResult(
-                success=True,
-                message=format_command_response(
-                    command="markets",
-                    success=True,
-                    message="No markets active. Run /rediscover to fetch markets.",
-                ),
+                ids = []
+            if not ids:
+                return CommandResult(success=True,
+                    message="No markets active. Tap 🔍 Rediscover or run /rediscover.")
+            lines = [f"📋 *ACTIVE MARKETS* ({len(ids)})\n"]
+            for i, mid in enumerate(ids[:15], 1):
+                short = mid[:10] + "…" + mid[-6:] if len(mid) > 18 else mid
+                lines.append(f"`{i}.` `{short}`")
+            return CommandResult(success=True, message="\n".join(lines))
+
+        if not meta:
+            return CommandResult(success=True,
+                message="No markets active. Tap 🔍 Rediscover or run /rediscover.")
+
+        lines = [f"📋 *ACTIVE MARKETS* ({len(meta)})\n"]
+        for i, m in enumerate(meta, 1):
+            q = m.get("question", "Unknown")
+            q = q if len(q) <= 55 else q[:52] + "…"
+            vol = m.get("volume", 0)
+            vol_str = f"${vol/1000:.0f}K" if vol >= 1000 else f"${vol:.0f}"
+            yes = m.get("yes_price")
+            no = m.get("no_price")
+            price_str = f"YES {yes:.0%} | NO {no:.0%}" if yes and no else ""
+            end = m.get("end_date", "")
+            lines.append(
+                f"*{i}.* {q}\n"
+                f"   {price_str}  Vol: {vol_str}"
+                + (f"  Ends: {end}" if end else "")
             )
-        lines = ["📋 *ACTIVE MARKETS*\n"]
-        for i, mid in enumerate(ids, 1):
-            short = mid[:10] + "..." + mid[-6:] if len(mid) > 20 else mid
-            lines.append(f"`{i}.` `{short}`")
-        lines.append(f"\n_Total: {len(ids)} market(s)_")
-        lines.append("_Use /rediscover to refresh_")
+            lines.append("")  # blank line between markets
+
         return CommandResult(
             success=True,
             message="\n".join(lines),
-            payload={"market_ids": ids, "count": len(ids)},
+            payload={"markets": meta, "count": len(meta)},
         )
 
     async def _handle_rediscover(self) -> CommandResult:
