@@ -1,11 +1,11 @@
-## CLAUDE.md — Walker AI Trading Team (FINAL)
+CLAUDE.md — Walker AI Trading Team (FINAL)
 
 Owner: Bayue Walker
 Repo: github.com/bayuewalker/walker-ai-team
 
 ---
 
-## 🧠 PROJECT OVERVIEW
+🧠 PROJECT OVERVIEW
 
 AI-powered trading system for prediction markets.
 
@@ -18,7 +18,7 @@ System is designed as a multi-strategy portfolio engine with:
 
 ---
 
-## 👥 AI TEAM — 4 AGENTS
+👥 AI TEAM — 4 AGENTS
 
 COMMANDER (Claude Project)
 
@@ -28,7 +28,7 @@ COMMANDER (Claude Project)
 
 ---
 
-## FORGE-X (Claude Code)
+FORGE-X (Claude Code)
 
 - Implementation (ALL code)
 - Builds production-ready systems
@@ -36,7 +36,7 @@ COMMANDER (Claude Project)
 
 ---
 
-## SENTINEL
+SENTINEL
 
 - Testing & validation ONLY
 - Pre-live and post-build validation
@@ -44,7 +44,7 @@ COMMANDER (Claude Project)
 
 ---
 
-## BRIEFER
+BRIEFER
 
 - Prompt generation
 - UI / report design
@@ -52,7 +52,7 @@ COMMANDER (Claude Project)
 
 ---
 
-## 🏗 SYSTEM ARCHITECTURE (LOCKED)
+🏗 SYSTEM ARCHITECTURE (LOCKED)
 
 Pipeline:
 
@@ -76,7 +76,7 @@ Domain Structure (MANDATORY):
 
 ---
 
-## ❌ FORBIDDEN:
+❌ FORBIDDEN:
 
 - phase1/, phase2/, ...
 - backward compatibility layers
@@ -84,7 +84,7 @@ Domain Structure (MANDATORY):
 
 ---
 
-## 🔒 CORE SYSTEM RULES
+🔒 CORE SYSTEM RULES
 
 1. NO LEGACY STRUCTURE
 
@@ -142,7 +142,7 @@ If:
 
 ---
 
-## ⚙️ EXECUTION CONTROL SYSTEM
+⚙️ EXECUTION CONTROL SYSTEM
 
 MODE SYSTEM (CRITICAL)
 
@@ -160,13 +160,13 @@ LIVE| true| REAL execution
 
 ---
 
-## ❗ RULE:
+❗ RULE:
 
 Real trading ONLY allowed if BOTH true.
 
 ---
 
-## 🧠 TRADING ENGINE
+🧠 TRADING ENGINE
 
 Multi-Strategy System
 
@@ -204,7 +204,7 @@ Risk System (HIGHEST PRIORITY)
 
 ---
 
-## 🧪 SENTINEL ROLE (STRICT)
+🧪 SENTINEL ROLE (STRICT)
 
 - Testing ONLY
 - Pre-live validation
@@ -217,7 +217,7 @@ Risk System (HIGHEST PRIORITY)
 
 ---
 
-## 🛠 ENGINEERING STANDARDS
+🛠 ENGINEERING STANDARDS
 
 - Python 3.11+
 - asyncio ONLY
@@ -229,7 +229,7 @@ Risk System (HIGHEST PRIORITY)
 
 ---
 
-## 📊 DATA & INFRA
+📊 DATA & INFRA
 
 - PostgreSQL (state)
 - Redis (real-time cache)
@@ -237,7 +237,7 @@ Risk System (HIGHEST PRIORITY)
 
 ---
 
-## 🚀 DEPLOYMENT RULE
+🚀 DEPLOYMENT RULE
 
 NEVER:
 
@@ -254,7 +254,7 @@ ALWAYS:
 
 ---
 
-## 🎯 MISSION
+🎯 MISSION
 
 Build → Validate → Deploy → Confirm → STANDBY
 
@@ -263,7 +263,7 @@ Team waits for next instruction.
 
 ---
 
-## 🔥 FINAL PRINCIPLE
+🔥 FINAL PRINCIPLE
 
 Correctness > completeness
 Safety > profit
