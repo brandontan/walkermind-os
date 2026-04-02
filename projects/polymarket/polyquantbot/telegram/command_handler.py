@@ -206,8 +206,10 @@ class CommandHandler:
             timestamp=time.time(),
         )
 
-        # Send response back via Telegram
-        await self._send_response(result.message, cid)
+        # Send response back via Telegram only if not called from polling loop
+        # (polling loop handles its own reply to preserve correct chat_id)
+        if self._sender is not None and self._chat_id:
+            await self._send_response(result.message, cid)
         return result
 
     # ── Handlers (one per command) ─────────────────────────────────────────────
@@ -216,6 +218,25 @@ class CommandHandler:
         self, cmd: str, value: Optional[float], cid: str
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
+        if cmd == "start" or cmd == "help":
+            return CommandResult(
+                success=True,
+                message=(
+                    "KrusaderBot ready.\n\n"
+                    "*Commands:*\n"
+                    "/status — live pipeline status\n"
+                    "/settings — view all settings\n"
+                    "/markets — active market IDs\n"
+                    "/rediscover — refresh markets\n"
+                    "/pause — pause trading\n"
+                    "/resume — resume trading\n"
+                    "/set\\_markets N — set max markets (1-50)\n"
+                    "/set\\_liquidity N — set min liquidity\n"
+                    "/set\\_risk N — set risk multiplier\n"
+                    "/performance — P&L summary\n"
+                    "/health — system health check"
+                ),
+            )
         if cmd == "status":
             return await self._handle_status()
         if cmd == "pause":
@@ -252,18 +273,9 @@ class CommandHandler:
             return await self._handle_rediscover()
 
         return CommandResult(
-            success=False,
-            message=format_command_response(
-                command="unknown",
-                success=False,
-                message=(
-                    "Unknown command. Available:\n"
-                    "/status /pause /resume /kill\n"
-                    "/set_risk /set_max_position\n"
-                    "/metrics /prelive_check\n"
-                    "/allocation /strategies /performance /health\n"
-                    "/settings /set_markets /set_liquidity /markets /rediscover"
-                ),
+            success=True,
+            message=(
+                "Unknown command. Type /start or /help for available commands."
             ),
         )
 

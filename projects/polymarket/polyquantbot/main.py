@@ -257,14 +257,16 @@ async def main() -> None:
                         data = await resp.json()
                     for update in data.get("result", []):
                         offset = update["update_id"] + 1
+                        # Only route text commands (start with /)
+                        msg = update.get("message") or update.get("edited_message")
+                        if not msg:
+                            continue
+                        text = (msg.get("text") or "").strip()
+                        if not text.startswith("/"):
+                            continue
                         result = await router.route_update(update)
                         if result and result.message:
-                            # Reply to the originating chat
-                            reply_chat = (
-                                update.get("message", {})
-                                .get("chat", {})
-                                .get("id")
-                            )
+                            reply_chat = msg.get("chat", {}).get("id")
                             if reply_chat:
                                 await session.post(
                                     f"{_tg_api}/sendMessage",
