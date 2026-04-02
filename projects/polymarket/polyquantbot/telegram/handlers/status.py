@@ -2,6 +2,10 @@
 
 All handlers are async, pure functions — no Telegram API calls here.
 Return type: tuple[str, InlineKeyboard]
+
+Legacy handlers (handle_performance, handle_health, handle_strategies) have
+been removed. All routing to those actions now raises RuntimeError("LEGACY UI DISABLED")
+in CallbackRouter before reaching this module.
 """
 from __future__ import annotations
 
@@ -12,8 +16,6 @@ import structlog
 from ..ui.keyboard import build_status_menu
 from ..ui.screens import (
     status_screen,
-    performance_screen,
-    strategies_screen,
     error_screen,
 )
 
@@ -59,85 +61,4 @@ async def handle_status(
         max_position=snap_cfg.max_position,
         pipeline_lines=pipeline_lines or None,
     )
-    return text, build_status_menu()
-
-
-async def handle_performance(
-    cmd_handler: "CommandHandler",
-    mode: str,
-) -> tuple[str, list]:
-    """Return PnL + win-rate performance summary."""
-    multi_metrics = getattr(cmd_handler, "_multi_metrics", None)
-    if multi_metrics is None:
-        return "📈 *PERFORMANCE*\n\nMultiStrategyMetrics not configured.", build_status_menu()
-    try:
-        snapshot = multi_metrics.snapshot()
-        total_pnl = sum(float(v.get("total_pnl", 0.0)) for v in snapshot.values())
-        total_trades = getattr(multi_metrics, "total_trades", 0)
-        text = performance_screen(
-            total_pnl=round(total_pnl, 4),
-            total_trades=total_trades,
-            mode=mode,
-        )
-    except Exception as exc:
-        log.error("handle_performance_error", error=str(exc))
-        text = error_screen(context="performance", error=str(exc))
-    return text, build_status_menu()
-
-
-async def handle_health(
-    state_manager: "SystemStateManager",
-    config_manager: "ConfigManager",
-    cmd_handler: "CommandHandler",
-    mode: str,
-) -> tuple[str, list]:
-    """Return full system health snapshot."""
-    try:
-        from ...core.system_snapshot import build_system_snapshot
-        from ..message_formatter import format_health_snapshot
-
-        snap = build_system_snapshot(
-            state_manager=state_manager,
-            config_manager=config_manager,
-            metrics=getattr(cmd_handler, "_multi_metrics", None),
-            allocator=getattr(cmd_handler, "_allocator", None),
-            risk_guard=getattr(cmd_handler, "_risk_guard", None),
-            mode=mode,
-        )
-        text = format_health_snapshot(
-            mode=snap.mode,
-            system_state=snap.system_state,
-            state_reason=snap.state_reason,
-            total_exposure_usd=snap.total_exposure_usd,
-            total_pnl=snap.total_pnl,
-            drawdown=snap.drawdown,
-            bankroll=snap.bankroll,
-            active_strategies=snap.active_strategies,
-            disabled_strategies=snap.disabled_strategies,
-            suppressed_strategies=snap.suppressed_strategies,
-            total_trades=snap.total_trades,
-            total_signals=snap.total_signals,
-            risk_multiplier=snap.risk_multiplier,
-            max_position=snap.max_position,
-        )
-    except Exception as exc:
-        log.error("handle_health_error", error=str(exc))
-        text = error_screen(context="health", error=str(exc))
-    return text, build_status_menu()
-
-
-async def handle_strategies(
-    cmd_handler: "CommandHandler",
-) -> tuple[str, list]:
-    """Return per-strategy metrics snapshot."""
-    multi_metrics = getattr(cmd_handler, "_multi_metrics", None)
-    if multi_metrics is None:
-        return "📋 *STRATEGIES*\n\nMultiStrategyMetrics not configured.", build_status_menu()
-    try:
-        snapshot = multi_metrics.snapshot()
-        conflicts = getattr(multi_metrics, "total_conflicts", 0)
-        text = strategies_screen(snapshot=snapshot, conflicts=conflicts)
-    except Exception as exc:
-        log.error("handle_strategies_error", error=str(exc))
-        text = error_screen(context="strategies", error=str(exc))
     return text, build_status_menu()

@@ -199,11 +199,14 @@ class TestCB03StatusMenu:
         cds = _callback_data_values(build_status_menu())
         assert "action:back_main" in cds
 
-    def test_performance_and_health_present(self) -> None:
+    def test_legacy_buttons_removed(self) -> None:
+        # Legacy Health / Performance / Strategies buttons have been removed.
+        # Status menu now contains only Refresh + Main Menu.
         cds = _callback_data_values(build_status_menu())
-        assert "action:performance" in cds
-        assert "action:health" in cds
-        assert "action:strategies" in cds
+        assert "action:refresh" in cds
+        assert "action:performance" not in cds
+        assert "action:health" not in cds
+        assert "action:strategies" not in cds
 
 
 # ══════════════════════════════════════════════════════════════════════════════

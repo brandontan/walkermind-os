@@ -299,6 +299,10 @@ async def _fetch_active_markets(
     qualifying.sort(key=lambda x: x["_vol"], reverse=True)
     top = qualifying[:max_markets]
 
+    # Initialize accumulator lists before iterating over top markets
+    token_ids: list[str] = []
+    condition_ids: list[str] = []
+
     # Store rich market metadata for /markets display
     market_meta = []
     for m in top:

@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Phase 13.3 Telegram Callback Router + Inline UI COMPLETE ✅
+Status: Telegram Cleanup + Pipeline Fix COMPLETE ✅
 
 ---
 
@@ -122,6 +122,21 @@ PIPELINE
 - Fully domain-based orchestration
 - No signal logic in execution
 - No legacy dependency
+
+---
+
+TELEGRAM CLEANUP + PIPELINE FIX
+
+- Removed legacy Telegram UI: health, performance, strategies callback routes eliminated
+- Hard block added: action:health/performance/strategies raises RuntimeError("LEGACY UI DISABLED")
+- Removed handle_performance, handle_health, handle_strategies from telegram/handlers/status.py
+- Removed MultiStrategyMetrics reference from callback_router.py strategy_toggle_ handler
+- build_status_menu() cleaned: only Refresh + Main Menu (no Health/Performance/Strategies)
+- Added back + refresh route aliases to callback_router.py
+- CRITICAL FIX: token_ids and condition_ids initialized in core/bootstrap.py _fetch_active_markets()
+- Pipeline logging: pipeline_started + condition_ids_loaded logs added to main.py
+- Pipeline fail-safe: condition_ids validated before runner startup; error key pipeline_crash
+- Report: reports/forge/TELEGRAM_CLEANUP_PIPELINE_FIX.md
 
 ---
 
@@ -290,6 +305,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 - Backtest engine uses simplified PnL model
 - Telegram delivery not stress-tested under real network load
 - WalletManager not yet wired into wallet handler (balance/exposure screens show informative stubs)
+- build_strategy_menu() still referenced in settings but strategy_toggle_* callbacks are unrouted (buttons fall through to unknown-action → main menu shown)
 
 ---
 

@@ -403,16 +403,24 @@ async def main() -> None:
     runner: Optional["LivePaperRunner"] = None
     pipeline_task = None
     try:
+        log.info("pipeline_started")
         cfg, market_ids, market_meta = await run_bootstrap()
 
-        # ── Send STARTUP alert with real market count ──────────────────────────
-        await tg.alert_startup(mode=mode, market_count=len(market_ids))
+        # Validate condition_ids (market_ids) before proceeding
+        condition_ids: list[str] = market_ids if market_ids else []
+        if not condition_ids:
+            log.warning("no_condition_ids_found")
+        else:
+            log.info("condition_ids_loaded", count=len(condition_ids))
 
-        runner = LivePaperRunner.from_config(cfg=cfg, market_ids=market_ids)
+        # ── Send STARTUP alert with real market count ──────────────────────────
+        await tg.alert_startup(mode=mode, market_count=len(condition_ids))
+
+        runner = LivePaperRunner.from_config(cfg=cfg, market_ids=condition_ids)
         await runner.start()
 
         # Sync discovered market IDs + metadata into config_manager
-        config_manager.update_market_ids(market_ids, market_meta)
+        config_manager.update_market_ids(condition_ids, market_meta)
 
         # Wire runner into command handler for live /status data
         if hasattr(cmd_handler, "set_runner"):
@@ -421,12 +429,12 @@ async def main() -> None:
         pipeline_task = asyncio.create_task(runner.run(), name="trading_pipeline")
         log.info(
             "polyquantbot_pipeline_started",
-            market_count=len(market_ids),
-            market_ids=market_ids[:5],
+            market_count=len(condition_ids),
+            market_ids=condition_ids[:5],
         )
     except Exception as exc:
         log.error(
-            "polyquantbot_pipeline_start_failed",
+            "pipeline_crash",
             error=str(exc),
             hint="Check market IDs, CLOB credentials, and Gamma API connectivity",
         )
