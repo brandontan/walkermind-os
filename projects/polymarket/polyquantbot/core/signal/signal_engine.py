@@ -36,6 +36,7 @@ Usage::
 from __future__ import annotations
 
 import os
+import random
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Sequence
@@ -46,7 +47,7 @@ log = structlog.get_logger()
 
 # ── Configuration defaults ─────────────────────────────────────────────────────
 
-_EDGE_THRESHOLD: float = 0.02          # 2 % minimum edge
+_EDGE_THRESHOLD: float = 0.01          # 1 % minimum edge (TEMP — alpha injection active)
 _MIN_LIQUIDITY_USD: float = 10_000.0   # $10,000 minimum market depth
 _KELLY_FRACTION: float = 0.25          # fractional Kelly multiplier
 _MAX_POSITION_FRACTION: float = 0.10   # max 10 % of bankroll per trade
@@ -145,11 +146,25 @@ async def generate_signals(
     for market in markets:
         market_id: str = str(market.get("market_id", ""))
         p_market: float = float(market.get("p_market", 0.0))
-        p_model: float = float(market.get("p_model", 0.0))
         liquidity_usd: float = float(market.get("liquidity_usd", 0.0))
+
+        # ── TEMP ALPHA INJECTION ─────────────────────────────────────────────
+        p_model_raw: float = float(market.get("p_model", 0.0))
+        alpha: float = random.uniform(0.01, 0.05)
+        p_model: float = min(max(p_market + alpha, 0.01), 0.99)
 
         # ── 1. Edge calculation ───────────────────────────────────────────────
         edge: float = p_model - p_market
+
+        log.info(
+            "signal_debug",
+            market_id=market_id,
+            p_market=round(p_market, 4),
+            p_model_raw=round(p_model_raw, 4),
+            p_model=round(p_model, 4),
+            alpha=round(alpha, 4),
+            edge=round(edge, 4),
+        )
 
         if edge <= 0:
             log.info(

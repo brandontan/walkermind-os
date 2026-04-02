@@ -65,7 +65,7 @@ log = structlog.get_logger()
 
 _MAX_CONCURRENT_TRADES: int = 5
 _MAX_POSITION_USD: float = 1_000.0
-_MIN_EDGE: float = 0.02
+_MIN_EDGE: float = 0.01
 _DEFAULT_MODE: str = "PAPER"
 
 

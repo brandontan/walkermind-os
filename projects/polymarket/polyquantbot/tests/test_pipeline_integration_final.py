@@ -679,7 +679,11 @@ async def test_tl15_full_pipeline_paper_e2e():
 
 
 async def test_tl16_no_signals_no_execution():
-    """TL-16: When generate_signals returns empty list no trade is attempted."""
+    """TL-16: When generate_signals returns empty list no trade is attempted.
+
+    Use a market with liquidity below the minimum threshold to guarantee
+    no signals are generated (alpha injection cannot bypass the liquidity filter).
+    """
     stop = asyncio.Event()
 
     async def fake_sleep(s):
@@ -690,7 +694,7 @@ async def test_tl16_no_signals_no_execution():
     with (
         patch(
             "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
-            new=AsyncMock(return_value=[_market(p_market=0.70, p_model=0.30)]),  # negative edge
+            new=AsyncMock(return_value=[_market(p_market=0.70, p_model=0.30, liquidity_usd=0.0)]),  # zero liquidity
         ),
         patch(
             "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
