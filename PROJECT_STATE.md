@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Phase 15 Production-Ready Infrastructure COMPLETE ✅
+Status: Phase 15 Production-Ready Infrastructure COMPLETE ✅ | Railway Deployment Ready ✅
 
 ---
 
@@ -45,6 +45,18 @@ FOUNDATION
 - Async event-driven system
 - Redis + PostgreSQL integration
 - Structured JSON logging
+
+---
+
+RAILWAY DEPLOYMENT
+
+- Root-level main.py entrypoint (delegates to polyquantbot main)
+- Root-level requirements.txt (Railpack auto-detection)
+- Procfile: `worker: python main.py`
+- runtime.txt: python-3.11
+- projects/__init__.py + projects/polymarket/__init__.py (import resolution)
+- projects/polymarket/polyquantbot/main.py (async main with env validation)
+- Fail-fast on missing LIVE env vars; graceful warning for missing MARKET_IDS
 
 ---
 
@@ -219,12 +231,13 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
-2. Market resolution PnL updates (TradeResult post-settlement)
-3. Bayesian updater: pass posterior confidence as ev_adjustment
-4. Telegram /performance command via CommandHandler
-5. Intelligence full integration into execution decisions
-6. Stage 2 LIVE deployment (increase limits after Stage 1 validated)
+1. Set MARKET_IDS + CLOB_WS_URL in Railway environment and deploy
+2. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
+3. Market resolution PnL updates (TradeResult post-settlement)
+4. Bayesian updater: pass posterior confidence as ev_adjustment
+5. Telegram /performance command via CommandHandler
+6. Intelligence full integration into execution decisions
+7. Stage 2 LIVE deployment (increase limits after Stage 1 validated)
 
 ---
 
