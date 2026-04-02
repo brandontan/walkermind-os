@@ -132,7 +132,10 @@ class CallbackRouter:
 
         action = cb_data[len(ACTION_PREFIX):]
 
-        # Step 2: dispatch
+        # INLINE_UPDATE — all menu navigation is edit-only from this point
+        log.info("INLINE_UPDATE", action=action, chat_id=chat_id, message_id=message_id)
+
+        # Step 2: dispatch to handler → (text, keyboard)
         try:
             text, keyboard = await self._dispatch(action)
         except asyncio.CancelledError:
@@ -151,17 +154,31 @@ class CallbackRouter:
         if not text:
             return
 
-        # Step 3: edit in-place; fallback to send on failure
+        # Step 3: edit in-place (primary path)
+        #         fallback to sendMessage ONLY if edit is truly unavailable
+        #         (message >48h old or deleted — not a navigation flow error)
         if chat_id and message_id:
-            edited = await self._edit_message(session, chat_id, message_id, text, keyboard)
-            if not edited:
-                log.warning(
-                    "callback_edit_failed_sending_new",
-                    chat_id=chat_id,
+            try:
+                edited = await self._edit_message(session, chat_id, message_id, text, keyboard)
+                if not edited:
+                    log.warning(
+                        "callback_edit_failed_sending_new",
+                        chat_id=chat_id,
+                        action=action,
+                    )
+                    await self._send_message(session, chat_id, text, keyboard)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                log.error(
+                    "callback_inline_update_failed",
                     action=action,
+                    chat_id=chat_id,
+                    error=str(exc),
                 )
                 await self._send_message(session, chat_id, text, keyboard)
         elif chat_id:
+            # No message_id — cannot edit; send new (only happens on first interaction)
             await self._send_message(session, chat_id, text, keyboard)
 
     # ── Dispatch table ─────────────────────────────────────────────────────────
@@ -173,7 +190,7 @@ class CallbackRouter:
             ``(text, inline_keyboard)`` tuple — text is Markdown-formatted,
             keyboard is a list[list[dict]] for Telegram ``inline_keyboard``.
         """
-        log.info("callback_dispatching", action=action)
+        log.info("INLINE_UPDATE", action=action)
 
         # Lazy imports — avoids circular deps and speeds up module load
         from .status import handle_status, handle_performance, handle_health, handle_strategies

@@ -276,17 +276,12 @@ async def main() -> None:
         offset = 0
         log.info("telegram_polling_started")
 
-        async def _send_result(session, reply_chat_id, result, callback_query_id=None):
-            """Send a new message for text command responses."""
-            if callback_query_id:
-                # Answer legacy callback (non-action: format) to clear spinner
-                try:
-                    await session.post(
-                        f"{_tg_api}/answerCallbackQuery",
-                        json={"callback_query_id": callback_query_id},
-                    )
-                except Exception:
-                    pass
+        async def _send_result(session, reply_chat_id, result):
+            """Send a new message for text command responses (/start, /status, etc.).
+
+            sendMessage is ONLY used for user-typed text commands.
+            All button-press navigation uses editMessageText via CallbackRouter.
+            """
             if not result or not result.message:
                 return
             payload = {
@@ -316,40 +311,36 @@ async def main() -> None:
                         offset = update["update_id"] + 1
 
                         # ── Inline button press ────────────────────────────
+                        # RULE: ALL callbacks MUST use action: prefix.
+                        # ONLY action: callbacks trigger an inline update
+                        # (editMessageText).  Non-action: callbacks are
+                        # answered silently — NO sendMessage, NO stacking.
                         cq = update.get("callback_query")
                         if cq:
                             cb_data = (cq.get("data") or "").strip()
                             cb_chat = cq.get("message", {}).get("chat", {}).get("id")
-                            cb_user = cq.get("from", {}).get("id", 0)
                             if cb_data and cb_chat:
                                 if cb_data.startswith("action:"):
-                                    # ── New system: edit in-place ──────────
+                                    # Inline update via CallbackRouter
                                     await _callback_router.route(session, cq)
-                                elif cb_data.endswith("_prompt"):
-                                    # ── Legacy prompt helper ───────────────
-                                    cmd_key = cb_data.replace("_prompt", "")
-                                    await _send_result(
-                                        session, cb_chat,
-                                        CommandResult(
-                                            success=True,
-                                            message=f"Type: `/{cmd_key} <value>`",
-                                        ),
-                                        callback_query_id=cq["id"],
-                                    )
                                 else:
-                                    # ── Legacy fallback: route via text ───
-                                    fake = {
-                                        "update_id": update["update_id"],
-                                        "message": {
-                                            "text": f"/{cb_data}",
-                                            "chat": {"id": cb_chat},
-                                            "from": {"id": cb_user},
-                                        },
-                                    }
-                                    result = await router.route_update(fake)
-                                    await _send_result(
-                                        session, cb_chat, result,
-                                        callback_query_id=cq["id"],
+                                    # Non-action: callback (old message in chat)
+                                    # Answer query to clear spinner — NO new message
+                                    try:
+                                        await session.post(
+                                            f"{_tg_api}/answerCallbackQuery",
+                                            json={
+                                                "callback_query_id": cq["id"],
+                                                "text": "⚠️ Outdated button — send /start to refresh.",
+                                                "show_alert": False,
+                                            },
+                                        )
+                                    except Exception as exc:
+                                        log.warning("callback_answer_legacy_failed", error=str(exc))
+                                    log.warning(
+                                        "callback_non_action_ignored",
+                                        callback_data=cb_data,
+                                        chat_id=cb_chat,
                                     )
                             continue
 
