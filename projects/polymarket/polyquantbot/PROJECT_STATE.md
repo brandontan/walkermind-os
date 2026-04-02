@@ -1,7 +1,7 @@
 # PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Phase 11.3 complete — multi-user Telegram system, wallet auto-creation, inline menus, control layer
+Status: Phase 11.4 complete — critical production fixes: wallet persistence, fee model correction, mode switch wiring
 
 ---
 
@@ -19,6 +19,7 @@ Status: Phase 11.3 complete — multi-user Telegram system, wallet auto-creation
 - ws-fix-compatibility — WebSocket extra_headers → additional_headers; fail-fast after 5 retries; startup version log
 - system-activation-final — Telegram production-ready (6 new alert methods); SystemActivationMonitor (event/signal counters, 10s log, 60s assert); WSClientStats connection state; main.py Telegram init fix + startup alert + heartbeat task
 - full-wiring-activation — WS client wired into main.py (MARKET_IDS env var); event loop calls activation_monitor.record_event(); LivePaperRunner wired with activation_monitor (record_signal, record_trade) + alert_signal/alert_trade Telegram hooks; heartbeat ws_connected fixed to use ws_client.stats().connected
+- Phase 11.4 — Critical production fixes: SQLite wallet persistence, fee = trade_size × 0.5%, LiveModeController.enable_live/paper() wired into MenuRouter, PreLiveValidator gate on LIVE switch, Telegram UI reflects real mode
 
 ---
 
@@ -64,3 +65,5 @@ Status: Phase 11.3 complete — multi-user Telegram system, wallet auto-creation
   tracker is wired into DashboardServer
 - Dashboard currently binds to 127.0.0.1 only (no public exposure)
 - WS feed only starts when MARKET_IDS env var is set (empty = no feed)
+- aiosqlite must be installed for SQLite persistence (pip install aiosqlite)
+- If prelive_validator is not wired in production bootstrap, switching to LIVE has no gate
