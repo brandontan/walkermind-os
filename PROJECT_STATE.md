@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Signal Execution Activation COMPLETE ✅
+Status: Pipeline Integration COMPLETE ✅
 
 ---
 
@@ -71,7 +71,19 @@ MARKET DISCOVERY FIX
 
 ---
 
-SIGNAL EXECUTION ACTIVATION
+PIPELINE INTEGRATION FINAL
+
+- core/pipeline/trading_loop.py: run_trading_loop() — continuous async market→signal→execution loop
+- Loop: get_active_markets() → generate_signals(markets, bankroll) → execute_trade(signal) × N → sleep(5s)
+- Heartbeat log on every tick; signal count logged after generate_signals
+- Fail-safe: any exception caught, iteration skipped, loop continues
+- PAPER mode default; LIVE mode via TRADING_MODE=LIVE + ENABLE_LIVE_TRADING=true
+- Configurable: TRADING_LOOP_INTERVAL_S (default 5), TRADING_LOOP_BANKROLL (default 1000)
+- main.py: trading_loop_task started as asyncio.Task alongside LivePaperRunner pipeline
+- Graceful shutdown: trading_loop_task cancelled before pipeline_task on SIGTERM
+- 20 tests pass (TL-01–TL-20); total suite: ~824 tests
+
+---
 
 - core/signal/signal_engine.py: generate_signals() — edge-based filter, EV calc, fractional Kelly sizing
 - core/execution/executor.py: execute_trade() — paper/live modes, dedup, kill switch, retry, structured logging
@@ -296,6 +308,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 - Wire RedisClient + DatabaseClient into pipeline startup sequence
 - Wire DynamicCapitalAllocator + MultiStrategyMetrics into CommandHandler in main.py
 - Wire WalletManager into wallet handlers for live balance/exposure data
+- Persistent signal dedup via Redis (trading_loop currently uses in-memory set)
 
 ---
 
@@ -312,10 +325,10 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Wire `execute_trade` into `LivePaperRunner` / `Phase10PipelineRunner` main loop
-2. Replace paper simulation with `ExecutionSimulator` for orderbook-accurate fills
-3. Plug in CLOB executor callback for LIVE mode
-4. Add persistent dedup via Redis for multi-process / restart safety
+1. Load live bankroll from WalletManager into run_trading_loop (replace static default)
+2. Persist signal dedup set via Redis for restart safety
+3. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
+4. Plug in CLOB executor callback for LIVE mode
 5. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
 6. Market resolution PnL updates (TradeResult post-settlement)
 7. Bayesian updater: pass posterior confidence as ev_adjustment
