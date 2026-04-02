@@ -218,38 +218,16 @@ class CommandHandler:
         self, cmd: str, value: Optional[float], cid: str
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
-        if cmd == "start" or cmd == "help" or cmd == "menu":
+        if cmd in ("start", "help", "menu", "main_menu"):
+            from ..api.telegram.menu_handler import build_main_menu
+            snap_state = self._state.snapshot()
             return CommandResult(
                 success=True,
-                message="*KrusaderBot* — Polymarket AI Trader\nWS: `connected` | Mode: `PAPER`",
-                payload={
-                    "_keyboard": [
-                        [
-                            {"text": "📊 Status",      "callback_data": "status"},
-                            {"text": "⚙️ Settings",    "callback_data": "settings"},
-                        ],
-                        [
-                            {"text": "📋 Markets",     "callback_data": "markets"},
-                            {"text": "🔍 Rediscover",  "callback_data": "rediscover"},
-                        ],
-                        [
-                            {"text": "📈 Performance", "callback_data": "performance"},
-                            {"text": "🏥 Health",      "callback_data": "health"},
-                        ],
-                        [
-                            {"text": "⏸ Pause",        "callback_data": "pause"},
-                            {"text": "▶️ Resume",       "callback_data": "resume"},
-                        ],
-                        [
-                            {"text": "🔢 Set Markets",  "callback_data": "set_markets_prompt"},
-                            {"text": "💧 Set Liquidity","callback_data": "set_liquidity_prompt"},
-                        ],
-                        [
-                            {"text": "📉 Set Risk",     "callback_data": "set_risk_prompt"},
-                            {"text": "🔄 Refresh Menu", "callback_data": "start"},
-                        ],
-                    ]
-                },
+                message=(
+                    f"*KrusaderBot* — Polymarket AI Trader\n"
+                    f"Mode: `{self._mode}` | State: `{snap_state.get('state', 'UNKNOWN')}`"
+                ),
+                payload={"_keyboard": build_main_menu()},
             )
         if cmd == "status":
             return await self._handle_status()
@@ -285,6 +263,58 @@ class CommandHandler:
             return await self._handle_markets()
         if cmd == "rediscover":
             return await self._handle_rediscover()
+
+        # ── New menu callbacks (new Telegram system) ───────────────────────────
+        if cmd == "wallet":
+            return await self._handle_wallet()
+        if cmd in ("wallet_balance", "wallet_exposure"):
+            return CommandResult(
+                success=True,
+                message="💰 *WALLET*\n\nUse /health for full portfolio status.",
+            )
+        if cmd == "control":
+            return await self._handle_control()
+        if cmd == "control_pause":
+            return await self._handle_pause()
+        if cmd == "control_resume":
+            return await self._handle_resume()
+        if cmd == "control_stop_confirm":
+            from ..api.telegram.menu_handler import build_stop_confirm_menu
+            return CommandResult(
+                success=True,
+                message="🛑 *Stop Trading*\nThis will HALT the system. Are you sure?",
+                payload={"_keyboard": build_stop_confirm_menu()},
+            )
+        if cmd == "control_stop_execute":
+            return await self._handle_kill()
+        if cmd == "noop":
+            return CommandResult(success=True, message="")
+        if cmd == "settings_risk":
+            return CommandResult(
+                success=True,
+                message="⚠️ *Risk Level*\nSend `/set_risk [0.1–1.0]` to update.",
+            )
+        if cmd == "settings_mode":
+            from ..api.telegram.menu_handler import build_mode_confirm_menu
+            new_mode = "LIVE" if self._mode == "PAPER" else "PAPER"
+            return CommandResult(
+                success=True,
+                message=(
+                    f"🔀 *Mode Switch*\nSwitch from `{self._mode}` → `{new_mode}`?\n\n"
+                    f"⚠️ Confirm before proceeding."
+                ),
+                payload={"_keyboard": build_mode_confirm_menu(new_mode)},
+            )
+        if cmd.startswith("mode_confirm_"):
+            new_mode = cmd.replace("mode_confirm_", "").upper()
+            return await self._handle_mode_confirm_switch(new_mode)
+        if cmd == "settings_strategy":
+            return await self._handle_strategies()
+        if cmd in ("settings_notify", "settings_auto"):
+            return CommandResult(
+                success=True,
+                message="⚙️ *Settings*\nUse /settings for full configuration overview.",
+            )
 
         return CommandResult(
             success=True,
@@ -919,6 +949,55 @@ class CommandHandler:
             success=True,
             message="\n".join(lines),
             payload={"market_ids": new_ids, "count": len(new_ids)},
+        )
+
+    async def _handle_wallet(self) -> CommandResult:
+        """Show wallet / portfolio overview with new-menu keyboard."""
+        from ..api.telegram.menu_handler import build_wallet_menu
+        return CommandResult(
+            success=True,
+            message=(
+                "💰 *WALLET*\n\n"
+                "Live exposure and balance data is available via /health.\n"
+                "_Direct wallet integration coming in next phase._"
+            ),
+            payload={"_keyboard": build_wallet_menu()},
+        )
+
+    async def _handle_control(self) -> CommandResult:
+        """Show control panel with state-aware keyboard."""
+        from ..api.telegram.menu_handler import build_control_menu
+        state_str = self._state.state.value
+        return CommandResult(
+            success=True,
+            message=f"▶ *CONTROL*\nSystem state: `{state_str}`",
+            payload={"_keyboard": build_control_menu(state_str)},
+        )
+
+    async def _handle_mode_confirm_switch(self, new_mode: str) -> CommandResult:
+        """Handle confirmed mode switch from new Telegram menu."""
+        import os as _os
+        if new_mode not in ("PAPER", "LIVE"):
+            return CommandResult(
+                success=False,
+                message="❌ Unknown mode. Returning to settings.",
+            )
+        if new_mode == "LIVE":
+            live_enabled = _os.environ.get("ENABLE_LIVE_TRADING", "").lower() == "true"
+            if not live_enabled:
+                log.warning("mode_switch_live_blocked", reason="ENABLE_LIVE_TRADING not set")
+                return CommandResult(
+                    success=False,
+                    message=(
+                        "❌ Cannot switch to LIVE — `ENABLE_LIVE_TRADING` env var not set.\n"
+                        "Set it to `true` and restart."
+                    ),
+                )
+        self._mode = new_mode
+        log.info("telegram_mode_switched", new_mode=new_mode)
+        return CommandResult(
+            success=True,
+            message=f"✅ Mode switched to `{new_mode}`.",
         )
 
     # ── Telegram send with retry ───────────────────────────────────────────────
