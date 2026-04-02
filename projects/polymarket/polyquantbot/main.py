@@ -249,8 +249,25 @@ async def main() -> None:
     _tg_token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
     _tg_api = f"https://api.telegram.org/bot{_tg_token}"
 
+    # ── Centralized callback router (action: prefix → editMessageText) ─────────
+    from .telegram.handlers.callback_router import CallbackRouter as _CallbackRouter
+    _callback_router = _CallbackRouter(
+        tg_api=_tg_api,
+        cmd_handler=cmd_handler,
+        state_manager=state_manager,
+        config_manager=config_manager,
+        mode=mode,
+    )
+
     async def _polling_loop() -> None:
-        """Long-poll Telegram getUpdates and route commands + callback_query."""
+        """Long-poll Telegram getUpdates and route commands + callback_query.
+
+        Routing:
+            callback_query with ``action:*`` data → CallbackRouter
+                (uses editMessageText — single active message, no duplicates)
+            Text commands (``/status``, ``/kill``, etc.) → CommandRouter
+                (uses sendMessage — always creates new message)
+        """
         import aiohttp as _aio
         from .telegram.command_router import CommandRouter
         from .telegram.command_handler import CommandResult as _CR
@@ -259,17 +276,31 @@ async def main() -> None:
         offset = 0
         log.info("telegram_polling_started")
 
-        async def _send_result(session, chat_id, result, callback_query_id=None):
+        async def _send_result(session, reply_chat_id, result, callback_query_id=None):
+            """Send a new message for text command responses."""
             if callback_query_id:
-                await session.post(f"{_tg_api}/answerCallbackQuery",
-                                   json={"callback_query_id": callback_query_id})
+                # Answer legacy callback (non-action: format) to clear spinner
+                try:
+                    await session.post(
+                        f"{_tg_api}/answerCallbackQuery",
+                        json={"callback_query_id": callback_query_id},
+                    )
+                except Exception:
+                    pass
             if not result or not result.message:
                 return
-            payload = {"chat_id": chat_id, "text": result.message, "parse_mode": "Markdown"}
+            payload = {
+                "chat_id": reply_chat_id,
+                "text": result.message,
+                "parse_mode": "Markdown",
+            }
             keyboard = (result.payload or {}).get("_keyboard")
             if keyboard:
                 payload["reply_markup"] = {"inline_keyboard": keyboard}
-            await session.post(f"{_tg_api}/sendMessage", json=payload)
+            try:
+                await session.post(f"{_tg_api}/sendMessage", json=payload)
+            except Exception as exc:
+                log.warning("polling_send_message_failed", error=str(exc))
 
         async with _aio.ClientSession() as session:
             while True:
@@ -291,20 +322,35 @@ async def main() -> None:
                             cb_chat = cq.get("message", {}).get("chat", {}).get("id")
                             cb_user = cq.get("from", {}).get("id", 0)
                             if cb_data and cb_chat:
-                                if cb_data.endswith("_prompt"):
+                                if cb_data.startswith("action:"):
+                                    # ── New system: edit in-place ──────────
+                                    await _callback_router.route(session, cq)
+                                elif cb_data.endswith("_prompt"):
+                                    # ── Legacy prompt helper ───────────────
                                     cmd_key = cb_data.replace("_prompt", "")
-                                    await _send_result(session, cb_chat, CommandResult(
-                                        success=True,
-                                        message=f"Type: `/{cmd_key} <value>`"
-                                    ), callback_query_id=cq["id"])
-                                    continue
-                                fake = {"update_id": update["update_id"],
-                                        "message": {"text": f"/{cb_data}",
-                                                    "chat": {"id": cb_chat},
-                                                    "from": {"id": cb_user}}}
-                                result = await router.route_update(fake)
-                                await _send_result(session, cb_chat, result,
-                                                   callback_query_id=cq["id"])
+                                    await _send_result(
+                                        session, cb_chat,
+                                        CommandResult(
+                                            success=True,
+                                            message=f"Type: `/{cmd_key} <value>`",
+                                        ),
+                                        callback_query_id=cq["id"],
+                                    )
+                                else:
+                                    # ── Legacy fallback: route via text ───
+                                    fake = {
+                                        "update_id": update["update_id"],
+                                        "message": {
+                                            "text": f"/{cb_data}",
+                                            "chat": {"id": cb_chat},
+                                            "from": {"id": cb_user},
+                                        },
+                                    }
+                                    result = await router.route_update(fake)
+                                    await _send_result(
+                                        session, cb_chat, result,
+                                        callback_query_id=cq["id"],
+                                    )
                             continue
 
                         # ── Regular text command ───────────────────────────

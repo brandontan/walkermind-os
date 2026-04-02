@@ -219,7 +219,7 @@ class CommandHandler:
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
         if cmd in ("start", "help", "menu", "main_menu"):
-            from ..api.telegram.menu_handler import build_main_menu
+            from .ui.keyboard import build_main_menu
             snap_state = self._state.snapshot()
             return CommandResult(
                 success=True,
@@ -279,7 +279,7 @@ class CommandHandler:
         if cmd == "control_resume":
             return await self._handle_resume()
         if cmd == "control_stop_confirm":
-            from ..api.telegram.menu_handler import build_stop_confirm_menu
+            from .ui.keyboard import build_stop_confirm_menu
             return CommandResult(
                 success=True,
                 message="🛑 *Stop Trading*\nThis will HALT the system. Are you sure?",
@@ -295,7 +295,7 @@ class CommandHandler:
                 message="⚠️ *Risk Level*\nSend `/set_risk [0.1–1.0]` to update.",
             )
         if cmd == "settings_mode":
-            from ..api.telegram.menu_handler import build_mode_confirm_menu
+            from .ui.keyboard import build_mode_confirm_menu
             new_mode = "LIVE" if self._mode == "PAPER" else "PAPER"
             return CommandResult(
                 success=True,
@@ -953,7 +953,7 @@ class CommandHandler:
 
     async def _handle_wallet(self) -> CommandResult:
         """Show wallet / portfolio overview with new-menu keyboard."""
-        from ..api.telegram.menu_handler import build_wallet_menu
+        from .ui.keyboard import build_wallet_menu
         return CommandResult(
             success=True,
             message=(
@@ -966,7 +966,7 @@ class CommandHandler:
 
     async def _handle_control(self) -> CommandResult:
         """Show control panel with state-aware keyboard."""
-        from ..api.telegram.menu_handler import build_control_menu
+        from .ui.keyboard import build_control_menu
         state_str = self._state.state.value
         return CommandResult(
             success=True,
