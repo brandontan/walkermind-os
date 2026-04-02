@@ -50,7 +50,7 @@ _HEARTBEAT_TIMEOUT: float = 30.0        # seconds — reconnect if silent this l
 _QUEUE_MAXSIZE: int = 1024              # backpressure cap
 _PING_INTERVAL: float = 20.0           # WS ping interval
 _PING_TIMEOUT: float = 10.0            # WS ping timeout
-_MAX_RETRIES: int = 5                   # fail-fast after this many consecutive failures
+_MAX_RETRIES: int = 0                   # 0 = unlimited retries (retry forever)
 
 
 # ── Data types ────────────────────────────────────────────────────────────────
@@ -236,7 +236,7 @@ class PolymarketWSClient:
                     reconnect_delay_s=delay,
                     error=str(exc),
                 )
-                if consecutive_failures >= _MAX_RETRIES:
+                if _MAX_RETRIES > 0 and consecutive_failures >= _MAX_RETRIES:
                     self._running = False
                     raise RuntimeError(
                         f"WebSocket failed {consecutive_failures} consecutive times — stopping system"
@@ -260,7 +260,7 @@ class PolymarketWSClient:
                     error=str(exc),
                     exc_info=True,
                 )
-                if consecutive_failures >= _MAX_RETRIES:
+                if _MAX_RETRIES > 0 and consecutive_failures >= _MAX_RETRIES:
                     self._running = False
                     raise RuntimeError(
                         f"WebSocket failed {consecutive_failures} consecutive times — stopping system"
@@ -304,10 +304,9 @@ class PolymarketWSClient:
         self._stats.connected = False
 
     async def _subscribe(self, ws) -> None:
-        """Send subscription message for all configured market IDs."""
+        """Send subscription message for all configured market IDs (asset/token IDs)."""
         sub_msg = {
-            "auth": {"apiKey": self._api_key} if self._api_key else {},
-            "markets": self._market_ids,
+            "assets_ids": self._market_ids,
             "type": "Market",
         }
         await ws.send(json.dumps(sub_msg))

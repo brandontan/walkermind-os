@@ -234,6 +234,55 @@ async def main() -> None:
 
     asyncio.create_task(_heartbeat_loop(), name="telegram_heartbeat")
 
+    # ── Telegram command polling loop ──────────────────────────────────────────
+    _tg_token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    _tg_api = f"https://api.telegram.org/bot{_tg_token}"
+
+    async def _polling_loop() -> None:
+        """Long-poll Telegram getUpdates and route commands to CommandRouter."""
+        import aiohttp as _aio
+        from .telegram.command_router import CommandRouter
+        router = CommandRouter(handler=cmd_handler)
+        offset = 0
+        log.info("telegram_polling_started")
+
+        async with _aio.ClientSession() as session:
+            while True:
+                try:
+                    async with session.get(
+                        f"{_tg_api}/getUpdates",
+                        params={"offset": offset, "timeout": 10, "limit": 10},
+                        timeout=_aio.ClientTimeout(total=15),
+                    ) as resp:
+                        data = await resp.json()
+                    for update in data.get("result", []):
+                        offset = update["update_id"] + 1
+                        result = await router.route_update(update)
+                        if result and result.message:
+                            # Reply to the originating chat
+                            reply_chat = (
+                                update.get("message", {})
+                                .get("chat", {})
+                                .get("id")
+                            )
+                            if reply_chat:
+                                await session.post(
+                                    f"{_tg_api}/sendMessage",
+                                    json={
+                                        "chat_id": reply_chat,
+                                        "text": result.message,
+                                        "parse_mode": "Markdown",
+                                    },
+                                )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    log.warning("telegram_polling_error", error=str(exc))
+                    await asyncio.sleep(5)
+
+    if _tg_token:
+        asyncio.create_task(_polling_loop(), name="telegram_polling")
+
     # ── Graceful shutdown handler ──────────────────────────────────────────────
     stop_event = asyncio.Event()
 

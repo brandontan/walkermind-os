@@ -299,16 +299,36 @@ async def _fetch_active_markets(
     qualifying.sort(key=lambda x: x["_vol"], reverse=True)
     top = qualifying[:max_markets]
 
-    condition_ids = [m["conditionId"] for m in top if m.get("conditionId")]
+    condition_ids = []
+    token_ids = []
+
+    for m in top:
+        # Prefer clobTokenIds (flat list of YES/NO token IDs) for WS subscription
+        clob_tokens = m.get("clobTokenIds") or []
+        if isinstance(clob_tokens, list) and clob_tokens:
+            token_ids.extend(str(t) for t in clob_tokens if t)
+        elif m.get("tokens"):
+            for t in m["tokens"]:
+                tid = t.get("token_id") or t.get("tokenId") or t.get("id")
+                if tid:
+                    token_ids.append(str(tid))
+
+        cid = m.get("conditionId")
+        if cid:
+            condition_ids.append(cid)
+
+    # Use token_ids for WS subscription; fall back to condition_ids if unavailable
+    ws_ids = token_ids if token_ids else condition_ids
 
     log.info(
         "bootstrap_market_discovery_complete",
         total_fetched=len(markets),
         qualifying=len(qualifying),
         selected=len(condition_ids),
+        token_ids_count=len(token_ids),
         condition_ids=condition_ids,
     )
-    return condition_ids
+    return ws_ids
 
 
 async def discover_markets(cfg: dict[str, Any]) -> list[str]:
