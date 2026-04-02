@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Telegram Hybrid UI COMPLETE ✅
+Status: Telegram Auto-Clean COMPLETE ✅
 
 ---
 
@@ -37,6 +37,16 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+TELEGRAM AUTO-CLEAN
+
+- telegram/utils/message_cleanup.py: delete_user_message_later() — 0.4 s delay, aiohttp, swallows errors
+- telegram/handlers/text_handler.py: schedule_user_message_delete() — fire-and-forget task wrapper
+- main.py: asyncio.create_task(schedule_user_message_delete(...)) on every reply keyboard tap
+- Only user messages deleted; bot messages + inline messages unaffected
+- 7 tests pass (AC-01–AC-07); report: reports/forge/TELEGRAM_AUTO_CLEAN.md
+
+---
 
 TELEGRAM HYBRID UI
 
