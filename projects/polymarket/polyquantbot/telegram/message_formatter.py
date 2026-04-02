@@ -569,3 +569,401 @@ def format_multi_strategy_report(
     )
 
     return "\n".join(lines)
+
+
+def format_live_performance_update(
+    strategy_data: Dict[str, dict],
+    total_allocated_usd: float,
+    bankroll: float,
+    disabled: list,
+    suppressed: list,
+) -> str:
+    """Format a 📈 LIVE PERFORMANCE UPDATE Telegram message.
+
+    Sent by the feedback loop after each strategy's metrics and allocation
+    weights are refreshed from real trade outcomes.
+
+    Args:
+        strategy_data: Mapping of strategy_name → dict with keys:
+            ``pnl`` (float), ``win_rate`` (float), ``trades`` (int),
+            ``weight`` (float), ``size_usd`` (float).
+        total_allocated_usd: Total capital currently allocated across all
+            active strategies.
+        bankroll: Total available bankroll in USD.
+        disabled: Strategy names that are currently auto-disabled.
+        suppressed: Strategy names that are weight-suppressed (low win_rate).
+
+    Returns:
+        Formatted Telegram-compatible report string starting with '📈'.
+    """
+    import datetime
+
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sep = "─" * 37
+    allocation_pct = (total_allocated_usd / bankroll * 100.0) if bankroll > 0 else 0.0
+    name_width = max((len(n) for n in strategy_data), default=16) + 2
+
+    lines = [
+        f"📈 LIVE PERFORMANCE UPDATE | {ts}",
+        sep,
+        f"Bankroll: ${round(bankroll, 2)} | Allocated: ${round(total_allocated_usd, 2)} ({allocation_pct:.1f}%)",
+        sep,
+        "PER-STRATEGY PERFORMANCE:",
+    ]
+
+    for name, data in strategy_data.items():
+        pnl = float(data.get("pnl", 0.0))
+        win_rate = float(data.get("win_rate", 0.0))
+        trades = int(data.get("trades", 0))
+        weight = float(data.get("weight", 0.0))
+        size_usd = float(data.get("size_usd", 0.0))
+        pnl_sign = "+" if pnl >= 0 else ""
+        status = ""
+        if name in disabled:
+            status = " [DISABLED]"
+        elif name in suppressed:
+            status = " [SUPPRESSED]"
+        lines.append(
+            f"  {_safe(name):<{name_width}} "
+            f"pnl={pnl_sign}${pnl:.2f} wr={win_rate * 100:.1f}% "
+            f"n={trades} alloc=${size_usd:.2f} (w={weight:.3f}){status}"
+        )
+
+    if disabled:
+        lines.append(sep)
+        lines.append(f"DISABLED (drawdown): {', '.join(_safe(s) for s in disabled)}")
+    if suppressed:
+        lines.append(f"SUPPRESSED (low win_rate): {', '.join(_safe(s) for s in suppressed)}")
+
+    lines.append(sep)
+    lines.append(f"_as of {_ts_utc()}_")
+    return "\n".join(lines)
+
+
+def format_health_snapshot(
+    mode: str,
+    system_state: str,
+    state_reason: str,
+    total_exposure_usd: float,
+    total_pnl: float,
+    drawdown: float,
+    bankroll: float,
+    active_strategies: list,
+    disabled_strategies: list,
+    suppressed_strategies: list,
+    total_trades: int,
+    total_signals: int,
+    risk_multiplier: float,
+    max_position: float,
+) -> str:
+    """Format a /health system snapshot message.
+
+    Args:
+        mode: Trading mode ("PAPER" | "LIVE").
+        system_state: Current state ("RUNNING" | "PAUSED" | "HALTED").
+        state_reason: Reason for current state.
+        total_exposure_usd: Total open exposure in USD.
+        total_pnl: Aggregate PnL across all strategies.
+        drawdown: Current max drawdown fraction.
+        bankroll: Total available capital in USD.
+        active_strategies: Strategy names with non-zero weight.
+        disabled_strategies: Auto-disabled strategy names.
+        suppressed_strategies: Weight-suppressed strategy names.
+        total_trades: Aggregate trades count.
+        total_signals: Aggregate signals count.
+        risk_multiplier: Current risk multiplier.
+        max_position: Current max position fraction.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    state_emoji = {"RUNNING": "✅", "PAUSED": "⏸️", "HALTED": "🛑"}.get(
+        system_state.upper(), "❓"
+    )
+    mode_emoji = "🔴" if mode == "LIVE" else "📄"
+    sep = "─" * 37
+
+    active_str = (
+        ", ".join(_safe(s) for s in active_strategies) if active_strategies else "none"
+    )
+    pnl_sign = "+" if total_pnl >= 0 else ""
+    drawdown_pct = drawdown * 100.0
+    exposure_pct = (total_exposure_usd / bankroll * 100.0) if bankroll > 0 else 0.0
+
+    lines = [
+        f"🏥 *SYSTEM HEALTH SNAPSHOT*",
+        sep,
+        f"{state_emoji} State:    `{system_state}` | {mode_emoji} Mode: `{mode}`",
+        f"Reason:   `{_safe(state_reason, 60)}`",
+        sep,
+        "FINANCIALS:",
+        f"  Bankroll:   `${bankroll:.2f}`",
+        f"  Exposure:   `${total_exposure_usd:.2f}` ({exposure_pct:.1f}%)",
+        f"  Total PnL:  `{pnl_sign}${total_pnl:.2f}`",
+        f"  Drawdown:   `{drawdown_pct:.2f}%`",
+        sep,
+        "STRATEGIES:",
+        f"  Active:     `{active_str}`",
+    ]
+    if disabled_strategies:
+        lines.append(
+            f"  Disabled:   `{', '.join(_safe(s) for s in disabled_strategies)}`"
+        )
+    if suppressed_strategies:
+        lines.append(
+            f"  Suppressed: `{', '.join(_safe(s) for s in suppressed_strategies)}`"
+        )
+    lines += [
+        sep,
+        "ACTIVITY:",
+        f"  Signals: `{total_signals}` | Trades: `{total_trades}`",
+        sep,
+        "RISK CONFIG:",
+        f"  Risk multiplier: `{risk_multiplier:.3f}`",
+        f"  Max position:    `{max_position:.3f}`",
+        sep,
+        f"_as of {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_performance_report(
+    per_strategy_pnl: Dict[str, float],
+    per_strategy_win_rate: Dict[str, float],
+    per_strategy_trades: Dict[str, int],
+    total_pnl: float,
+    total_trades: int,
+    mode: str = "PAPER",
+) -> str:
+    """Format a /performance PnL + win-rate report.
+
+    Args:
+        per_strategy_pnl: Mapping strategy_name → total_pnl.
+        per_strategy_win_rate: Mapping strategy_name → win_rate ∈ [0, 1].
+        per_strategy_trades: Mapping strategy_name → trades count.
+        total_pnl: Aggregate PnL across all strategies.
+        total_trades: Aggregate trade count.
+        mode: Trading mode string.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    sep = "─" * 37
+    name_width = (
+        max((len(n) for n in per_strategy_pnl), default=16) + 2
+    )
+    total_pnl_sign = "+" if total_pnl >= 0 else ""
+
+    lines = [
+        "📊 *PERFORMANCE REPORT*",
+        sep,
+        f"Mode: `{mode}` | Trades: `{total_trades}` | PnL: `{total_pnl_sign}${total_pnl:.2f}`",
+        sep,
+        "PER-STRATEGY:",
+    ]
+
+    all_strategies = set(per_strategy_pnl) | set(per_strategy_win_rate)
+    for name in sorted(all_strategies):
+        pnl = per_strategy_pnl.get(name, 0.0)
+        wr = per_strategy_win_rate.get(name, 0.0)
+        trades = per_strategy_trades.get(name, 0)
+        pnl_sign = "+" if pnl >= 0 else ""
+        lines.append(
+            f"  {_safe(name):<{name_width}} "
+            f"pnl={pnl_sign}${pnl:.2f}  wr={wr * 100:.1f}%  n={trades}"
+        )
+
+    lines += [
+        sep,
+        f"_as of {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_live_stage1_activated(
+    mode: str,
+    bankroll: float,
+    max_position_pct: float,
+    max_total_exposure_pct: float,
+    max_concurrent_trades: int,
+    drawdown_limit_pct: float,
+    active_strategies: list,
+    correlation_id: str = "",
+) -> str:
+    """Format the LIVE TRADING ACTIVATED (STAGE 1) Telegram alert.
+
+    Sent once when Stage 1 LIVE trading becomes active.
+
+    Args:
+        mode: Trading mode string (always "LIVE" at this point).
+        bankroll: Total bankroll in USD.
+        max_position_pct: Max position per strategy as a percentage (e.g. 2.0).
+        max_total_exposure_pct: Max total exposure as a percentage (e.g. 5.0).
+        max_concurrent_trades: Hard cap on concurrent open trades.
+        drawdown_limit_pct: Drawdown limit as a percentage (e.g. 5.0).
+        active_strategies: List of active strategy names.
+        correlation_id: Optional session trace ID.
+
+    Returns:
+        Formatted Telegram Markdown message string starting with '🚀'.
+    """
+    import datetime
+
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sep = "─" * 37
+    strategies_str = ", ".join(_safe(s) for s in active_strategies) if active_strategies else "none"
+
+    lines = [
+        f"🚀 *LIVE TRADING ACTIVATED (STAGE 1)*",
+        sep,
+        f"Mode: `{_safe(mode)}`",
+        f"Bankroll: `${bankroll:.2f}`",
+        sep,
+        "STAGE 1 SAFE LIMITS:",
+        f"  Max position/strategy: `{max_position_pct:.1f}%`",
+        f"  Max total exposure:    `{max_total_exposure_pct:.1f}%`",
+        f"  Max concurrent trades: `{max_concurrent_trades}`",
+        f"  Drawdown limit:        `{drawdown_limit_pct:.1f}%`",
+        sep,
+        f"Active strategies: `{_safe(strategies_str)}`",
+    ]
+    if correlation_id:
+        lines.append(f"Session: `{correlation_id[:32]}`")
+    lines.append(sep)
+    lines.append(f"_at {ts}_")
+    return "\n".join(lines)
+
+
+# ── System-activation formatters ──────────────────────────────────────────────
+
+
+def format_startup(mode: str, market_count: int) -> str:
+    """Format a bot startup notification.
+
+    Args:
+        mode: Trading mode ("PAPER" | "LIVE").
+        market_count: Number of markets being monitored.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "🚀 *KrusaderBot STARTED*",
+        f"Mode: `{_safe(mode)}`",
+        f"Markets: `{market_count}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_ws_connected(attempt: int = 1) -> str:
+    """Format a WebSocket connected notification.
+
+    Args:
+        attempt: Connection attempt number.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "🔗 *WS CONNECTED*",
+        f"Attempt: `{attempt}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_ws_error(reason: str) -> str:
+    """Format a WebSocket error notification.
+
+    Args:
+        reason: Error reason or exception string.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "⚡ *WS ERROR*",
+        f"Reason: `{_safe(reason, 200)}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_signal_alert(
+    market_id: str,
+    edge: float,
+    size: float,
+) -> str:
+    """Format a signal generated alert.
+
+    Args:
+        market_id: Polymarket condition ID.
+        edge: Computed edge value for the signal.
+        size: Suggested position size in USD.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "📊 *SIGNAL*",
+        f"Market: `{_safe(market_id, 24)}`",
+        f"Edge: `{edge:.4f}`",
+        f"Size: `${size:.2f}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_trade_alert(
+    side: str,
+    price: float,
+    size: float,
+) -> str:
+    """Format a trade executed alert.
+
+    Args:
+        side: Trade side ("YES" | "NO" | "BUY" | "SELL").
+        price: Execution price.
+        size: Trade size in USD.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    lines = [
+        "✅ *TRADE*",
+        f"Side: `{_safe(side)}`",
+        f"Price: `{price:.4f}`",
+        f"Size: `${size:.2f}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)
+
+
+def format_heartbeat(
+    ws_connected: bool,
+    event_count: int,
+    signal_count: int,
+    trade_count: int,
+) -> str:
+    """Format a periodic system heartbeat message.
+
+    Args:
+        ws_connected: Whether the WebSocket is currently connected.
+        event_count: Total events received since startup.
+        signal_count: Total signals generated since startup.
+        trade_count: Total trades executed since startup.
+
+    Returns:
+        Formatted Telegram Markdown message string.
+    """
+    ws_status = "connected" if ws_connected else "disconnected"
+    lines = [
+        "💓 *ALIVE*",
+        f"WS: `{ws_status}`",
+        f"Events: `{event_count}`",
+        f"Signals: `{signal_count}`",
+        f"Trades: `{trade_count}`",
+        f"_at {_ts_utc()}_",
+    ]
+    return "\n".join(lines)

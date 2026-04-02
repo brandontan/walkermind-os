@@ -55,11 +55,14 @@ Thread-safety: single asyncio event loop only.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import structlog
 
 from .allocator import AllocationDecision  # re-use for orchestrator compatibility
+
+if TYPE_CHECKING:
+    from ..infra.redis_client import RedisClient
 
 log = structlog.get_logger(__name__)
 
@@ -388,6 +391,65 @@ class DynamicCapitalAllocator:
             adjusted_size_usd=adjusted,
         )
 
+    def update_from_metrics(
+        self,
+        strategy_name: str,
+        strategy_metrics: "StrategyMetricsSnapshot",  # type: ignore[name-defined]
+        drawdown: float = 0.0,
+        ev_adjustment: float = 0.0,
+    ) -> None:
+        """Update allocator from a live :class:`StrategyMetrics` snapshot.
+
+        This is the primary entry point for the feedback loop.  It translates
+        :class:`~monitoring.multi_strategy_metrics.StrategyMetrics` data (from
+        real trade outcomes) into the allocator's scoring model.
+
+        The ``bayesian_confidence`` fed into the scoring model is derived as::
+
+            confidence = clamp(ev_capture_rate + ev_adjustment, 0.0, 1.0)
+
+        This lets the caller pass an optional Bayesian or model-derived
+        adjustment on top of the raw EV capture rate.
+
+        Args:
+            strategy_name:    Name of the strategy to update.
+            strategy_metrics: A duck-typed object exposing ``win_rate``,
+                              ``ev_capture_rate``, and ``total_pnl`` — as
+                              returned by :meth:`MultiStrategyMetrics.get_metrics`.
+            drawdown:         Current drawdown fraction ∈ [0, 1] (default 0.0).
+                              Typically supplied by RiskGuard or PositionTracker.
+            ev_adjustment:    Optional Bayesian or model-derived adjustment added
+                              to ``ev_capture_rate`` before clamping to [0, 1].
+
+        Raises:
+            KeyError: If *strategy_name* is not registered.
+        """
+        win_rate = float(getattr(strategy_metrics, "win_rate", 0.0))
+        ev_capture = float(getattr(strategy_metrics, "ev_capture_rate", 0.0))
+        pnl = float(getattr(strategy_metrics, "total_pnl", 0.0))
+
+        # Derive Bayesian confidence as ev_capture + optional adjustment
+        raw_confidence = ev_capture + ev_adjustment
+        bayesian_confidence = max(0.0, min(1.0, raw_confidence))
+
+        log.info(
+            "dynamic_capital_allocator.update_from_metrics",
+            strategy=strategy_name,
+            win_rate=round(win_rate, 4),
+            ev_capture=round(ev_capture, 4),
+            total_pnl=round(pnl, 4),
+            drawdown=round(drawdown, 4),
+            bayesian_confidence=round(bayesian_confidence, 4),
+        )
+
+        self.update_metrics(
+            strategy_name=strategy_name,
+            ev_capture=ev_capture,
+            win_rate=win_rate,
+            bayesian_confidence=bayesian_confidence,
+            drawdown=drawdown,
+        )
+
     # ── Outcome recording (Bayesian feedback loop) ────────────────────────────
 
     def record_outcome(self, strategy_name: str, won: bool) -> None:
@@ -534,6 +596,96 @@ class DynamicCapitalAllocator:
         return list(self._metrics.keys())
 
     # ── Internal helpers ──────────────────────────────────────────────────────
+
+    # ── Redis persistence ─────────────────────────────────────────────────────
+
+    async def save_weights_to_redis(self, redis: "RedisClient") -> bool:
+        """Persist current allocation weights and disabled strategies to Redis.
+
+        Saves the normalized score weights plus the disabled-strategy set so
+        the allocator can be restored to its last known state after a restart.
+
+        Args:
+            redis: Connected :class:`~infra.redis_client.RedisClient` instance.
+
+        Returns:
+            True if all writes succeeded, False if any write failed.
+        """
+        weights = self._compute_weights()
+        ok_weights = await redis.save_allocation_weights(weights)
+
+        # Also save metrics snapshots for each strategy
+        metrics_payload = {
+            name: {
+                "ev_capture": m.ev_capture,
+                "win_rate": m.win_rate,
+                "bayesian_confidence": m.bayesian_confidence,
+                "drawdown": m.drawdown,
+            }
+            for name, m in self._metrics.items()
+        }
+        ok_metrics = await redis._set_json(
+            "polyquantbot:allocator:metrics_snapshots", metrics_payload
+        )
+        ok_disabled = await redis._set_json(
+            "polyquantbot:allocator:disabled_strategies", list(self._disabled)
+        )
+
+        success = ok_weights and ok_metrics and ok_disabled
+        log.info(
+            "dynamic_capital_allocator.weights_saved_to_redis",
+            strategies=list(weights.keys()),
+            disabled=list(self._disabled),
+            success=success,
+        )
+        return success
+
+    async def load_weights_from_redis(self, redis: "RedisClient") -> bool:
+        """Restore allocator metrics state from Redis on startup.
+
+        Loads per-strategy metric snapshots and the disabled-strategy set.
+        Unknown strategies in Redis are ignored.  Missing keys keep priors.
+
+        Args:
+            redis: Connected :class:`~infra.redis_client.RedisClient` instance.
+
+        Returns:
+            True if state was restored, False if nothing was found.
+        """
+        metrics_data = await redis._get_json(
+            "polyquantbot:allocator:metrics_snapshots"
+        )
+        disabled_data = await redis._get_json(
+            "polyquantbot:allocator:disabled_strategies"
+        )
+
+        restored = False
+
+        if metrics_data and isinstance(metrics_data, dict):
+            for name, snap in metrics_data.items():
+                if name not in self._metrics:
+                    continue
+                self._metrics[name] = StrategyMetricSnapshot(
+                    ev_capture=float(snap.get("ev_capture", _PRIOR_EV)),
+                    win_rate=float(snap.get("win_rate", _PRIOR_WIN_RATE)),
+                    bayesian_confidence=float(
+                        snap.get("bayesian_confidence", _PRIOR_CONFIDENCE)
+                    ),
+                    drawdown=float(snap.get("drawdown", _PRIOR_DRAWDOWN)),
+                )
+            restored = True
+
+        if disabled_data and isinstance(disabled_data, list):
+            self._disabled = {
+                s for s in disabled_data if s in self._metrics
+            }
+
+        log.info(
+            "dynamic_capital_allocator.weights_loaded_from_redis",
+            restored=restored,
+            disabled=list(self._disabled),
+        )
+        return restored
 
     def _compute_weights(self) -> Dict[str, float]:
         """Compute normalized score weights for all eligible strategies.

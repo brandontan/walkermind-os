@@ -46,9 +46,16 @@ import structlog
 from .message_formatter import (
     format_checkpoint,
     format_error,
+    format_heartbeat,
     format_kill_alert,
+    format_live_performance_update,
     format_metrics,
+    format_signal_alert,
+    format_startup,
     format_state_change,
+    format_trade_alert,
+    format_ws_connected,
+    format_ws_error,
 )
 
 log = structlog.get_logger()
@@ -72,6 +79,11 @@ class AlertType(str, Enum):
     DAILY = "DAILY"
     ERROR = "ERROR"
     RECONNECT = "RECONNECT"
+    STARTUP = "STARTUP"
+    WS_STATUS = "WS_STATUS"
+    SIGNAL = "SIGNAL"
+    TRADE = "TRADE"
+    HEARTBEAT = "HEARTBEAT"
 
 
 @dataclass
@@ -138,7 +150,8 @@ class TelegramLive:
             TELEGRAM_BOT_TOKEN
             TELEGRAM_CHAT_ID
         """
-        token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        # Support both TELEGRAM_TOKEN (Railway convention) and TELEGRAM_BOT_TOKEN
+        token = os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN", "")
         chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 
         if not token or not chat_id:
@@ -327,6 +340,39 @@ class TelegramLive:
         )
         await self._enqueue(AlertType.ERROR, msg, correlation_id)
 
+    async def alert_live_performance(
+        self,
+        strategy_data: dict,
+        total_allocated_usd: float,
+        bankroll: float,
+        disabled: list,
+        suppressed: list,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Send 📈 LIVE PERFORMANCE UPDATE alert from the feedback loop.
+
+        Dispatched by :class:`~execution.feedback_loop.FeedbackLoop` after
+        each strategy's metrics and allocation weights are refreshed from real
+        trade outcomes.
+
+        Args:
+            strategy_data: Mapping of strategy_name → dict with keys
+                ``pnl``, ``win_rate``, ``trades``, ``weight``, ``size_usd``.
+            total_allocated_usd: Total capital currently allocated.
+            bankroll: Total available bankroll in USD.
+            disabled: Auto-disabled strategy names.
+            suppressed: Win-rate-suppressed strategy names.
+            correlation_id: Optional trace ID.
+        """
+        msg = format_live_performance_update(
+            strategy_data=strategy_data,
+            total_allocated_usd=total_allocated_usd,
+            bankroll=bankroll,
+            disabled=disabled,
+            suppressed=suppressed,
+        )
+        await self._enqueue(AlertType.DAILY, msg, correlation_id)
+
     async def alert_reconnect(
         self,
         attempt: int,
@@ -355,6 +401,111 @@ class TelegramLive:
         )
         msg = "🔄 *WS RECONNECT*\n" + format_metrics(data, title="WS RECONNECT")
         await self._enqueue(AlertType.RECONNECT, msg, correlation_id)
+
+    async def alert_startup(
+        self,
+        mode: str,
+        market_count: int,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Send bot startup notification.
+
+        Args:
+            mode: Trading mode ("PAPER" | "LIVE").
+            market_count: Number of markets being monitored.
+            correlation_id: Request trace ID.
+        """
+        msg = format_startup(mode=mode, market_count=market_count)
+        await self._enqueue(AlertType.STARTUP, msg, correlation_id)
+
+    async def alert_ws_connected(
+        self,
+        attempt: int = 1,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Send WebSocket connected notification.
+
+        Args:
+            attempt: Connection attempt number.
+            correlation_id: Request trace ID.
+        """
+        msg = format_ws_connected(attempt=attempt)
+        await self._enqueue(AlertType.WS_STATUS, msg, correlation_id)
+
+    async def alert_ws_error(
+        self,
+        reason: str,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Send WebSocket error notification.
+
+        Args:
+            reason: Error reason or exception string.
+            correlation_id: Request trace ID.
+        """
+        msg = format_ws_error(reason=reason)
+        await self._enqueue(AlertType.WS_STATUS, msg, correlation_id)
+
+    async def alert_signal(
+        self,
+        market_id: str,
+        edge: float,
+        size: float,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Send signal generated alert.
+
+        Args:
+            market_id: Polymarket condition ID.
+            edge: Computed edge value for the signal.
+            size: Suggested position size in USD.
+            correlation_id: Request trace ID.
+        """
+        msg = format_signal_alert(market_id=market_id, edge=edge, size=size)
+        await self._enqueue(AlertType.SIGNAL, msg, correlation_id)
+
+    async def alert_trade(
+        self,
+        side: str,
+        price: float,
+        size: float,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Send trade executed alert.
+
+        Args:
+            side: Trade side ("YES" | "NO" | "BUY" | "SELL").
+            price: Execution price.
+            size: Trade size in USD.
+            correlation_id: Request trace ID.
+        """
+        msg = format_trade_alert(side=side, price=price, size=size)
+        await self._enqueue(AlertType.TRADE, msg, correlation_id)
+
+    async def alert_heartbeat(
+        self,
+        ws_connected: bool,
+        event_count: int,
+        signal_count: int,
+        trade_count: int,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Send periodic system heartbeat alert.
+
+        Args:
+            ws_connected: Whether the WebSocket is currently connected.
+            event_count: Total events received since startup.
+            signal_count: Total signals generated since startup.
+            trade_count: Total trades executed since startup.
+            correlation_id: Request trace ID.
+        """
+        msg = format_heartbeat(
+            ws_connected=ws_connected,
+            event_count=event_count,
+            signal_count=signal_count,
+            trade_count=trade_count,
+        )
+        await self._enqueue(AlertType.HEARTBEAT, msg, correlation_id)
 
     # ── Internal ──────────────────────────────────────────────────────────────
 

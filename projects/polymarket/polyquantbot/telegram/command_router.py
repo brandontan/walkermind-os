@@ -175,7 +175,7 @@ class CommandRouter:
             return None  # Not a command
 
         parts = text.split(None, 1)
-        raw_cmd = parts[0]                         # e.g. "/set_risk"
+        raw_cmd = parts[0].split("@")[0]   # strip @botname suffix (e.g. /help@Bot → /help)
         arg_str = parts[1].strip() if len(parts) > 1 else ""
 
         value: Optional[float] = None

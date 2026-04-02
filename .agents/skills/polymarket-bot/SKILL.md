@@ -180,7 +180,6 @@ execution  <500ms
 ---
 
 ## File Structure (UPDATED — NO LEGACY)
-
 ```
 projects/polymarket/polyquantbot/
 ├── core/
@@ -195,7 +194,6 @@ projects/polymarket/polyquantbot/
 ├── backtest/
 ├── reports/
 ```
-
 ---
 
 ## System Rules (CRITICAL)

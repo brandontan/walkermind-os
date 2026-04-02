@@ -35,10 +35,13 @@ import structlog
 from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
 from .message_formatter import (
+    format_capital_allocation_report,
     format_command_response,
     format_error,
+    format_health_snapshot,
     format_kill_alert,
     format_metrics,
+    format_performance_report,
     format_prelive_check,
     format_state_change,
     format_status,
@@ -91,6 +94,10 @@ class CommandHandler:
         telegram_sender: Async callable(chat_id, text) for sending responses.
         chat_id: Target chat/channel ID for responses.
         prelive_validator: Optional PreLiveValidator for /prelive_check command.
+        allocator: Optional DynamicCapitalAllocator for /allocation command.
+        multi_metrics: Optional MultiStrategyMetrics for /strategies + /performance.
+        risk_guard: Optional RiskGuard for /health drawdown data.
+        mode: Trading mode string ("PAPER" | "LIVE") for /health + /performance.
     """
 
     def __init__(
@@ -101,6 +108,10 @@ class CommandHandler:
         telegram_sender: Optional[object] = None,
         chat_id: str = "",
         prelive_validator: Optional[object] = None,
+        allocator: Optional[object] = None,
+        multi_metrics: Optional[object] = None,
+        risk_guard: Optional[object] = None,
+        mode: str = "PAPER",
     ) -> None:
         self._state = state_manager
         self._config = config_manager
@@ -108,7 +119,12 @@ class CommandHandler:
         self._sender = telegram_sender
         self._chat_id = chat_id
         self._prelive_validator = prelive_validator
+        self._allocator = allocator
+        self._multi_metrics = multi_metrics
+        self._risk_guard = risk_guard
+        self._mode = mode
         self._lock = asyncio.Lock()
+        self._runner: Optional[object] = None  # wired after pipeline starts
 
         log.info(
             "command_handler_initialized",
@@ -116,9 +132,16 @@ class CommandHandler:
             has_metrics_source=metrics_source is not None,
             has_sender=telegram_sender is not None,
             has_prelive_validator=prelive_validator is not None,
+            has_allocator=allocator is not None,
+            has_multi_metrics=multi_metrics is not None,
         )
 
     # ── Primary dispatch ───────────────────────────────────────────────────────
+
+    def set_runner(self, runner: object) -> None:
+        """Wire the live pipeline runner for real-time stats in /status."""
+        self._runner = runner
+        log.info("command_handler_runner_wired")
 
     async def handle(
         self,
@@ -183,8 +206,10 @@ class CommandHandler:
             timestamp=time.time(),
         )
 
-        # Send response back via Telegram
-        await self._send_response(result.message, cid)
+        # Send response back via Telegram only if not called from polling loop
+        # (polling loop handles its own reply to preserve correct chat_id)
+        if self._sender is not None and self._chat_id:
+            await self._send_response(result.message, cid)
         return result
 
     # ── Handlers (one per command) ─────────────────────────────────────────────
@@ -193,6 +218,39 @@ class CommandHandler:
         self, cmd: str, value: Optional[float], cid: str
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
+        if cmd == "start" or cmd == "help" or cmd == "menu":
+            return CommandResult(
+                success=True,
+                message="*KrusaderBot* — Polymarket AI Trader\nWS: `connected` | Mode: `PAPER`",
+                payload={
+                    "_keyboard": [
+                        [
+                            {"text": "📊 Status",      "callback_data": "status"},
+                            {"text": "⚙️ Settings",    "callback_data": "settings"},
+                        ],
+                        [
+                            {"text": "📋 Markets",     "callback_data": "markets"},
+                            {"text": "🔍 Rediscover",  "callback_data": "rediscover"},
+                        ],
+                        [
+                            {"text": "📈 Performance", "callback_data": "performance"},
+                            {"text": "🏥 Health",      "callback_data": "health"},
+                        ],
+                        [
+                            {"text": "⏸ Pause",        "callback_data": "pause"},
+                            {"text": "▶️ Resume",       "callback_data": "resume"},
+                        ],
+                        [
+                            {"text": "🔢 Set Markets",  "callback_data": "set_markets_prompt"},
+                            {"text": "💧 Set Liquidity","callback_data": "set_liquidity_prompt"},
+                        ],
+                        [
+                            {"text": "📉 Set Risk",     "callback_data": "set_risk_prompt"},
+                            {"text": "🔄 Refresh Menu", "callback_data": "start"},
+                        ],
+                    ]
+                },
+            )
         if cmd == "status":
             return await self._handle_status()
         if cmd == "pause":
@@ -209,29 +267,63 @@ class CommandHandler:
             return await self._handle_metrics()
         if cmd == "prelive_check":
             return await self._handle_prelive_check()
+        if cmd == "allocation":
+            return await self._handle_allocation()
+        if cmd == "strategies":
+            return await self._handle_strategies()
+        if cmd == "performance":
+            return await self._handle_performance()
+        if cmd == "health":
+            return await self._handle_health()
+        if cmd == "settings":
+            return await self._handle_settings()
+        if cmd == "set_markets":
+            return await self._handle_set_markets(value)
+        if cmd == "set_liquidity":
+            return await self._handle_set_liquidity(value)
+        if cmd == "markets":
+            return await self._handle_markets()
+        if cmd == "rediscover":
+            return await self._handle_rediscover()
 
         return CommandResult(
-            success=False,
-            message=format_command_response(
-                command="unknown",
-                success=False,
-                message=(
-                    "Unknown command. Available: "
-                    "/status /pause /resume /kill /set_risk /set_max_position "
-                    "/metrics /prelive_check"
-                ),
+            success=True,
+            message=(
+                "Unknown command. Type /start or /help for available commands."
             ),
         )
 
     async def _handle_status(self) -> CommandResult:
         snap_state = self._state.snapshot()
         snap_cfg = self._config.snapshot()
+
+        # Pull live pipeline stats if runner is wired
+        pipeline_lines = []
+        if self._runner is not None:
+            try:
+                rs = self._runner.snapshot()
+                ws_ok = self._runner._ws._stats.connected
+                pipeline_lines = [
+                    "",
+                    "*Pipeline*",
+                    f"WS: `{'connected' if ws_ok else 'disconnected'}`",
+                    f"Events: `{rs.event_count}`",
+                    f"Signals: `{rs.signal_count}`",
+                    f"Fills: `{rs.fill_count}`",
+                    f"Markets: `{len(self._runner._market_ids)}`",
+                ]
+            except Exception:
+                pass
+
         msg = format_status(
             state=snap_state["state"],
             reason=snap_state["reason"],
             risk_multiplier=snap_cfg.risk_multiplier,
             max_position=snap_cfg.max_position,
         )
+        if pipeline_lines:
+            msg = msg + "\n" + "\n".join(pipeline_lines)
+
         return CommandResult(
             success=True,
             message=msg,
@@ -474,6 +566,359 @@ class CommandHandler:
             success=result_dict.get("status") == "PASS",
             message=format_prelive_check(result_dict),
             payload=result_dict,
+        )
+
+    async def _handle_allocation(self) -> CommandResult:
+        """Return capital allocation report from DynamicCapitalAllocator."""
+        log.info("command_allocation_invoked")
+        if self._allocator is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="allocation",
+                    success=False,
+                    message="Allocator not configured.",
+                ),
+            )
+        try:
+            snap = self._allocator.allocation_snapshot()
+            msg = format_capital_allocation_report(
+                strategy_weights=snap.strategy_weights,
+                position_sizes=snap.position_sizes,
+                disabled_strategies=snap.disabled_strategies,
+                suppressed_strategies=snap.suppressed_strategies,
+                total_allocated_usd=snap.total_allocated_usd,
+                bankroll=snap.bankroll,
+                mode=self._mode,
+            )
+            return CommandResult(
+                success=True,
+                message=msg,
+                payload={
+                    "strategy_weights": snap.strategy_weights,
+                    "total_allocated_usd": snap.total_allocated_usd,
+                },
+            )
+        except Exception as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="allocation", error=str(exc), severity="ERROR"
+                ),
+            )
+
+    async def _handle_strategies(self) -> CommandResult:
+        """Return per-strategy performance snapshot from MultiStrategyMetrics."""
+        log.info("command_strategies_invoked")
+        if self._multi_metrics is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="strategies",
+                    success=False,
+                    message="MultiStrategyMetrics not configured.",
+                ),
+            )
+        try:
+            snapshot = self._multi_metrics.snapshot()
+            total_signals = self._multi_metrics.total_signals
+            total_trades = self._multi_metrics.total_trades
+            conflicts = self._multi_metrics.total_conflicts
+
+            from .message_formatter import format_multi_strategy_report
+            msg = format_multi_strategy_report(
+                strategy_breakdown=snapshot,
+                conflicts_count=conflicts,
+                skipped_trades=0,
+                total_signals=total_signals,
+                total_trades=total_trades,
+            )
+            return CommandResult(
+                success=True,
+                message=msg,
+                payload={"snapshot": snapshot, "conflicts": conflicts},
+            )
+        except Exception as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="strategies", error=str(exc), severity="ERROR"
+                ),
+            )
+
+    async def _handle_performance(self) -> CommandResult:
+        """Return PnL + win-rate performance report."""
+        log.info("command_performance_invoked")
+        if self._multi_metrics is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="performance",
+                    success=False,
+                    message="MultiStrategyMetrics not configured.",
+                ),
+            )
+        try:
+            snapshot = self._multi_metrics.snapshot()
+            per_pnl: dict = {}
+            per_wr: dict = {}
+            per_trades: dict = {}
+            total_pnl = 0.0
+            for strategy_id, m_data in snapshot.items():
+                per_pnl[strategy_id] = float(m_data.get("total_pnl", 0.0))
+                per_wr[strategy_id] = float(m_data.get("win_rate", 0.0))
+                per_trades[strategy_id] = int(m_data.get("trades_executed", 0))
+                total_pnl += per_pnl[strategy_id]
+
+            msg = format_performance_report(
+                per_strategy_pnl=per_pnl,
+                per_strategy_win_rate=per_wr,
+                per_strategy_trades=per_trades,
+                total_pnl=round(total_pnl, 4),
+                total_trades=self._multi_metrics.total_trades,
+                mode=self._mode,
+            )
+            return CommandResult(
+                success=True,
+                message=msg,
+                payload={
+                    "total_pnl": round(total_pnl, 4),
+                    "total_trades": self._multi_metrics.total_trades,
+                },
+            )
+        except Exception as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="performance", error=str(exc), severity="ERROR"
+                ),
+            )
+
+    async def _handle_health(self) -> CommandResult:
+        """Return full system health snapshot."""
+        log.info("command_health_invoked")
+        try:
+            from ..core.system_snapshot import build_system_snapshot
+            snap = build_system_snapshot(
+                state_manager=self._state,
+                config_manager=self._config,
+                metrics=self._multi_metrics,
+                allocator=self._allocator,
+                risk_guard=self._risk_guard,
+                mode=self._mode,
+            )
+            msg = format_health_snapshot(
+                mode=snap.mode,
+                system_state=snap.system_state,
+                state_reason=snap.state_reason,
+                total_exposure_usd=snap.total_exposure_usd,
+                total_pnl=snap.total_pnl,
+                drawdown=snap.drawdown,
+                bankroll=snap.bankroll,
+                active_strategies=snap.active_strategies,
+                disabled_strategies=snap.disabled_strategies,
+                suppressed_strategies=snap.suppressed_strategies,
+                total_trades=snap.total_trades,
+                total_signals=snap.total_signals,
+                risk_multiplier=snap.risk_multiplier,
+                max_position=snap.max_position,
+            )
+            return CommandResult(
+                success=True,
+                message=msg,
+                payload=snap.to_dict(),
+            )
+        except Exception as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="health", error=str(exc), severity="ERROR"
+                ),
+            )
+
+    async def _handle_settings(self) -> CommandResult:
+        """Return all current runtime settings in one view."""
+        snap_cfg = self._config.snapshot()
+        snap_state = self._state.snapshot()
+        lines = [
+            "⚙️ *BOT SETTINGS*\n",
+            f"Mode: `{snap_state.get('state', 'UNKNOWN')}`",
+            f"Trading mode: `{self._mode}`",
+            "",
+            "*Risk & Position*",
+            f"Risk multiplier: `{snap_cfg.risk_multiplier:.3f}`",
+            f"Max position: `{snap_cfg.max_position:.3f}` ({snap_cfg.max_position*100:.1f}%)",
+            "",
+            "*Market Discovery*",
+            f"Max markets: `{snap_cfg.max_markets}`",
+            f"Min liquidity: `${snap_cfg.min_liquidity_usd:,.0f}`",
+            f"Active markets: `{len(snap_cfg.market_ids)}`",
+            "",
+            "_Use /set\\_markets, /set\\_liquidity, /set\\_risk, /set\\_max\\_position to update_",
+        ]
+        return CommandResult(
+            success=True,
+            message="\n".join(lines),
+            payload=snap_cfg.__dict__,
+        )
+
+    async def _handle_set_markets(self, value: Optional[float]) -> CommandResult:
+        """Set max auto-discovered markets: /set_markets [1–50]."""
+        if value is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="set_markets",
+                    success=False,
+                    message="Usage: /set_markets [1–50]  — e.g. /set_markets 10",
+                ),
+            )
+        try:
+            applied = await self._config.set_max_markets(int(value))
+        except (ValueError, TypeError) as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(context="set_markets", error=str(exc), severity="ERROR"),
+            )
+        return CommandResult(
+            success=True,
+            message=format_command_response(
+                command="set_markets",
+                success=True,
+                message=f"Max markets updated to `{applied}`. Use /rediscover to apply now.",
+                payload={"max_markets": applied},
+            ),
+            payload={"max_markets": applied},
+        )
+
+    async def _handle_set_liquidity(self, value: Optional[float]) -> CommandResult:
+        """Set minimum liquidity threshold: /set_liquidity [1000–1000000]."""
+        if value is None:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="set_liquidity",
+                    success=False,
+                    message="Usage: /set_liquidity [amount]  — e.g. /set_liquidity 25000",
+                ),
+            )
+        try:
+            applied = await self._config.set_min_liquidity_usd(float(value))
+        except (ValueError, TypeError) as exc:
+            return CommandResult(
+                success=False,
+                message=format_error(context="set_liquidity", error=str(exc), severity="ERROR"),
+            )
+        return CommandResult(
+            success=True,
+            message=format_command_response(
+                command="set_liquidity",
+                success=True,
+                message=f"Min liquidity updated to `${applied:,.0f}`. Use /rediscover to apply now.",
+                payload={"min_liquidity_usd": applied},
+            ),
+            payload={"min_liquidity_usd": applied},
+        )
+
+    async def _handle_markets(self) -> CommandResult:
+        """Show currently active markets with name, price and volume."""
+        snap = self._config.snapshot()
+        meta = self._config.market_meta
+
+        # Fallback: read from runner if meta not yet loaded
+        if not meta and self._runner is not None:
+            try:
+                ids = list(self._runner._market_ids)
+            except Exception:
+                ids = []
+            if not ids:
+                return CommandResult(success=True,
+                    message="No markets active. Tap 🔍 Rediscover or run /rediscover.")
+            lines = [f"📋 *ACTIVE MARKETS* ({len(ids)})\n"]
+            for i, mid in enumerate(ids[:15], 1):
+                short = mid[:10] + "…" + mid[-6:] if len(mid) > 18 else mid
+                lines.append(f"`{i}.` `{short}`")
+            return CommandResult(success=True, message="\n".join(lines))
+
+        if not meta:
+            return CommandResult(success=True,
+                message="No markets active. Tap 🔍 Rediscover or run /rediscover.")
+
+        lines = [f"📋 *ACTIVE MARKETS* ({len(meta)})\n"]
+        for i, m in enumerate(meta, 1):
+            q = m.get("question", "Unknown")
+            q = q if len(q) <= 55 else q[:52] + "…"
+            vol = m.get("volume", 0)
+            vol_str = f"${vol/1000:.0f}K" if vol >= 1000 else f"${vol:.0f}"
+            yes = m.get("yes_price")
+            no = m.get("no_price")
+            price_str = f"YES {yes:.0%} | NO {no:.0%}" if yes and no else ""
+            end = m.get("end_date", "")
+            lines.append(
+                f"*{i}.* {q}\n"
+                f"   {price_str}  Vol: {vol_str}"
+                + (f"  Ends: {end}" if end else "")
+            )
+            lines.append("")  # blank line between markets
+
+        return CommandResult(
+            success=True,
+            message="\n".join(lines),
+            payload={"markets": meta, "count": len(meta)},
+        )
+
+    async def _handle_rediscover(self) -> CommandResult:
+        """Trigger fresh market discovery from Gamma API with current settings."""
+        log.info("command_rediscover_invoked")
+        snap = self._config.snapshot()
+        try:
+            from ..core.bootstrap import _fetch_active_markets
+            new_ids = await _fetch_active_markets(
+                gamma_url="https://gamma-api.polymarket.com",
+                min_liquidity=snap.min_liquidity_usd,
+                max_markets=snap.max_markets,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error("command_rediscover_failed", error=str(exc))
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="rediscover",
+                    error=str(exc),
+                    severity="ERROR",
+                ),
+            )
+        if not new_ids:
+            return CommandResult(
+                success=False,
+                message=format_command_response(
+                    command="rediscover",
+                    success=False,
+                    message=(
+                        f"Discovery returned 0 markets "
+                        f"(min_liquidity=${snap.min_liquidity_usd:,.0f}, max={snap.max_markets}).\n"
+                        "Try /set_liquidity with a lower value."
+                    ),
+                ),
+            )
+        self._config.update_market_ids(new_ids)
+        # Also update the live runner if wired
+        if self._runner is not None:
+            try:
+                self._runner._market_ids = new_ids
+                log.info("command_rediscover_runner_updated", count=len(new_ids))
+            except Exception as exc:
+                log.warning("command_rediscover_runner_update_failed", error=str(exc))
+        lines = [f"🔍 *REDISCOVER COMPLETE* — {len(new_ids)} market(s)\n"]
+        for i, mid in enumerate(new_ids, 1):
+            short = mid[:10] + "..." + mid[-6:] if len(mid) > 20 else mid
+            lines.append(f"`{i}.` `{short}`")
+        lines.append(f"\n_Filter: min_liquidity=${snap.min_liquidity_usd:,.0f}, max={snap.max_markets}_")
+        log.info("command_rediscover_complete", count=len(new_ids), market_ids=new_ids)
+        return CommandResult(
+            success=True,
+            message="\n".join(lines),
+            payload={"market_ids": new_ids, "count": len(new_ids)},
         )
 
     # ── Telegram send with retry ───────────────────────────────────────────────

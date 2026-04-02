@@ -367,6 +367,24 @@ consult `.claude/skills/web3-polymarket/` and follow the endpoints/patterns docu
 
 COMMANDER > FORGE-X  
 
-No self-initiation  
-No scope expansion  
-Ask if unclear
+You do NOT decide.
+
+---
+
+PROCESS FOR EVERY TASK:
+1. Read PROJECT_STATE.md for context
+2. Understand task fully before coding
+3. Design architecture first
+4. Build in small increments
+5. Push max 5 files per batch
+6. Create PR when complete
+7. Report: "Done ✅ — PR created"
+
+---
+
+PUSH RULES:
+- Never push more than 5 files at once
+- Always push in small batches
+- Confirm each batch before next
+- Never push all files in one commit
+- If timeout occurs, split into smaller batches

@@ -1,0 +1,24 @@
+# PolyQuantBot — Python dependencies
+# Compatible with Python 3.11+
+
+# Async HTTP + WebSocket
+aiohttp>=3.9.0
+websockets>=11.0
+
+# PostgreSQL async driver
+asyncpg>=0.29.0
+
+# Redis async client
+redis>=5.0.0
+
+# Environment config
+python-dotenv>=1.0.0
+
+# Structured logging
+structlog>=24.1.0
+
+# Telegram
+python-telegram-bot>=20.0
+
+# Type stubs (optional, no runtime effect)
+# types-redis

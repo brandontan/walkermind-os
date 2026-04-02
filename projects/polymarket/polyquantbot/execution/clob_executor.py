@@ -38,7 +38,8 @@ import os
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Awaitable, Callable, Optional
 
 import structlog
 
@@ -77,6 +78,8 @@ class ExecutionRequest:
     size: float
     order_type: str = "LIMIT"
     correlation_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    strategy_id: str = ""          # originating strategy (for feedback loop)
+    expected_ev: float = 0.0       # signal expected value per USD (for feedback loop)
 
 
 @dataclass
@@ -125,6 +128,9 @@ class LiveExecutor:
         min_order_size: float = _MIN_ORDER_SIZE,
         max_retries: int = _MAX_RETRIES,
         api_timeout_s: float = _API_TIMEOUT,
+        trade_result_callback: Optional[
+            Callable[["TradeResult"], Awaitable[None]]  # type: ignore[name-defined]
+        ] = None,
     ) -> None:
         """Initialise the executor.
 
@@ -137,6 +143,9 @@ class LiveExecutor:
             min_order_size: Minimum order size in USD.
             max_retries: Max retry attempts on transient failure.
             api_timeout_s: Timeout for each API call in seconds.
+            trade_result_callback: Optional async callable invoked after every
+                successful fill (status != "rejected").  Receives a
+                :class:`TradeResult` and feeds the feedback loop.
         """
         self._api_key = api_key
         self._api_secret = api_secret
@@ -146,6 +155,7 @@ class LiveExecutor:
         self._min_size = min_order_size
         self._max_retries = max_retries
         self._timeout = api_timeout_s
+        self._trade_result_callback = trade_result_callback
 
         self._client = None   # lazy-init in _ensure_client()
         self._open_orders: dict[str, str] = {}   # correlation_id → order_id (dedup)
@@ -155,6 +165,7 @@ class LiveExecutor:
             chain_id=chain_id,
             dry_run=dry_run,
             min_order_size=min_order_size,
+            feedback_loop_enabled=trade_result_callback is not None,
         )
 
     # ── Factory ───────────────────────────────────────────────────────────────
@@ -250,10 +261,16 @@ class LiveExecutor:
 
         # ── Paper mode bypass ──────────────────────────────────────────────────
         if self._dry_run:
-            return await self._paper_execute(request, t0)
+            result = await self._paper_execute(request, t0)
+            if result.status != "rejected":
+                await self._emit_trade_result(request, result)
+            return result
 
         # ── Live execution with retry ──────────────────────────────────────────
-        return await self._live_execute_with_retry(request, idempotency_key, t0)
+        result = await self._live_execute_with_retry(request, idempotency_key, t0)
+        if result.status != "rejected":
+            await self._emit_trade_result(request, result)
+        return result
 
     async def cancel_order(
         self,
@@ -622,6 +639,55 @@ class LiveExecutor:
             latency_ms=latency_ms,
             correlation_id=req.correlation_id,
         )
+
+    async def _emit_trade_result(
+        self,
+        request: ExecutionRequest,
+        result: ExecutionResult,
+    ) -> None:
+        """Construct a TradeResult from fill data and invoke the feedback callback.
+
+        Called after every non-rejected execution.  Silently logs and returns
+        on any error so the main execution path is never blocked.
+
+        Args:
+            request: The original execution request.
+            result:  The completed ExecutionResult.
+        """
+        if self._trade_result_callback is None:
+            return
+        if not request.strategy_id:
+            return
+
+        from .trade_result import TradeResult
+
+        try:
+            trade = TradeResult.from_execution(
+                strategy_id=request.strategy_id,
+                market_id=request.market_id,
+                side=request.side,
+                price=request.price,
+                size=request.size,
+                filled_size=result.filled_size,
+                avg_fill_price=result.avg_price,
+                expected_ev=request.expected_ev,
+                order_id=result.order_id,
+            )
+            log.debug(
+                "executor.emitting_trade_result",
+                trade_id=trade.trade_id,
+                strategy_id=trade.strategy_id,
+                won=trade.won,
+                pnl=round(trade.pnl, 4),
+            )
+            await self._trade_result_callback(trade)
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "executor.trade_result_callback_error",
+                error=str(exc),
+                correlation_id=request.correlation_id,
+                exc_info=True,
+            )
 
     @staticmethod
     def _parse_order_status(raw: dict) -> dict:

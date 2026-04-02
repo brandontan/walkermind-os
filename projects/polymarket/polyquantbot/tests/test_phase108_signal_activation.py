@@ -483,6 +483,8 @@ def _make_runner_for_signal_test(callback=None):
     telegram.enabled = True
     telegram.alert_error = AsyncMock()
     telegram.alert_kill = AsyncMock()
+    telegram.alert_signal = AsyncMock()
+    telegram.alert_trade = AsyncMock()
     telegram.start = AsyncMock()
     telegram.stop = AsyncMock()
 

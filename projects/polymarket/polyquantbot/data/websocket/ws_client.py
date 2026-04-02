@@ -50,6 +50,7 @@ _HEARTBEAT_TIMEOUT: float = 30.0        # seconds — reconnect if silent this l
 _QUEUE_MAXSIZE: int = 1024              # backpressure cap
 _PING_INTERVAL: float = 20.0           # WS ping interval
 _PING_TIMEOUT: float = 10.0            # WS ping timeout
+_MAX_RETRIES: int = 0                   # 0 = unlimited retries (retry forever)
 
 
 # ── Data types ────────────────────────────────────────────────────────────────
@@ -83,6 +84,9 @@ class WSClientStats:
     parse_errors: int = 0
     heartbeat_timeouts: int = 0
     last_message_ts: float = field(default_factory=time.time)
+    connected: bool = False
+    reconnect_count: int = 0
+    last_error: str = ""
 
 
 # ── Client ────────────────────────────────────────────────────────────────────
@@ -141,6 +145,7 @@ class PolymarketWSClient:
         if self._running:
             log.warning("ws_client_already_running")
             return
+        log.info("websockets_version", version=websockets.__version__)
         self._running = True
         self._ws_task = asyncio.create_task(
             self._run_ws_loop(), name="polymarket_ws_loop"
@@ -205,25 +210,37 @@ class PolymarketWSClient:
         """Persistent reconnect loop — runs until self._running is False."""
         delay = self._reconnect_base
         attempt = 0
+        consecutive_failures = 0
 
         while self._running:
             attempt += 1
             try:
                 await self._connect_and_stream(attempt)
-                # Clean disconnect → reset backoff
+                # Clean disconnect → reset backoff and failure counter
                 delay = self._reconnect_base
+                consecutive_failures = 0
 
             except asyncio.CancelledError:
                 break
 
             except (ConnectionClosed, WebSocketException, OSError) as exc:
                 self._stats.reconnects += 1
+                self._stats.reconnect_count += 1
+                self._stats.connected = False
+                self._stats.last_error = str(exc)
+                consecutive_failures += 1
                 log.warning(
                     "ws_disconnected",
                     attempt=attempt,
+                    consecutive_failures=consecutive_failures,
                     reconnect_delay_s=delay,
                     error=str(exc),
                 )
+                if _MAX_RETRIES > 0 and consecutive_failures >= _MAX_RETRIES:
+                    self._running = False
+                    raise RuntimeError(
+                        f"WebSocket failed {consecutive_failures} consecutive times — stopping system"
+                    )
                 if not self._running:
                     break
                 await asyncio.sleep(delay)
@@ -231,13 +248,23 @@ class PolymarketWSClient:
 
             except Exception as exc:  # noqa: BLE001
                 self._stats.reconnects += 1
+                self._stats.reconnect_count += 1
+                self._stats.connected = False
+                self._stats.last_error = str(exc)
+                consecutive_failures += 1
                 log.error(
                     "ws_unexpected_error",
                     attempt=attempt,
+                    consecutive_failures=consecutive_failures,
                     reconnect_delay_s=delay,
                     error=str(exc),
                     exc_info=True,
                 )
+                if _MAX_RETRIES > 0 and consecutive_failures >= _MAX_RETRIES:
+                    self._running = False
+                    raise RuntimeError(
+                        f"WebSocket failed {consecutive_failures} consecutive times — stopping system"
+                    )
                 if not self._running:
                     break
                 await asyncio.sleep(delay)
@@ -258,11 +285,12 @@ class PolymarketWSClient:
 
         async with websockets.connect(
             self._ws_url,
-            extra_headers=headers,
+            additional_headers=headers,
             ping_interval=_PING_INTERVAL,
             ping_timeout=_PING_TIMEOUT,
             open_timeout=10,
         ) as ws:
+            self._stats.connected = True
             log.info("ws_connected", attempt=attempt)
             await self._subscribe(ws)
 
@@ -273,11 +301,12 @@ class PolymarketWSClient:
                 self._stats.last_message_ts = time.time()
                 await self._handle_raw(raw_msg)
 
+        self._stats.connected = False
+
     async def _subscribe(self, ws) -> None:
-        """Send subscription message for all configured market IDs."""
+        """Send subscription message for all configured market IDs (asset/token IDs)."""
         sub_msg = {
-            "auth": {"apiKey": self._api_key} if self._api_key else {},
-            "markets": self._market_ids,
+            "assets_ids": self._market_ids,
             "type": "Market",
         }
         await ws.send(json.dumps(sub_msg))
