@@ -160,7 +160,7 @@ async def main() -> None:
         _last_signals = 0
         _last_trades = 0
         _last_ws = False
-        _last_sent_ts = 0.0
+        _last_sent_ts = time.time()  # start from now — avoid immediate first send
         poll_s = 60.0  # internal poll — check every 60s but only send at interval
 
         while True:
@@ -232,7 +232,7 @@ async def main() -> None:
         cfg, market_ids = await run_bootstrap()
 
         runner = LivePaperRunner.from_config(
-            config=cfg,
+            cfg=cfg,
             market_ids=market_ids,
         )
         await runner.start()
