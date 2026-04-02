@@ -55,11 +55,14 @@ Thread-safety: single asyncio event loop only.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import structlog
 
 from .allocator import AllocationDecision  # re-use for orchestrator compatibility
+
+if TYPE_CHECKING:
+    from ..infra.redis_client import RedisClient
 
 log = structlog.get_logger(__name__)
 
@@ -593,6 +596,96 @@ class DynamicCapitalAllocator:
         return list(self._metrics.keys())
 
     # ── Internal helpers ──────────────────────────────────────────────────────
+
+    # ── Redis persistence ─────────────────────────────────────────────────────
+
+    async def save_weights_to_redis(self, redis: "RedisClient") -> bool:
+        """Persist current allocation weights and disabled strategies to Redis.
+
+        Saves the normalized score weights plus the disabled-strategy set so
+        the allocator can be restored to its last known state after a restart.
+
+        Args:
+            redis: Connected :class:`~infra.redis_client.RedisClient` instance.
+
+        Returns:
+            True if all writes succeeded, False if any write failed.
+        """
+        weights = self._compute_weights()
+        ok_weights = await redis.save_allocation_weights(weights)
+
+        # Also save metrics snapshots for each strategy
+        metrics_payload = {
+            name: {
+                "ev_capture": m.ev_capture,
+                "win_rate": m.win_rate,
+                "bayesian_confidence": m.bayesian_confidence,
+                "drawdown": m.drawdown,
+            }
+            for name, m in self._metrics.items()
+        }
+        ok_metrics = await redis._set_json(
+            "polyquantbot:allocator:metrics_snapshots", metrics_payload
+        )
+        ok_disabled = await redis._set_json(
+            "polyquantbot:allocator:disabled_strategies", list(self._disabled)
+        )
+
+        success = ok_weights and ok_metrics and ok_disabled
+        log.info(
+            "dynamic_capital_allocator.weights_saved_to_redis",
+            strategies=list(weights.keys()),
+            disabled=list(self._disabled),
+            success=success,
+        )
+        return success
+
+    async def load_weights_from_redis(self, redis: "RedisClient") -> bool:
+        """Restore allocator metrics state from Redis on startup.
+
+        Loads per-strategy metric snapshots and the disabled-strategy set.
+        Unknown strategies in Redis are ignored.  Missing keys keep priors.
+
+        Args:
+            redis: Connected :class:`~infra.redis_client.RedisClient` instance.
+
+        Returns:
+            True if state was restored, False if nothing was found.
+        """
+        metrics_data = await redis._get_json(
+            "polyquantbot:allocator:metrics_snapshots"
+        )
+        disabled_data = await redis._get_json(
+            "polyquantbot:allocator:disabled_strategies"
+        )
+
+        restored = False
+
+        if metrics_data and isinstance(metrics_data, dict):
+            for name, snap in metrics_data.items():
+                if name not in self._metrics:
+                    continue
+                self._metrics[name] = StrategyMetricSnapshot(
+                    ev_capture=float(snap.get("ev_capture", _PRIOR_EV)),
+                    win_rate=float(snap.get("win_rate", _PRIOR_WIN_RATE)),
+                    bayesian_confidence=float(
+                        snap.get("bayesian_confidence", _PRIOR_CONFIDENCE)
+                    ),
+                    drawdown=float(snap.get("drawdown", _PRIOR_DRAWDOWN)),
+                )
+            restored = True
+
+        if disabled_data and isinstance(disabled_data, list):
+            self._disabled = {
+                s for s in disabled_data if s in self._metrics
+            }
+
+        log.info(
+            "dynamic_capital_allocator.weights_loaded_from_redis",
+            restored=restored,
+            disabled=list(self._disabled),
+        )
+        return restored
 
     def _compute_weights(self) -> Dict[str, float]:
         """Compute normalized score weights for all eligible strategies.

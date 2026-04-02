@@ -3,6 +3,10 @@
 Tracks signals generated, trades executed, wins/losses, and EV captured for
 each registered strategy.  Also maintains a global conflicts counter.
 
+Persistence:
+    save_to_redis() / load_from_redis() use RedisClient to persist and restore
+    the full metrics state across restarts.
+
 Usage::
 
     from projects.polymarket.polyquantbot.monitoring.multi_strategy_metrics import (
@@ -15,13 +19,18 @@ Usage::
     metrics.record_trade("ev_momentum", won=True, ev_captured=0.08)
 
     snapshot = metrics.snapshot()
+    await metrics.save_to_redis(redis_client)
+    await metrics.load_from_redis(redis_client)
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Set
 
 import structlog
+
+if TYPE_CHECKING:
+    from ..infra.redis_client import RedisClient
 
 log = structlog.get_logger(__name__)
 
@@ -279,6 +288,90 @@ class MultiStrategyMetrics:
             raise KeyError(
                 f"Strategy '{strategy_id}' not registered in MultiStrategyMetrics"
             ) from None
+
+    # ── Redis persistence ─────────────────────────────────────────────────────
+
+    async def save_to_redis(self, redis: "RedisClient") -> bool:
+        """Persist all strategy metrics and seen trade IDs to Redis.
+
+        Saves each strategy's metrics individually plus the full snapshot and
+        the set of processed trade IDs (for idempotency across restarts).
+
+        Args:
+            redis: Connected :class:`~infra.redis_client.RedisClient` instance.
+
+        Returns:
+            True if all writes succeeded, False if any write failed.
+        """
+        success = True
+
+        # Save full snapshot
+        snapshot = self.snapshot()
+        ok = await redis.save_live_snapshot(snapshot)
+        if not ok:
+            success = False
+
+        # Save each strategy individually
+        for strategy_id, m in self._metrics.items():
+            ok = await redis.save_strategy_metrics(strategy_id, m.to_dict())
+            if not ok:
+                success = False
+
+        # Save seen trade IDs for idempotency
+        ok = await redis._set_json(
+            "polyquantbot:metrics:seen_trade_ids",
+            list(self._seen_trade_ids),
+        )
+        if not ok:
+            success = False
+
+        log.info(
+            "multi_strategy_metrics.saved_to_redis",
+            strategies=list(self._metrics.keys()),
+            seen_trade_ids=len(self._seen_trade_ids),
+            success=success,
+        )
+        return success
+
+    async def load_from_redis(self, redis: "RedisClient") -> bool:
+        """Restore strategy metrics and seen trade IDs from Redis.
+
+        Loads each registered strategy's metrics if a saved state exists.
+        Unknown strategies in Redis are ignored.  Missing keys restore to
+        default state (no data lost).
+
+        Args:
+            redis: Connected :class:`~infra.redis_client.RedisClient` instance.
+
+        Returns:
+            True if at least one strategy was restored, False if nothing found.
+        """
+        restored_count = 0
+
+        for strategy_id in self._metrics:
+            data = await redis.load_strategy_metrics(strategy_id)
+            if data is None:
+                continue
+            m = self._metrics[strategy_id]
+            m.signals_generated = int(data.get("signals_generated", 0))
+            m.trades_executed = int(data.get("trades_executed", 0))
+            m.wins = int(data.get("wins", 0))
+            m.losses = int(data.get("losses", 0))
+            m.total_ev_captured = float(data.get("total_ev_captured", 0.0))
+            m.total_pnl = float(data.get("total_pnl", 0.0))
+            restored_count += 1
+
+        # Restore seen trade IDs
+        seen_raw = await redis._get_json("polyquantbot:metrics:seen_trade_ids")
+        if seen_raw and isinstance(seen_raw, list):
+            self._seen_trade_ids = set(seen_raw)
+
+        log.info(
+            "multi_strategy_metrics.loaded_from_redis",
+            restored_count=restored_count,
+            seen_trade_ids=len(self._seen_trade_ids),
+        )
+        return restored_count > 0
 
     def __repr__(self) -> str:
         return (
