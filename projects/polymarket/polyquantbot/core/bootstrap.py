@@ -443,5 +443,27 @@ async def run_bootstrap() -> tuple[dict[str, Any], list[str]]:
     cfg = build_config()
     market_ids, market_meta = await discover_markets(cfg)
     mode = cfg["go_live"]["mode"]
+
+    # ── Phase 11.4: SQLite + WalletManager + UserManager ──────────────────────
+    try:
+        from ..infra.db.sqlite_client import SQLiteClient
+        from ..wallet.wallet_manager import WalletManager
+        from ..wallet.user_manager import UserManager
+
+        db = SQLiteClient()
+        await db.connect()
+        wallet_manager = WalletManager(db=db)
+        user_manager = UserManager(wallet_manager=wallet_manager, db=db)
+        cfg["_wallet_manager"] = wallet_manager
+        cfg["_user_manager"] = user_manager
+        cfg["_db"] = db
+        log.info("bootstrap_wallet_system_ready")
+    except Exception as exc:
+        log.warning("bootstrap_wallet_system_failed", error=str(exc),
+                    hint="SQLite unavailable — running without persistence")
+        cfg["_wallet_manager"] = None
+        cfg["_user_manager"] = None
+        cfg["_db"] = None
+
     log_startup(mode, market_ids)
     return cfg, market_ids, market_meta

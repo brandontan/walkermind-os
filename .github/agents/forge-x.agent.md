@@ -271,7 +271,7 @@ DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING
 
 Update file:
 
-projects/polymarket/polyquantbot/PROJECT_STATE.md
+PROJECT_STATE.md
 
 Include:
 

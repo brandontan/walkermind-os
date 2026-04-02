@@ -190,6 +190,20 @@ class LiveModeController:
             current=mode.value,
         )
 
+    def enable_live(self) -> None:
+        """Switch to LIVE trading mode.
+
+        Equivalent to ``set_mode(TradingMode.LIVE)``.
+        """
+        self.set_mode(TradingMode.LIVE)
+
+    def enable_paper(self) -> None:
+        """Switch to PAPER (simulation) trading mode.
+
+        Equivalent to ``set_mode(TradingMode.PAPER)``.
+        """
+        self.set_mode(TradingMode.PAPER)
+
     # ── Primary gate ──────────────────────────────────────────────────────────
 
     def is_live_enabled(self) -> bool:
