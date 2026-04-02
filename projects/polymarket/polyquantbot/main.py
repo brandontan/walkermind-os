@@ -399,9 +399,11 @@ async def main() -> None:
     # ── Bootstrap: market discovery + pipeline startup ─────────────────────────
     from .core.bootstrap import run_bootstrap
     from .core.pipeline.live_paper_runner import LivePaperRunner
+    from .core.pipeline.trading_loop import run_trading_loop
 
     runner: Optional["LivePaperRunner"] = None
     pipeline_task = None
+    trading_loop_task = None
     try:
         log.info("pipeline_started")
         cfg, market_ids, market_meta = await run_bootstrap()
@@ -432,6 +434,16 @@ async def main() -> None:
             market_count=len(condition_ids),
             market_ids=condition_ids[:5],
         )
+
+        # ── Signal→execution trading loop (runs alongside WS pipeline) ────────
+        trading_loop_task = asyncio.create_task(
+            run_trading_loop(
+                mode=mode,
+                telegram_callback=tg.alert_trade if hasattr(tg, "alert_trade") else None,
+            ),
+            name="trading_loop",
+        )
+        log.info("trading_loop_task_started", mode=mode)
     except Exception as exc:
         log.error(
             "pipeline_crash",
@@ -444,6 +456,12 @@ async def main() -> None:
     await stop_event.wait()
 
     log.info("polyquantbot_shutdown_started")
+    if trading_loop_task is not None and not trading_loop_task.done():
+        trading_loop_task.cancel()
+        try:
+            await trading_loop_task
+        except asyncio.CancelledError:
+            pass
     if pipeline_task is not None and not pipeline_task.done():
         try:
             await runner.stop()
