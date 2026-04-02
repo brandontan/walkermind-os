@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-02
-Status: Phase 15 Production-Ready Infrastructure COMPLETE ✅ | Railway Deployment Ready ✅
+Status: Phase 15 Production-Ready Infrastructure COMPLETE ✅ | Production Bootstrap COMPLETE ✅ | Railway Deployment Ready ✅
 
 ---
 
@@ -57,6 +57,17 @@ RAILWAY DEPLOYMENT
 - projects/__init__.py + projects/polymarket/__init__.py (import resolution)
 - projects/polymarket/polyquantbot/main.py (async main with env validation)
 - Fail-fast on missing LIVE env vars; graceful warning for missing MARKET_IDS
+
+---
+
+PRODUCTION BOOTSTRAP
+
+- core/bootstrap.py: credential validation, config defaults, auto market discovery
+- Validates CLOB_API_KEY, CLOB_API_SECRET, CLOB_API_PASSPHRASE, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID at startup (hard fail)
+- Auto-fills optional config (MODE, MAX_MARKETS, risk defaults) from env with safe defaults
+- Auto market discovery via Gamma REST API when MARKET_IDS not set (filters liquidity > 10k, selects top-N)
+- main.py refactored to use run_bootstrap() before pipeline start
+- 27 SENTINEL tests (PB-01 – PB-27), total test suite: 772 tests
 
 ---
 
@@ -231,7 +242,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Set MARKET_IDS + CLOB_WS_URL in Railway environment and deploy
+1. Deploy with zero manual config — bootstrap handles credentials + market discovery automatically
 2. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
 3. Market resolution PnL updates (TradeResult post-settlement)
 4. Bayesian updater: pass posterior confidence as ev_adjustment

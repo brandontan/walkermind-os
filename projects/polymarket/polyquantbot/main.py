@@ -2,21 +2,34 @@
 
 Bootstraps the PolyQuantBot pipeline from environment variables and starts
 the LivePaperRunner (PAPER mode) or Phase10PipelineRunner (LIVE mode) based
-on the TRADING_MODE env var.
+on the TRADING_MODE / MODE env var.
 
-Environment variables
----------------------
-TRADING_MODE            PAPER | LIVE  (default: PAPER)
-ENABLE_LIVE_TRADING     true | false  (must be "true" for LIVE mode)
-MARKET_IDS              comma-separated Polymarket condition IDs to subscribe
-CLOB_WS_URL             WebSocket URL  (optional override)
-CLOB_API_KEY            CLOB API key   (optional)
-CLOB_API_SECRET         CLOB API secret (LIVE only)
-CLOB_API_PASSPHRASE     CLOB API passphrase (LIVE only)
-REDIS_URL               Redis connection URL (optional)
-DB_DSN                  PostgreSQL DSN (optional)
-TELEGRAM_BOT_TOKEN      Telegram bot token (optional)
-TELEGRAM_CHAT_ID        Telegram chat ID (optional)
+Bootstrap sequence (handled by core.bootstrap):
+  1. Validate required credentials — hard fail if missing.
+  2. Build pipeline config with safe defaults for optional values.
+  3. Discover markets: MARKET_IDS env var takes priority; otherwise the
+     Gamma REST API is queried for the top-N active, liquid markets.
+  4. Emit structured startup log.
+
+Required environment variables:
+    CLOB_API_KEY
+    CLOB_API_SECRET
+    CLOB_API_PASSPHRASE
+    TELEGRAM_TOKEN   (alias: TELEGRAM_BOT_TOKEN)
+    TELEGRAM_CHAT_ID
+
+Optional environment variables (with defaults):
+    TRADING_MODE / MODE     PAPER | LIVE  (default: PAPER)
+    MARKET_IDS              comma-separated condition IDs (disables auto-discovery)
+    ENABLE_LIVE_TRADING     true | false  (must be "true" to unlock LIVE mode)
+    MAX_MARKETS             int  (default: 5)
+    CLOB_WS_URL             WebSocket URL override
+    MAX_CAPITAL_USD         float (default: 10000)
+    DAILY_LOSS_LIMIT        float (default: -2000)
+    MAX_DRAWDOWN_PCT        float (default: 0.08)
+    MIN_LIQUIDITY_USD       float (default: 10000)
+    REDIS_URL               Redis connection URL
+    DB_DSN                  PostgreSQL DSN
 
 Usage::
 
@@ -29,84 +42,29 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from typing import List
 
 import structlog
 
 log = structlog.get_logger()
 
-# ── Sentinel for missing critical env vars ────────────────────────────────────
-
-_REQUIRED_PAPER_ENV: List[str] = []          # paper mode has no hard requirements
-_REQUIRED_LIVE_ENV: List[str] = [
-    "CLOB_API_KEY",
-    "CLOB_API_SECRET",
-    "CLOB_API_PASSPHRASE",
-]
-
-
-def _get_market_ids() -> List[str]:
-    """Return market IDs from MARKET_IDS env var (comma-separated)."""
-    raw = os.getenv("MARKET_IDS", "").strip()
-    if not raw:
-        return []
-    return [mid.strip() for mid in raw.split(",") if mid.strip()]
-
-
-def _build_config() -> dict:
-    """Build a pipeline config dict from environment variables."""
-    return {
-        "websocket": {
-            "url": os.getenv(
-                "CLOB_WS_URL",
-                "wss://ws-subscriptions-clob.polymarket.com/ws/market",
-            ),
-            "heartbeat_timeout_s": float(os.getenv("WS_HEARTBEAT_TIMEOUT_S", "30")),
-            "reconnect_base_delay_s": float(os.getenv("WS_RECONNECT_BASE_S", "1.0")),
-            "reconnect_max_delay_s": float(os.getenv("WS_RECONNECT_MAX_S", "60.0")),
-        },
-        "go_live": {
-            "mode": os.getenv("TRADING_MODE", "PAPER"),
-            "max_capital_usd": float(os.getenv("MAX_CAPITAL_USD", "10000")),
-            "max_trades_per_day": int(os.getenv("MAX_TRADES_PER_DAY", "200")),
-        },
-        "risk": {
-            "daily_loss_limit": float(os.getenv("DAILY_LOSS_LIMIT", "-2000")),
-            "max_drawdown_pct": float(os.getenv("MAX_DRAWDOWN_PCT", "0.08")),
-        },
-        "metrics": {
-            "health_log_interval_s": float(os.getenv("HEALTH_LOG_INTERVAL_S", "60")),
-        },
-        "execution_guard": {
-            "min_liquidity_usd": float(os.getenv("MIN_LIQUIDITY_USD", "10000")),
-            "max_slippage_pct": float(os.getenv("MAX_SLIPPAGE_PCT", "0.03")),
-            "max_position_usd": float(os.getenv("MAX_POSITION_USD", "1000")),
-        },
-    }
-
-
-def _check_env(required: List[str]) -> List[str]:
-    """Return list of env var names that are missing or empty."""
-    return [name for name in required if not os.getenv(name, "").strip()]
-
 
 async def main() -> None:
     """Bootstrap and run the PolyQuantBot trading pipeline."""
-    log.info("polyquantbot_starting", message="🚀 PolyQuantBot starting (Railway)")
+    log.info("polyquantbot_starting", message="🚀 PolyQuantBot starting")
 
-    trading_mode = os.getenv("TRADING_MODE", "PAPER").strip().upper()
+    # ── Bootstrap: validate credentials, build config, discover markets ──────
+    from projects.polymarket.polyquantbot.core.bootstrap import run_bootstrap
 
-    # ── Validate env for LIVE mode ──────────────────────────────────────────
+    try:
+        cfg, market_ids = await run_bootstrap()
+    except RuntimeError as exc:
+        log.error("bootstrap_failed", error=str(exc))
+        sys.exit(1)
+
+    trading_mode: str = cfg["go_live"]["mode"]
+
+    # ── Extra LIVE guard: ENABLE_LIVE_TRADING must be explicitly true ─────────
     if trading_mode == "LIVE":
-        missing = _check_env(_REQUIRED_LIVE_ENV)
-        if missing:
-            log.error(
-                "missing_env_vars",
-                missing=missing,
-                message="Required environment variables are not set; cannot start LIVE mode.",
-            )
-            sys.exit(1)
-
         enable_live = os.getenv("ENABLE_LIVE_TRADING", "false").strip().lower()
         if enable_live != "true":
             log.error(
@@ -114,18 +72,6 @@ async def main() -> None:
                 message="ENABLE_LIVE_TRADING is not 'true'; refusing to start in LIVE mode.",
             )
             sys.exit(1)
-
-    market_ids = _get_market_ids()
-    if not market_ids:
-        log.warning(
-            "no_market_ids",
-            message=(
-                "MARKET_IDS env var is empty. "
-                "The runner will subscribe to no markets and produce no signals."
-            ),
-        )
-
-    cfg = _build_config()
 
     log.info(
         "polyquantbot_config",
