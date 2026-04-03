@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
-Last Updated: 2026-04-05
-Status: Pre-Capital Hardening COMPLETE ✅ — Unified execution engine, DB persistence (wallet/positions/ledger), close order pipeline (TP/SL), mark-to-market, Telegram sync, audit logging all implemented
+Last Updated: 2026-04-06
+Status: UI Wallet UX Finalization COMPLETE ✅ — Premium terminal UI, wallet engine withdraw simulation, strategy toggle with descriptions, settings UX intelligence layer, start screen boot UI all implemented
 
 ---
 
@@ -621,11 +621,11 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
-2. Auto-persist ledger entries inside PaperEngine (inject db into PaperEngine directly)
-3. Signal reversal close trigger (side-flip signal on open position → close_order())
-4. Run SENTINEL pre-capital go-live validation gate
-5. Wire AlphaMetrics into generate_signals() call in trading_loop.py
+1. Wire pipeline metrics (latency_ms, markets_count) into `handle_start()` for live boot screen stats
+2. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
+3. Auto-persist ledger entries inside PaperEngine (inject db into PaperEngine directly)
+4. Signal reversal close trigger (side-flip signal on open position → close_order())
+5. Run SENTINEL pre-capital go-live validation gate
 6. Load live bankroll from WalletManager into run_trading_loop (replace static default)
 
 ---
@@ -637,9 +637,25 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 - Pre-existing test failure: test_tl04 (market dict extra fields), test_tl17 (timing), eth_account missing in CI
 - drawdown in /performance always 0.0 — MultiStrategyMetrics lacks time-series equity curve
 - StrategyStateManager.save(db=db) requires db.connect() to be called first
+- render_start_screen() latency_ms/markets_count shows n/a until pipeline metrics injected
 - RedisClient not yet wired into pipeline startup (infra ready, wiring pending)
-- Intelligence not fully affecting execution decisions yet
 - Telegram delivery not stress-tested under real network load
+
+---
+
+## ✅ COMPLETED (UI WALLET UX FINALIZATION — Phase 22.1)
+
+- `telegram/ui/components.py` (NEW): 8 premium renderer functions — render_status_bar, render_wallet_card, render_trade_card, render_strategy_card, render_risk_card, render_mode_card, render_start_screen, render_positions_summary
+- `telegram/ui/__init__.py`: Exports all component renderers
+- `core/wallet_engine.py`: +withdraw() paper simulation with InsufficientFundsError guard, +buying_power property
+- `telegram/handlers/start.py` (NEW): Premium /start boot screen with ASCII header, system state, wallet, PnL, strategies
+- `telegram/handlers/strategy.py` (NEW): Dedicated strategy handler with descriptions, 🟢/🔴 visual state, instant toggle feedback
+- `telegram/handlers/exposure.py`: Rewritten with components, market question resolution, status bar
+- `telegram/handlers/wallet.py`: Full premium wallet card, paper withdraw simulation, WalletService priority routing
+- `telegram/handlers/trade.py`: render_trade_card per position, market question from cache, status bar
+- `telegram/handlers/settings.py`: UX intelligence layer for all settings (risk/mode/auto/notify)
+- `telegram/handlers/callback_router.py`: Full dependency propagation via _propagate_mode_and_state(), premium handler routing
+- `telegram/command_handler.py`: /start command uses handle_start() premium screen
 
 ---
 
