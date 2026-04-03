@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Wallet Persistence + Real Polygon Transactions COMPLETE ✅
+Status: PnL Tracking + Real Alpha Engine COMPLETE ✅
 
 ---
 
@@ -37,6 +37,20 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+PNL TRACKING + REAL ALPHA ENGINE
+
+- core/signal/alpha_model.py: ProbabilisticAlphaModel — price deviation + momentum + liquidity weighting
+- core/signal/signal_engine.py: random.uniform removed; real alpha integrated; confidence score S=edge/vol; dual filter (edge>0.02 AND S>0.5)
+- monitoring/pnl_calculator.py: PnLCalculator — realized_pnl, unrealized_pnl, metrics (total_pnl, win_rate, drawdown)
+- infra/db.py: positions table (user_id, market_id, avg_price, size); trades extended (user_id, status, entry_price); migration DDL
+- infra/db.py: upsert_position(), get_positions(), update_trade_status() methods
+- telegram/ui/keyboard.py: 📊 Performance button added to status sub-menu
+- telegram/handlers/callback_router.py: action:performance routed; legacy block updated
+- tests updated: SE-02–06, SE-12–13 reflect real alpha semantics; CB-03 updated for performance button
+- Report: reports/forge/PNL_ALPHA_ENGINE.md
+
+---
 
 WALLET PERSISTENCE + REAL POLYGON TRANSACTIONS
 
@@ -373,6 +387,9 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- Wire ProbabilisticAlphaModel into core/pipeline/trading_loop.py (per-tick record_tick + alpha_model param to generate_signals)
+- Wire upsert_position() into LiveExecutor trade result callback
+- Wire PnLCalculator.calculate_metrics() into monitoring metrics snapshot
 - Wire WalletRepository + WalletService(repository=repo) into main.py startup sequence
 - Wire /withdraw text command into CommandRouter / CommandHandler
 - LIVE Stage 1 monitoring: safety watch active for first 10 trades
@@ -397,8 +414,9 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Replace TEMP alpha injection with real model-based p_model from intelligence layer
-2. Load live bankroll from WalletManager into run_trading_loop (replace static default)
+1. Wire ProbabilisticAlphaModel into trading_loop.py for real per-tick alpha computation
+2. Wire upsert_position + PnLCalculator into execution callback for live PnL updates
+3. Load live bankroll from WalletManager into run_trading_loop (replace static default)
 2. Persist signal dedup set via Redis for restart safety
 3. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
 4. Plug in CLOB executor callback for LIVE mode

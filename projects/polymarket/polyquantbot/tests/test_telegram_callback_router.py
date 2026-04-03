@@ -200,11 +200,11 @@ class TestCB03StatusMenu:
         assert "action:back_main" in cds
 
     def test_legacy_buttons_removed(self) -> None:
-        # Legacy Health / Performance / Strategies buttons have been removed.
-        # Status menu now contains only Refresh + Main Menu.
+        # Health and Strategies legacy buttons remain removed.
+        # Performance has been restored as a valid status menu action.
         cds = _callback_data_values(build_status_menu())
         assert "action:refresh" in cds
-        assert "action:performance" not in cds
+        assert "action:performance" in cds
         assert "action:health" not in cds
         assert "action:strategies" not in cds
 

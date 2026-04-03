@@ -138,11 +138,9 @@ class CallbackRouter:
         # Step 2: dispatch
         try:
             # Hard block: legacy UI keyword prefix check — catches exact actions
-            # ("health", "performance", "strategies") and any future variants
-            # that carry these substrings (e.g. "action:health_v2").
-            # Intentionally broad per task requirement; actions with these words
-            # should never exist in the new inline system.
-            if any(x in cb_data for x in ("health", "performance", "strategies")):
+            # ("health", "strategies") and any future variants that carry these
+            # substrings. "performance" is now a valid inline action.
+            if any(x in cb_data for x in ("health", "strategies")):
                 log.warning("callback_legacy_blocked", callback_data=cb_data)
                 raise RuntimeError("LEGACY UI DISABLED")
             text, keyboard = await self._dispatch(action, user_id=user_id)
@@ -191,7 +189,7 @@ class CallbackRouter:
         log.info("callback_dispatching", action=action)
 
         # ── Hard block: legacy UI actions are permanently disabled ──────────
-        if action in ("health", "performance", "strategies"):
+        if action in ("health", "strategies"):
             raise RuntimeError("LEGACY UI DISABLED")
 
         # Lazy imports — avoids circular deps and speeds up module load
@@ -221,6 +219,12 @@ class CallbackRouter:
                 cmd_handler=self._cmd,
                 mode=self._mode,
             )
+
+        # ── Performance ────────────────────────────────────────────────────
+        if action == "performance":
+            result = await self._cmd.handle("performance")
+            from ..ui.keyboard import build_status_menu
+            return result.message, build_status_menu()
 
         # ── Wallet ─────────────────────────────────────────────────────────
         if action == "wallet":
