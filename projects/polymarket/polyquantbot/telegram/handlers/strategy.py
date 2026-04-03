@@ -15,7 +15,7 @@ from typing import Optional, TYPE_CHECKING
 
 import structlog
 
-from ..ui.components import render_strategy_card, render_status_bar, _SEP
+from ..ui.components import render_strategy_card, render_status_bar, SEP
 from ..ui.keyboard import build_strategy_menu
 
 if TYPE_CHECKING:

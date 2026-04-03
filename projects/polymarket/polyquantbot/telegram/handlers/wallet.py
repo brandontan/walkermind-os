@@ -137,6 +137,31 @@ def _collect_paper_metrics() -> tuple[float, float, float, float, float, int]:
     return cash, locked, equity, realized_pnl, unrealized_pnl, open_count
 
 
+def _live_wallet_screen(
+    status_bar: str,
+    address: Optional[str],
+    balance: Optional[float],
+    stale: bool = False,
+) -> str:
+    """Render live wallet screen text for LIVE mode.
+
+    Args:
+        status_bar: Pre-rendered status bar line.
+        address:    Wallet address or None.
+        balance:    Current balance or None.
+        stale:      True when using cached data (shows ⚠️ prefix on balance).
+    """
+    bal_str = f"${balance or 0.0:,.4f} USDC"
+    bal_prefix = "⚠️ Cached balance:" if stale else "💵 Balance:"
+    return (
+        f"{status_bar}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"💼 *WALLET* — LIVE MODE\n\n"
+        f"🔑 Address: `{address or 'N/A'}`\n"
+        f"{bal_prefix} `{bal_str}`"
+    )
+
+
 # ── Main wallet screens ───────────────────────────────────────────────────────
 
 async def handle_wallet(mode: str, user_id: Optional[int] = None) -> tuple[str, list]:
@@ -180,13 +205,7 @@ async def handle_wallet(mode: str, user_id: Optional[int] = None) -> tuple[str, 
 
         address = wallet.address if wallet else _cached_address
         status_bar = _get_status_bar()
-        text = (
-            f"{status_bar}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"💼 *WALLET* — LIVE MODE\n\n"
-            f"🔑 Address: `{address or 'N/A'}`\n"
-            f"💵 Balance: `${balance or 0.0:,.4f} USDC`"
-        )
+        text = _live_wallet_screen(status_bar, address, balance, stale=False)
         return text, build_wallet_menu()
 
     except (asyncio.TimeoutError, asyncio.CancelledError) as exc:
@@ -197,14 +216,7 @@ async def handle_wallet(mode: str, user_id: Optional[int] = None) -> tuple[str, 
         log.error("handle_wallet_error", user_id=user_id, error=str(exc))
 
     status_bar = _get_status_bar()
-    text = (
-        f"{status_bar}\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💼 *WALLET* — LIVE MODE\n\n"
-        f"🔑 Address: `{_cached_address or 'N/A'}`\n"
-        f"⚠️ Using cached balance: `${_cached_balance or 0.0:,.4f} USDC`"
-    )
-    return text, build_wallet_menu()
+    return _live_wallet_screen(status_bar, _cached_address, _cached_balance, stale=True), build_wallet_menu()
 
 
 async def handle_paper_wallet(mode: str = "default") -> tuple[str, list]:

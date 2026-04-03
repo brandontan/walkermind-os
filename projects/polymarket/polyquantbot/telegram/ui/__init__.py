@@ -8,6 +8,8 @@ from .components import (
     render_mode_card,
     render_start_screen,
     render_positions_summary,
+    SEP,
+    SEP_THIN,
 )
 
 __all__ = [
@@ -19,4 +21,6 @@ __all__ = [
     "render_mode_card",
     "render_start_screen",
     "render_positions_summary",
+    "SEP",
+    "SEP_THIN",
 ]

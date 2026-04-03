@@ -19,6 +19,10 @@ from typing import Optional
 _SEP = "━━━━━━━━━━━━━━━━━━━━━━"
 _SEP_THIN = "──────────────────────"
 
+#: Public alias — use this in other modules
+SEP = _SEP
+SEP_THIN = _SEP_THIN
+
 
 def _state_emoji(state: str) -> str:
     """Return a coloured circle for the given system state string."""

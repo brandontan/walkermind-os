@@ -21,7 +21,7 @@ from ..ui.components import (
     render_strategy_card,
     render_mode_card,
     render_status_bar,
-    _SEP,
+    SEP,
 )
 from ..ui.screens import mode_switched_screen, error_screen
 
@@ -77,7 +77,7 @@ async def handle_settings(
     status_bar = _get_status_bar()
 
     text = (
-        f"{status_bar}\n{_SEP}\n"
+        f"{status_bar}\n{SEP}\n"
         "⚙️ *SETTINGS*\n\n"
         f"⚠️ Risk Level:    `{snap.risk_multiplier:.2f}` (Kelly fraction)\n"
         f"📏 Max Position:  `{snap.max_position:.2f}` (USD cap per trade)\n"
@@ -151,7 +151,7 @@ async def handle_settings_auto(mode: str) -> tuple[str, list]:
     """Return auto-trade setting screen with explanation."""
     status_bar = _get_status_bar()
     text = (
-        f"{status_bar}\n{_SEP}\n"
+        f"{status_bar}\n{SEP}\n"
         "🤖 *AUTO TRADE*\n\n"
         "📋 *What it does:*\n"
         "_When enabled, the bot automatically executes trades based on\n"
@@ -160,7 +160,7 @@ async def handle_settings_auto(mode: str) -> tuple[str, list]:
         "_When signals are validated and risk limits are set correctly._\n\n"
         "⚠️ *Risk impact:*\n"
         "_Higher throughput — more trades per cycle. Ensure Kelly α ≤ 0.25._\n\n"
-        f"{_SEP}\n"
+        f"{SEP}\n"
         f"Current Mode: `{mode}`\n"
         "_Use `/set_auto true/false` to configure._"
     )
@@ -171,7 +171,7 @@ async def handle_settings_notify() -> tuple[str, list]:
     """Return notifications explanation screen."""
     status_bar = _get_status_bar()
     text = (
-        f"{status_bar}\n{_SEP}\n"
+        f"{status_bar}\n{SEP}\n"
         "🔔 *NOTIFICATIONS*\n\n"
         "📋 *What it does:*\n"
         "_Controls which events trigger Telegram alerts._\n\n"
@@ -181,7 +181,7 @@ async def handle_settings_notify() -> tuple[str, list]:
         "  • 🔴 System halt triggered\n"
         "  • 💹 Daily PnL summary\n\n"
         "_Notifications are always active for critical events (halt, risk breach)._\n\n"
-        f"{_SEP}\n"
+        f"{SEP}\n"
         "_Use `/set_notify` commands to configure levels._"
     )
     return text, build_settings_menu()

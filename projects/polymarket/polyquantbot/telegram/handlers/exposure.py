@@ -104,9 +104,9 @@ async def handle_exposure() -> tuple[str, list]:
             has_pm=_position_manager is not None,
             has_wallet=_wallet_engine is not None,
         )
-        from ..ui.components import _SEP  # noqa: PLC0415
+        from ..ui.components import SEP  # noqa: PLC0415
         text = (
-            f"{status_bar}\n{_SEP}\n"
+            f"{status_bar}\n{SEP}\n"
             "📉 *EXPOSURE*\n\n"
             "⚠️ _Services not yet available — please try again._"
         )
