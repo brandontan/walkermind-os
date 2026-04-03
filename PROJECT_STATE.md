@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Signal Zero Activity Fix COMPLETE ✅
+Status: DB Activation Final COMPLETE ✅
 
 ---
 
@@ -37,6 +37,15 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+DB ACTIVATION FINAL
+
+- infra/db.py: ensure_schema() public method added; connect() raises RuntimeError on failure (fail-fast, no silent swallow)
+- core/pipeline/trading_loop.py: raises RuntimeError if db is None; all "if db is not None" fallback guards removed; db_enabled=True logged; PnL block always executes
+- main.py: DatabaseClient initialized at startup; await db.connect() + await db.ensure_schema(); log.info("db_enabled", status=True); run_trading_loop receives db=db, user_id="default"; await db.close() in shutdown
+- Report: reports/forge/DB_ACTIVATION_FINAL.md
+
+---
 
 SIGNAL ZERO ACTIVITY FIX
 
@@ -410,7 +419,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 - Wire /withdraw text command into CommandRouter / CommandHandler
 - LIVE Stage 1 monitoring: safety watch active for first 10 trades
 - Wire drawdown_provider from RiskGuard into FeedbackLoop
-- Wire RedisClient + DatabaseClient into pipeline startup sequence (infra ready, injection pending)
+- Wire RedisClient into pipeline startup sequence (Redis infra ready, injection pending)
 - Wire DynamicCapitalAllocator + MultiStrategyMetrics into CommandHandler in main.py
 - Wire WalletManager into wallet handlers for live balance/exposure data
 - Persistent signal dedup via Redis (trading_loop currently uses in-memory set)
@@ -430,8 +439,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Inject DatabaseClient into run_trading_loop via main.py bootstrap for position/PnL persistence
-2. Load live bankroll from WalletManager into run_trading_loop (replace static default)
+1. Load live bankroll from WalletManager into run_trading_loop (replace static default)
+2. Wire RedisClient into pipeline startup for signal dedup persistence
 3. Persist signal dedup set via Redis for restart safety
 4. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
 5. Plug in CLOB executor callback for LIVE mode
@@ -443,7 +452,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## ⚠️ KNOWN ISSUES
 
-- RedisClient / DatabaseClient not yet wired into pipeline startup (infra ready, wiring pending)
+- RedisClient not yet wired into pipeline startup (infra ready, wiring pending)
 - Intelligence not fully affecting execution decisions yet
 - Backtest engine uses simplified PnL model
 - Telegram delivery not stress-tested under real network load
