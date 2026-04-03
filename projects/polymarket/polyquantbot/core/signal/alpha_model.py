@@ -35,6 +35,7 @@ Usage::
 from __future__ import annotations
 
 import math
+import random
 from collections import deque
 from typing import Optional
 
@@ -49,6 +50,8 @@ _DEFAULT_DEVIATION_WEIGHT: float = 0.5    # weight on mean-reversion deviation
 _DEFAULT_MOMENTUM_SCALE: float = 1.0      # amplifier for momentum signal (reduced from 2.0 to lower noise)
 _REF_LIQUIDITY_USD: float = 100_000.0     # normalisation reference (100 k)
 _MIN_VOLATILITY: float = 1e-4             # floor to avoid zero-division
+_FORCE_MODE_DEVIATION_MIN: float = 0.01   # minimum random deviation injected in force mode
+_FORCE_MODE_DEVIATION_MAX: float = 0.05   # maximum random deviation injected in force mode
 
 
 # ── ProbabilisticAlphaModel ────────────────────────────────────────────────────
@@ -117,6 +120,7 @@ class ProbabilisticAlphaModel:
         market_id: str,
         p_market: float,
         liquidity_usd: float,
+        force_mode: bool = False,
     ) -> tuple[float, float]:
         """Compute ``(p_model, volatility)`` for the given market.
 
@@ -128,6 +132,9 @@ class ProbabilisticAlphaModel:
             market_id: Polymarket condition ID.
             p_market: Current market-implied probability (bid-ask mid).
             liquidity_usd: Total USD depth observed in the orderbook.
+            force_mode: When True, injects a bounded random deviation
+                ``[0.01, 0.05]`` to guarantee ``p_model > p_market`` and a
+                non-zero edge even when the price buffer is sparse.
 
         Returns:
             ``(p_model, volatility)`` where *p_model* is clamped to
@@ -163,6 +170,19 @@ class ProbabilisticAlphaModel:
             + self._momentum_scale * momentum * liq_weight
         )
         p_model = max(0.01, min(0.99, raw_p_model))
+
+        # ── Force mode: inject random deviation to guarantee non-zero edge ────
+        if force_mode and p_model <= p_market:
+            deviation: float = random.uniform(_FORCE_MODE_DEVIATION_MIN, _FORCE_MODE_DEVIATION_MAX)
+            p_model = max(0.01, min(0.99, p_market + deviation))
+            log.info(
+                "alpha_injected",
+                market_id=market_id,
+                deviation=round(deviation, 4),
+                p_market=round(p_market, 4),
+                p_model=round(p_model, 4),
+                force_mode=True,
+            )
 
         # ── Volatility (sample standard deviation of price history) ──────────
         if n >= 2:

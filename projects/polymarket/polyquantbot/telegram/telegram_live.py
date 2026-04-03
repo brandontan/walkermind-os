@@ -469,6 +469,7 @@ class TelegramLive:
         side: str,
         price: float,
         size: float,
+        market_id: str = "",
         correlation_id: Optional[str] = None,
     ) -> None:
         """Send trade executed alert.
@@ -477,9 +478,10 @@ class TelegramLive:
             side: Trade side ("YES" | "NO" | "BUY" | "SELL").
             price: Execution price.
             size: Trade size in USD.
+            market_id: Polymarket condition ID.
             correlation_id: Request trace ID.
         """
-        msg = format_trade_alert(side=side, price=price, size=size)
+        msg = format_trade_alert(side=side, price=price, size=size, market_id=market_id)
         await self._enqueue(AlertType.TRADE, msg, correlation_id)
 
     async def alert_heartbeat(

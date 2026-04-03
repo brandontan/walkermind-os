@@ -240,7 +240,7 @@ async def execute_trade(
         )
 
     # ── Risk re-validation ────────────────────────────────────────────────────
-    if signal.edge <= 0:
+    if signal.edge <= 0 and not signal.force_mode:
         log.info(
             "trade_skipped",
             trade_id=trade_id,
@@ -379,16 +379,40 @@ async def execute_trade(
         filled_size_usd=round(result.filled_size_usd, 4),
         fill_price=round(result.fill_price, 6),
         latency_ms=round(result.latency_ms, 2),
+        force_mode=signal.force_mode,
     )
+
+    if signal.force_mode:
+        log.info(
+            "force_trade_executed",
+            trade_id=trade_id,
+            market_id=signal.market_id,
+            side=signal.side,
+            edge=round(signal.edge, 4),
+            size_usd=round(result.filled_size_usd, 4),
+            fill_price=round(result.fill_price, 6),
+        )
 
     if telegram_callback is not None:
         try:
             await telegram_callback(
-                f"📈 Trade executed: {signal.market_id} {signal.side} "
-                f"${result.filled_size_usd:.2f} @ {result.fill_price:.4f}"
+                side=signal.side,
+                price=result.fill_price,
+                size=result.filled_size_usd,
+                market_id=signal.market_id,
             )
-        except Exception:  # noqa: BLE001
-            pass  # Telegram alerts are best-effort only
+            log.info(
+                "telegram_sent",
+                trade_id=trade_id,
+                market_id=signal.market_id,
+            )
+        except Exception as tg_exc:  # noqa: BLE001
+            log.warning(
+                "telegram_failed",
+                trade_id=trade_id,
+                market_id=signal.market_id,
+                error=str(tg_exc),
+            )
 
     return result
 
