@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Market Parser Hotfix COMPLETE ✅
+Status: DB Import Fix COMPLETE ✅
 
 ---
 
@@ -37,6 +37,15 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+DB IMPORT FIX
+
+- infra/db/database.py: created — full PostgreSQL DatabaseClient moved into infra/db/ package (resolves module/package collision where infra/db/ shadowed infra/db.py)
+- infra/db/__init__.py: updated — now exports both DatabaseClient and SQLiteClient
+- database.py: emits log.info("db_import_ok") at import time for confirmation
+- reports/forge/DB_IMPORT_FIX.md: completion report
+
+---
 
 MARKET PARSER HOTFIX
 
