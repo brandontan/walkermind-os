@@ -35,6 +35,7 @@ import structlog
 
 if TYPE_CHECKING:
     from ..infra.redis_client import RedisClient
+    from ..infra.db import DatabaseClient
 
 log = structlog.get_logger(__name__)
 
@@ -48,7 +49,10 @@ _DEFAULT_STATE: Dict[str, bool] = {name: True for name in KNOWN_STRATEGIES}
 
 
 class StrategyStateManager:
-    """Manages per-strategy toggle state with Redis persistence.
+    """Manages per-strategy toggle state with Redis and/or DB persistence.
+
+    Persistence priority on load: DB → Redis → in-memory defaults.
+    On save, all available backends are written (DB first, then Redis).
 
     Thread-safety: designed for single asyncio event loop.  Protect shared
     state with an asyncio.Lock for concurrent toggle operations.
@@ -149,87 +153,153 @@ class StrategyStateManager:
 
     # ── Persistence ────────────────────────────────────────────────────────────
 
-    async def load(self, redis: Optional["RedisClient"] = None) -> None:
-        """Load strategy state from Redis.
+    async def load(
+        self,
+        redis: Optional["RedisClient"] = None,
+        db: Optional["DatabaseClient"] = None,
+    ) -> None:
+        """Load strategy state, preferring DB over Redis over in-memory defaults.
 
-        Falls back silently to the current in-memory state on any Redis error.
+        Load order:
+          1. DB (``DatabaseClient``) — if provided and data exists.
+          2. Redis — if provided and no DB data found.
+          3. In-memory defaults — if neither backend returns data.
+
+        Falls back silently to the current in-memory state on any error.
 
         Args:
-            redis: Connected RedisClient.  If None, skip Redis and use defaults.
+            redis: Connected RedisClient.  Used when DB is unavailable or empty.
+            db: Connected DatabaseClient.  Preferred persistence backend.
         """
-        if redis is None:
-            log.info(
-                "strategy_state_loaded",
-                source="memory_default",
-                state=self.get_state(),
-            )
-            return
-
-        try:
-            # RedisClient exposes _get_json/_set_json as the generic persistence
-            # primitives for arbitrary keys — this pattern is used throughout the
-            # codebase (e.g. multi_strategy_metrics.py) for custom key namespaces.
-            data: Optional[Any] = await asyncio.wait_for(
-                redis._get_json(_REDIS_KEY), timeout=3.0
-            )
-        except Exception as exc:
-            log.warning(
-                "strategy_state_load_redis_error",
-                error=str(exc),
-                fallback="memory_default",
-            )
-            data = None
-
-        if data and isinstance(data, dict):
-            for name in KNOWN_STRATEGIES:
-                if name in data:
-                    self._state[name] = bool(data[name])
-
-            # Failsafe: if Redis persisted an all-false state, restore defaults
-            if not any(self._state.values()):
-                log.warning(
-                    "strategy_state_load_all_false_fallback",
-                    reason="all strategies disabled in Redis — restoring defaults",
+        # ── Try DB first ──────────────────────────────────────────────────────
+        if db is not None:
+            try:
+                db_state = await asyncio.wait_for(
+                    db.load_strategy_state(), timeout=5.0
                 )
-                self._state = dict(_DEFAULT_STATE)
+            except Exception as exc:
+                log.warning(
+                    "strategy_state_load_db_error",
+                    error=str(exc),
+                    fallback="redis_or_memory",
+                )
+                db_state = {}
 
-            log.info(
-                "strategy_state_loaded",
-                source="redis",
-                state=self.get_state(),
-            )
-        else:
-            log.info(
-                "strategy_state_loaded",
-                source="memory_default",
-                state=self.get_state(),
-            )
+            if db_state:
+                for name in KNOWN_STRATEGIES:
+                    if name in db_state:
+                        self._state[name] = bool(db_state[name])
 
-    async def save(self, redis: Optional["RedisClient"] = None) -> bool:
-        """Persist current strategy state to Redis.
+                if not any(self._state.values()):
+                    log.warning(
+                        "strategy_state_load_all_false_fallback",
+                        source="db",
+                        reason="all strategies disabled in DB — restoring defaults",
+                    )
+                    self._state = dict(_DEFAULT_STATE)
+
+                log.info(
+                    "strategy_state_loaded",
+                    source="db",
+                    state=self.get_state(),
+                )
+                return
+
+        # ── Fall back to Redis ────────────────────────────────────────────────
+        if redis is not None:
+            try:
+                data: Optional[Any] = await asyncio.wait_for(
+                    redis._get_json(_REDIS_KEY), timeout=3.0
+                )
+            except Exception as exc:
+                log.warning(
+                    "strategy_state_load_redis_error",
+                    error=str(exc),
+                    fallback="memory_default",
+                )
+                data = None
+
+            if data and isinstance(data, dict):
+                for name in KNOWN_STRATEGIES:
+                    if name in data:
+                        self._state[name] = bool(data[name])
+
+                if not any(self._state.values()):
+                    log.warning(
+                        "strategy_state_load_all_false_fallback",
+                        source="redis",
+                        reason="all strategies disabled in Redis — restoring defaults",
+                    )
+                    self._state = dict(_DEFAULT_STATE)
+
+                log.info(
+                    "strategy_state_loaded",
+                    source="redis",
+                    state=self.get_state(),
+                )
+                return
+
+        # ── In-memory defaults ────────────────────────────────────────────────
+        log.info(
+            "strategy_state_loaded",
+            source="memory_default",
+            state=self.get_state(),
+        )
+
+    async def save(
+        self,
+        redis: Optional["RedisClient"] = None,
+        db: Optional["DatabaseClient"] = None,
+    ) -> bool:
+        """Persist current strategy state to DB and/or Redis.
+
+        Both backends are attempted when provided.  Returns True only if at
+        least one backend successfully persists the state.
 
         Args:
-            redis: Connected RedisClient.  If None, log warning and return False.
+            redis: Connected RedisClient.
+            db: Connected DatabaseClient.
 
         Returns:
-            True on success, False on failure or when redis is None.
+            True if at least one write succeeded, False if all failed.
         """
-        if redis is None:
-            log.warning("strategy_state_save_no_redis", reason="redis client not provided")
-            return False
-
-        try:
-            # See note above: _set_json is the standard generic persistence
-            # primitive used across the codebase for custom key namespaces.
-            ok: bool = await asyncio.wait_for(
-                redis._set_json(_REDIS_KEY, self.get_state()), timeout=3.0
+        if redis is None and db is None:
+            log.warning(
+                "strategy_state_save_no_backend",
+                reason="neither redis nor db client provided",
             )
-        except Exception as exc:
-            log.warning("strategy_state_save_redis_error", error=str(exc))
             return False
 
-        if ok:
-            log.info("strategy_state_saved", state=self.get_state())
+        any_ok = False
+        current_state = self.get_state()
+
+        # ── DB ────────────────────────────────────────────────────────────────
+        if db is not None:
+            try:
+                ok: bool = await asyncio.wait_for(
+                    db.save_strategy_state(current_state), timeout=5.0
+                )
+            except Exception as exc:
+                log.warning("strategy_state_save_db_error", error=str(exc))
+                ok = False
+            if ok:
+                any_ok = True
+
+        # ── Redis ─────────────────────────────────────────────────────────────
+        if redis is not None:
+            try:
+                redis_ok: bool = await asyncio.wait_for(
+                    redis._set_json(_REDIS_KEY, current_state), timeout=3.0
+                )
+            except Exception as exc:
+                log.warning("strategy_state_save_redis_error", error=str(exc))
+                redis_ok = False
+            if redis_ok:
+                any_ok = True
+
+        if any_ok:
+            log.info("strategy_state_saved", state=current_state)
         else:
-            log.warning("strategy_state_save_failed")
-        return ok
+            log.warning("strategy_state_save_failed", state=current_state)
+        return any_ok
+

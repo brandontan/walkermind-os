@@ -236,6 +236,17 @@ async def generate_signals(
         "FORCE_SIGNAL_MODE"
     )
 
+    # ── Active strategy guard ─────────────────────────────────────────────────
+    # When a strategy_state dict is supplied and every strategy is disabled,
+    # block signal generation entirely to prevent zero-alpha trading.
+    if strategy_state is not None and not any(strategy_state.values()):
+        log.warning(
+            "signal_generation_blocked",
+            reason="NO ACTIVE STRATEGY",
+            strategy_state=strategy_state,
+        )
+        return []
+
     # ── FORCE SIGNAL MODE ─────────────────────────────────────────────────────
     # When enabled: bypass all filters, generate signals for top N markets using
     # a simple direction rule, and cap size at 1 % of bankroll.

@@ -100,6 +100,14 @@ CREATE TABLE IF NOT EXISTS positions (
 );
 """
 
+_DDL_STRATEGY_STATE = """
+CREATE TABLE IF NOT EXISTS strategy_state (
+    strategy    TEXT        PRIMARY KEY,
+    active      BOOLEAN     NOT NULL DEFAULT TRUE,
+    updated_at  DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
 _DDL_MIGRATE_TRADES_USER_ID = """
 DO $$
 BEGIN
@@ -219,6 +227,7 @@ class DatabaseClient:
             await conn.execute(_DDL_STRATEGY_METRICS)
             await conn.execute(_DDL_ALLOCATION_HISTORY)
             await conn.execute(_DDL_POSITIONS)
+            await conn.execute(_DDL_STRATEGY_STATE)
             await conn.execute(_DDL_MIGRATE_TRADES_USER_ID)
         log.info("db_schema_applied")
 
@@ -452,6 +461,65 @@ class DatabaseClient:
             time.time(),
         )
         return await self._execute(sql, *args, op_label="insert_allocation_history")
+
+    # ── Strategy toggle state ─────────────────────────────────────────────────
+
+    async def load_strategy_state(self) -> Dict[str, bool]:
+        """Load all strategy toggle states from the DB.
+
+        Returns:
+            Dict mapping strategy name → active bool.
+            Empty dict on DB error (caller should fall back to defaults).
+        """
+        sql = "SELECT strategy, active FROM strategy_state"
+        rows = await self._fetch(sql, op_label="load_strategy_state")
+        state: Dict[str, bool] = {}
+        for row in rows:
+            state[str(row["strategy"])] = bool(row["active"])
+        if state:
+            log.info("strategy_state_loaded_from_db", state=state)
+        return state
+
+    async def save_strategy_state(self, state: Dict[str, bool]) -> bool:
+        """Persist strategy toggle state with UPSERT semantics.
+
+        Each strategy is upserted so the table always reflects the current
+        in-memory state.  Idempotent — safe to call on every toggle.
+
+        Args:
+            state: Dict mapping strategy name → active bool.
+
+        Returns:
+            True if all upserts succeeded, False if any failed.
+        """
+        if not state:
+            return True
+
+        sql = """
+            INSERT INTO strategy_state (strategy, active, updated_at)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (strategy) DO UPDATE
+                SET active     = EXCLUDED.active,
+                    updated_at = EXCLUDED.updated_at
+        """
+        now = time.time()
+        all_ok = True
+        for strategy, active in state.items():
+            ok = await self._execute(
+                sql,
+                str(strategy),
+                bool(active),
+                now,
+                op_label="save_strategy_state",
+            )
+            if not ok:
+                all_ok = False
+
+        if all_ok:
+            log.info("strategy_state_saved_to_db", state=state)
+        else:
+            log.warning("strategy_state_partial_save_failure", state=state)
+        return all_ok
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
