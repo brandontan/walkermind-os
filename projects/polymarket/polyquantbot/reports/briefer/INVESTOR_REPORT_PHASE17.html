@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Walker AI Trading — Investor Report (Phase 17)</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    .page-wrapper {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px 64px;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    .report-header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      color: #fff;
+      border-radius: 12px;
+      padding: 40px 36px 32px;
+      margin-bottom: 28px;
+    }
+    .report-header .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+    }
+    .report-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      margin-bottom: 6px;
+    }
+    .report-header .subtitle {
+      font-size: 14px;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 24px;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .meta-item {
+      font-size: 13px;
+      color: rgba(255,255,255,0.75);
+    }
+    .meta-item strong {
+      color: #fff;
+      margin-right: 4px;
+    }
+
+    /* ── Disclaimer banner ───────────────────────────────── */
+    .disclaimer {
+      background: #fff3cd;
+      border-left: 4px solid #f59e0b;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #78350f;
+      margin-bottom: 28px;
+    }
+
+    /* ── Section Card ─────────────────────────────────────── */
+    .card {
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-header .section-number {
+      background: #1e3a5f;
+      color: #fff;
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .card-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .card-body {
+      padding: 22px 22px 24px;
+    }
+
+    /* ── Status Pills ─────────────────────────────────────── */
+    .pill {
+      display: inline-block;
+      border-radius: 12px;
+      padding: 3px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .pill-green  { background: #dcfce7; color: #166534; }
+    .pill-orange { background: #fef3c7; color: #92400e; }
+    .pill-red    { background: #fee2e2; color: #991b1b; }
+    .pill-blue   { background: #dbeafe; color: #1e40af; }
+
+    /* ── Key-Value Grid ───────────────────────────────────── */
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px;
+      margin-top: 8px;
+    }
+    .kv-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .kv-box .kv-label {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .kv-box .kv-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .kv-box .kv-note {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .kv-box.positive .kv-value { color: #166534; }
+    .kv-box.neutral  .kv-value { color: #92400e; }
+    .kv-box.negative .kv-value { color: #991b1b; }
+
+    /* ── Tables ───────────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    th {
+      background: #f1f5f9;
+      color: #475569;
+      font-weight: 600;
+      text-align: left;
+      padding: 9px 14px;
+      border-bottom: 2px solid #e2e8f0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    td.positive { color: #166534; font-weight: 600; }
+    td.negative { color: #991b1b; font-weight: 600; }
+    td.neutral  { color: #92400e; font-weight: 600; }
+
+    /* ── Architecture Pipeline ────────────────────────────── */
+    .pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0;
+      margin: 12px 0;
+    }
+    .pipeline-step {
+      background: #1e3a5f;
+      color: #fff;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .pipeline-arrow {
+      color: #94a3b8;
+      font-size: 18px;
+      padding: 0 6px;
+    }
+
+    /* ── Checklist ────────────────────────────────────────── */
+    .checklist {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .checklist li {
+      padding: 6px 0;
+      padding-left: 26px;
+      position: relative;
+      font-size: 14px;
+      color: #334155;
+    }
+    .checklist li::before {
+      content: "✅";
+      position: absolute;
+      left: 0;
+      font-size: 13px;
+    }
+    .checklist li.warn::before { content: "⚠️"; }
+    .checklist li.info::before { content: "🔵"; }
+    .checklist li.next::before { content: "🔜"; }
+
+    /* ── Risk Cards ───────────────────────────────────────── */
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .risk-box {
+      border-left: 4px solid #f59e0b;
+      background: #fffbeb;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 14px;
+    }
+    .risk-box.red {
+      border-color: #ef4444;
+      background: #fef2f2;
+    }
+    .risk-box .risk-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .risk-box .risk-desc {
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    /* ── Strength Cards ───────────────────────────────────── */
+    .strength-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .strength-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .strength-box .icon { font-size: 22px; margin-bottom: 6px; }
+    .strength-box .s-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #14532d;
+      margin-bottom: 4px;
+    }
+    .strength-box .s-desc {
+      font-size: 13px;
+      color: #4b5563;
+    }
+
+    /* ── Milestone Timeline ───────────────────────────────── */
+    .milestones { list-style: none; padding: 0; }
+    .milestones li {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 10px 0;
+      border-bottom: 1px dashed #e2e8f0;
+    }
+    .milestones li:last-child { border-bottom: none; }
+    .milestone-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 5px;
+    }
+    .dot-active   { background: #22c55e; }
+    .dot-pending  { background: #f59e0b; }
+    .dot-future   { background: #94a3b8; }
+    .milestone-text { font-size: 14px; color: #334155; }
+    .milestone-text strong { display: block; color: #0f172a; font-weight: 600; }
+
+    /* ── Footer ───────────────────────────────────────────── */
+    .report-footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 12px;
+      color: #94a3b8;
+      text-align: center;
+    }
+
+    /* ── Print / PDF ──────────────────────────────────────── */
+    @media print {
+      body { background: #fff; }
+      .card { box-shadow: none; border: 1px solid #e2e8f0; }
+      .page-wrapper { padding: 0; max-width: 100%; }
+    }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .report-header { padding: 28px 18px 22px; }
+      .report-header h1 { font-size: 22px; }
+      .card-body { padding: 16px; }
+      .kv-grid { grid-template-columns: repeat(2, 1fr); }
+      .pipeline { gap: 4px; }
+      .pipeline-arrow { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <!-- ══════════════ HEADER ══════════════ -->
+  <header class="report-header">
+    <div class="badge">Confidential — For Authorized Recipients Only</div>
+    <h1>Walker AI Trading — System Update</h1>
+    <p class="subtitle">PolyQuantBot · Polymarket Automated Trading System · Phase 17 Report</p>
+    <div class="meta-row">
+      <div class="meta-item"><strong>Owner:</strong> Bayue Walker</div>
+      <div class="meta-item"><strong>Report Date:</strong> April 2026</div>
+      <div class="meta-item"><strong>Phase:</strong> 17 — Infrastructure Stable, Alpha Optimization</div>
+      <div class="meta-item"><strong>Deployment Mode:</strong> <span class="pill pill-orange">Live Stage 1 (Paper Capital)</span></div>
+    </div>
+  </header>
+
+  <!-- ══════════════ DISCLAIMER ══════════════ -->
+  <div class="disclaimer">
+    ⚠️ <strong>Important:</strong> This system is currently in a <strong>controlled validation phase</strong>.
+    All reported trade activity has been executed under paper trading mode with simulated capital.
+    No real investor capital has been deployed. Past simulation metrics are not indicative of future live performance.
+  </div>
+
+  <!-- ══════════════ 1. EXECUTIVE SUMMARY ══════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-number">1</div>
+      <h2>Executive Summary</h2>
+    </div>
+    <div class="card-body">
+      <p>
+        PolyQuantBot is an autonomous AI-driven trading system built for the
+        <strong>Polymarket</strong> prediction-market exchange. As of Phase 17, the system's
+        production infrastructure is <strong>fully operational</strong> — real-time data
+        ingestion, signal generation, risk enforcement, execution simulation, and
+        Telegram-based monitoring are all live and validated by an independent testing
+        suite of <strong>513+ passing tests</strong>.
+      </p>
+      <br/>
+      <p>
+        The system has successfully completed Stage 1 live deployment with safety controls in
+        place. The current focus is <strong>alpha model optimization</strong>: refining the
+        signal edge above the 2% threshold required for profitable live deployment. The win
+        rate reported below reflects an <em>early-stage validation run</em>, not an optimized
+        live strategy.
+      </p>
+      <br/>
+      <div class="kv-grid" style="margin-top:0;">
+        <div class="kv-box positive">
+          <div class="kv-label">System Status</div>
+          <div class="kv-value">Live ✓</div>
+          <div class="kv-note">Stage 1 — safety watch active</div>
+        </div>
+        <div class="kv-box positive">
+          <div class="kv-label">Tests Passing</div>
+          <div class="kv-value">513+</div>
+          <div class="kv-note">Zero failures in latest suite</div>
+        </div>
+        <div class="kv-box neutral">
+          <div class="kv-label">Current Phase</div>
+          <div class="kv-value">17</div>
+          <div class="kv-note">Alpha optimization</div>
+        </div>
+        <div class="kv-box neutral">
+          <div class="kv-label">Capital Mode</div>
+          <div class="kv-value">Paper</div>
+          <div class="kv-note">No real capital deployed</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 2. SYSTEM OVERVIEW ══════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-number">2</div>
+      <h2>System Overview</h2>
+    </div>
+    <div class="card-body">
+      <h3 style="font-size:14px;color:#475569;margin-bottom:10px;">Execution Pipeline</h3>
+      <div class="pipeline">
+        <div class="pipeline-step">DATA</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">STRATEGY</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">INTELLIGENCE</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">RISK</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">EXECUTION</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">MONITORING</div>
+      </div>
+
+      <br/>
+      <table>
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Description</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Market Ingestion</strong></td>
+            <td>Real-time WebSocket feed from Polymarket CLOB; auto-reconnects on disconnect</td>
+            <td><span class="pill pill-green">Operational</span></td>
+          </tr>
+          <tr>
+            <td><strong>Signal Engine</strong></td>
+            <td>Generates trade signals using EV-based and liquidity-edge strategies; configurable threshold (SIGNAL_EDGE_THRESHOLD)</td>
+            <td><span class="pill pill-orange">Optimizing</span></td>
+          </tr>
+          <tr>
+            <td><strong>Risk Management</strong></td>
+            <td>Fractional Kelly (α=0.25), max 10% position, −$2,000 daily loss limit, 8% drawdown circuit-breaker</td>
+            <td><span class="pill pill-green">Enforced</span></td>
+          </tr>
+          <tr>
+            <td><strong>Execution Engine</strong></td>
+            <td>Paper trading simulator with orderbook walk, partial-fill detection, and slippage modelling; LIVE mode gated</td>
+            <td><span class="pill pill-green">Active (Paper)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Persistence Layer</strong></td>
+            <td>PostgreSQL for trade records; Redis for real-time metrics snapshots and idempotency tracking</td>
+            <td><span class="pill pill-green">Operational</span></td>
+          </tr>
+          <tr>
+            <td><strong>Telegram Control</strong></td>
+            <td>8 commands + inline callback UI: /performance, /positions, /pnl, /strategies, /health, /allocation, kill-switch</td>
+            <td><span class="pill pill-green">Operational</span></td>
+          </tr>
+          <tr>
+            <td><strong>Monitoring</strong></td>
+            <td>Structured JSON logs (structlog), Railway deployment, anomaly detection, automated alerts</td>
+            <td><span class="pill pill-green">Operational</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════ 3. PERFORMANCE SUMMARY ══════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-number">3</div>
+      <h2>Performance Summary</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;background:#f1f5f9;border-radius:6px;padding:10px 14px;margin-bottom:18px;color:#475569;">
+        📌 <strong>Context:</strong> Metrics below are drawn from the Phase 10.9 final validation run (6-hour simulated session)
+        and Phase 17 infrastructure reports. Live trading is in <strong>Stage 1 (paper capital only)</strong>.
+        Performance numbers represent a controlled test window, <strong>not an extended production track record</strong>.
+      </p>
+
+      <div class="kv-grid">
+        <div class="kv-box neutral">
+          <div class="kv-label">Total Orders Attempted</div>
+          <div class="kv-value">94</div>
+          <div class="kv-note">6-hour validation window</div>
+        </div>
+        <div class="kv-box positive">
+          <div class="kv-label">Simulated Fills</div>
+          <div class="kv-value">68</div>
+          <div class="kv-note">Fill rate: 72% (target ≥ 60%)</div>
+        </div>
+        <div class="kv-box neutral">
+          <div class="kv-label">Win Rate</div>
+          <div class="kv-value">N/A</div>
+          <div class="kv-note">See note below</div>
+        </div>
+        <div class="kv-box neutral">
+          <div class="kv-label">Realized PnL</div>
+          <div class="kv-value">Data initializing</div>
+          <div class="kv-note">DB persistence wired; live PnL recording in progress</div>
+        </div>
+        <div class="kv-box neutral">
+          <div class="kv-label">Unrealized PnL</div>
+          <div class="kv-value">Data initializing</div>
+          <div class="kv-note">Requires per-tick record_unrealized() calls</div>
+        </div>
+        <div class="kv-box positive">
+          <div class="kv-label">Max Drawdown (Test)</div>
+          <div class="kv-value">2.4%</div>
+          <div class="kv-note">Well below 8% hard limit</div>
+        </div>
+        <div class="kv-box positive">
+          <div class="kv-label">EV Capture Ratio</div>
+          <div class="kv-value">0.81</div>
+          <div class="kv-note">Target ≥ 0.75 ✓</div>
+        </div>
+        <div class="kv-box positive">
+          <div class="kv-label">p95 Execution Latency</div>
+          <div class="kv-value">287 ms</div>
+          <div class="kv-note">Target ≤ 500 ms ✓</div>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;background:#fef3c7;border-radius:8px;padding:14px 16px;font-size:13px;color:#78350f;">
+        <strong>⚠️ Win Rate — Transparency Note:</strong><br/>
+        Aggregate win rate data is not yet available from the live database. The signal engine is currently
+        configured for <em>validation mode</em> (lowered edge threshold of 2% vs. target 5%) to ensure
+        sufficient signal flow during testing. Live win-rate tracking has been instrumented but requires
+        the market resolution feed (post-settlement PnL updates) to compute accurately.
+        This is a <strong>known limitation</strong> being addressed in the next milestone.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 4. TRADING ACTIVITY SNAPSHOT ══════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-number">4</div>
+      <h2>Trading Activity Snapshot</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:#64748b;margin-bottom:14px;">
+        Data sourced from Phase 10.9 final paper run (6-hour controlled observation window).
+      </p>
+
+      <h3 style="font-size:14px;font-weight:600;color:#0f172a;margin-bottom:10px;">Signal Flow Summary</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Count</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Signals Generated</td>
+            <td>94</td>
+            <td>Engine-produced, pre-filter</td>
+          </tr>
+          <tr>
+            <td>Signals Skipped — Low Edge</td>
+            <td class="neutral">204</td>
+            <td>Below configured edge threshold</td>
+          </tr>
+          <tr>
+            <td>Signals Skipped — Low Liquidity</td>
+            <td class="neutral">63</td>
+            <td>Orderbook depth &lt; $10,000</td>
+          </tr>
+          <tr>
+            <td>Signals Blocked — Risk Rules</td>
+            <td class="neutral">38</td>
+            <td>Position size / exposure limits</td>
+          </tr>
+          <tr>
+            <td>Signals Deduplicated</td>
+            <td class="neutral">12</td>
+            <td>Idempotency check prevented re-entry</td>
+          </tr>
+          <tr>
+            <td>Signal Execution Rate</td>
+            <td class="positive">22.9%</td>
+            <td>Of all signals, 22.9% resulted in attempted orders</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <br/>
+      <h3 style="font-size:14px;font-weight:600;color:#0f172a;margin-bottom:10px;">Order Execution Breakdown</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Outcome</th>
+            <th>Count</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Orders Attempted</td>
+            <td>94</td>
+            <td>Submitted to execution simulator</td>
+          </tr>
+          <tr>
+            <td>Full Fills</td>
+            <td class="positive">61</td>
+            <td>Completed at or near expected price</td>
+          </tr>
+          <tr>
+            <td>Partial Fills</td>
+            <td class="neutral">7</td>
+            <td>Partial execution due to shallow orderbook</td>
+          </tr>
+          <tr>
+            <td>Rejected</td>
+            <td class="negative">19</td>
+            <td>Risk guard or liquidity rejection post-submission</td>
+          </tr>
+          <tr>
+            <td>Average Slippage</td>
+            <td class="neutral">6.3 bps</td>
+            <td>Basis points vs. mid-price at signal time</td>
+          </tr>
+          <tr>
+            <td>WS Reconnections</td>
+            <td>1</td>
+            <td>Auto-recovered; no data loss</td>
+          </tr>
+          <tr>
+            <td>System Errors</td>
+            <td class="positive">0</td>
+            <td>Clean run — zero unhandled exceptions</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:16px;font-size:13px;color:#64748b;background:#f8fafc;border-radius:6px;padding:10px 14px;">
+        <strong>Fill Rate:</strong> 72% (68 of 94 orders resulted in some fill). This exceeds the internal
+        target of 60% and demonstrates effective orderbook modelling. Partial fills arise from genuine
+        market microstructure — shallow depth at target price levels.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 5. RISK & LIMITATIONS ══════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-number">5</div>
+      <h2>Risk &amp; Limitations</h2>
+    </div>
+    <div class="card-body">
+      <h3 style="font-size:14px;font-weight:600;color:#0f172a;margin-bottom:12px;">Enforced Risk Controls</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th>Value</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Kelly Fraction (α)</td>
+            <td>0.25 (fractional Kelly only)</td>
+            <td><span class="pill pill-green">Enforced</span></td>
+          </tr>
+          <tr>
+            <td>Max Position Size</td>
+            <td>≤ 10% of total capital</td>
+            <td><span class="pill pill-green">Enforced</span></td>
+          </tr>
+          <tr>
+            <td>Stage 1 Max Position</td>
+            <td>≤ 2% per strategy</td>
+            <td><span class="pill pill-green">Enforced</span></td>
+          </tr>
+          <tr>
+            <td>Stage 1 Max Exposure</td>
+            <td>≤ 5% total</td>
+            <td><span class="pill pill-green">Enforced</span></td>
+          </tr>
+          <tr>
+            <td>Daily Loss Limit</td>
+            <td>−$2,000 hard stop</td>
+            <td><span class="pill pill-green">Enforced</span></td>
+          </tr>
+          <tr>
+            <td>Drawdown Circuit-Breaker</td>
+            <td>&gt; 8% → auto-halt</td>
+            <td><span class="pill pill-green">Enforced</span></td>
+          </tr>
+          <tr>
+            <td>Minimum Liquidity</td>
+            <td>$10,000 orderbook depth</td>
+            <td><span class="pill pill-green">Enforced</span></td>
+          </tr>
+          <tr>
+            <td>Order Deduplication</td>
+            <td>Per (market, side, price, size)</td>
+            <td><span class="pill pill-green">Enforced</span></td>
+          </tr>
+          <tr>
+            <td>Kill Switch</td>
+            <td>Telegram-accessible, immediate halt</td>
+            <td><span class="pill pill-green">Available</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <br/>
+      <h3 style="font-size:14px;font-weight:600;color:#0f172a;margin-bottom:12px;">Known Limitations &amp; Risks</h3>
+      <div class="risk-grid">
+        <div class="risk-box red">
+          <div class="risk-title">Alpha Model Not Yet Optimized</div>
+          <div class="risk-desc">
+            The signal engine is in validation mode. Edge is not consistently above the 2% threshold
+            required for profitable deployment. Win rate and net PnL are not yet representative of
+            the intended live strategy.
+          </div>
+        </div>
+        <div class="risk-box red">
+          <div class="risk-title">No Real Capital Deployed</div>
+          <div class="risk-desc">
+            All current execution is paper trading. Live mode requires explicit activation via
+            ENABLE_LIVE_TRADING=true and TRADING_MODE=LIVE guards. This has not been activated.
+          </div>
+        </div>
+        <div class="risk-box">
+          <div class="risk-title">Market Resolution PnL Pending</div>
+          <div class="risk-desc">
+            Post-settlement PnL updates (when Polymarket resolves a market) are not yet wired.
+            Realized PnL figures will remain incomplete until this is implemented.
+          </div>
+        </div>
+        <div class="risk-box">
+          <div class="risk-title">Intelligence Layer Partial</div>
+          <div class="risk-desc">
+            The Bayesian updater and drift detection modules are built but not yet fully integrated
+            into execution decisions. Signals are primarily EV-based at this stage.
+          </div>
+        </div>
+        <div class="risk-box">
+          <div class="risk-title">Market Condition Sensitivity</div>
+          <div class="risk-desc">
+            Prediction market liquidity can thin significantly around major events. The system's
+            liquidity filter is designed to handle this, but performance may vary in low-liquidity
+            market conditions.
+          </div>
+        </div>
+        <div class="risk-box">
+          <div class="risk-title">Drawdown Metric (Dashboard)</div>
+          <div class="risk-desc">
+            The /performance Telegram command currently returns drawdown = 0.0. The live drawdown
+            circuit-breaker is enforced correctly; the display metric requires an equity curve
+            calculation to be added.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 6. SYSTEM STRENGTHS ══════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-number">6</div>
+      <h2>System Strengths</h2>
+    </div>
+    <div class="card-body">
+      <div class="strength-grid">
+        <div class="strength-box">
+          <div class="icon">⚡</div>
+          <div class="s-title">Real-Time Execution Pipeline</div>
+          <div class="s-desc">
+            WebSocket-driven ingestion with 287ms p95 latency. Auto-reconnects without data loss.
+            Handles up to 20 markets per tick with loop-throttle protection.
+          </div>
+        </div>
+        <div class="strength-box">
+          <div class="icon">🛡️</div>
+          <div class="s-title">Robust Risk Controls</div>
+          <div class="s-desc">
+            8 non-negotiable risk rules enforced at every order gate. Fractional Kelly sizing,
+            deduplication, liquidity checks, and an automated circuit-breaker.
+          </div>
+        </div>
+        <div class="strength-box">
+          <div class="icon">🏗️</div>
+          <div class="s-title">Modular Domain Architecture</div>
+          <div class="s-desc">
+            Clean separation: data / strategy / intelligence / risk / execution / monitoring.
+            Zero legacy code. Each domain independently testable and replaceable.
+          </div>
+        </div>
+        <div class="strength-box">
+          <div class="icon">📊</div>
+          <div class="s-title">Full Observability</div>
+          <div class="s-desc">
+            Structured JSON logging, Telegram control interface with 8 commands, Railway
+            deployment health monitoring, real-time metrics via Redis.
+          </div>
+        </div>
+        <div class="strength-box">
+          <div class="icon">🔁</div>
+          <div class="s-title">Adaptive Capital Allocation</div>
+          <div class="s-desc">
+            Multi-strategy feedback loop automatically reallocates capital based on live
+            performance. Underperforming strategies are suppressed; winners are scaled.
+          </div>
+        </div>
+        <div class="strength-box">
+          <div class="icon">🧪</div>
+          <div class="s-title">Comprehensively Tested</div>
+          <div class="s-desc">
+            513+ automated tests across all domains. Independent SENTINEL validation agent.
+            GO-LIVE APPROVED verdict issued after multi-stage review.
+          </div>
+        </div>
+        <div class="strength-box">
+          <div class="icon">🔒</div>
+          <div class="s-title">Fail-Safe Execution Guard</div>
+          <div class="s-desc">
+            LIVE mode requires dual environment guards (TRADING_MODE + ENABLE_LIVE_TRADING).
+            Kill-switch triggers system halt, Telegram alert, and idempotent cleanup in sequence.
+          </div>
+        </div>
+        <div class="strength-box">
+          <div class="icon">💾</div>
+          <div class="s-title">Durable Persistence</div>
+          <div class="s-desc">
+            PostgreSQL + Redis dual-layer storage. System resumes from last persisted state
+            on restart with no duplicate trade processing.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 7. NEXT MILESTONES ══════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-number">7</div>
+      <h2>Next Milestones</h2>
+    </div>
+    <div class="card-body">
+      <ul class="milestones">
+        <li>
+          <div class="milestone-dot dot-pending"></div>
+          <div class="milestone-text">
+            <strong>Alpha Stabilization — Edge &gt; 2% Consistently</strong>
+            Tune signal thresholds and strategy weighting to sustain a positive expected value
+            edge above 2% across a statistically meaningful sample of trades.
+          </div>
+        </li>
+        <li>
+          <div class="milestone-dot dot-pending"></div>
+          <div class="milestone-text">
+            <strong>Win Rate Improvement &amp; PnL Tracking</strong>
+            Implement market resolution PnL updates (post-settlement) to accurately measure
+            realized win rate and close the feedback loop on strategy performance.
+          </div>
+        </li>
+        <li>
+          <div class="milestone-dot dot-pending"></div>
+          <div class="milestone-text">
+            <strong>Strategy Refinement &amp; Backtesting</strong>
+            Build backtesting framework using historical Polymarket data to validate signal
+            quality before live deployment. Integrate Bayesian updater into execution path.
+          </div>
+        </li>
+        <li>
+          <div class="milestone-dot dot-future"></div>
+          <div class="milestone-text">
+            <strong>Intelligence Layer Full Integration</strong>
+            Wire Bayesian confidence and drift detection modules into execution decisions,
+            enabling adaptive signal filtering based on market regime.
+          </div>
+        </li>
+        <li>
+          <div class="milestone-dot dot-future"></div>
+          <div class="milestone-text">
+            <strong>Stage 2 Live Deployment — Controlled Capital</strong>
+            After alpha stabilization, transition to controlled live capital with strict per-trade
+            limits. Target: small fixed allocation with comprehensive monitoring for 30 days.
+          </div>
+        </li>
+        <li>
+          <div class="milestone-dot dot-future"></div>
+          <div class="milestone-text">
+            <strong>Equity Curve &amp; Drawdown Dashboard</strong>
+            Add equity curve calculation to PnLCalculator for accurate drawdown reporting in
+            /performance command and investor-facing metrics.
+          </div>
+        </li>
+      </ul>
+
+      <div style="margin-top:18px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;font-size:13px;color:#14532d;">
+        ✅ <strong>Gate Criteria for Stage 2 Live Deployment:</strong>
+        Edge consistently &gt; 2%, win rate ≥ 50% over 30-day paper window, drawdown &lt; 5%,
+        market resolution PnL tracking operational, and SENTINEL GO-LIVE APPROVED verdict.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ VALIDATION HISTORY ══════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-number" style="background:#475569;">✓</div>
+      <h2>Validation History — SENTINEL Reports</h2>
+    </div>
+    <div class="card-body">
+      <table>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Title</th>
+            <th>Tests</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>9.1</td>
+            <td>Stability Validation</td>
+            <td>81 passed</td>
+            <td><span class="pill pill-orange">Conditional</span></td>
+          </tr>
+          <tr>
+            <td>10.2</td>
+            <td>Execution Validation</td>
+            <td>259 passed</td>
+            <td><span class="pill pill-orange">Conditional</span></td>
+          </tr>
+          <tr>
+            <td>10.4</td>
+            <td>Live Paper Observation</td>
+            <td>467 passed</td>
+            <td><span class="pill pill-orange">Conditional</span></td>
+          </tr>
+          <tr>
+            <td>10.8</td>
+            <td>Signal Activation Re-Run</td>
+            <td>498 passed</td>
+            <td><span class="pill pill-green">Approved</span></td>
+          </tr>
+          <tr>
+            <td>10.9</td>
+            <td>Final Paper Run Validation</td>
+            <td>513 passed</td>
+            <td><span class="pill pill-green">GO-LIVE Approved ✓</span></td>
+          </tr>
+          <tr>
+            <td>11.5</td>
+            <td>Full System Validation</td>
+            <td>60 passed</td>
+            <td><span class="pill pill-green">GO ✓</span></td>
+          </tr>
+          <tr>
+            <td>13</td>
+            <td>Pre-Live Validation</td>
+            <td>50 passed</td>
+            <td><span class="pill pill-green">Ready ✓</span></td>
+          </tr>
+          <tr>
+            <td>14</td>
+            <td>Live Deployment Stage 1</td>
+            <td>30 passed</td>
+            <td><span class="pill pill-green">Approved ✓</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════ FOOTER ══════════════ -->
+  <footer class="report-footer">
+    <p>
+      Walker AI Trading Team · PolyQuantBot · Phase 17 Investor Report<br/>
+      Generated: April 2026 &nbsp;|&nbsp; Owner: Bayue Walker<br/>
+      <br/>
+      <em>This document is confidential and intended solely for authorized recipients.
+      It contains forward-looking statements and performance data from controlled simulation environments.
+      Past simulation results do not guarantee future returns. No real capital has been deployed.</em>
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>
