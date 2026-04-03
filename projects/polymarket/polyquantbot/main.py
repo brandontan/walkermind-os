@@ -533,6 +533,25 @@ async def main() -> None:
     pnl_tracker = PnLTracker(db=db)
     log.info("pnl_tracker_initialized")
 
+    # ── Wire trade-visibility handlers ────────────────────────────────────────
+    from .telegram.handlers.performance import (
+        set_multi_metrics as _set_perf_metrics,
+        set_pnl_tracker as _set_perf_pnl,
+    )
+    from .telegram.handlers.positions import (
+        set_position_manager as _set_pos_pm,
+        set_market_cache as _set_pos_mc,
+        set_pnl_tracker as _set_pos_pnl,
+    )
+    from .telegram.handlers.pnl import set_pnl_tracker as _set_pnl_handler
+    _set_perf_metrics(multi_metrics)
+    _set_perf_pnl(pnl_tracker)
+    _set_pos_pm(position_manager)
+    _set_pos_mc(market_cache)
+    _set_pos_pnl(pnl_tracker)
+    _set_pnl_handler(pnl_tracker)
+    log.info("trade_visibility_handlers_wired")
+
     # ── Telegram callback — accepts a pre-formatted string ────────────────────
     from .telegram.telegram_live import AlertType as _AlertType
 

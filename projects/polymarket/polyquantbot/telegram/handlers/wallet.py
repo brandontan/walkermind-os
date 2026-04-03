@@ -26,8 +26,13 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger(__name__)
 
+_BALANCE_FETCH_TIMEOUT_S: float = 2.0
+
 # Module-level WalletService reference — injected at bot startup
 _wallet_service: Optional["WalletService"] = None
+# Last known balance — used as fallback when API is unavailable
+_cached_balance: Optional[float] = None
+_cached_address: Optional[str] = None
 
 
 def set_wallet_service(service: "WalletService") -> None:
@@ -42,31 +47,60 @@ def set_wallet_service(service: "WalletService") -> None:
 
 async def handle_wallet(mode: str, user_id: Optional[int] = None) -> tuple[str, list]:
     """Return wallet overview screen with live address and balance."""
+    global _cached_balance, _cached_address  # noqa: PLW0603
     if _wallet_service is None or user_id is None:
-        return wallet_screen(mode=mode), build_wallet_menu()
+        return wallet_screen(mode=mode, balance=_cached_balance, address=_cached_address), build_wallet_menu()
 
     try:
-        wallet = await _wallet_service.get_wallet(user_id)
+        wallet = await asyncio.wait_for(
+            _wallet_service.get_wallet(user_id), timeout=_BALANCE_FETCH_TIMEOUT_S
+        )
         if wallet is None:
-            # Auto-create on first access
-            wallet = await _wallet_service.create_wallet(user_id)
-        balance = await _wallet_service.get_balance(user_id)
-        return wallet_screen(mode=mode, address=wallet.address, balance=balance), build_wallet_menu()
+            wallet = await asyncio.wait_for(
+                _wallet_service.create_wallet(user_id), timeout=_BALANCE_FETCH_TIMEOUT_S
+            )
+        balance = await asyncio.wait_for(
+            _wallet_service.get_balance(user_id), timeout=_BALANCE_FETCH_TIMEOUT_S
+        )
+        if wallet is not None:
+            _cached_address = wallet.address
+        if balance is not None:
+            _cached_balance = balance
+        address = wallet.address if wallet else _cached_address
+        return wallet_screen(mode=mode, address=address, balance=balance), build_wallet_menu()
+    except (asyncio.TimeoutError, asyncio.CancelledError) as exc:
+        if isinstance(exc, asyncio.CancelledError):
+            raise
+        log.warning("handle_wallet_timeout", user_id=user_id)
+        return wallet_screen(mode=mode, address=_cached_address, balance=_cached_balance), build_wallet_menu()
     except Exception as exc:
         log.error("handle_wallet_error", user_id=user_id, error=str(exc))
-        return wallet_screen(mode=mode), build_wallet_menu()
+        return wallet_screen(mode=mode, address=_cached_address, balance=_cached_balance), build_wallet_menu()
 
 
 async def handle_wallet_balance(user_id: Optional[int] = None) -> tuple[str, list]:
-    """Return balance detail screen with live data."""
+    """Return balance detail screen with live data.
+
+    Retries up to 3 times with 0.5 s back-off.  Each attempt is guarded by a
+    2 s timeout.  Falls back to the last cached balance on total failure.
+    """
+    global _cached_balance, _cached_address  # noqa: PLW0603
     if _wallet_service is None or user_id is None:
-        return wallet_balance_screen(), build_wallet_menu()
+        return wallet_balance_screen(balance=_cached_balance, address=_cached_address), build_wallet_menu()
 
     for attempt in range(1, 4):
         try:
-            wallet = await _wallet_service.get_wallet(user_id)
-            balance = await _wallet_service.get_balance(user_id)
+            wallet = await asyncio.wait_for(
+                _wallet_service.get_wallet(user_id), timeout=_BALANCE_FETCH_TIMEOUT_S
+            )
+            balance = await asyncio.wait_for(
+                _wallet_service.get_balance(user_id), timeout=_BALANCE_FETCH_TIMEOUT_S
+            )
             address = wallet.address if wallet else None
+            if address is not None:
+                _cached_address = address
+            if balance is not None:
+                _cached_balance = balance
             log.info(
                 "wallet_fetch",
                 status="success",
@@ -77,6 +111,13 @@ async def handle_wallet_balance(user_id: Optional[int] = None) -> tuple[str, lis
             return wallet_balance_screen(balance=balance, address=address), build_wallet_menu()
         except asyncio.CancelledError:
             raise
+        except asyncio.TimeoutError:
+            log.warning(
+                "wallet_fetch",
+                status="timeout",
+                user_id=user_id,
+                attempt=attempt,
+            )
         except Exception as exc:
             log.warning(
                 "wallet_fetch",
@@ -85,9 +126,14 @@ async def handle_wallet_balance(user_id: Optional[int] = None) -> tuple[str, lis
                 attempt=attempt,
                 error=str(exc),
             )
-            if attempt < 3:
-                await asyncio.sleep(0.5 * attempt)
+        if attempt < 3:
+            await asyncio.sleep(0.5 * attempt)
+
     log.error("wallet_fetch_all_retries_exhausted", status="failed", user_id=user_id)
+    # Fallback to cached balance rather than empty error screen
+    if _cached_balance is not None:
+        log.info("wallet_fetch_using_cached_balance", balance=_cached_balance)
+        return wallet_balance_screen(balance=_cached_balance, address=_cached_address), build_wallet_menu()
     return "❌ Failed to fetch wallet", build_wallet_menu()
 
 
@@ -98,17 +144,29 @@ async def handle_wallet_exposure(user_id: Optional[int] = None) -> tuple[str, li
 
 async def handle_wallet_withdraw(user_id: Optional[int] = None) -> tuple[str, list]:
     """Return withdraw initiation screen showing address and available balance."""
+    global _cached_balance, _cached_address  # noqa: PLW0603
     if _wallet_service is None or user_id is None:
-        return wallet_withdraw_screen(), build_wallet_menu()
+        return wallet_withdraw_screen(address=_cached_address, balance=_cached_balance), build_wallet_menu()
 
     try:
-        wallet = await _wallet_service.get_wallet(user_id)
-        balance = await _wallet_service.get_balance(user_id)
+        wallet = await asyncio.wait_for(
+            _wallet_service.get_wallet(user_id), timeout=_BALANCE_FETCH_TIMEOUT_S
+        )
+        balance = await asyncio.wait_for(
+            _wallet_service.get_balance(user_id), timeout=_BALANCE_FETCH_TIMEOUT_S
+        )
         address = wallet.address if wallet else None
+        if address is not None:
+            _cached_address = address
+        if balance is not None:
+            _cached_balance = balance
         return wallet_withdraw_screen(address=address, balance=balance), build_wallet_menu()
+    except asyncio.TimeoutError:
+        log.warning("handle_wallet_withdraw_timeout", user_id=user_id)
+        return wallet_withdraw_screen(address=_cached_address, balance=_cached_balance), build_wallet_menu()
     except Exception as exc:
         log.error("handle_wallet_withdraw_error", user_id=user_id, error=str(exc))
-        return wallet_withdraw_screen(), build_wallet_menu()
+        return wallet_withdraw_screen(address=_cached_address, balance=_cached_balance), build_wallet_menu()
 
 
 async def handle_withdraw_command(

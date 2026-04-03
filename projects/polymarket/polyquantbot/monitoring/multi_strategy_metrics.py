@@ -104,7 +104,10 @@ class MultiStrategyMetrics:
 
     def __init__(self, strategy_names: List[str]) -> None:
         if not strategy_names:
-            raise ValueError("strategy_names must not be empty")
+            log.warning(
+                "multi_strategy_metrics_empty_strategies",
+                hint="No strategies registered — metrics will be empty until strategies are added",
+            )
 
         self._metrics: Dict[str, StrategyMetrics] = {
             name: StrategyMetrics(strategy_id=name)
@@ -277,6 +280,33 @@ class MultiStrategyMetrics:
     def total_conflicts(self) -> int:
         """Cumulative number of conflict events recorded."""
         return self._conflicts
+
+    @property
+    def total_pnl(self) -> float:
+        """Sum of total_pnl across all strategies."""
+        return round(sum(m.total_pnl for m in self._metrics.values()), 6)
+
+    @property
+    def overall_win_rate(self) -> float:
+        """Aggregate win rate across all strategies (0.0 when no trades)."""
+        total_t = self.total_trades
+        if total_t == 0:
+            return 0.0
+        total_wins = sum(m.wins for m in self._metrics.values())
+        return round(total_wins / total_t, 4)
+
+    def aggregate_performance(self) -> dict:
+        """Return aggregated performance metrics across all strategies.
+
+        Returns:
+            Dict with keys: total_pnl, win_rate, total_trades, drawdown.
+        """
+        return {
+            "total_pnl": self.total_pnl,
+            "win_rate": self.overall_win_rate,
+            "total_trades": self.total_trades,
+            "drawdown": 0.0,  # drawdown requires time-series data; per-trade tracking not available here
+        }
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 

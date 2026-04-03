@@ -48,8 +48,16 @@ def build_main_menu() -> InlineKeyboard:
 
 
 def build_status_menu() -> InlineKeyboard:
-    """Status detail actions."""
+    """Status detail actions.
+
+    Layout::
+
+        [📈 Positions]   [💹 PnL      ]
+        [📊 Performance] [🔄 Refresh  ]
+        [🏠 Main Menu  ]
+    """
     return [
+        [_btn("📈 Positions", "positions"), _btn("💹 PnL",         "pnl")],
         [_btn("📊 Performance", "performance"), _btn("🔄 Refresh", "refresh")],
         [_btn("🏠 Main Menu", "back_main")],
     ]
