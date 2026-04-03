@@ -250,6 +250,53 @@ class WalletEngine:
             )
             return state
 
+    async def withdraw(self, amount: float, reference: str = "manual") -> WalletState:
+        """Simulate a paper-mode withdrawal by reducing available cash.
+
+        This is a **paper simulation only** — no real blockchain transaction
+        is performed.  The method reduces cash by *amount*, enforcing that
+        the remaining cash stays ≥ 0.
+
+        Args:
+            amount:    USD amount to withdraw.  Must be > 0 and ≤ current cash.
+            reference: Human-readable reference label (e.g. "manual", "test").
+
+        Returns:
+            Updated :class:`WalletState`.
+
+        Raises:
+            ValueError:              When ``amount <= 0``.
+            InsufficientFundsError:  When ``cash < amount``.
+        """
+        if amount <= 0:
+            raise ValueError(f"withdraw: amount must be positive, got {amount}")
+
+        async with self._lock:
+            if self._cash < amount:
+                log.warning(
+                    "wallet_withdraw_insufficient",
+                    requested=amount,
+                    available=self._cash,
+                    reference=reference,
+                )
+                raise InsufficientFundsError(
+                    f"Insufficient funds: requested {amount:.4f} but only "
+                    f"{self._cash:.4f} available."
+                )
+
+            self._cash = round(self._cash - amount, 4)
+
+            state = self.get_state()
+            log.info(
+                "wallet_paper_withdraw",
+                amount=amount,
+                reference=reference,
+                cash=state.cash,
+                locked=state.locked,
+                equity=state.equity,
+            )
+            return state
+
     # ── Reads ─────────────────────────────────────────────────────────────────
 
     def get_state(self) -> WalletState:
@@ -259,6 +306,11 @@ class WalletEngine:
             locked=self._locked,
             equity=self._equity,
         )
+
+    @property
+    def buying_power(self) -> float:
+        """Return available buying power (= free cash, non-blocking)."""
+        return self._cash
 
     # ── Crash recovery ────────────────────────────────────────────────────────
 

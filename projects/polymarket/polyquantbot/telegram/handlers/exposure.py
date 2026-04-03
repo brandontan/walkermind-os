@@ -1,6 +1,7 @@
 """telegram.handlers.exposure — Exposure report UI handler for PolyQuantBot.
 
 Displays aggregate and per-position exposure vs portfolio equity.
+Uses premium UI components for consistent terminal-grade formatting.
 Dependencies are injected at bot startup.
 
 Return type: tuple[str, list]  (text, InlineKeyboard)
@@ -11,12 +12,15 @@ from typing import Optional, TYPE_CHECKING
 
 import structlog
 
+from ..ui.components import render_positions_summary, render_status_bar
 from ..ui.keyboard import build_status_menu
 
 if TYPE_CHECKING:
     from ...core.exposure import ExposureCalculator
     from ...core.positions import PaperPositionManager
     from ...core.wallet_engine import WalletEngine
+    from ...core.system_state import SystemStateManager
+    from ...core.market.market_cache import MarketMetadataCache
 
 log = structlog.get_logger(__name__)
 
@@ -24,6 +28,9 @@ log = structlog.get_logger(__name__)
 _exposure_calculator: Optional["ExposureCalculator"] = None
 _position_manager: Optional["PaperPositionManager"] = None
 _wallet_engine: Optional["WalletEngine"] = None
+_system_state: Optional["SystemStateManager"] = None
+_market_cache: Optional["MarketMetadataCache"] = None
+_mode: str = "PAPER"
 
 
 def set_exposure_calculator(calc: "ExposureCalculator") -> None:
@@ -47,71 +54,117 @@ def set_wallet_engine(engine: "WalletEngine") -> None:
     log.info("exposure_handler_wallet_engine_injected")
 
 
-async def handle_exposure() -> tuple[str, list]:
-    """Return exposure report screen.
+def set_system_state(sm: "SystemStateManager") -> None:
+    """Inject SystemStateManager at bot startup."""
+    global _system_state  # noqa: PLW0603
+    _system_state = sm
+    log.info("exposure_handler_system_state_injected")
 
-    Shows total exposure, exposure as % of equity, position count,
-    and per-position breakdown.
+
+def set_market_cache(cache: "MarketMetadataCache") -> None:
+    """Inject MarketMetadataCache at bot startup (optional, for question resolution)."""
+    global _market_cache  # noqa: PLW0603
+    _market_cache = cache
+    log.info("exposure_handler_market_cache_injected")
+
+
+def set_mode(mode: str) -> None:
+    """Update trading mode string."""
+    global _mode  # noqa: PLW0603
+    _mode = mode
+
+
+async def handle_exposure() -> tuple[str, list]:
+    """Return exposure report screen with real open positions and premium UI.
+
+    Shows:
+      - Total exposure ($) and as % of equity
+      - Position count
+      - Per-position: market name, side, size, unrealized PnL
+      - Summary row
 
     Returns:
         ``(text, keyboard)`` tuple.
     """
-    if _exposure_calculator is None or _position_manager is None or _wallet_engine is None:
+    # ── System state for status bar ─────────────────────────────────────────
+    sys_state = "RUNNING"
+    if _system_state is not None:
+        try:
+            snap = _system_state.snapshot()
+            sys_state = snap.get("state", "RUNNING")
+        except Exception:
+            pass
+
+    status_bar = render_status_bar(state=sys_state, mode=_mode)
+
+    # ── Guard: services must be ready ────────────────────────────────────────
+    if _position_manager is None or _wallet_engine is None:
         log.warning(
             "exposure_handler_not_ready",
-            has_calc=_exposure_calculator is not None,
             has_pm=_position_manager is not None,
             has_wallet=_wallet_engine is not None,
         )
-        return (
-            "⚠️ *Exposure Report*\n\n_Services not available._",
-            build_status_menu(),
-        )
-
-    try:
-        positions = _position_manager.get_all_open()
-        wallet_state = _wallet_engine.get_state()
-        report = _exposure_calculator.calculate(positions, wallet_state)
-    except Exception as exc:
-        log.error("exposure_handler_calculation_error", error=str(exc))
-        return "❌ *Error calculating exposure*", build_status_menu()
-
-    if report.position_count == 0:
+        from ..ui.components import SEP  # noqa: PLC0415
         text = (
-            "📉 *Exposure Report*\n\n"
-            "_No open positions — zero exposure._\n\n"
-            f"💰 Equity: ${wallet_state.equity:.2f}\n"
-            f"💵 Cash: ${wallet_state.cash:.2f} | "
-            f"🔒 Locked: ${wallet_state.locked:.2f}"
+            f"{status_bar}\n{SEP}\n"
+            "📉 *EXPOSURE*\n\n"
+            "⚠️ _Services not yet available — please try again._"
         )
         return text, build_status_menu()
 
-    lines = [
-        "📉 *Exposure Report*\n",
-        f"💰 Equity: ${wallet_state.equity:.2f}",
-        f"💵 Cash: ${wallet_state.cash:.2f} | 🔒 Locked: ${wallet_state.locked:.2f}",
-        f"🔒 Total Exposure: ${report.total_exposure:.2f}",
-        f"📊 Exposure %: {report.exposure_pct_of_equity:.1f} %",
-        f"📌 Positions: {report.position_count}",
-        f"⚠️ Max Single: ${report.max_single_exposure:.2f}\n",
-    ]
+    # ── Fetch positions ──────────────────────────────────────────────────────
+    try:
+        raw_positions = _position_manager.get_all_open()
+    except Exception as exc:
+        log.error("exposure_handler_fetch_positions_error", error=str(exc))
+        return "❌ *Error loading positions*", build_status_menu()
 
-    if report.positions:
-        lines.append("*Per-position:*")
-        for p in report.positions:
-            pnl_sign = "+" if p["unrealized_pnl"] >= 0 else ""
-            lines.append(
-                f"• `{_truncate(p['market_id'], 18)}` {p['side']} "
-                f"${p['size']:.2f} ({p['exposure_pct']:.1f}%) "
-                f"PnL: {pnl_sign}{p['unrealized_pnl']:.4f}"
-            )
+    # ── Fetch wallet equity ──────────────────────────────────────────────────
+    try:
+        wallet_state = _wallet_engine.get_state()
+        wallet_equity = wallet_state.equity
+    except Exception as exc:
+        log.error("exposure_handler_fetch_wallet_error", error=str(exc))
+        wallet_equity = 0.0
 
-    text = "\n".join(lines)
+    # ── Resolve market questions ─────────────────────────────────────────────
+    positions: list[dict] = []
+    for pos in raw_positions:
+        market_id = getattr(pos, "market_id", str(pos))
+        # Try to get human-readable question from market cache
+        market_question = market_id
+        if _market_cache is not None:
+            try:
+                meta = _market_cache.get(market_id)
+                if meta is not None:
+                    market_question = getattr(meta, "question", market_id) or market_id
+            except Exception:
+                pass
+
+        positions.append({
+            "market_id": market_id,
+            "market_question": market_question,
+            "side": getattr(pos, "side", "?"),
+            "size": getattr(pos, "size", 0.0),
+            "unrealized_pnl": getattr(pos, "unrealized_pnl", 0.0),
+            "entry_price": getattr(pos, "entry_price", 0.0),
+            "exposure_pct": (
+                (getattr(pos, "size", 0.0) / wallet_equity * 100)
+                if wallet_equity > 0 else 0.0
+            ),
+        })
+
+    text = render_positions_summary(
+        positions=positions,
+        wallet_equity=wallet_equity,
+        status_bar=status_bar,
+    )
+
     log.info(
         "exposure_handler_report_displayed",
-        position_count=report.position_count,
-        total_exposure=report.total_exposure,
-        exposure_pct=report.exposure_pct_of_equity,
+        position_count=len(positions),
+        total_exposure=sum(p["size"] for p in positions),
+        wallet_equity=wallet_equity,
     )
     return text, build_status_menu()
 
@@ -122,3 +175,4 @@ async def handle_exposure() -> tuple[str, list]:
 def _truncate(s: str, max_len: int) -> str:
     """Truncate a string with ellipsis if it exceeds *max_len*."""
     return s if len(s) <= max_len else s[: max_len - 1] + "…"
+

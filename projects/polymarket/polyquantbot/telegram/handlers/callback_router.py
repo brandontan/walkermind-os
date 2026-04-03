@@ -109,11 +109,44 @@ class CallbackRouter:
         self._paper_pm: "Optional[PaperPositionManager]" = None
         self._exposure_calc: "Optional[ExposureCalculator]" = None
 
+        # ── Propagate mode + state to all handlers at init ────────────────────
+        self._propagate_mode_and_state()
+
         log.info(
             "callback_router_initialized",
             mode=mode,
             api_base=tg_api[:40] + "…" if len(tg_api) > 40 else tg_api,
         )
+
+    def _propagate_mode_and_state(self) -> None:
+        """Propagate mode and state manager to all dependent handlers."""
+        from .wallet import set_mode as wm, set_system_state as ws  # noqa: PLC0415
+        from .trade import set_mode as tm, set_system_state as ts  # noqa: PLC0415
+        from .exposure import set_mode as em, set_system_state as es  # noqa: PLC0415
+        from .settings import set_mode as sm, set_system_state as ss  # noqa: PLC0415
+        from .start import set_mode as stm, set_state_manager as sts, set_strategy_state as sss  # noqa: PLC0415
+        from .strategy import set_mode as stratm, set_system_state as strats, set_strategy_state as stratss  # noqa: PLC0415
+
+        for fn in (wm, tm, em, sm, stm, stratm):
+            try:
+                fn(self._mode)
+            except Exception:
+                pass
+        for fn in (ws, ts, es, ss, strats):
+            try:
+                fn(self._state)
+            except Exception:
+                pass
+        try:
+            sts(self._state)
+        except Exception:
+            pass
+        if self._strategy_state is not None:
+            for fn in (sss, stratss):
+                try:
+                    fn(self._strategy_state)
+                except Exception:
+                    pass
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -129,28 +162,51 @@ class CallbackRouter:
     def set_paper_wallet_engine(self, engine: "WalletEngine") -> None:
         """Inject WalletEngine for paper wallet UI.
 
+        Also propagates to wallet, trade, exposure, start handlers.
+
         Args:
             engine: Initialized :class:`~core.wallet_engine.WalletEngine`.
         """
         self._paper_wallet_engine = engine
+        # Propagate to all handlers that need the wallet engine
+        from .wallet import set_paper_wallet_engine as _w  # noqa: PLC0415
+        from .exposure import set_wallet_engine as _e  # noqa: PLC0415
+        from .start import set_wallet_engine as _s  # noqa: PLC0415
+        _w(engine)
+        _e(engine)
+        _s(engine)
         log.info("callback_router_paper_wallet_engine_injected")
 
     def set_paper_engine(self, engine: "PaperEngine") -> None:
         """Inject PaperEngine for trade execution routing.
 
+        Also propagates to trade and wallet handlers.
+
         Args:
             engine: Initialized :class:`~execution.paper_engine.PaperEngine`.
         """
         self._paper_engine = engine
+        from .trade import set_paper_engine as _t  # noqa: PLC0415
+        _t(engine)
         log.info("callback_router_paper_engine_injected")
 
     def set_paper_position_manager(self, pm: "PaperPositionManager") -> None:
         """Inject PaperPositionManager for positions display.
 
+        Also propagates to trade, exposure, wallet, start handlers.
+
         Args:
             pm: Initialized :class:`~core.positions.PaperPositionManager`.
         """
         self._paper_pm = pm
+        from .trade import set_position_manager as _t  # noqa: PLC0415
+        from .exposure import set_position_manager as _e  # noqa: PLC0415
+        from .wallet import set_position_manager as _w  # noqa: PLC0415
+        from .start import set_position_manager as _s  # noqa: PLC0415
+        _t(pm)
+        _e(pm)
+        _w(pm)
+        _s(pm)
         log.info("callback_router_paper_position_manager_injected")
 
     def set_exposure_calculator(self, calc: "ExposureCalculator") -> None:
@@ -269,11 +325,8 @@ class CallbackRouter:
 
         # ── Navigation ─────────────────────────────────────────────────────
         if action in ("back_main", "back", "start", "menu"):
-            snap = self._state.snapshot()
-            return (
-                main_screen(mode=self._mode, state=snap.get("state", "UNKNOWN")),
-                build_main_menu(),
-            )
+            from .start import handle_start  # noqa: PLC0415
+            return await handle_start()
 
         # ── Status / Refresh ───────────────────────────────────────────────
         if action in ("status", "refresh"):
@@ -341,15 +394,12 @@ class CallbackRouter:
             )
 
         if action == "settings_risk":
-            snap = self._config.snapshot()
-            return settings_risk_screen(current_value=snap.risk_multiplier), build_risk_level_menu()
+            from .settings import handle_settings_risk  # noqa: PLC0415
+            return await handle_settings_risk(config_manager=self._config)
 
         if action == "settings_mode":
-            new_mode = "LIVE" if self._mode == "PAPER" else "PAPER"
-            return (
-                settings_mode_screen(current_mode=self._mode, new_mode=new_mode),
-                build_mode_confirm_menu(new_mode),
-            )
+            from .settings import handle_settings_mode  # noqa: PLC0415
+            return await handle_settings_mode(current_mode=self._mode)
 
         if action.startswith("mode_confirm_"):
             new_mode = action[len("mode_confirm_"):].upper()
@@ -369,10 +419,12 @@ class CallbackRouter:
             )
 
         if action == "settings_notify":
-            return settings_notify_screen(), build_settings_menu()
+            from .settings import handle_settings_notify  # noqa: PLC0415
+            return await handle_settings_notify()
 
         if action == "settings_auto":
-            return settings_auto_screen(mode=self._mode), build_settings_menu()
+            from .settings import handle_settings_auto  # noqa: PLC0415
+            return await handle_settings_auto(mode=self._mode)
 
         # ── Control ────────────────────────────────────────────────────────
         if action == "control":
@@ -432,50 +484,18 @@ class CallbackRouter:
         # ── Strategy toggle ────────────────────────────────────────────────
         if action.startswith(_STRATEGY_TOGGLE_PREFIX):
             strategy_name = action.removeprefix(_STRATEGY_TOGGLE_PREFIX)
-            toggle_feedback: str = ""
+            from .strategy import handle_strategy_toggle  # noqa: PLC0415
+            # Persist toggle state to DB (non-blocking on failure)
             if self._strategy_state is not None:
                 try:
-                    new_state = self._strategy_state.toggle(strategy_name)
-                    log.info(
-                        "strategy_toggle",
-                        strategy=strategy_name,
-                        active=new_state,
-                    )
-                    if new_state:
-                        toggle_feedback = f"✅ Strategy activated: `{strategy_name}`\n\n"
-                    else:
-                        toggle_feedback = f"⬜ Strategy disabled: `{strategy_name}`\n\n"
-                    # Persist toggle state to DB (non-blocking on failure)
-                    try:
-                        await self._strategy_state.save(db=self._db)
-                    except Exception as save_exc:  # noqa: BLE001
-                        log.warning(
-                            "strategy_toggle_save_error",
-                            strategy=strategy_name,
-                            error=str(save_exc),
-                        )
-                except ValueError:
+                    await self._strategy_state.save(db=self._db)
+                except Exception as save_exc:  # noqa: BLE001
                     log.warning(
-                        "strategy_toggle_invalid",
+                        "strategy_toggle_save_error",
                         strategy=strategy_name,
+                        error=str(save_exc),
                     )
-                    snap = self._state.snapshot()
-                    return (
-                        f"❌ Unknown strategy: `{strategy_name}`\n\n"
-                        + main_screen(mode=self._mode, state=snap.get("state", "UNKNOWN")),
-                        build_main_menu(),
-                    )
-            else:
-                log.warning(
-                    "strategy_toggle_no_state_manager",
-                    strategy=strategy_name,
-                )
-            # Re-render strategy menu with updated state and feedback prepended
-            strategy_text, strategy_keyboard = await handle_settings_strategy(
-                cmd_handler=self._cmd,
-                strategy_state=self._strategy_state,
-            )
-            return toggle_feedback + strategy_text, strategy_keyboard
+            return await handle_strategy_toggle(strategy_name)
 
         # ── Unknown ────────────────────────────────────────────────────────
         log.warning("callback_unknown_action", action=action)
