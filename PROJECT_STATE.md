@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Strategy Router Fix COMPLETE ✅
+Status: Market Metadata + Paper Trading Realism COMPLETE ✅
 
 ---
 
@@ -37,6 +37,19 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+MARKET METADATA + PAPER TRADING REALISM
+
+- core/market/market_cache.py: MarketMetadataCache — fetches question+outcomes from Gamma API; 5-min async refresh; 3 retries, 2s timeout; stale-cache fallback on API failure; module singleton via get_default_cache()
+- core/portfolio/position_manager.py: PositionManager — tracks open positions per market; weighted avg_price on multiple fills; realized PnL on close; dedup by trade_id
+- core/portfolio/pnl.py: PnLTracker — records realized PnL (accumulated) + unrealized PnL (mark-to-market); DB persistence with 2 retries; summary() aggregate
+- core/execution/executor.py: realistic paper simulation — slippage ±1%, partial fill 60–100%, latency 100–500ms; min_liquidity_usd guard; new TradeResult.slippage_pct + partial_fill fields; trade_executed_realistic log event
+- telegram/message_formatter.py: format_trade_alert + format_signal_alert accept market_question, outcome, slippage_pct, partial_fill, filled_size; fallback to market_id when no metadata
+- core/logging/logger.py: added log_trade_executed_realistic, log_partial_fill, log_slippage_applied, log_pnl_realized, log_pnl_unrealized helpers
+- tests/test_phase14_market_paper_realism.py: 30 tests (MP-01–MP-30) — all pass
+- reports/forge/market_metadata_paper_realism.md: completion report
+
+---
 
 STRATEGY ROUTER FIX
 

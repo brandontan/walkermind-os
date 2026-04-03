@@ -170,3 +170,162 @@ def log_telegram_failed(
         error=error,
         **extra,
     )
+
+
+# ── Paper trading realism log helpers ─────────────────────────────────────────
+
+
+def log_trade_executed_realistic(
+    trade_id: str,
+    market_id: str,
+    *,
+    side: str,
+    fill_price: float,
+    filled_size_usd: float,
+    slippage_pct: float,
+    partial_fill: bool,
+    latency_ms: float,
+    mode: str = "PAPER",
+    **extra: Any,
+) -> None:
+    """Emit a structured ``trade_executed_realistic`` log event.
+
+    Args:
+        trade_id:        Unique trade identifier.
+        market_id:       Polymarket condition ID.
+        side:            Trade direction ("YES" | "NO").
+        fill_price:      Execution fill price after slippage.
+        filled_size_usd: USD amount actually filled.
+        slippage_pct:    Slippage applied as a fraction (e.g. 0.008 = 0.8 %).
+        partial_fill:    True when only a fraction of requested size was filled.
+        latency_ms:      Simulated execution latency in milliseconds.
+        mode:            Execution mode ("PAPER" | "LIVE").
+        **extra:         Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "trade_executed_realistic",
+        trade_id=trade_id,
+        market_id=market_id,
+        side=side,
+        fill_price=round(fill_price, 6),
+        filled_size_usd=round(filled_size_usd, 4),
+        slippage_pct=round(slippage_pct, 6),
+        partial_fill=partial_fill,
+        latency_ms=round(latency_ms, 2),
+        mode=mode,
+        **extra,
+    )
+
+
+def log_partial_fill(
+    trade_id: str,
+    market_id: str,
+    *,
+    requested_size_usd: float,
+    filled_size_usd: float,
+    fill_fraction: float,
+    **extra: Any,
+) -> None:
+    """Emit a structured ``partial_fill`` log event.
+
+    Args:
+        trade_id:           Unique trade identifier.
+        market_id:          Polymarket condition ID.
+        requested_size_usd: Original requested size in USD.
+        filled_size_usd:    Actual filled size in USD.
+        fill_fraction:      Fraction filled (0.0–1.0).
+        **extra:            Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "partial_fill",
+        trade_id=trade_id,
+        market_id=market_id,
+        requested_size_usd=round(requested_size_usd, 4),
+        filled_size_usd=round(filled_size_usd, 4),
+        fill_fraction=round(fill_fraction, 4),
+        **extra,
+    )
+
+
+def log_slippage_applied(
+    trade_id: str,
+    market_id: str,
+    *,
+    base_price: float,
+    fill_price: float,
+    slippage_pct: float,
+    side: str,
+    **extra: Any,
+) -> None:
+    """Emit a structured ``slippage_applied`` log event.
+
+    Args:
+        trade_id:     Unique trade identifier.
+        market_id:    Polymarket condition ID.
+        base_price:   Original mid price before slippage.
+        fill_price:   Execution price after slippage.
+        slippage_pct: Slippage applied as a fraction.
+        side:         Trade direction ("YES" | "NO").
+        **extra:      Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "slippage_applied",
+        trade_id=trade_id,
+        market_id=market_id,
+        base_price=round(base_price, 6),
+        fill_price=round(fill_price, 6),
+        slippage_pct=round(slippage_pct, 6),
+        side=side,
+        **extra,
+    )
+
+
+def log_pnl_realized(
+    market_id: str,
+    *,
+    trade_id: str,
+    pnl_usd: float,
+    cumulative_realized: float,
+    **extra: Any,
+) -> None:
+    """Emit a structured ``pnl_realized`` log event.
+
+    Args:
+        market_id:            Polymarket condition ID.
+        trade_id:             Unique trade identifier.
+        pnl_usd:              Realized PnL for this trade in USD.
+        cumulative_realized:  Total realized PnL across all trades for this market.
+        **extra:              Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "pnl_realized",
+        market_id=market_id,
+        trade_id=trade_id,
+        pnl_usd=round(pnl_usd, 4),
+        cumulative_realized=round(cumulative_realized, 4),
+        **extra,
+    )
+
+
+def log_pnl_unrealized(
+    market_id: str,
+    *,
+    unrealized_pnl_usd: float,
+    mark_price: float,
+    **extra: Any,
+) -> None:
+    """Emit a structured ``pnl_unrealized`` log event.
+
+    Args:
+        market_id:          Polymarket condition ID.
+        unrealized_pnl_usd: Current unrealized PnL in USD.
+        mark_price:         Mid price used for mark-to-market.
+        **extra:            Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "pnl_unrealized",
+        market_id=market_id,
+        unrealized_pnl_usd=round(unrealized_pnl_usd, 4),
+        mark_price=round(mark_price, 6),
+        **extra,
+    )

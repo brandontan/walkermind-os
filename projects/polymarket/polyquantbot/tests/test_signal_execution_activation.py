@@ -227,9 +227,10 @@ async def test_ex01_paper_mode_succeeds():
 
 
 async def test_ex02_paper_trade_fills_full_size():
-    """EX-02: Paper fill equals the requested size."""
+    """EX-02: Paper fill is between 60 % and 100 % of requested size (realistic partial fill)."""
     result = await execute_trade(_signal(size_usd=100.0), mode="PAPER")
-    assert result.filled_size_usd == pytest.approx(100.0, abs=0.01)
+    # Realistic paper mode fills 60–100 % of requested size
+    assert 60.0 <= result.filled_size_usd <= 100.0 + 0.01
 
 
 async def test_ex03_duplicate_signal_skipped():
