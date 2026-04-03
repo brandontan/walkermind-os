@@ -23,6 +23,7 @@ from ..ui.screens import (
 
 if TYPE_CHECKING:
     from ...core.wallet.service import WalletService
+    from ...core.wallet_engine import WalletEngine
 
 log = structlog.get_logger(__name__)
 
@@ -33,6 +34,20 @@ _wallet_service: Optional["WalletService"] = None
 # Last known balance — used as fallback when API is unavailable
 _cached_balance: Optional[float] = None
 _cached_address: Optional[str] = None
+
+# Paper wallet engine — injected at bot startup (optional)
+_paper_wallet_engine: Optional["WalletEngine"] = None
+
+
+def set_paper_wallet_engine(engine: "WalletEngine") -> None:
+    """Inject the WalletEngine (paper trading) into the wallet handler.
+
+    Call once at bot startup after WalletEngine is initialised.
+    Does NOT affect the existing blockchain WalletService.
+    """
+    global _paper_wallet_engine  # noqa: PLW0603
+    _paper_wallet_engine = engine
+    log.info("wallet_handler_paper_engine_injected")
 
 
 def set_wallet_service(service: "WalletService") -> None:
@@ -213,3 +228,46 @@ async def handle_withdraw_command(
     except Exception as exc:
         log.error("withdraw_command_unexpected_error", user_id=user_id, error=str(exc))
         return wallet_withdraw_screen(), build_wallet_menu()
+
+
+async def handle_paper_wallet(mode: str = "default") -> tuple[str, list]:
+    """Return paper wallet overview screen showing cash, locked, equity, and unrealized PnL.
+
+    This function uses the injected :class:`~core.wallet_engine.WalletEngine`
+    (paper trading engine) — it does NOT touch the blockchain WalletService.
+
+    Args:
+        mode: Display mode hint (reserved for future use).
+
+    Returns:
+        ``(screen_text, keyboard)`` tuple.
+    """
+    if _paper_wallet_engine is None:
+        log.warning("handle_paper_wallet_no_engine")
+        return (
+            "⚠️ *Paper Wallet*\n\n_Paper wallet engine not available._",
+            build_wallet_menu(),
+        )
+
+    try:
+        state = _paper_wallet_engine.get_state()
+    except Exception as exc:
+        log.error("handle_paper_wallet_state_error", error=str(exc))
+        return "❌ *Error fetching paper wallet state*", build_wallet_menu()
+
+    text = (
+        "💼 *Paper Wallet*\n\n"
+        f"💵 Cash (available): *${state.cash:,.2f}*\n"
+        f"🔒 Locked (in positions): *${state.locked:,.2f}*\n"
+        f"📊 Equity (total): *${state.equity:,.2f}*\n\n"
+        f"_Paper trading mode — no real funds at risk._"
+    )
+
+    log.info(
+        "handle_paper_wallet_displayed",
+        cash=state.cash,
+        locked=state.locked,
+        equity=state.equity,
+        mode=mode,
+    )
+    return text, build_wallet_menu()

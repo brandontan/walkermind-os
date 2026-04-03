@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Alpha Stabilization COMPLETE ✅ — Edge threshold raised to 2 %, volatility breakout signal added, AlphaMetrics + /alpha Telegram debug view live
+Status: Wallet Engine Core COMPLETE ✅ — Paper trading wallet engine, position lifecycle manager, trade ledger, exposure calculator, paper engine, and Telegram UI handlers implemented
 
 ---
 
@@ -37,6 +37,19 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+WALLET ENGINE CORE (Phase 19.1)
+
+- core/wallet_engine.py: WalletEngine with cash/locked/equity tracking, asyncio Lock, idempotent lock_funds/unlock_funds/settle_trade by trade_id, InsufficientFundsError guard, restore_state() for crash recovery, initial balance from PAPER_INITIAL_BALANCE env var
+- core/positions.py: PaperPosition dataclass + PaperPositionManager — full lifecycle (open/partial_fill/update_price/close), weighted avg entry price, idempotent by trade_id, PositionStatus OPEN/CLOSED enum
+- core/ledger.py: LedgerEntry dataclass + TradeLedger — append-only audit log, market index for fast lookup, get_realized_pnl() / get_unrealized_pnl() aggregations, LedgerAction OPEN/CLOSE/PARTIAL enum
+- core/exposure.py: ExposureReport dataclass + ExposureCalculator — per-position and aggregate exposure metrics, exposure_pct_of_equity, zero-div safe
+- execution/types.py: Shared OrderInput, WalletState (re-export from core.wallet_engine), PositionState, LedgerEntry (re-export from core.ledger) dataclasses
+- execution/paper_engine.py: PaperEngine with execute_order (validate → balance check → partial fill 80-100% → slippage ±0.5% → lock_funds → open_position → ledger OPEN) and close_order (close_position → unlock_funds → settle_trade → ledger CLOSE → PnLTracker update), idempotent, 500ms timeout guard, rollback on error
+- telegram/handlers/trade.py: NEW — set_paper_engine/set_position_manager/set_pnl_tracker injectors; handle_trade() positions list with PnL; handle_trade_detail() per-market detail view
+- telegram/handlers/exposure.py: NEW — set_exposure_calculator/set_position_manager/set_wallet_engine injectors; handle_exposure() aggregate + per-position exposure report
+- telegram/handlers/wallet.py: MODIFIED (additive) — added _paper_wallet_engine, set_paper_wallet_engine(), handle_paper_wallet() showing cash/locked/equity; existing handle_wallet() untouched
+- reports/forge/19_1_wallet_engine_core.md: completion report
 
 ALPHA STABILIZATION (Phase 18.1)
 
@@ -556,6 +569,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- Wire WalletEngine, PaperPositionManager, TradeLedger, ExposureCalculator, PaperEngine into main.py startup and inject into Telegram handlers
+- Wire callback_router.py to handle action:paper_wallet, action:trade, action:exposure callbacks
 - Wire StrategyStateManager(db=db) into main.py startup and save(db=db) after every Telegram toggle
 - Wire strategy_mgr.get_state() into run_trading_loop() → generate_signals() strategy_state param
 - Wire WalletRepository + WalletService(repository=repo) into main.py startup sequence
@@ -582,17 +597,19 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Wire AlphaMetrics into generate_signals() call in trading_loop.py and inject via set_alpha_metrics() in main.py
-2. Connect PnLCalculator.calculate_metrics() to DB trade history for accurate drawdown in /performance
-3. Add /history handler for closed trade log
-4. Load live bankroll from WalletManager into run_trading_loop (replace static default)
-5. Wire RedisClient into pipeline startup for signal dedup persistence
-6. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
+1. Wire WalletEngine + PaperEngine into main.py bootstrap: instantiate, inject into handlers, add callback routes for action:paper_wallet / action:trade / action:exposure
+2. Add persistence layer for WalletState: persist to DB on every mutation; restore_state() on startup
+3. Wire PaperPositionManager.update_price() to WebSocket feed for live mark-to-market PnL
+4. Wire AlphaMetrics into generate_signals() call in trading_loop.py and inject via set_alpha_metrics() in main.py
+5. Connect PnLCalculator.calculate_metrics() to DB trade history for accurate drawdown in /performance
+6. Load live bankroll from WalletManager into run_trading_loop (replace static default)
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- WalletEngine / PaperEngine not yet wired into main.py (requires follow-up wiring task)
+- Paper wallet state is in-memory only — no persistence across restarts yet
 - drawdown in /performance always 0.0 — MultiStrategyMetrics lacks time-series equity curve; accurate drawdown requires PnLCalculator over DB trade history
 - Positions unrealized PnL accurate only when trading_loop.run() is calling pnl_tracker.record_unrealized() per-tick (requires live pipeline)
 - StrategyStateManager.save(db=db) requires db.connect() to be called first (main.py responsibility)
