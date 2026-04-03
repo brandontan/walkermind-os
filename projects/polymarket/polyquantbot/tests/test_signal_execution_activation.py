@@ -401,3 +401,106 @@ async def test_ex18_multiple_unique_signals_all_executed():
     # All trade IDs must be distinct
     ids = [r.trade_id for r in results]
     assert len(set(ids)) == 3
+
+
+# ── Force Signal Mode tests (FS) ───────────────────────────────────────────────
+
+
+async def test_fs01_force_mode_generates_signal_regardless_of_edge():
+    """FS-01: FORCE_SIGNAL_MODE bypasses edge filter — even zero-edge market gets a signal."""
+    markets = [_market(p_market=0.5, p_model=0.5)]  # zero edge — normally skipped
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=True)
+    assert len(signals) == 1
+
+
+async def test_fs02_force_mode_generates_signal_regardless_of_liquidity():
+    """FS-02: FORCE_SIGNAL_MODE bypasses liquidity filter."""
+    markets = [_market(liquidity_usd=0.0)]  # no liquidity — normally skipped
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=True)
+    assert len(signals) == 1
+
+
+async def test_fs03_force_mode_side_yes_when_p_market_below_half():
+    """FS-03: Force mode uses p_market < 0.5 → YES rule."""
+    markets = [_market(p_market=0.3, p_model=0.3)]  # p_market < 0.5 → YES
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=True)
+    assert signals[0].side == "YES"
+
+
+async def test_fs04_force_mode_side_no_when_p_market_at_or_above_half():
+    """FS-04: Force mode uses p_market >= 0.5 → NO rule."""
+    markets = [_market(p_market=0.7, p_model=0.7)]  # p_market >= 0.5 → NO
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=True)
+    assert signals[0].side == "NO"
+
+
+async def test_fs05_force_mode_size_capped_at_1pct_bankroll():
+    """FS-05: Force mode size is capped at 1 % of bankroll."""
+    bankroll = 5000.0
+    markets = [_market()]
+    signals = await generate_signals(markets, bankroll=bankroll, force_signal_mode=True)
+    assert signals[0].size_usd == pytest.approx(bankroll * 0.01, abs=0.001)
+
+
+async def test_fs06_force_mode_respects_top_n_default_of_1():
+    """FS-06: Force mode only returns top-N (default 1) market signals."""
+    markets = [
+        _market(market_id=f"mkt-{i}", p_market=0.3 + i * 0.05)
+        for i in range(5)
+    ]
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=True)
+    assert len(signals) == 1
+    assert signals[0].market_id == "mkt-0"
+
+
+async def test_fs07_force_mode_env_flag(monkeypatch):
+    """FS-07: FORCE_SIGNAL_MODE env var activates force mode."""
+    monkeypatch.setenv("FORCE_SIGNAL_MODE", "true")
+    markets = [_market(p_market=0.5, p_model=0.5)]  # zero edge — skipped in normal mode
+    signals = await generate_signals(markets, bankroll=1000.0)
+    assert len(signals) == 1
+
+
+async def test_fs08_force_mode_false_still_filters_normally():
+    """FS-08: force_signal_mode=False (explicit) still applies normal filtering."""
+    markets = [_market(p_market=0.5, p_model=0.5)]  # zero edge
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=False)
+    assert signals == []
+
+
+async def test_fs09_force_mode_pipeline_executes_trade():
+    """FS-09: Full pipeline with force mode: below-threshold edge market still executes.
+
+    Uses liquidity=0 to ensure market would normally be filtered, but positive edge
+    so the executor's re-validation accepts it.
+    """
+    markets = [_market(p_market=0.4, p_model=0.42, liquidity_usd=0.0)]  # filtered by liquidity normally
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=True)
+    assert signals
+
+    results = [await execute_trade(s, mode="PAPER") for s in signals]
+    assert all(r.success for r in results)
+
+
+async def test_fs10_executor_emits_order_sent_and_order_filled():
+    """FS-10: executor emits order_sent and order_filled structured log events."""
+    import projects.polymarket.polyquantbot.core.execution.executor as executor_mod
+
+    recorded: list[dict] = []
+    original_info = executor_mod.log.info
+
+    def recording_info(event: str, **kw: object) -> None:  # type: ignore[override]
+        recorded.append({"event": event, **kw})
+        return original_info(event, **kw)
+
+    executor_mod.log.info = recording_info  # type: ignore[method-assign]
+    try:
+        result = await execute_trade(_signal(), mode="PAPER")
+    finally:
+        executor_mod.log.info = original_info  # type: ignore[method-assign]
+
+    assert result.success
+    events = [r["event"] for r in recorded]
+    assert "order_sent" in events, f"order_sent not found in events: {events}"
+    assert "order_filled" in events, f"order_filled not found in events: {events}"
+

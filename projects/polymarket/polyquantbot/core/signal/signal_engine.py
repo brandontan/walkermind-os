@@ -30,6 +30,11 @@ Environment variables (all optional):
     SIGNAL_KELLY_FRACTION     — fractional-Kelly multiplier  (default 0.25)
     SIGNAL_MAX_POSITION_PCT   — max position as fraction of bankroll (default 0.10)
     SIGNAL_MIN_CONFIDENCE     — minimum confidence score S=edge/vol  (default 0.1)
+    FORCE_SIGNAL_MODE         — when "true", bypasses all filters and generates up
+                                to FORCE_SIGNAL_TOP_N signals per call using a
+                                simplified side rule: p_market < 0.5 → YES else NO.
+                                Position size is capped at 1 % of bankroll.
+    FORCE_SIGNAL_TOP_N        — max number of forced signals per call (default 1)
 
 Usage::
 
@@ -61,6 +66,7 @@ _MIN_LIQUIDITY_USD: float = 10_000.0   # $10,000 minimum market depth
 _KELLY_FRACTION: float = 0.25          # fractional Kelly multiplier
 _MAX_POSITION_FRACTION: float = 0.10   # max 10 % of bankroll per trade
 _MIN_CONFIDENCE: float = 0.1           # minimum S = edge / volatility
+_FORCE_SIGNAL_TOP_N: int = 1           # default markets to force-signal per call
 
 
 def _env_float(name: str, default: float) -> float:
@@ -68,6 +74,17 @@ def _env_float(name: str, default: float) -> float:
         return float(os.getenv(name, str(default)))
     except ValueError:
         return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes"}
 
 
 def _spread_volatility(market: dict[str, Any], p_market: float) -> float:
@@ -151,6 +168,7 @@ async def generate_signals(
     max_position_fraction: float | None = None,
     min_confidence: float | None = None,
     alpha_model: "Optional[ProbabilisticAlphaModel]" = None,
+    force_signal_mode: bool | None = None,
 ) -> list[SignalResult]:
     """Evaluate a list of markets and return signals with positive edge.
 
@@ -181,6 +199,9 @@ async def generate_signals(
                               (env: SIGNAL_MIN_CONFIDENCE).  Set to 0.0 to disable.
         alpha_model:          Optional :class:`~core.signal.alpha_model.ProbabilisticAlphaModel`
                               for real p_model and volatility computation.
+        force_signal_mode:    When True, bypasses all filters and emits up to
+                              ``FORCE_SIGNAL_TOP_N`` signals (env: FORCE_SIGNAL_MODE).
+                              Sizes each position at exactly 1 % of bankroll.
 
     Returns:
         List of :class:`SignalResult` instances, one per qualifying market.
@@ -200,6 +221,97 @@ async def generate_signals(
     _mc = min_confidence if min_confidence is not None else _env_float(
         "SIGNAL_MIN_CONFIDENCE", _MIN_CONFIDENCE
     )
+    _force = force_signal_mode if force_signal_mode is not None else _env_bool(
+        "FORCE_SIGNAL_MODE"
+    )
+
+    # ── FORCE SIGNAL MODE ─────────────────────────────────────────────────────
+    # When enabled: bypass all filters, generate signals for top N markets using
+    # a simple direction rule, and cap size at 1 % of bankroll.
+    if _force:
+        _top_n = _env_int("FORCE_SIGNAL_TOP_N", _FORCE_SIGNAL_TOP_N)
+        _force_size = bankroll * 0.01  # 1 % bankroll cap
+
+        log.info(
+            "force_signal_mode_active",
+            top_n=_top_n,
+            bankroll=bankroll,
+            force_size_usd=round(_force_size, 4),
+        )
+
+        forced: list[SignalResult] = []
+        for market in list(markets)[:_top_n]:
+            market_id: str = str(market.get("market_id", ""))
+            p_market: float = float(market.get("p_market", 0.0))
+            liquidity_usd: float = float(market.get("liquidity_usd", 0.0))
+
+            if alpha_model is not None:
+                p_model, volatility = alpha_model.compute_p_model(
+                    market_id=market_id,
+                    p_market=p_market,
+                    liquidity_usd=liquidity_usd,
+                )
+            else:
+                p_model = float(market.get("p_model", p_market))
+                volatility = _spread_volatility(market, p_market)
+
+            edge: float = p_model - p_market
+            confidence_score: float = edge / volatility if volatility > 0 else 0.0
+
+            # Simple forced side rule
+            side: str = "YES" if p_market < 0.5 else "NO"
+
+            # Compute EV even in force mode (may be negative)
+            b: float = (1.0 / p_market - 1.0) if p_market > 0 else 0.0
+            q: float = 1.0 - p_model
+            ev: float = (p_model * b - q) if b > 0 else 0.0
+
+            kelly_f: float = max((p_model * b - q) / b, 0.0) if b > 0 else 0.0
+
+            log.info(
+                "signal_debug",
+                market_id=market_id,
+                p_market=round(p_market, 4),
+                p_model=round(p_model, 4),
+                edge=round(edge, 4),
+                volatility=round(volatility, 6),
+                S=round(confidence_score, 4),
+                force_mode=True,
+            )
+
+            log.info(
+                "signal_generated",
+                market_id=market_id,
+                edge=round(edge, 4),
+                ev=round(ev, 4),
+                p_model=round(p_model, 4),
+                p_market=round(p_market, 4),
+                side=side,
+                size_usd=round(_force_size, 4),
+                force_mode=True,
+            )
+
+            extra: dict[str, Any] = {
+                k: v
+                for k, v in market.items()
+                if k not in {"market_id", "p_market", "p_model", "liquidity_usd", "side"}
+            }
+
+            forced.append(SignalResult(
+                signal_id=uuid.uuid4().hex[:12],
+                market_id=market_id,
+                side=side,
+                p_market=round(p_market, 6),
+                p_model=round(p_model, 6),
+                edge=round(edge, 6),
+                ev=round(ev, 6),
+                kelly_f=round(kelly_f, 6),
+                size_usd=round(_force_size, 4),
+                liquidity_usd=round(liquidity_usd, 2),
+                extra=extra,
+            ))
+
+        return forced
 
     signals: list[SignalResult] = []
 
@@ -240,6 +352,7 @@ async def generate_signals(
             edge=round(edge, 4),
             volatility=round(volatility, 6),
             effective_threshold=round(effective_threshold, 6),
+            S=round(confidence_score, 4),
         )
 
         log.info(

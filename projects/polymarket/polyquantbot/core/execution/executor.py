@@ -409,6 +409,17 @@ async def _attempt_execution(
     t_start = time.time()
 
     try:
+        log.info(
+            "order_sent",
+            trade_id=trade_id,
+            signal_id=signal.signal_id,
+            market_id=signal.market_id,
+            side=signal.side,
+            price=round(signal.p_market, 6),
+            size_usd=round(signal.size_usd, 4),
+            mode=mode,
+        )
+
         if mode == "LIVE" and executor_callback is not None:
             raw = await executor_callback(
                 market_id=signal.market_id,
@@ -420,6 +431,17 @@ async def _attempt_execution(
             latency_ms = (time.time() - t_start) * 1_000.0
             filled = float(raw.get("filled_size", signal.size_usd))
             fill_price = float(raw.get("fill_price", signal.p_market))
+            log.info(
+                "order_filled",
+                trade_id=trade_id,
+                signal_id=signal.signal_id,
+                market_id=signal.market_id,
+                side=signal.side,
+                filled_size_usd=round(filled, 4),
+                fill_price=round(fill_price, 6),
+                latency_ms=round(latency_ms, 2),
+                mode=mode,
+            )
             return TradeResult(
                 trade_id=trade_id,
                 signal_id=signal.signal_id,
@@ -438,6 +460,17 @@ async def _attempt_execution(
             # Paper simulation: fill at market price with full size
             await asyncio.sleep(0)  # yield to event loop
             latency_ms = (time.time() - t_start) * 1_000.0
+            log.info(
+                "order_filled",
+                trade_id=trade_id,
+                signal_id=signal.signal_id,
+                market_id=signal.market_id,
+                side=signal.side,
+                filled_size_usd=round(signal.size_usd, 4),
+                fill_price=round(signal.p_market, 6),
+                latency_ms=round(latency_ms, 2),
+                mode="PAPER",
+            )
             return TradeResult(
                 trade_id=trade_id,
                 signal_id=signal.signal_id,

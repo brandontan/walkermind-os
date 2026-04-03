@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Parser Hotfix (JSON-Encoded Fields) COMPLETE ✅
+Status: Signal Debug + Force Signal Mode COMPLETE ✅
 
 ---
 
@@ -37,6 +37,16 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+SIGNAL DEBUG + FORCE SIGNAL MODE
+
+- core/signal/signal_engine.py: added S field to signal_debug log; added FORCE_SIGNAL_MODE env flag support; force mode bypasses all filters, picks top-N markets (FORCE_SIGNAL_TOP_N default 1), uses p_market<0.5→YES rule, sizes at 1% bankroll; _env_bool/_env_int helpers added; force_signal_mode parameter added to generate_signals()
+- core/execution/executor.py: added order_sent log before execution attempt; added order_filled log after paper/live fill (both paths)
+- core/pipeline/trading_loop.py: reads FORCE_SIGNAL_MODE env; passes force_signal_mode to generate_signals(); enforces max 1 trade per loop tick in force mode (signal_skipped_force_limit); logs force_signal_mode in trading_loop_started and signals_generated events
+- tests/test_signal_execution_activation.py: 10 new tests added (FS-01–FS-10); total 42 tests pass
+- reports/forge/SIGNAL_DEBUG_FORCE_MODE.md: completion report
+
+---
 
 DB IMPORT FIX
 
