@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from ...core.system_state import SystemStateManager
     from ...config.runtime_config import ConfigManager
     from ...strategy.strategy_manager import StrategyStateManager
+    from ...infra.db import DatabaseClient
 
 _STRATEGY_TOGGLE_PREFIX = "strategy_toggle:"
 
@@ -88,6 +89,7 @@ class CallbackRouter:
         config_manager: "ConfigManager",
         mode: str = "PAPER",
         strategy_state: "Optional[StrategyStateManager]" = None,
+        db: "Optional[DatabaseClient]" = None,
     ) -> None:
         self._api = tg_api
         self._cmd = cmd_handler
@@ -95,6 +97,7 @@ class CallbackRouter:
         self._config = config_manager
         self._mode = mode
         self._strategy_state = strategy_state
+        self._db: "Optional[DatabaseClient]" = db
 
         log.info(
             "callback_router_initialized",
@@ -103,6 +106,15 @@ class CallbackRouter:
         )
 
     # ── Public API ─────────────────────────────────────────────────────────────
+
+    def set_db(self, db: "DatabaseClient") -> None:
+        """Inject the DatabaseClient after startup (called after db.connect()).
+
+        Args:
+            db: Connected DatabaseClient instance.
+        """
+        self._db = db
+        log.info("callback_router_db_wired")
 
     async def route(
         self,
@@ -349,14 +361,24 @@ class CallbackRouter:
                 try:
                     new_state = self._strategy_state.toggle(strategy_name)
                     log.info(
-                        "strategy_toggled",
+                        "strategy_toggle",
+                        event="strategy_toggle",
                         strategy=strategy_name,
-                        new_state=new_state,
+                        active=new_state,
                     )
                     if new_state:
                         toggle_feedback = f"✅ Strategy activated: `{strategy_name}`\n\n"
                     else:
-                        toggle_feedback = f"❌ Strategy disabled: `{strategy_name}`\n\n"
+                        toggle_feedback = f"⬜ Strategy disabled: `{strategy_name}`\n\n"
+                    # Persist toggle state to DB (non-blocking on failure)
+                    try:
+                        await self._strategy_state.save(db=self._db)
+                    except Exception as save_exc:  # noqa: BLE001
+                        log.warning(
+                            "strategy_toggle_save_error",
+                            strategy=strategy_name,
+                            error=str(save_exc),
+                        )
                 except ValueError:
                     log.warning(
                         "strategy_toggle_invalid",

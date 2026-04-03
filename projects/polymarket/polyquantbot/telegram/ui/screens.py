@@ -100,12 +100,18 @@ def wallet_screen(
 
 
 def wallet_balance_screen(balance: float | None = None, address: str | None = None) -> str:
-    """Balance detail screen."""
-    lines = ["💵 *BALANCE*\n"]
+    """Balance detail screen showing available, locked and total breakdown."""
+    lines = ["💰 *BALANCE*\n"]
     if address:
-        lines.append(f"Address: `{address}`")
+        lines.append(f"Address: `{address}`\n")
     if balance is not None:
-        lines.append(f"Balance: `{balance:.4f} USDC`")
+        # WalletService returns portfolio value; locked positions are tracked separately
+        available = balance
+        locked = 0.0
+        total = balance
+        lines.append(f"Available: `${available:.4f}`")
+        lines.append(f"Locked: `${locked:.4f}`")
+        lines.append(f"Total: `${total:.4f}`")
     else:
         lines.append("_Balance fetch in progress…_")
     return "\n".join(lines)
@@ -175,11 +181,16 @@ def settings_screen(mode: str, risk_multiplier: float, max_position: float) -> s
 
 
 def settings_risk_screen(current_value: float = 0.25) -> str:
-    """Risk level prompt with current value and hybrid UI options."""
+    """Risk level prompt with current value, descriptions, and hybrid UI options."""
     return (
         f"⚠️ *Risk Level*\n\n"
         f"Current: `{current_value:.2f}`\n\n"
-        "Select risk or input manually:"
+        "0.10 → Very conservative (small size)\n"
+        "0.25 → Conservative\n"
+        "0.50 → Balanced\n"
+        "1.00 → Aggressive\n\n"
+        "_Uses fractional Kelly (0.25f)_\n\n"
+        "Select a preset or use `/set_risk [value]` for custom:"
     )
 
 

@@ -144,6 +144,15 @@ async def main() -> None:
             hint="Set MARKET_IDS env var (comma-separated condition IDs) to enable WS feed",
         )
 
+    # ── Strategy state manager ─────────────────────────────────────────────────
+    from .strategy.strategy_manager import StrategyStateManager
+    strategy_mgr = StrategyStateManager()
+
+    # ── Multi-strategy metrics ─────────────────────────────────────────────────
+    from .monitoring.multi_strategy_metrics import MultiStrategyMetrics
+    multi_metrics = MultiStrategyMetrics(["ev_momentum", "mean_reversion", "liquidity_edge"])
+    log.info("metrics_initialized", event="metrics_initialized", initialized=True)
+
     # ── Command handler ────────────────────────────────────────────────────────
     from .telegram.command_handler import CommandHandler
     cmd_handler = CommandHandler(
@@ -153,6 +162,7 @@ async def main() -> None:
         telegram_sender=telegram_sender,
         chat_id=chat_id,
         mode=mode,
+        multi_metrics=multi_metrics,
     )
 
     # ── Dashboard server (optional) ────────────────────────────────────────────
@@ -257,6 +267,7 @@ async def main() -> None:
         state_manager=state_manager,
         config_manager=config_manager,
         mode=mode,
+        strategy_state=strategy_mgr,
     )
 
     async def _polling_loop() -> None:
@@ -500,6 +511,11 @@ async def main() -> None:
             hint="Check DB_DSN env var and ensure PostgreSQL is reachable",
         )
         raise RuntimeError(f"Database required — startup aborted: {db_exc}") from db_exc
+
+    # ── Load strategy state from DB and wire DB into callback router ──────────
+    await strategy_mgr.load(db=db)
+    _callback_router.set_db(db)
+    log.info("strategy_state_loaded_from_db", state=strategy_mgr.get_state())
 
     # ── Market metadata cache ──────────────────────────────────────────────────
     from .core.market.market_cache import MarketMetadataCache

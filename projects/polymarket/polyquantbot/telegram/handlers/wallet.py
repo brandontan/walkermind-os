@@ -7,6 +7,7 @@ Return type: tuple[str, InlineKeyboard]
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Optional, TYPE_CHECKING
 
 import structlog
@@ -61,14 +62,33 @@ async def handle_wallet_balance(user_id: Optional[int] = None) -> tuple[str, lis
     if _wallet_service is None or user_id is None:
         return wallet_balance_screen(), build_wallet_menu()
 
-    try:
-        wallet = await _wallet_service.get_wallet(user_id)
-        balance = await _wallet_service.get_balance(user_id)
-        address = wallet.address if wallet else None
-        return wallet_balance_screen(balance=balance, address=address), build_wallet_menu()
-    except Exception as exc:
-        log.error("handle_wallet_balance_error", user_id=user_id, error=str(exc))
-        return wallet_balance_screen(), build_wallet_menu()
+    for attempt in range(1, 4):
+        try:
+            wallet = await _wallet_service.get_wallet(user_id)
+            balance = await _wallet_service.get_balance(user_id)
+            address = wallet.address if wallet else None
+            log.info(
+                "wallet_fetch",
+                status="success",
+                user_id=user_id,
+                balance=balance,
+                attempt=attempt,
+            )
+            return wallet_balance_screen(balance=balance, address=address), build_wallet_menu()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning(
+                "wallet_fetch",
+                status="error",
+                user_id=user_id,
+                attempt=attempt,
+                error=str(exc),
+            )
+            if attempt < 3:
+                await asyncio.sleep(0.5 * attempt)
+    log.error("wallet_fetch_all_retries_exhausted", status="failed", user_id=user_id)
+    return "❌ Failed to fetch wallet", build_wallet_menu()
 
 
 async def handle_wallet_exposure(user_id: Optional[int] = None) -> tuple[str, list]:
