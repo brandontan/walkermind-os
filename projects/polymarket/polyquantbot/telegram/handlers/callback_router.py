@@ -49,6 +49,9 @@ if TYPE_CHECKING:
     from ..command_handler import CommandHandler
     from ...core.system_state import SystemStateManager
     from ...config.runtime_config import ConfigManager
+    from ...strategy.strategy_manager import StrategyStateManager
+
+_STRATEGY_TOGGLE_PREFIX = "strategy_toggle:"
 
 log = structlog.get_logger(__name__)
 
@@ -83,12 +86,14 @@ class CallbackRouter:
         state_manager: "SystemStateManager",
         config_manager: "ConfigManager",
         mode: str = "PAPER",
+        strategy_state: "Optional[StrategyStateManager]" = None,
     ) -> None:
         self._api = tg_api
         self._cmd = cmd_handler
         self._state = state_manager
         self._config = config_manager
         self._mode = mode
+        self._strategy_state = strategy_state
 
         log.info(
             "callback_router_initialized",
@@ -268,7 +273,10 @@ class CallbackRouter:
             return text, keyboard
 
         if action == "settings_strategy":
-            return await handle_settings_strategy(cmd_handler=self._cmd)
+            return await handle_settings_strategy(
+                cmd_handler=self._cmd,
+                strategy_state=self._strategy_state,
+            )
 
         if action == "settings_notify":
             return settings_notify_screen(), build_settings_menu()
@@ -294,6 +302,34 @@ class CallbackRouter:
 
         if action == "noop":
             return noop_screen(), []
+
+        # ── Strategy toggle ────────────────────────────────────────────────
+        if action.startswith(_STRATEGY_TOGGLE_PREFIX):
+            strategy_name = action.removeprefix(_STRATEGY_TOGGLE_PREFIX)
+            if self._strategy_state is not None:
+                try:
+                    self._strategy_state.toggle(strategy_name)
+                except ValueError:
+                    log.warning(
+                        "strategy_toggle_invalid",
+                        strategy=strategy_name,
+                    )
+                    snap = self._state.snapshot()
+                    return (
+                        f"❌ Unknown strategy: `{strategy_name}`\n\n"
+                        + main_screen(mode=self._mode, state=snap.get("state", "UNKNOWN")),
+                        build_main_menu(),
+                    )
+            else:
+                log.warning(
+                    "strategy_toggle_no_state_manager",
+                    strategy=strategy_name,
+                )
+            # Re-render strategy menu with updated state
+            return await handle_settings_strategy(
+                cmd_handler=self._cmd,
+                strategy_state=self._strategy_state,
+            )
 
         # ── Unknown ────────────────────────────────────────────────────────
         log.warning("callback_unknown_action", action=action)

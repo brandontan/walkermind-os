@@ -316,7 +316,7 @@ class TestCB09StrategyMenu:
     def test_toggle_prefix_in_callback(self) -> None:
         km = build_strategy_menu(["ev_momentum"])
         cds = _callback_data_values(km)
-        assert any("strategy_toggle_ev_momentum" in cd for cd in cds)
+        assert any("strategy_toggle:ev_momentum" in cd for cd in cds)
 
     def test_back_main_present(self) -> None:
         km = build_strategy_menu(["ev_momentum"])

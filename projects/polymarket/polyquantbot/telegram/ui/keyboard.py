@@ -82,12 +82,29 @@ def build_settings_menu() -> InlineKeyboard:
 def build_strategy_menu(
     strategies: list[str],
     active: str | None = None,
+    active_states: dict[str, bool] | None = None,
 ) -> InlineKeyboard:
-    """Per-strategy toggle list.  Active strategy marked with ✅."""
+    """Per-strategy toggle list.
+
+    When *active_states* is provided each strategy is shown as ✅ (enabled)
+    or ⬜ (disabled).  When only *active* (single str) is provided the legacy
+    single-active rendering is used for backward compatibility.
+
+    Args:
+        strategies: Ordered list of strategy names to render.
+        active: Legacy single-active strategy name.  Ignored when
+            *active_states* is also provided.
+        active_states: Dict mapping strategy name → enabled bool.
+
+    Callback format: ``action:strategy_toggle:{name}`` (colon separator).
+    """
     rows: InlineKeyboard = []
     for name in strategies:
-        marker = "✅" if name == active else "⬜"
-        rows.append([_btn(f"{marker} {name}", f"strategy_toggle_{name}")])
+        if active_states is not None:
+            marker = "✅" if active_states.get(name, False) else "⬜"
+        else:
+            marker = "✅" if name == active else "⬜"
+        rows.append([_btn(f"{marker} {name}", f"strategy_toggle:{name}")])
     rows.append([_btn("🏠 Main Menu", "back_main")])
     return rows
 

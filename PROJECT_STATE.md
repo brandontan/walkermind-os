@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Force Trade Alpha Hotfix COMPLETE ✅
+Status: Strategy Router Fix COMPLETE ✅
 
 ---
 
@@ -25,7 +25,7 @@ Structure:
 
 - core/ (pipeline, state, validators, live_deployment_stage1)
 - data/ (websocket, orderbook, ingestion)
-- strategy/ (signal engine, implementations)
+- strategy/ (signal engine, implementations, strategy_manager)
 - intelligence/ (bayesian, drift)
 - risk/ (risk guard, position tracker)
 - execution/ (clob executor, simulator, fills)
@@ -38,7 +38,17 @@ Structure:
 
 ## ✅ COMPLETED
 
-FORCE TRADE ALPHA HOTFIX
+STRATEGY ROUTER FIX
+
+- strategy/strategy_manager.py: StrategyStateManager with in-memory state {ev_momentum, mean_reversion, liquidity_edge}; toggle() with zero-alpha fallback; async load()/save() with Redis persistence; memory fallback on Redis error; strategy_toggled/strategy_state_loaded structured log events
+- telegram/ui/keyboard.py: build_strategy_menu gains active_states param for multi-boolean rendering; callback format changed from strategy_toggle_{name} to strategy_toggle:{name} (colon separator)
+- telegram/handlers/settings.py: handle_settings_strategy gains strategy_state parameter; renders full ☑/⬜ per-strategy UI when StrategyStateManager provided; legacy single-active display preserved as fallback
+- telegram/handlers/callback_router.py: added strategy_state constructor param; _STRATEGY_TOGGLE_PREFIX = "strategy_toggle:"; dispatch handler for strategy_toggle:{name} actions; invalid strategy name handled gracefully (log + user message)
+- core/signal/signal_engine.py: generate_signals gains strategy_state param; ev_momentum=False sets p_model=p_market; mean_reversion=True pulls p_model toward 0.5; liquidity_edge=True scales edge by log-liquidity factor; strategy_used_in_signal log event on every tick
+- tests/test_telegram_callback_router.py: CB-09 test updated for colon-separator callback format (strategy_toggle:ev_momentum)
+- reports/forge/strategy_router_fix.md: completion report
+
+---
 
 - core/signal/alpha_model.py: added `force_mode` param to `compute_p_model()`; injects bounded random deviation [0.01, 0.05] when p_model <= p_market in force mode; logs `alpha_injected` event; p_model clamped [0.01, 0.99]
 - core/signal/signal_engine.py: added `force_mode: bool = False` field to `SignalResult` dataclass; force mode path now passes `force_mode=True` to alpha model; guarantees edge >= 0.01 via fallback injection when no alpha model and edge <= 0; logs `alpha_injected` on injection; `SignalResult.force_mode=True` on all force-mode signals
