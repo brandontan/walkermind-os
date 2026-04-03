@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Signal Debug + Force Signal Mode COMPLETE ✅
+Status: Force Trade Alpha Hotfix COMPLETE ✅
 
 ---
 
@@ -37,6 +37,19 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+FORCE TRADE ALPHA HOTFIX
+
+- core/signal/alpha_model.py: added `force_mode` param to `compute_p_model()`; injects bounded random deviation [0.01, 0.05] when p_model <= p_market in force mode; logs `alpha_injected` event; p_model clamped [0.01, 0.99]
+- core/signal/signal_engine.py: added `force_mode: bool = False` field to `SignalResult` dataclass; force mode path now passes `force_mode=True` to alpha model; guarantees edge >= 0.01 via fallback injection when no alpha model and edge <= 0; logs `alpha_injected` on injection; `SignalResult.force_mode=True` on all force-mode signals
+- core/execution/executor.py: `edge_non_positive` check now bypassed when `signal.force_mode=True`; telegram_callback invocation changed from string to structured kwargs (side, price, size, market_id); logs `force_trade_executed` for force-mode trades; logs `telegram_sent` on success and `telegram_failed` (with error) on exception (no silent pass)
+- telegram/telegram_live.py: `alert_trade()` now accepts `market_id: str = ""` parameter
+- telegram/message_formatter.py: `format_trade_alert()` accepts `market_id: str = ""`; includes Market field in message when provided
+- core/logging/logger.py: added `log_alpha_injected()`, `log_force_trade_executed()`, `log_telegram_sent()`, `log_telegram_failed()` structured log helpers
+- tests/test_signal_execution_activation.py: updated EX-15/EX-16 for new structured telegram callback; added FS-11–FS-13 (force mode flags + executor bypass); added FA-01–FA-05 (alpha injection tests); total 50 tests pass
+- reports/forge/force_trade_alpha_hotfix.md: completion report
+
+---
 
 SIGNAL DEBUG + FORCE SIGNAL MODE
 

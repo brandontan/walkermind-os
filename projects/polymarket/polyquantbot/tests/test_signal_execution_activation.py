@@ -355,18 +355,21 @@ async def test_ex14_trade_id_is_unique():
 
 
 async def test_ex15_telegram_callback_called_on_success():
-    """EX-15: telegram_callback is invoked after a successful trade."""
+    """EX-15: telegram_callback is invoked with structured args after a successful trade."""
     tg = AsyncMock()
     await execute_trade(_signal(), mode="PAPER", telegram_callback=tg)
     tg.assert_awaited_once()
-    msg = tg.call_args[0][0]
-    assert "Trade executed" in msg
+    call_kwargs = tg.call_args.kwargs
+    assert call_kwargs.get("side") == "YES"
+    assert call_kwargs.get("market_id") == "mkt-1"
+    assert "price" in call_kwargs
+    assert "size" in call_kwargs
 
 
 async def test_ex16_telegram_failure_does_not_propagate():
     """EX-16: A crash in telegram_callback doesn't surface to the caller."""
 
-    async def boom(msg: str) -> None:
+    async def boom(**kwargs: object) -> None:
         raise RuntimeError("telegram down")
 
     result = await execute_trade(_signal(), mode="PAPER", telegram_callback=boom)
@@ -503,4 +506,84 @@ async def test_fs10_executor_emits_order_sent_and_order_filled():
     events = [r["event"] for r in recorded]
     assert "order_sent" in events, f"order_sent not found in events: {events}"
     assert "order_filled" in events, f"order_filled not found in events: {events}"
+
+
+async def test_fs11_force_mode_zero_edge_executor_accepts():
+    """FS-11: Force mode signal with edge=0 is accepted by executor (not rejected as edge_non_positive)."""
+    markets = [_market(p_market=0.5, p_model=0.5)]  # zero edge
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=True)
+    assert signals, "force mode should produce a signal even for zero-edge market"
+    sig = signals[0]
+    assert sig.force_mode is True
+    assert sig.edge >= 0.01, "force mode should inject at least 0.01 edge"
+    result = await execute_trade(sig, mode="PAPER")
+    assert result.success, f"force mode trade should succeed; got reason={result.reason}"
+
+
+async def test_fs12_force_mode_signal_carries_force_mode_flag():
+    """FS-12: Signals generated in force mode carry force_mode=True."""
+    markets = [_market(p_market=0.4, p_model=0.45)]
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=True)
+    assert signals[0].force_mode is True
+
+
+async def test_fs13_normal_mode_signal_force_mode_false():
+    """FS-13: Signals generated in normal mode carry force_mode=False."""
+    markets = [_market(p_market=0.4, p_model=0.6, liquidity_usd=50_000.0)]
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=False)
+    assert signals
+    assert signals[0].force_mode is False
+
+
+# ── Alpha injection tests (FA) ─────────────────────────────────────────────────
+
+from projects.polymarket.polyquantbot.core.signal.alpha_model import ProbabilisticAlphaModel  # noqa: E402
+
+
+async def test_fa01_alpha_model_force_mode_injects_when_zero_deviation():
+    """FA-01: compute_p_model with force_mode=True injects deviation when p_model <= p_market."""
+    model = ProbabilisticAlphaModel()
+    # Thin buffer → deviation=0, momentum=0, so p_model == p_market
+    p_model, _vol = model.compute_p_model("mkt-x", p_market=0.5, liquidity_usd=1000.0, force_mode=True)
+    assert p_model > 0.5, "force_mode should ensure p_model > p_market"
+    assert 0.01 <= p_model <= 0.99
+
+
+async def test_fa02_alpha_model_force_mode_clamps_to_bounds():
+    """FA-02: Injected p_model is always within [0.01, 0.99]."""
+    model = ProbabilisticAlphaModel()
+    p_model, _ = model.compute_p_model("mkt-x", p_market=0.97, liquidity_usd=1000.0, force_mode=True)
+    assert 0.01 <= p_model <= 0.99
+
+
+async def test_fa03_alpha_model_no_injection_when_model_already_above():
+    """FA-03: No injection when p_model already > p_market (positive edge exists)."""
+    model = ProbabilisticAlphaModel()
+    # Seed price history to create positive deviation
+    for _ in range(10):
+        model.record_tick("mkt-y", price=0.60)
+    p_model, _ = model.compute_p_model("mkt-y", p_market=0.40, liquidity_usd=50_000.0, force_mode=True)
+    assert p_model > 0.40, "positive edge should be preserved"
+
+
+async def test_fa04_alpha_model_normal_mode_unchanged():
+    """FA-04: force_mode=False does not inject random deviation.
+
+    With an empty price buffer, deviation=0 and momentum=0, so raw_p_model
+    equals p_market exactly.  Normal mode must not alter this.
+    """
+    model = ProbabilisticAlphaModel()
+    # Empty buffer: deviation=0, momentum=0 → raw_p_model == p_market
+    p_model, _ = model.compute_p_model("mkt-z", p_market=0.5, liquidity_usd=1000.0, force_mode=False)
+    # Without force_mode injection the model returns p_market unchanged
+    assert p_model == 0.5  # no injection in normal mode with empty buffer
+
+
+async def test_fa05_signal_engine_fallback_alpha_injection():
+    """FA-05: Signal engine injects 0.01 edge in force mode when no alpha model and edge <= 0."""
+    markets = [_market(p_market=0.5, p_model=0.5, liquidity_usd=0.0)]
+    signals = await generate_signals(markets, bankroll=1000.0, force_signal_mode=True)
+    assert len(signals) == 1
+    assert signals[0].edge >= 0.01, "injected edge must be at least 0.01"
+    assert signals[0].force_mode is True
 

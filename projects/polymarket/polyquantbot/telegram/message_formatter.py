@@ -924,6 +924,7 @@ def format_trade_alert(
     side: str,
     price: float,
     size: float,
+    market_id: str = "",
 ) -> str:
     """Format a trade executed alert.
 
@@ -931,18 +932,20 @@ def format_trade_alert(
         side: Trade side ("YES" | "NO" | "BUY" | "SELL").
         price: Execution price.
         size: Trade size in USD.
+        market_id: Polymarket condition ID.
 
     Returns:
         Formatted Telegram Markdown message string.
     """
     lines = [
         "✅ *TRADE*",
+        f"Market: `{_safe(market_id)}`" if market_id else None,
         f"Side: `{_safe(side)}`",
         f"Price: `{price:.4f}`",
         f"Size: `${size:.2f}`",
         f"_at {_ts_utc()}_",
     ]
-    return "\n".join(lines)
+    return "\n".join(line for line in lines if line is not None)
 
 
 def format_heartbeat(

@@ -67,6 +67,7 @@ _KELLY_FRACTION: float = 0.25          # fractional Kelly multiplier
 _MAX_POSITION_FRACTION: float = 0.10   # max 10 % of bankroll per trade
 _MIN_CONFIDENCE: float = 0.1           # minimum S = edge / volatility
 _FORCE_SIGNAL_TOP_N: int = 1           # default markets to force-signal per call
+_MIN_FORCE_MODE_EDGE: float = 0.01     # minimum edge injected in force mode
 
 
 def _env_float(name: str, default: float) -> float:
@@ -153,6 +154,7 @@ class SignalResult:
     kelly_f: float
     size_usd: float
     liquidity_usd: float
+    force_mode: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -250,12 +252,28 @@ async def generate_signals(
                     market_id=market_id,
                     p_market=p_market,
                     liquidity_usd=liquidity_usd,
+                    force_mode=True,
                 )
             else:
                 p_model = float(market.get("p_model", p_market))
                 volatility = _spread_volatility(market, p_market)
 
             edge: float = p_model - p_market
+
+            # ── Force mode: guarantee non-zero edge ───────────────────────────
+            # When no alpha model is available and p_model == p_market, inject
+            # a minimal edge so the execution guard allows the trade.
+            if edge <= 0:
+                edge = _MIN_FORCE_MODE_EDGE
+                p_model = max(0.01, min(0.99, p_market + edge))
+                log.info(
+                    "alpha_injected",
+                    market_id=market_id,
+                    injected_edge=_MIN_FORCE_MODE_EDGE,
+                    p_market=round(p_market, 4),
+                    p_model=round(p_model, 4),
+                    force_mode=True,
+                )
             confidence_score: float = edge / volatility if volatility > 0 else 0.0
 
             # Simple forced side rule
@@ -308,6 +326,7 @@ async def generate_signals(
                 kelly_f=round(kelly_f, 6),
                 size_usd=round(_force_size, 4),
                 liquidity_usd=round(liquidity_usd, 2),
+                force_mode=True,
                 extra=extra,
             ))
 
