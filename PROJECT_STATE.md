@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: UX Data Hotfix COMPLETE ✅
+Status: Strategy Toggle DB Persistence + Signal Guard COMPLETE ✅
 
 ---
 
@@ -37,6 +37,17 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+STRATEGY TOGGLE DB PERSISTENCE + SIGNAL GUARD
+
+- infra/db/database.py: added _DDL_STRATEGY_STATE DDL; _apply_schema() creates strategy_state table; added load_strategy_state() → Dict[str, bool] (returns {} on error) and save_strategy_state(state) → bool with UPSERT ON CONFLICT semantics
+- infra/db.py: same additions for legacy file consistency
+- strategy/strategy_manager.py: load(redis, db) now prefers DB over Redis; fallback chain DB → Redis → in-memory defaults; save(redis, db) writes to both backends; returns True if at least one succeeds
+- core/signal/signal_engine.py: added active strategy guard — if strategy_state provided with all False → log signal_generation_blocked (reason: NO ACTIVE STRATEGY) and return [] immediately
+- tests/test_strategy_toggle_system.py: 22 new tests (ST-01 – ST-22); all pass; no regressions
+- reports/forge/12_1_strategy_toggle_db_persistence.md: completion report
+
+---
 
 MARKET METADATA + PAPER TRADING REALISM
 
@@ -519,6 +530,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- Wire StrategyStateManager(db=db) into main.py startup and save(db=db) after every Telegram toggle
+- Wire strategy_mgr.get_state() into run_trading_loop() → generate_signals() strategy_state param
 - Wire WalletRepository + WalletService(repository=repo) into main.py startup sequence
 - Wire /withdraw text command into CommandRouter / CommandHandler
 - LIVE Stage 1 monitoring: safety watch active for first 10 trades
@@ -556,6 +569,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## ⚠️ KNOWN ISSUES
 
+- StrategyStateManager.save(db=db) requires db.connect() to be called first (main.py responsibility)
+- Strategy toggle DB persistence wired in StrategyStateManager but not yet injected via main.py (in-memory state only persisted on toggle; db wiring pending)
 - RedisClient not yet wired into pipeline startup (infra ready, wiring pending)
 - Intelligence not fully affecting execution decisions yet
 - Backtest engine uses simplified PnL model
