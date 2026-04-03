@@ -313,12 +313,21 @@ async def run_trading_loop(
                     )
                     continue
 
-                # ── 4d. Fetch market metadata (non-blocking cache lookup) ──────
+                # ── 4d. Fetch market metadata (cache lookup with API fallback) ──
                 _market_question: str = ""
                 _market_outcomes: list = []
                 if market_cache is not None:
                     try:
                         _meta = market_cache.get(signal.market_id)
+                        if _meta is None:
+                            # Hard fallback: single-market API fetch with retry
+                            _meta = await market_cache.fetch_one(signal.market_id)
+                            if _meta is not None:
+                                log.info(
+                                    "market_metadata_fallback_used",
+                                    market_id=signal.market_id,
+                                    source="fetch_one",
+                                )
                         if _meta is not None:
                             _market_question = _meta.question
                             _market_outcomes = _meta.outcomes
