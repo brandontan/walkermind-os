@@ -329,3 +329,135 @@ def log_pnl_unrealized(
         mark_price=round(mark_price, 6),
         **extra,
     )
+
+
+def log_market_metadata_used(
+    market_id: str,
+    *,
+    question: str,
+    outcomes: list,
+    source: str = "cache",
+    **extra: Any,
+) -> None:
+    """Emit a structured ``market_metadata_used`` log event.
+
+    Args:
+        market_id: Polymarket condition ID.
+        question:  Human-readable market question resolved from cache.
+        outcomes:  List of outcome labels for this market.
+        source:    Where the metadata was sourced from (e.g. "cache", "fallback").
+        **extra:   Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "market_metadata_used",
+        market_id=market_id,
+        question=question,
+        outcomes=outcomes,
+        source=source,
+        **extra,
+    )
+
+
+def log_position_updated(
+    market_id: str,
+    *,
+    side: str,
+    avg_price: float,
+    size: float,
+    trade_id: str = "",
+    **extra: Any,
+) -> None:
+    """Emit a structured ``position_updated`` log event.
+
+    Args:
+        market_id:  Polymarket condition ID.
+        side:       Trade direction ("YES" | "NO").
+        avg_price:  Weighted average entry price after update.
+        size:       Total position size in USD after update.
+        trade_id:   Trade identifier that triggered the update.
+        **extra:    Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "position_updated",
+        market_id=market_id,
+        side=side,
+        avg_price=round(avg_price, 6),
+        size=round(size, 4),
+        trade_id=trade_id or "n/a",
+        **extra,
+    )
+
+
+def log_pnl_updated(
+    market_id: str,
+    *,
+    realized: float,
+    unrealized: float,
+    total: float,
+    **extra: Any,
+) -> None:
+    """Emit a structured ``pnl_updated`` log event.
+
+    Args:
+        market_id:   Polymarket condition ID.
+        realized:    Current realized PnL for this market in USD.
+        unrealized:  Current unrealized PnL for this market in USD.
+        total:       realized + unrealized.
+        **extra:     Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "pnl_updated",
+        market_id=market_id,
+        realized=round(realized, 4),
+        unrealized=round(unrealized, 4),
+        total=round(total, 4),
+        **extra,
+    )
+
+
+def log_telegram_trade_detailed(
+    trade_id: str,
+    market_id: str,
+    *,
+    market_question: str,
+    side: str,
+    price: float,
+    size: float,
+    slippage_pct: float,
+    partial_fill: bool,
+    filled_size: float,
+    realized_pnl: float,
+    unrealized_pnl: float,
+    **extra: Any,
+) -> None:
+    """Emit a structured ``telegram_trade_detailed`` log event.
+
+    Args:
+        trade_id:        Unique trade identifier.
+        market_id:       Polymarket condition ID.
+        market_question: Human-readable market question (or market_id as fallback).
+        side:            Trade direction ("YES" | "NO").
+        price:           Execution fill price.
+        size:            Requested trade size in USD.
+        slippage_pct:    Slippage applied as a fraction.
+        partial_fill:    Whether the fill was partial.
+        filled_size:     Actual filled size in USD.
+        realized_pnl:    Cumulative realized PnL for this market.
+        unrealized_pnl:  Current unrealized PnL for this market.
+        **extra:         Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "telegram_trade_detailed",
+        trade_id=trade_id,
+        market_id=market_id,
+        market_question=market_question,
+        side=side,
+        price=round(price, 6),
+        size=round(size, 4),
+        slippage_pct=round(slippage_pct, 6),
+        partial_fill=partial_fill,
+        filled_size=round(filled_size, 4),
+        realized_pnl=round(realized_pnl, 4),
+        unrealized_pnl=round(unrealized_pnl, 4),
+        **extra,
+    )

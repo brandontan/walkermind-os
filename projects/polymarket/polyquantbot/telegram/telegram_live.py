@@ -470,6 +470,13 @@ class TelegramLive:
         price: float,
         size: float,
         market_id: str = "",
+        market_question: str = "",
+        outcome: str = "",
+        slippage_pct: float = 0.0,
+        partial_fill: bool = False,
+        filled_size: float = 0.0,
+        realized_pnl: Optional[float] = None,
+        unrealized_pnl: Optional[float] = None,
         correlation_id: Optional[str] = None,
     ) -> None:
         """Send trade executed alert.
@@ -479,9 +486,28 @@ class TelegramLive:
             price: Execution price.
             size: Trade size in USD.
             market_id: Polymarket condition ID.
+            market_question: Human-readable market question (preferred over market_id).
+            outcome: Outcome label (e.g. "YES" / "NO").
+            slippage_pct: Applied slippage fraction (e.g. 0.008 = 0.8 %).
+            partial_fill: Whether the fill was partial.
+            filled_size: Actual filled size in USD (shown when partial_fill is True).
+            realized_pnl: Cumulative realized PnL in USD for this market (optional).
+            unrealized_pnl: Current unrealized PnL in USD for this market (optional).
             correlation_id: Request trace ID.
         """
-        msg = format_trade_alert(side=side, price=price, size=size, market_id=market_id)
+        msg = format_trade_alert(
+            side=side,
+            price=price,
+            size=size,
+            market_id=market_id,
+            market_question=market_question,
+            outcome=outcome,
+            slippage_pct=slippage_pct,
+            partial_fill=partial_fill,
+            filled_size=filled_size,
+            realized_pnl=realized_pnl,
+            unrealized_pnl=unrealized_pnl,
+        )
         await self._enqueue(AlertType.TRADE, msg, correlation_id)
 
     async def alert_heartbeat(

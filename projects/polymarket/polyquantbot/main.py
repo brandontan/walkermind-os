@@ -501,6 +501,40 @@ async def main() -> None:
         )
         raise RuntimeError(f"Database required — startup aborted: {db_exc}") from db_exc
 
+    # ── Market metadata cache ──────────────────────────────────────────────────
+    from .core.market.market_cache import MarketMetadataCache
+    market_cache = MarketMetadataCache()
+    await market_cache.start()
+    log.info("market_cache_started", size=market_cache.size())
+
+    # ── Position manager (in-memory position tracker) ─────────────────────────
+    from .core.portfolio.position_manager import PositionManager
+    position_manager = PositionManager()
+    log.info("position_manager_initialized")
+
+    # ── PnL tracker ───────────────────────────────────────────────────────────
+    from .core.portfolio.pnl import PnLTracker
+    pnl_tracker = PnLTracker(db=db)
+    log.info("pnl_tracker_initialized")
+
+    # ── Telegram callback — accepts a pre-formatted string ────────────────────
+    from .telegram.telegram_live import AlertType as _AlertType
+
+    async def _tg_send(message: str) -> None:
+        """Forward a pre-formatted string to Telegram (2-retry wrapper)."""
+        if not tg.enabled:
+            return
+        for attempt in range(2):
+            try:
+                await tg._enqueue(_AlertType.TRADE, message, None)
+                return
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "telegram_callback_retry",
+                    attempt=attempt + 1,
+                    error=str(exc),
+                )
+
     # ── Bootstrap: market discovery + pipeline startup ─────────────────────────
     from .core.bootstrap import run_bootstrap
     from .core.pipeline.live_paper_runner import LivePaperRunner
@@ -544,9 +578,12 @@ async def main() -> None:
         trading_loop_task = asyncio.create_task(
             run_trading_loop(
                 mode=mode,
-                telegram_callback=tg.alert_trade if hasattr(tg, "alert_trade") else None,
+                telegram_callback=_tg_send if tg.enabled else None,
                 db=db,
                 user_id="default",
+                market_cache=market_cache,
+                position_manager=position_manager,
+                pnl_tracker=pnl_tracker,
             ),
             name="trading_loop",
         )
@@ -580,6 +617,7 @@ async def main() -> None:
         except asyncio.CancelledError:
             pass
     await activation_monitor.stop()
+    await market_cache.stop()
     await tg.stop()
     await metrics_exporter.stop_logging_loop()
     try:
