@@ -166,7 +166,11 @@ class DatabaseClient:
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def connect(self) -> None:
-        """Create connection pool and apply DDL.  Idempotent."""
+        """Create connection pool and apply DDL.  Idempotent.
+
+        Raises:
+            RuntimeError: If the connection pool cannot be created.
+        """
         async with self._lock:
             if self._pool is not None:
                 return
@@ -188,6 +192,14 @@ class DatabaseClient:
                     "db_client_connect_failed",
                     error=str(exc),
                 )
+                raise RuntimeError(f"Database unavailable — cannot connect: {exc}") from exc
+
+    async def ensure_schema(self) -> None:
+        """Ensure all tables exist.  Raises if pool is not connected."""
+        if self._pool is None:
+            raise RuntimeError("Database not connected — call connect() first")
+        await self._apply_schema()
+        log.info("db_ensure_schema_ok")
 
     async def close(self) -> None:
         """Close the connection pool gracefully."""

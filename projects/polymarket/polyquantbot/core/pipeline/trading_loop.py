@@ -124,6 +124,13 @@ async def run_trading_loop(
         user_id:            User identifier for position/PnL tracking.  Reads
                             ``TRADING_LOOP_USER_ID`` env var when *None*.
     """
+    # ── Enforce database — no silent fallback ─────────────────────────────────
+    if db is None:
+        raise RuntimeError(
+            "Database required — db must not be None. "
+            "Inject a connected DatabaseClient before starting the trading loop."
+        )
+
     _interval = (
         loop_interval_s
         if loop_interval_s is not None
@@ -146,8 +153,9 @@ async def run_trading_loop(
         bankroll=_bankroll,
         loop_interval_s=_interval,
         user_id=_user_id,
-        db_enabled=db is not None,
+        db_enabled=True,
     )
+    log.info("db_enabled", status=True)
 
     while True:
         # ── Check stop signal ─────────────────────────────────────────────────
@@ -215,8 +223,8 @@ async def run_trading_loop(
                         fill_price=round(result.fill_price or 0.0, 6),
                     )
 
-                    # ── 4a. Persist position ──────────────────────────────────
-                    if db is not None and result.fill_price > 0.0:
+                    # ── 4a. Persist position (db is always present) ───────────
+                    if result.fill_price > 0.0:
                         await db.upsert_position({
                             "user_id": _user_id,
                             "market_id": result.market_id,
@@ -244,25 +252,24 @@ async def run_trading_loop(
 
                         await db.update_trade_status(result.trade_id, "open")
 
-            # ── 5. Compute and log PnL metrics ────────────────────────────────
-            if db is not None:
-                try:
-                    positions = await db.get_positions(_user_id)
-                    trades = await db.get_recent_trades(limit=500)
+            # ── 5. Compute and log PnL metrics (db always present) ───────────
+            try:
+                positions = await db.get_positions(_user_id)
+                trades = await db.get_recent_trades(limit=500)
 
-                    unrealized = PnLCalculator.calculate_unrealized_pnl(
-                        positions, market_prices
-                    )
-                    metrics = PnLCalculator.calculate_metrics(trades)
-                    metrics["unrealized_pnl"] = unrealized
+                unrealized = PnLCalculator.calculate_unrealized_pnl(
+                    positions, market_prices
+                )
+                metrics = PnLCalculator.calculate_metrics(trades)
+                metrics["unrealized_pnl"] = unrealized
 
-                    log.info("pnl_update", pnl=metrics)
-                except Exception as pnl_exc:  # noqa: BLE001
-                    log.error(
-                        "pnl_update_error",
-                        error=str(pnl_exc),
-                        exc_info=True,
-                    )
+                log.info("pnl_update", pnl=metrics)
+            except Exception as pnl_exc:  # noqa: BLE001
+                log.error(
+                    "pnl_update_error",
+                    error=str(pnl_exc),
+                    exc_info=True,
+                )
 
         except Exception as exc:  # noqa: BLE001
             log.error("pipeline_loop_error", error=str(exc), exc_info=True)
