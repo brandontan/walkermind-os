@@ -167,6 +167,7 @@ execution/
 monitoring/
 api/
 infra/
+backtest/
 reports/
 ```
 
