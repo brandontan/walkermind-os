@@ -5,14 +5,20 @@ and withdraw capability.  Private keys are stored AES-256-GCM-encrypted and
 are decrypted only within the signing boundary — they are never logged or
 returned to callers.
 
-Key generation uses secp256k1 (ECDSA) from the ``cryptography`` package.
-Address derivation uses keccak-256 via SHA3-256 (note: Python's sha3_256
-implements the FIPS 202 finalisation; for production Ethereum-compatible
-addresses install ``eth_account`` and replace ``_derive_address()``).
+Key generation uses ``eth_account.Account.create()`` which produces a correct
+secp256k1 keypair with a fully Ethereum-compatible (EIP-55 checksummed) address.
+
+Storage:
+    - When a :class:`~core.wallet.repository.WalletRepository` is injected via
+      the ``repository`` constructor argument, wallets are persisted to PostgreSQL
+      and survive process restarts.
+    - When no repository is provided (e.g. tests), wallets are kept in an in-memory
+      dict (same behaviour as before injection was wired).
 
 Rules:
     - All public methods are idempotent and async.
     - External HTTP calls carry retry (3×) + timeout (5 s).
+    - RPC broadcast carries retry (2×) for transient Polygon RPC errors.
     - ZERO silent failures — every error is logged before raising or returning.
     - Multi-user safe: per-user asyncio lock prevents TOCTOU on wallet creation.
     - WALLET_SECRET_KEY must be set in the environment before any call.
@@ -20,21 +26,16 @@ Rules:
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import secrets
 import time
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import structlog
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric.ec import (
-    SECP256K1,
-    generate_private_key,
-)
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from .models import WalletModel
 from ..security.encryption import decrypt_private_key, encrypt_private_key
+
+if TYPE_CHECKING:
+    from .repository import WalletRepository
 
 log = structlog.get_logger(__name__)
 
@@ -42,6 +43,8 @@ log = structlog.get_logger(__name__)
 _TIMEOUT_S: float = 5.0
 _MAX_RETRIES: int = 3
 _RETRY_DELAY_S: float = 0.5
+_MAX_RPC_RETRIES: int = 2
+_RPC_RETRY_DELAY_S: float = 1.0
 
 # ── Polymarket Data API ───────────────────────────────────────────────────────
 _DATA_API_BASE: str = "https://data-api.polymarket.com"
@@ -50,63 +53,27 @@ _DATA_API_BASE: str = "https://data-api.polymarket.com"
 _USDC_CONTRACT: str = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
 
 
-# ── Address derivation ────────────────────────────────────────────────────────
-
-
-def _derive_address(public_key_bytes_uncompressed: bytes) -> str:
-    """Derive an Ethereum-style address from an uncompressed secp256k1 public key.
-
-    Standard derivation: keccak256(pub_key[1:])[12:] → 20-byte address.
-
-    Uses ``eth_account`` if installed (correct Ethereum Keccak-256); otherwise
-    falls back to ``hashlib.sha3_256`` (FIPS 202 SHA-3, different padding from
-    Ethereum's Keccak).  The fallback produces a valid unique identifier but
-    the address will NOT match the on-chain Ethereum address derived from the
-    same key.  Install ``eth_account`` for production Ethereum-compatible
-    address derivation.
-
-    Args:
-        public_key_bytes_uncompressed: 65-byte uncompressed public key (04 || x || y).
-
-    Returns:
-        Lowercase ``0x``-prefixed 42-character address string.
-    """
-    xy_bytes = public_key_bytes_uncompressed[1:]  # drop 0x04 prefix
-
-    try:
-        from eth_account import Account as _Account  # noqa: PLC0415
-        # eth_account is available — derive the correct Ethereum address
-        # Reconstruct private key not available here, so compute via keccak directly
-        try:
-            from eth_hash.auto import keccak  # noqa: PLC0415
-            digest = keccak(xy_bytes)
-        except ImportError:
-            # eth_hash fallback — sha3_256 (not true keccak, but consistent)
-            digest = hashlib.sha3_256(xy_bytes).digest()
-    except ImportError:
-        # Fallback: sha3_256 (FIPS 202 SHA-3, not Ethereum's Keccak-256)
-        # WARNING: address will not match on-chain Ethereum address for the same key
-        digest = hashlib.sha3_256(xy_bytes).digest()
-
-    return "0x" + digest[-20:].hex()
+# ── Keypair generation ────────────────────────────────────────────────────────
 
 
 def _generate_keypair() -> tuple[str, str]:
-    """Generate a new secp256k1 keypair.
+    """Generate a new secp256k1 keypair using ``eth_account``.
+
+    Uses :func:`eth_account.Account.create` which internally uses the
+    ``coincurve`` / ``cryptography`` backend to produce a random 32-byte
+    private scalar and derives the Ethereum-compatible (EIP-55 checksummed)
+    address via the correct Keccak-256 hash.
 
     Returns:
         ``(private_key_hex, address)`` tuple where:
-        - ``private_key_hex`` is the 64-hex-char raw private scalar.
-        - ``address`` is the derived ``0x…`` address string.
+        - ``private_key_hex`` is the 64-hex-char raw private scalar (no ``0x``).
+        - ``address`` is the EIP-55 checksummed ``0x…`` Ethereum address.
     """
-    ec_key = generate_private_key(SECP256K1(), default_backend())
-    private_value: int = ec_key.private_numbers().private_value
-    private_key_hex: str = private_value.to_bytes(32, "big").hex()
+    from eth_account import Account  # noqa: PLC0415
 
-    pub_bytes = ec_key.public_key().public_bytes(
-        Encoding.X962, PublicFormat.UncompressedPoint
-    )
-    address = _derive_address(pub_bytes)
+    acct = Account.create()
+    private_key_hex: str = bytes(acct.key).hex()  # 64-char hex, no 0x prefix
+    address: str = acct.address                   # EIP-55 checksummed
     return private_key_hex, address
 
 
@@ -116,22 +83,33 @@ def _generate_keypair() -> tuple[str, str]:
 class WalletService:
     """Per-user real wallet service with encrypted key storage.
 
-    All wallets are held in-memory with optional external persistence via
-    the ``_wallets`` dict.  For production, wire in a PostgreSQL/SQLite
-    persistence layer via :meth:`inject_storage`.
+    Storage behaviour depends on whether a ``repository`` is injected:
+
+    - **With repository** (production): wallets are persisted to PostgreSQL via
+      :class:`~core.wallet.repository.WalletRepository` and survive process
+      restarts.  The ``_wallets`` in-memory dict is not used.
+    - **Without repository** (tests / standalone): wallets are held in an
+      in-memory dict (same as before).
 
     Args:
         http_session_factory: Callable returning an ``aiohttp.ClientSession``.
             When ``None``, balance fetch falls back to 0.0 with a warning.
+        repository: Optional :class:`~core.wallet.repository.WalletRepository`.
+            When provided, all wallet reads/writes go through the DB.
     """
 
-    def __init__(self, http_session_factory=None) -> None:
-        self._wallets: dict[int, WalletModel] = {}       # user_id → WalletModel
+    def __init__(self, http_session_factory=None, repository: "Optional[WalletRepository]" = None) -> None:
+        self._repository = repository
+        # In-memory fallback used only when no repository is injected
+        self._wallets: dict[int, WalletModel] = {}
         self._creation_locks: dict[int, asyncio.Lock] = {}
         self._global_lock = asyncio.Lock()
         self._session_factory = http_session_factory
 
-        log.info("wallet_service_initialized")
+        log.info(
+            "wallet_service_initialized",
+            persistence="db" if repository is not None else "memory",
+        )
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -139,6 +117,7 @@ class WalletService:
         """Create and persist a new wallet for *user_id*.
 
         Idempotent: returns the existing wallet if one was already created.
+        When a repository is injected the wallet is persisted to PostgreSQL.
 
         Args:
             user_id: Telegram (or other) user integer ID.
@@ -149,8 +128,8 @@ class WalletService:
         Raises:
             EnvironmentError: If ``WALLET_SECRET_KEY`` is not set.
         """
-        # Fast path — no lock needed for read after initial creation
-        existing = self._wallets.get(user_id)
+        # Fast path — check storage without locking
+        existing = await self.get_wallet(user_id)
         if existing is not None:
             log.debug("wallet_already_exists", user_id=user_id, address=existing.address)
             return existing
@@ -163,7 +142,7 @@ class WalletService:
 
         async with user_lock:
             # Double-check after acquiring per-user lock
-            existing = self._wallets.get(user_id)
+            existing = await self.get_wallet(user_id)
             if existing is not None:
                 return existing
 
@@ -179,12 +158,16 @@ class WalletService:
                 encrypted_private_key=encrypted_key,
                 created_at=time.time(),
             )
-            self._wallets[user_id] = wallet
+
+            if self._repository is not None:
+                wallet = await self._repository.create_wallet(user_id, wallet)
+            else:
+                self._wallets[user_id] = wallet
 
             log.info(
                 "wallet_created",
                 user_id=user_id,
-                address=address,
+                address=wallet.address,
                 # encrypted_private_key is intentionally NOT logged
             )
             return wallet
@@ -192,12 +175,17 @@ class WalletService:
     async def get_wallet(self, user_id: int) -> Optional[WalletModel]:
         """Return the wallet for *user_id*, or ``None`` if it doesn't exist.
 
+        Reads from the repository when one is injected; falls back to the
+        in-memory dict otherwise.
+
         Args:
             user_id: Telegram user ID.
 
         Returns:
             :class:`WalletModel` or ``None``.
         """
+        if self._repository is not None:
+            return await self._repository.get_wallet(user_id)
         return self._wallets.get(user_id)
 
     async def get_balance(self, user_id: int) -> float:
@@ -212,7 +200,7 @@ class WalletService:
         Returns:
             USDC balance as a float (0.0 on error or missing wallet).
         """
-        wallet = self._wallets.get(user_id)
+        wallet = await self.get_wallet(user_id)
         if wallet is None:
             log.warning("get_balance_no_wallet", user_id=user_id)
             return 0.0
@@ -275,7 +263,7 @@ class WalletService:
         if amount_usdc <= 0:
             raise ValueError(f"Withdrawal amount must be positive, got {amount_usdc}")
 
-        wallet = self._wallets.get(user_id)
+        wallet = await self.get_wallet(user_id)
         if wallet is None:
             raise RuntimeError(f"No wallet found for user_id={user_id}")
 
@@ -437,35 +425,52 @@ class WalletService:
             }
         ]
 
-        w3 = web3.Web3(web3.Web3.HTTPProvider(polygon_rpc))
+        w3 = web3.Web3(web3.Web3.HTTPProvider(polygon_rpc, request_kwargs={"timeout": _TIMEOUT_S}))
         usdc = w3.eth.contract(address=_USDC_CONTRACT, abi=erc20_abi)
 
-        nonce = w3.eth.get_transaction_count(from_address)
-        gas_price = w3.eth.gas_price
-        tx = usdc.functions.transfer(to_address, amount_atomic).build_transaction(
-            {
-                "from": from_address,
-                "nonce": nonce,
-                "gas": 100_000,
-                "gasPrice": gas_price,
-                "chainId": 137,  # Polygon mainnet
-            }
-        )
+        last_exception: Optional[Exception] = None
+        for attempt in range(1, _MAX_RPC_RETRIES + 1):
+            try:
+                nonce = w3.eth.get_transaction_count(from_address)
+                gas_price = w3.eth.gas_price
+                tx = usdc.functions.transfer(to_address, amount_atomic).build_transaction(
+                    {
+                        "from": from_address,
+                        "nonce": nonce,
+                        "gas": 100_000,
+                        "gasPrice": gas_price,
+                        "chainId": 137,  # Polygon mainnet
+                    }
+                )
+                signed = account.sign_transaction(tx)
+                tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction).hex()
 
-        signed = account.sign_transaction(tx)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction).hex()
+                log.info(
+                    "withdraw_broadcast",
+                    from_address=from_address,
+                    to_address=to_address,
+                    amount_usdc=amount_usdc,
+                    tx_hash=tx_hash,
+                    attempt=attempt,
+                )
+                return {
+                    "status": "broadcast",
+                    "from_address": from_address,
+                    "to_address": to_address,
+                    "amount_usdc": amount_usdc,
+                    "tx_hash": tx_hash,
+                }
+            except Exception as exc:
+                last_exception = exc
+                log.warning(
+                    "rpc_broadcast_attempt_failed",
+                    attempt=attempt,
+                    max_attempts=_MAX_RPC_RETRIES,
+                    error=str(exc),
+                )
+                if attempt < _MAX_RPC_RETRIES:
+                    await asyncio.sleep(_RPC_RETRY_DELAY_S)
 
-        log.info(
-            "withdraw_broadcast",
-            from_address=from_address,
-            to_address=to_address,
-            amount_usdc=amount_usdc,
-            tx_hash=tx_hash,
+        raise RuntimeError(
+            f"RPC broadcast failed after {_MAX_RPC_RETRIES} attempts: {last_exception}"
         )
-        return {
-            "status": "broadcast",
-            "from_address": from_address,
-            "to_address": to_address,
-            "amount_usdc": amount_usdc,
-            "tx_hash": tx_hash,
-        }

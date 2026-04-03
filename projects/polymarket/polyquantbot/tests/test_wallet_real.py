@@ -351,3 +351,220 @@ async def test_wr27_callback_router_dispatches_wallet_withdraw():
     assert isinstance(text, str)
     assert "WITHDRAW" in text
     assert isinstance(kb, list)
+
+
+# ── WalletRepository tests (WR-28+) ───────────────────────────────────────────
+
+
+def _make_mock_db(rows=None):
+    """Return a MagicMock DatabaseClient whose _fetch/_execute return canned data."""
+    db = MagicMock()
+    db._fetch = AsyncMock(return_value=rows if rows is not None else [])
+    db._execute = AsyncMock(return_value=True)
+    return db
+
+
+async def test_wr28_repository_get_wallet_not_found():
+    """WR-28: WalletRepository.get_wallet returns None when no DB row exists."""
+    from projects.polymarket.polyquantbot.core.wallet.repository import WalletRepository
+
+    db = _make_mock_db(rows=[])
+    repo = WalletRepository(db)
+    result = await repo.get_wallet(user_id=999)
+    assert result is None
+
+
+async def test_wr29_repository_get_wallet_returns_model():
+    """WR-29: WalletRepository.get_wallet deserializes row to WalletModel."""
+    from projects.polymarket.polyquantbot.core.wallet.repository import WalletRepository
+
+    fake_row = {
+        "user_id": 42,
+        "address": "0xAbCdEf" + "0" * 34,
+        "encrypted_private_key": "enc_blob",
+        "created_at": 1700000000.0,
+    }
+    db = _make_mock_db(rows=[fake_row])
+    repo = WalletRepository(db)
+    wallet = await repo.get_wallet(user_id=42)
+    assert wallet is not None
+    assert wallet.user_id == 42
+    assert wallet.address == fake_row["address"]
+    assert wallet.encrypted_private_key == "enc_blob"
+    assert wallet.created_at == 1700000000.0
+
+
+async def test_wr30_repository_create_wallet_idempotent():
+    """WR-30: WalletRepository.create_wallet returns existing wallet on conflict."""
+    from projects.polymarket.polyquantbot.core.wallet.models import WalletModel
+    from projects.polymarket.polyquantbot.core.wallet.repository import WalletRepository
+
+    existing_row = {
+        "user_id": 50,
+        "address": "0x" + "a" * 40,
+        "encrypted_private_key": "enc",
+        "created_at": 1700000000.0,
+    }
+    db = _make_mock_db(rows=[existing_row])
+    repo = WalletRepository(db)
+
+    new_wallet = WalletModel(user_id=50, address="0x" + "b" * 40, encrypted_private_key="enc2")
+    # _execute (INSERT) succeeds silently (DO NOTHING), then _fetch returns existing row
+    returned = await repo.create_wallet(user_id=50, wallet=new_wallet)
+    # Should return the row from DB, not the new wallet
+    assert returned.address == existing_row["address"]
+
+
+async def test_wr31_repository_ensure_schema_calls_execute():
+    """WR-31: WalletRepository.ensure_schema calls _execute with CREATE TABLE DDL."""
+    from projects.polymarket.polyquantbot.core.wallet.repository import WalletRepository
+
+    db = _make_mock_db()
+    repo = WalletRepository(db)
+    await repo.ensure_schema()
+    db._execute.assert_called_once()
+    call_args = db._execute.call_args[0][0]
+    assert "CREATE TABLE IF NOT EXISTS wallets" in call_args
+
+
+async def test_wr32_repository_update_wallet_calls_execute():
+    """WR-32: WalletRepository.update_wallet calls _execute with UPDATE SQL."""
+    from projects.polymarket.polyquantbot.core.wallet.models import WalletModel
+    from projects.polymarket.polyquantbot.core.wallet.repository import WalletRepository
+
+    db = _make_mock_db()
+    repo = WalletRepository(db)
+    wallet = WalletModel(user_id=77, address="0x" + "c" * 40, encrypted_private_key="enc")
+    await repo.update_wallet(wallet)
+    db._execute.assert_called_once()
+    call_args = db._execute.call_args[0][0]
+    assert "UPDATE wallets" in call_args
+
+
+async def test_wr33_service_with_repository_uses_db():
+    """WR-33: WalletService.get_wallet delegates to repository when injected."""
+    from projects.polymarket.polyquantbot.core.wallet.service import WalletService
+    from projects.polymarket.polyquantbot.core.wallet.repository import WalletRepository
+
+    fake_row = {
+        "user_id": 200,
+        "address": "0x" + "d" * 40,
+        "encrypted_private_key": "enc_blob",
+        "created_at": 1700000000.0,
+    }
+    db = _make_mock_db(rows=[fake_row])
+    repo = WalletRepository(db)
+    svc = WalletService(http_session_factory=None, repository=repo)
+
+    wallet = await svc.get_wallet(user_id=200)
+    assert wallet is not None
+    assert wallet.address == fake_row["address"]
+    # Verify _fetch was called (not in-memory dict)
+    db._fetch.assert_called_once()
+
+
+async def test_wr34_service_with_repository_create_persists():
+    """WR-34: WalletService.create_wallet persists via repository when injected."""
+    from projects.polymarket.polyquantbot.core.wallet.service import WalletService
+    from projects.polymarket.polyquantbot.core.wallet.repository import WalletRepository
+
+    # First get_wallet → None (not found); then after create, insert returns a row
+    created_address = None
+
+    async def fake_fetch(sql, *args, op_label=""):
+        if created_address is None:
+            return []  # not found before creation
+        return [{
+            "user_id": 201,
+            "address": created_address,
+            "encrypted_private_key": "enc",
+            "created_at": 1700000000.0,
+        }]
+
+    async def fake_execute(sql, *args, op_label=""):
+        nonlocal created_address
+        if "INSERT" in sql:
+            # Capture the address from the args (position 1 = address)
+            created_address = args[1]
+        return True
+
+    db = MagicMock()
+    db._fetch = AsyncMock(side_effect=fake_fetch)
+    db._execute = AsyncMock(side_effect=fake_execute)
+    repo = WalletRepository(db)
+    svc = WalletService(http_session_factory=None, repository=repo)
+
+    wallet = await svc.create_wallet(user_id=201)
+    assert wallet is not None
+    assert wallet.address.startswith("0x")
+    assert len(wallet.address) == 42  # valid Ethereum address length
+    # Encrypted key must be present and not look like plaintext hex
+    assert wallet.encrypted_private_key
+    assert len(wallet.encrypted_private_key) != 64  # not a raw private key
+
+
+async def test_wr35_generate_keypair_eth_address():
+    """WR-35: _generate_keypair produces a valid EIP-55 Ethereum address."""
+    from projects.polymarket.polyquantbot.core.wallet.service import _generate_keypair
+
+    private_key_hex, address = _generate_keypair()
+    # Private key: 64 hex chars, no 0x
+    assert len(private_key_hex) == 64
+    assert all(c in "0123456789abcdef" for c in private_key_hex)
+    # Address: 0x + 40 hex chars
+    assert address.startswith("0x")
+    assert len(address) == 42
+    # Address must be valid hex
+    int(address[2:], 16)
+
+
+async def test_wr36_handle_withdraw_command_success():
+    """WR-36: handle_withdraw_command returns result screen with tx_hash on success."""
+    import projects.polymarket.polyquantbot.telegram.handlers.wallet as wh
+    from projects.polymarket.polyquantbot.core.wallet.service import WalletService
+
+    svc = WalletService(http_session_factory=None)
+    wh.set_wallet_service(svc)
+
+    try:
+        # Mock out the wallet service's withdraw to return a broadcast result
+        mock_result = {
+            "status": "broadcast",
+            "from_address": "0x" + "a" * 40,
+            "to_address": "0x" + "b" * 40,
+            "amount_usdc": 5.0,
+            "tx_hash": "0xdeadbeef1234",
+        }
+        svc.withdraw = AsyncMock(return_value=mock_result)
+
+        text, kb = await wh.handle_withdraw_command(
+            user_id=500,
+            to_address="0x" + "b" * 40,
+            amount_usdc=5.0,
+        )
+        assert "0xdeadbeef1234" in text
+        assert "SUBMITTED" in text
+        assert isinstance(kb, list)
+    finally:
+        wh._wallet_service = None
+
+
+async def test_wr37_handle_withdraw_command_error_returns_error_screen():
+    """WR-37: handle_withdraw_command returns error screen on ValueError."""
+    import projects.polymarket.polyquantbot.telegram.handlers.wallet as wh
+    from projects.polymarket.polyquantbot.core.wallet.service import WalletService
+
+    svc = WalletService(http_session_factory=None)
+    wh.set_wallet_service(svc)
+
+    try:
+        svc.withdraw = AsyncMock(side_effect=ValueError("Invalid destination address"))
+        text, kb = await wh.handle_withdraw_command(
+            user_id=600,
+            to_address="bad",
+            amount_usdc=1.0,
+        )
+        assert "Failed" in text or "WITHDRAW" in text
+        assert isinstance(kb, list)
+    finally:
+        wh._wallet_service = None
