@@ -29,6 +29,7 @@ import structlog
 from ..ui.keyboard import (
     build_main_menu,
     build_settings_menu,
+    build_risk_level_menu,
     build_stop_confirm_menu,
     build_mode_confirm_menu,
     build_control_menu,
@@ -252,7 +253,8 @@ class CallbackRouter:
             )
 
         if action == "settings_risk":
-            return settings_risk_screen(), build_settings_menu()
+            snap = self._config.snapshot()
+            return settings_risk_screen(current_value=snap.risk_multiplier), build_risk_level_menu()
 
         if action == "settings_mode":
             new_mode = "LIVE" if self._mode == "PAPER" else "PAPER"
@@ -303,12 +305,58 @@ class CallbackRouter:
         if action == "noop":
             return noop_screen(), []
 
+        # ── Risk level preset buttons ──────────────────────────────────────
+        if action.startswith("risk_set_"):
+            raw_value = action[len("risk_set_"):]
+            try:
+                requested = float(raw_value)
+            except ValueError:
+                log.warning("risk_set_invalid_value", raw=raw_value)
+                return (
+                    f"❌ Invalid risk value: `{raw_value}`\n"
+                    "Please select a button or use `/set_risk [0.10–1.00]`.",
+                    build_risk_level_menu(),
+                )
+            if requested < 0.10 or requested > 1.00:
+                log.warning("risk_set_out_of_range", requested=requested)
+                return (
+                    f"❌ Risk `{requested:.2f}` is out of range.\n"
+                    "Allowed: `0.10` – `1.00`",
+                    build_risk_level_menu(),
+                )
+            try:
+                applied = await self._config.set_risk_multiplier(requested)
+                log.info("risk_updated", requested=requested, applied=applied)
+                snap = self._config.snapshot()
+                return (
+                    f"✅ Risk multiplier updated to `{applied:.2f}`\n\n"
+                    f"Current: `{snap.risk_multiplier:.2f}`\n"
+                    "Use `/set_risk [value]` to set a custom value.",
+                    build_risk_level_menu(),
+                )
+            except Exception as risk_exc:  # noqa: BLE001
+                log.error("risk_set_error", error=str(risk_exc))
+                return (
+                    f"❌ Failed to update risk: `{str(risk_exc)}`",
+                    build_settings_menu(),
+                )
+
         # ── Strategy toggle ────────────────────────────────────────────────
         if action.startswith(_STRATEGY_TOGGLE_PREFIX):
             strategy_name = action.removeprefix(_STRATEGY_TOGGLE_PREFIX)
+            toggle_feedback: str = ""
             if self._strategy_state is not None:
                 try:
-                    self._strategy_state.toggle(strategy_name)
+                    new_state = self._strategy_state.toggle(strategy_name)
+                    log.info(
+                        "strategy_toggled",
+                        strategy=strategy_name,
+                        new_state=new_state,
+                    )
+                    if new_state:
+                        toggle_feedback = f"✅ Strategy activated: `{strategy_name}`\n\n"
+                    else:
+                        toggle_feedback = f"❌ Strategy disabled: `{strategy_name}`\n\n"
                 except ValueError:
                     log.warning(
                         "strategy_toggle_invalid",
@@ -325,11 +373,12 @@ class CallbackRouter:
                     "strategy_toggle_no_state_manager",
                     strategy=strategy_name,
                 )
-            # Re-render strategy menu with updated state
-            return await handle_settings_strategy(
+            # Re-render strategy menu with updated state and feedback prepended
+            strategy_text, strategy_keyboard = await handle_settings_strategy(
                 cmd_handler=self._cmd,
                 strategy_state=self._strategy_state,
             )
+            return toggle_feedback + strategy_text, strategy_keyboard
 
         # ── Unknown ────────────────────────────────────────────────────────
         log.warning("callback_unknown_action", action=action)

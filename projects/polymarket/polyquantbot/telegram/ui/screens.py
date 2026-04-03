@@ -174,9 +174,13 @@ def settings_screen(mode: str, risk_multiplier: float, max_position: float) -> s
     )
 
 
-def settings_risk_screen() -> str:
-    """Risk level prompt."""
-    return "⚠️ *Risk Level*\nSend `/set_risk [0.1–1.0]` to update the risk multiplier."
+def settings_risk_screen(current_value: float = 0.25) -> str:
+    """Risk level prompt with current value and hybrid UI options."""
+    return (
+        f"⚠️ *Risk Level*\n\n"
+        f"Current: `{current_value:.2f}`\n\n"
+        "Select risk or input manually:"
+    )
 
 
 def settings_mode_screen(current_mode: str, new_mode: str) -> str:

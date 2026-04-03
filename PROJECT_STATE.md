@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Pipeline Final Activation COMPLETE ✅
+Status: UX Data Hotfix COMPLETE ✅
 
 ---
 
@@ -562,6 +562,16 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 - Telegram delivery not stress-tested under real network load
 - WalletManager not yet wired into wallet handler (balance/exposure screens show informative stubs)
 - build_strategy_menu() still referenced in settings but strategy_toggle_* callbacks are unrouted (buttons fall through to unknown-action → main menu shown)
+
+---
+
+## ✅ COMPLETED (UX DATA HOTFIX)
+
+- core/market/market_cache.py: Added `fetch_one(market_id)` async method — single-market Gamma API lookup with 3×retry, 2s timeout; logs `market_metadata_fallback_used`
+- core/pipeline/trading_loop.py: After `market_cache.get()` miss, calls `await market_cache.fetch_one()` as hard fallback before using raw market_id
+- telegram/ui/screens.py: `settings_risk_screen()` now accepts `current_value: float` param; displays current risk value in message
+- telegram/ui/keyboard.py: Added `build_risk_level_menu()` with preset buttons [0.10][0.25] / [0.50][1.00]; callback format `action:risk_set_<value>`
+- telegram/handlers/callback_router.py: `settings_risk` action now passes current risk value and uses `build_risk_level_menu()`; added `risk_set_*` handler (validate 0.10–1.00, update config, confirm); strategy toggle now captures return value, emits "✅ Strategy activated / ❌ Strategy disabled" confirmation; logs `risk_updated`, `strategy_toggled`
 
 ---
 

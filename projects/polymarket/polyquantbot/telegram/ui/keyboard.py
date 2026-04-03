@@ -79,6 +79,21 @@ def build_settings_menu() -> InlineKeyboard:
     ]
 
 
+def build_risk_level_menu() -> InlineKeyboard:
+    """Risk level preset buttons with manual fallback hint.
+
+    Provides four preset buttons (0.10 / 0.25 / 0.50 / 1.00) plus a back
+    button.  Manual entry is still available via ``/set_risk <value>``.
+
+    Callback format: ``action:risk_set_<value>`` (e.g. ``action:risk_set_0.25``).
+    """
+    return [
+        [_btn("0.10", "risk_set_0.10"), _btn("0.25", "risk_set_0.25")],
+        [_btn("0.50", "risk_set_0.50"), _btn("1.00", "risk_set_1.00")],
+        [_btn("🔙 Back", "settings")],
+    ]
+
+
 def build_strategy_menu(
     strategies: list[str],
     active: str | None = None,

@@ -76,6 +76,83 @@ class MarketMetadataCache:
         """Return cached metadata for *market_id*, or ``None`` if not found."""
         return self._cache.get(market_id)
 
+    async def fetch_one(self, market_id: str) -> Optional[MarketMeta]:
+        """Fetch metadata for a single market by ID from the Gamma API.
+
+        Used as a hard fallback when the market is absent from the in-memory
+        cache (e.g. newly listed or not yet refreshed).  On success the result
+        is stored in the cache for subsequent synchronous ``get()`` calls.
+
+        Attempts up to ``_max_retries`` times (1 initial + up to ``_max_retries - 1``
+        retries) with a 2-second timeout per attempt.
+
+        Args:
+            market_id: Polymarket condition ID to look up.
+
+        Returns:
+            :class:`MarketMeta` if found, ``None`` on total failure.
+        """
+        try:
+            import aiohttp  # optional dependency
+        except ImportError:
+            log.error(
+                "market_cache_fetch_one_failed",
+                market_id=market_id,
+                error="aiohttp not installed",
+            )
+            return None
+
+        url = f"{self._gamma_url}/markets/{market_id}"
+        last_error = "unknown"
+
+        for attempt in range(self._max_retries):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self._request_timeout_s),
+                    ) as resp:
+                        if resp.status != 200:
+                            raise RuntimeError(f"HTTP {resp.status}")
+                        data = await resp.json()
+
+                raw = data if isinstance(data, dict) else {}
+                # The single-market endpoint may omit the conditionId; inject it
+                if not raw.get("conditionId") and not raw.get("id"):
+                    raw = dict(raw)
+                    raw.setdefault("conditionId", market_id)
+                meta = _parse_market_meta(raw)
+                if meta is not None:
+                    self._cache[meta.market_id] = meta
+                    log.info(
+                        "market_metadata_fallback_used",
+                        market_id=market_id,
+                        question=meta.question,
+                        source="fetch_one",
+                    )
+                return meta
+
+            except Exception as exc:  # noqa: BLE001
+                last_error = str(exc)
+                if attempt < self._max_retries - 1:
+                    delay = 2 ** attempt
+                    log.warning(
+                        "market_cache_fetch_one_retry",
+                        attempt=attempt + 1,
+                        market_id=market_id,
+                        error=last_error,
+                        retry_in_s=delay,
+                    )
+                    await asyncio.sleep(delay)
+
+        log.error(
+            "market_cache_fetch_one_failed",
+            market_id=market_id,
+            error=last_error,
+            attempts=self._max_retries,
+        )
+        return None
+
     def get_question(self, market_id: str, fallback: str = "") -> str:
         """Return the human-readable question for *market_id*.
 
