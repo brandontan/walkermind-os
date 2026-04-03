@@ -445,9 +445,17 @@ async def run_trading_loop(
                     # ── 4i. Send enriched Telegram trade alert ────────────────
                     if telegram_callback is not None and result.fill_price > 0.0:
                         try:
-                            _outcome_label = (
-                                _market_outcomes[0] if _market_outcomes else result.side
-                            )
+                            # Pick the outcome label matching the traded side, or
+                            # fall back to result.side if no matching outcome found.
+                            _outcome_label = result.side
+                            if _market_outcomes:
+                                _upper_side = result.side.upper()
+                                for _o in _market_outcomes:
+                                    if str(_o).upper() == _upper_side:
+                                        _outcome_label = str(_o)
+                                        break
+                                else:
+                                    _outcome_label = _market_outcomes[0]
                             _trade_msg = format_trade_alert(
                                 side=result.side,
                                 price=result.fill_price,

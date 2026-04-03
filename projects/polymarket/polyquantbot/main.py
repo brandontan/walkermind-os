@@ -534,6 +534,7 @@ async def main() -> None:
                     attempt=attempt + 1,
                     error=str(exc),
                 )
+        log.error("telegram_callback_failed", retries=2, message_preview=message[:80])
 
     # ── Bootstrap: market discovery + pipeline startup ─────────────────────────
     from .core.bootstrap import run_bootstrap

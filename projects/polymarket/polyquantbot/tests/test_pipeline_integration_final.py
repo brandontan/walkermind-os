@@ -1241,8 +1241,8 @@ async def test_fa05_pnl_in_telegram_message():
     trade_msg = tg_cb.call_args[0][0]
     assert "Realized PnL" in trade_msg
     assert "Unrealized PnL" in trade_msg
-    assert "$5.00" in trade_msg   # realized
-    assert "$-1.50" in trade_msg  # negative unrealized
+    assert "$5.00" in trade_msg    # realized (positive)
+    assert "-$1.50" in trade_msg   # negative unrealized: sign before $
 
 
 @pytest.mark.asyncio

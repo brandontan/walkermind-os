@@ -976,11 +976,11 @@ def format_trade_alert(
     if slippage_pct:
         lines.append(f"Slippage: `{slippage_pct * 100:.2f}%`")
     if realized_pnl is not None:
-        r_sign = "+" if realized_pnl >= 0 else ""
-        lines.append(f"Realized PnL: `{r_sign}${realized_pnl:.2f}`")
+        r_sign = "+" if realized_pnl >= 0 else "-"
+        lines.append(f"Realized PnL: `{r_sign}${abs(realized_pnl):.2f}`")
     if unrealized_pnl is not None:
-        u_sign = "+" if unrealized_pnl >= 0 else ""
-        lines.append(f"Unrealized PnL: `{u_sign}${unrealized_pnl:.2f}`")
+        u_sign = "+" if unrealized_pnl >= 0 else "-"
+        lines.append(f"Unrealized PnL: `{u_sign}${abs(unrealized_pnl):.2f}`")
     lines.append(f"_at {_ts_utc()}_")
     return "\n".join(line for line in lines if line is not None)
 
