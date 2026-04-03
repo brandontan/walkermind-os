@@ -218,6 +218,7 @@ execution/      — order placement, fills, dedup
 monitoring/     — logging, metrics, health checks
 api/            — external API interfaces
 infra/          — infrastructure, config, env
+backtest/       — backtesting engine, historical simulation
 reports/        — forge/, sentinel/, briefer/ subfolders
 ```
 
