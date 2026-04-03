@@ -22,7 +22,7 @@ Validates the strategy toggle system end-to-end:
   ST-17  save() returns True if at least one backend succeeds
 
   ── DatabaseClient strategy_state methods ──
-  ST-18  load_strategy_state() returns empty dict on DB error
+  ST-18  load_strategy_state() returns empty dict when no rows
   ST-19  save_strategy_state() returns True with empty state dict
 
   ── signal_engine.generate_signals() strategy guard ──
@@ -32,9 +32,7 @@ Validates the strategy toggle system end-to-end:
 """
 from __future__ import annotations
 
-import asyncio
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -147,7 +145,7 @@ class TestSTManagerCore:
 class TestSTManagerPersistence:
     """Persistence load/save tests using async mocks."""
 
-    def test_st10_load_uses_db_data(self) -> None:
+    async def test_st10_load_uses_db_data(self) -> None:
         """ST-10: load() applies DB data when db is provided and non-empty."""
         mgr = _make_manager()
         db = MagicMock()
@@ -155,13 +153,13 @@ class TestSTManagerPersistence:
             return_value={"ev_momentum": False, "mean_reversion": True, "liquidity_edge": True}
         )
 
-        asyncio.get_event_loop().run_until_complete(mgr.load(db=db))
+        await mgr.load(db=db)
 
         assert mgr.is_active("ev_momentum") is False
         assert mgr.is_active("mean_reversion") is True
         db.load_strategy_state.assert_called_once()
 
-    def test_st11_load_falls_back_to_redis_when_db_empty(self) -> None:
+    async def test_st11_load_falls_back_to_redis_when_db_empty(self) -> None:
         """ST-11: load() uses Redis when DB returns empty dict."""
         mgr = _make_manager()
         db = MagicMock()
@@ -172,56 +170,56 @@ class TestSTManagerPersistence:
             return_value={"ev_momentum": False, "mean_reversion": True, "liquidity_edge": True}
         )
 
-        asyncio.get_event_loop().run_until_complete(mgr.load(redis=redis, db=db))
+        await mgr.load(redis=redis, db=db)
 
         assert mgr.is_active("ev_momentum") is False
         redis._get_json.assert_called_once()
 
-    def test_st12_load_uses_defaults_when_no_backend(self) -> None:
+    async def test_st12_load_uses_defaults_when_no_backend(self) -> None:
         """ST-12: load() keeps in-memory defaults when neither backend is provided."""
         mgr = _make_manager()
-        asyncio.get_event_loop().run_until_complete(mgr.load())
+        await mgr.load()
         assert all(mgr.is_active(s) for s in KNOWN_STRATEGIES)
 
-    def test_st13_load_falls_back_on_db_error(self) -> None:
+    async def test_st13_load_falls_back_on_db_error(self) -> None:
         """ST-13: load() falls back to defaults when DB raises an exception."""
         mgr = _make_manager()
         db = MagicMock()
         db.load_strategy_state = AsyncMock(side_effect=RuntimeError("DB unavailable"))
 
-        asyncio.get_event_loop().run_until_complete(mgr.load(db=db))
+        await mgr.load(db=db)
         # Should fall back to all-enabled defaults
         assert all(mgr.is_active(s) for s in KNOWN_STRATEGIES)
 
-    def test_st14_save_writes_to_db(self) -> None:
+    async def test_st14_save_writes_to_db(self) -> None:
         """ST-14: save() calls db.save_strategy_state when db is provided."""
         mgr = _make_manager()
         db = MagicMock()
         db.save_strategy_state = AsyncMock(return_value=True)
 
-        result = asyncio.get_event_loop().run_until_complete(mgr.save(db=db))
+        result = await mgr.save(db=db)
 
         assert result is True
         db.save_strategy_state.assert_called_once_with(mgr.get_state())
 
-    def test_st15_save_writes_to_redis(self) -> None:
+    async def test_st15_save_writes_to_redis(self) -> None:
         """ST-15: save() calls redis._set_json when redis is provided."""
         mgr = _make_manager()
         redis = MagicMock()
         redis._set_json = AsyncMock(return_value=True)
 
-        result = asyncio.get_event_loop().run_until_complete(mgr.save(redis=redis))
+        result = await mgr.save(redis=redis)
 
         assert result is True
         redis._set_json.assert_called_once()
 
-    def test_st16_save_returns_false_no_backend(self) -> None:
+    async def test_st16_save_returns_false_no_backend(self) -> None:
         """ST-16: save() returns False when neither db nor redis is provided."""
         mgr = _make_manager()
-        result = asyncio.get_event_loop().run_until_complete(mgr.save())
+        result = await mgr.save()
         assert result is False
 
-    def test_st17_save_returns_true_if_at_least_one_succeeds(self) -> None:
+    async def test_st17_save_returns_true_if_at_least_one_succeeds(self) -> None:
         """ST-17: save() returns True if DB fails but Redis succeeds."""
         mgr = _make_manager()
         db = MagicMock()
@@ -229,7 +227,7 @@ class TestSTManagerPersistence:
         redis = MagicMock()
         redis._set_json = AsyncMock(return_value=True)
 
-        result = asyncio.get_event_loop().run_until_complete(mgr.save(redis=redis, db=db))
+        result = await mgr.save(redis=redis, db=db)
 
         assert result is True
 
@@ -242,7 +240,7 @@ class TestSTManagerPersistence:
 class TestDBClientStrategyState:
     """DatabaseClient.load_strategy_state / save_strategy_state behaviour."""
 
-    def test_st18_load_returns_empty_on_fetch_error(self) -> None:
+    async def test_st18_load_returns_empty_when_no_rows(self) -> None:
         """ST-18: load_strategy_state() returns {} when _fetch returns no rows."""
         from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 
@@ -250,20 +248,16 @@ class TestDBClientStrategyState:
         # Patch _fetch to simulate DB unavailable (returns empty list)
         client._fetch = AsyncMock(return_value=[])
 
-        result = asyncio.get_event_loop().run_until_complete(
-            client.load_strategy_state()
-        )
+        result = await client.load_strategy_state()
         assert result == {}
 
-    def test_st19_save_returns_true_on_empty_state(self) -> None:
+    async def test_st19_save_returns_true_on_empty_state(self) -> None:
         """ST-19: save_strategy_state() returns True immediately for empty state."""
         from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 
         client = DatabaseClient(dsn="postgresql://fake:5432/fake")
 
-        result = asyncio.get_event_loop().run_until_complete(
-            client.save_strategy_state({})
-        )
+        result = await client.save_strategy_state({})
         assert result is True
 
 
@@ -275,43 +269,37 @@ class TestDBClientStrategyState:
 class TestSignalEngineStrategyGuard:
     """generate_signals() respects the active strategy guard."""
 
-    def test_st20_all_strategies_disabled_returns_empty(self) -> None:
+    async def test_st20_all_strategies_disabled_returns_empty(self) -> None:
         """ST-20: strategy_state with all False → returns [] immediately."""
         all_off = {s: False for s in KNOWN_STRATEGIES}
-        signals = asyncio.get_event_loop().run_until_complete(
-            generate_signals(
-                [_market()],
-                bankroll=1000.0,
-                strategy_state=all_off,
-            )
+        signals = await generate_signals(
+            [_market()],
+            bankroll=1000.0,
+            strategy_state=all_off,
         )
         assert signals == []
 
-    def test_st21_strategy_state_none_generates_signals(self) -> None:
+    async def test_st21_strategy_state_none_generates_signals(self) -> None:
         """ST-21: strategy_state=None bypasses guard and generates signals normally."""
-        signals = asyncio.get_event_loop().run_until_complete(
-            generate_signals(
-                [_market()],
-                bankroll=1000.0,
-                strategy_state=None,
-                edge_threshold=0.0,
-                min_liquidity_usd=0.0,
-                min_confidence=0.0,
-            )
+        signals = await generate_signals(
+            [_market()],
+            bankroll=1000.0,
+            strategy_state=None,
+            edge_threshold=0.0,
+            min_liquidity_usd=0.0,
+            min_confidence=0.0,
         )
         assert len(signals) >= 1
 
-    def test_st22_at_least_one_active_strategy_generates_signals(self) -> None:
+    async def test_st22_at_least_one_active_strategy_generates_signals(self) -> None:
         """ST-22: strategy_state with at least one True → signals generated."""
         partial = {"ev_momentum": True, "mean_reversion": False, "liquidity_edge": False}
-        signals = asyncio.get_event_loop().run_until_complete(
-            generate_signals(
-                [_market()],
-                bankroll=1000.0,
-                strategy_state=partial,
-                edge_threshold=0.0,
-                min_liquidity_usd=0.0,
-                min_confidence=0.0,
-            )
+        signals = await generate_signals(
+            [_market()],
+            bankroll=1000.0,
+            strategy_state=partial,
+            edge_threshold=0.0,
+            min_liquidity_usd=0.0,
+            min_confidence=0.0,
         )
         assert len(signals) >= 1

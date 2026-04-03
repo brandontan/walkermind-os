@@ -41,6 +41,11 @@ log = structlog.get_logger(__name__)
 
 _REDIS_KEY = "polyquantbot:strategy_state"
 
+# ── Persistence timeouts ───────────────────────────────────────────────────────
+
+_DB_TIMEOUT_S: float = 5.0
+_REDIS_TIMEOUT_S: float = 3.0
+
 # ── Canonical strategy names ───────────────────────────────────────────────────
 
 KNOWN_STRATEGIES: List[str] = ["ev_momentum", "mean_reversion", "liquidity_edge"]
@@ -175,7 +180,7 @@ class StrategyStateManager:
         if db is not None:
             try:
                 db_state = await asyncio.wait_for(
-                    db.load_strategy_state(), timeout=5.0
+                    db.load_strategy_state(), _DB_TIMEOUT_S
                 )
             except Exception as exc:
                 log.warning(
@@ -209,7 +214,7 @@ class StrategyStateManager:
         if redis is not None:
             try:
                 data: Optional[Any] = await asyncio.wait_for(
-                    redis._get_json(_REDIS_KEY), timeout=3.0
+                    redis._get_json(_REDIS_KEY), _REDIS_TIMEOUT_S
                 )
             except Exception as exc:
                 log.warning(
@@ -277,7 +282,7 @@ class StrategyStateManager:
         if db is not None:
             try:
                 ok: bool = await asyncio.wait_for(
-                    db.save_strategy_state(current_state), timeout=5.0
+                    db.save_strategy_state(current_state), _DB_TIMEOUT_S
                 )
             except Exception as exc:
                 log.warning("strategy_state_save_db_error", error=str(exc))
@@ -289,7 +294,7 @@ class StrategyStateManager:
         if redis is not None:
             try:
                 redis_ok: bool = await asyncio.wait_for(
-                    redis._set_json(_REDIS_KEY, current_state), timeout=3.0
+                    redis._set_json(_REDIS_KEY, current_state), _REDIS_TIMEOUT_S
                 )
             except Exception as exc:
                 log.warning("strategy_state_save_redis_error", error=str(exc))
