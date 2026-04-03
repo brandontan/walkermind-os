@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: DB Activation Final COMPLETE ✅
+Status: Alpha Tune + Trade Close COMPLETE ✅
 
 ---
 
@@ -37,6 +37,16 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+ALPHA TUNE + TRADE CLOSE
+
+- risk/exit_monitor.py: TP tuned 15%→5%; SL tuned -8%→-3%; max_hold_sec=3600 (1h) added; DB update_trade_status on close; Telegram close alert via telegram_callback; structured logs: trade_closed, realized_pnl, exit_reason
+- core/signal/alpha_model.py: _DEFAULT_MOMENTUM_SCALE reduced 2.0→1.0 (noise reduction)
+- core/signal/signal_engine.py: dynamic edge threshold = base + volatility * 0.5 (env: SIGNAL_VOL_THRESHOLD_SCALE); replaces fixed threshold filter
+- core/pipeline/trading_loop.py: max open positions guard (TRADING_LOOP_MAX_POSITIONS=5); per-market cooldown (TRADING_LOOP_COOLDOWN_S=30s); realized_pnl + total_pnl added to metrics; Telegram PnL summary (realized/unrealized/total) sent each tick
+- reports/forge/ALPHA_TUNE_TRADE_CLOSE.md: completion report
+
+---
 
 DB ACTIVATION FINAL
 

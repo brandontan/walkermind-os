@@ -55,15 +55,12 @@ log = structlog.get_logger()
 
 # ── Configuration defaults ─────────────────────────────────────────────────────
 
-# NOTE: _EDGE_THRESHOLD and _MIN_CONFIDENCE are intentionally relaxed for debugging
-# to allow signals while the alpha model's price buffer is warming up (< window ticks).
-# Restore to production values (0.02 / 0.5) once the alpha model has accumulated
-# sufficient history, or override via env vars SIGNAL_EDGE_THRESHOLD / SIGNAL_MIN_CONFIDENCE.
-_EDGE_THRESHOLD: float = 0.005         # 0.5 % minimum edge (TODO: restore to 0.02 for production)
+_EDGE_THRESHOLD: float = 0.005         # 0.5 % base minimum edge
+_VOLATILITY_THRESHOLD_SCALE: float = 0.5  # dynamic threshold = base + vol * scale
 _MIN_LIQUIDITY_USD: float = 10_000.0   # $10,000 minimum market depth
 _KELLY_FRACTION: float = 0.25          # fractional Kelly multiplier
 _MAX_POSITION_FRACTION: float = 0.10   # max 10 % of bankroll per trade
-_MIN_CONFIDENCE: float = 0.1           # minimum S = edge / volatility (TODO: restore to 0.5 for production)
+_MIN_CONFIDENCE: float = 0.1           # minimum S = edge / volatility
 
 
 def _env_float(name: str, default: float) -> float:
@@ -89,6 +86,23 @@ def _spread_volatility(market: dict[str, Any], p_market: float) -> float:
     ask = float(market.get("ask", p_market))
     spread = ask - bid
     return max(spread, 1e-4)
+
+
+def _dynamic_edge_threshold(base: float, volatility: float, scale: float) -> float:
+    """Compute a dynamic edge threshold adjusted for current market volatility.
+
+    In volatile markets the threshold rises, reducing overtrading noise.
+    In stable markets the threshold stays close to the base.
+
+    Args:
+        base: Base minimum edge (e.g. 0.005).
+        volatility: Current market volatility estimate.
+        scale: Volatility multiplier (e.g. 0.5).
+
+    Returns:
+        Adjusted edge threshold: ``base + volatility * scale``.
+    """
+    return base + volatility * scale
 
 
 # ── SignalResult dataclass ─────────────────────────────────────────────────────
@@ -211,6 +225,10 @@ async def generate_signals(
         # ── 1. Edge calculation ───────────────────────────────────────────────
         edge: float = p_model - p_market
 
+        # ── Dynamic edge threshold (base + volatility_adjustment) ─────────────
+        _vol_scale = _env_float("SIGNAL_VOL_THRESHOLD_SCALE", _VOLATILITY_THRESHOLD_SCALE)
+        effective_threshold: float = _et + volatility * _vol_scale
+
         # ── Confidence score (computed early for logging) ─────────────────────
         confidence_score: float = edge / volatility if edge > 0 else 0.0
 
@@ -221,6 +239,7 @@ async def generate_signals(
             p_model=round(p_model, 4),
             edge=round(edge, 4),
             volatility=round(volatility, 6),
+            effective_threshold=round(effective_threshold, 6),
         )
 
         log.info(
@@ -259,15 +278,15 @@ async def generate_signals(
         q: float = 1.0 - p_model
         ev: float = p_model * b - q
 
-        # ── 3. Signal filter ──────────────────────────────────────────────────
-        if edge <= _et:
+        # ── 3. Signal filter (dynamic threshold) ─────────────────────────────
+        if edge <= effective_threshold:
             log.info(
                 "signal_skipped",
                 market_id=market_id,
                 edge=round(edge, 4),
                 S=round(confidence_score, 4),
                 reason="edge_below_threshold",
-                threshold=round(_et, 4),
+                threshold=round(effective_threshold, 4),
             )
             continue
 

@@ -1,4 +1,4 @@
-"""Phase 8 — ExitMonitor: Locked exit execution with double-close prevention.
+"""ExitMonitor: Locked exit execution with double-close prevention.
 
 Design guarantees:
     - _exit_lock serialises all exit decisions — prevents two coroutines
@@ -12,9 +12,10 @@ Design guarantees:
     - Structured JSON logging on every exit action.
 
 Exit triggers:
-    - take_profit: position unrealised PnL >= take_profit_pct
-    - stop_loss:   position unrealised PnL <= stop_loss_pct (negative)
-    - forced:      called explicitly by RiskGuard kill switch
+    - take_profit:   position unrealised PnL >= take_profit_pct (+5%)
+    - stop_loss:     position unrealised PnL <= stop_loss_pct   (-3%)
+    - max_hold_time: position has been open longer than max_hold_sec (1 h)
+    - forced:        called explicitly by RiskGuard kill switch
 
 Usage::
 
@@ -22,8 +23,9 @@ Usage::
         executor=live_executor,
         position_tracker=tracker,
         risk_guard=guard,
-        take_profit_pct=0.15,    # close if +15% PnL
-        stop_loss_pct=-0.08,     # close if -8% PnL
+        take_profit_pct=0.05,    # close if +5% PnL
+        stop_loss_pct=-0.03,     # close if -3% PnL
+        max_hold_sec=3600,       # close after 1 hour regardless of PnL
         check_interval_sec=5.0,
     )
 
@@ -36,8 +38,9 @@ Usage::
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
-from typing import Optional
+from typing import Any, Callable, Awaitable, Optional
 
 import structlog
 
@@ -47,8 +50,9 @@ log = structlog.get_logger()
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_TAKE_PROFIT_PCT: float = 0.15      # close if unrealised PnL >= 15%
-_STOP_LOSS_PCT: float = -0.08       # close if unrealised PnL <= -8%
+_TAKE_PROFIT_PCT: float = 0.05      # close if unrealised PnL >= 5%
+_STOP_LOSS_PCT: float = -0.03       # close if unrealised PnL <= -3%
+_MAX_HOLD_SEC: float = 3600.0       # close after 1 hour regardless of PnL
 _CHECK_INTERVAL_SEC: float = 5.0    # how often to scan open positions
 
 
@@ -71,8 +75,11 @@ class ExitMonitor:
         risk_guard,             # RiskGuard — disabled flag fast-path
         take_profit_pct: float = _TAKE_PROFIT_PCT,
         stop_loss_pct: float = _STOP_LOSS_PCT,
+        max_hold_sec: float = _MAX_HOLD_SEC,
         check_interval_sec: float = _CHECK_INTERVAL_SEC,
         market_cache=None,      # Phase7MarketCache — provides real-time bid/ask
+        db: Optional[Any] = None,           # DatabaseClient — for realized PnL persistence
+        telegram_callback: Optional[Callable[[str], Awaitable[None]]] = None,
     ) -> None:
         """Initialise the exit monitor.
 
@@ -80,19 +87,26 @@ class ExitMonitor:
             executor: LiveExecutor for placing exit orders.
             position_tracker: PositionTracker to read open positions from.
             risk_guard: RiskGuard instance.
-            take_profit_pct: Exit threshold for profit (e.g. 0.15 = 15%).
-            stop_loss_pct: Exit threshold for loss (e.g. -0.08 = -8%).
+            take_profit_pct: Exit threshold for profit (e.g. 0.05 = 5%).
+            stop_loss_pct: Exit threshold for loss (e.g. -0.03 = -3%).
+            max_hold_sec: Maximum position hold time in seconds (default 3600 = 1h).
             check_interval_sec: Interval between position scans.
             market_cache: Optional Phase7MarketCache for real-time bid/ask prices.
                 If None, exits are skipped when no price is available.
+            db: Optional DatabaseClient to persist realized PnL on close.
+            telegram_callback: Optional async callable ``(message: str)`` to
+                send close alerts.
         """
         self._executor = executor
         self._tracker = position_tracker
         self._risk_guard = risk_guard
         self._take_profit_pct = take_profit_pct
         self._stop_loss_pct = stop_loss_pct
+        self._max_hold_sec = max_hold_sec
         self._check_interval_sec = check_interval_sec
         self._market_cache = market_cache
+        self._db = db
+        self._telegram_callback = telegram_callback
 
         # Serialises all concurrent exit decisions
         self._exit_lock = asyncio.Lock()
@@ -106,8 +120,10 @@ class ExitMonitor:
             "exit_monitor_initialized",
             take_profit_pct=take_profit_pct,
             stop_loss_pct=stop_loss_pct,
+            max_hold_sec=max_hold_sec,
             check_interval_sec=check_interval_sec,
             has_market_cache=market_cache is not None,
+            has_db=db is not None,
         )
 
     # ── Main loop ─────────────────────────────────────────────────────────────
@@ -236,6 +252,24 @@ class ExitMonitor:
         """
         if record.entry_price <= 0:
             return None, ""
+
+        # ── Max hold time check — use entry_price as exit estimate if no cache ─
+        hold_sec = time.time() - record.opened_at
+        if hold_sec >= self._max_hold_sec:
+            # Still need a price; attempt to get it from cache, fall back to entry
+            fallback_price: Optional[float] = None
+            if self._market_cache is not None:
+                if record.side == "YES":
+                    bid = self._market_cache.get_bid(record.market_id)
+                    if bid > 0:
+                        fallback_price = bid
+                else:
+                    ask = self._market_cache.get_ask(record.market_id)
+                    if 0 < ask <= 1.0:
+                        fallback_price = ask
+            if fallback_price is None:
+                fallback_price = record.entry_price
+            return fallback_price, f"max_hold_time:hold_sec={hold_sec:.0f}"
 
         # Resolve current market price from MarketCache (real-time best bid/ask).
         # Fall back to None if the cache is absent or has no valid quote —
@@ -368,6 +402,48 @@ class ExitMonitor:
                     correlation_id=cid,
                 )
 
+                # ── Persist realized PnL in DB ────────────────────────────────
+                if self._db is not None:
+                    try:
+                        await self._db.update_trade_status(
+                            record.position_id,
+                            status="closed",
+                            pnl=realised_pnl,
+                            won=realised_pnl > 0,
+                        )
+                    except Exception as db_exc:  # noqa: BLE001
+                        log.error(
+                            "exit_monitor_db_update_failed",
+                            position_id=record.position_id,
+                            error=str(db_exc),
+                            correlation_id=cid,
+                        )
+
+                log.info(
+                    "trade_closed",
+                    position_id=record.position_id,
+                    market_id=record.market_id,
+                    side=record.side,
+                    entry_price=record.entry_price,
+                    exit_price=exit_price,
+                    size=record.size,
+                    correlation_id=cid,
+                )
+                log.info(
+                    "realized_pnl",
+                    position_id=record.position_id,
+                    market_id=record.market_id,
+                    realized_pnl=round(realised_pnl, 4),
+                    won=realised_pnl > 0,
+                    correlation_id=cid,
+                )
+                log.info(
+                    "exit_reason",
+                    position_id=record.position_id,
+                    market_id=record.market_id,
+                    reason=reason,
+                    correlation_id=cid,
+                )
                 log.info(
                     "exit_monitor_exit_complete",
                     position_id=record.position_id,
@@ -378,6 +454,29 @@ class ExitMonitor:
                     reason=reason,
                     correlation_id=cid,
                 )
+
+                # ── Send Telegram close alert ─────────────────────────────────
+                if self._telegram_callback is not None:
+                    try:
+                        pnl_sign = "+" if realised_pnl >= 0 else ""
+                        pnl_emoji = "✅" if realised_pnl >= 0 else "🔴"
+                        msg = (
+                            f"{pnl_emoji} *TRADE CLOSED*\n"
+                            f"Market: `{record.market_id[:16]}...`\n"
+                            f"Side: `{record.side}`\n"
+                            f"Entry: `{record.entry_price:.4f}` → Exit: `{exit_price:.4f}`\n"
+                            f"Size: `${record.size:.2f}`\n"
+                            f"Realized PnL: `{pnl_sign}${realised_pnl:.2f}`\n"
+                            f"Reason: `{reason}`"
+                        )
+                        await self._telegram_callback(msg)
+                    except Exception as tg_exc:  # noqa: BLE001
+                        log.error(
+                            "exit_monitor_telegram_failed",
+                            error=str(tg_exc),
+                            correlation_id=cid,
+                        )
+
                 return True
 
             else:
@@ -418,4 +517,5 @@ class ExitMonitor:
             "closing_positions": len(self._closing_set),
             "take_profit_pct": self._take_profit_pct,
             "stop_loss_pct": self._stop_loss_pct,
+            "max_hold_sec": self._max_hold_sec,
         }
