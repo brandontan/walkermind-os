@@ -122,3 +122,54 @@ def extract_condition_ids(markets: list[dict]) -> list[str]:
         for m in markets
         if m.get("conditionId")
     ]
+
+
+def extract_market_data(market: dict) -> dict | None:
+    """Safely extract and normalise ``market_id`` and ``p_market`` from a raw
+    Gamma API market dict.
+
+    The Gamma API may return prices under ``outcomePrices`` (list of strings)
+    or ``prices`` (list of floats).  The market identifier may be ``id``,
+    ``conditionId``, or ``market_id``.  A pre-normalised dict that already
+    contains ``market_id`` and ``p_market`` keys is also accepted.
+
+    Args:
+        market: Raw market dict as returned by :func:`get_active_markets`, or a
+                pre-normalised dict with ``market_id`` / ``p_market`` keys.
+
+    Returns:
+        ``{"market_id": str, "p_market": float}`` when extraction succeeds and
+        the values are valid; ``None`` otherwise.
+    """
+    try:
+        market_id: str | None = (
+            market.get("id")
+            or market.get("conditionId")
+            or market.get("market_id")
+        )
+
+        # Try list-based price fields first (raw Gamma API)
+        prices = market.get("outcomePrices") or market.get("prices")
+        if prices and len(prices) > 0:
+            p_market = float(prices[0])
+        else:
+            # Fall back to scalar p_market key (pre-normalised or test dicts)
+            raw_p = market.get("p_market")
+            if raw_p is None:
+                return None
+            p_market = float(raw_p)
+
+        if not (0 < p_market < 1):
+            return None
+
+        if not market_id:
+            return None
+
+        return {
+            "market_id": str(market_id),
+            "p_market": p_market,
+        }
+
+    except Exception as exc:  # noqa: BLE001
+        log.warning("market_parse_error", error=str(exc))
+        return None
