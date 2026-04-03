@@ -110,6 +110,8 @@ class PaperEngine:
         positions: :class:`~core.positions.PaperPositionManager` instance.
         ledger:    :class:`~core.ledger.TradeLedger` instance.
         pnl_tracker: Optional PnLTracker for realized PnL persistence.
+        random_seed: Optional seed for the internal ``random.Random`` instance.
+                     Use a fixed seed in tests for deterministic fill/slippage.
     """
 
     def __init__(
@@ -118,14 +120,18 @@ class PaperEngine:
         positions: PaperPositionManager,
         ledger: TradeLedger,
         pnl_tracker: Optional[object] = None,
+        random_seed: Optional[int] = None,
     ) -> None:
         self._wallet = wallet
         self._positions = positions
         self._ledger = ledger
         self._pnl_tracker = pnl_tracker
         self._processed_trade_ids: Set[str] = set()
+        # Use a private seeded Random so tests can pass random_seed for reproducibility.
+        # Production callers leave random_seed=None for non-deterministic simulation.
+        self._rng: random.Random = random.Random(random_seed)
 
-        log.info("paper_engine_initialized")
+        log.info("paper_engine_initialized", seeded=random_seed is not None)
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -222,13 +228,13 @@ class PaperEngine:
             )
 
         # ── 4. Simulate partial fill ─────────────────────────────────────────
-        fill_pct = random.uniform(_FILL_MIN_PCT, 1.0)
+        fill_pct = self._rng.uniform(_FILL_MIN_PCT, 1.0)
         filled_size = round(size * fill_pct, 4)
         is_partial = fill_pct < 0.9999
 
         # ── 5. Apply slippage ────────────────────────────────────────────────
-        slippage_direction = random.choice([-1, 1])
-        slippage_factor = 1.0 + slippage_direction * random.uniform(0.0, _SLIPPAGE_PCT)
+        slippage_direction = self._rng.choice([-1, 1])
+        slippage_factor = 1.0 + slippage_direction * self._rng.uniform(0.0, _SLIPPAGE_PCT)
         fill_price = round(price * slippage_factor, 6)
 
         # ── 6. Compute fee ───────────────────────────────────────────────────

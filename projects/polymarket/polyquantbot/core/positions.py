@@ -302,18 +302,15 @@ class PaperPositionManager:
 
         pos = self._positions.get(market_id)
         if pos is None:
-            log.warning(
+            log.error(
                 "paper_position_partial_no_base",
                 market_id=market_id,
                 trade_id=trade_id,
+                message="partial_fill called with no existing position — use open_position first",
             )
-            # Create a fresh position
-            return self.open_position(
-                market_id=market_id,
-                side="YES",   # default — caller should use open_position for new
-                size=add_size,
-                entry_price=fill_price,
-                trade_id=trade_id,
+            raise ValueError(
+                f"partial_fill: no open position for market {market_id!r}. "
+                "Call open_position() before partial_fill()."
             )
 
         total_size = pos.size + add_size
