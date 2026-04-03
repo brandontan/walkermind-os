@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: DB Import Fix COMPLETE ✅
+Status: Parser Hotfix (JSON-Encoded Fields) COMPLETE ✅
 
 ---
 
@@ -53,6 +53,22 @@ MARKET PARSER HOTFIX
 - core/market/__init__.py: exported extract_market_data
 - core/pipeline/trading_loop.py: log first 3 raw market dicts per tick (market_raw_sample); apply extract_market_data filter; log market_valid per parsed market; merge normalised keys with original fields; pass normalised markets to generate_signals; skip iteration if all markets fail parsing
 - reports/forge/MARKET_PARSER_HOTFIX.md: completion report
+
+---
+
+PARSER HOTFIX — JSON-ENCODED OUTCOME FIELDS
+
+- core/utils/json_safe.py: safe_json_load() — deserialises JSON-encoded string fields (outcomePrices, outcomes, clobTokenIds) to native Python; handles None, malformed JSON, already-parsed lists, unexpected types; no exception raised
+- core/utils/__init__.py: exports safe_json_load
+- core/market/parser.py: parse_market() — full parsing with JSON-string support; validates prices/outcomes/token_ids; returns prices[], outcomes[], token_ids[] in output; structured warnings per failure; zero silent failure
+- core/market/ingest.py: ingest_markets() — applies parse_market over list; merges original fields + normalised keys; logs markets_skipped_invalid; never crashes loop
+- core/market/market_client.py: extract_market_data() updated to use safe_json_load before float conversion; fixes "could not convert string to float: '['" errors
+- core/market/__init__.py: exports parse_market, ingest_markets
+- core/pipeline/trading_loop.py: ingestion loop replaced with ingest_markets() call
+- core/logging/logger.py: log_invalid_market(), log_market_parse_warning() — structured JSON log helpers with stable event keys
+- core/logging/__init__.py: exports log helpers
+- tests/test_parser_hotfix_outcome_json.py: 21 tests (PH-01–PH-21); all pass
+- reports/forge/parser_hotfix_outcome_json.md: completion report
 
 ---
 
