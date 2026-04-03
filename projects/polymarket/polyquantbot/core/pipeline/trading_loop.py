@@ -51,6 +51,8 @@ Environment variables (all optional):
     TRADING_LOOP_USER_ID     — user ID for position/PnL tracking (default "default")
     TRADING_LOOP_MAX_POSITIONS — max simultaneous open positions (default 5)
     TRADING_LOOP_COOLDOWN_S  — per-market cooldown seconds (default 30)
+    FORCE_SIGNAL_MODE        — when "true", bypass signal filters and force at most
+                               1 trade per loop tick (for pipeline debugging)
 
 Usage::
 
@@ -98,6 +100,10 @@ def _env_int(name: str, default: int) -> int:
         return int(os.getenv(name, str(default)))
     except ValueError:
         return default
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes"}
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
@@ -161,6 +167,7 @@ async def run_trading_loop(
     _user_id = user_id or os.getenv("TRADING_LOOP_USER_ID", _DEFAULT_USER_ID)
     _max_open_positions = _env_int("TRADING_LOOP_MAX_POSITIONS", _DEFAULT_MAX_OPEN_POSITIONS)
     _cooldown_s = _env_float("TRADING_LOOP_COOLDOWN_S", _DEFAULT_COOLDOWN_S)
+    _force_signal = _env_bool("FORCE_SIGNAL_MODE")
 
     # ── Initialise alpha model (stateful, shared across ticks) ────────────────
     alpha_model = ProbabilisticAlphaModel()
@@ -177,6 +184,7 @@ async def run_trading_loop(
         max_open_positions=_max_open_positions,
         cooldown_s=_cooldown_s,
         db_enabled=True,
+        force_signal_mode=_force_signal,
     )
     log.info("db_enabled", status=True)
 
@@ -237,13 +245,24 @@ async def run_trading_loop(
                 normalised_markets,
                 bankroll=_bankroll,
                 alpha_model=alpha_model,
+                force_signal_mode=_force_signal,
             )
 
-            log.info("signals_generated", count=len(signals))
+            log.info("signals_generated", count=len(signals), force_mode=_force_signal)
 
             # ── 4. Execute each signal and update positions ───────────────────
+            _trades_this_tick: int = 0
             for signal in signals:
-                # ── 4a. Max open positions guard ──────────────────────────────
+                # ── 4a. Force signal mode: max 1 trade per loop ───────────────
+                if _force_signal and _trades_this_tick >= 1:
+                    log.info(
+                        "signal_skipped_force_limit",
+                        market_id=signal.market_id,
+                        reason="force_mode_max_1_trade_per_loop",
+                    )
+                    continue
+
+                # ── 4b. Max open positions guard ──────────────────────────────
                 try:
                     open_positions = await db.get_positions(_user_id)
                     open_count = len(open_positions)
@@ -258,7 +277,7 @@ async def run_trading_loop(
                     )
                     continue
 
-                # ── 4b. Per-market cooldown guard ─────────────────────────────
+                # ── 4c. Per-market cooldown guard ─────────────────────────────
                 _now = time.time()
                 _last = _market_last_trade.get(signal.market_id, 0.0)
                 if _now - _last < _cooldown_s:
@@ -277,6 +296,7 @@ async def run_trading_loop(
                     telegram_callback=telegram_callback,
                 )
                 if result.success:
+                    _trades_this_tick += 1
                     log.info(
                         "trade_loop_executed",
                         market_id=result.market_id,
@@ -284,12 +304,13 @@ async def run_trading_loop(
                         mode=result.mode,
                         filled_size_usd=round(result.filled_size_usd or 0.0, 4),
                         fill_price=round(result.fill_price or 0.0, 6),
+                        force_mode=_force_signal,
                     )
 
                     # Record trade time for cooldown tracking
                     _market_last_trade[signal.market_id] = time.time()
 
-                    # ── 4c. Persist position (db is always present) ───────────
+                    # ── 4d. Persist position (db is always present) ───────────
                     if result.fill_price > 0.0:
                         await db.upsert_position({
                             "user_id": _user_id,
@@ -298,7 +319,7 @@ async def run_trading_loop(
                             "size": result.filled_size_usd,
                         })
 
-                        # ── 4d. Record trade in DB and set status ─────────────
+                        # ── 4e. Record trade in DB and set status ─────────────
                         await db.insert_trade({
                             "trade_id": result.trade_id,
                             "user_id": _user_id,
