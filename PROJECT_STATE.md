@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Trade Visibility Metrics COMPLETE ✅ — Performance, Positions, PnL handlers live; wallet timeout+cache fix deployed
+Status: Alpha Stabilization COMPLETE ✅ — Edge threshold raised to 2 %, volatility breakout signal added, AlphaMetrics + /alpha Telegram debug view live
 
 ---
 
@@ -37,6 +37,15 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+ALPHA STABILIZATION (Phase 18.1)
+
+- core/signal/alpha_model.py: raised deviation_weight 0.5→0.8; raised momentum_scale 1.0→1.5; added exponential-weighted momentum (α=0.3); added volatility breakout signal (z-score, breakout_weight=0.04); added early-tick dampening guard (n<5); raised force-mode min deviation 0.01→0.02; enriched debug log with edge/confidence/z_score/breakout
+- core/signal/signal_engine.py: raised _EDGE_THRESHOLD 0.005→0.02 (2%); raised _MIN_FORCE_MODE_EDGE 0.01→0.02; added alpha_metrics Optional[AlphaMetrics] param; records every tick to AlphaMetrics; calls record_signal_generated() on signal pass
+- monitoring/alpha_metrics.py: NEW — AlphaOutput dataclass; AlphaSnapshot dataclass with to_dict(); AlphaMetrics class with record(), record_signal_generated(), snapshot(), log_summary(); edge distribution buckets (zero/weak/moderate/strong)
+- telegram/handlers/alpha_debug.py: NEW — set_alpha_metrics() injection; handle_alpha_debug() returns last p_model/p_market/edge/S + distribution + avg_edge + success_rate
+- telegram/command_handler.py: added /alpha dispatch in _dispatch(); added _handle_alpha() method
+- reports/forge/18_1_alpha_stabilization.md: completion report
 
 TRADE VISIBILITY METRICS (Phase 17.3)
 
@@ -573,14 +582,12 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Connect PnLCalculator.calculate_metrics() to DB trade history for accurate drawdown in /performance
-2. Add /history handler for closed trade log
-3. Load live bankroll from WalletManager into run_trading_loop (replace static default)
-4. Wire RedisClient into pipeline startup for signal dedup persistence
-5. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
-6. Plug in CLOB executor callback for LIVE mode
-7. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
-8. Market resolution PnL updates (TradeResult post-settlement)
+1. Wire AlphaMetrics into generate_signals() call in trading_loop.py and inject via set_alpha_metrics() in main.py
+2. Connect PnLCalculator.calculate_metrics() to DB trade history for accurate drawdown in /performance
+3. Add /history handler for closed trade log
+4. Load live bankroll from WalletManager into run_trading_loop (replace static default)
+5. Wire RedisClient into pipeline startup for signal dedup persistence
+6. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
 
 ---
 

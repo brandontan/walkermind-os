@@ -64,19 +64,20 @@ import structlog
 
 if TYPE_CHECKING:
     from .alpha_model import ProbabilisticAlphaModel
+    from monitoring.alpha_metrics import AlphaMetrics
 
 log = structlog.get_logger()
 
 # ── Configuration defaults ─────────────────────────────────────────────────────
 
-_EDGE_THRESHOLD: float = 0.005         # 0.5 % base minimum edge
+_EDGE_THRESHOLD: float = 0.02          # 2 % base minimum edge (raised from 0.5 % for real predictive value)
 _VOLATILITY_THRESHOLD_SCALE: float = 0.5  # dynamic threshold = base + vol * scale
 _MIN_LIQUIDITY_USD: float = 10_000.0   # $10,000 minimum market depth
 _KELLY_FRACTION: float = 0.25          # fractional Kelly multiplier
 _MAX_POSITION_FRACTION: float = 0.10   # max 10 % of bankroll per trade
 _MIN_CONFIDENCE: float = 0.1           # minimum S = edge / volatility
 _FORCE_SIGNAL_TOP_N: int = 1           # default markets to force-signal per call
-_MIN_FORCE_MODE_EDGE: float = 0.01     # minimum edge injected in force mode
+_MIN_FORCE_MODE_EDGE: float = 0.02     # minimum edge injected in force mode (≥ 2 % threshold)
 _VOLATILITY_FLOOR: float = 0.01        # minimum volatility — prevents divide-by-zero / overflow
 _S_SCORE_MAX_ABS: float = 10.0         # maximum absolute S score — prevents numeric runaway
 
@@ -189,6 +190,7 @@ async def generate_signals(
     alpha_model: "Optional[ProbabilisticAlphaModel]" = None,
     force_signal_mode: bool | None = None,
     strategy_state: "Optional[dict[str, bool]]" = None,
+    alpha_metrics: "Optional[AlphaMetrics]" = None,
 ) -> list[SignalResult]:
     """Evaluate a list of markets and return signals with positive edge.
 
@@ -225,6 +227,10 @@ async def generate_signals(
         strategy_state:       Optional dict mapping strategy name → enabled bool.
                               When provided only active strategies contribute to
                               p_model.  If None all strategies are treated as active.
+        alpha_metrics:        Optional :class:`~monitoring.alpha_metrics.AlphaMetrics`
+                              instance.  When provided, every evaluated market tick is
+                              recorded for distribution tracking, average edge
+                              computation, and signal success rate logging.
 
     Returns:
         List of :class:`SignalResult` instances, one per qualifying market.
@@ -459,6 +465,17 @@ async def generate_signals(
             S=round(confidence_score, 4),
         )
 
+        # ── Alpha metrics: record every evaluated tick ────────────────────────
+        if alpha_metrics is not None:
+            from monitoring.alpha_metrics import AlphaOutput as _AO
+            alpha_metrics.record(_AO(
+                market_id=market_id,
+                p_model=p_model,
+                p_market=p_market,
+                edge=edge,
+                confidence=confidence_score,
+            ))
+
         if edge <= 0:
             log.info(
                 "signal_skipped",
@@ -530,6 +547,10 @@ async def generate_signals(
             p_market=round(p_market, 4),
             confidence_score=round(confidence_score, 4),
         )
+
+        # ── Alpha metrics: mark this tick as signal-generating ────────────────
+        if alpha_metrics is not None:
+            alpha_metrics.record_signal_generated()
 
         # ── 5. Position sizing — fractional Kelly ─────────────────────────────
         kelly_f: float = (p_model * b - q) / b if b > 0 else 0.0
