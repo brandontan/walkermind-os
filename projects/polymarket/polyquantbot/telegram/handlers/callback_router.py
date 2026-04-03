@@ -145,7 +145,7 @@ class CallbackRouter:
             if any(x in cb_data for x in ("health", "performance", "strategies")):
                 log.warning("callback_legacy_blocked", callback_data=cb_data)
                 raise RuntimeError("LEGACY UI DISABLED")
-            text, keyboard = await self._dispatch(action)
+            text, keyboard = await self._dispatch(action, user_id=user_id)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -177,8 +177,12 @@ class CallbackRouter:
 
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
-    async def _dispatch(self, action: str) -> tuple[str, list]:
+    async def _dispatch(self, action: str, user_id: int = 0) -> tuple[str, list]:
         """Route ``action`` to the correct handler.
+
+        Args:
+            action: Action name (without ``action:`` prefix).
+            user_id: Telegram user ID extracted from the callback_query.
 
         Returns:
             ``(text, inline_keyboard)`` tuple — text is Markdown-formatted,
@@ -192,7 +196,12 @@ class CallbackRouter:
 
         # Lazy imports — avoids circular deps and speeds up module load
         from .status import handle_status
-        from .wallet import handle_wallet, handle_wallet_balance, handle_wallet_exposure
+        from .wallet import (
+            handle_wallet,
+            handle_wallet_balance,
+            handle_wallet_exposure,
+            handle_wallet_withdraw,
+        )
         from .settings import handle_settings, handle_settings_strategy, handle_mode_confirm_switch
         from .control import handle_control, handle_pause, handle_resume, handle_kill
 
@@ -215,13 +224,16 @@ class CallbackRouter:
 
         # ── Wallet ─────────────────────────────────────────────────────────
         if action == "wallet":
-            return await handle_wallet(mode=self._mode)
+            return await handle_wallet(mode=self._mode, user_id=user_id)
 
         if action == "wallet_balance":
-            return await handle_wallet_balance()
+            return await handle_wallet_balance(user_id=user_id)
 
         if action == "wallet_exposure":
-            return await handle_wallet_exposure()
+            return await handle_wallet_exposure(user_id=user_id)
+
+        if action == "wallet_withdraw":
+            return await handle_wallet_withdraw(user_id=user_id)
 
         # ── Settings ───────────────────────────────────────────────────────
         if action == "settings":

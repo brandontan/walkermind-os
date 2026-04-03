@@ -74,21 +74,32 @@ def strategies_screen(snapshot: dict, conflicts: int = 0) -> str:
 # ── Wallet screens ─────────────────────────────────────────────────────────────
 
 
-def wallet_screen(mode: str) -> str:
-    """Wallet / portfolio overview."""
+def wallet_screen(
+    mode: str,
+    address: str | None = None,
+    balance: float | None = None,
+) -> str:
+    """Wallet / portfolio overview showing address and live balance."""
+    addr_line = f"`{address}`" if address else "_No wallet yet — tap Refresh to create._"
+    bal_line = f"`{balance:.4f} USDC`" if balance is not None else "_Tap Balance to fetch._"
     return (
         "💰 *WALLET*\n\n"
         f"Mode: `{mode}`\n"
-        "Live exposure data available via /health.\n"
-        "_Direct wallet integration active in next phase._"
+        f"Address: {addr_line}\n"
+        f"Balance: {bal_line}"
     )
 
 
-def wallet_balance_screen(balance: float | None = None) -> str:
+def wallet_balance_screen(balance: float | None = None, address: str | None = None) -> str:
     """Balance detail screen."""
+    lines = ["💵 *BALANCE*\n"]
+    if address:
+        lines.append(f"Address: `{address}`")
     if balance is not None:
-        return f"💵 *Balance*\n`{balance:.4f} USD`"
-    return "💵 *Balance*\n_Not yet available — use /health for exposure data._"
+        lines.append(f"Balance: `{balance:.4f} USDC`")
+    else:
+        lines.append("_Balance fetch in progress…_")
+    return "\n".join(lines)
 
 
 def wallet_exposure_screen(exposure: float | None = None) -> str:
@@ -96,6 +107,46 @@ def wallet_exposure_screen(exposure: float | None = None) -> str:
     if exposure is not None:
         return f"📉 *Open Exposure*\n`{exposure:.4f} USD`"
     return "📉 *Open Exposure*\n_Not yet available — use /health for exposure data._"
+
+
+def wallet_withdraw_screen(
+    address: str | None = None,
+    balance: float | None = None,
+) -> str:
+    """Withdraw initiation screen."""
+    addr_line = f"`{address}`" if address else "_No wallet._"
+    bal_line = f"`{balance:.4f} USDC`" if balance is not None else "_unknown_"
+    return (
+        "💸 *WITHDRAW*\n\n"
+        f"From: {addr_line}\n"
+        f"Available: {bal_line}\n\n"
+        "_To initiate a withdrawal, reply with:_\n"
+        "`/withdraw <to_address> <amount>`"
+    )
+
+
+def wallet_withdraw_result_screen(result: dict) -> str:
+    """Withdraw result screen after broadcast attempt."""
+    status = result.get("status", "unknown")
+    to_addr = result.get("to_address", "?")
+    amount = result.get("amount_usdc", 0.0)
+    tx_hash = result.get("tx_hash")
+    note = result.get("note", "")
+
+    if status == "broadcast":
+        return (
+            "✅ *WITHDRAW SUBMITTED*\n\n"
+            f"To: `{to_addr}`\n"
+            f"Amount: `{amount:.4f} USDC`\n"
+            f"Tx: `{tx_hash}`"
+        )
+    return (
+        "⏳ *WITHDRAW QUEUED*\n\n"
+        f"To: `{to_addr}`\n"
+        f"Amount: `{amount:.4f} USDC`\n"
+        f"Status: `{status}`\n"
+        + (f"_Note: {note}_" if note else "")
+    )
 
 
 # ── Settings screens ───────────────────────────────────────────────────────────
