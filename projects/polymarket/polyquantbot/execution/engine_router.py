@@ -134,6 +134,11 @@ def get_engine_container() -> EngineContainer:
     asyncio execution context.  Do NOT call from a ``ThreadPoolExecutor`` or any
     multi-threaded context.
 
+    Warning: Call this function only after the asyncio event loop is running
+    (i.e., from within a coroutine or an already-started async context).
+    Do NOT call at module import time or during static initialisation, as the
+    engines it creates may depend on an active event loop.
+
     Returns:
         The shared :class:`EngineContainer` instance.
     """

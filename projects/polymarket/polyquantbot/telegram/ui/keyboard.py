@@ -84,8 +84,8 @@ def build_paper_wallet_menu() -> InlineKeyboard:
         [🔄 Refresh   ] [🏠 Main Menu]
     """
     return [
-        [_btn("📊 Trade",     "trade"),     _btn("📉 Exposure", "exposure")],
-        [_btn("🔄 Refresh",  "wallet"),    _btn("🏠 Main Menu", "back_main")],
+        [_btn("📊 Trade",    "trade"),    _btn("📉 Exposure",  "exposure")],
+        [_btn("🔄 Refresh", "wallet"),   _btn("🏠 Main Menu", "back_main")],
     ]
 
 

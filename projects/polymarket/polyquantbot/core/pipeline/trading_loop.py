@@ -406,7 +406,12 @@ async def run_trading_loop(
                         # Forwards successful fills to PaperEngine so wallet balance,
                         # paper positions, and trade ledger are updated in-step with
                         # every execution.  Non-fatal: logs error and continues.
-                        if paper_engine is not None and _mode == "PAPER" and result.fill_price > 0.0:
+                        should_sync_paper_engine = (
+                            paper_engine is not None
+                            and _mode == "PAPER"
+                            and result.fill_price > 0.0
+                        )
+                        if should_sync_paper_engine:
                             try:
                                 _paper_order = await paper_engine.execute_order({
                                     "market_id": result.market_id,
