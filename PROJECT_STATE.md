@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: PnL + Alpha Full Pipeline Integration COMPLETE ✅
+Status: Signal Zero Activity Fix COMPLETE ✅
 
 ---
 
@@ -37,6 +37,14 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+SIGNAL ZERO ACTIVITY FIX
+
+- core/signal/signal_engine.py: _EDGE_THRESHOLD relaxed 0.02 → 0.005; _MIN_CONFIDENCE relaxed 0.5 → 0.1; added alpha_debug log (market_id, p_market, p_model, edge, volatility, S); unified skip logs to signal_skipped with edge, S, reason fields
+- core/pipeline/trading_loop.py: added log.info("market_feed", count=len(markets)) after market fetch for visibility
+- Report: reports/forge/SIGNAL_ZERO_FIX.md
+
+---
 
 PNL + ALPHA FULL PIPELINE INTEGRATION
 

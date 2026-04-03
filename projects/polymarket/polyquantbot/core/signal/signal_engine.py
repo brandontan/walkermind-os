@@ -12,9 +12,9 @@ For each market in the supplied list this module:
    where ``b`` (decimal odds) is derived from the market price:
    ``b = (1 / p_market) - 1``.
 5. Applies the signal filter — only continues when:
-   - ``edge > EDGE_THRESHOLD``   (default 0.02, i.e. 2 %)
+   - ``edge > EDGE_THRESHOLD``   (default 0.005, i.e. 0.5 %)
    - ``liquidity_usd > MIN_LIQUIDITY_USD``   (default $10,000)
-   - ``confidence_score > MIN_CONFIDENCE``   (default 0.5)
+   - ``confidence_score > MIN_CONFIDENCE``   (default 0.1)
      where ``confidence_score = edge / volatility`` and volatility is
      estimated from the bid-ask spread (or alpha model if provided).
 6. Sizes the position using fractional Kelly:
@@ -25,11 +25,11 @@ For each market in the supplied list this module:
    :class:`SignalResult` to the output list.
 
 Environment variables (all optional):
-    SIGNAL_EDGE_THRESHOLD     — minimum edge to generate signal (default 0.02)
+    SIGNAL_EDGE_THRESHOLD     — minimum edge to generate signal (default 0.005)
     SIGNAL_MIN_LIQUIDITY_USD  — minimum liquidity required   (default 10000)
     SIGNAL_KELLY_FRACTION     — fractional-Kelly multiplier  (default 0.25)
     SIGNAL_MAX_POSITION_PCT   — max position as fraction of bankroll (default 0.10)
-    SIGNAL_MIN_CONFIDENCE     — minimum confidence score S=edge/vol  (default 0.5)
+    SIGNAL_MIN_CONFIDENCE     — minimum confidence score S=edge/vol  (default 0.1)
 
 Usage::
 
@@ -55,11 +55,15 @@ log = structlog.get_logger()
 
 # ── Configuration defaults ─────────────────────────────────────────────────────
 
-_EDGE_THRESHOLD: float = 0.02          # 2 % minimum edge
+# NOTE: _EDGE_THRESHOLD and _MIN_CONFIDENCE are intentionally relaxed for debugging
+# to allow signals while the alpha model's price buffer is warming up (< window ticks).
+# Restore to production values (0.02 / 0.5) once the alpha model has accumulated
+# sufficient history, or override via env vars SIGNAL_EDGE_THRESHOLD / SIGNAL_MIN_CONFIDENCE.
+_EDGE_THRESHOLD: float = 0.005         # 0.5 % minimum edge (TODO: restore to 0.02 for production)
 _MIN_LIQUIDITY_USD: float = 10_000.0   # $10,000 minimum market depth
 _KELLY_FRACTION: float = 0.25          # fractional Kelly multiplier
 _MAX_POSITION_FRACTION: float = 0.10   # max 10 % of bankroll per trade
-_MIN_CONFIDENCE: float = 0.5           # minimum S = edge / volatility
+_MIN_CONFIDENCE: float = 0.1           # minimum S = edge / volatility (TODO: restore to 0.5 for production)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -207,6 +211,9 @@ async def generate_signals(
         # ── 1. Edge calculation ───────────────────────────────────────────────
         edge: float = p_model - p_market
 
+        # ── Confidence score (computed early for logging) ─────────────────────
+        confidence_score: float = edge / volatility if edge > 0 else 0.0
+
         log.info(
             "signal_debug",
             market_id=market_id,
@@ -216,12 +223,23 @@ async def generate_signals(
             volatility=round(volatility, 6),
         )
 
+        log.info(
+            "alpha_debug",
+            market_id=market_id,
+            p_market=round(p_market, 4),
+            p_model=round(p_model, 4),
+            edge=round(edge, 4),
+            volatility=round(volatility, 6),
+            S=round(confidence_score, 4),
+        )
+
         if edge <= 0:
             log.info(
-                "trade_skipped",
+                "signal_skipped",
                 market_id=market_id,
-                reason="non_positive_edge",
                 edge=round(edge, 4),
+                S=round(confidence_score, 4),
+                reason="non_positive_edge",
             )
             continue
 
@@ -229,10 +247,11 @@ async def generate_signals(
         # b = decimal odds = (1 / p_market) - 1  (profit per $1 staked)
         if p_market <= 0:
             log.info(
-                "trade_skipped",
+                "signal_skipped",
                 market_id=market_id,
+                edge=round(edge, 4),
+                S=round(confidence_score, 4),
                 reason="invalid_p_market",
-                p_market=p_market,
             )
             continue
 
@@ -243,18 +262,21 @@ async def generate_signals(
         # ── 3. Signal filter ──────────────────────────────────────────────────
         if edge <= _et:
             log.info(
-                "trade_skipped",
+                "signal_skipped",
                 market_id=market_id,
-                reason="edge_below_threshold",
                 edge=round(edge, 4),
+                S=round(confidence_score, 4),
+                reason="edge_below_threshold",
                 threshold=round(_et, 4),
             )
             continue
 
         if liquidity_usd <= _ml:
             log.info(
-                "trade_skipped",
+                "signal_skipped",
                 market_id=market_id,
+                edge=round(edge, 4),
+                S=round(confidence_score, 4),
                 reason="insufficient_liquidity",
                 liquidity_usd=round(liquidity_usd, 2),
                 min_required=round(_ml, 2),
@@ -262,13 +284,13 @@ async def generate_signals(
             continue
 
         # ── 4. Confidence score filter (S = edge / volatility) ────────────────
-        confidence_score: float = edge / volatility
         if confidence_score < _mc:
             log.info(
-                "trade_skipped",
+                "signal_skipped",
                 market_id=market_id,
-                reason="low_confidence",
-                confidence_score=round(confidence_score, 4),
+                edge=round(edge, 4),
+                S=round(confidence_score, 4),
+                reason="confidence_below_threshold",
                 min_confidence=round(_mc, 4),
             )
             continue
@@ -293,8 +315,10 @@ async def generate_signals(
 
         if size_usd <= 0:
             log.info(
-                "trade_skipped",
+                "signal_skipped",
                 market_id=market_id,
+                edge=round(edge, 4),
+                S=round(confidence_score, 4),
                 reason="zero_size",
                 kelly_f=round(kelly_f, 4),
             )

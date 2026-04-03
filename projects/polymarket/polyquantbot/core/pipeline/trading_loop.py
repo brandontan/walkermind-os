@@ -169,6 +169,8 @@ async def run_trading_loop(
                 await asyncio.sleep(_interval)
                 continue
 
+            log.info("market_feed", count=len(markets))
+
             # ── 2. Feed price data into alpha model ───────────────────────────
             market_prices: dict[str, float] = {}
             for market in markets:
