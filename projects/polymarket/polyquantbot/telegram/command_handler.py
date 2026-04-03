@@ -219,15 +219,12 @@ class CommandHandler:
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
         if cmd in ("start", "help", "menu", "main_menu"):
-            from .ui.keyboard import build_main_menu
-            snap_state = self._state.snapshot()
+            from .handlers.start import handle_start  # noqa: PLC0415
+            text, keyboard = await handle_start()
             return CommandResult(
                 success=True,
-                message=(
-                    f"*KrusaderBot* — Polymarket AI Trader\n"
-                    f"Mode: `{self._mode}` | State: `{snap_state.get('state', 'UNKNOWN')}`"
-                ),
-                payload={"_keyboard": build_main_menu()},
+                message=text,
+                payload={"_keyboard": keyboard},
             )
         if cmd == "status":
             return await self._handle_status()
