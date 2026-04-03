@@ -311,8 +311,10 @@ async def test_tl06_paper_mode_used_by_default():
     assert captured_mode and captured_mode[0] == "PAPER"
 
 
-async def test_tl07_telegram_callback_forwarded_to_executor():
-    """TL-07: telegram_callback is passed through to execute_trade."""
+async def test_tl07_telegram_callback_called_by_trading_loop():
+    """TL-07: telegram_callback is called directly by the trading loop (not forwarded to
+    execute_trade) with a pre-formatted string message after a successful trade.
+    """
     stop = asyncio.Event()
 
     async def fake_sleep(s):
@@ -326,12 +328,17 @@ async def test_tl07_telegram_callback_forwarded_to_executor():
         kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
     )
     tg_cb = AsyncMock()
-    captured_tg: list = []
+    captured_executor_tg: list = []
 
     async def capture_execute(signal, *, telegram_callback=None, **kw):
-        captured_tg.append(telegram_callback)
-        return MagicMock(success=True, market_id="x", side="YES",
-                         mode="PAPER", filled_size_usd=50.0, fill_price=0.40)
+        # Capture what was (or was not) passed to execute_trade
+        captured_executor_tg.append(telegram_callback)
+        return MagicMock(
+            success=True, market_id="x", side="YES", mode="PAPER",
+            filled_size_usd=50.0, fill_price=0.40,
+            attempted_size=50.0, slippage_pct=0.005, partial_fill=False,
+            trade_id="t-test",
+        )
 
     with (
         patch(
@@ -360,7 +367,14 @@ async def test_tl07_telegram_callback_forwarded_to_executor():
             db=_make_mock_db(),
         )
 
-    assert captured_tg and captured_tg[0] is tg_cb
+    # telegram_callback is no longer forwarded to execute_trade; it is called
+    # directly by the trading loop with a pre-formatted string.
+    assert captured_executor_tg and captured_executor_tg[0] is None
+    # trading loop called tg_cb at least once with a string message
+    assert tg_cb.called
+    call_arg = tg_cb.call_args[0][0]
+    assert isinstance(call_arg, str)
+    assert "TRADE" in call_arg or "Side" in call_arg
 
 
 async def test_tl08_executor_callback_forwarded():
@@ -919,3 +933,586 @@ async def test_tl20_failed_trade_result_no_extra_log():
             stop_event=stop,
             db=_make_mock_db(),
         )
+
+
+# ── Pipeline Final Activation tests (FA-01 – FA-10) ──────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_fa01_market_cache_get_called_per_signal():
+    """FA-01: market_cache.get() is called once per executed signal (non-blocking)."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+
+    sig = SignalResult(
+        signal_id="fa01-s", market_id="fa01-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa01-t", signal_id="fa01-s", market_id="fa01-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=50.0,
+        filled_size_usd=50.0, fill_price=0.40, slippage_pct=0.005, partial_fill=False,
+    )
+
+    mock_cache = MagicMock()
+    mock_cache.get = MagicMock(return_value=None)
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa01-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            stop_event=stop, db=_make_mock_db(), market_cache=mock_cache,
+        )
+
+    mock_cache.get.assert_called_once_with("fa01-mkt")
+
+
+@pytest.mark.asyncio
+async def test_fa02_market_cache_question_used_in_telegram_message():
+    """FA-02: Human-readable question from cache appears in Telegram trade message."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+    from projects.polymarket.polyquantbot.core.market.market_cache import MarketMeta
+
+    sig = SignalResult(
+        signal_id="fa02-s", market_id="fa02-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa02-t", signal_id="fa02-s", market_id="fa02-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=50.0,
+        filled_size_usd=50.0, fill_price=0.40, slippage_pct=0.005, partial_fill=False,
+    )
+    meta = MarketMeta(
+        market_id="fa02-mkt",
+        question="Will ETH hit $10k by end of 2025?",
+        outcomes=["YES", "NO"],
+    )
+    mock_cache = MagicMock()
+    mock_cache.get = MagicMock(return_value=meta)
+
+    tg_cb = AsyncMock()
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa02-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            telegram_callback=tg_cb,
+            stop_event=stop, db=_make_mock_db(), market_cache=mock_cache,
+        )
+
+    assert tg_cb.called
+    trade_msg = tg_cb.call_args[0][0]
+    assert "ETH hit $10k" in trade_msg
+
+
+@pytest.mark.asyncio
+async def test_fa03_position_manager_open_called_on_fill():
+    """FA-03: position_manager.open() is called after a successful trade fill."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+
+    sig = SignalResult(
+        signal_id="fa03-s", market_id="fa03-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa03-t", signal_id="fa03-s", market_id="fa03-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=50.0,
+        filled_size_usd=50.0, fill_price=0.40, slippage_pct=0.005, partial_fill=False,
+    )
+
+    mock_pm = MagicMock()
+    from projects.polymarket.polyquantbot.core.portfolio.position_manager import Position
+    mock_pm.open = MagicMock(return_value=Position(
+        market_id="fa03-mkt", side="YES", avg_price=0.40, size=50.0
+    ))
+    mock_pm.unrealized_pnl = MagicMock(return_value=0.0)
+    mock_pm.all_positions = MagicMock(return_value=[])
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa03-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            stop_event=stop, db=_make_mock_db(), position_manager=mock_pm,
+        )
+
+    mock_pm.open.assert_called_once_with(
+        market_id="fa03-mkt",
+        side="YES",
+        fill_price=0.40,
+        fill_size=50.0,
+        trade_id="fa03-t",
+    )
+
+
+@pytest.mark.asyncio
+async def test_fa04_pnl_tracker_record_unrealized_called():
+    """FA-04: pnl_tracker.record_unrealized() is called after a successful fill."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+    from projects.polymarket.polyquantbot.core.portfolio.pnl import PnLRecord
+
+    sig = SignalResult(
+        signal_id="fa04-s", market_id="fa04-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa04-t", signal_id="fa04-s", market_id="fa04-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=50.0,
+        filled_size_usd=50.0, fill_price=0.40, slippage_pct=0.005, partial_fill=False,
+    )
+    mock_pnl = MagicMock()
+    mock_pnl.record_unrealized = MagicMock(
+        return_value=PnLRecord(market_id="fa04-mkt", realized=0.0, unrealized=0.0)
+    )
+    mock_pnl.record_realized = MagicMock()
+
+    mock_pm = MagicMock()
+    from projects.polymarket.polyquantbot.core.portfolio.position_manager import Position
+    mock_pm.open = MagicMock(return_value=Position(
+        market_id="fa04-mkt", side="YES", avg_price=0.40, size=50.0
+    ))
+    mock_pm.unrealized_pnl = MagicMock(return_value=2.5)
+    mock_pm.all_positions = MagicMock(return_value=[])
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa04-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            stop_event=stop, db=_make_mock_db(),
+            position_manager=mock_pm, pnl_tracker=mock_pnl,
+        )
+
+    mock_pnl.record_unrealized.assert_called_with("fa04-mkt", 2.5)
+
+
+@pytest.mark.asyncio
+async def test_fa05_pnl_in_telegram_message():
+    """FA-05: realized_pnl and unrealized_pnl appear in the Telegram trade message."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+    from projects.polymarket.polyquantbot.core.portfolio.pnl import PnLRecord
+    from projects.polymarket.polyquantbot.core.portfolio.position_manager import Position
+
+    sig = SignalResult(
+        signal_id="fa05-s", market_id="fa05-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa05-t", signal_id="fa05-s", market_id="fa05-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=50.0,
+        filled_size_usd=50.0, fill_price=0.40, slippage_pct=0.008, partial_fill=False,
+    )
+
+    mock_pm = MagicMock()
+    mock_pm.open = MagicMock(return_value=Position(
+        market_id="fa05-mkt", side="YES", avg_price=0.40, size=50.0
+    ))
+    mock_pm.unrealized_pnl = MagicMock(return_value=-1.5)  # negative unrealized
+    mock_pm.all_positions = MagicMock(return_value=[])
+
+    mock_pnl = MagicMock()
+    mock_pnl.record_unrealized = MagicMock(
+        return_value=PnLRecord(market_id="fa05-mkt", realized=5.0, unrealized=-1.5)
+    )
+
+    tg_cb = AsyncMock()
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa05-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            telegram_callback=tg_cb, stop_event=stop, db=_make_mock_db(),
+            position_manager=mock_pm, pnl_tracker=mock_pnl,
+        )
+
+    assert tg_cb.called
+    trade_msg = tg_cb.call_args[0][0]
+    assert "Realized PnL" in trade_msg
+    assert "Unrealized PnL" in trade_msg
+    assert "$5.00" in trade_msg    # realized (positive)
+    assert "-$1.50" in trade_msg   # negative unrealized: sign before $
+
+
+@pytest.mark.asyncio
+async def test_fa06_no_crash_when_market_cache_missing_metadata():
+    """FA-06: Loop does not crash when market_cache returns None (no metadata)."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+
+    sig = SignalResult(
+        signal_id="fa06-s", market_id="fa06-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa06-t", signal_id="fa06-s", market_id="fa06-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=50.0,
+        filled_size_usd=50.0, fill_price=0.40, slippage_pct=0.0, partial_fill=False,
+    )
+
+    mock_cache = MagicMock()
+    mock_cache.get = MagicMock(return_value=None)  # no metadata
+    tg_cb = AsyncMock()
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa06-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        # Must not raise
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            telegram_callback=tg_cb, stop_event=stop, db=_make_mock_db(),
+            market_cache=mock_cache,
+        )
+
+    # Telegram still called, market_id used as fallback
+    assert tg_cb.called
+    msg = tg_cb.call_args[0][0]
+    assert "fa06-mkt" in msg
+
+
+@pytest.mark.asyncio
+async def test_fa07_position_manager_failure_does_not_crash():
+    """FA-07: Exception in position_manager.open() is caught; loop continues."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+
+    sig = SignalResult(
+        signal_id="fa07-s", market_id="fa07-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa07-t", signal_id="fa07-s", market_id="fa07-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=50.0,
+        filled_size_usd=50.0, fill_price=0.40, slippage_pct=0.0, partial_fill=False,
+    )
+
+    mock_pm = MagicMock()
+    mock_pm.open = MagicMock(side_effect=ValueError("side conflict"))
+    mock_pm.all_positions = MagicMock(return_value=[])
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa07-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        # Must not raise
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            stop_event=stop, db=_make_mock_db(), position_manager=mock_pm,
+        )
+
+
+@pytest.mark.asyncio
+async def test_fa08_pnl_tracker_failure_does_not_crash():
+    """FA-08: Exception in pnl_tracker.record_unrealized() is caught; loop continues."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+    from projects.polymarket.polyquantbot.core.portfolio.position_manager import Position
+
+    sig = SignalResult(
+        signal_id="fa08-s", market_id="fa08-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa08-t", signal_id="fa08-s", market_id="fa08-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=50.0,
+        filled_size_usd=50.0, fill_price=0.40, slippage_pct=0.0, partial_fill=False,
+    )
+
+    mock_pm = MagicMock()
+    mock_pm.open = MagicMock(return_value=Position(
+        market_id="fa08-mkt", side="YES", avg_price=0.40, size=50.0
+    ))
+    mock_pm.unrealized_pnl = MagicMock(return_value=0.0)
+    mock_pm.all_positions = MagicMock(return_value=[])
+
+    mock_pnl = MagicMock()
+    mock_pnl.record_unrealized = MagicMock(side_effect=RuntimeError("db error"))
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa08-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        # Must not raise
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            stop_event=stop, db=_make_mock_db(),
+            position_manager=mock_pm, pnl_tracker=mock_pnl,
+        )
+
+
+@pytest.mark.asyncio
+async def test_fa09_slippage_in_telegram_message():
+    """FA-09: slippage_pct is formatted in the Telegram trade message."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+
+    sig = SignalResult(
+        signal_id="fa09-s", market_id="fa09-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=50.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa09-t", signal_id="fa09-s", market_id="fa09-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=50.0,
+        filled_size_usd=50.0, fill_price=0.40, slippage_pct=0.012, partial_fill=False,
+    )
+
+    tg_cb = AsyncMock()
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa09-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            telegram_callback=tg_cb, stop_event=stop, db=_make_mock_db(),
+        )
+
+    assert tg_cb.called
+    msg = tg_cb.call_args[0][0]
+    assert "Slippage" in msg
+    assert "1.20%" in msg
+
+
+@pytest.mark.asyncio
+async def test_fa10_partial_fill_shown_in_telegram_message():
+    """FA-10: partial fill info is shown in the Telegram trade message."""
+    stop = asyncio.Event()
+
+    async def fake_sleep(s):
+        stop.set()
+
+    from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
+    from projects.polymarket.polyquantbot.core.execution.executor import TradeResult
+
+    sig = SignalResult(
+        signal_id="fa10-s", market_id="fa10-mkt", side="YES",
+        p_market=0.40, p_model=0.65, edge=0.25, ev=0.5,
+        kelly_f=0.25, size_usd=100.0, liquidity_usd=50_000.0,
+    )
+    trade_result = TradeResult(
+        trade_id="fa10-t", signal_id="fa10-s", market_id="fa10-mkt",
+        side="YES", success=True, mode="PAPER", attempted_size=100.0,
+        filled_size_usd=70.0, fill_price=0.40, slippage_pct=0.0, partial_fill=True,
+    )
+
+    tg_cb = AsyncMock()
+
+    with (
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.get_active_markets",
+            new=AsyncMock(return_value=[_market("fa10-mkt")]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.generate_signals",
+            new=AsyncMock(return_value=[sig]),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.execute_trade",
+            new=AsyncMock(return_value=trade_result),
+        ),
+        patch(
+            "projects.polymarket.polyquantbot.core.pipeline.trading_loop.asyncio.sleep",
+            new=fake_sleep,
+        ),
+    ):
+        await run_trading_loop(
+            loop_interval_s=0, bankroll=1000.0, mode="PAPER",
+            telegram_callback=tg_cb, stop_event=stop, db=_make_mock_db(),
+        )
+
+    assert tg_cb.called
+    msg = tg_cb.call_args[0][0]
+    assert "partial" in msg.lower()
+    assert "$70.00" in msg

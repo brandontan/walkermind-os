@@ -8,8 +8,9 @@ Implements the main polling loop that:
    model to produce edge-filtered trading signals.
 4. Submits each signal to :func:`core.execution.execute_trade` (paper or live),
    subject to max open positions and per-market cooldown guards.
-5. After each successful fill, upserts the position and updates the trade status in
-   the database.
+5. After each successful fill, upserts the position in the database, updates the
+   in-memory :class:`PositionManager`, and records unrealized PnL via
+   :class:`PnLTracker`.
 6. Computes unrealized PnL and performance metrics at the end of every tick and logs
    them as structured JSON.  Sends a Telegram PnL summary if a callback is provided.
 7. Logs a heartbeat and signal count on every tick.
@@ -29,11 +30,14 @@ Pipeline per tick::
     for signal in signals:
         guard: open positions < MAX_OPEN_POSITIONS
         guard: market cooldown (30 s since last trade on same market)
+        market_cache.get(market_id)  ← non-blocking metadata lookup
         execute_trade(signal, ...)
         │  TradeResult — paper sim or real CLOB order
         ▼
         db.upsert_position(...)  ← on success
-        db.update_trade_status(...)
+        position_manager.open(...)  ← update in-memory position
+        pnl_tracker.record_unrealized(...)
+        telegram_callback(enriched_trade_message)
         ▼
     db.get_positions(user_id)
     PnLCalculator.calculate_unrealized_pnl(...)
@@ -76,6 +80,13 @@ from ..signal.signal_engine import generate_signals
 from ..signal.alpha_model import ProbabilisticAlphaModel
 from ..execution.executor import execute_trade
 from ...monitoring.pnl_calculator import PnLCalculator
+from ..logging.logger import (
+    log_market_metadata_used,
+    log_position_updated,
+    log_pnl_updated,
+    log_telegram_trade_detailed,
+)
+from ...telegram.message_formatter import format_trade_alert
 
 log = structlog.get_logger()
 
@@ -119,6 +130,9 @@ async def run_trading_loop(
     stop_event: Optional[asyncio.Event] = None,
     db: Optional[Any] = None,
     user_id: Optional[str] = None,
+    market_cache: Optional[Any] = None,
+    position_manager: Optional[Any] = None,
+    pnl_tracker: Optional[Any] = None,
 ) -> None:
     """Run the continuous market→signal→execution trading loop.
 
@@ -137,7 +151,8 @@ async def run_trading_loop(
                             When *None* in LIVE mode the executor falls back
                             to paper simulation.
         telegram_callback:  Optional async callable ``(message: str)`` invoked
-                            after each successful trade execution.
+                            after each successful trade execution and for PnL
+                            summaries.  Always called with a pre-formatted string.
         stop_event:         :class:`asyncio.Event` that stops the loop when set.
                             Primarily used for testing and graceful shutdown.
         db:                 Optional :class:`infra.db.DatabaseClient` instance.
@@ -145,6 +160,15 @@ async def run_trading_loop(
                             persisted and PnL is computed each tick.
         user_id:            User identifier for position/PnL tracking.  Reads
                             ``TRADING_LOOP_USER_ID`` env var when *None*.
+        market_cache:       Optional :class:`core.market.market_cache.MarketMetadataCache`
+                            instance.  When provided, market questions and outcomes
+                            are resolved from cache for enriched Telegram alerts.
+        position_manager:   Optional :class:`core.portfolio.position_manager.PositionManager`
+                            instance.  When provided, in-memory position tracking
+                            and weighted average price are maintained.
+        pnl_tracker:        Optional :class:`core.portfolio.pnl.PnLTracker` instance.
+                            When provided, realized and unrealized PnL are tracked
+                            and persisted across trades.
     """
     # ── Enforce database — no silent fallback ─────────────────────────────────
     if db is None:
@@ -289,11 +313,38 @@ async def run_trading_loop(
                     )
                     continue
 
+                # ── 4d. Fetch market metadata (non-blocking cache lookup) ──────
+                _market_question: str = ""
+                _market_outcomes: list = []
+                if market_cache is not None:
+                    try:
+                        _meta = market_cache.get(signal.market_id)
+                        if _meta is not None:
+                            _market_question = _meta.question
+                            _market_outcomes = _meta.outcomes
+                            log_market_metadata_used(
+                                signal.market_id,
+                                question=_market_question,
+                                outcomes=_market_outcomes,
+                                source="cache",
+                            )
+                        else:
+                            log.info(
+                                "market_metadata_missing",
+                                market_id=signal.market_id,
+                                fallback="market_id",
+                            )
+                    except Exception as meta_exc:  # noqa: BLE001
+                        log.warning(
+                            "market_metadata_lookup_failed",
+                            market_id=signal.market_id,
+                            error=str(meta_exc),
+                        )
+
                 result = await execute_trade(
                     signal,
                     mode=_mode,
                     executor_callback=executor_callback,
-                    telegram_callback=telegram_callback,
                 )
                 if result.success:
                     _trades_this_tick += 1
@@ -310,7 +361,7 @@ async def run_trading_loop(
                     # Record trade time for cooldown tracking
                     _market_last_trade[signal.market_id] = time.time()
 
-                    # ── 4d. Persist position (db is always present) ───────────
+                    # ── 4e. Persist position (db is always present) ───────────
                     if result.fill_price > 0.0:
                         await db.upsert_position({
                             "user_id": _user_id,
@@ -319,7 +370,7 @@ async def run_trading_loop(
                             "size": result.filled_size_usd,
                         })
 
-                        # ── 4e. Record trade in DB and set status ─────────────
+                        # ── 4f. Record trade in DB and set status ─────────────
                         await db.insert_trade({
                             "trade_id": result.trade_id,
                             "user_id": _user_id,
@@ -339,6 +390,107 @@ async def run_trading_loop(
 
                         await db.update_trade_status(result.trade_id, "open")
 
+                    # ── 4g. Update in-memory PositionManager ──────────────────
+                    _pos_realized: float = 0.0
+                    _pos_unrealized: float = 0.0
+                    if position_manager is not None and result.fill_price > 0.0:
+                        try:
+                            pos = position_manager.open(
+                                market_id=result.market_id,
+                                side=result.side,
+                                fill_price=result.fill_price,
+                                fill_size=result.filled_size_usd,
+                                trade_id=result.trade_id,
+                            )
+                            log_position_updated(
+                                result.market_id,
+                                side=pos.side,
+                                avg_price=pos.avg_price,
+                                size=pos.size,
+                                trade_id=result.trade_id,
+                            )
+
+                            # Compute unrealized PnL for this market
+                            _mark_price = market_prices.get(result.market_id, result.fill_price)
+                            _pos_unrealized = position_manager.unrealized_pnl(
+                                result.market_id, _mark_price
+                            )
+                        except Exception as pos_exc:  # noqa: BLE001
+                            log.warning(
+                                "position_manager_update_failed",
+                                market_id=result.market_id,
+                                error=str(pos_exc),
+                            )
+
+                    # ── 4h. Update PnLTracker ─────────────────────────────────
+                    if pnl_tracker is not None and result.fill_price > 0.0:
+                        try:
+                            pnl_rec = pnl_tracker.record_unrealized(
+                                result.market_id, _pos_unrealized
+                            )
+                            _pos_realized = pnl_rec.realized
+                            log_pnl_updated(
+                                result.market_id,
+                                realized=pnl_rec.realized,
+                                unrealized=pnl_rec.unrealized,
+                                total=pnl_rec.realized + pnl_rec.unrealized,
+                            )
+                        except Exception as pnl_exc:  # noqa: BLE001
+                            log.warning(
+                                "pnl_tracker_update_failed",
+                                market_id=result.market_id,
+                                error=str(pnl_exc),
+                            )
+
+                    # ── 4i. Send enriched Telegram trade alert ────────────────
+                    if telegram_callback is not None and result.fill_price > 0.0:
+                        try:
+                            # Pick the outcome label matching the traded side, or
+                            # fall back to result.side if no matching outcome found.
+                            _outcome_label = result.side
+                            if _market_outcomes:
+                                _upper_side = result.side.upper()
+                                for _o in _market_outcomes:
+                                    if str(_o).upper() == _upper_side:
+                                        _outcome_label = str(_o)
+                                        break
+                                else:
+                                    _outcome_label = _market_outcomes[0]
+                            _trade_msg = format_trade_alert(
+                                side=result.side,
+                                price=result.fill_price,
+                                size=result.attempted_size,
+                                market_id=result.market_id,
+                                market_question=_market_question,
+                                outcome=_outcome_label,
+                                slippage_pct=result.slippage_pct,
+                                partial_fill=result.partial_fill,
+                                filled_size=result.filled_size_usd,
+                                realized_pnl=_pos_realized if pnl_tracker is not None else None,
+                                unrealized_pnl=_pos_unrealized if position_manager is not None else None,
+                            )
+                            await telegram_callback(_trade_msg)
+                            log_telegram_trade_detailed(
+                                trade_id=result.trade_id,
+                                market_id=result.market_id,
+                                market_question=_market_question or result.market_id,
+                                side=result.side,
+                                price=result.fill_price,
+                                size=result.attempted_size,
+                                slippage_pct=result.slippage_pct,
+                                partial_fill=result.partial_fill,
+                                filled_size=result.filled_size_usd,
+                                realized_pnl=_pos_realized,
+                                unrealized_pnl=_pos_unrealized,
+                            )
+                        except Exception as tg_exc:  # noqa: BLE001
+                            log.warning(
+                                "telegram_trade_alert_failed",
+                                trade_id=result.trade_id,
+                                market_id=result.market_id,
+                                error=str(tg_exc),
+                            )
+
             # ── 5. Compute and log PnL metrics (db always present) ───────────
             try:
                 positions = await db.get_positions(_user_id)
@@ -355,24 +507,23 @@ async def run_trading_loop(
 
                 log.info("pnl_update", pnl=metrics)
 
-                # ── 5a. Telegram PnL summary ──────────────────────────────────
-                if telegram_callback is not None:
+                # ── 5a. Update PnLTracker with unrealized PnL for all positions ─
+                if pnl_tracker is not None and position_manager is not None:
                     try:
-                        r_sign = "+" if realized >= 0 else ""
-                        u_sign = "+" if unrealized >= 0 else ""
-                        t_sign = "+" if metrics["total_pnl"] >= 0 else ""
-                        pnl_msg = (
-                            "📊 *PnL Update*\n"
-                            f"• Realized:   `{r_sign}${realized:.2f}`\n"
-                            f"• Unrealized: `{u_sign}${unrealized:.2f}`\n"
-                            f"• Total:      `{t_sign}${metrics['total_pnl']:.2f}`"
+                        for _open_pos in position_manager.all_positions():
+                            _mp = market_prices.get(_open_pos.market_id, _open_pos.avg_price)
+                            _upnl = position_manager.unrealized_pnl(_open_pos.market_id, _mp)
+                            pnl_tracker.record_unrealized(_open_pos.market_id, _upnl)
+                        log.info(
+                            "pnl_updated",
+                            positions=position_manager.count(),
                         )
-                        await telegram_callback(pnl_msg)
-                    except Exception as tg_exc:  # noqa: BLE001
-                        log.error(
-                            "pnl_telegram_error",
-                            error=str(tg_exc),
+                    except Exception as upnl_exc:  # noqa: BLE001
+                        log.warning(
+                            "pnl_tracker_tick_update_failed",
+                            error=str(upnl_exc),
                         )
+
             except Exception as pnl_exc:  # noqa: BLE001
                 log.error(
                     "pnl_update_error",

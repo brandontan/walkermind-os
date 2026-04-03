@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Market Metadata + Paper Trading Realism COMPLETE ✅
+Status: Pipeline Final Activation COMPLETE ✅
 
 ---
 
@@ -48,6 +48,18 @@ MARKET METADATA + PAPER TRADING REALISM
 - core/logging/logger.py: added log_trade_executed_realistic, log_partial_fill, log_slippage_applied, log_pnl_realized, log_pnl_unrealized helpers
 - tests/test_phase14_market_paper_realism.py: 30 tests (MP-01–MP-30) — all pass
 - reports/forge/market_metadata_paper_realism.md: completion report
+
+---
+
+PIPELINE FINAL ACTIVATION
+
+- core/pipeline/trading_loop.py: integrated MarketMetadataCache, PositionManager, PnLTracker as optional params; market_cache.get() called per-signal (non-blocking); position_manager.open() called on fill; pnl_tracker.record_unrealized() called after fill and per-tick for all open positions; telegram_callback now called directly by loop (not executor) with enriched string message; telegram_callback type mismatch fixed (was structured kwargs, now always string); logs: market_metadata_used, position_updated, pnl_updated, telegram_trade_detailed
+- telegram/message_formatter.py: format_trade_alert gains realized_pnl + unrealized_pnl optional params; both shown with sign prefix in message
+- telegram/telegram_live.py: alert_trade() gains market_question, outcome, slippage_pct, partial_fill, filled_size, realized_pnl, unrealized_pnl params; all forwarded to format_trade_alert
+- core/logging/logger.py: added log_market_metadata_used(), log_position_updated(), log_pnl_updated(), log_telegram_trade_detailed() helpers
+- main.py: instantiates MarketMetadataCache + PositionManager + PnLTracker; starts market cache background refresh; creates _tg_send(str) callback wrapper; passes all components to run_trading_loop; market_cache.stop() added to shutdown sequence
+- tests/test_pipeline_integration_final.py: updated test_tl07 for new architecture; added FA-01–FA-10 pipeline activation tests; total 109 tests pass
+- reports/forge/pipeline_final_activation.md: completion report
 
 ---
 

@@ -939,6 +939,8 @@ def format_trade_alert(
     slippage_pct: float = 0.0,
     partial_fill: bool = False,
     filled_size: float = 0.0,
+    realized_pnl: Optional[float] = None,
+    unrealized_pnl: Optional[float] = None,
 ) -> str:
     """Format a trade executed alert.
 
@@ -952,6 +954,8 @@ def format_trade_alert(
         slippage_pct: Applied slippage fraction (e.g. 0.008 = 0.8 %).
         partial_fill: Whether the fill was partial.
         filled_size: Actual filled size in USD (shown when partial_fill is True).
+        realized_pnl: Cumulative realized PnL in USD for this market (optional).
+        unrealized_pnl: Current unrealized PnL in USD for this market (optional).
 
     Returns:
         Formatted Telegram Markdown message string.
@@ -971,6 +975,12 @@ def format_trade_alert(
         lines.append(f"Size: `${size:.2f}`")
     if slippage_pct:
         lines.append(f"Slippage: `{slippage_pct * 100:.2f}%`")
+    if realized_pnl is not None:
+        r_sign = "+" if realized_pnl >= 0 else "-"
+        lines.append(f"Realized PnL: `{r_sign}${abs(realized_pnl):.2f}`")
+    if unrealized_pnl is not None:
+        u_sign = "+" if unrealized_pnl >= 0 else "-"
+        lines.append(f"Unrealized PnL: `{u_sign}${abs(unrealized_pnl):.2f}`")
     lines.append(f"_at {_ts_utc()}_")
     return "\n".join(line for line in lines if line is not None)
 
