@@ -46,6 +46,7 @@ Usage::
 """
 from __future__ import annotations
 
+import math
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -68,6 +69,10 @@ _MAX_POSITION_FRACTION: float = 0.10   # max 10 % of bankroll per trade
 _MIN_CONFIDENCE: float = 0.1           # minimum S = edge / volatility
 _FORCE_SIGNAL_TOP_N: int = 1           # default markets to force-signal per call
 _MIN_FORCE_MODE_EDGE: float = 0.01     # minimum edge injected in force mode
+
+# ── Strategy adjustment constants ──────────────────────────────────────────────
+
+_MEAN_REVERSION_WEIGHT: float = 0.1    # fraction of 0.5 blended into p_model
 
 
 def _env_float(name: str, default: float) -> float:
@@ -171,6 +176,7 @@ async def generate_signals(
     min_confidence: float | None = None,
     alpha_model: "Optional[ProbabilisticAlphaModel]" = None,
     force_signal_mode: bool | None = None,
+    strategy_state: "Optional[dict[str, bool]]" = None,
 ) -> list[SignalResult]:
     """Evaluate a list of markets and return signals with positive edge.
 
@@ -204,6 +210,9 @@ async def generate_signals(
         force_signal_mode:    When True, bypasses all filters and emits up to
                               ``FORCE_SIGNAL_TOP_N`` signals (env: FORCE_SIGNAL_MODE).
                               Sizes each position at exactly 1 % of bankroll.
+        strategy_state:       Optional dict mapping strategy name → enabled bool.
+                              When provided only active strategies contribute to
+                              p_model.  If None all strategies are treated as active.
 
     Returns:
         List of :class:`SignalResult` instances, one per qualifying market.
@@ -352,6 +361,41 @@ async def generate_signals(
             p_model = float(market.get("p_model", p_market))
             # Volatility estimated from bid-ask spread
             volatility = _spread_volatility(market, p_market)
+
+        # ── Strategy-state p_model adjustments ───────────────────────────────
+        # Apply each active strategy component; log which strategies contributed.
+        _use_ev_momentum: bool = True
+        _use_mean_reversion: bool = True
+        _use_liquidity_edge: bool = True
+        if strategy_state is not None:
+            _use_ev_momentum = bool(strategy_state.get("ev_momentum", True))
+            _use_mean_reversion = bool(strategy_state.get("mean_reversion", True))
+            _use_liquidity_edge = bool(strategy_state.get("liquidity_edge", True))
+
+            # ev_momentum disabled: remove momentum-derived edge (set p_model = p_market)
+            if not _use_ev_momentum:
+                p_model = p_market
+
+            # mean_reversion active: pull p_model slightly toward 0.5
+            if _use_mean_reversion and p_model != p_market:
+                p_model = p_model * (1.0 - _MEAN_REVERSION_WEIGHT) + 0.5 * _MEAN_REVERSION_WEIGHT
+
+            # liquidity_edge active: scale p_model edge by log-liquidity factor
+            if _use_liquidity_edge and liquidity_usd > 0 and p_model != p_market:
+                liq_factor: float = min(1.0, math.log1p(liquidity_usd) / math.log1p(_MIN_LIQUIDITY_USD))
+                p_model = p_market + (p_model - p_market) * liq_factor
+
+            # Clamp to valid probability range
+            p_model = max(0.001, min(0.999, p_model))
+
+            log.info(
+                "strategy_used_in_signal",
+                market_id=market_id,
+                ev_momentum=_use_ev_momentum,
+                mean_reversion=_use_mean_reversion,
+                liquidity_edge=_use_liquidity_edge,
+                p_model_adjusted=round(p_model, 4),
+            )
 
         # ── 1. Edge calculation ───────────────────────────────────────────────
         edge: float = p_model - p_market

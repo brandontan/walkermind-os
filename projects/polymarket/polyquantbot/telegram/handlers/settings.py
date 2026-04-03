@@ -5,7 +5,7 @@ Return type: tuple[str, InlineKeyboard]
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 import structlog
 
@@ -15,6 +15,7 @@ from ..ui.screens import settings_screen, mode_switched_screen, error_screen
 if TYPE_CHECKING:
     from ..command_handler import CommandHandler
     from ...config.runtime_config import ConfigManager
+    from ...strategy.strategy_manager import StrategyStateManager
 
 log = structlog.get_logger(__name__)
 
@@ -37,15 +38,43 @@ async def handle_settings(
 
 async def handle_settings_strategy(
     cmd_handler: "CommandHandler",
+    strategy_state: "Optional[StrategyStateManager]" = None,
 ) -> tuple[str, list]:
-    """Return strategy selection menu."""
+    """Return strategy toggle menu.
+
+    When *strategy_state* is provided the full boolean toggle state is
+    rendered (☑ / ⬜ per strategy).  Falls back to legacy single-active
+    display when not provided.
+
+    Args:
+        cmd_handler: CommandHandler for legacy metrics fallback.
+        strategy_state: Optional StrategyStateManager for multi-toggle UI.
+    """
+    if strategy_state is not None:
+        active_states = strategy_state.get_state()
+        active_list = strategy_state.get_active()
+        keyboard = build_strategy_menu(
+            strategies=_KNOWN_STRATEGIES,
+            active_states=active_states,
+        )
+        text = (
+            "📐 *STRATEGIES*\n\n"
+            + "\n".join(
+                f"{'☑' if active_states.get(s) else '⬜'} `{s}`"
+                for s in _KNOWN_STRATEGIES
+            )
+            + f"\n\nActive: {', '.join(f'`{s}`' for s in active_list) or 'none'}\n"
+            "Tap a strategy to toggle it:"
+        )
+        return text, keyboard
+
+    # Legacy fallback: derive single-active from metrics
     active: str | None = None
     multi_metrics = getattr(cmd_handler, "_multi_metrics", None)
     if multi_metrics is not None:
         try:
             snap = multi_metrics.snapshot()
             if snap:
-                # Treat strategy with most signals as active
                 active = max(snap, key=lambda k: snap[k].get("signals_generated", 0))
         except Exception as exc:
             log.debug("handle_settings_strategy_metrics_error", error=str(exc))
