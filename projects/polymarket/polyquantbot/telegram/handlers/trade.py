@@ -88,7 +88,7 @@ async def handle_trade(mode: str = "default") -> tuple[str, list]:
 
     lines.append(
         f"\n💹 *Total Unrealized:* "
-        f"{'+'if total_unrealized >= 0 else ''}{total_unrealized:.4f} USD"
+        f"{'+'if total_unrealized >= 0 else ''}{total_unrealized:.4f} USD"  # noqa: E275
     )
 
     if pnl_summary:

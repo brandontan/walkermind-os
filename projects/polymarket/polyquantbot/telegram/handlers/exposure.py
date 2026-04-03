@@ -88,7 +88,7 @@ async def handle_exposure() -> tuple[str, list]:
         "📉 *Exposure Report*\n",
         f"💰 Equity: ${wallet_state.equity:.2f}",
         f"🔒 Total Exposure: ${report.total_exposure:.2f}",
-        f"📊 Exposure %: {report.exposure_pct_of_equity:.1f}%",
+        f"📊 Exposure %: {report.exposure_pct_of_equity:.1f} %",
         f"📌 Positions: {report.position_count}",
         f"⚠️ Max Single: ${report.max_single_exposure:.2f}\n",
     ]
