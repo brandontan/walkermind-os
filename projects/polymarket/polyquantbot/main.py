@@ -552,6 +552,25 @@ async def main() -> None:
     _set_pnl_handler(pnl_tracker)
     log.info("trade_visibility_handlers_wired")
 
+    # ── Paper trading engine container (wallet, positions, ledger, exposure) ───
+    from .execution.engine_router import get_engine_container as _get_engines
+    engine_container = _get_engines()
+
+    # Inject paper engines into Telegram handlers (wallet, trade, exposure)
+    engine_container.inject_into_handlers()
+
+    # Also inject PnLTracker into trade handler (realized PnL display)
+    from .telegram.handlers.trade import set_pnl_tracker as _set_trade_pnl
+    _set_trade_pnl(pnl_tracker)
+    log.info("paper_engine_handlers_wired", mode=mode)
+
+    # Inject paper engine references into callback router
+    _callback_router.set_paper_wallet_engine(engine_container.wallet)
+    _callback_router.set_paper_engine(engine_container.paper_engine)
+    _callback_router.set_paper_position_manager(engine_container.positions)
+    _callback_router.set_exposure_calculator(engine_container.exposure)
+    log.info("callback_router_engines_injected", mode=mode)
+
     # ── Telegram callback — accepts a pre-formatted string ────────────────────
     from .telegram.telegram_live import AlertType as _AlertType
 
@@ -620,6 +639,7 @@ async def main() -> None:
                 market_cache=market_cache,
                 position_manager=position_manager,
                 pnl_tracker=pnl_tracker,
+                paper_engine=engine_container.paper_engine,
             ),
             name="trading_loop",
         )

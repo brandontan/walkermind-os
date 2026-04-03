@@ -52,14 +52,14 @@ def build_status_menu() -> InlineKeyboard:
 
     Layout::
 
-        [📈 Positions]   [💹 PnL      ]
-        [📊 Performance] [🔄 Refresh  ]
-        [🏠 Main Menu  ]
+        [📈 Positions]   [💹 PnL          ]
+        [📊 Performance] [📉 Exposure     ]
+        [🔄 Refresh    ] [🏠 Main Menu    ]
     """
     return [
-        [_btn("📈 Positions", "positions"), _btn("💹 PnL",         "pnl")],
-        [_btn("📊 Performance", "performance"), _btn("🔄 Refresh", "refresh")],
-        [_btn("🏠 Main Menu", "back_main")],
+        [_btn("📈 Positions", "positions"), _btn("💹 PnL",          "pnl")],
+        [_btn("📊 Performance", "performance"), _btn("📉 Exposure", "exposure")],
+        [_btn("🔄 Refresh", "refresh"),     _btn("🏠 Main Menu",    "back_main")],
     ]
 
 
@@ -72,6 +72,20 @@ def build_wallet_menu() -> InlineKeyboard:
         [_btn("💵 Balance",    "wallet_balance"),  _btn("📉 Exposure",   "wallet_exposure")],
         [_btn("💸 Withdraw",   "wallet_withdraw"),  _btn("🔄 Refresh",    "wallet")],
         [_btn("🏠 Main Menu",  "back_main")],
+    ]
+
+
+def build_paper_wallet_menu() -> InlineKeyboard:
+    """Paper wallet overview menu — trade and exposure actions.
+
+    Layout::
+
+        [📊 Trade      ] [📉 Exposure ]
+        [🔄 Refresh   ] [🏠 Main Menu]
+    """
+    return [
+        [_btn("📊 Trade",     "trade"),     _btn("📉 Exposure", "exposure")],
+        [_btn("🔄 Refresh",  "wallet"),    _btn("🏠 Main Menu", "back_main")],
     ]
 
 

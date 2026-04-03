@@ -52,6 +52,10 @@ if TYPE_CHECKING:
     from ...config.runtime_config import ConfigManager
     from ...strategy.strategy_manager import StrategyStateManager
     from ...infra.db import DatabaseClient
+    from ...core.wallet_engine import WalletEngine
+    from ...core.positions import PaperPositionManager
+    from ...core.exposure import ExposureCalculator
+    from ...execution.paper_engine import PaperEngine
 
 _STRATEGY_TOGGLE_PREFIX = "strategy_toggle:"
 
@@ -99,6 +103,12 @@ class CallbackRouter:
         self._strategy_state = strategy_state
         self._db: "Optional[DatabaseClient]" = db
 
+        # ── Paper trading engine references (injected post-init) ──────────────
+        self._paper_wallet_engine: "Optional[WalletEngine]" = None
+        self._paper_engine: "Optional[PaperEngine]" = None
+        self._paper_pm: "Optional[PaperPositionManager]" = None
+        self._exposure_calc: "Optional[ExposureCalculator]" = None
+
         log.info(
             "callback_router_initialized",
             mode=mode,
@@ -115,6 +125,42 @@ class CallbackRouter:
         """
         self._db = db
         log.info("callback_router_db_wired")
+
+    def set_paper_wallet_engine(self, engine: "WalletEngine") -> None:
+        """Inject WalletEngine for paper wallet UI.
+
+        Args:
+            engine: Initialized :class:`~core.wallet_engine.WalletEngine`.
+        """
+        self._paper_wallet_engine = engine
+        log.info("callback_router_paper_wallet_engine_injected")
+
+    def set_paper_engine(self, engine: "PaperEngine") -> None:
+        """Inject PaperEngine for trade execution routing.
+
+        Args:
+            engine: Initialized :class:`~execution.paper_engine.PaperEngine`.
+        """
+        self._paper_engine = engine
+        log.info("callback_router_paper_engine_injected")
+
+    def set_paper_position_manager(self, pm: "PaperPositionManager") -> None:
+        """Inject PaperPositionManager for positions display.
+
+        Args:
+            pm: Initialized :class:`~core.positions.PaperPositionManager`.
+        """
+        self._paper_pm = pm
+        log.info("callback_router_paper_position_manager_injected")
+
+    def set_exposure_calculator(self, calc: "ExposureCalculator") -> None:
+        """Inject ExposureCalculator for exposure report display.
+
+        Args:
+            calc: Initialized :class:`~core.exposure.ExposureCalculator`.
+        """
+        self._exposure_calc = calc
+        log.info("callback_router_exposure_calculator_injected")
 
     async def route(
         self,
@@ -255,6 +301,10 @@ class CallbackRouter:
 
         # ── Wallet ─────────────────────────────────────────────────────────
         if action == "wallet":
+            # In PAPER mode, always show paper wallet (cash/locked/equity)
+            if self._mode == "PAPER" and self._paper_wallet_engine is not None:
+                from .wallet import handle_paper_wallet
+                return await handle_paper_wallet(mode=self._mode)
             return await handle_wallet(mode=self._mode, user_id=user_id)
 
         if action == "wallet_balance":
@@ -265,6 +315,23 @@ class CallbackRouter:
 
         if action == "wallet_withdraw":
             return await handle_wallet_withdraw(user_id=user_id)
+
+        # ── Paper wallet (explicit route, always uses paper engine) ────────
+        if action == "paper_wallet":
+            from .wallet import handle_paper_wallet
+            return await handle_paper_wallet(mode=self._mode)
+
+        # ── Trade (paper positions + PnL) ──────────────────────────────────
+        if action == "trade":
+            from .trade import handle_trade
+            log.info("callback_dispatching_trade", mode=self._mode)
+            return await handle_trade(mode=self._mode)
+
+        # ── Exposure (real exposure report via ExposureCalculator) ─────────
+        if action == "exposure":
+            from .exposure import handle_exposure
+            log.info("callback_dispatching_exposure", mode=self._mode)
+            return await handle_exposure()
 
         # ── Settings ───────────────────────────────────────────────────────
         if action == "settings":
