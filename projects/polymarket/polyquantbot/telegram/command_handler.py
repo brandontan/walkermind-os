@@ -263,6 +263,8 @@ class CommandHandler:
             return await self._handle_markets()
         if cmd == "rediscover":
             return await self._handle_rediscover()
+        if cmd == "alpha":
+            return await self._handle_alpha()
 
         # ── New menu callbacks (new Telegram system) ───────────────────────────
         if cmd == "wallet":
@@ -1016,6 +1018,19 @@ class CommandHandler:
             success=True,
             message=f"✅ Mode switched to `{new_mode}`.",
         )
+
+    async def _handle_alpha(self) -> CommandResult:
+        """Return alpha model debug diagnostics via /alpha command."""
+        from .handlers.alpha_debug import handle_alpha_debug
+        try:
+            text, _keyboard = await handle_alpha_debug()
+            return CommandResult(success=True, message=text)
+        except Exception as exc:
+            log.error("handle_alpha_error", error=str(exc))
+            return CommandResult(
+                success=False,
+                message="❌ Failed to load alpha debug data.",
+            )
 
     # ── Telegram send with retry ───────────────────────────────────────────────
 
