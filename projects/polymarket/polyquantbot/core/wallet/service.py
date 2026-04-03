@@ -58,13 +58,12 @@ def _derive_address(public_key_bytes_uncompressed: bytes) -> str:
 
     Standard derivation: keccak256(pub_key[1:])[12:] → 20-byte address.
 
-    Note:
-        Python's ``hashlib.sha3_256`` implements FIPS 202 (SHA-3), which uses
-        different padding from Ethereum's Keccak-256.  The resulting address is
-        valid as a unique identifier for this internal system, but will NOT match
-        the on-chain Ethereum address derived from the same key.  For production
-        Ethereum-compatible addresses, install ``eth_account`` and replace this
-        function with ``eth_account.Account.from_key(private_key_hex).address``.
+    Uses ``eth_account`` if installed (correct Ethereum Keccak-256); otherwise
+    falls back to ``hashlib.sha3_256`` (FIPS 202 SHA-3, different padding from
+    Ethereum's Keccak).  The fallback produces a valid unique identifier but
+    the address will NOT match the on-chain Ethereum address derived from the
+    same key.  Install ``eth_account`` for production Ethereum-compatible
+    address derivation.
 
     Args:
         public_key_bytes_uncompressed: 65-byte uncompressed public key (04 || x || y).
@@ -72,10 +71,23 @@ def _derive_address(public_key_bytes_uncompressed: bytes) -> str:
     Returns:
         Lowercase ``0x``-prefixed 42-character address string.
     """
-    # Drop the 0x04 prefix byte; hash the 64-byte x||y coordinate pair
-    xy_bytes = public_key_bytes_uncompressed[1:]
-    digest = hashlib.sha3_256(xy_bytes).digest()
-    # Take the last 20 bytes as the address
+    xy_bytes = public_key_bytes_uncompressed[1:]  # drop 0x04 prefix
+
+    try:
+        from eth_account import Account as _Account  # noqa: PLC0415
+        # eth_account is available — derive the correct Ethereum address
+        # Reconstruct private key not available here, so compute via keccak directly
+        try:
+            from eth_hash.auto import keccak  # noqa: PLC0415
+            digest = keccak(xy_bytes)
+        except ImportError:
+            # eth_hash fallback — sha3_256 (not true keccak, but consistent)
+            digest = hashlib.sha3_256(xy_bytes).digest()
+    except ImportError:
+        # Fallback: sha3_256 (FIPS 202 SHA-3, not Ethereum's Keccak-256)
+        # WARNING: address will not match on-chain Ethereum address for the same key
+        digest = hashlib.sha3_256(xy_bytes).digest()
+
     return "0x" + digest[-20:].hex()
 
 
@@ -408,8 +420,9 @@ class WalletService:
 
         account: LocalAccount = Account.from_key(f"0x{private_key_hex}")
 
-        # USDC has 6 decimal places on Polygon
-        amount_atomic = int(amount_usdc * 1_000_000)
+        # USDC has 6 decimal places on Polygon; use Decimal to avoid float rounding
+        from decimal import Decimal  # noqa: PLC0415
+        amount_atomic = int(Decimal(str(amount_usdc)) * Decimal("1000000"))
 
         # Minimal ERC-20 transfer ABI
         erc20_abi = [

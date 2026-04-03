@@ -223,7 +223,7 @@ async def test_wr18_handle_wallet_no_service():
     original = wh._wallet_service
     wh._wallet_service = None
     try:
-        text, kb = await wh.handle_wallet(mode="PAPER", user_id=0)
+        text, kb = await wh.handle_wallet(mode="PAPER", user_id=None)
         assert isinstance(text, str)
         assert isinstance(kb, list)
     finally:
@@ -251,7 +251,7 @@ async def test_wr20_handle_wallet_withdraw():
     """WR-20: handle_wallet_withdraw returns withdraw screen."""
     import projects.polymarket.polyquantbot.telegram.handlers.wallet as wh
     wh._wallet_service = None
-    text, kb = await wh.handle_wallet_withdraw(user_id=0)
+    text, kb = await wh.handle_wallet_withdraw(user_id=None)
     assert isinstance(text, str)
     assert "WITHDRAW" in text
     assert isinstance(kb, list)

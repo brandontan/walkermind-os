@@ -140,13 +140,15 @@ def wallet_withdraw_result_screen(result: dict) -> str:
             f"Amount: `{amount:.4f} USDC`\n"
             f"Tx: `{tx_hash}`"
         )
-    return (
-        "⏳ *WITHDRAW QUEUED*\n\n"
-        f"To: `{to_addr}`\n"
-        f"Amount: `{amount:.4f} USDC`\n"
-        f"Status: `{status}`\n"
-        + (f"_Note: {note}_" if note else "")
-    )
+    lines = [
+        "⏳ *WITHDRAW QUEUED*\n",
+        f"To: `{to_addr}`",
+        f"Amount: `{amount:.4f} USDC`",
+        f"Status: `{status}`",
+    ]
+    if note:
+        lines.append(f"_{note}_")
+    return "\n".join(lines)
 
 
 # ── Settings screens ───────────────────────────────────────────────────────────

@@ -38,9 +38,9 @@ def set_wallet_service(service: "WalletService") -> None:
     log.info("wallet_handler_service_injected")
 
 
-async def handle_wallet(mode: str, user_id: int = 0) -> tuple[str, list]:
+async def handle_wallet(mode: str, user_id: Optional[int] = None) -> tuple[str, list]:
     """Return wallet overview screen with live address and balance."""
-    if _wallet_service is None or user_id == 0:
+    if _wallet_service is None or user_id is None:
         return wallet_screen(mode=mode), build_wallet_menu()
 
     try:
@@ -55,9 +55,9 @@ async def handle_wallet(mode: str, user_id: int = 0) -> tuple[str, list]:
         return wallet_screen(mode=mode), build_wallet_menu()
 
 
-async def handle_wallet_balance(user_id: int = 0) -> tuple[str, list]:
+async def handle_wallet_balance(user_id: Optional[int] = None) -> tuple[str, list]:
     """Return balance detail screen with live data."""
-    if _wallet_service is None or user_id == 0:
+    if _wallet_service is None or user_id is None:
         return wallet_balance_screen(), build_wallet_menu()
 
     try:
@@ -70,14 +70,14 @@ async def handle_wallet_balance(user_id: int = 0) -> tuple[str, list]:
         return wallet_balance_screen(), build_wallet_menu()
 
 
-async def handle_wallet_exposure(user_id: int = 0) -> tuple[str, list]:
+async def handle_wallet_exposure(user_id: Optional[int] = None) -> tuple[str, list]:
     """Return open exposure detail screen."""
     return wallet_exposure_screen(), build_wallet_menu()
 
 
-async def handle_wallet_withdraw(user_id: int = 0) -> tuple[str, list]:
+async def handle_wallet_withdraw(user_id: Optional[int] = None) -> tuple[str, list]:
     """Return withdraw initiation screen showing address and available balance."""
-    if _wallet_service is None or user_id == 0:
+    if _wallet_service is None or user_id is None:
         return wallet_withdraw_screen(), build_wallet_menu()
 
     try:

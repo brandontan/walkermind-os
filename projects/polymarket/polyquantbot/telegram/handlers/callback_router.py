@@ -113,7 +113,7 @@ class CallbackRouter:
         chat_id: Optional[int] = cq.get("message", {}).get("chat", {}).get("id")
         message_id: Optional[int] = cq.get("message", {}).get("message_id")
         cq_id: str = cq.get("id", "")
-        user_id: int = cq.get("from", {}).get("id", 0)
+        user_id: Optional[int] = cq.get("from", {}).get("id") or None
 
         log.info(
             "callback_received",
@@ -177,7 +177,7 @@ class CallbackRouter:
 
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
-    async def _dispatch(self, action: str, user_id: int = 0) -> tuple[str, list]:
+    async def _dispatch(self, action: str, user_id: Optional[int] = None) -> tuple[str, list]:
         """Route ``action`` to the correct handler.
 
         Args:
