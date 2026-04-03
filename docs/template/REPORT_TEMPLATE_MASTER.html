@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{DOC_TITLE}} - Walker AI</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                        display: ['Rajdhani', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            dark: '#020508',
+                            surface: '#0a1017',
+                            surface2: '#111b27',
+                            border: '#1a2c40',
+                            accent: '#00d4ff',
+                            success: '#00ffb3',
+                            warn: '#f59e0b',
+                            danger: '#ff3355',
+                            muted: '#4b6982',
+                            info: '#0088cc'
+                        }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #020508;
+            color: #e2e8f0;
+            overflow-x: hidden;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .cyber-grid {
+            position: fixed;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.5;
+        }
+
+        .scanline-overlay {
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0,0,0,0) 0px,
+                rgba(0,0,0,0) 2px,
+                rgba(0, 212, 255, 0.02) 3px,
+                rgba(0, 212, 255, 0.02) 4px
+            );
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .crt-flicker { animation: flicker 0.15s infinite; }
+        @keyframes flicker { 0% { opacity: 0.98; } 50% { opacity: 1; } 100% { opacity: 0.99; } }
+        
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up { animation: fadeUp 0.4s ease-out forwards; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #020508; }
+        ::-webkit-scrollbar-thumb { background: #1a2c40; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00d4ff; }
+
+        .glass-panel {
+            background: rgba(10, 16, 23, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(26, 44, 64, 0.8);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        ::selection { background: rgba(0, 212, 255, 0.3); color: #fff; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* --- PRINT / PDF OPTIMIZATION --- */
+        @media print {
+            body { background-color: #020508 !important; }
+            .cyber-grid, .scanline-overlay, nav, #boot-screen { display: none !important; }
+            .tab-content { display: block !important; opacity: 1 !important; page-break-inside: avoid; margin-bottom: 2rem; }
+            #dashboard { display: block !important; padding: 0 !important; }
+            .glass-panel { break-inside: avoid; border: 1px solid #1a2c40 !important; background: #0a1017 !important; }
+            h2, h3 { break-after: avoid; }
+        }
+    </style>
+</head>
+<body class="font-sans antialiased text-slate-300 min-h-screen crt-flicker">
+    <div class="cyber-grid"></div>
+    <div class="scanline-overlay"></div>
+
+    <!-- BOOT SEQUENCE (Web Only) -->
+    <div id="boot-screen" class="relative z-10 h-screen w-full flex items-center justify-center p-6">
+        <div class="max-w-2xl w-full">
+            <pre id="boot-text" class="font-mono text-brand-accent text-sm md:text-base whitespace-pre-wrap leading-relaxed"></pre>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div id="dashboard" class="relative z-10 hidden max-w-6xl mx-auto p-4 md:p-6 lg:p-8 pt-6 pb-24">
+        
+        <!-- HEADER BLOCK -->
+        <header class="glass-panel p-6 md:p-8 rounded-lg mb-6 relative overflow-hidden group">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-brand-accent/5 rounded-bl-full pointer-events-none group-hover:bg-brand-accent/10 transition-colors"></div>
+            
+            <div class="flex flex-col md:flex-row justify-between md:items-end gap-4 relative z-10">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="inline-flex items-center gap-2 px-3 py-1 font-mono text-[10px] text-brand-accent border border-brand-accent/30 bg-brand-accent/10 rounded tracking-widest">
+                            <span class="w-1.5 h-1.5 rounded-full bg-brand-accent animate-pulse-fast"></span>
+                            {{HEADER_BADGE_1}}
+                        </span>
+                        <span class="inline-flex items-center px-3 py-1 font-mono text-[10px] text-brand-warn border border-brand-warn/30 bg-brand-warn/10 rounded tracking-widest">
+                            {{HEADER_BADGE_2}}
+                        </span>
+                    </div>
+                    <h1 class="font-display text-4xl md:text-5xl font-bold tracking-wider text-white mb-1 uppercase">
+                        {{PROJECT_NAME}} <span class="text-brand-accent">{{PROJECT_SUFFIX}}</span>
+                    </h1>
+                    <p class="font-mono text-xs text-brand-muted tracking-widest uppercase">
+                        {{REPORT_SUBTITLE}}
+                    </p>
+                </div>
+                
+                <div class="flex flex-col gap-1 font-mono text-[10px] text-right">
+                    <p><span class="text-brand-muted">OWNER:</span> <span class="text-brand-accent">{{META_OWNER}}</span></p>
+                    <p><span class="text-brand-muted">DATE:</span> <span class="text-slate-300">{{META_DATE}}</span></p>
+                    <p><span class="text-brand-muted">STATUS:</span> <span class="text-brand-success">{{META_STATUS}}</span></p>
+                </div>
+            </div>
+        </header>
+
+        <!-- NAVIGATION (Hidden in Print) -->
+        <nav class="flex flex-wrap gap-2 mb-6 border-b border-brand-border pb-px">
+            <button onclick="switchTab('overview', this)" class="tab-btn flex items-center gap-2 px-4 py-3 font-mono text-[11px] tracking-widest transition-all text-brand-accent border-b-2 border-brand-accent bg-brand-accent/5">
+                01_OVERVIEW
+            </button>
+            <button onclick="switchTab('execution', this)" class="tab-btn flex items-center gap-2 px-4 py-3 font-mono text-[11px] tracking-widest transition-all text-brand-muted hover:text-slate-300 hover:bg-brand-surface2">
+                02_EXECUTION
+            </button>
+            <button onclick="switchTab('risk', this)" class="tab-btn flex items-center gap-2 px-4 py-3 font-mono text-[11px] tracking-widest transition-all text-brand-muted hover:text-slate-300 hover:bg-brand-surface2">
+                03_RISK & LOGS
+            </button>
+        </nav>
+
+        <!-- ==========================================
+             TAB 1: OVERVIEW 
+             ========================================== -->
+        <div id="tab-overview" class="tab-content active animate-fade-up space-y-6">
+            
+            <!-- BLOCK: EXECUTIVE SUMMARY + KPI GRID -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Summary Text -->
+                <div class="lg:col-span-2 glass-panel p-6 rounded-lg">
+                    <h2 class="font-display text-xl font-semibold text-white tracking-widest uppercase mb-4 flex items-center gap-2">
+                        <span class="text-brand-accent">///</span> {{EXEC_TITLE}}
+                    </h2>
+                    <p class="text-sm leading-relaxed text-slate-300 mb-4">
+                        {{EXEC_PARAGRAPH_1}}
+                    </p>
+                    <p class="text-sm leading-relaxed text-slate-300">
+                        {{EXEC_PARAGRAPH_2}}
+                    </p>
+                    
+                    <!-- Notice/Warning Callout -->
+                    <div class="mt-6 p-4 border-l-2 border-brand-warn bg-brand-warn/5 font-mono text-[10px] text-brand-warn leading-relaxed tracking-wider rounded-r">
+                        ⚠ {{NOTICE_TEXT}}
+                    </div>
+                </div>
+                
+                <!-- KPI Vertical Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+                    <!-- KPI Card (Positive/Success) -->
+                    <div class="p-4 glass-panel border-l-2 text-brand-success border-brand-success/30 rounded-r flex flex-col justify-between">
+                        <span class="font-mono text-[10px] text-brand-muted uppercase tracking-widest mb-1">{{KPI_1_LABEL}}</span>
+                        <span class="font-display text-2xl md:text-3xl font-bold">{{KPI_1_VALUE}}</span>
+                        <span class="font-mono text-[9px] text-slate-400 mt-2 truncate">{{KPI_1_NOTE}}</span>
+                    </div>
+                    <!-- KPI Card (Warning) -->
+                    <div class="p-4 glass-panel border-l-2 text-brand-warn border-brand-warn/30 rounded-r flex flex-col justify-between">
+                        <span class="font-mono text-[10px] text-brand-muted uppercase tracking-widest mb-1">{{KPI_2_LABEL}}</span>
+                        <span class="font-display text-2xl md:text-3xl font-bold">{{KPI_2_VALUE}}</span>
+                        <span class="font-mono text-[9px] text-slate-400 mt-2 truncate">{{KPI_2_NOTE}}</span>
+                    </div>
+                    <!-- KPI Card (Neutral/Info) -->
+                    <div class="p-4 glass-panel border-l-2 text-brand-accent border-brand-accent/30 rounded-r flex flex-col justify-between">
+                        <span class="font-mono text-[10px] text-brand-muted uppercase tracking-widest mb-1">{{KPI_3_LABEL}}</span>
+                        <span class="font-display text-2xl md:text-3xl font-bold">{{KPI_3_VALUE}}</span>
+                        <span class="font-mono text-[9px] text-slate-400 mt-2 truncate">{{KPI_3_NOTE}}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BLOCK: PERFORMANCE METRICS (4x4 Grid) -->
+            <div class="glass-panel p-6 rounded-lg">
+                <h2 class="font-display text-lg font-semibold text-white tracking-widest uppercase mb-4">{{PERF_GRID_TITLE}}</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <!-- Metric Box Template. Duplicate as needed. Change text-brand-[color] -->
+                    <div class="p-4 bg-brand-surface2 border-l-2 border-brand-success/50 rounded-r">
+                        <div class="font-mono text-[10px] text-brand-muted uppercase tracking-widest mb-1">{{METRIC_1_LABEL}}</div>
+                        <div class="font-mono text-xl text-brand-success font-bold">{{METRIC_1_VALUE}}</div>
+                        <div class="font-mono text-[9px] text-slate-400 mt-1">{{METRIC_1_NOTE}}</div>
+                    </div>
+                    <div class="p-4 bg-brand-surface2 border-l-2 border-brand-success/50 rounded-r">
+                        <div class="font-mono text-[10px] text-brand-muted uppercase tracking-widest mb-1">{{METRIC_2_LABEL}}</div>
+                        <div class="font-mono text-xl text-brand-success font-bold">{{METRIC_2_VALUE}}</div>
+                        <div class="font-mono text-[9px] text-slate-400 mt-1">{{METRIC_2_NOTE}}</div>
+                    </div>
+                    <div class="p-4 bg-brand-surface2 border-l-2 border-brand-warn/50 rounded-r">
+                        <div class="font-mono text-[10px] text-brand-muted uppercase tracking-widest mb-1">{{METRIC_3_LABEL}}</div>
+                        <div class="font-mono text-xl text-brand-warn font-bold">{{METRIC_3_VALUE}}</div>
+                        <div class="font-mono text-[9px] text-slate-400 mt-1">{{METRIC_3_NOTE}}</div>
+                    </div>
+                    <div class="p-4 bg-brand-surface2 border-l-2 border-brand-muted/50 rounded-r">
+                        <div class="font-mono text-[10px] text-brand-muted uppercase tracking-widest mb-1">{{METRIC_4_LABEL}}</div>
+                        <div class="font-mono text-xl text-slate-300 font-bold">{{METRIC_4_VALUE}}</div>
+                        <div class="font-mono text-[9px] text-slate-400 mt-1">{{METRIC_4_NOTE}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BLOCK: MILESTONES / CHECKLIST -->
+            <div class="glass-panel p-6 rounded-lg">
+                <h2 class="font-display text-lg font-semibold text-white tracking-widest uppercase mb-4">{{MILESTONE_TITLE}}</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Check Item (Done) -->
+                    <div class="flex items-start gap-3 p-3 bg-brand-surface2 rounded border border-brand-success/20">
+                        <span class="text-brand-success mt-0.5">☑</span>
+                        <div>
+                            <div class="font-mono text-xs text-white">{{CHK_1_TITLE}}</div>
+                            <div class="text-[11px] text-slate-400 mt-1">{{CHK_1_DESC}}</div>
+                        </div>
+                    </div>
+                    <!-- Check Item (Pending) -->
+                    <div class="flex items-start gap-3 p-3 bg-brand-surface2 rounded border border-brand-border">
+                        <span class="text-brand-muted mt-0.5">☐</span>
+                        <div>
+                            <div class="font-mono text-xs text-slate-300">{{CHK_2_TITLE}}</div>
+                            <div class="text-[11px] text-slate-500 mt-1">{{CHK_2_DESC}}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             TAB 2: EXECUTION 
+             ========================================== -->
+        <div id="tab-execution" class="tab-content animate-fade-up space-y-6">
+            
+            <!-- BLOCK: PIPELINE FLOW -->
+            <div class="glass-panel p-6 rounded-lg overflow-x-auto">
+                <div class="font-mono text-[10px] text-brand-muted uppercase tracking-widest mb-4">{{PIPELINE_TITLE}}</div>
+                <div class="flex items-center gap-2 min-w-max">
+                    <!-- Pipeline Node -->
+                    <div class="px-3 py-1.5 font-mono text-[10px] text-brand-accent border border-brand-accent/30 bg-brand-accent/5 rounded">{{PIPE_NODE_1}}</div>
+                    <div class="text-brand-border">→</div>
+                    <div class="px-3 py-1.5 font-mono text-[10px] text-brand-accent border border-brand-accent/30 bg-brand-accent/5 rounded">{{PIPE_NODE_2}}</div>
+                    <div class="text-brand-border">→</div>
+                    <div class="px-3 py-1.5 font-mono text-[10px] text-brand-warn border border-brand-warn/30 bg-brand-warn/5 rounded">{{PIPE_NODE_3}}</div>
+                    <div class="text-brand-border">→</div>
+                    <div class="px-3 py-1.5 font-mono text-[10px] text-brand-success border border-brand-success/30 bg-brand-success/5 rounded">{{PIPE_NODE_4}}</div>
+                </div>
+            </div>
+
+            <!-- BLOCK: PROGRESS BARS (SIGNAL FLOW) & OUTCOMES -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Funnel / Progress Bars -->
+                <div class="glass-panel p-6 rounded-lg">
+                    <h3 class="font-display text-lg font-semibold text-white tracking-widest uppercase mb-6">{{FUNNEL_TITLE}}</h3>
+                    <div class="space-y-4">
+                        <!-- Bar Item Template -->
+                        <div class="mb-3">
+                            <div class="flex justify-between font-mono text-[10px] mb-1">
+                                <span class="text-slate-300">{{BAR_1_LABEL}}</span>
+                                <span class="text-brand-success">{{BAR_1_VAL}} ({{BAR_1_PCT}}%)</span>
+                            </div>
+                            <div class="h-1.5 w-full bg-brand-surface2 rounded overflow-hidden">
+                                <div class="h-full bg-brand-success" style="width: {{BAR_1_PCT}}%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="flex justify-between font-mono text-[10px] mb-1">
+                                <span class="text-slate-300">{{BAR_2_LABEL}}</span>
+                                <span class="text-brand-warn">{{BAR_2_VAL}} ({{BAR_2_PCT}}%)</span>
+                            </div>
+                            <div class="h-1.5 w-full bg-brand-surface2 rounded overflow-hidden">
+                                <div class="h-full bg-brand-warn" style="width: {{BAR_2_PCT}}%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="flex justify-between font-mono text-[10px] mb-1">
+                                <span class="text-slate-300">{{BAR_3_LABEL}}</span>
+                                <span class="text-brand-danger">{{BAR_3_VAL}} ({{BAR_3_PCT}}%)</span>
+                            </div>
+                            <div class="h-1.5 w-full bg-brand-surface2 rounded overflow-hidden">
+                                <div class="h-full bg-brand-danger" style="width: {{BAR_3_PCT}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-brand-border flex justify-between items-center">
+                        <span class="font-mono text-[10px] text-brand-muted">{{TOTAL_LABEL}}</span>
+                        <span class="font-mono text-xl text-white">{{TOTAL_VAL}}</span>
+                    </div>
+                </div>
+
+                <!-- Line Items Breakdown -->
+                <div class="glass-panel p-6 rounded-lg flex flex-col">
+                    <h3 class="font-display text-lg font-semibold text-white tracking-widest uppercase mb-4">{{BREAKDOWN_TITLE}}</h3>
+                    <div class="flex-1 space-y-1">
+                        <!-- Line Item Template -->
+                        <div class="flex justify-between items-center p-3 border-b border-brand-border/50 hover:bg-brand-surface2">
+                            <span class="font-mono text-[11px] text-slate-300">{{LINE_1_LBL}}</span>
+                            <span class="font-mono text-sm font-bold text-brand-success">{{LINE_1_VAL}}</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 border-b border-brand-border/50 hover:bg-brand-surface2">
+                            <span class="font-mono text-[11px] text-slate-300">{{LINE_2_LBL}}</span>
+                            <span class="font-mono text-sm font-bold text-brand-warn">{{LINE_2_VAL}}</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 border-b border-brand-border/50 hover:bg-brand-surface2">
+                            <span class="font-mono text-[11px] text-slate-300">{{LINE_3_LBL}}</span>
+                            <span class="font-mono text-sm font-bold text-brand-danger">{{LINE_3_VAL}}</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 p-3 bg-brand-surface2 border border-brand-border rounded font-mono text-[10px] text-brand-muted">
+                        {{BREAKDOWN_NOTE}}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             TAB 3: RISK & LOGS
+             ========================================== -->
+        <div id="tab-risk" class="tab-content animate-fade-up space-y-6">
+            
+            <!-- BLOCK: STRENGTH / WEAKNESS GRID (Risk vs Limits) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Left Card: List Structure -->
+                <div class="glass-panel p-6 rounded-lg">
+                    <h3 class="font-display text-lg font-semibold text-white tracking-widest uppercase mb-4 text-brand-success">{{LEFT_CARD_TITLE}}</h3>
+                    <ul class="space-y-3">
+                        <li class="flex justify-between text-[11px] font-mono border-b border-brand-border pb-2">
+                            <span class="text-slate-300">{{LIST_1_KEY}}</span><span class="text-brand-success">[{{LIST_1_VAL}}]</span>
+                        </li>
+                        <li class="flex justify-between text-[11px] font-mono border-b border-brand-border pb-2">
+                            <span class="text-slate-300">{{LIST_2_KEY}}</span><span class="text-brand-success">[{{LIST_2_VAL}}]</span>
+                        </li>
+                        <li class="flex justify-between text-[11px] font-mono border-b border-brand-border pb-2">
+                            <span class="text-slate-300">{{LIST_3_KEY}}</span><span class="text-brand-success">[{{LIST_3_VAL}}]</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Right Card: Details Structure -->
+                <div class="glass-panel p-6 rounded-lg border-l-2 border-brand-warn">
+                    <h3 class="font-display text-lg font-semibold text-white tracking-widest uppercase mb-4 text-brand-warn">{{RIGHT_CARD_TITLE}}</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="font-mono text-[11px] text-brand-warn font-bold mb-1">{{DETAIL_1_TITLE}}</div>
+                            <div class="text-xs text-brand-muted leading-relaxed">{{DETAIL_1_DESC}}</div>
+                        </div>
+                        <div>
+                            <div class="font-mono text-[11px] text-brand-warn font-bold mb-1">{{DETAIL_2_TITLE}}</div>
+                            <div class="text-xs text-brand-muted leading-relaxed">{{DETAIL_2_DESC}}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BLOCK: DATA TABLE (Logs / History) -->
+            <div class="glass-panel p-6 rounded-lg">
+                <h3 class="font-display text-lg font-semibold text-white tracking-widest uppercase mb-4">{{TABLE_TITLE}}</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left font-mono text-[10px]">
+                        <thead class="text-brand-muted border-b border-brand-border">
+                            <tr>
+                                <th class="pb-2 font-normal">{{TBL_HEAD_1}}</th>
+                                <th class="pb-2 font-normal">{{TBL_HEAD_2}}</th>
+                                <th class="pb-2 font-normal">{{TBL_HEAD_3}}</th>
+                                <th class="pb-2 font-normal text-right">{{TBL_HEAD_4}}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300">
+                            <!-- Table Row Template -->
+                            <tr class="border-b border-brand-border/30 hover:bg-brand-surface2">
+                                <td class="py-3">{{ROW_1_COL_1}}</td>
+                                <td class="py-3">{{ROW_1_COL_2}}</td>
+                                <td class="py-3">{{ROW_1_COL_3}}</td>
+                                <td class="py-3 text-right text-brand-success">[{{ROW_1_COL_4}}]</td>
+                            </tr>
+                            <tr class="border-b border-brand-border/30 hover:bg-brand-surface2">
+                                <td class="py-3">{{ROW_2_COL_1}}</td>
+                                <td class="py-3">{{ROW_2_COL_2}}</td>
+                                <td class="py-3">{{ROW_2_COL_3}}</td>
+                                <td class="py-3 text-right text-brand-warn">[{{ROW_2_COL_4}}]</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- BOOT SCRIPT -->
+    <script>
+        const bootText = "INITIALIZING SYSTEM...\nLOADING MODULES... [OK]\nESTABLISHING CONNECTION... [OK]\nVERIFYING PROTOCOLS... [OK]\n\nSYSTEM READY. ACCESSING {{DOC_TITLE}}.";
+        const pre = document.getElementById('boot-text');
+        let i = 0;
+        
+        // Skip boot sequence if being printed
+        if (window.matchMedia && window.matchMedia('print').matches) {
+            document.getElementById('boot-screen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+        } else {
+            const bootInterval = setInterval(() => {
+                pre.textContent = bootText.substring(0, i) + (i % 2 === 0 ? '█' : '');
+                i++;
+                if (i > bootText.length) {
+                    clearInterval(bootInterval);
+                    pre.textContent = bootText;
+                    setTimeout(() => {
+                        document.getElementById('boot-screen').classList.add('hidden');
+                        document.getElementById('dashboard').classList.remove('hidden');
+                    }, 600);
+                }
+            }, 10);
+        }
+
+        function switchTab(tabId, btnElement) {
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active');
+                void el.offsetWidth;
+            });
+            document.getElementById('tab-' + tabId).classList.add('active');
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.className = "tab-btn flex items-center gap-2 px-4 py-3 font-mono text-[11px] tracking-widest transition-all text-brand-muted hover:text-slate-300 hover:bg-brand-surface2";
+            });
+            btnElement.className = "tab-btn flex items-center gap-2 px-4 py-3 font-mono text-[11px] tracking-widest transition-all text-brand-accent border-b-2 border-brand-accent bg-brand-accent/5";
+        }
+    </script>
+</body>
+</html>
+
