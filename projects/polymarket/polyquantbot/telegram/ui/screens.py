@@ -258,3 +258,57 @@ def error_screen(context: str, error: str) -> str:
 def noop_screen() -> str:
     """Empty screen — no message update needed."""
     return ""
+
+
+def positions_screen(positions: list[dict]) -> str:
+    """Open positions detail screen.
+
+    Args:
+        positions: List of position dicts with keys:
+            ``question``, ``side``, ``avg_price``, ``size``, ``unrealized_pnl``.
+
+    Returns:
+        Markdown-formatted positions summary.
+    """
+    if not positions:
+        return "📋 *POSITIONS*\n\n_No open positions._"
+
+    lines = [f"📋 *POSITIONS* ({len(positions)} open)\n"]
+    for pos in positions:
+        question = pos.get("question") or pos.get("market_id", "Unknown")
+        side = pos.get("side", "?")
+        avg_price = float(pos.get("avg_price", 0.0))
+        size = float(pos.get("size", 0.0))
+        upnl = float(pos.get("unrealized_pnl", 0.0))
+        upnl_sign = "+" if upnl >= 0 else ""
+        # Truncate long questions for readability
+        if len(question) > 48:
+            question = question[:45] + "…"
+        lines.append(
+            f"*{question}*\n"
+            f"  Side: `{side}` | Avg: `{avg_price:.4f}` | Size: `{size:.4f}`\n"
+            f"  Unrealized PnL: `{upnl_sign}{upnl:.4f} USD`"
+        )
+    return "\n\n".join(lines)
+
+
+def pnl_screen(realized: float, unrealized: float, total: float) -> str:
+    """PnL summary screen.
+
+    Args:
+        realized:   Total realized PnL in USD.
+        unrealized: Total unrealized PnL in USD.
+        total:      Combined total PnL in USD.
+
+    Returns:
+        Markdown-formatted PnL summary.
+    """
+    def _sign(v: float) -> str:
+        return "+" if v >= 0 else ""
+
+    return (
+        "💹 *PnL SUMMARY*\n\n"
+        f"Realized:   `{_sign(realized)}{realized:.4f} USD`\n"
+        f"Unrealized: `{_sign(unrealized)}{unrealized:.4f} USD`\n"
+        f"Total:      `{_sign(total)}{total:.4f} USD`"
+    )

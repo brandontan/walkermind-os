@@ -240,9 +240,18 @@ class CallbackRouter:
 
         # ── Performance ────────────────────────────────────────────────────
         if action == "performance":
-            result = await self._cmd.handle("performance")
-            from ..ui.keyboard import build_status_menu
-            return result.message, build_status_menu()
+            from .performance import handle_performance
+            return await handle_performance(mode=self._mode)
+
+        # ── Positions ──────────────────────────────────────────────────────
+        if action == "positions":
+            from .positions import handle_positions
+            return await handle_positions()
+
+        # ── PnL ────────────────────────────────────────────────────────────
+        if action == "pnl":
+            from .pnl import handle_pnl
+            return await handle_pnl()
 
         # ── Wallet ─────────────────────────────────────────────────────────
         if action == "wallet":

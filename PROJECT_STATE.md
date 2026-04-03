@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Logging Hotfix COMPLETE ✅ — Duplicate `event=` kwargs removed; system boots without TypeError
+Status: Trade Visibility Metrics COMPLETE ✅ — Performance, Positions, PnL handlers live; wallet timeout+cache fix deployed
 
 ---
 
@@ -37,6 +37,19 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+TRADE VISIBILITY METRICS (Phase 17.3)
+
+- monitoring/multi_strategy_metrics.py: empty strategy_names no longer raises ValueError (warns); added total_pnl, overall_win_rate, aggregate_performance() aggregate helpers
+- telegram/handlers/performance.py: NEW — standalone handler; reads MultiStrategyMetrics.aggregate_performance() + PnLTracker.summary(); returns performance_screen + status_menu
+- telegram/handlers/positions.py: NEW — reads PositionManager.all_positions() + MarketMetadataCache.get_question() + PnLTracker.get(); returns positions_screen (lists open positions or "No open positions")
+- telegram/handlers/pnl.py: NEW — reads PnLTracker.summary(); returns pnl_screen with realized/unrealized/total
+- telegram/handlers/wallet.py: asyncio.wait_for(timeout=2.0) on every WalletService call; _cached_balance/_cached_address module-level fallback; cached values shown on timeout or full retry exhaustion; withdraw handler also timeout-guarded
+- telegram/handlers/callback_router.py: performance action now uses handle_performance() directly (removed cmd.handle delegation); added positions and pnl action routing
+- telegram/ui/keyboard.py: build_status_menu() has 3 rows: [Positions][PnL], [Performance][Refresh], [Main Menu]
+- telegram/ui/screens.py: added positions_screen(positions) and pnl_screen(realized, unrealized, total)
+- main.py: wires multi_metrics, pnl_tracker, position_manager, market_cache into all three new handlers after each service is created
+- reports/forge/17_3_trade_visibility_metrics.md: completion report
 
 LOGGING HOTFIX — EVENT KEYWORD DUPLICATION (Phase 17.2)
 
@@ -560,27 +573,26 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Load live bankroll from WalletManager into run_trading_loop (replace static default)
-2. Wire RedisClient into pipeline startup for signal dedup persistence
-3. Persist signal dedup set via Redis for restart safety
-4. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
-5. Plug in CLOB executor callback for LIVE mode
-6. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
-7. Market resolution PnL updates (TradeResult post-settlement)
-8. Bayesian updater: pass posterior confidence as ev_adjustment
+1. Connect PnLCalculator.calculate_metrics() to DB trade history for accurate drawdown in /performance
+2. Add /history handler for closed trade log
+3. Load live bankroll from WalletManager into run_trading_loop (replace static default)
+4. Wire RedisClient into pipeline startup for signal dedup persistence
+5. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
+6. Plug in CLOB executor callback for LIVE mode
+7. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
+8. Market resolution PnL updates (TradeResult post-settlement)
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- drawdown in /performance always 0.0 — MultiStrategyMetrics lacks time-series equity curve; accurate drawdown requires PnLCalculator over DB trade history
+- Positions unrealized PnL accurate only when trading_loop.run() is calling pnl_tracker.record_unrealized() per-tick (requires live pipeline)
 - StrategyStateManager.save(db=db) requires db.connect() to be called first (main.py responsibility)
-- Strategy toggle DB persistence wired in StrategyStateManager but not yet injected via main.py (in-memory state only persisted on toggle; db wiring pending)
 - RedisClient not yet wired into pipeline startup (infra ready, wiring pending)
 - Intelligence not fully affecting execution decisions yet
 - Backtest engine uses simplified PnL model
 - Telegram delivery not stress-tested under real network load
-- WalletManager not yet wired into wallet handler (balance/exposure screens show informative stubs)
-- build_strategy_menu() still referenced in settings but strategy_toggle_* callbacks are unrouted (buttons fall through to unknown-action → main menu shown)
 
 ---
 
