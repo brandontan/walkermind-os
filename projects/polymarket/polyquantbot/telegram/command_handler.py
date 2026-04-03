@@ -694,11 +694,24 @@ class CommandHandler:
             per_wr: dict = {}
             per_trades: dict = {}
             total_pnl = 0.0
+            total_wins = 0
+            total_trade_count = 0
+            max_drawdown = 0.0
             for strategy_id, m_data in snapshot.items():
                 per_pnl[strategy_id] = float(m_data.get("total_pnl", 0.0))
                 per_wr[strategy_id] = float(m_data.get("win_rate", 0.0))
                 per_trades[strategy_id] = int(m_data.get("trades_executed", 0))
                 total_pnl += per_pnl[strategy_id]
+                t = per_trades[strategy_id]
+                total_wins += round(per_wr[strategy_id] * t)
+                total_trade_count += t
+                dd = float(m_data.get("drawdown", 0.0))
+                if dd > max_drawdown:
+                    max_drawdown = dd
+
+            overall_win_rate = (
+                total_wins / total_trade_count if total_trade_count > 0 else 0.0
+            )
 
             msg = format_performance_report(
                 per_strategy_pnl=per_pnl,
@@ -707,6 +720,8 @@ class CommandHandler:
                 total_pnl=round(total_pnl, 4),
                 total_trades=self._multi_metrics.total_trades,
                 mode=self._mode,
+                win_rate=round(overall_win_rate, 4),
+                drawdown=round(max_drawdown, 4),
             )
             return CommandResult(
                 success=True,
@@ -714,6 +729,8 @@ class CommandHandler:
                 payload={
                     "total_pnl": round(total_pnl, 4),
                     "total_trades": self._multi_metrics.total_trades,
+                    "win_rate": round(overall_win_rate, 4),
+                    "drawdown": round(max_drawdown, 4),
                 },
             )
         except Exception as exc:
