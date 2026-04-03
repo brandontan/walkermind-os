@@ -1,0 +1,214 @@
+# .github/workflows/copilot-pr-review.yml
+# Trigger GitHub Copilot auto-review on every PR to main/develop
+# Walker AI Team — PR Guard
+
+name: Copilot PR Review
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+jobs:
+  copilot-review:
+    name: Copilot Auto Review
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Pre-Merge Gate
+        id: pre_gate
+        run: |
+          echo "=== PRE-MERGE GATE ==="
+          FAILED=0
+
+          # B5 — No phase* folders
+          if find . -type d -name "phase*" | grep -q .; then
+            echo "❌ BLOCKER B5: phase* folder found"
+            find . -type d -name "phase*"
+            FAILED=1
+          else
+            echo "✅ No phase* folders"
+          fi
+
+          # B6 — No files outside domain structure
+          VALID_DIRS="core data strategy intelligence risk execution monitoring api infra backtest reports projects docs .github .claude"
+          OUTSIDE=$(git diff --name-only origin/main...HEAD \
+            | grep -v "^\.github/" \
+            | grep -v "^docs/" \
+            | grep -v "^projects/" \
+            | grep -v "^\.claude/" \
+            | grep -v "^PROJECT_STATE\.md" \
+            | grep -v "^CLAUDE\.md" \
+            | grep -v "^README\.md" \
+            | grep -v "^\.env\.example" \
+            | grep -Ev "^(core|data|strategy|intelligence|risk|execution|monitoring|api|infra|backtest|reports)/" \
+            || true)
+          if [ -n "$OUTSIDE" ]; then
+            echo "❌ BLOCKER B6: Files outside domain structure:"
+            echo "$OUTSIDE"
+            FAILED=1
+          else
+            echo "✅ All files within domain structure"
+          fi
+
+          # B4 — PROJECT_STATE.md updated
+          if ! git diff --name-only origin/main...HEAD | grep -q "PROJECT_STATE.md"; then
+            echo "❌ BLOCKER B4: PROJECT_STATE.md not updated in this PR"
+            FAILED=1
+          else
+            echo "✅ PROJECT_STATE.md updated"
+          fi
+
+          # B1 — FORGE-X report exists in reports/forge/
+          REPORT_COUNT=$(git diff --name-only origin/main...HEAD \
+            | grep "projects/polymarket/polyquantbot/reports/forge/" \
+            | wc -l)
+          if [ "$REPORT_COUNT" -eq 0 ]; then
+            echo "❌ BLOCKER B1: No FORGE-X report found in reports/forge/"
+            FAILED=1
+          else
+            echo "✅ FORGE-X report found ($REPORT_COUNT file(s))"
+          fi
+
+          # B2 — Report naming format [phase]_[increment]_[name].md
+          REPORTS=$(git diff --name-only origin/main...HEAD \
+            | grep "projects/polymarket/polyquantbot/reports/forge/" || true)
+          for REPORT in $REPORTS; do
+            BASENAME=$(basename "$REPORT")
+            if ! echo "$BASENAME" | grep -qE "^[0-9]+_[0-9]+_[a-z0-9_]+\.md$"; then
+              echo "❌ BLOCKER B2: Invalid report name: $BASENAME"
+              echo "   Expected format: [phase]_[increment]_[name].md (e.g. 11_1_cleanup.md)"
+              FAILED=1
+            else
+              echo "✅ Report naming valid: $BASENAME"
+            fi
+          done
+
+          # B7 — No hardcoded secrets (basic pattern check)
+          SECRET_PATTERNS="sk-ant-|sk-|ANTHROPIC_API_KEY\s*=\s*['\"][a-z]|password\s*=\s*['\"][^$]|token\s*=\s*['\"][^$]"
+          if git diff origin/main...HEAD -- "*.py" | grep -qE "$SECRET_PATTERNS"; then
+            echo "❌ BLOCKER B7: Potential hardcoded secret detected"
+            FAILED=1
+          else
+            echo "✅ No hardcoded secrets detected"
+          fi
+
+          # B8 — No full Kelly (α = 1.0)
+          if git diff origin/main...HEAD -- "*.py" | grep -qE "kelly.*=.*1\.0|alpha.*=.*1\.0|KELLY.*=.*1"; then
+            echo "❌ BLOCKER B8: Full Kelly (α=1.0) detected — use 0.25"
+            FAILED=1
+          else
+            echo "✅ No full Kelly usage detected"
+          fi
+
+          # B10 — No bare except pass
+          if git diff origin/main...HEAD -- "*.py" | grep -qE "except\s*:\s*pass|except Exception\s*:\s*pass"; then
+            echo "❌ BLOCKER B10: Silent exception swallow detected (bare except: pass)"
+            FAILED=1
+          else
+            echo "✅ No silent exception swallowing"
+          fi
+
+          # B11 — No threading
+          if git diff origin/main...HEAD -- "*.py" | grep -qE "^import threading|^from threading"; then
+            echo "❌ BLOCKER B11: threading import detected — use asyncio only"
+            FAILED=1
+          else
+            echo "✅ No threading imports"
+          fi
+
+          # Batch size check (≤5 files per commit)
+          MAX_FILES=0
+          for COMMIT in $(git log origin/main...HEAD --format="%H"); do
+            COUNT=$(git show --name-only --format="" "$COMMIT" | wc -l)
+            if [ "$COUNT" -gt "$MAX_FILES" ]; then
+              MAX_FILES=$COUNT
+            fi
+          done
+          if [ "$MAX_FILES" -gt 5 ]; then
+            echo "⚠️ WARNING: Largest commit has $MAX_FILES files (limit: 5)"
+          else
+            echo "✅ Batch size OK (max $MAX_FILES files per commit)"
+          fi
+
+          echo ""
+          if [ "$FAILED" -eq 1 ]; then
+            echo "PRE_GATE_RESULT=BLOCKED" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "PRE_GATE_RESULT=PASS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Review Comment on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## COPILOT REVIEW — 🚫 BLOCKED
+
+**Pre-merge gate failed. DO NOT MERGE until all blockers are resolved.**
+
+Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for exact blocker details.
+
+**Common blockers:**
+- Missing FORGE-X report in \`reports/forge/\`
+- \`PROJECT_STATE.md\` not updated
+- \`phase*/\` folder present
+- Hardcoded secret detected
+- Full Kelly (α=1.0) usage
+- \`threading\` import found
+- Silent exception (\`except: pass\`)
+
+Fix all blockers, then push again to trigger a new review.
+
+---
+*Copilot Auto Review — Walker AI Team*`
+            });
+
+      - name: Post Review Comment on Success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## COPILOT REVIEW — ✅ PRE-GATE PASSED
+
+All automated checks passed.
+
+| Check | Result |
+|---|---|
+| No \`phase*/\` folders | ✅ |
+| Domain structure | ✅ |
+| \`PROJECT_STATE.md\` updated | ✅ |
+| FORGE-X report present | ✅ |
+| Report naming format | ✅ |
+| No hardcoded secrets | ✅ |
+| No full Kelly | ✅ |
+| No silent exceptions | ✅ |
+| No threading | ✅ |
+
+**Next:** SENTINEL validation required before final merge approval.
+
+---
+*Copilot Auto Review — Walker AI Team*`
+            });
