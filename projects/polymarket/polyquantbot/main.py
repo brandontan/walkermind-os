@@ -486,6 +486,21 @@ async def main() -> None:
         startup_s=round(time.time() - start_ts, 3),
     )
 
+    # ── Database initialisation (required — no silent fallback) ───────────────
+    from .infra.db import DatabaseClient
+    db = DatabaseClient()
+    try:
+        await db.connect()
+        await db.ensure_schema()
+        log.info("db_enabled", status=True)
+    except Exception as db_exc:
+        log.error(
+            "db_init_failed",
+            error=str(db_exc),
+            hint="Check DB_DSN env var and ensure PostgreSQL is reachable",
+        )
+        raise RuntimeError(f"Database required — startup aborted: {db_exc}") from db_exc
+
     # ── Bootstrap: market discovery + pipeline startup ─────────────────────────
     from .core.bootstrap import run_bootstrap
     from .core.pipeline.live_paper_runner import LivePaperRunner
@@ -530,6 +545,8 @@ async def main() -> None:
             run_trading_loop(
                 mode=mode,
                 telegram_callback=tg.alert_trade if hasattr(tg, "alert_trade") else None,
+                db=db,
+                user_id="default",
             ),
             name="trading_loop",
         )
@@ -569,6 +586,7 @@ async def main() -> None:
         await metrics_server.stop()
     except Exception as exc:
         log.warning("metrics_server_stop_error", error=str(exc))
+    await db.close()
     log.info("polyquantbot_shutdown_complete")
 
 
