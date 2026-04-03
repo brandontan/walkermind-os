@@ -899,6 +899,8 @@ def format_signal_alert(
     market_id: str,
     edge: float,
     size: float,
+    market_question: str = "",
+    outcome: str = "",
 ) -> str:
     """Format a signal generated alert.
 
@@ -906,13 +908,20 @@ def format_signal_alert(
         market_id: Polymarket condition ID.
         edge: Computed edge value for the signal.
         size: Suggested position size in USD.
+        market_question: Human-readable market question (replaces raw ID when set).
+        outcome: Predicted outcome label (e.g. "YES" / "NO").
 
     Returns:
         Formatted Telegram Markdown message string.
     """
+    display_market = market_question if market_question else _safe(market_id, 24)
     lines = [
         "📊 *SIGNAL*",
-        f"Market: `{_safe(market_id, 24)}`",
+        f"Market: `{display_market}`",
+    ]
+    if outcome:
+        lines.append(f"Outcome: `{_safe(outcome)}`")
+    lines += [
         f"Edge: `{edge:.4f}`",
         f"Size: `${size:.2f}`",
         f"_at {_ts_utc()}_",
@@ -925,26 +934,44 @@ def format_trade_alert(
     price: float,
     size: float,
     market_id: str = "",
+    market_question: str = "",
+    outcome: str = "",
+    slippage_pct: float = 0.0,
+    partial_fill: bool = False,
+    filled_size: float = 0.0,
 ) -> str:
     """Format a trade executed alert.
 
     Args:
         side: Trade side ("YES" | "NO" | "BUY" | "SELL").
         price: Execution price.
-        size: Trade size in USD.
-        market_id: Polymarket condition ID.
+        size: Requested trade size in USD.
+        market_id: Polymarket condition ID (shown as fallback when market_question absent).
+        market_question: Human-readable market question (preferred over market_id).
+        outcome: Outcome label (e.g. "YES" / "NO").
+        slippage_pct: Applied slippage fraction (e.g. 0.008 = 0.8 %).
+        partial_fill: Whether the fill was partial.
+        filled_size: Actual filled size in USD (shown when partial_fill is True).
 
     Returns:
         Formatted Telegram Markdown message string.
     """
+    display_market = market_question or market_id
     lines = [
         "✅ *TRADE*",
-        f"Market: `{_safe(market_id)}`" if market_id else None,
-        f"Side: `{_safe(side)}`",
-        f"Price: `{price:.4f}`",
-        f"Size: `${size:.2f}`",
-        f"_at {_ts_utc()}_",
+        f"Market: `{_safe(display_market)}`" if display_market else None,
     ]
+    if outcome:
+        lines.append(f"Outcome: `{_safe(outcome)}`")
+    lines.append(f"Side: `{_safe(side)}`")
+    lines.append(f"Price: `{price:.4f}`")
+    if partial_fill and filled_size > 0:
+        lines.append(f"Filled: `${filled_size:.2f}` / `${size:.2f}` *(partial)*")
+    else:
+        lines.append(f"Size: `${size:.2f}`")
+    if slippage_pct:
+        lines.append(f"Slippage: `{slippage_pct * 100:.2f}%`")
+    lines.append(f"_at {_ts_utc()}_")
     return "\n".join(line for line in lines if line is not None)
 
 

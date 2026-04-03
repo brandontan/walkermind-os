@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import random
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -67,6 +68,18 @@ _MAX_CONCURRENT_TRADES: int = 5
 _MAX_POSITION_USD: float = 1_000.0
 _MIN_EDGE: float = 0.01
 _DEFAULT_MODE: str = "PAPER"
+
+# ── Paper trading realism parameters ──────────────────────────────────────────
+# Slippage: random ±1 % of the mid price applied in paper mode.
+_PAPER_SLIPPAGE_MAX_PCT: float = 0.01   # ±1 %
+# Partial fill: a random fraction of requested size is filled [60 %, 100 %].
+_PAPER_FILL_MIN_PCT: float = 0.60
+_PAPER_FILL_MAX_PCT: float = 1.00
+# Simulated latency range in milliseconds.
+_PAPER_LATENCY_MIN_MS: float = 100.0
+_PAPER_LATENCY_MAX_MS: float = 500.0
+# Minimum liquidity threshold (USD) — reject if below.
+_MIN_LIQUIDITY_USD: float = 0.0        # set via EXECUTION_MIN_LIQUIDITY_USD env
 
 
 def _env_int(name: str, default: int) -> int:
@@ -105,6 +118,8 @@ class TradeResult:
         filled_size_usd: USD actually filled (0.0 if not filled).
         fill_price:     Execution price (0.0 if not filled).
         latency_ms:     Wall-clock time for the execution attempt.
+        slippage_pct:   Slippage applied in paper mode (fraction, e.g. 0.008).
+        partial_fill:   True when only a fraction of the requested size was filled.
         reason:         Human-readable outcome description.
         extra:          Optional payload from the executor callback.
     """
@@ -119,6 +134,8 @@ class TradeResult:
     filled_size_usd: float = 0.0
     fill_price: float = 0.0
     latency_ms: float = 0.0
+    slippage_pct: float = 0.0
+    partial_fill: bool = False
     reason: str = ""
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -157,6 +174,7 @@ async def execute_trade(
     max_concurrent: int | None = None,
     max_position_usd: float | None = None,
     min_edge: float | None = None,
+    min_liquidity_usd: float | None = None,
     kill_switch_active: bool = False,
     executor_callback: Optional[Callable[..., Awaitable[dict[str, Any]]]] = None,
     telegram_callback: Optional[Callable[[str], Awaitable[None]]] = None,
@@ -173,6 +191,7 @@ async def execute_trade(
         max_concurrent:     Override for maximum open trades.
         max_position_usd:   Override for max single-trade USD cap.
         min_edge:           Override for minimum edge re-check threshold.
+        min_liquidity_usd:  Override for minimum liquidity threshold in USD.
         kill_switch_active: When True, all trades are blocked immediately.
         executor_callback:  Async callable
                             ``(market_id, side, price, size_usd, trade_id)
@@ -195,6 +214,9 @@ async def execute_trade(
     )
     _min_e = min_edge if min_edge is not None else _env_float(
         "EXECUTION_MIN_EDGE", _MIN_EDGE
+    )
+    _min_liq = min_liquidity_usd if min_liquidity_usd is not None else _env_float(
+        "EXECUTION_MIN_LIQUIDITY_USD", _MIN_LIQUIDITY_USD
     )
 
     trade_id = f"trade-{uuid.uuid4().hex[:12]}"
@@ -302,7 +324,28 @@ async def execute_trade(
             reason="size_exceeds_max_position",
         )
 
-    # ── Concurrent trade cap ──────────────────────────────────────────────────
+    # ── Liquidity check ───────────────────────────────────────────────────────
+    liquidity_usd: float = float(getattr(signal, "liquidity_usd", 0.0) or 0.0)
+    if _min_liq > 0 and liquidity_usd < _min_liq:
+        log.info(
+            "trade_skipped",
+            trade_id=trade_id,
+            signal_id=signal.signal_id,
+            market_id=signal.market_id,
+            reason="insufficient_liquidity",
+            liquidity_usd=liquidity_usd,
+            min_liquidity_usd=_min_liq,
+        )
+        return TradeResult(
+            trade_id=trade_id,
+            signal_id=signal.signal_id,
+            market_id=signal.market_id,
+            side=signal.side,
+            success=False,
+            mode=_mode,
+            attempted_size=signal.size_usd,
+            reason="insufficient_liquidity",
+        )
     lock = _get_lock()
     async with lock:
         if _open_trade_count >= _max_c:
@@ -369,6 +412,21 @@ async def execute_trade(
     async with lock:
         _open_trade_count = max(0, _open_trade_count - 1)
 
+    log.info(
+        "trade_executed_realistic",
+        trade_id=trade_id,
+        signal_id=signal.signal_id,
+        market_id=signal.market_id,
+        side=signal.side,
+        mode=_mode,
+        filled_size_usd=round(result.filled_size_usd, 4),
+        fill_price=round(result.fill_price, 6),
+        latency_ms=round(result.latency_ms, 2),
+        slippage_pct=round(result.slippage_pct, 6),
+        partial_fill=result.partial_fill,
+        force_mode=signal.force_mode,
+    )
+    # Keep legacy event name for backwards-compatibility with existing monitors
     log.info(
         "trade_executed",
         trade_id=trade_id,
@@ -481,20 +539,63 @@ async def _attempt_execution(
                 extra=raw,
             )
         else:
-            # Paper simulation: fill at market price with full size
-            await asyncio.sleep(0)  # yield to event loop
+            # ── Realistic paper simulation ────────────────────────────────
+            # 1. Simulated latency: random value in [100 ms, 500 ms]
+            sim_latency_s = random.uniform(
+                _PAPER_LATENCY_MIN_MS / 1_000.0,
+                _PAPER_LATENCY_MAX_MS / 1_000.0,
+            )
+            await asyncio.sleep(sim_latency_s)
+
+            # 2. Slippage: random ±1 % applied to the mid price.
+            #    YES buyers pay above mid (positive slippage hurts the buyer).
+            #    NO buyers also pay above their mid (positive sign inverted so NO
+            #    fill_price moves in the adverse direction for that side).
+            slippage_sign = 1 if signal.side.upper() == "YES" else -1
+            slippage_pct = random.uniform(0, _PAPER_SLIPPAGE_MAX_PCT) * slippage_sign
+            fill_price = signal.p_market * (1.0 + slippage_pct)
+            fill_price = max(0.001, min(0.999, fill_price))
+
+            # 3. Partial fill: random fraction [60 %, 100 %] of requested size
+            fill_fraction = random.uniform(_PAPER_FILL_MIN_PCT, _PAPER_FILL_MAX_PCT)
+            filled_size = signal.size_usd * fill_fraction
+            partial_fill = fill_fraction < _PAPER_FILL_MAX_PCT
+
             latency_ms = (time.time() - t_start) * 1_000.0
+
+            log.info(
+                "slippage_applied",
+                trade_id=trade_id,
+                market_id=signal.market_id,
+                side=signal.side,
+                base_price=round(signal.p_market, 6),
+                fill_price=round(fill_price, 6),
+                slippage_pct=round(slippage_pct, 6),
+            )
+            if partial_fill:
+                log.info(
+                    "partial_fill",
+                    trade_id=trade_id,
+                    market_id=signal.market_id,
+                    side=signal.side,
+                    requested_size_usd=round(signal.size_usd, 4),
+                    filled_size_usd=round(filled_size, 4),
+                    fill_fraction=round(fill_fraction, 4),
+                )
             log.info(
                 "order_filled",
                 trade_id=trade_id,
                 signal_id=signal.signal_id,
                 market_id=signal.market_id,
                 side=signal.side,
-                filled_size_usd=round(signal.size_usd, 4),
-                fill_price=round(signal.p_market, 6),
+                filled_size_usd=round(filled_size, 4),
+                fill_price=round(fill_price, 6),
                 latency_ms=round(latency_ms, 2),
+                slippage_pct=round(slippage_pct, 6),
+                partial_fill=partial_fill,
                 mode="PAPER",
             )
+            reason = "partial_fill" if partial_fill else "paper_simulated"
             return TradeResult(
                 trade_id=trade_id,
                 signal_id=signal.signal_id,
@@ -503,10 +604,12 @@ async def _attempt_execution(
                 success=True,
                 mode="PAPER",
                 attempted_size=signal.size_usd,
-                filled_size_usd=round(signal.size_usd, 4),
-                fill_price=round(signal.p_market, 6),
+                filled_size_usd=round(filled_size, 4),
+                fill_price=round(fill_price, 6),
                 latency_ms=round(latency_ms, 2),
-                reason="paper_simulated",
+                slippage_pct=round(slippage_pct, 6),
+                partial_fill=partial_fill,
+                reason=reason,
             )
     except Exception as exc:  # noqa: BLE001
         latency_ms = (time.time() - t_start) * 1_000.0
