@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Strategy Toggle DB Persistence + Signal Guard COMPLETE ✅
+Status: Core System Wiring Fix COMPLETE ✅
 
 ---
 
@@ -38,26 +38,15 @@ Structure:
 
 ## ✅ COMPLETED
 
-STRATEGY TOGGLE DB PERSISTENCE + SIGNAL GUARD
+CORE SYSTEM WIRING FIX (Phase 16.1)
 
-- infra/db/database.py: added _DDL_STRATEGY_STATE DDL; _apply_schema() creates strategy_state table; added load_strategy_state() → Dict[str, bool] (returns {} on error) and save_strategy_state(state) → bool with UPSERT ON CONFLICT semantics
-- infra/db.py: same additions for legacy file consistency
-- strategy/strategy_manager.py: load(redis, db) now prefers DB over Redis; fallback chain DB → Redis → in-memory defaults; save(redis, db) writes to both backends; returns True if at least one succeeds
-- core/signal/signal_engine.py: added active strategy guard — if strategy_state provided with all False → log signal_generation_blocked (reason: NO ACTIVE STRATEGY) and return [] immediately
-- tests/test_strategy_toggle_system.py: 22 new tests (ST-01 – ST-22); all pass; no regressions
-- reports/forge/12_1_strategy_toggle_db_persistence.md: completion report
+- main.py: StrategyStateManager initialized before cmd_handler; MultiStrategyMetrics("ev_momentum", "mean_reversion", "liquidity_edge") initialized; both injected into CommandHandler and CallbackRouter; strategy state loaded from DB after db.connect(); DB wired into CallbackRouter via set_db()
+- telegram/handlers/callback_router.py: db param + set_db() method added; strategy toggle now saves state to DB after each toggle; structured log event=strategy_toggle
+- telegram/handlers/wallet.py: asyncio import added; handle_wallet_balance now retries 3× with 0.5s backoff; structured log event=wallet_fetch; returns "❌ Failed to fetch wallet" on exhaustion
+- telegram/ui/screens.py: wallet_balance_screen updated to 💰 BALANCE / Available / Locked / Total format; settings_risk_screen updated with descriptive labels and fractional Kelly note
+- reports/forge/16_1_core_system_wiring_fix.md: completion report
 
----
 
-MARKET METADATA + PAPER TRADING REALISM
-
-- core/market/market_cache.py: MarketMetadataCache — fetches question+outcomes from Gamma API; 5-min async refresh; 3 retries, 2s timeout; stale-cache fallback on API failure; module singleton via get_default_cache()
-- core/portfolio/position_manager.py: PositionManager — tracks open positions per market; weighted avg_price on multiple fills; realized PnL on close; dedup by trade_id
-- core/portfolio/pnl.py: PnLTracker — records realized PnL (accumulated) + unrealized PnL (mark-to-market); DB persistence with 2 retries; summary() aggregate
-- core/execution/executor.py: realistic paper simulation — slippage ±1%, partial fill 60–100%, latency 100–500ms; min_liquidity_usd guard; new TradeResult.slippage_pct + partial_fill fields; trade_executed_realistic log event
-- telegram/message_formatter.py: format_trade_alert + format_signal_alert accept market_question, outcome, slippage_pct, partial_fill, filled_size; fallback to market_id when no metadata
-- core/logging/logger.py: added log_trade_executed_realistic, log_partial_fill, log_slippage_applied, log_pnl_realized, log_pnl_unrealized helpers
-- tests/test_phase14_market_paper_realism.py: 30 tests (MP-01–MP-30) — all pass
 - reports/forge/market_metadata_paper_realism.md: completion report
 
 ---
