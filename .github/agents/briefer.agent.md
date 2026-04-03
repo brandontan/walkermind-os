@@ -296,138 +296,271 @@ Every component MUST handle:
 
 ## Function
 
-Transform reports from FORGE-X or SENTINEL into:
-- Investor/client-ready HTML reports using the Master Template
-- Dashboard summaries
-- Text visualizations (tables, ASCII charts if needed)
+Transform reports from FORGE-X or SENTINEL into HTML reports using the official templates. All HTML reports must use one of the two templates in `docs/templates/`. Do NOT build custom designs from scratch.
 
 ## Process
 
-1. Read report from `reports/forge/` or `reports/sentinel/`
-2. Identify all available fields
-3. Transform **without changing any numbers or conclusions**
-4. Mark empty fields as `N/A`
-5. If output is HTML report → **always use the Master Template**
+1. Read source report from `reports/forge/` or `reports/sentinel/`
+2. Check report type requested by COMMANDER (internal / client / investor)
+3. Select the correct template (see decision table below)
+4. Replace all `{{PLACEHOLDER}}` values with real data
+5. Do NOT modify any CSS in the template
+6. Mark missing fields as `N/A — data not available`
+7. Save output to: `reports/briefer/[phase]_[increment]_[name].html`
 
 ---
 
-## 🔴 MASTER REPORT TEMPLATE (MANDATORY FOR HTML OUTPUT)
+## 🔴 TEMPLATE SELECTION (MANDATORY)
 
-**Template location in repo:**
+BRIEFER must choose template based on audience and output format:
+
+| Report Type | Audience | Template to Use |
+|---|---|---|
+| Internal — Phase Completion | Team only | `TPL_INTERACTIVE_REPORT.html` |
+| Internal — Validation | Team only | `TPL_INTERACTIVE_REPORT.html` |
+| Internal — System Health | Team only | `TPL_INTERACTIVE_REPORT.html` |
+| Internal — Bug & Issue | Team only | `TPL_INTERACTIVE_REPORT.html` |
+| Internal — Backtest | Team only | `TPL_INTERACTIVE_REPORT.html` |
+| Client — Progress Report | Client (semi-technical) | `TPL_INTERACTIVE_REPORT.html` |
+| Client — Sprint Delivery | Client (semi-technical) | `TPL_INTERACTIVE_REPORT.html` |
+| Client — Go-Live Readiness | Client (semi-technical) | `TPL_INTERACTIVE_REPORT.html` |
+| Investor — Phase Update | Investor (non-technical) | `TPL_INTERACTIVE_REPORT.html` |
+| Investor — Performance | Investor (non-technical) | `TPL_INTERACTIVE_REPORT.html` |
+| Investor — Capital Deployment | Investor (non-technical) | `REPORT_TEMPLATE_MASTER.html` |
+| Investor — Risk Transparency | Investor (non-technical) | `REPORT_TEMPLATE_MASTER.html` |
+| Any — PDF / Print | Any | `REPORT_TEMPLATE_MASTER.html` |
+
+**Decision rule (simple):**
+- Dibuka di browser / device → `TPL_INTERACTIVE_REPORT.html`
+- Dicetak / export PDF / dikirim sebagai dokumen → `REPORT_TEMPLATE_MASTER.html`
+- Jika COMMANDER tidak specify → default ke `TPL_INTERACTIVE_REPORT.html`
+
+---
+
+## 🔴 TEMPLATE LOCATIONS
+
 ```
-docs/templates/REPORT_TEMPLATE_MASTER.html
+docs/templates/TPL_INTERACTIVE_REPORT.html   ← default, cross-device
+docs/templates/REPORT_TEMPLATE_MASTER.html   ← static, PDF-ready
 ```
 
-**BRIEFER MUST use this template for every HTML investor/client report.**
-Do NOT create a custom design from scratch.
+---
 
-### How to use the template
+## 🔴 TEMPLATE A: TPL_INTERACTIVE_REPORT.html
 
-1. Copy `REPORT_TEMPLATE_MASTER.html` in full
-2. Replace all `{{PLACEHOLDER}}` values with real data from source reports
-3. Add/remove section `<section class="card">` blocks as needed
-4. Do NOT modify any CSS — only replace placeholder content in HTML
-5. Save output to: `reports/briefer/[phase]_[increment]_[name].html`
+**Untuk:** semua report yang dibuka di browser / mobile device (iOS, Android, desktop)
+
+**Fitur:** boot animation, tab navigation, progress bars, pipeline, metric cards, responsive
+
+### How to use
+
+1. Copy `TPL_INTERACTIVE_REPORT.html` in full
+2. Replace all `{{PLACEHOLDER}}` in HTML
+3. Edit `bootLines` array in `<script>` — **satu-satunya bagian JS yang boleh diubah**
+4. Add/remove tabs, metric cards, rows sesuai data
+5. Do NOT touch any CSS or other JS
 
 ### Placeholder Reference
 
 | Placeholder | Replace With |
 |---|---|
 | `{{REPORT_TITLE}}` | e.g. `Investor Report Phase 17` |
-| `{{REPORT_CODENAME}}` | e.g. `POLYQUANTBOT // v17` |
+| `{{REPORT_CODENAME}}` | e.g. `Phase 17` |
+| `{{REPORT_FOCUS}}` | e.g. `Alpha Optimization` |
+| `{{SYSTEM_NAME}}` | e.g. `PolyQuantBot` |
+| `{{OWNER}}` | `Bayue Walker` |
 | `{{REPORT_DATE}}` | e.g. `April 2026` |
+| `{{SYSTEM_STATUS}}` | e.g. `LIVE_WATCH` |
+| `{{BADGE_1_LABEL}}` | e.g. `Confidential` |
+| `{{BADGE_2_LABEL}}` | e.g. `Stage 1 (Paper)` |
+| `{{TAB_1_LABEL}}` | e.g. `OVERVIEW` |
+| `{{TAB_2_LABEL}}` | e.g. `EXECUTION` |
+| `{{TAB_3_LABEL}}` | e.g. `RISK_&_LOGS` |
+| `{{TAB_1_HEADING}}` | e.g. `Executive Summary` |
+| `{{NOTICE_TEXT}}` | Disclaimer / notice text |
+| `{{M1_LABEL}}` … `{{M8_LABEL}}` | Metric labels |
+| `{{M1_VALUE}}` … `{{M8_VALUE}}` | Metric values |
+| `{{M1_NOTE}}` … `{{M8_NOTE}}` | Metric notes |
+| `{{PROG_1_LABEL}}` … | Progress bar labels |
+| `{{PROG_1_PCT}}` … | Progress bar % (number only, no %) |
+| `{{LIST_1_LABEL}}` … | Data list labels |
+| `{{LIST_1_VALUE}}` … | Data list values |
+| `{{S1_PHASE}}` … | SENTINEL phase numbers |
+| `{{S1_MODULE}}` … | SENTINEL module names |
+| `{{S1_VERDICT}}` … | SENTINEL verdicts |
+| `{{FOOTER_DISCLAIMER}}` | Footer text |
+| `{{LIMIT_1_TITLE}}` … | Known limitation titles |
+| `{{LIMIT_1_DESC}}` … | Known limitation descriptions |
+
+### Component Classes — Metric Cards
+
+| Class | Color | Use For |
+|---|---|---|
+| `success` | Neon green | Good metrics, passing |
+| `warn` | Amber | Pending, in progress |
+| `accent` | Cyan | Informational |
+| `danger` | Red | Issues, failures |
+| `muted` | Gray | N/A, not yet available |
+| `info` | Blue | Neutral numeric data |
+
+### Component Classes — Badges
+
+| Class | Use For |
+|---|---|
+| `badge-accent` | System active, live |
+| `badge-warn` | Stage / mode label |
+| `badge-success` | Approved, complete |
+| `badge-danger` | Blocked, critical |
+| `badge-muted` | Internal, confidential |
+
+### Component Classes — Pipeline Nodes
+
+| Class | Use For |
+|---|---|
+| `pipe-active` | Stage fully operational |
+| `pipe-success` | Stage passed/approved |
+| `pipe-warn` | Stage in progress / optimizing |
+| `pipe-inactive` | Stage not yet reached |
+
+### Component Classes — Checklist Items
+
+| Class | Icon | Use For |
+|---|---|---|
+| (default) | ✓ green | Done |
+| `warn` | ! amber | Warning |
+| `error` | ✗ red | Failed |
+| `next` | › cyan | Next step |
+| `info` | · gray | Info |
+
+### Component Classes — File Tags
+
+| Class | Label | Use For |
+|---|---|---|
+| `tag-new` | NEW | File baru dibuat |
+| `tag-mod` | MOD | File dimodifikasi |
+| `tag-del` | DEL | File dihapus |
+
+### Notice Box Classes
+
+| Class | Color | Use For |
+|---|---|---|
+| `notice-warn` | Amber | Disclaimer, warning |
+| `notice-success` | Green | Gate criteria, approval |
+| `notice-info` | Cyan | Context, note |
+| `notice-danger` | Red | Critical alert |
+
+### Tab Structure
+
+- 3 tabs default: Overview, Execution/Activity, Risk/Logs
+- Tambah tab ke-4 dengan uncomment section `tab-tab4`
+- Tab ID format: `tab-[tabId]` — harus match antara `id` div dan `onclick="switchTab('[tabId]', this)"`
+
+---
+
+## 🔴 TEMPLATE B: REPORT_TEMPLATE_MASTER.html
+
+**Untuk:** laporan yang dicetak, export PDF, atau dikirim sebagai dokumen formal
+
+**Fitur:** static sections, full scroll layout, print-optimized, `<section class="card">` blocks
+
+### How to use
+
+1. Copy `REPORT_TEMPLATE_MASTER.html` in full
+2. Replace all `{{PLACEHOLDER}}` values
+3. Add/remove `<section class="card">` blocks as needed
+4. Do NOT modify any CSS
+
+### Key Placeholders
+
+| Placeholder | Replace With |
+|---|---|
+| `{{REPORT_TITLE}}` | Report title |
+| `{{REPORT_CODENAME}}` | System codename |
+| `{{REPORT_DATE}}` | Date |
 | `{{CONFIDENTIALITY_LABEL}}` | e.g. `Confidential — Authorized Recipients Only` |
 | `{{SYSTEM_NAME}}` | e.g. `PolyQuantBot` |
-| `{{REPORT_SUBTITLE}}` | e.g. `Polymarket Automated Trading System · Phase 17 Report` |
 | `{{OWNER}}` | `Bayue Walker` |
-| `{{PHASE_LABEL}}` | e.g. `17 — Infrastructure Stable, Alpha Optimization` |
+| `{{PHASE_LABEL}}` | Phase number and name |
 | `{{MODE_LABEL}}` | e.g. `Live Stage 1 (Paper Capital)` |
 | `{{MODE_PILL_CLASS}}` | `pill-green` / `pill-orange` / `pill-red` / `pill-blue` |
-| `{{DISCLAIMER_TEXT}}` | Full disclaimer text |
-| `{{EXEC_SUMMARY_TEXT}}` | Executive summary paragraph |
-| `{{KV_LABEL_*}}` / `{{KV_VALUE_*}}` / `{{KV_NOTE_*}}` | Metric labels, values, notes |
-| `{{FOOTER_DISCLAIMER}}` | Footer legal disclaimer |
+| `{{DISCLAIMER_TEXT}}` | Full disclaimer |
+| `{{FOOTER_DISCLAIMER}}` | Footer legal text |
+
+### Sections Available
+
+Add/remove `<section class="card">` blocks:
+- Executive Summary + KV metrics
+- System Overview + Pipeline + Status table
+- Performance Summary + progress bar
+- Data / Activity table
+- Risk & Limitations (risk controls + risk cards)
+- System Strengths (strength grid)
+- Next Milestones (timeline dots)
+- Validation History — SENTINEL table
+- Checklist
 
 ### KV Box Classes
 
-| Class | Color | Use For |
-|---|---|---|
-| `positive` | Neon green | Good metrics, passing checks |
-| `neutral` | Amber | In-progress, pending |
-| `negative` | Red | Issues, failures |
-| `info` | Cyan | Informational, neutral data |
+| Class | Color |
+|---|---|
+| `positive` | Neon green |
+| `neutral` | Amber |
+| `negative` | Red |
+| `info` | Cyan |
 
 ### Pill Classes
 
-| Class | Color |
+| Class | Use For |
 |---|---|
-| `pill-green` | Approved, Operational, Enforced |
-| `pill-orange` | Conditional, Optimizing, Pending |
-| `pill-red` | Blocked, Failed, Critical |
+| `pill-green` | Approved, Enforced |
+| `pill-orange` | Conditional, Pending |
+| `pill-red` | Blocked, Failed |
 | `pill-blue` | Info, Active |
 
-### Milestone Dot Classes
+---
 
-| Class | Meaning |
+## 🔴 RISK CONTROLS — ALWAYS FIXED
+
+In both templates, the Risk Controls section always includes these FIXED values. Never change them:
+
+| Rule | Value |
 |---|---|
-| `dot-done` | Completed |
-| `dot-active` | Currently in progress |
-| `dot-pending` | Next up |
-| `dot-future` | Planned, not started |
+| Kelly α | 0.25 — fractional only |
+| Max position | ≤ 10% capital |
+| Daily loss | −$2,000 hard stop |
+| Drawdown | > 8% → auto-halt |
+| Dedup | Per (market, side, price, size) |
+| Kill switch | Telegram-accessible |
 
-### Risk Box Classes
-
-| Class | Color | Use For |
-|---|---|---|
-| `(default)` | Amber | Warnings, known issues |
-| `red` | Red | Critical risks, blockers |
-| `green` | Green | Resolved, positive notes |
-
-### Sections Available (include only what's relevant)
-
-- Executive Summary + KV metrics
-- System Overview + Pipeline + Status table
-- Performance Summary + metrics + progress bar
-- Data / Activity table
-- Risk & Limitations (risk controls table + risk cards)
-- System Strengths (strength grid)
-- Next Milestones (timeline dots)
-- Validation History — SENTINEL reports table
-- Checklist (optional)
-
-### Risk Controls Table (FIXED — always include as-is)
-
-The `Enforced Risk Controls` table in the Risk section contains standard Walker AI Team risk rules. These values are FIXED and must NOT be changed:
-- Kelly α = 0.25
-- Max position ≤ 10%
-- Daily loss −$2,000
-- Drawdown > 8% → halt
-- Dedup: per (market, side, price, size)
-- Kill switch: Telegram-accessible
-
-Only add phase-specific rows below the fixed rows.
+Only add phase-specific rows **below** these fixed rows.
 
 ---
 
 ## Output Format — REPORT MODE
 
+After producing the HTML file, also output this summary in chat:
+
 ```
 🧾 REPORT SOURCE
-[filename + path]
+[source filename + path]
 
-📊 VISUAL SUMMARY
-[structured table / summary]
+📋 TEMPLATE USED
+[TPL_INTERACTIVE_REPORT.html or REPORT_TEMPLATE_MASTER.html]
+
+📊 SECTIONS INCLUDED
+[list of sections populated]
 
 📌 HIGHLIGHTS
 - ✅ What is working
-- ⚠️ Issues
+- ⚠️ Issues / limitations
 - 🔜 Next step
 
 💬 BRIEFER NOTES
-[additional relevant context if any — not opinion]
-```
+[any relevant context — not opinion, not invented data]
 
-For HTML output, the above is supplementary. Primary output = HTML file using Master Template.
+💾 OUTPUT SAVED
+reports/briefer/[phase]_[increment]_[name].html
+```
 
 ---
 
