@@ -17,9 +17,9 @@ from projects.polymarket.polyquantbot.core.execution.executor import reset_state
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
-def _make_mock_db() -> MagicMock:
+def _make_mock_db() -> AsyncMock:
     """Create a mock DatabaseClient that satisfies the trading loop db requirement."""
-    db = MagicMock()
+    db = AsyncMock()
     db.upsert_position = AsyncMock(return_value=True)
     db.insert_trade = AsyncMock(return_value=True)
     db.update_trade_status = AsyncMock(return_value=True)

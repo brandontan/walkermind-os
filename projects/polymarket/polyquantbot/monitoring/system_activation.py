@@ -117,7 +117,8 @@ class SystemActivationMonitor:
         if self.event_count == 0:
             raise RuntimeError(
                 f"No events received after {round(elapsed, 1)}s — "
-                "WebSocket feed may be disconnected or market IDs may be invalid."
+                "WebSocket feed may be disconnected or market IDs may be invalid. "
+                "Check WebSocket connection status and verify MARKET_IDS are correct condition IDs."
             )
 
         if self.event_count > 0 and self.signal_count == 0:
