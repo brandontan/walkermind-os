@@ -21,11 +21,6 @@ from projects.polymarket.polyquantbot.core.execution.executor import (
     reset_state,
 )
 
-# Module-level constant for patching the random.uniform call in signal_engine
-_SIGNAL_RANDOM_PATCH = (
-    "projects.polymarket.polyquantbot.core.signal.signal_engine.random.uniform"
-)
-
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -65,60 +60,48 @@ async def test_se01_positive_edge_generates_signal():
 
 
 async def test_se02_zero_edge_skipped():
-    """SE-02: Alpha injection ensures positive edge even for zero-edge markets.
-
-    With TEMP alpha injection active, p_model is always set to p_market + alpha,
-    so every market with valid p_market generates a signal regardless of the
-    original p_model value.
-    """
+    """SE-02: A market where p_model == p_market produces zero edge and is skipped."""
     signals = await generate_signals(
         [_market(p_market=0.5, p_model=0.5)], bankroll=1000.0
     )
-    assert len(signals) == 1
+    assert signals == []
 
 
 async def test_se03_negative_edge_skipped():
-    """SE-03: Alpha injection overrides original p_model — signal is generated.
-
-    With TEMP alpha injection, p_model = p_market + alpha always, so the
-    original ``p_model < p_market`` relationship is irrelevant.
-    """
+    """SE-03: A market where p_model < p_market has negative edge and is skipped."""
     signals = await generate_signals(
         [_market(p_market=0.70, p_model=0.50)], bankroll=1000.0
     )
-    assert len(signals) == 1
+    assert signals == []
 
 
 async def test_se04_edge_below_threshold_skipped():
-    """SE-04: When alpha == 0.01 (min), edge=0.01 <= explicit threshold 0.02 → skipped."""
-    with patch(_SIGNAL_RANDOM_PATCH, return_value=0.01):
-        signals = await generate_signals(
-            [_market(p_market=0.50, p_model=0.51)],
-            bankroll=1000.0,
-            edge_threshold=0.02,
-        )
+    """SE-04: When p_model=0.51 and p_market=0.50, edge=0.01 < explicit threshold 0.02 → skipped."""
+    signals = await generate_signals(
+        [_market(p_market=0.50, p_model=0.51)],
+        bankroll=1000.0,
+        edge_threshold=0.02,
+    )
     assert signals == []
 
 
 async def test_se05_edge_just_above_threshold_accepted():
-    """SE-05: When alpha=0.025 > explicit threshold 0.02 → signal accepted."""
-    with patch(_SIGNAL_RANDOM_PATCH, return_value=0.025):
-        signals = await generate_signals(
-            [_market(p_market=0.50, p_model=0.525)],
-            bankroll=1000.0,
-            edge_threshold=0.02,
-        )
+    """SE-05: When p_model=0.525 and p_market=0.50, edge=0.025 > explicit threshold 0.02 → signal accepted."""
+    signals = await generate_signals(
+        [_market(p_market=0.50, p_model=0.525)],
+        bankroll=1000.0,
+        edge_threshold=0.02,
+    )
     assert len(signals) == 1
 
 
 async def test_se06_edge_above_threshold_accepted():
-    """SE-06: When alpha=0.03 > explicit threshold 0.02 → signal produced."""
-    with patch(_SIGNAL_RANDOM_PATCH, return_value=0.03):
-        signals = await generate_signals(
-            [_market(p_market=0.40, p_model=0.60)],
-            bankroll=1000.0,
-            edge_threshold=0.02,
-        )
+    """SE-06: When p_model=0.60 and p_market=0.40, edge=0.20 > explicit threshold 0.02 → signal produced."""
+    signals = await generate_signals(
+        [_market(p_market=0.40, p_model=0.60)],
+        bankroll=1000.0,
+        edge_threshold=0.02,
+    )
     assert len(signals) == 1
 
 
@@ -171,28 +154,28 @@ async def test_se11_signal_result_fields_populated():
 
 
 async def test_se12_multiple_markets_filtered_independently():
-    """SE-12: Each market is evaluated independently; low-liquidity market still filtered.
+    """SE-12: Each market is evaluated independently using real p_model.
 
-    With TEMP alpha injection both 'good' and 'bad' (negative original edge) markets
-    now generate signals — alpha ensures positive edge for all valid p_market values.
-    Only the 'low-liq' market is filtered by the liquidity check.
+    With the real alpha model:
+      - 'good'    (p_market=0.40, p_model=0.60): positive edge 0.20 → signal
+      - 'bad'     (p_market=0.60, p_model=0.40): negative edge -0.20 → filtered
+      - 'low-liq' (liquidity=500): filtered by the liquidity check
+    Only the 'good' market generates a signal.
     """
     markets = [
         _market(market_id="good", p_market=0.40, p_model=0.60),
-        _market(market_id="bad",  p_market=0.60, p_model=0.40),  # original neg edge; alpha overrides
+        _market(market_id="bad",  p_market=0.60, p_model=0.40),  # negative edge → filtered
         _market(market_id="low-liq", liquidity_usd=500.0),        # filtered by liquidity
     ]
     signals = await generate_signals(markets, bankroll=1000.0)
-    assert len(signals) == 2
-    signal_ids = {s.market_id for s in signals}
-    assert "low-liq" not in signal_ids
+    assert len(signals) == 1
+    assert signals[0].market_id == "good"
 
 
 async def test_se13_side_inferred_yes_when_model_above_half():
-    """SE-13: Side defaults to YES when alpha-injected p_model > 0.5.
+    """SE-13: Side defaults to YES when p_model > 0.5.
 
-    With TEMP alpha injection, p_model = p_market + alpha.
-    Use p_market=0.55 so p_model ∈ [0.56, 0.60] — always above 0.5.
+    p_market=0.55, p_model=0.70: positive edge 0.15, p_model > 0.5 → YES.
     """
     signals = await generate_signals([_market(p_market=0.55, p_model=0.70)], bankroll=1000.0)
     assert signals[0].side == "YES"

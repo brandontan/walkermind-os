@@ -41,14 +41,17 @@ _RETRY_BASE_S: float = 0.5
 _DDL_TRADES = """
 CREATE TABLE IF NOT EXISTS trades (
     trade_id        TEXT        PRIMARY KEY,
+    user_id         TEXT        NOT NULL DEFAULT '',
     strategy_id     TEXT        NOT NULL,
     market_id       TEXT        NOT NULL,
     side            TEXT        NOT NULL,
     size_usd        DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     price           DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    entry_price     DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     expected_ev     DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     pnl             DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     won             BOOLEAN     NOT NULL DEFAULT FALSE,
+    status          TEXT        NOT NULL DEFAULT 'open',
     mode            TEXT        NOT NULL DEFAULT 'PAPER',
     executed_at     DOUBLE PRECISION NOT NULL,
     inserted_at     DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
@@ -84,6 +87,42 @@ CREATE TABLE IF NOT EXISTS allocation_history (
     mode            TEXT        NOT NULL DEFAULT 'PAPER',
     recorded_at     DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
 );
+"""
+
+_DDL_POSITIONS = """
+CREATE TABLE IF NOT EXISTS positions (
+    user_id         TEXT        NOT NULL DEFAULT '',
+    market_id       TEXT        NOT NULL,
+    avg_price       DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    size            DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    updated_at      DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    PRIMARY KEY (user_id, market_id)
+);
+"""
+
+_DDL_MIGRATE_TRADES_USER_ID = """
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'trades' AND column_name = 'user_id'
+    ) THEN
+        ALTER TABLE trades ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'trades' AND column_name = 'status'
+    ) THEN
+        ALTER TABLE trades ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'trades' AND column_name = 'entry_price'
+    ) THEN
+        ALTER TABLE trades ADD COLUMN entry_price DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+    END IF;
+END
+$$;
 """
 
 
@@ -162,11 +201,13 @@ class DatabaseClient:
                 self._pool = None
 
     async def _apply_schema(self) -> None:
-        """Create tables if they do not exist yet."""
+        """Create tables if they do not exist yet, and run migrations."""
         async with self._pool.acquire() as conn:
             await conn.execute(_DDL_TRADES)
             await conn.execute(_DDL_STRATEGY_METRICS)
             await conn.execute(_DDL_ALLOCATION_HISTORY)
+            await conn.execute(_DDL_POSITIONS)
+            await conn.execute(_DDL_MIGRATE_TRADES_USER_ID)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────
@@ -175,8 +216,8 @@ class DatabaseClient:
         """Insert a trade record.  Idempotent: ON CONFLICT DO NOTHING.
 
         Expected keys in *trade*:
-            trade_id, strategy_id, market_id, side, size_usd, price,
-            expected_ev, pnl, won, mode, executed_at.
+            trade_id, user_id, strategy_id, market_id, side, size_usd,
+            price, entry_price, expected_ev, pnl, won, status, mode, executed_at.
             Optional: metadata (dict).
 
         Args:
@@ -185,28 +226,35 @@ class DatabaseClient:
         Returns:
             True on insert or duplicate-skip, False on error.
         """
+        # entry_price defaults to price for backward compatibility
+        entry_price = float(
+            trade.get("entry_price", trade.get("price", 0.0))
+        )
         sql = """
             INSERT INTO trades (
-                trade_id, strategy_id, market_id, side,
-                size_usd, price, expected_ev, pnl, won, mode,
-                executed_at, inserted_at, metadata
+                trade_id, user_id, strategy_id, market_id, side,
+                size_usd, price, entry_price, expected_ev, pnl,
+                won, status, mode, executed_at, inserted_at, metadata
             ) VALUES (
-                $1, $2, $3, $4,
-                $5, $6, $7, $8, $9, $10,
-                $11, $12, $13
+                $1, $2, $3, $4, $5,
+                $6, $7, $8, $9, $10,
+                $11, $12, $13, $14, $15, $16
             )
             ON CONFLICT (trade_id) DO NOTHING
         """
         args = (
             str(trade.get("trade_id", "")),
+            str(trade.get("user_id", "")),
             str(trade.get("strategy_id", "")),
             str(trade.get("market_id", "")),
             str(trade.get("side", "")),
             float(trade.get("size_usd", 0.0)),
             float(trade.get("price", 0.0)),
+            entry_price,
             float(trade.get("expected_ev", 0.0)),
             float(trade.get("pnl", 0.0)),
             bool(trade.get("won", False)),
+            str(trade.get("status", "open")),
             str(trade.get("mode", "PAPER")),
             float(trade.get("executed_at", time.time())),
             time.time(),
@@ -235,6 +283,93 @@ class DatabaseClient:
             return await self._fetch(sql, strategy_id, limit, op_label="get_recent_trades_filtered")
         sql = "SELECT * FROM trades ORDER BY executed_at DESC LIMIT $1"
         return await self._fetch(sql, limit, op_label="get_recent_trades")
+
+    async def update_trade_status(
+        self, trade_id: str, status: str, pnl: Optional[float] = None, won: Optional[bool] = None
+    ) -> bool:
+        """Update the status (and optionally PnL/won) of an existing trade.
+
+        Args:
+            trade_id: Trade primary key.
+            status: New status string (e.g. ``"closed"``, ``"settled"``).
+            pnl: Realised PnL to record (optional).
+            won: Whether the trade was profitable (optional).
+
+        Returns:
+            True on success, False on error.
+        """
+        if pnl is not None and won is not None:
+            sql = """
+                UPDATE trades SET status = $2, pnl = $3, won = $4
+                WHERE trade_id = $1
+            """
+            return await self._execute(
+                sql, trade_id, status, float(pnl), bool(won),
+                op_label="update_trade_status_pnl",
+            )
+        if pnl is not None:
+            sql = "UPDATE trades SET status = $2, pnl = $3 WHERE trade_id = $1"
+            return await self._execute(
+                sql, trade_id, status, float(pnl),
+                op_label="update_trade_status_pnl",
+            )
+        sql = "UPDATE trades SET status = $2 WHERE trade_id = $1"
+        return await self._execute(sql, trade_id, status, op_label="update_trade_status")
+
+    # ── Positions ─────────────────────────────────────────────────────────────
+
+    async def upsert_position(self, position: Dict[str, Any]) -> bool:
+        """Insert or update a position record.
+
+        Expected keys:
+            user_id, market_id, avg_price, size.
+
+        When a position with the same ``(user_id, market_id)`` already exists,
+        the avg_price and size are overwritten.
+
+        Args:
+            position: Position data dict.
+
+        Returns:
+            True on success, False on error.
+        """
+        sql = """
+            INSERT INTO positions (user_id, market_id, avg_price, size, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (user_id, market_id) DO UPDATE
+                SET avg_price  = EXCLUDED.avg_price,
+                    size       = EXCLUDED.size,
+                    updated_at = EXCLUDED.updated_at
+        """
+        args = (
+            str(position.get("user_id", "")),
+            str(position.get("market_id", "")),
+            float(position.get("avg_price", 0.0)),
+            float(position.get("size", 0.0)),
+            time.time(),
+        )
+        return await self._execute(sql, *args, op_label="upsert_position")
+
+    async def get_positions(
+        self, user_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Fetch open positions.
+
+        Args:
+            user_id: If given, returns only positions for this user.
+
+        Returns:
+            List of position dicts ordered by updated_at DESC.
+        """
+        if user_id:
+            sql = """
+                SELECT * FROM positions
+                WHERE user_id = $1
+                ORDER BY updated_at DESC
+            """
+            return await self._fetch(sql, user_id, op_label="get_positions_user")
+        sql = "SELECT * FROM positions ORDER BY updated_at DESC"
+        return await self._fetch(sql, op_label="get_positions")
 
     # ── Strategy metrics ──────────────────────────────────────────────────────
 

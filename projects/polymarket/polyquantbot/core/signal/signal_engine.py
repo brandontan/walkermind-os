@@ -4,6 +4,8 @@ For each market in the supplied list this module:
 
 1. Reads ``p_market`` (the current market-implied probability) and
    ``p_model``   (the model's estimated probability).
+   ``p_model`` is either supplied in the market dict or computed by the
+   optional :class:`~core.signal.alpha_model.ProbabilisticAlphaModel`.
 2. Computes ``edge = p_model - p_market``.
 3. Skips the market if ``edge <= 0`` (no positive edge).
 4. Computes Expected Value: ``EV = p_model * b - (1 - p_model)``
@@ -12,6 +14,9 @@ For each market in the supplied list this module:
 5. Applies the signal filter — only continues when:
    - ``edge > EDGE_THRESHOLD``   (default 0.02, i.e. 2 %)
    - ``liquidity_usd > MIN_LIQUIDITY_USD``   (default $10,000)
+   - ``confidence_score > MIN_CONFIDENCE``   (default 0.5)
+     where ``confidence_score = edge / volatility`` and volatility is
+     estimated from the bid-ask spread (or alpha model if provided).
 6. Sizes the position using fractional Kelly:
    ``kelly_f = (p * b - q) / b``  (where q = 1 - p_model)
    ``size    = bankroll * KELLY_FRACTION * kelly_f``
@@ -24,6 +29,7 @@ Environment variables (all optional):
     SIGNAL_MIN_LIQUIDITY_USD  — minimum liquidity required   (default 10000)
     SIGNAL_KELLY_FRACTION     — fractional-Kelly multiplier  (default 0.25)
     SIGNAL_MAX_POSITION_PCT   — max position as fraction of bankroll (default 0.10)
+    SIGNAL_MIN_CONFIDENCE     — minimum confidence score S=edge/vol  (default 0.5)
 
 Usage::
 
@@ -36,21 +42,24 @@ Usage::
 from __future__ import annotations
 
 import os
-import random
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 import structlog
+
+if TYPE_CHECKING:
+    from .alpha_model import ProbabilisticAlphaModel
 
 log = structlog.get_logger()
 
 # ── Configuration defaults ─────────────────────────────────────────────────────
 
-_EDGE_THRESHOLD: float = 0.01          # 1 % minimum edge (TEMP — alpha injection active)
+_EDGE_THRESHOLD: float = 0.02          # 2 % minimum edge
 _MIN_LIQUIDITY_USD: float = 10_000.0   # $10,000 minimum market depth
 _KELLY_FRACTION: float = 0.25          # fractional Kelly multiplier
 _MAX_POSITION_FRACTION: float = 0.10   # max 10 % of bankroll per trade
+_MIN_CONFIDENCE: float = 0.5           # minimum S = edge / volatility
 
 
 def _env_float(name: str, default: float) -> float:
@@ -58,6 +67,24 @@ def _env_float(name: str, default: float) -> float:
         return float(os.getenv(name, str(default)))
     except ValueError:
         return default
+
+
+def _spread_volatility(market: dict[str, Any], p_market: float) -> float:
+    """Estimate volatility from bid-ask spread.
+
+    Falls back to a small default when bid/ask are not in the market dict.
+
+    Args:
+        market: Market context dict.
+        p_market: Current market-implied probability (used as fallback price).
+
+    Returns:
+        Spread value, at least ``1e-4``.
+    """
+    bid = float(market.get("bid", p_market))
+    ask = float(market.get("ask", p_market))
+    spread = ask - bid
+    return max(spread, 1e-4)
 
 
 # ── SignalResult dataclass ─────────────────────────────────────────────────────
@@ -104,18 +131,26 @@ async def generate_signals(
     min_liquidity_usd: float | None = None,
     kelly_fraction: float | None = None,
     max_position_fraction: float | None = None,
+    min_confidence: float | None = None,
+    alpha_model: "Optional[ProbabilisticAlphaModel]" = None,
 ) -> list[SignalResult]:
     """Evaluate a list of markets and return signals with positive edge.
 
     Each market dict is expected to contain at minimum:
         ``market_id``     — Polymarket condition ID (str)
         ``p_market``      — current market price / implied probability (float 0-1)
-        ``p_model``       — model-estimated probability              (float 0-1)
+        ``p_model``       — model-estimated probability (float 0-1); used when
+                            no *alpha_model* is provided.
         ``liquidity_usd`` — total USD depth in the orderbook         (float)
 
-    Optional fields forwarded verbatim into ``SignalResult.extra``:
-        ``side``  — if omitted, "YES" is inferred when p_model > 0.5 else "NO"
-        any other key
+    Optional fields used for confidence scoring:
+        ``bid`` / ``ask`` — bid and ask prices for spread-based volatility.
+        any other key is forwarded verbatim into ``SignalResult.extra``.
+
+    When *alpha_model* is supplied it overrides the ``p_model`` key and also
+    provides a model-computed volatility for the confidence score.  The caller
+    is responsible for calling ``alpha_model.record_tick`` on each price update
+    before invoking this function.
 
     Args:
         markets:              Iterable of market context dicts.
@@ -124,6 +159,10 @@ async def generate_signals(
         min_liquidity_usd:    Override for minimum liquidity (env: SIGNAL_MIN_LIQUIDITY_USD).
         kelly_fraction:       Override for Kelly multiplier (env: SIGNAL_KELLY_FRACTION).
         max_position_fraction: Override for max position size (env: SIGNAL_MAX_POSITION_PCT).
+        min_confidence:       Override for minimum confidence score S=edge/vol
+                              (env: SIGNAL_MIN_CONFIDENCE).  Set to 0.0 to disable.
+        alpha_model:          Optional :class:`~core.signal.alpha_model.ProbabilisticAlphaModel`
+                              for real p_model and volatility computation.
 
     Returns:
         List of :class:`SignalResult` instances, one per qualifying market.
@@ -140,6 +179,9 @@ async def generate_signals(
     _mp = max_position_fraction if max_position_fraction is not None else _env_float(
         "SIGNAL_MAX_POSITION_PCT", _MAX_POSITION_FRACTION
     )
+    _mc = min_confidence if min_confidence is not None else _env_float(
+        "SIGNAL_MIN_CONFIDENCE", _MIN_CONFIDENCE
+    )
 
     signals: list[SignalResult] = []
 
@@ -148,10 +190,19 @@ async def generate_signals(
         p_market: float = float(market.get("p_market", 0.0))
         liquidity_usd: float = float(market.get("liquidity_usd", 0.0))
 
-        # ── TEMP ALPHA INJECTION ─────────────────────────────────────────────
-        p_model_raw: float = float(market.get("p_model", 0.0))
-        alpha: float = random.uniform(0.01, 0.05)
-        p_model: float = min(max(p_market + alpha, 0.01), 0.99)
+        # ── p_model and volatility ────────────────────────────────────────────
+        if alpha_model is not None:
+            # Stateful model computes p_model from deviation + momentum + liquidity
+            p_model, volatility = alpha_model.compute_p_model(
+                market_id=market_id,
+                p_market=p_market,
+                liquidity_usd=liquidity_usd,
+            )
+        else:
+            # Use the caller-supplied p_model from the market dict
+            p_model = float(market.get("p_model", p_market))
+            # Volatility estimated from bid-ask spread
+            volatility = _spread_volatility(market, p_market)
 
         # ── 1. Edge calculation ───────────────────────────────────────────────
         edge: float = p_model - p_market
@@ -160,10 +211,9 @@ async def generate_signals(
             "signal_debug",
             market_id=market_id,
             p_market=round(p_market, 4),
-            p_model_raw=round(p_model_raw, 4),
             p_model=round(p_model, 4),
-            alpha=round(alpha, 4),
             edge=round(edge, 4),
+            volatility=round(volatility, 6),
         )
 
         if edge <= 0:
@@ -190,15 +240,6 @@ async def generate_signals(
         q: float = 1.0 - p_model
         ev: float = p_model * b - q
 
-        log.info(
-            "signal_generated",
-            market_id=market_id,
-            edge=round(edge, 4),
-            ev=round(ev, 4),
-            p_model=round(p_model, 4),
-            p_market=round(p_market, 4),
-        )
-
         # ── 3. Signal filter ──────────────────────────────────────────────────
         if edge <= _et:
             log.info(
@@ -220,7 +261,29 @@ async def generate_signals(
             )
             continue
 
-        # ── 4. Position sizing — fractional Kelly ─────────────────────────────
+        # ── 4. Confidence score filter (S = edge / volatility) ────────────────
+        confidence_score: float = edge / volatility
+        if confidence_score < _mc:
+            log.info(
+                "trade_skipped",
+                market_id=market_id,
+                reason="low_confidence",
+                confidence_score=round(confidence_score, 4),
+                min_confidence=round(_mc, 4),
+            )
+            continue
+
+        log.info(
+            "signal_generated",
+            market_id=market_id,
+            edge=round(edge, 4),
+            ev=round(ev, 4),
+            p_model=round(p_model, 4),
+            p_market=round(p_market, 4),
+            confidence_score=round(confidence_score, 4),
+        )
+
+        # ── 5. Position sizing — fractional Kelly ─────────────────────────────
         kelly_f: float = (p_model * b - q) / b if b > 0 else 0.0
         kelly_f = max(kelly_f, 0.0)  # clamp to non-negative
 
@@ -237,7 +300,7 @@ async def generate_signals(
             )
             continue
 
-        # ── 5. Determine side ─────────────────────────────────────────────────
+        # ── 6. Determine side ─────────────────────────────────────────────────
         side: str = str(market.get("side", "YES" if p_model > 0.5 else "NO"))
 
         extra: dict[str, Any] = {
