@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Real Wallet Foundation COMPLETE ✅
+Status: Wallet Persistence + Real Polygon Transactions COMPLETE ✅
 
 ---
 
@@ -37,6 +37,16 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+WALLET PERSISTENCE + REAL POLYGON TRANSACTIONS
+
+- core/wallet/repository.py: WalletRepository (PostgreSQL-backed — get_wallet, create_wallet, update_wallet, ensure_schema)
+- core/wallet/service.py: eth_account.Account.create() address derivation (EIP-55); optional repository parameter; 2× RPC retry; 5s timeout on HTTPProvider
+- telegram/handlers/wallet.py: handle_withdraw_command() — parses /withdraw, executes withdrawal, returns result screen with tx hash
+- tests/test_wallet_real.py: 10 new tests WR-28–WR-37; total 37 tests pass
+- reports/forge/WALLET_PERSISTENCE_REAL_TX.md: forge report
+
+---
 
 REAL WALLET FOUNDATION
 
@@ -363,6 +373,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- Wire WalletRepository + WalletService(repository=repo) into main.py startup sequence
+- Wire /withdraw text command into CommandRouter / CommandHandler
 - LIVE Stage 1 monitoring: safety watch active for first 10 trades
 - Wire drawdown_provider from RiskGuard into FeedbackLoop
 - Wire RedisClient + DatabaseClient into pipeline startup sequence
