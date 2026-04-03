@@ -297,7 +297,7 @@ Every component MUST handle:
 ## Function
 
 Transform reports from FORGE-X or SENTINEL into:
-- More readable formats
+- Investor/client-ready HTML reports using the Master Template
 - Dashboard summaries
 - Text visualizations (tables, ASCII charts if needed)
 
@@ -307,6 +307,107 @@ Transform reports from FORGE-X or SENTINEL into:
 2. Identify all available fields
 3. Transform **without changing any numbers or conclusions**
 4. Mark empty fields as `N/A`
+5. If output is HTML report → **always use the Master Template**
+
+---
+
+## 🔴 MASTER REPORT TEMPLATE (MANDATORY FOR HTML OUTPUT)
+
+**Template location in repo:**
+```
+docs/templates/REPORT_TEMPLATE_MASTER.html
+```
+
+**BRIEFER MUST use this template for every HTML investor/client report.**
+Do NOT create a custom design from scratch.
+
+### How to use the template
+
+1. Copy `REPORT_TEMPLATE_MASTER.html` in full
+2. Replace all `{{PLACEHOLDER}}` values with real data from source reports
+3. Add/remove section `<section class="card">` blocks as needed
+4. Do NOT modify any CSS — only replace placeholder content in HTML
+5. Save output to: `reports/briefer/[phase]_[increment]_[name].html`
+
+### Placeholder Reference
+
+| Placeholder | Replace With |
+|---|---|
+| `{{REPORT_TITLE}}` | e.g. `Investor Report Phase 17` |
+| `{{REPORT_CODENAME}}` | e.g. `POLYQUANTBOT // v17` |
+| `{{REPORT_DATE}}` | e.g. `April 2026` |
+| `{{CONFIDENTIALITY_LABEL}}` | e.g. `Confidential — Authorized Recipients Only` |
+| `{{SYSTEM_NAME}}` | e.g. `PolyQuantBot` |
+| `{{REPORT_SUBTITLE}}` | e.g. `Polymarket Automated Trading System · Phase 17 Report` |
+| `{{OWNER}}` | `Bayue Walker` |
+| `{{PHASE_LABEL}}` | e.g. `17 — Infrastructure Stable, Alpha Optimization` |
+| `{{MODE_LABEL}}` | e.g. `Live Stage 1 (Paper Capital)` |
+| `{{MODE_PILL_CLASS}}` | `pill-green` / `pill-orange` / `pill-red` / `pill-blue` |
+| `{{DISCLAIMER_TEXT}}` | Full disclaimer text |
+| `{{EXEC_SUMMARY_TEXT}}` | Executive summary paragraph |
+| `{{KV_LABEL_*}}` / `{{KV_VALUE_*}}` / `{{KV_NOTE_*}}` | Metric labels, values, notes |
+| `{{FOOTER_DISCLAIMER}}` | Footer legal disclaimer |
+
+### KV Box Classes
+
+| Class | Color | Use For |
+|---|---|---|
+| `positive` | Neon green | Good metrics, passing checks |
+| `neutral` | Amber | In-progress, pending |
+| `negative` | Red | Issues, failures |
+| `info` | Cyan | Informational, neutral data |
+
+### Pill Classes
+
+| Class | Color |
+|---|---|
+| `pill-green` | Approved, Operational, Enforced |
+| `pill-orange` | Conditional, Optimizing, Pending |
+| `pill-red` | Blocked, Failed, Critical |
+| `pill-blue` | Info, Active |
+
+### Milestone Dot Classes
+
+| Class | Meaning |
+|---|---|
+| `dot-done` | Completed |
+| `dot-active` | Currently in progress |
+| `dot-pending` | Next up |
+| `dot-future` | Planned, not started |
+
+### Risk Box Classes
+
+| Class | Color | Use For |
+|---|---|---|
+| `(default)` | Amber | Warnings, known issues |
+| `red` | Red | Critical risks, blockers |
+| `green` | Green | Resolved, positive notes |
+
+### Sections Available (include only what's relevant)
+
+- Executive Summary + KV metrics
+- System Overview + Pipeline + Status table
+- Performance Summary + metrics + progress bar
+- Data / Activity table
+- Risk & Limitations (risk controls table + risk cards)
+- System Strengths (strength grid)
+- Next Milestones (timeline dots)
+- Validation History — SENTINEL reports table
+- Checklist (optional)
+
+### Risk Controls Table (FIXED — always include as-is)
+
+The `Enforced Risk Controls` table in the Risk section contains standard Walker AI Team risk rules. These values are FIXED and must NOT be changed:
+- Kelly α = 0.25
+- Max position ≤ 10%
+- Daily loss −$2,000
+- Drawdown > 8% → halt
+- Dedup: per (market, side, price, size)
+- Kill switch: Telegram-accessible
+
+Only add phase-specific rows below the fixed rows.
+
+---
 
 ## Output Format — REPORT MODE
 
@@ -325,6 +426,8 @@ Transform reports from FORGE-X or SENTINEL into:
 💬 BRIEFER NOTES
 [additional relevant context if any — not opinion]
 ```
+
+For HTML output, the above is supplementary. Primary output = HTML file using Master Template.
 
 ---
 
