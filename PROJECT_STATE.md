@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Alpha Tune + Trade Close COMPLETE ✅
+Status: Market Parser Hotfix COMPLETE ✅
 
 ---
 
@@ -37,6 +37,15 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+MARKET PARSER HOTFIX
+
+- core/market/market_client.py: added extract_market_data() — safe parser that maps conditionId→market_id and outcomePrices[0]→p_market; validates 0 < p_market < 1 and non-empty market_id; logs market_parse_error on exception; zero silent failure
+- core/market/__init__.py: exported extract_market_data
+- core/pipeline/trading_loop.py: log first 3 raw market dicts per tick (market_raw_sample); apply extract_market_data filter; log market_valid per parsed market; merge normalised keys with original fields; pass normalised markets to generate_signals; skip iteration if all markets fail parsing
+- reports/forge/MARKET_PARSER_HOTFIX.md: completion report
+
+---
 
 ALPHA TUNE + TRADE CLOSE
 

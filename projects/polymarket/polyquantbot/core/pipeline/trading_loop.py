@@ -68,7 +68,7 @@ from typing import Any, Callable, Awaitable, Optional
 
 import structlog
 
-from ..market.market_client import get_active_markets
+from ..market.market_client import get_active_markets, extract_market_data
 from ..signal.signal_engine import generate_signals
 from ..signal.alpha_model import ProbabilisticAlphaModel
 from ..execution.executor import execute_trade
@@ -201,26 +201,46 @@ async def run_trading_loop(
 
             log.info("market_feed", count=len(markets))
 
+            # ── 1a. Debug: log first 3 raw markets (temp) ─────────────────────
+            # TODO: remove once production data structure is confirmed stable
+            for _raw in markets[:3]:
+                log.info("market_raw_sample", data=_raw)
+
+            # ── 1b. Parse and normalise markets ───────────────────────────────
+            normalised_markets: list[dict] = []
+            for market in markets:
+                parsed = extract_market_data(market)
+                if not parsed:
+                    continue
+                log.info(
+                    "market_valid",
+                    market_id=parsed["market_id"],
+                    p_market=parsed["p_market"],
+                )
+                # Carry through all original fields so signal engine can use
+                # bid/ask/liquidity etc., but always have the normalised keys.
+                merged = {**market, **parsed}
+                normalised_markets.append(merged)
+
+            if not normalised_markets:
+                log.warning(
+                    "trading_loop_no_valid_markets",
+                    hint="All markets failed extract_market_data — skipping iteration",
+                )
+                await asyncio.sleep(_interval)
+                continue
+
             # ── 2. Feed price data into alpha model ───────────────────────────
             market_prices: dict[str, float] = {}
-            for market in markets:
-                _cond_id = market.get("conditionId")
-                market_id: str = str(
-                    _cond_id if _cond_id is not None else market.get("condition_id") or ""
-                )
-                if not market_id:
-                    continue
-                _raw_price = market.get("lastTradePrice")
-                price: float = float(
-                    _raw_price if _raw_price is not None else market.get("price") or 0.0
-                )
-                if price > 0.0:
-                    alpha_model.record_tick(market_id, price)
-                    market_prices[market_id] = price
+            for market in normalised_markets:
+                market_id: str = market["market_id"]
+                price: float = market["p_market"]
+                alpha_model.record_tick(market_id, price)
+                market_prices[market_id] = price
 
             # ── 3. Generate signals (with real alpha) ─────────────────────────
             signals = await generate_signals(
-                markets,
+                normalised_markets,
                 bankroll=_bankroll,
                 alpha_model=alpha_model,
             )
