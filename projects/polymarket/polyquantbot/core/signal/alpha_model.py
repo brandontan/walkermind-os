@@ -46,7 +46,7 @@ log = structlog.get_logger(__name__)
 
 _DEFAULT_WINDOW: int = 20
 _DEFAULT_DEVIATION_WEIGHT: float = 0.5    # weight on mean-reversion deviation
-_DEFAULT_MOMENTUM_SCALE: float = 2.0      # amplifier for momentum signal
+_DEFAULT_MOMENTUM_SCALE: float = 1.0      # amplifier for momentum signal (reduced from 2.0 to lower noise)
 _REF_LIQUIDITY_USD: float = 100_000.0     # normalisation reference (100 k)
 _MIN_VOLATILITY: float = 1e-4             # floor to avoid zero-division
 
