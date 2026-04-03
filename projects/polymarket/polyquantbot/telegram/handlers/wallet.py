@@ -442,36 +442,45 @@ async def handle_withdraw_command(
 ) -> tuple[str, list]:
     """Execute a USDC withdrawal.
 
-    In PAPER mode, simulates deduction from cash.
-    In LIVE mode, broadcasts via WalletService.
+    Priority:
+    1. If WalletService is available → live blockchain withdrawal
+    2. Elif paper_wallet_engine available → paper simulation
+    3. Else → return withdraw screen stub
+
+    Args:
+        user_id:      Telegram user ID.
+        to_address:   Destination 0x address.
+        amount_usdc:  Amount in USDC.
     """
-    if _mode == "PAPER":
+    # ── LIVE: WalletService takes priority when injected ─────────────────────
+    if _wallet_service is not None and user_id is not None:
+        try:
+            result = await _wallet_service.withdraw(
+                user_id=user_id,
+                to_address=to_address,
+                amount_usdc=amount_usdc,
+            )
+            log.info(
+                "withdraw_command_success",
+                user_id=user_id,
+                status=result.get("status"),
+                tx_hash=result.get("tx_hash"),
+            )
+            return wallet_withdraw_result_screen(result), build_wallet_menu()
+        except (ValueError, RuntimeError) as exc:
+            log.warning("withdraw_command_error", user_id=user_id, error=str(exc))
+            return (
+                "❌ *Withdraw Failed*\n\n"
+                f"`{exc}`\n\n"
+                "_Check address format and available balance._"
+            ), build_wallet_menu()
+        except Exception as exc:
+            log.error("withdraw_command_unexpected_error", user_id=user_id, error=str(exc))
+            return wallet_withdraw_screen(), build_wallet_menu()
+
+    # ── PAPER: simulate deduction from paper cash ─────────────────────────────
+    if _paper_wallet_engine is not None:
         return await handle_paper_withdraw_command(amount=amount_usdc)
 
-    if _wallet_service is None or user_id is None:
-        return wallet_withdraw_screen(), build_wallet_menu()
-
-    try:
-        result = await _wallet_service.withdraw(
-            user_id=user_id,
-            to_address=to_address,
-            amount_usdc=amount_usdc,
-        )
-        log.info(
-            "withdraw_command_success",
-            user_id=user_id,
-            status=result.get("status"),
-            tx_hash=result.get("tx_hash"),
-        )
-        return wallet_withdraw_result_screen(result), build_wallet_menu()
-    except (ValueError, RuntimeError) as exc:
-        log.warning("withdraw_command_error", user_id=user_id, error=str(exc))
-        return (
-            "❌ *Withdraw Failed*\n\n"
-            f"`{exc}`\n\n"
-            "_Check address format and available balance._"
-        ), build_wallet_menu()
-    except Exception as exc:
-        log.error("withdraw_command_unexpected_error", user_id=user_id, error=str(exc))
-        return wallet_withdraw_screen(), build_wallet_menu()
+    return wallet_withdraw_screen(), build_wallet_menu()
 
