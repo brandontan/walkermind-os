@@ -43,13 +43,22 @@ def status_screen(
     return "\n".join(lines)
 
 
-def performance_screen(total_pnl: float, total_trades: int, mode: str) -> str:
+def performance_screen(
+    total_pnl: float,
+    total_trades: int,
+    mode: str,
+    win_rate: float = 0.0,
+    drawdown: float = 0.0,
+) -> str:
     """PnL + trades performance summary."""
+    pnl_sign = "+" if total_pnl >= 0 else ""
     return (
         "📈 *PERFORMANCE*\n\n"
         f"Mode: `{mode}`\n"
-        f"Total PnL: `{total_pnl:.4f} USD`\n"
-        f"Total Trades: `{total_trades}`"
+        f"Total PnL: `{pnl_sign}{total_pnl:.4f} USD`\n"
+        f"Win Rate: `{win_rate:.1%}`\n"
+        f"Trades: `{total_trades}`\n"
+        f"Drawdown: `{drawdown:.2%}`"
     )
 
 

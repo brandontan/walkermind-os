@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: PnL Tracking + Real Alpha Engine COMPLETE ✅
+Status: PnL + Alpha Full Pipeline Integration COMPLETE ✅
 
 ---
 
@@ -37,6 +37,17 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+PNL + ALPHA FULL PIPELINE INTEGRATION
+
+- core/pipeline/trading_loop.py: ProbabilisticAlphaModel instantiated at startup; record_tick per market per tick; alpha_model passed to generate_signals; upsert_position + insert_trade + update_trade_status after fills; PnLCalculator metrics logged each tick; db and user_id params added
+- telegram/ui/screens.py: performance_screen now accepts and displays win_rate and drawdown
+- telegram/message_formatter.py: format_performance_report shows win_rate + drawdown in header
+- telegram/command_handler.py: _handle_performance computes overall win_rate + max drawdown and passes to formatter
+- tests/test_pipeline_integration_final.py: TL-04 and TL-09 updated for alpha_model kwarg
+- Report: reports/forge/PNL_ALPHA_INTEGRATION.md
+
+---
 
 PNL TRACKING + REAL ALPHA ENGINE
 
@@ -387,14 +398,11 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
-- Wire ProbabilisticAlphaModel into core/pipeline/trading_loop.py (per-tick record_tick + alpha_model param to generate_signals)
-- Wire upsert_position() into LiveExecutor trade result callback
-- Wire PnLCalculator.calculate_metrics() into monitoring metrics snapshot
 - Wire WalletRepository + WalletService(repository=repo) into main.py startup sequence
 - Wire /withdraw text command into CommandRouter / CommandHandler
 - LIVE Stage 1 monitoring: safety watch active for first 10 trades
 - Wire drawdown_provider from RiskGuard into FeedbackLoop
-- Wire RedisClient + DatabaseClient into pipeline startup sequence
+- Wire RedisClient + DatabaseClient into pipeline startup sequence (infra ready, injection pending)
 - Wire DynamicCapitalAllocator + MultiStrategyMetrics into CommandHandler in main.py
 - Wire WalletManager into wallet handlers for live balance/exposure data
 - Persistent signal dedup via Redis (trading_loop currently uses in-memory set)
@@ -414,15 +422,14 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Wire ProbabilisticAlphaModel into trading_loop.py for real per-tick alpha computation
-2. Wire upsert_position + PnLCalculator into execution callback for live PnL updates
-3. Load live bankroll from WalletManager into run_trading_loop (replace static default)
-2. Persist signal dedup set via Redis for restart safety
-3. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
-4. Plug in CLOB executor callback for LIVE mode
-5. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
-6. Market resolution PnL updates (TradeResult post-settlement)
-7. Bayesian updater: pass posterior confidence as ev_adjustment
+1. Inject DatabaseClient into run_trading_loop via main.py bootstrap for position/PnL persistence
+2. Load live bankroll from WalletManager into run_trading_loop (replace static default)
+3. Persist signal dedup set via Redis for restart safety
+4. Replace paper simulation with ExecutionSimulator for orderbook-accurate fills
+5. Plug in CLOB executor callback for LIVE mode
+6. Wire drawdown_provider (RiskGuard.drawdown) into FeedbackLoop
+7. Market resolution PnL updates (TradeResult post-settlement)
+8. Bayesian updater: pass posterior confidence as ev_adjustment
 
 ---
 

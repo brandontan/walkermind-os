@@ -734,6 +734,8 @@ def format_performance_report(
     total_pnl: float,
     total_trades: int,
     mode: str = "PAPER",
+    win_rate: float = 0.0,
+    drawdown: float = 0.0,
 ) -> str:
     """Format a /performance PnL + win-rate report.
 
@@ -744,6 +746,8 @@ def format_performance_report(
         total_pnl: Aggregate PnL across all strategies.
         total_trades: Aggregate trade count.
         mode: Trading mode string.
+        win_rate: Overall portfolio win rate ∈ [0, 1].
+        drawdown: Maximum drawdown fraction ∈ [0, 1].
 
     Returns:
         Formatted Telegram Markdown message string.
@@ -758,6 +762,7 @@ def format_performance_report(
         "📊 *PERFORMANCE REPORT*",
         sep,
         f"Mode: `{mode}` | Trades: `{total_trades}` | PnL: `{total_pnl_sign}${total_pnl:.2f}`",
+        f"Win Rate: `{win_rate:.1%}` | Drawdown: `{drawdown:.2%}`",
         sep,
         "PER-STRATEGY:",
     ]

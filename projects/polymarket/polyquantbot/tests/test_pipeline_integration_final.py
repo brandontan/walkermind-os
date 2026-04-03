@@ -177,7 +177,11 @@ async def test_tl04_signals_generated_from_markets():
             stop_event=stop,
         )
 
-    signal_mock.assert_awaited_once_with(markets, bankroll=2000.0)
+    signal_mock.assert_awaited_once()
+    call_args = signal_mock.await_args
+    assert call_args.args == (markets,)
+    assert call_args.kwargs["bankroll"] == 2000.0
+    assert "alpha_model" in call_args.kwargs
 
 
 async def test_tl05_execute_trade_called_per_signal():
@@ -413,7 +417,7 @@ async def test_tl09_multiple_ticks_accumulate_trades():
 
     signal_call = {"n": 0}
 
-    async def rotating_signals(markets, *, bankroll):
+    async def rotating_signals(markets, *, bankroll, alpha_model=None, **kwargs):
         signal_call["n"] += 1
         return [_make_sig(signal_call["n"])]
 
