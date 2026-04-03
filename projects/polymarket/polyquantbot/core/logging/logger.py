@@ -461,3 +461,55 @@ def log_telegram_trade_detailed(
         unrealized_pnl=round(unrealized_pnl, 4),
         **extra,
     )
+
+
+def log_loop_duration(
+    tick: int,
+    duration_s: float,
+    markets_processed: int,
+    signals_generated: int,
+    **extra: Any,
+) -> None:
+    """Emit a structured ``loop_duration`` log event for timing telemetry.
+
+    Args:
+        tick:               Zero-indexed loop tick counter.
+        duration_s:         Wall-clock seconds elapsed for this tick.
+        markets_processed:  Number of markets evaluated this tick.
+        signals_generated:  Number of signals produced this tick.
+        **extra:            Additional key-value pairs forwarded to structlog.
+    """
+    _log.info(
+        "loop_duration",
+        tick=tick,
+        duration_s=round(duration_s, 4),
+        markets_processed=markets_processed,
+        signals_generated=signals_generated,
+        **extra,
+    )
+
+
+def log_loop_throttled(
+    tick: int,
+    duration_s: float,
+    throttle_sleep_s: float,
+    reason: str,
+    **extra: Any,
+) -> None:
+    """Emit a structured ``loop_throttled`` log event when a timing guard fires.
+
+    Args:
+        tick:             Zero-indexed loop tick counter.
+        duration_s:       Actual tick duration before throttle sleep (seconds).
+        throttle_sleep_s: Additional sleep applied to enforce minimum interval.
+        reason:           Human-readable reason for throttling (e.g. ``"fast_loop"``).
+        **extra:          Additional key-value pairs forwarded to structlog.
+    """
+    _log.warning(
+        "loop_throttled",
+        tick=tick,
+        duration_s=round(duration_s, 4),
+        throttle_sleep_s=round(throttle_sleep_s, 4),
+        reason=reason,
+        **extra,
+    )

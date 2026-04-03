@@ -34,7 +34,15 @@ Environment variables (all optional):
                                 to FORCE_SIGNAL_TOP_N signals per call using a
                                 simplified side rule: p_market < 0.5 → YES else NO.
                                 Position size is capped at 1 % of bankroll.
+                                **Disabled by default.**
     FORCE_SIGNAL_TOP_N        — max number of forced signals per call (default 1)
+
+Numeric safeguards:
+    Volatility is clamped to a minimum of 0.01 (_VOLATILITY_FLOOR) before any
+    computation to prevent division-by-zero and numeric overflow.
+    The confidence score S = edge / volatility is clamped to the range
+    [-10.0, 10.0] (_S_SCORE_MAX_ABS) to prevent runaway values causing
+    excessive position sizing or filter bypasses.
 
 Usage::
 
@@ -69,6 +77,8 @@ _MAX_POSITION_FRACTION: float = 0.10   # max 10 % of bankroll per trade
 _MIN_CONFIDENCE: float = 0.1           # minimum S = edge / volatility
 _FORCE_SIGNAL_TOP_N: int = 1           # default markets to force-signal per call
 _MIN_FORCE_MODE_EDGE: float = 0.01     # minimum edge injected in force mode
+_VOLATILITY_FLOOR: float = 0.01        # minimum volatility — prevents divide-by-zero / overflow
+_S_SCORE_MAX_ABS: float = 10.0         # maximum absolute S score — prevents numeric runaway
 
 # ── Strategy adjustment constants ──────────────────────────────────────────────
 
@@ -97,18 +107,20 @@ def _spread_volatility(market: dict[str, Any], p_market: float) -> float:
     """Estimate volatility from bid-ask spread.
 
     Falls back to a small default when bid/ask are not in the market dict.
+    Always returns at least ``_VOLATILITY_FLOOR`` to prevent division-by-zero
+    and numeric overflow in confidence-score calculations.
 
     Args:
         market: Market context dict.
         p_market: Current market-implied probability (used as fallback price).
 
     Returns:
-        Spread value, at least ``1e-4``.
+        Spread value, at least ``_VOLATILITY_FLOOR``.
     """
     bid = float(market.get("bid", p_market))
     ask = float(market.get("ask", p_market))
     spread = ask - bid
-    return max(spread, 1e-4)
+    return max(spread, _VOLATILITY_FLOOR)
 
 
 def _dynamic_edge_threshold(base: float, volatility: float, scale: float) -> float:
@@ -294,7 +306,11 @@ async def generate_signals(
                     p_model=round(p_model, 4),
                     force_mode=True,
                 )
+            # Clamp volatility to floor before computing confidence score
+            volatility = max(volatility, _VOLATILITY_FLOOR)
             confidence_score: float = edge / volatility if volatility > 0 else 0.0
+            # Clamp S score to safe numeric range
+            confidence_score = max(-_S_SCORE_MAX_ABS, min(_S_SCORE_MAX_ABS, confidence_score))
 
             # Simple forced side rule
             side: str = "YES" if p_market < 0.5 else "NO"
@@ -413,10 +429,14 @@ async def generate_signals(
 
         # ── Dynamic edge threshold (base + volatility_adjustment) ─────────────
         _vol_scale = _env_float("SIGNAL_VOL_THRESHOLD_SCALE", _VOLATILITY_THRESHOLD_SCALE)
+        # Enforce volatility floor before any computation that uses it
+        volatility = max(volatility, _VOLATILITY_FLOOR)
         effective_threshold: float = _et + volatility * _vol_scale
 
         # ── Confidence score (computed early for logging) ─────────────────────
         confidence_score: float = edge / volatility if edge > 0 else 0.0
+        # Clamp S score to safe numeric range to prevent runaway values
+        confidence_score = max(-_S_SCORE_MAX_ABS, min(_S_SCORE_MAX_ABS, confidence_score))
 
         log.info(
             "signal_debug",

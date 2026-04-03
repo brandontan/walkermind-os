@@ -50,13 +50,14 @@ Pipeline per tick::
 Environment variables (all optional):
     TRADING_MODE             — "PAPER" (default) or "LIVE"
     ENABLE_LIVE_TRADING      — must equal "true" to allow LIVE mode
-    TRADING_LOOP_INTERVAL_S  — seconds between loop ticks (default 5)
+    TRADING_LOOP_INTERVAL_S  — target seconds between loop ticks (default 5; minimum 1)
     TRADING_LOOP_BANKROLL    — bankroll in USD for signal sizing (default 1000)
     TRADING_LOOP_USER_ID     — user ID for position/PnL tracking (default "default")
     TRADING_LOOP_MAX_POSITIONS — max simultaneous open positions (default 5)
     TRADING_LOOP_COOLDOWN_S  — per-market cooldown seconds (default 30)
     FORCE_SIGNAL_MODE        — when "true", bypass signal filters and force at most
-                               1 trade per loop tick (for pipeline debugging)
+                               1 trade per loop tick (for pipeline debugging);
+                               **disabled by default** — must be explicitly set
 
 Usage::
 
@@ -85,6 +86,8 @@ from ..logging.logger import (
     log_position_updated,
     log_pnl_updated,
     log_telegram_trade_detailed,
+    log_loop_duration,
+    log_loop_throttled,
 )
 from ...telegram.message_formatter import format_trade_alert
 
@@ -97,6 +100,9 @@ _DEFAULT_BANKROLL: float = 1_000.0
 _DEFAULT_USER_ID: str = "default"
 _DEFAULT_MAX_OPEN_POSITIONS: int = 5
 _DEFAULT_COOLDOWN_S: float = 30.0
+_MIN_LOOP_INTERVAL_S: float = 1.0       # absolute floor — loop must never run faster than 1 s
+_FAST_LOOP_GUARD_S: float = 0.5         # if a tick finishes in < 0.5 s, force an extra sleep
+_MAX_MARKETS_PER_TICK: int = 20         # cap markets evaluated per loop tick
 
 
 def _env_float(name: str, default: float) -> float:
@@ -191,7 +197,7 @@ async def run_trading_loop(
     _user_id = user_id or os.getenv("TRADING_LOOP_USER_ID", _DEFAULT_USER_ID)
     _max_open_positions = _env_int("TRADING_LOOP_MAX_POSITIONS", _DEFAULT_MAX_OPEN_POSITIONS)
     _cooldown_s = _env_float("TRADING_LOOP_COOLDOWN_S", _DEFAULT_COOLDOWN_S)
-    _force_signal = _env_bool("FORCE_SIGNAL_MODE")
+    _force_signal = _env_bool("FORCE_SIGNAL_MODE", False)
 
     # ── Initialise alpha model (stateful, shared across ticks) ────────────────
     alpha_model = ProbabilisticAlphaModel()
@@ -199,11 +205,16 @@ async def run_trading_loop(
     # ── Per-market cooldown tracker: market_id → last trade timestamp ─────────
     _market_last_trade: dict[str, float] = {}
 
+    # ── Loop state ────────────────────────────────────────────────────────────
+    _tick: int = 0
+
     log.info(
         "trading_loop_started",
         mode=_mode,
         bankroll=_bankroll,
         loop_interval_s=_interval,
+        min_loop_interval_s=_MIN_LOOP_INTERVAL_S,
+        max_markets_per_tick=_MAX_MARKETS_PER_TICK,
         user_id=_user_id,
         max_open_positions=_max_open_positions,
         cooldown_s=_cooldown_s,
@@ -218,330 +229,408 @@ async def run_trading_loop(
             log.info("trading_loop_stopped")
             break
 
-        log.info("trading_loop_tick", mode=_mode, bankroll=_bankroll)
+        _tick_start: float = time.monotonic()
+        log.info("trading_loop_tick", tick=_tick, mode=_mode, bankroll=_bankroll)
 
-        try:
-            # ── 1. Fetch active markets ────────────────────────────────────────
-            markets = await get_active_markets()
+        _retry_count: int = 0
+        _max_retries: int = 3
+        normalised_markets: list[dict] = []
+        signals: list = []
 
-            if not markets:
-                log.warning(
-                    "trading_loop_no_markets",
-                    hint="Market fetch returned empty list — skipping iteration",
-                )
-                await asyncio.sleep(_interval)
-                continue
-
-            log.info("market_feed", count=len(markets))
-
-            # ── 1a. Debug: log first 3 raw markets (temp) ─────────────────────
-            # TODO: remove once production data structure is confirmed stable
-            for _raw in markets[:3]:
-                log.info("market_raw_sample", data=_raw)
-
-            # ── 1b. Parse and normalise markets ───────────────────────────────
-            normalised_markets: list[dict] = ingest_markets(markets)
-            for m in normalised_markets:
-                log.info(
-                    "market_valid",
-                    market_id=m["market_id"],
-                    p_market=m["p_market"],
-                )
-
-            if not normalised_markets:
-                log.warning(
-                    "trading_loop_no_valid_markets",
-                    hint="All markets failed extract_market_data — skipping iteration",
-                )
-                await asyncio.sleep(_interval)
-                continue
-
-            # ── 2. Feed price data into alpha model ───────────────────────────
-            market_prices: dict[str, float] = {}
-            for market in normalised_markets:
-                market_id: str = market["market_id"]
-                price: float = market["p_market"]
-                alpha_model.record_tick(market_id, price)
-                market_prices[market_id] = price
-
-            # ── 3. Generate signals (with real alpha) ─────────────────────────
-            signals = await generate_signals(
-                normalised_markets,
-                bankroll=_bankroll,
-                alpha_model=alpha_model,
-                force_signal_mode=_force_signal,
-            )
-
-            log.info("signals_generated", count=len(signals), force_mode=_force_signal)
-
-            # ── 4. Execute each signal and update positions ───────────────────
-            _trades_this_tick: int = 0
-            for signal in signals:
-                # ── 4a. Force signal mode: max 1 trade per loop ───────────────
-                if _force_signal and _trades_this_tick >= 1:
-                    log.info(
-                        "signal_skipped_force_limit",
-                        market_id=signal.market_id,
-                        reason="force_mode_max_1_trade_per_loop",
-                    )
-                    continue
-
-                # ── 4b. Max open positions guard ──────────────────────────────
-                try:
-                    open_positions = await db.get_positions(_user_id)
-                    open_count = len(open_positions)
-                except Exception:  # noqa: BLE001
-                    open_count = 0
-                if open_count >= _max_open_positions:
-                    log.info(
-                        "signal_skipped_max_positions",
-                        market_id=signal.market_id,
-                        open_positions=open_count,
-                        limit=_max_open_positions,
-                    )
-                    continue
-
-                # ── 4c. Per-market cooldown guard ─────────────────────────────
-                _now = time.time()
-                _last = _market_last_trade.get(signal.market_id, 0.0)
-                if _now - _last < _cooldown_s:
-                    log.info(
-                        "signal_skipped_cooldown",
-                        market_id=signal.market_id,
-                        seconds_since_last=round(_now - _last, 1),
-                        cooldown_s=_cooldown_s,
-                    )
-                    continue
-
-                # ── 4d. Fetch market metadata (cache lookup with API fallback) ──
-                _market_question: str = ""
-                _market_outcomes: list = []
-                if market_cache is not None:
-                    try:
-                        _meta = market_cache.get(signal.market_id)
-                        if _meta is None:
-                            # Hard fallback: single-market API fetch with retry
-                            _meta = await market_cache.fetch_one(signal.market_id)
-                            if _meta is not None:
-                                log.info(
-                                    "market_metadata_fallback_used",
-                                    market_id=signal.market_id,
-                                    source="fetch_one",
-                                )
-                        if _meta is not None:
-                            _market_question = _meta.question
-                            _market_outcomes = _meta.outcomes
-                            log_market_metadata_used(
-                                signal.market_id,
-                                question=_market_question,
-                                outcomes=_market_outcomes,
-                                source="cache",
-                            )
-                        else:
-                            log.info(
-                                "market_metadata_missing",
-                                market_id=signal.market_id,
-                                fallback="market_id",
-                            )
-                    except Exception as meta_exc:  # noqa: BLE001
-                        log.warning(
-                            "market_metadata_lookup_failed",
-                            market_id=signal.market_id,
-                            error=str(meta_exc),
-                        )
-
-                result = await execute_trade(
-                    signal,
-                    mode=_mode,
-                    executor_callback=executor_callback,
-                )
-                if result.success:
-                    _trades_this_tick += 1
-                    log.info(
-                        "trade_loop_executed",
-                        market_id=result.market_id,
-                        side=result.side,
-                        mode=result.mode,
-                        filled_size_usd=round(result.filled_size_usd or 0.0, 4),
-                        fill_price=round(result.fill_price or 0.0, 6),
-                        force_mode=_force_signal,
-                    )
-
-                    # Record trade time for cooldown tracking
-                    _market_last_trade[signal.market_id] = time.time()
-
-                    # ── 4e. Persist position (db is always present) ───────────
-                    if result.fill_price > 0.0:
-                        await db.upsert_position({
-                            "user_id": _user_id,
-                            "market_id": result.market_id,
-                            "avg_price": result.fill_price,
-                            "size": result.filled_size_usd,
-                        })
-
-                        # ── 4f. Record trade in DB and set status ─────────────
-                        await db.insert_trade({
-                            "trade_id": result.trade_id,
-                            "user_id": _user_id,
-                            "strategy_id": signal.extra.get("strategy_id", ""),
-                            "market_id": result.market_id,
-                            "side": result.side,
-                            "size_usd": result.filled_size_usd,
-                            "price": result.fill_price,
-                            "entry_price": result.fill_price,
-                            "expected_ev": signal.ev,
-                            "pnl": 0.0,
-                            "won": False,
-                            "status": "open",
-                            "mode": result.mode,
-                            "executed_at": time.time(),
-                        })
-
-                        await db.update_trade_status(result.trade_id, "open")
-
-                    # ── 4g. Update in-memory PositionManager ──────────────────
-                    _pos_realized: float = 0.0
-                    _pos_unrealized: float = 0.0
-                    if position_manager is not None and result.fill_price > 0.0:
-                        try:
-                            pos = position_manager.open(
-                                market_id=result.market_id,
-                                side=result.side,
-                                fill_price=result.fill_price,
-                                fill_size=result.filled_size_usd,
-                                trade_id=result.trade_id,
-                            )
-                            log_position_updated(
-                                result.market_id,
-                                side=pos.side,
-                                avg_price=pos.avg_price,
-                                size=pos.size,
-                                trade_id=result.trade_id,
-                            )
-
-                            # Compute unrealized PnL for this market
-                            _mark_price = market_prices.get(result.market_id, result.fill_price)
-                            _pos_unrealized = position_manager.unrealized_pnl(
-                                result.market_id, _mark_price
-                            )
-                        except Exception as pos_exc:  # noqa: BLE001
-                            log.warning(
-                                "position_manager_update_failed",
-                                market_id=result.market_id,
-                                error=str(pos_exc),
-                            )
-
-                    # ── 4h. Update PnLTracker ─────────────────────────────────
-                    if pnl_tracker is not None and result.fill_price > 0.0:
-                        try:
-                            pnl_rec = pnl_tracker.record_unrealized(
-                                result.market_id, _pos_unrealized
-                            )
-                            _pos_realized = pnl_rec.realized
-                            log_pnl_updated(
-                                result.market_id,
-                                realized=pnl_rec.realized,
-                                unrealized=pnl_rec.unrealized,
-                                total=pnl_rec.realized + pnl_rec.unrealized,
-                            )
-                        except Exception as pnl_exc:  # noqa: BLE001
-                            log.warning(
-                                "pnl_tracker_update_failed",
-                                market_id=result.market_id,
-                                error=str(pnl_exc),
-                            )
-
-                    # ── 4i. Send enriched Telegram trade alert ────────────────
-                    if telegram_callback is not None and result.fill_price > 0.0:
-                        try:
-                            # Pick the outcome label matching the traded side, or
-                            # fall back to result.side if no matching outcome found.
-                            _outcome_label = result.side
-                            if _market_outcomes:
-                                _upper_side = result.side.upper()
-                                for _o in _market_outcomes:
-                                    if str(_o).upper() == _upper_side:
-                                        _outcome_label = str(_o)
-                                        break
-                                else:
-                                    _outcome_label = _market_outcomes[0]
-                            _trade_msg = format_trade_alert(
-                                side=result.side,
-                                price=result.fill_price,
-                                size=result.attempted_size,
-                                market_id=result.market_id,
-                                market_question=_market_question,
-                                outcome=_outcome_label,
-                                slippage_pct=result.slippage_pct,
-                                partial_fill=result.partial_fill,
-                                filled_size=result.filled_size_usd,
-                                realized_pnl=_pos_realized if pnl_tracker is not None else None,
-                                unrealized_pnl=_pos_unrealized if position_manager is not None else None,
-                            )
-                            await telegram_callback(_trade_msg)
-                            log_telegram_trade_detailed(
-                                trade_id=result.trade_id,
-                                market_id=result.market_id,
-                                market_question=_market_question or result.market_id,
-                                side=result.side,
-                                price=result.fill_price,
-                                size=result.attempted_size,
-                                slippage_pct=result.slippage_pct,
-                                partial_fill=result.partial_fill,
-                                filled_size=result.filled_size_usd,
-                                realized_pnl=_pos_realized,
-                                unrealized_pnl=_pos_unrealized,
-                            )
-                        except Exception as tg_exc:  # noqa: BLE001
-                            log.warning(
-                                "telegram_trade_alert_failed",
-                                trade_id=result.trade_id,
-                                market_id=result.market_id,
-                                error=str(tg_exc),
-                            )
-
-            # ── 5. Compute and log PnL metrics (db always present) ───────────
+        while _retry_count <= _max_retries:
             try:
-                positions = await db.get_positions(_user_id)
-                trades = await db.get_recent_trades(limit=500)
+                # ── 1. Fetch active markets ────────────────────────────────────────
+                markets = await get_active_markets()
 
-                realized = PnLCalculator.calculate_realized_pnl(trades)
-                unrealized = PnLCalculator.calculate_unrealized_pnl(
-                    positions, market_prices
+                if not markets:
+                    log.warning(
+                        "trading_loop_no_markets",
+                        hint="Market fetch returned empty list — skipping iteration",
+                    )
+                    break
+
+                log.info("market_feed", count=len(markets))
+
+                # ── 1a. Debug: log first 3 raw markets (temp) ─────────────────────
+                # TODO: remove once production data structure is confirmed stable
+                for _raw in markets[:3]:
+                    log.info("market_raw_sample", data=_raw)
+
+                # ── 1b. Parse and normalise markets ───────────────────────────────
+                normalised_markets = ingest_markets(markets)
+                for m in normalised_markets:
+                    log.info(
+                        "market_valid",
+                        market_id=m["market_id"],
+                        p_market=m["p_market"],
+                    )
+
+                if not normalised_markets:
+                    log.warning(
+                        "trading_loop_no_valid_markets",
+                        hint="All markets failed extract_market_data — skipping iteration",
+                    )
+                    break
+
+                # ── 1c. Limit markets per tick ────────────────────────────────────
+                if len(normalised_markets) > _MAX_MARKETS_PER_TICK:
+                    log.info(
+                        "markets_capped",
+                        original_count=len(normalised_markets),
+                        capped_to=_MAX_MARKETS_PER_TICK,
+                    )
+                    normalised_markets = normalised_markets[:_MAX_MARKETS_PER_TICK]
+
+                # ── 2. Feed price data into alpha model ───────────────────────────
+                market_prices: dict[str, float] = {}
+                for market in normalised_markets:
+                    market_id: str = market["market_id"]
+                    price: float = market["p_market"]
+                    alpha_model.record_tick(market_id, price)
+                    market_prices[market_id] = price
+
+                # ── 3. Generate signals (with real alpha) ─────────────────────────
+                signals = await generate_signals(
+                    normalised_markets,
+                    bankroll=_bankroll,
+                    alpha_model=alpha_model,
+                    force_signal_mode=_force_signal,
                 )
-                metrics = PnLCalculator.calculate_metrics(trades)
-                metrics["unrealized_pnl"] = unrealized
-                metrics["realized_pnl"] = realized
-                metrics["total_pnl"] = realized + unrealized
 
-                log.info("pnl_update", pnl=metrics)
+                log.info("signals_generated", count=len(signals), force_mode=_force_signal)
 
-                # ── 5a. Update PnLTracker with unrealized PnL for all positions ─
-                if pnl_tracker is not None and position_manager is not None:
-                    try:
-                        for _open_pos in position_manager.all_positions():
-                            _mp = market_prices.get(_open_pos.market_id, _open_pos.avg_price)
-                            _upnl = position_manager.unrealized_pnl(_open_pos.market_id, _mp)
-                            pnl_tracker.record_unrealized(_open_pos.market_id, _upnl)
+                # ── 4. Execute each signal and update positions ───────────────────
+                _trades_this_tick: int = 0
+                for signal in signals:
+                    # ── 4a. Force signal mode: max 1 trade per loop ───────────────
+                    if _force_signal and _trades_this_tick >= 1:
                         log.info(
-                            "pnl_updated",
-                            positions=position_manager.count(),
+                            "signal_skipped_force_limit",
+                            market_id=signal.market_id,
+                            reason="force_mode_max_1_trade_per_loop",
                         )
-                    except Exception as upnl_exc:  # noqa: BLE001
-                        log.warning(
-                            "pnl_tracker_tick_update_failed",
-                            error=str(upnl_exc),
+                        continue
+
+                    # ── 4b. Max open positions guard ──────────────────────────────
+                    try:
+                        open_positions = await db.get_positions(_user_id)
+                        open_count = len(open_positions)
+                    except Exception:  # noqa: BLE001
+                        open_count = 0
+                    if open_count >= _max_open_positions:
+                        log.info(
+                            "signal_skipped_max_positions",
+                            market_id=signal.market_id,
+                            open_positions=open_count,
+                            limit=_max_open_positions,
+                        )
+                        continue
+
+                    # ── 4c. Per-market cooldown guard ─────────────────────────────
+                    _now = time.time()
+                    _last = _market_last_trade.get(signal.market_id, 0.0)
+                    if _now - _last < _cooldown_s:
+                        log.info(
+                            "signal_skipped_cooldown",
+                            market_id=signal.market_id,
+                            seconds_since_last=round(_now - _last, 1),
+                            cooldown_s=_cooldown_s,
+                        )
+                        continue
+
+                    # ── 4d. Fetch market metadata (cache lookup with API fallback) ──
+                    _market_question: str = ""
+                    _market_outcomes: list = []
+                    if market_cache is not None:
+                        try:
+                            _meta = market_cache.get(signal.market_id)
+                            if _meta is None:
+                                # Hard fallback: single-market API fetch with retry
+                                _meta = await market_cache.fetch_one(signal.market_id)
+                                if _meta is not None:
+                                    log.info(
+                                        "market_metadata_fallback_used",
+                                        market_id=signal.market_id,
+                                        source="fetch_one",
+                                    )
+                            if _meta is not None:
+                                _market_question = _meta.question
+                                _market_outcomes = _meta.outcomes
+                                log_market_metadata_used(
+                                    signal.market_id,
+                                    question=_market_question,
+                                    outcomes=_market_outcomes,
+                                    source="cache",
+                                )
+                            else:
+                                log.info(
+                                    "market_metadata_missing",
+                                    market_id=signal.market_id,
+                                    fallback="market_id",
+                                )
+                        except Exception as meta_exc:  # noqa: BLE001
+                            log.warning(
+                                "market_metadata_lookup_failed",
+                                market_id=signal.market_id,
+                                error=str(meta_exc),
+                            )
+
+                    result = await execute_trade(
+                        signal,
+                        mode=_mode,
+                        executor_callback=executor_callback,
+                    )
+                    if result.success:
+                        _trades_this_tick += 1
+                        log.info(
+                            "trade_loop_executed",
+                            market_id=result.market_id,
+                            side=result.side,
+                            mode=result.mode,
+                            filled_size_usd=round(result.filled_size_usd or 0.0, 4),
+                            fill_price=round(result.fill_price or 0.0, 6),
+                            force_mode=_force_signal,
                         )
 
-            except Exception as pnl_exc:  # noqa: BLE001
-                log.error(
-                    "pnl_update_error",
-                    error=str(pnl_exc),
-                    exc_info=True,
+                        # Record trade time for cooldown tracking
+                        _market_last_trade[signal.market_id] = time.time()
+
+                        # ── 4e. Persist position (db is always present) ───────────
+                        if result.fill_price > 0.0:
+                            await db.upsert_position({
+                                "user_id": _user_id,
+                                "market_id": result.market_id,
+                                "avg_price": result.fill_price,
+                                "size": result.filled_size_usd,
+                            })
+
+                            # ── 4f. Record trade in DB and set status ─────────────
+                            await db.insert_trade({
+                                "trade_id": result.trade_id,
+                                "user_id": _user_id,
+                                "strategy_id": signal.extra.get("strategy_id", ""),
+                                "market_id": result.market_id,
+                                "side": result.side,
+                                "size_usd": result.filled_size_usd,
+                                "price": result.fill_price,
+                                "entry_price": result.fill_price,
+                                "expected_ev": signal.ev,
+                                "pnl": 0.0,
+                                "won": False,
+                                "status": "open",
+                                "mode": result.mode,
+                                "executed_at": time.time(),
+                            })
+
+                            await db.update_trade_status(result.trade_id, "open")
+
+                        # ── 4g. Update in-memory PositionManager ──────────────────
+                        _pos_realized: float = 0.0
+                        _pos_unrealized: float = 0.0
+                        if position_manager is not None and result.fill_price > 0.0:
+                            try:
+                                pos = position_manager.open(
+                                    market_id=result.market_id,
+                                    side=result.side,
+                                    fill_price=result.fill_price,
+                                    fill_size=result.filled_size_usd,
+                                    trade_id=result.trade_id,
+                                )
+                                log_position_updated(
+                                    result.market_id,
+                                    side=pos.side,
+                                    avg_price=pos.avg_price,
+                                    size=pos.size,
+                                    trade_id=result.trade_id,
+                                )
+
+                                # Compute unrealized PnL for this market
+                                _mark_price = market_prices.get(result.market_id, result.fill_price)
+                                _pos_unrealized = position_manager.unrealized_pnl(
+                                    result.market_id, _mark_price
+                                )
+                            except Exception as pos_exc:  # noqa: BLE001
+                                log.warning(
+                                    "position_manager_update_failed",
+                                    market_id=result.market_id,
+                                    error=str(pos_exc),
+                                )
+
+                        # ── 4h. Update PnLTracker ─────────────────────────────────
+                        if pnl_tracker is not None and result.fill_price > 0.0:
+                            try:
+                                pnl_rec = pnl_tracker.record_unrealized(
+                                    result.market_id, _pos_unrealized
+                                )
+                                _pos_realized = pnl_rec.realized
+                                log_pnl_updated(
+                                    result.market_id,
+                                    realized=pnl_rec.realized,
+                                    unrealized=pnl_rec.unrealized,
+                                    total=pnl_rec.realized + pnl_rec.unrealized,
+                                )
+                            except Exception as pnl_exc:  # noqa: BLE001
+                                log.warning(
+                                    "pnl_tracker_update_failed",
+                                    market_id=result.market_id,
+                                    error=str(pnl_exc),
+                                )
+
+                        # ── 4i. Send enriched Telegram trade alert ────────────────
+                        if telegram_callback is not None and result.fill_price > 0.0:
+                            try:
+                                # Pick the outcome label matching the traded side, or
+                                # fall back to result.side if no matching outcome found.
+                                _outcome_label = result.side
+                                if _market_outcomes:
+                                    _upper_side = result.side.upper()
+                                    for _o in _market_outcomes:
+                                        if str(_o).upper() == _upper_side:
+                                            _outcome_label = str(_o)
+                                            break
+                                    else:
+                                        _outcome_label = _market_outcomes[0]
+                                _trade_msg = format_trade_alert(
+                                    side=result.side,
+                                    price=result.fill_price,
+                                    size=result.attempted_size,
+                                    market_id=result.market_id,
+                                    market_question=_market_question,
+                                    outcome=_outcome_label,
+                                    slippage_pct=result.slippage_pct,
+                                    partial_fill=result.partial_fill,
+                                    filled_size=result.filled_size_usd,
+                                    realized_pnl=_pos_realized if pnl_tracker is not None else None,
+                                    unrealized_pnl=_pos_unrealized if position_manager is not None else None,
+                                )
+                                await telegram_callback(_trade_msg)
+                                log_telegram_trade_detailed(
+                                    trade_id=result.trade_id,
+                                    market_id=result.market_id,
+                                    market_question=_market_question or result.market_id,
+                                    side=result.side,
+                                    price=result.fill_price,
+                                    size=result.attempted_size,
+                                    slippage_pct=result.slippage_pct,
+                                    partial_fill=result.partial_fill,
+                                    filled_size=result.filled_size_usd,
+                                    realized_pnl=_pos_realized,
+                                    unrealized_pnl=_pos_unrealized,
+                                )
+                            except Exception as tg_exc:  # noqa: BLE001
+                                log.warning(
+                                    "telegram_trade_alert_failed",
+                                    trade_id=result.trade_id,
+                                    market_id=result.market_id,
+                                    error=str(tg_exc),
+                                )
+
+                # ── 5. Compute and log PnL metrics (db always present) ───────────
+                try:
+                    positions = await db.get_positions(_user_id)
+                    trades = await db.get_recent_trades(limit=500)
+
+                    realized = PnLCalculator.calculate_realized_pnl(trades)
+                    unrealized = PnLCalculator.calculate_unrealized_pnl(
+                        positions, market_prices
+                    )
+                    metrics = PnLCalculator.calculate_metrics(trades)
+                    metrics["unrealized_pnl"] = unrealized
+                    metrics["realized_pnl"] = realized
+                    metrics["total_pnl"] = realized + unrealized
+
+                    log.info("pnl_update", pnl=metrics)
+
+                    # ── 5a. Update PnLTracker with unrealized PnL for all positions ─
+                    if pnl_tracker is not None and position_manager is not None:
+                        try:
+                            for _open_pos in position_manager.all_positions():
+                                _mp = market_prices.get(_open_pos.market_id, _open_pos.avg_price)
+                                _upnl = position_manager.unrealized_pnl(_open_pos.market_id, _mp)
+                                pnl_tracker.record_unrealized(_open_pos.market_id, _upnl)
+                            log.info(
+                                "pnl_updated",
+                                positions=position_manager.count(),
+                            )
+                        except Exception as upnl_exc:  # noqa: BLE001
+                            log.warning(
+                                "pnl_tracker_tick_update_failed",
+                                error=str(upnl_exc),
+                            )
+
+                except Exception as pnl_exc:  # noqa: BLE001
+                    log.error(
+                        "pnl_update_error",
+                        error=str(pnl_exc),
+                        exc_info=True,
+                    )
+
+                # ── Tick completed successfully — exit retry loop ─────────────────
+                break
+
+            except Exception as exc:  # noqa: BLE001
+                _retry_count += 1
+                if _retry_count <= _max_retries:
+                    _backoff = 2 ** (_retry_count - 1)  # 1s, 2s, 4s
+                    log.warning(
+                        "pipeline_loop_error_retry",
+                        error=str(exc),
+                        attempt=_retry_count,
+                        max_retries=_max_retries,
+                        backoff_s=_backoff,
+                        exc_info=True,
+                    )
+                    await asyncio.sleep(_backoff)
+                else:
+                    log.error(
+                        "pipeline_loop_error",
+                        error=str(exc),
+                        attempt=_retry_count,
+                        max_retries=_max_retries,
+                        exc_info=True,
+                    )
+
+        # ── 6. Loop timing guard + rate-control delay ─────────────────────────
+        _tick_duration: float = time.monotonic() - _tick_start
+        log_loop_duration(
+            tick=_tick,
+            duration_s=_tick_duration,
+            markets_processed=len(normalised_markets),
+            signals_generated=len(signals),
+        )
+
+        # Enforce minimum 1 s per cycle; apply extra sleep when tick ran too fast
+        _remaining: float = _interval - _tick_duration
+        if _tick_duration < _FAST_LOOP_GUARD_S:
+            # Tick finished suspiciously fast — force a guard sleep
+            _guard_sleep: float = max(_MIN_LOOP_INTERVAL_S - _tick_duration, _FAST_LOOP_GUARD_S)
+            log_loop_throttled(
+                tick=_tick,
+                duration_s=_tick_duration,
+                throttle_sleep_s=_guard_sleep,
+                reason="fast_loop",
+            )
+            await asyncio.sleep(_guard_sleep)
+        elif _remaining > 0:
+            await asyncio.sleep(_remaining)
+        else:
+            # Tick already took >= _interval; still enforce the absolute minimum
+            _overrun: float = _tick_duration - _interval
+            if _tick_duration < _MIN_LOOP_INTERVAL_S:
+                _floor_sleep: float = _MIN_LOOP_INTERVAL_S - _tick_duration
+                log_loop_throttled(
+                    tick=_tick,
+                    duration_s=_tick_duration,
+                    throttle_sleep_s=_floor_sleep,
+                    reason="below_minimum_interval",
+                )
+                await asyncio.sleep(_floor_sleep)
+            elif _overrun > 0:
+                log.info(
+                    "loop_overrun",
+                    tick=_tick,
+                    duration_s=round(_tick_duration, 4),
+                    overrun_s=round(_overrun, 4),
                 )
 
-        except Exception as exc:  # noqa: BLE001
-            log.error("pipeline_loop_error", error=str(exc), exc_info=True)
-
-        # ── 6. Rate-control delay ─────────────────────────────────────────────
-        await asyncio.sleep(_interval)
+        _tick += 1

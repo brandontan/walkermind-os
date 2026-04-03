@@ -8,3 +8,4 @@ build/
 .venv/
 venv/
 projects/polymarket/polyquantbot/report/*.json
+data/polyquantbot.db

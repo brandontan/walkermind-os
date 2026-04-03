@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Core System Wiring Fix COMPLETE ✅
+Status: Stability Hardening COMPLETE ✅ — Loop throttling, signal safeguards, retry backoff active
 
 ---
 
@@ -37,6 +37,13 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+STABILITY HARDENING — LOOP THROTTLE + SIGNAL SAFEGUARDS (Phase 17.1)
+
+- core/pipeline/trading_loop.py: minimum 1 s loop interval (_MIN_LOOP_INTERVAL_S=1.0); fast-loop guard fires extra sleep when tick < 0.5 s (_FAST_LOOP_GUARD_S=0.5); market cap per tick (max 20, _MAX_MARKETS_PER_TICK=20); retry with exponential backoff (max 3, 1s/2s/4s) on tick errors; FORCE_SIGNAL_MODE defaults to False explicitly; structured loop_duration log each tick; loop_throttled warning when timing guard fires; loop_overrun info when tick exceeds interval; tick counter (_tick) tracked; normalised_markets/signals initialized before retry loop; asyncio.sleep(_interval) replaced with elapsed-aware sleep logic
+- core/signal/signal_engine.py: volatility floor clamped to 0.01 (_VOLATILITY_FLOOR) in both force-mode and normal path; S score clamped to abs(10) (_S_SCORE_MAX_ABS) in both paths; updated docstring to document safeguards
+- core/logging/logger.py: log_loop_duration() helper — structured loop_duration event (tick, duration_s, markets_processed, signals_generated); log_loop_throttled() helper — structured loop_throttled warning (tick, duration_s, throttle_sleep_s, reason)
+- reports/forge/17_1_stability_hardening_loop_signal.md: completion report
 
 CORE SYSTEM WIRING FIX (Phase 16.1)
 
