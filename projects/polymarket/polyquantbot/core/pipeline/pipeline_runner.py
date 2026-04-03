@@ -998,7 +998,7 @@ class Phase10PipelineRunner:
         except Exception as exc:  # noqa: BLE001
             log.warning(
                 "phase10_telegram_notify_failed",
-                event=event,
+                pipeline_event=event,
                 error=str(exc),
             )
 

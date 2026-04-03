@@ -20,6 +20,19 @@ import structlog
 _log = structlog.get_logger()
 
 
+def _assert_no_event_kwarg(**kwargs: Any) -> None:
+    """Guard against 'event' being passed as a keyword argument.
+
+    structlog uses the first positional argument as the ``event`` field.
+    Passing ``event=`` as a kwarg too raises:
+        TypeError: got multiple values for keyword argument 'event'
+    """
+    assert "event" not in kwargs, (
+        "Do not pass event= as a keyword argument to log helpers; "
+        "the first positional argument is already the event name."
+    )
+
+
 def log_market_parse_warning(
     market_id: str | None,
     error: str,
@@ -33,6 +46,7 @@ def log_market_parse_warning(
         error:     Human-readable description of the parse failure.
         **extra:   Additional key-value pairs forwarded to structlog.
     """
+    _assert_no_event_kwarg(**extra)
     _log.warning(
         "market_parse_warning",
         market_id=market_id,
@@ -56,6 +70,7 @@ def log_invalid_market(
         field:     Name of the offending field, if applicable.
         **extra:   Additional key-value pairs forwarded to structlog.
     """
+    _assert_no_event_kwarg(**extra)
     _log.warning(
         "market_invalid",
         market_id=market_id,

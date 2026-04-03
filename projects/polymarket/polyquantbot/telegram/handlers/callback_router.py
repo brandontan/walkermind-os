@@ -362,7 +362,6 @@ class CallbackRouter:
                     new_state = self._strategy_state.toggle(strategy_name)
                     log.info(
                         "strategy_toggle",
-                        event="strategy_toggle",
                         strategy=strategy_name,
                         active=new_state,
                     )
