@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import os
 from dataclasses import dataclass, field
-from typing import Set
+from typing import Any, Set
 
 import structlog
 
@@ -278,3 +278,77 @@ class WalletEngine:
                 locked=self._locked,
                 equity=self._equity,
             )
+
+    # ── DB persistence hooks ──────────────────────────────────────────────────
+
+    async def persist(self, db: Any) -> None:
+        """Persist current wallet state to the database.
+
+        Called after every mutation so state survives restarts.
+
+        Args:
+            db: :class:`~infra.db.database.DatabaseClient` instance.
+        """
+        state = self.get_state()
+        try:
+            await db.save_wallet_state(
+                cash=state.cash,
+                locked=state.locked,
+                equity=state.equity,
+            )
+            log.info(
+                "persistence_write",
+                entity="wallet_state",
+                cash=state.cash,
+                locked=state.locked,
+                equity=state.equity,
+            )
+        except Exception as exc:
+            log.error(
+                "wallet_persist_failed",
+                error=str(exc),
+            )
+
+    @classmethod
+    async def restore_from_db(cls, db: Any, initial_balance: float | None = None) -> "WalletEngine":
+        """Create a WalletEngine and restore state from the database.
+
+        If no persisted state is found, uses *initial_balance* (or
+        ``PAPER_INITIAL_BALANCE`` env var).
+
+        Args:
+            db:              :class:`~infra.db.database.DatabaseClient` instance.
+            initial_balance: Fallback balance if DB is empty.
+
+        Returns:
+            A new :class:`WalletEngine` with state restored.
+        """
+        engine = cls(initial_balance=initial_balance)
+        try:
+            row = await db.load_latest_wallet_state()
+            if row is not None:
+                state = WalletState(
+                    cash=float(row["cash"]),
+                    locked=float(row["locked"]),
+                    equity=float(row["equity"]),
+                )
+                await engine.restore_state(state)
+                log.info(
+                    "wallet_state_restored_from_db",
+                    cash=state.cash,
+                    locked=state.locked,
+                    equity=state.equity,
+                )
+            else:
+                log.info(
+                    "wallet_no_persisted_state",
+                    hint="Using initial balance",
+                    cash=engine._cash,
+                )
+        except Exception as exc:
+            log.warning(
+                "wallet_restore_from_db_failed",
+                error=str(exc),
+                hint="Using initial balance as fallback",
+            )
+        return engine

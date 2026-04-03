@@ -23,7 +23,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 import structlog
 
@@ -178,3 +178,78 @@ class TradeLedger:
         self._entries.clear()
         self._seen_trade_ids.clear()
         self._market_index.clear()
+
+    # ── DB persistence hooks ──────────────────────────────────────────────────
+
+    async def persist_entry(self, entry: LedgerEntry, db: Any) -> None:
+        """Persist a single ledger entry to the database.
+
+        Called immediately after :meth:`record` so the DB stays in sync.
+
+        Args:
+            entry: The :class:`LedgerEntry` to persist.
+            db:    :class:`~infra.db.database.DatabaseClient` instance.
+        """
+        try:
+            await db.insert_ledger_entry({
+                "trade_id": entry.trade_id,
+                "market_id": entry.market_id,
+                "action": entry.action.value,
+                "price": entry.price,
+                "size": entry.size,
+                "fee": entry.fee,
+                "realized_pnl": entry.realized_pnl,
+                "ledger_ts": entry.timestamp,
+            })
+            log.info(
+                "persistence_write",
+                entity="trade_ledger",
+                trade_id=entry.trade_id,
+                market_id=entry.market_id,
+                action=entry.action.value,
+            )
+        except Exception as exc:
+            log.error(
+                "ledger_persist_entry_failed",
+                trade_id=entry.trade_id,
+                error=str(exc),
+            )
+
+    async def load_from_db(self, db: Any) -> None:
+        """Restore ledger entries from the database.
+
+        Rebuilds in-memory state from all persisted records.  Idempotent.
+
+        Args:
+            db: :class:`~infra.db.database.DatabaseClient` instance.
+        """
+        try:
+            rows = await db.load_ledger_entries(limit=5000)
+            for row in rows:
+                entry = LedgerEntry(
+                    trade_id=str(row["trade_id"]),
+                    market_id=str(row["market_id"]),
+                    action=LedgerAction(str(row["action"]).upper()),
+                    price=float(row["price"]),
+                    size=float(row["size"]),
+                    fee=float(row.get("fee", 0.0)),
+                    timestamp=str(row.get("ledger_ts", "")),
+                    realized_pnl=row.get("realized_pnl"),
+                )
+                # Use internal record to avoid duplicate log noise
+                if entry.trade_id not in self._seen_trade_ids:
+                    idx = len(self._entries)
+                    self._entries.append(entry)
+                    self._seen_trade_ids.add(entry.trade_id)
+                    self._market_index.setdefault(entry.market_id, []).append(idx)
+
+            log.info(
+                "ledger_loaded_from_db",
+                entries=len(rows),
+            )
+        except Exception as exc:
+            log.warning(
+                "ledger_load_from_db_failed",
+                error=str(exc),
+                hint="Starting with empty ledger",
+            )

@@ -235,6 +235,7 @@ async def handle_paper_wallet(mode: str = "default") -> tuple[str, list]:
 
     This function uses the injected :class:`~core.wallet_engine.WalletEngine`
     (paper trading engine) — it does NOT touch the blockchain WalletService.
+    Reflects the persisted wallet state on every call.
 
     Args:
         mode: Display mode hint (reserved for future use).
@@ -255,11 +256,26 @@ async def handle_paper_wallet(mode: str = "default") -> tuple[str, list]:
         log.error("handle_paper_wallet_state_error", error=str(exc))
         return "❌ *Error fetching paper wallet state*", build_wallet_menu()
 
+    # Compute total unrealized PnL from all open positions (if available)
+    _unrealized: float = 0.0
+    _open_count: int = 0
+    try:
+        from ...execution.engine_router import get_engine_container  # noqa: PLC0415
+        _ec = get_engine_container()
+        _positions = _ec.paper_positions.get_all_open()
+        _unrealized = sum(p.unrealized_pnl for p in _positions)
+        _open_count = len(_positions)
+    except Exception:
+        pass
+
+    _unreal_sign = "+" if _unrealized >= 0 else ""
     text = (
         "💼 *Paper Wallet*\n\n"
         f"💵 Cash (available): *${state.cash:,.2f}*\n"
         f"🔒 Locked (in positions): *${state.locked:,.2f}*\n"
-        f"📊 Equity (total): *${state.equity:,.2f}*\n\n"
+        f"📊 Equity (total): *${state.equity:,.2f}*\n"
+        f"📈 Open Positions: *{_open_count}*\n"
+        f"💹 Unrealized PnL: *{_unreal_sign}{_unrealized:.4f} USD*\n\n"
         f"_Paper trading mode — no real funds at risk._"
     )
 
@@ -268,6 +284,8 @@ async def handle_paper_wallet(mode: str = "default") -> tuple[str, list]:
         cash=state.cash,
         locked=state.locked,
         equity=state.equity,
+        unrealized_pnl=_unrealized,
+        open_positions=_open_count,
         mode=mode,
     )
     return text, build_paper_wallet_menu()

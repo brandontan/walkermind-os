@@ -133,6 +133,48 @@ END
 $$;
 """
 
+# ── Pre-capital hardening: wallet / positions / ledger persistence ─────────────
+
+_DDL_WALLET_STATE = """
+CREATE TABLE IF NOT EXISTS wallet_state (
+    id          BIGSERIAL   PRIMARY KEY,
+    cash        DOUBLE PRECISION NOT NULL,
+    locked      DOUBLE PRECISION NOT NULL,
+    equity      DOUBLE PRECISION NOT NULL,
+    snapshot_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
+_DDL_PAPER_POSITIONS = """
+CREATE TABLE IF NOT EXISTS paper_positions (
+    market_id       TEXT        PRIMARY KEY,
+    side            TEXT        NOT NULL,
+    size            DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    entry_price     DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    current_price   DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    unrealized_pnl  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    status          TEXT        NOT NULL DEFAULT 'OPEN',
+    opened_at       DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    closed_at       DOUBLE PRECISION,
+    trade_ids       JSONB       NOT NULL DEFAULT '[]',
+    updated_at      DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
+_DDL_TRADE_LEDGER = """
+CREATE TABLE IF NOT EXISTS trade_ledger (
+    trade_id        TEXT        PRIMARY KEY,
+    market_id       TEXT        NOT NULL,
+    action          TEXT        NOT NULL,
+    price           DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    size            DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    fee             DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    realized_pnl    DOUBLE PRECISION,
+    ledger_ts       TEXT        NOT NULL DEFAULT '',
+    inserted_at     DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
 
 # ── DatabaseClient ─────────────────────────────────────────────────────────────
 
@@ -229,6 +271,10 @@ class DatabaseClient:
             await conn.execute(_DDL_POSITIONS)
             await conn.execute(_DDL_STRATEGY_STATE)
             await conn.execute(_DDL_MIGRATE_TRADES_USER_ID)
+            # Pre-capital hardening tables
+            await conn.execute(_DDL_WALLET_STATE)
+            await conn.execute(_DDL_PAPER_POSITIONS)
+            await conn.execute(_DDL_TRADE_LEDGER)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────
@@ -461,6 +507,188 @@ class DatabaseClient:
             time.time(),
         )
         return await self._execute(sql, *args, op_label="insert_allocation_history")
+
+    # ── Wallet state persistence ──────────────────────────────────────────────
+
+    async def save_wallet_state(self, cash: float, locked: float, equity: float) -> bool:
+        """Append a wallet state snapshot.
+
+        Args:
+            cash:   Available (unlocked) cash in USD.
+            locked: Funds reserved for open positions.
+            equity: Total portfolio value (cash + locked).
+
+        Returns:
+            True on success, False on error.
+        """
+        sql = """
+            INSERT INTO wallet_state (cash, locked, equity, snapshot_at)
+            VALUES ($1, $2, $3, $4)
+        """
+        return await self._execute(
+            sql,
+            float(cash),
+            float(locked),
+            float(equity),
+            time.time(),
+            op_label="save_wallet_state",
+        )
+
+    async def load_latest_wallet_state(self) -> Optional[Dict[str, Any]]:
+        """Retrieve the most recently persisted wallet state.
+
+        Returns:
+            Dict with keys ``cash``, ``locked``, ``equity``, ``snapshot_at``,
+            or ``None`` if no snapshot exists.
+        """
+        sql = "SELECT cash, locked, equity, snapshot_at FROM wallet_state ORDER BY snapshot_at DESC LIMIT 1"
+        rows = await self._fetch(sql, op_label="load_latest_wallet_state")
+        if rows:
+            row = rows[0]
+            log.info(
+                "wallet_state_loaded_from_db",
+                cash=row["cash"],
+                locked=row["locked"],
+                equity=row["equity"],
+            )
+            return dict(row)
+        return None
+
+    # ── Paper positions persistence ───────────────────────────────────────────
+
+    async def upsert_paper_position(self, position: Dict[str, Any]) -> bool:
+        """Upsert a paper position record.
+
+        Expected keys: market_id, side, size, entry_price, current_price,
+            unrealized_pnl, status, opened_at, closed_at, trade_ids.
+
+        Args:
+            position: Position data dict.
+
+        Returns:
+            True on success, False on error.
+        """
+        sql = """
+            INSERT INTO paper_positions (
+                market_id, side, size, entry_price, current_price,
+                unrealized_pnl, status, opened_at, closed_at, trade_ids, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (market_id) DO UPDATE
+                SET side          = EXCLUDED.side,
+                    size          = EXCLUDED.size,
+                    entry_price   = EXCLUDED.entry_price,
+                    current_price = EXCLUDED.current_price,
+                    unrealized_pnl= EXCLUDED.unrealized_pnl,
+                    status        = EXCLUDED.status,
+                    opened_at     = EXCLUDED.opened_at,
+                    closed_at     = EXCLUDED.closed_at,
+                    trade_ids     = EXCLUDED.trade_ids,
+                    updated_at    = EXCLUDED.updated_at
+        """
+        args = (
+            str(position.get("market_id", "")),
+            str(position.get("side", "")),
+            float(position.get("size", 0.0)),
+            float(position.get("entry_price", 0.0)),
+            float(position.get("current_price", 0.0)),
+            float(position.get("unrealized_pnl", 0.0)),
+            str(position.get("status", "OPEN")),
+            float(position.get("opened_at", time.time())),
+            position.get("closed_at"),  # may be None
+            json.dumps(position.get("trade_ids", [])),
+            time.time(),
+        )
+        return await self._execute(sql, *args, op_label="upsert_paper_position")
+
+    async def load_open_paper_positions(self) -> List[Dict[str, Any]]:
+        """Load all paper positions with status='OPEN'.
+
+        Returns:
+            List of position dicts with keys matching :class:`~core.positions.PaperPosition`.
+        """
+        sql = "SELECT * FROM paper_positions WHERE status = 'OPEN' ORDER BY opened_at ASC"
+        rows = await self._fetch(sql, op_label="load_open_paper_positions")
+        result = []
+        for row in rows:
+            d = dict(row)
+            if isinstance(d.get("trade_ids"), str):
+                try:
+                    d["trade_ids"] = json.loads(d["trade_ids"])
+                except Exception:
+                    d["trade_ids"] = []
+            result.append(d)
+        if result:
+            log.info("paper_positions_loaded_from_db", count=len(result))
+        return result
+
+    async def delete_paper_position(self, market_id: str) -> bool:
+        """Delete a paper position record (called on close).
+
+        Args:
+            market_id: Polymarket condition ID.
+
+        Returns:
+            True on success, False on error.
+        """
+        sql = "DELETE FROM paper_positions WHERE market_id = $1"
+        return await self._execute(sql, market_id, op_label="delete_paper_position")
+
+    # ── Trade ledger persistence ──────────────────────────────────────────────
+
+    async def insert_ledger_entry(self, entry: Dict[str, Any]) -> bool:
+        """Append a trade ledger entry.  Idempotent: ON CONFLICT DO NOTHING.
+
+        Expected keys: trade_id, market_id, action, price, size, fee,
+            realized_pnl (optional), ledger_ts.
+
+        Args:
+            entry: Ledger entry data dict.
+
+        Returns:
+            True on success, False on error.
+        """
+        sql = """
+            INSERT INTO trade_ledger (
+                trade_id, market_id, action, price, size, fee,
+                realized_pnl, ledger_ts, inserted_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (trade_id) DO NOTHING
+        """
+        realized_pnl = entry.get("realized_pnl")
+        args = (
+            str(entry.get("trade_id", "")),
+            str(entry.get("market_id", "")),
+            str(entry.get("action", "")),
+            float(entry.get("price", 0.0)),
+            float(entry.get("size", 0.0)),
+            float(entry.get("fee", 0.0)),
+            float(realized_pnl) if realized_pnl is not None else None,
+            str(entry.get("ledger_ts", "") or entry.get("timestamp", "")),
+            time.time(),
+        )
+        return await self._execute(sql, *args, op_label="insert_ledger_entry")
+
+    async def load_ledger_entries(
+        self, market_id: Optional[str] = None, limit: int = 1000
+    ) -> List[Dict[str, Any]]:
+        """Load trade ledger entries.
+
+        Args:
+            market_id: If given, filter to this market.
+            limit:     Max rows to return.
+
+        Returns:
+            List of ledger entry dicts ordered by inserted_at ASC.
+        """
+        if market_id:
+            sql = """
+                SELECT * FROM trade_ledger
+                WHERE market_id = $1
+                ORDER BY inserted_at ASC LIMIT $2
+            """
+            return await self._fetch(sql, market_id, limit, op_label="load_ledger_entries_market")
+        sql = "SELECT * FROM trade_ledger ORDER BY inserted_at ASC LIMIT $1"
+        return await self._fetch(sql, limit, op_label="load_ledger_entries")
 
     # ── Strategy toggle state ─────────────────────────────────────────────────
 

@@ -67,11 +67,15 @@ async def handle_trade(mode: str = "default") -> tuple[str, list]:
         return "❌ *Error loading positions*", build_status_menu()
 
     if not open_positions:
+        # Check for recently closed positions from ledger
+        _closed_summary = _get_closed_summary()
         text = (
             "📊 *Paper Positions*\n\n"
             "_No open positions._\n\n"
             "Use the bot to execute a paper trade."
         )
+        if _closed_summary:
+            text += f"\n\n✅ *Realized PnL (closed):* {_closed_summary['realized_pnl']:+.4f} USD"
         return text, build_status_menu()
 
     total_unrealized = sum(p.unrealized_pnl for p in open_positions)
@@ -95,6 +99,17 @@ async def handle_trade(mode: str = "default") -> tuple[str, list]:
         lines.append(
             f"✅ *Realized PnL:* {pnl_summary['total_realized']:+.4f} USD"
         )
+
+    # Wallet state from PaperEngine (persisted, not stale)
+    if _paper_engine is not None:
+        try:
+            _ws = _paper_engine._wallet.get_state()  # type: ignore[attr-defined]
+            lines.append(
+                f"\n💰 *Wallet:* ${_ws.cash:.2f} free | ${_ws.locked:.2f} locked | "
+                f"${_ws.equity:.2f} equity"
+            )
+        except Exception:
+            pass
 
     text = "\n".join(lines)
     log.info("trade_handler_positions_displayed", count=len(open_positions))
@@ -159,6 +174,19 @@ def _get_pnl_summary() -> dict | None:
         return _pnl_tracker.summary()
     except Exception as exc:
         log.warning("trade_handler_pnl_summary_error", error=str(exc))
+        return None
+
+
+def _get_closed_summary() -> dict | None:
+    """Return closed position PnL summary from the ledger if available."""
+    if _paper_engine is None:
+        return None
+    try:
+        ledger = _paper_engine._ledger  # type: ignore[attr-defined]
+        realized_pnl = ledger.get_realized_pnl()
+        return {"realized_pnl": realized_pnl}
+    except Exception as exc:
+        log.warning("trade_handler_closed_summary_error", error=str(exc))
         return None
 
 

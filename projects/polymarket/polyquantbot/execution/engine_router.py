@@ -64,6 +64,8 @@ class EngineContainer:
         # ── Leaf engines (no dependencies) ────────────────────────────────────
         self.wallet: WalletEngine = WalletEngine()
         self.positions: PaperPositionManager = PaperPositionManager()
+        # Alias for Telegram wallet handler compatibility
+        self.paper_positions: PaperPositionManager = self.positions
         self.ledger: TradeLedger = TradeLedger()
         self.exposure: ExposureCalculator = ExposureCalculator()
 
@@ -78,6 +80,35 @@ class EngineContainer:
             "engine_container_initialized",
             engines=["wallet", "positions", "ledger", "exposure", "paper_engine"],
         )
+
+    # ── Startup persistence restore ───────────────────────────────────────────
+
+    async def restore_from_db(self, db: object) -> None:
+        """Restore all engine state from the database on startup.
+
+        Calls restore hooks on wallet, positions, and ledger.  Non-fatal:
+        each failure is logged and the engine starts with default state.
+
+        Args:
+            db: :class:`~infra.db.database.DatabaseClient` connected instance.
+        """
+        log.info("engine_container_restore_start")
+        try:
+            await self.wallet.restore_from_db(db)  # type: ignore[arg-type]
+        except Exception as exc:
+            log.warning("engine_container_wallet_restore_error", error=str(exc))
+
+        try:
+            await self.positions.load_from_db(db)  # type: ignore[arg-type]
+        except Exception as exc:
+            log.warning("engine_container_positions_restore_error", error=str(exc))
+
+        try:
+            await self.ledger.load_from_db(db)  # type: ignore[arg-type]
+        except Exception as exc:
+            log.warning("engine_container_ledger_restore_error", error=str(exc))
+
+        log.info("engine_container_restore_complete")
 
     # ── Convenience ───────────────────────────────────────────────────────────
 
