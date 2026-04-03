@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-03
-Status: Stability Hardening COMPLETE ✅ — Loop throttling, signal safeguards, retry backoff active
+Status: Logging Hotfix COMPLETE ✅ — Duplicate `event=` kwargs removed; system boots without TypeError
 
 ---
 
@@ -37,6 +37,14 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+LOGGING HOTFIX — EVENT KEYWORD DUPLICATION (Phase 17.2)
+
+- main.py (line 154): removed duplicate `event="metrics_initialized"` kwarg from log.info call
+- telegram/handlers/callback_router.py (lines 363-368): removed duplicate `event="strategy_toggle"` kwarg from log.info call
+- core/pipeline/pipeline_runner.py (lines 999-1003): renamed `event=event` kwarg to `pipeline_event=event` to avoid conflict with structlog's internal event key
+- core/logging/logger.py: added `_assert_no_event_kwarg(**kwargs)` guard; wired into log_market_parse_warning and log_invalid_market public helpers
+- reports/forge/17_2_logging_hotfix_event_duplication.md: completion report
 
 STABILITY HARDENING — LOOP THROTTLE + SIGNAL SAFEGUARDS (Phase 17.1)
 

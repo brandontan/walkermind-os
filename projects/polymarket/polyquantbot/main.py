@@ -151,7 +151,7 @@ async def main() -> None:
     # ── Multi-strategy metrics ─────────────────────────────────────────────────
     from .monitoring.multi_strategy_metrics import MultiStrategyMetrics
     multi_metrics = MultiStrategyMetrics(["ev_momentum", "mean_reversion", "liquidity_edge"])
-    log.info("metrics_initialized", event="metrics_initialized", initialized=True)
+    log.info("metrics_initialized", initialized=True)
 
     # ── Command handler ────────────────────────────────────────────────────────
     from .telegram.command_handler import CommandHandler
