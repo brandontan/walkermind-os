@@ -12,7 +12,7 @@ from typing import Optional, TYPE_CHECKING
 
 import structlog
 
-from ..ui.keyboard import build_wallet_menu
+from ..ui.keyboard import build_wallet_menu, build_paper_wallet_menu
 from ..ui.screens import (
     wallet_screen,
     wallet_balance_screen,
@@ -270,4 +270,4 @@ async def handle_paper_wallet(mode: str = "default") -> tuple[str, list]:
         equity=state.equity,
         mode=mode,
     )
-    return text, build_wallet_menu()
+    return text, build_paper_wallet_menu()

@@ -139,6 +139,7 @@ async def run_trading_loop(
     market_cache: Optional[Any] = None,
     position_manager: Optional[Any] = None,
     pnl_tracker: Optional[Any] = None,
+    paper_engine: Optional[Any] = None,
 ) -> None:
     """Run the continuous market→signal→execution trading loop.
 
@@ -175,6 +176,11 @@ async def run_trading_loop(
         pnl_tracker:        Optional :class:`core.portfolio.pnl.PnLTracker` instance.
                             When provided, realized and unrealized PnL are tracked
                             and persisted across trades.
+        paper_engine:       Optional :class:`execution.paper_engine.PaperEngine`
+                            instance.  When provided (PAPER mode), every successful
+                            fill is forwarded to ``PaperEngine.execute_order()`` so
+                            the wallet, paper positions, and trade ledger are kept
+                            in sync with real execution state.
     """
     # ── Enforce database — no silent fallback ─────────────────────────────────
     if db is None:
@@ -220,6 +226,7 @@ async def run_trading_loop(
         cooldown_s=_cooldown_s,
         db_enabled=True,
         force_signal_mode=_force_signal,
+        paper_engine_wired=paper_engine is not None,
     )
     log.info("db_enabled", status=True)
 
@@ -394,6 +401,39 @@ async def run_trading_loop(
 
                         # Record trade time for cooldown tracking
                         _market_last_trade[signal.market_id] = time.time()
+
+                        # ── 4d-paper. Route through PaperEngine (PAPER mode only) ──
+                        # Forwards successful fills to PaperEngine so wallet balance,
+                        # paper positions, and trade ledger are updated in-step with
+                        # every execution.  Non-fatal: logs error and continues.
+                        should_sync_paper_engine = (
+                            paper_engine is not None
+                            and _mode == "PAPER"
+                            and result.fill_price > 0.0
+                        )
+                        if should_sync_paper_engine:
+                            try:
+                                _paper_order = await paper_engine.execute_order({
+                                    "market_id": result.market_id,
+                                    "side": result.side,
+                                    "price": result.fill_price,
+                                    "size": result.filled_size_usd or 0.0,
+                                    "trade_id": result.trade_id,
+                                })
+                                log.info(
+                                    "paper_engine_order_executed",
+                                    market_id=result.market_id,
+                                    side=result.side,
+                                    status=_paper_order.status,
+                                    trade_id=result.trade_id,
+                                )
+                            except Exception as _pe_exc:  # noqa: BLE001
+                                log.error(
+                                    "paper_engine_order_failed",
+                                    market_id=result.market_id,
+                                    trade_id=result.trade_id,
+                                    error=str(_pe_exc),
+                                )
 
                         # ── 4e. Persist position (db is always present) ───────────
                         if result.fill_price > 0.0:
