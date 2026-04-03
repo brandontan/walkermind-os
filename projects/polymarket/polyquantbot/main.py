@@ -556,6 +556,13 @@ async def main() -> None:
     from .execution.engine_router import get_engine_container as _get_engines
     engine_container = _get_engines()
 
+    # Restore persisted wallet / positions / ledger from DB on startup
+    try:
+        await engine_container.restore_from_db(db)
+        log.info("engine_container_state_restored", mode=mode)
+    except Exception as _restore_exc:
+        log.warning("engine_container_restore_failed", error=str(_restore_exc))
+
     # Inject paper engines into Telegram handlers (wallet, trade, exposure)
     engine_container.inject_into_handlers()
 

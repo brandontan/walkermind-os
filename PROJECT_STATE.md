@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
-Last Updated: 2026-04-04
-Status: System Wiring Engine COMPLETE ✅ — WalletEngine, PaperEngine, PaperPositionManager, TradeLedger, ExposureCalculator wired into main runtime, trading loop, and Telegram system with real state
+Last Updated: 2026-04-05
+Status: Pre-Capital Hardening COMPLETE ✅ — Unified execution engine, DB persistence (wallet/positions/ledger), close order pipeline (TP/SL), mark-to-market, Telegram sync, audit logging all implemented
 
 ---
 
@@ -37,6 +37,21 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+PRE-CAPITAL HARDENING (Phase 21.1)
+
+- infra/db/database.py: Added wallet_state / paper_positions / trade_ledger DDL tables; added save_wallet_state(), load_latest_wallet_state(), upsert_paper_position(), load_open_paper_positions(), delete_paper_position(), insert_ledger_entry(), load_ledger_entries() CRUD methods
+- core/wallet_engine.py: Added persist(db) async method (saves state after every mutation); added restore_from_db(db) async classmethod (startup restore from latest snapshot)
+- core/positions.py: Added save_to_db(db), save_closed_to_db(db, market_id), load_from_db(db) async persistence methods
+- core/ledger.py: Added persist_entry(entry, db) and load_from_db(db) async persistence methods
+- core/price_feed.py: NEW — PriceFeedHandler class; bridges WS events to PaperPositionManager.update_price(); _extract_mid_price() / _extract_trade_price() helpers; heartbeat log every 60s
+- core/pipeline/trading_loop.py: UNIFIED EXECUTION — PAPER+engine path calls PaperEngine.execute_order() exclusively (single source of truth, no duplicate fill); added close order pipeline (TP/SL exit triggers every tick); added mark-to-market update per tick; added tp_pct/sl_pct params
+- execution/engine_router.py: Added paper_positions alias; added restore_from_db(db) async method to EngineContainer
+- telegram/handlers/trade.py: Trade screen shows wallet state (cash/locked/equity) inline; closed positions screen shows realized PnL from ledger
+- telegram/handlers/wallet.py: handle_paper_wallet() shows unrealized PnL + open position count
+- telegram/handlers/exposure.py: Empty/filled exposure screens show cash/locked breakdown
+- main.py: Added engine_container.restore_from_db(db) after engine container init for startup persistence restore
+- reports/forge/21_1_pre_capital_hardening.md: completion report
 
 SYSTEM WIRING ENGINE (Phase 20.1)
 
@@ -579,9 +594,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
-- Add persistence layer for WalletState: persist to DB on every mutation; restore_state() on startup
-- Wire PaperPositionManager.update_price() to WebSocket feed for live mark-to-market PnL
-- Wire PaperEngine.close_order() through exit monitor when TP/SL triggers (close_order wiring pending)
+- Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
 - Wire StrategyStateManager(db=db) into main.py startup and save(db=db) after every Telegram toggle
 - Wire strategy_mgr.get_state() into run_trading_loop() → generate_signals() strategy_state param
 - Wire WalletRepository + WalletService(repository=repo) into main.py startup sequence
@@ -596,6 +609,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## ❌ NOT STARTED
 
+- Signal reversal close trigger (third exit condition alongside TP/SL)
 - Market resolution PnL: update TradeResult.pnl when Polymarket settles
 - Bayesian updater integration: pass posterior confidence as ev_adjustment
 - Intelligence full integration into execution loop
@@ -607,26 +621,24 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Persist WalletState to DB on every mutation; restore_state() on startup
-2. Wire PaperPositionManager.update_price() to WebSocket feed for live mark-to-market PnL
-3. Wire PaperEngine.close_order() through exit monitor when TP/SL triggers
-4. Wire AlphaMetrics into generate_signals() call in trading_loop.py and inject via set_alpha_metrics() in main.py
-5. Connect PnLCalculator.calculate_metrics() to DB trade history for accurate drawdown in /performance
+1. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
+2. Auto-persist ledger entries inside PaperEngine (inject db into PaperEngine directly)
+3. Signal reversal close trigger (side-flip signal on open position → close_order())
+4. Run SENTINEL pre-capital go-live validation gate
+5. Wire AlphaMetrics into generate_signals() call in trading_loop.py
 6. Load live bankroll from WalletManager into run_trading_loop (replace static default)
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
-- Paper wallet state is in-memory only — no persistence across restarts yet
-- Partial fill discrepancy: execute_trade() and PaperEngine.execute_order() apply independent fill simulations; wallet deduction uses PaperEngine's simulation
-- Pre-existing test failure: test_tl04_signals_generated_from_markets — unrelated to wiring task (market dict extra fields from ingest refactor)
-- drawdown in /performance always 0.0 — MultiStrategyMetrics lacks time-series equity curve; accurate drawdown requires PnLCalculator over DB trade history
-- Positions unrealized PnL accurate only when trading_loop.run() is calling pnl_tracker.record_unrealized() per-tick (requires live pipeline)
-- StrategyStateManager.save(db=db) requires db.connect() to be called first (main.py responsibility)
+- WS PriceFeedHandler not yet wired as background task in main.py (module ready, wiring pending)
+- Ledger persist_entry() must be called manually by callers; not auto-called inside TradeLedger.record() to avoid circular db dependency
+- Pre-existing test failure: test_tl04 (market dict extra fields), test_tl17 (timing), eth_account missing in CI
+- drawdown in /performance always 0.0 — MultiStrategyMetrics lacks time-series equity curve
+- StrategyStateManager.save(db=db) requires db.connect() to be called first
 - RedisClient not yet wired into pipeline startup (infra ready, wiring pending)
 - Intelligence not fully affecting execution decisions yet
-- Backtest engine uses simplified PnL model
 - Telegram delivery not stress-tested under real network load
 
 ---

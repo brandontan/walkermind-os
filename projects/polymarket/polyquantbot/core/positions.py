@@ -24,7 +24,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 import structlog
 
@@ -350,3 +350,92 @@ class PaperPositionManager:
         self._positions.clear()
         self._closed.clear()
         self._seen_trade_ids.clear()
+
+    # ── DB persistence hooks ──────────────────────────────────────────────────
+
+    async def save_to_db(self, db: Any) -> None:
+        """Persist all open positions to the database.
+
+        Upserts every open position; deleted positions (closed) are removed
+        from the ``paper_positions`` table.
+
+        Args:
+            db: :class:`~infra.db.database.DatabaseClient` instance.
+        """
+        try:
+            for pos in self._positions.values():
+                await db.upsert_paper_position({
+                    "market_id": pos.market_id,
+                    "side": pos.side,
+                    "size": pos.size,
+                    "entry_price": pos.entry_price,
+                    "current_price": pos.current_price,
+                    "unrealized_pnl": pos.unrealized_pnl,
+                    "status": pos.status.value,
+                    "opened_at": pos.opened_at,
+                    "closed_at": pos.closed_at,
+                    "trade_ids": pos.trade_ids,
+                })
+            log.info(
+                "persistence_write",
+                entity="paper_positions",
+                count=len(self._positions),
+            )
+        except Exception as exc:
+            log.error("positions_save_to_db_failed", error=str(exc))
+
+    async def save_closed_to_db(self, db: Any, market_id: str) -> None:
+        """Remove a closed position from the ``paper_positions`` table.
+
+        Args:
+            db:        :class:`~infra.db.database.DatabaseClient` instance.
+            market_id: Polymarket condition ID of the closed position.
+        """
+        try:
+            await db.delete_paper_position(market_id)
+            log.info(
+                "persistence_write",
+                entity="paper_position_deleted",
+                market_id=market_id,
+            )
+        except Exception as exc:
+            log.error("positions_delete_from_db_failed", market_id=market_id, error=str(exc))
+
+    async def load_from_db(self, db: Any) -> None:
+        """Restore open positions from the database.
+
+        Replaces current in-memory state with DB state.  Idempotent.
+
+        Args:
+            db: :class:`~infra.db.database.DatabaseClient` instance.
+        """
+        try:
+            rows = await db.load_open_paper_positions()
+            for row in rows:
+                pos = PaperPosition(
+                    market_id=str(row["market_id"]),
+                    side=str(row["side"]).upper(),
+                    size=float(row["size"]),
+                    entry_price=float(row["entry_price"]),
+                    current_price=float(row.get("current_price", 0.0)),
+                    unrealized_pnl=float(row.get("unrealized_pnl", 0.0)),
+                    status=PositionStatus(str(row.get("status", "OPEN")).upper()),
+                    opened_at=float(row.get("opened_at", 0.0)),
+                    closed_at=row.get("closed_at"),
+                    trade_ids=list(row.get("trade_ids") or []),
+                )
+                self._positions[pos.market_id] = pos
+                # Restore idempotency set from trade_ids
+                for tid in pos.trade_ids:
+                    self._seen_trade_ids.add(tid)
+
+            log.info(
+                "paper_positions_loaded",
+                count=len(rows),
+            )
+        except Exception as exc:
+            log.warning(
+                "positions_load_from_db_failed",
+                error=str(exc),
+                hint="Starting with empty positions",
+            )

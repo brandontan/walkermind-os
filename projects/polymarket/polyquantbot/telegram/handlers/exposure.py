@@ -80,13 +80,16 @@ async def handle_exposure() -> tuple[str, list]:
         text = (
             "📉 *Exposure Report*\n\n"
             "_No open positions — zero exposure._\n\n"
-            f"💰 Equity: ${wallet_state.equity:.2f}"
+            f"💰 Equity: ${wallet_state.equity:.2f}\n"
+            f"💵 Cash: ${wallet_state.cash:.2f} | "
+            f"🔒 Locked: ${wallet_state.locked:.2f}"
         )
         return text, build_status_menu()
 
     lines = [
         "📉 *Exposure Report*\n",
         f"💰 Equity: ${wallet_state.equity:.2f}",
+        f"💵 Cash: ${wallet_state.cash:.2f} | 🔒 Locked: ${wallet_state.locked:.2f}",
         f"🔒 Total Exposure: ${report.total_exposure:.2f}",
         f"📊 Exposure %: {report.exposure_pct_of_equity:.1f} %",
         f"📌 Positions: {report.position_count}",
