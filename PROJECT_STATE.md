@@ -43,6 +43,8 @@ DB ACTIVATION FINAL
 - infra/db.py: ensure_schema() public method added; connect() raises RuntimeError on failure (fail-fast, no silent swallow)
 - core/pipeline/trading_loop.py: raises RuntimeError if db is None; all "if db is not None" fallback guards removed; db_enabled=True logged; PnL block always executes
 - main.py: DatabaseClient initialized at startup; await db.connect() + await db.ensure_schema(); log.info("db_enabled", status=True); run_trading_loop receives db=db, user_id="default"; await db.close() in shutdown
+- monitoring/system_activation.py: _assert_loop now raises RuntimeError when event_count==0 (fail-fast, no silent warning)
+- tests/test_pipeline_integration_final.py: _make_mock_db() added; all 20 TL-01–TL-20 tests pass db=_make_mock_db() to comply with mandatory DB requirement (36→15 test failures fixed)
 - Report: reports/forge/DB_ACTIVATION_FINAL.md
 
 ---

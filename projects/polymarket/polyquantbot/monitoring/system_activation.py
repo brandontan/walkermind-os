@@ -110,20 +110,16 @@ class SystemActivationMonitor:
             )
 
     async def _assert_loop(self) -> None:
-        """After assert_interval_s, validate liveness (warn only — no crash)."""
+        """After assert_interval_s, validate liveness — raises if no events received."""
         await asyncio.sleep(self._assert_interval)
         elapsed = time.time() - self._start_ts
 
         if self.event_count == 0:
-            log.warning(
-                "activation_monitor_no_events",
-                elapsed_s=round(elapsed, 1),
-                hint=(
-                    "No WebSocket events received yet. "
-                    "Pipeline may still be connecting — this is OK at startup."
-                ),
+            raise RuntimeError(
+                f"No events received after {round(elapsed, 1)}s — "
+                "WebSocket feed may be disconnected or market IDs may be invalid. "
+                "Check WebSocket connection status and verify MARKET_IDS are correct condition IDs."
             )
-            return
 
         if self.event_count > 0 and self.signal_count == 0:
             log.warning(

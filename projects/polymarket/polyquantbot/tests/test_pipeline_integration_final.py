@@ -17,6 +17,17 @@ from projects.polymarket.polyquantbot.core.execution.executor import reset_state
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
+def _make_mock_db() -> AsyncMock:
+    """Create a mock DatabaseClient that satisfies the trading loop db requirement."""
+    db = AsyncMock()
+    db.upsert_position = AsyncMock(return_value=True)
+    db.insert_trade = AsyncMock(return_value=True)
+    db.update_trade_status = AsyncMock(return_value=True)
+    db.get_positions = AsyncMock(return_value=[])
+    db.get_recent_trades = AsyncMock(return_value=[])
+    return db
+
+
 def _market(
     market_id: str = "mkt-1",
     p_market: float = 0.40,
@@ -79,6 +90,7 @@ async def test_tl01_loop_runs_one_tick_and_stops():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
 
@@ -109,6 +121,7 @@ async def test_tl02_no_markets_skips_execution():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     execute_mock.assert_not_awaited()
@@ -143,6 +156,7 @@ async def test_tl03_market_fetch_error_skips_without_crash():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
 
@@ -175,6 +189,7 @@ async def test_tl04_signals_generated_from_markets():
             bankroll=2000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     signal_mock.assert_awaited_once()
@@ -237,6 +252,7 @@ async def test_tl05_execute_trade_called_per_signal():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     assert execute_mock.await_count == 3
@@ -289,6 +305,7 @@ async def test_tl06_paper_mode_used_by_default():
             loop_interval_s=0,
             bankroll=1000.0,
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     assert captured_mode and captured_mode[0] == "PAPER"
@@ -340,6 +357,7 @@ async def test_tl07_telegram_callback_forwarded_to_executor():
             mode="PAPER",
             telegram_callback=tg_cb,
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     assert captured_tg and captured_tg[0] is tg_cb
@@ -391,6 +409,7 @@ async def test_tl08_executor_callback_forwarded():
             mode="LIVE",
             executor_callback=ex_cb,
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     assert captured_cb and captured_cb[0] is ex_cb
@@ -449,6 +468,7 @@ async def test_tl09_multiple_ticks_accumulate_trades():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     assert execute_mock.await_count == 2
@@ -470,6 +490,7 @@ async def test_tl10_stop_event_prevents_further_ticks():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     fetch_mock.assert_not_awaited()
@@ -513,6 +534,7 @@ async def test_tl11_generate_signals_error_skips_iteration():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     execute_mock.assert_not_awaited()
@@ -563,6 +585,7 @@ async def test_tl12_execute_trade_error_does_not_stop_loop():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
 
@@ -593,6 +616,7 @@ async def test_tl13_bankroll_passed_to_generate_signals():
             bankroll=7500.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     _, kwargs = signal_mock.call_args
@@ -645,6 +669,7 @@ async def test_tl14_mode_env_var_respected():
             loop_interval_s=0,
             bankroll=1000.0,
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     assert captured and captured[0] == "PAPER"
@@ -678,6 +703,7 @@ async def test_tl15_full_pipeline_paper_e2e():
             bankroll=5000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
     # No assertion needed — completing without exception is the success condition
 
@@ -714,6 +740,7 @@ async def test_tl16_no_signals_no_execution():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     execute_mock.assert_not_awaited()
@@ -744,6 +771,7 @@ async def test_tl17_loop_interval_env_var():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     assert slept and slept[0] == 7.0
@@ -777,6 +805,7 @@ async def test_tl18_bankroll_env_var():
         await run_trading_loop(
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
     _, kwargs = signal_mock.call_args
@@ -835,6 +864,7 @@ async def test_tl19_successful_trade_logs_result():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )
 
 
@@ -887,4 +917,5 @@ async def test_tl20_failed_trade_result_no_extra_log():
             bankroll=1000.0,
             mode="PAPER",
             stop_event=stop,
+            db=_make_mock_db(),
         )

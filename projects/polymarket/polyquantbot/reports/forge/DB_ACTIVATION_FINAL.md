@@ -162,6 +162,8 @@ RuntimeError: Database required — startup aborted
 | `infra/db.py` | Added `ensure_schema()` public method; `connect()` now raises `RuntimeError` on failure |
 | `core/pipeline/trading_loop.py` | Raises `RuntimeError` if `db is None`; removed all `if db is not None:` guards; PnL always computed; `db_enabled=True` logged |
 | `main.py` | `DatabaseClient` initialized at startup; `await db.connect()` + `await db.ensure_schema()`; `db_enabled` logged; `db=db, user_id="default"` injected into `run_trading_loop`; `await db.close()` in shutdown |
+| `tests/test_pipeline_integration_final.py` | Added `_make_mock_db()` helper; injected `db=_make_mock_db()` into all 20 TL-01–TL-20 `run_trading_loop` calls to comply with mandatory DB requirement |
+| `monitoring/system_activation.py` | `_assert_loop` now raises `RuntimeError("No events received…")` instead of silently warning when `event_count == 0` — fail-fast alignment |
 
 ---
 
