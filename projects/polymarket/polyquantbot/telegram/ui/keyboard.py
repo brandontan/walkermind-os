@@ -58,10 +58,11 @@ def build_status_menu() -> InlineKeyboard:
 
 
 def build_wallet_menu() -> InlineKeyboard:
-    """Wallet info actions."""
+    """Wallet info actions — includes Withdraw button."""
     return [
-        [_btn("💵 Balance",  "wallet_balance"),  _btn("📉 Exposure",  "wallet_exposure")],
-        [_btn("🔄 Refresh",  "wallet"),           _btn("🏠 Main Menu", "back_main")],
+        [_btn("💵 Balance",    "wallet_balance"),  _btn("📉 Exposure",   "wallet_exposure")],
+        [_btn("💸 Withdraw",   "wallet_withdraw"),  _btn("🔄 Refresh",    "wallet")],
+        [_btn("🏠 Main Menu",  "back_main")],
     ]
 
 
