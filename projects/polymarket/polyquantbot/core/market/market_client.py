@@ -21,6 +21,8 @@ from typing import Any
 
 import structlog
 
+from ..utils.json_safe import safe_json_load
+
 log = structlog.get_logger()
 
 _DEFAULT_GAMMA_API_URL: str = "https://gamma-api.polymarket.com"
@@ -128,18 +130,23 @@ def extract_market_data(market: dict) -> dict | None:
     """Safely extract and normalise ``market_id`` and ``p_market`` from a raw
     Gamma API market dict.
 
-    The Gamma API may return prices under ``outcomePrices`` (list of strings)
-    or ``prices`` (list of floats).  The market identifier may be ``id``,
-    ``conditionId``, or ``market_id``.  A pre-normalised dict that already
-    contains ``market_id`` and ``p_market`` keys is also accepted.
+    The Gamma API may return ``outcomePrices``, ``outcomes``, and
+    ``clobTokenIds`` as JSON-encoded strings (e.g. ``"[\\"0.545\\", \\"0.455\\"]"``).
+    :func:`~core.utils.json_safe.safe_json_load` is used to deserialise them
+    before any further processing so that ``float("[")`` errors can no longer
+    occur.
+
+    The market identifier may be ``id``, ``conditionId``, or ``market_id``.
+    A pre-normalised dict that already contains ``market_id`` / ``p_market``
+    keys is also accepted.
 
     Args:
         market: Raw market dict as returned by :func:`get_active_markets`, or a
                 pre-normalised dict with ``market_id`` / ``p_market`` keys.
 
     Returns:
-        ``{"market_id": str, "p_market": float}`` when extraction succeeds and
-        the values are valid; ``None`` otherwise.
+        Dict with at minimum ``{"market_id": str, "p_market": float}`` when
+        extraction succeeds and the values are valid; ``None`` otherwise.
     """
     try:
         market_id: str | None = (
@@ -148,10 +155,13 @@ def extract_market_data(market: dict) -> dict | None:
             or market.get("market_id")
         )
 
-        # Try list-based price fields first (raw Gamma API)
-        prices = market.get("outcomePrices") or market.get("prices")
-        if prices and len(prices) > 0:
-            p_market = float(prices[0])
+        # Deserialise JSON-encoded string fields before processing
+        raw_prices = safe_json_load(
+            market.get("outcomePrices") or market.get("prices")
+        )
+
+        if raw_prices is not None and isinstance(raw_prices, list) and len(raw_prices) > 0:
+            p_market = float(raw_prices[0])
         else:
             # Fall back to scalar p_market key (pre-normalised or test dicts)
             raw_p = market.get("p_market")

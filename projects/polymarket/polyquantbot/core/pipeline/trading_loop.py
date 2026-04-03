@@ -69,6 +69,7 @@ from typing import Any, Callable, Awaitable, Optional
 import structlog
 
 from ..market.market_client import get_active_markets, extract_market_data
+from ..market.ingest import ingest_markets
 from ..signal.signal_engine import generate_signals
 from ..signal.alpha_model import ProbabilisticAlphaModel
 from ..execution.executor import execute_trade
@@ -207,20 +208,13 @@ async def run_trading_loop(
                 log.info("market_raw_sample", data=_raw)
 
             # ── 1b. Parse and normalise markets ───────────────────────────────
-            normalised_markets: list[dict] = []
-            for market in markets:
-                parsed = extract_market_data(market)
-                if not parsed:
-                    continue
+            normalised_markets: list[dict] = ingest_markets(markets)
+            for m in normalised_markets:
                 log.info(
                     "market_valid",
-                    market_id=parsed["market_id"],
-                    p_market=parsed["p_market"],
+                    market_id=m["market_id"],
+                    p_market=m["p_market"],
                 )
-                # Carry through all original fields so signal engine can use
-                # bid/ask/liquidity etc., but always have the normalised keys.
-                merged = {**market, **parsed}
-                normalised_markets.append(merged)
 
             if not normalised_markets:
                 log.warning(
