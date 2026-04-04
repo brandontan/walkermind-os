@@ -103,6 +103,12 @@ _DEFAULT_LOOP_INTERVAL_S: float = 5.0
 _DEFAULT_BANKROLL: float = 1_000.0
 _DEFAULT_USER_ID: str = "default"
 
+# ── Stability / observability constants ───────────────────────────────────────
+
+_HEARTBEAT_INTERVAL_S: float = 300.0     # emit system_alive log every 5 min
+_WARNING_ALERT_COOLDOWN_S: float = 600.0 # WARNING alert max once per 10 min
+_DEFAULT_VALIDATION_MODE: str = "LIVE_OBSERVATION"  # no kill-switch action
+
 # ── Exit trigger thresholds ───────────────────────────────────────────────────
 
 _DEFAULT_TP_PCT: float = 0.15   # Take-profit: +15% unrealized gain
@@ -240,11 +246,86 @@ async def run_trading_loop(
     # Mutable container for previous validation state — enables change detection
     _prev_vs: list[ValidationState] = [ValidationState.HEALTHY]
 
+    # ── Stability / observability state ───────────────────────────────────────
+    _validation_mode: str = os.getenv("VALIDATION_MODE", _DEFAULT_VALIDATION_MODE).upper()
+    _last_heartbeat: list[float] = [0.0]        # mutable so closure can mutate
+    _warning_last_alerted: list[float] = [0.0]  # cooldown: WARNING max 1/10 min
+    _validation_hook_errors: list[int] = [0]    # cumulative error counter
+
+    async def _emit_validation_result(
+        _val_result: Any,
+        _computed: dict[str, Any],
+        tg_cb: Optional[Callable[[str], Awaitable[None]]],
+    ) -> None:
+        """Shared helper: update state store, log, and send Telegram alerts."""
+        _validation_state.update(_val_result.state, _computed)
+
+        _tc = _performance_tracker.get_trade_count()
+        _last_pnl = _computed.get("last_pnl", _computed.get("expectancy", 0.0))
+
+        _log_fn = (
+            log.critical
+            if _val_result.state == ValidationState.CRITICAL
+            else log.info
+        )
+        _log_fn(
+            "validation_update",
+            state=_val_result.state.value,
+            metrics=_computed,
+            reason=_val_result.reasons,
+            trade_count=_tc,
+            rolling_window_size=_performance_tracker.max_window,
+            last_pnl=round(_last_pnl, 6),
+            validation_mode=_validation_mode,
+        )
+
+        # ── Telegram alert on state change (with WARNING cooldown) ───────────
+        if _val_result.state != _prev_vs[0] or _val_result.state == ValidationState.CRITICAL:
+            _now_alert = time.time()
+            _send_alert = True
+
+            if _val_result.state == ValidationState.CRITICAL:
+                _alert = (
+                    f"🚨 CRITICAL: validation state → CRITICAL\n"
+                    f"{', '.join(_val_result.reasons)}"
+                )
+            elif _val_result.state == ValidationState.WARNING:
+                # Apply 10-minute cooldown for WARNING alerts
+                if _now_alert - _warning_last_alerted[0] < _WARNING_ALERT_COOLDOWN_S:
+                    _send_alert = False
+                    log.debug(
+                        "validation_warning_cooldown_active",
+                        seconds_since_last=round(_now_alert - _warning_last_alerted[0], 1),
+                        cooldown_s=_WARNING_ALERT_COOLDOWN_S,
+                    )
+                _alert = (
+                    f"⚠️ WARNING: validation state → WARNING\n"
+                    f"{', '.join(_val_result.reasons)}"
+                )
+            else:
+                _alert = None  # HEALTHY transition — silent
+
+            if _val_result.state != _prev_vs[0]:
+                _prev_vs[0] = _val_result.state
+
+            if _alert and _send_alert and tg_cb is not None:
+                if _val_result.state == ValidationState.WARNING:
+                    _warning_last_alerted[0] = _now_alert
+                try:
+                    await tg_cb(_alert)
+                except Exception as _tg_val_exc:  # noqa: BLE001
+                    log.warning(
+                        "validation_telegram_failed",
+                        error=str(_tg_val_exc),
+                    )
+        elif _val_result.state != _prev_vs[0]:
+            _prev_vs[0] = _val_result.state
+
     async def _run_validation_hook(
         trade: dict[str, Any],
         tg_cb: Optional[Callable[[str], Awaitable[None]]],
     ) -> None:
-        """Run the validation pipeline for a completed trade.
+        """Run the validation pipeline for a newly opened trade.
 
         Designed to run as a background ``asyncio.create_task()`` so that
         execution latency is unaffected.  All failures are caught and logged;
@@ -253,55 +334,70 @@ async def run_trading_loop(
         try:
             _performance_tracker.add_trade(trade)
         except (ValueError, TypeError) as _ve:
-            log.error("validation_trade_invalid", error=str(_ve))
+            _validation_hook_errors[0] += 1
+            log.error(
+                "validation_trade_invalid",
+                error=str(_ve),
+                cumulative_errors=_validation_hook_errors[0],
+            )
             return
 
         try:
             _recent = _performance_tracker.get_recent_trades()
             _computed = _metrics_engine.compute(_recent)
             _val_result = _validation_engine.evaluate(_computed)
-            _validation_state.update(_val_result.state, _computed)
-
-            _log_fn = (
-                log.critical
-                if _val_result.state == ValidationState.CRITICAL
-                else log.info
-            )
-            _log_fn(
-                "validation_update",
-                state=_val_result.state.value,
-                metrics=_computed,
-                reason=_val_result.reasons,
-            )
-
-            # ── Telegram alert on state change only ───────────────────────────
-            if _val_result.state != _prev_vs[0]:
-                _prev_vs[0] = _val_result.state
-                if tg_cb is not None:
-                    if _val_result.state == ValidationState.CRITICAL:
-                        _alert = (
-                            f"🚨 CRITICAL: validation state → CRITICAL\n"
-                            f"{', '.join(_val_result.reasons)}"
-                        )
-                    elif _val_result.state == ValidationState.WARNING:
-                        _alert = (
-                            f"⚠️ WARNING: validation state → WARNING\n"
-                            f"{', '.join(_val_result.reasons)}"
-                        )
-                    else:
-                        _alert = None  # HEALTHY transition — silent
-                    if _alert:
-                        try:
-                            await tg_cb(_alert)
-                        except Exception as _tg_val_exc:  # noqa: BLE001
-                            log.warning(
-                                "validation_telegram_failed",
-                                error=str(_tg_val_exc),
-                            )
+            await _emit_validation_result(_val_result, _computed, tg_cb)
         except Exception as _val_exc:  # noqa: BLE001
+            _validation_hook_errors[0] += 1
             log.critical(
                 "validation_hook_error",
                 error=str(_val_exc),
+                cumulative_errors=_validation_hook_errors[0],
+                exc_info=True,
+            )
+
+    async def _run_closed_validation_hook(
+        trade_id: str,
+        pnl: float,
+        tg_cb: Optional[Callable[[str], Awaitable[None]]],
+    ) -> None:
+        """Update a closed trade's PnL in the tracker and re-run validation.
+
+        Designed to run as a background ``asyncio.create_task()`` after a
+        position is closed and its realized PnL is known.  All failures are
+        caught and logged; the coroutine never propagates exceptions.
+        """
+        if not trade_id or pnl == 0.0:
+            log.debug(
+                "closed_validation_skipped",
+                trade_id=trade_id,
+                pnl=pnl,
+                reason="no trade_id or zero pnl",
+            )
+            return
+
+        _updated = _performance_tracker.update_trade(trade_id, pnl)
+        if not _updated:
+            log.warning(
+                "closed_validation_trade_not_found",
+                trade_id=trade_id,
+                pnl=pnl,
+            )
+            return
+
+        try:
+            _recent = _performance_tracker.get_recent_trades()
+            _computed = _metrics_engine.compute(_recent)
+            _val_result = _validation_engine.evaluate(_computed)
+            await _emit_validation_result(_val_result, _computed, tg_cb)
+        except Exception as _cval_exc:  # noqa: BLE001
+            _validation_hook_errors[0] += 1
+            log.critical(
+                "closed_validation_hook_error",
+                trade_id=trade_id,
+                pnl=pnl,
+                error=str(_cval_exc),
+                cumulative_errors=_validation_hook_errors[0],
                 exc_info=True,
             )
 
@@ -318,6 +414,9 @@ async def run_trading_loop(
         db_enabled=True,
         force_signal_mode=_force_signal,
         paper_engine_wired=paper_engine is not None,
+        validation_mode=_validation_mode,
+        heartbeat_interval_s=_HEARTBEAT_INTERVAL_S,
+        warning_alert_cooldown_s=_WARNING_ALERT_COOLDOWN_S,
     )
     log.info("db_enabled", status=True)
 
@@ -329,6 +428,20 @@ async def run_trading_loop(
 
         _tick_start: float = time.monotonic()
         log.info("trading_loop_tick", tick=_tick, mode=_mode, bankroll=_bankroll)
+
+        # ── Heartbeat (every HEARTBEAT_INTERVAL_S) ────────────────────────────
+        _now_hb = time.time()
+        if _now_hb - _last_heartbeat[0] >= _HEARTBEAT_INTERVAL_S:
+            _last_heartbeat[0] = _now_hb
+            log.info(
+                "system_heartbeat",
+                system_alive=True,
+                tick=_tick,
+                validation_hook_errors=_validation_hook_errors[0],
+                validation_state=_prev_vs[0].value,
+                trade_count=_performance_tracker.get_trade_count(),
+                validation_mode=_validation_mode,
+            )
 
         _retry_count: int = 0
         _max_retries: int = 3
@@ -795,6 +908,7 @@ async def run_trading_loop(
                         # ── 4j. Validation engine hook (non-blocking) ─────────────
                         if result.fill_price > 0.0:
                             _val_trade: dict[str, Any] = {
+                                "trade_id": result.trade_id,
                                 "pnl": 0.0,
                                 "entry_price": result.fill_price,
                                 "exit_price": result.fill_price,
@@ -919,11 +1033,22 @@ async def run_trading_loop(
                                             if _pos.side == "YES"
                                             else _pos.entry_price - _cur_price
                                         )
+                                        _orig_trade_id = (
+                                            _pos.trade_ids[0] if _pos.trade_ids else _close_trade_id
+                                        )
                                         await db.update_trade_status(
-                                            _pos.trade_ids[0] if _pos.trade_ids else _close_trade_id,
+                                            _orig_trade_id,
                                             "closed",
                                             pnl=_rpnl,
                                             won=_rpnl > 0,
+                                        )
+                                        # ── 5c-i. Closed-trade PnL → PerformanceTracker ──
+                                        asyncio.create_task(
+                                            _run_closed_validation_hook(
+                                                _orig_trade_id,
+                                                _rpnl,
+                                                telegram_callback,
+                                            )
                                         )
                                         await paper_engine._positions.save_closed_to_db(  # type: ignore[attr-defined]
                                             db, _pos.market_id

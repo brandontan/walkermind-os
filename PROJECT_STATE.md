@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-04
-Status: Phase 24.2 active — Validation Engine wired into live trading pipeline; every executed trade automatically tracked; metrics computed in real-time; non-blocking via asyncio.create_task(); 10 new wiring tests (VW-01→VW-10) all passing; 1245/1247 tests total
+Status: Phase 24.3 active — Stability infrastructure deployed; closed-trade PnL hook wired into PerformanceTracker; heartbeat, alert cooldown, VALIDATION_MODE flag, and enhanced validation logs added; 11 new stability tests (VS-01→VS-11) passing; 54 Phase-24 tests total; 24h observation run in staging ready to start
 
 ---
 
@@ -37,6 +37,13 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+STABILITY INFRASTRUCTURE (Phase 24.3)
+
+- monitoring/performance_tracker.py (MODIFIED): `_trade_id_index` dict added; `add_trade` stores trade_id → index; `update_trade(trade_id, pnl)` overwrites closed-trade PnL in-place with index-shift on trim
+- core/pipeline/trading_loop.py (MODIFIED): `_HEARTBEAT_INTERVAL_S`/`_WARNING_ALERT_COOLDOWN_S`/`_DEFAULT_VALIDATION_MODE` constants; `_validation_mode`, `_last_heartbeat`, `_warning_last_alerted`, `_validation_hook_errors` state; `_emit_validation_result` shared helper; `_run_closed_validation_hook`; heartbeat every 5 min; WARNING cooldown 10 min; CRITICAL always fires; `trade_id` in open-trade dict; closed-trade PnL hook after `db.update_trade_status`; enhanced `validation_update` log + startup log
+- tests/test_stability_phase24_3.py (NEW): 11 tests (VS-01 → VS-11), all passing
+- reports/forge/24_3_stability_test.md (NEW): this phase's report
 
 VALIDATION ENGINE WIRING (Phase 24.2)
 
@@ -634,6 +641,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- **24h validation observation run** — infrastructure deployed (Phase 24.3); run to be started in staging; collecting: uptime stats, crash count, validation state distribution, early performance metrics
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
 - Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
 - Wire StrategyStateManager(db=db) into main.py startup and save(db=db) after every Telegram toggle
@@ -662,10 +670,10 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Stability testing (24h) — run wired ValidationEngine in paper trading session, monitor state transitions, confirm no false CRITICAL alerts
-2. Wire closed-trade realized PnL back into PerformanceTracker (from db.update_trade_status close events)
-3. SENTINEL validation of Phase 24.2 — validation engine wiring
-4. SENTINEL validation of Phase 24.1 — validation engine core
+1. **Phase 24.3 run** — start 24h staging observation; collect uptime, crash count, validation state distribution, early WR/PF metrics
+2. **Threshold tuning (Phase 24.4)** — adjust WR/PF/MDD thresholds based on 24h run data
+3. **SENTINEL validation** — Phase 24.3 stability infrastructure
+4. Wire LIVE path closed-trade PnL hook (CLOB executor close events → `update_trade`)
 5. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
 6. Add WS disconnect CRITICAL alert to Telegram (currently only WARNING)
 7. Dashboard V4: surface synthetic signal count, force-fallback status, PAPER/LIVE toggle in Telegram
@@ -674,7 +682,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## ⚠️ KNOWN ISSUES
 
-- Entry-trade `pnl` recorded as `0.0` in validation tracker (position open, no realized PnL); metrics become meaningful after positions close and close-event hook is added
+- **LIVE path closed-trade PnL hook missing** — `_run_closed_validation_hook` is wired only in the PAPER close-order pipeline; LIVE mode CLOB executor close events do not yet feed realized PnL into PerformanceTracker
+- **`last_pnl` fallback** — `validation_update` log uses `expectancy` as `last_pnl` proxy since MetricsEngine does not yet expose a dedicated `last_pnl` field
 - ValidationEngine thresholds (WR≥0.70, PF≥1.5, MDD≤0.08) are hardcoded from knowledge base — require calibration against live paper trading data before LIVE deployment
 - `test_tl04` (PRE-EXISTING): market dict extra fields from `ingest_markets()` — cosmetic mismatch in test assertion
 - `test_tl17` (PRE-EXISTING): fast-loop guard fires before full interval sleep when markets list is empty
