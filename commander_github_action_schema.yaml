@@ -1,0 +1,226 @@
+openapi: 3.1.0
+info:
+  title: Walker AI — GitHub Repo Access
+  description: >
+    Allows COMMANDER to read files and list directories
+    from the walker-ai-team GitHub repository.
+  version: 1.0.0
+
+servers:
+  - url: https://api.github.com
+
+paths:
+
+  # ── READ SINGLE FILE ──────────────────────────────────────
+  # Use for: PROJECT_STATE.md, CLAUDE.md, any specific report
+  /repos/{owner}/{repo}/contents/{path}:
+    get:
+      operationId: readFile
+      summary: Read a single file from the repo
+      description: >
+        Returns file content (base64 encoded). Use to read
+        PROJECT_STATE.md, latest forge/sentinel/briefer reports,
+        or any specific file by full path.
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+          description: GitHub username — always "bayuewalker"
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Repo name — always "walker-ai-team"
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+          description: >
+            Full file path from repo root. Examples:
+            PROJECT_STATE.md
+            docs/CLAUDE.md
+            projects/polymarket/polyquantbot/reports/forge/22_2_investor_update_pre_capital.md
+      responses:
+        "200":
+          description: File found — content is base64 encoded in "content" field
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: Filename
+                  path:
+                    type: string
+                    description: Full path in repo
+                  content:
+                    type: string
+                    description: Base64-encoded file content — decode to read
+                  encoding:
+                    type: string
+                  size:
+                    type: integer
+                  html_url:
+                    type: string
+        "404":
+          description: File not found
+
+  # ── LIST DIRECTORY ────────────────────────────────────────
+  # Use for: list reports/forge/, reports/sentinel/, reports/briefer/
+  # Same endpoint — GitHub returns array when path is a directory
+  /repos/{owner}/{repo}/contents/{dirpath}:
+    get:
+      operationId: listDirectory
+      summary: List files in a directory
+      description: >
+        Returns list of files and folders in a directory.
+        Use to find the latest report in reports/forge/,
+        reports/sentinel/, or reports/briefer/.
+        Sort by name descending to get the latest report.
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Always "bayuewalker"
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Always "walker-ai-team"
+        - name: dirpath
+          in: path
+          required: true
+          schema:
+            type: string
+          description: >
+            Directory path. Examples:
+            projects/polymarket/polyquantbot/reports/forge
+            projects/polymarket/polyquantbot/reports/sentinel
+            projects/polymarket/polyquantbot/reports/briefer
+            docs
+      responses:
+        "200":
+          description: Directory listing
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: File or folder name
+                    path:
+                      type: string
+                      description: Full path from repo root
+                    type:
+                      type: string
+                      description: "file" or "dir"
+                    size:
+                      type: integer
+                    html_url:
+                      type: string
+        "404":
+          description: Directory not found
+
+  # ── LIST REPO ROOT ────────────────────────────────────────
+  /repos/{owner}/{repo}/contents:
+    get:
+      operationId: listRepoRoot
+      summary: List repo root directory
+      description: List all files and folders at repo root level.
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Root directory listing
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    path:
+                      type: string
+                    type:
+                      type: string
+
+  # ── LIST OPEN PULL REQUESTS ───────────────────────────────
+  /repos/{owner}/{repo}/pulls:
+    get:
+      operationId: listPullRequests
+      summary: List open pull requests
+      description: >
+        Returns open PRs. Use to check if FORGE-X has submitted a PR
+        and whether Copilot review has been completed.
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [open, closed, all]
+            default: open
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: List of pull requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    number:
+                      type: integer
+                    title:
+                      type: string
+                    state:
+                      type: string
+                    head:
+                      type: object
+                      properties:
+                        ref:
+                          type: string
+                          description: Branch name
+                    html_url:
+                      type: string
+                    created_at:
+                      type: string
+                    updated_at:
+                      type: string
