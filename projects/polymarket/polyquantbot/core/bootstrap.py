@@ -52,6 +52,42 @@ from typing import Any, Optional
 
 import structlog
 
+
+def _configure_logging() -> None:
+    """Configure structlog for production JSON output.
+
+    In development (LOG_FORMAT=CONSOLE), uses the human-readable ConsoleRenderer.
+    In production (default), emits structured JSON via JSONRenderer.
+    Override with LOG_FORMAT=CONSOLE env var to enable dev console output.
+    """
+    import structlog as _structlog
+
+    _is_dev = os.getenv("LOG_FORMAT", "").upper() == "CONSOLE"
+
+    if _is_dev:
+        _structlog.configure(
+            processors=[_structlog.dev.ConsoleRenderer()],
+            wrapper_class=_structlog.make_filtering_bound_logger(20),
+            logger_factory=_structlog.PrintLoggerFactory(),
+        )
+    else:
+        _structlog.configure(
+            processors=[
+                _structlog.contextvars.merge_contextvars,
+                _structlog.stdlib.add_log_level,
+                _structlog.stdlib.add_logger_name,
+                _structlog.processors.TimeStamper(fmt="iso"),
+                _structlog.processors.StackInfoRenderer(),
+                _structlog.processors.format_exc_info,
+                _structlog.processors.JSONRenderer(),
+            ],
+            wrapper_class=_structlog.make_filtering_bound_logger(20),
+            logger_factory=_structlog.PrintLoggerFactory(),
+        )
+
+
+_configure_logging()
+
 log = structlog.get_logger()
 
 # ── Required credentials ──────────────────────────────────────────────────────

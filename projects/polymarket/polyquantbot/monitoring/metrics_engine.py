@@ -52,15 +52,21 @@ class MetricsEngine:
             trades: List of trade dicts with a ``pnl`` key.
 
         Returns:
-            Float ≥ 0.  Returns 0.0 when there are no losing trades or no
-            trades at all.  Returns 0.0 (not inf) when gross_loss is zero but
-            gross_profit > 0 to avoid non-finite outputs.
+            Float ≥ 0.  Returns 0.0 when there are no trades or all trades
+            are breakeven (both gross_profit and gross_loss are zero).
+            Returns 999.0 as a large-but-finite sentinel value when
+            gross_loss is zero but gross_profit > 0 (all-win window) — this
+            prevents a false ValidationEngine WARNING on a perfect system.
         """
         if not trades:
             return 0.0
         gross_profit = sum(t.get("pnl", 0.0) for t in trades if t.get("pnl", 0.0) > 0.0)
         gross_loss = abs(sum(t.get("pnl", 0.0) for t in trades if t.get("pnl", 0.0) < 0.0))
         if gross_loss == 0.0:
+            # All-win window: return large finite sentinel to avoid false WARNING
+            if gross_profit > 0.0:
+                return 999.0
+            # No trades with any PnL (all breakeven or empty after filter)
             return 0.0
         return gross_profit / gross_loss
 
@@ -144,14 +150,18 @@ class MetricsEngine:
 
         Returns:
             Dict with keys: ``win_rate``, ``profit_factor``, ``expectancy``,
-            ``max_drawdown``.  All values are finite floats.
+            ``max_drawdown``, ``last_pnl``.  All values are finite floats.
+            ``last_pnl`` is the PnL of the most recent trade, or 0.0 when
+            the trade list is empty.
         """
         equity_curve = self.build_equity_curve(trades)
+        last_pnl: float = trades[-1].get("pnl", 0.0) if trades else 0.0
         metrics: dict[str, float] = {
             "win_rate": self.compute_win_rate(trades),
             "profit_factor": self.compute_profit_factor(trades),
             "expectancy": self.compute_expectancy(trades),
             "max_drawdown": self.compute_drawdown(equity_curve),
+            "last_pnl": last_pnl,
         }
 
         log.debug(

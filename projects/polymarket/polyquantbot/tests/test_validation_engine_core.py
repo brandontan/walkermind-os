@@ -20,7 +20,7 @@ Scenarios covered:
   VE-07  MetricsEngine — compute returns neutral dict for empty trades
   VE-08  MetricsEngine — compute_win_rate correct
   VE-09  MetricsEngine — compute_profit_factor correct
-  VE-10  MetricsEngine — compute_profit_factor zero when no losers
+  VE-10  MetricsEngine — compute_profit_factor returns 999.0 (sentinel) when no losers
   VE-11  MetricsEngine — compute_expectancy correct
   VE-12  MetricsEngine — compute_drawdown correct
   VE-13  MetricsEngine — compute_drawdown zero for single-point curve
@@ -145,7 +145,7 @@ def test_ve06_get_trade_count():
 def test_ve07_empty_trades_neutral_metrics():
     engine = MetricsEngine()
     result = engine.compute([])
-    assert result == {"win_rate": 0.0, "profit_factor": 0.0, "expectancy": 0.0, "max_drawdown": 0.0}
+    assert result == {"win_rate": 0.0, "profit_factor": 0.0, "expectancy": 0.0, "max_drawdown": 0.0, "last_pnl": 0.0}
 
 
 def test_ve08_win_rate_correct():
@@ -159,9 +159,9 @@ def test_ve09_profit_factor_correct():
     assert MetricsEngine.compute_profit_factor(trades) == pytest.approx(2.0, rel=1e-6)
 
 
-def test_ve10_profit_factor_zero_when_no_losers():
+def test_ve10_profit_factor_large_sentinel_when_no_losers():
     trades = [_trade(pnl=10.0), _trade(pnl=5.0)]
-    assert MetricsEngine.compute_profit_factor(trades) == 0.0
+    assert MetricsEngine.compute_profit_factor(trades) == 999.0
 
 
 def test_ve11_expectancy_correct():

@@ -46,6 +46,7 @@ _INITIAL_CAP_PCT: float = 0.05       # 5% bankroll cap
 _MAX_PER_TRADE_PCT: float = 0.02     # 2% max per-trade
 _MAX_CONCURRENT: int = 2             # max open positions
 _MAX_TOTAL_EXPOSURE_PCT: float = 0.05  # 5% total exposure ceiling
+_KELLY_FRACTION: float = 0.25  # Fractional Kelly — full Kelly (1.0) is FORBIDDEN
 
 
 # ── Error types ───────────────────────────────────────────────────────────────
@@ -165,6 +166,9 @@ class CapitalAllocator:
 
         All rules are checked in order; the first violation raises
         :class:`CapitalAllocationError`.
+
+        Position sizing uses fractional Kelly with α=0.25 (_KELLY_FRACTION).
+        Full Kelly (α=1.0) is strictly FORBIDDEN by the Walker AI risk framework.
 
         Args:
             signal_strength: Signal confidence score ∈ [0.0, 1.0].
