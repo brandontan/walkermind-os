@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
-Last Updated: 2026-04-04
-Status: UI STYLE B Finalization COMPLETE ✅ — SPACING SYSTEM V2 applied across all Telegram screens; V2 primitives (render_kv_line, render_section, render_insight, render_separator) added; ASCII boxes removed; insight lines on all major screens; structured error messages; 103/103 tests passing
+Last Updated: 2026-04-05
+Status: UI V3 + Paper Trading Activation COMPLETE ✅ — KRUSADER v2.0 header; ✅/⚪ strategy icons; USED MARGIN/FREE MARGIN wallet card; market expansion (2→50+); PAPER edge threshold 0.5%; 30-min force-trade fallback; synthetic signal injection; 100-500ms execution delay; 1202/1204 tests passing (2 pre-existing failures unrelated to PR)
 
 ---
 
@@ -37,6 +37,18 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+UI V3 POLISH + PAPER TRADING ACTIVATION (Phase 23.1)
+
+- telegram/ui/components.py: Header `🚀 KRUSADER v2.0 | Polymarket AI Trader`; strategy icons ✅/⚪; wallet card with CASH/EQUITY/USED MARGIN/FREE MARGIN; paper label "Simulated (real execution model)"
+- core/signal/signal_engine.py: Added `generate_synthetic_signals()` — fallback signal with random bias + drift; liquidity + spread sanity check; 0.5% bankroll cap
+- core/signal/__init__.py: Exports `generate_synthetic_signals`
+- core/pipeline/trading_loop.py: `_MAX_MARKETS_PER_TICK` 20→50; paper edge override (0.5%); 30-min force-trade fallback; 5-min per-market guard; synthetic signal injection wired
+- core/market/market_client.py: API limit 100→500; `min_volume: 10000` pre-filter
+- execution/paper_engine.py: 100-500ms execution delay simulation; `_EXEC_DELAY_MIN/MAX_MS` constants
+- infra/live_config.py + config/live_config.py: `PAPER_MODE` flag, `paper_edge_threshold` (0.005), `paper_initial_balance` ($10k) fields in `LiveConfig`
+- tests/test_phase11_live_deployment.py: Updated `test_ld09` to include new `to_dict()` keys
+- reports/forge/23_1_ui_v3_paper_activation.md: completion report
 
 UI STYLE B FINALIZATION (Phase 22.1)
 
@@ -633,26 +645,25 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. SENTINEL validation of STYLE B UI screens (visual + format review)
-2. Wire pipeline metrics (latency_ms, markets_count) into `handle_start()` for live boot screen stats
-3. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
-4. Auto-persist ledger entries inside PaperEngine (inject db into PaperEngine directly)
-5. Signal reversal close trigger (side-flip signal on open position → close_order())
-6. Run SENTINEL pre-capital go-live validation gate
+1. SENTINEL validation of Phase 23.1 — paper trading activation, synthetic signal path, risk rules
+2. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
+3. Add WS disconnect CRITICAL alert to Telegram (currently only WARNING)
+4. Dashboard V4: surface synthetic signal count, force-fallback status, PAPER/LIVE toggle in Telegram
+5. Backtest synthetic signal strategy against historical Polymarket data
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- `test_tl04` (PRE-EXISTING): market dict extra fields from `ingest_markets()` — cosmetic mismatch in test assertion
+- `test_tl17` (PRE-EXISTING): fast-loop guard fires before full interval sleep when markets list is empty
 - WS PriceFeedHandler not yet wired as background task in main.py (module ready, wiring pending)
 - Ledger persist_entry() must be called manually by callers; not auto-called inside TradeLedger.record() to avoid circular db dependency
-- Pre-existing test failure: test_tl04 (market dict extra fields), test_tl17 (timing), eth_account missing in CI
 - drawdown in /performance always 0.0 — MultiStrategyMetrics lacks time-series equity curve
 - StrategyStateManager.save(db=db) requires db.connect() to be called first
 - render_start_screen() latency_ms/markets_count shows N/A until pipeline metrics injected
 - RedisClient not yet wired into pipeline startup (infra ready, wiring pending)
-- Telegram delivery not stress-tested under real network load
-- render_status_bar() now multi-line (V2 kv format) — cosmetically different from previous single-line bar
+- `min_volume=10000` param in market API call may be silently ignored by some Gamma API versions
 
 ---
 

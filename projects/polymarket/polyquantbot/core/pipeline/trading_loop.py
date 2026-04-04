@@ -77,7 +77,7 @@ import structlog
 
 from ..market.market_client import get_active_markets, extract_market_data
 from ..market.ingest import ingest_markets
-from ..signal.signal_engine import generate_signals
+from ..signal.signal_engine import generate_signals, generate_synthetic_signals
 from ..signal.alpha_model import ProbabilisticAlphaModel
 from ..execution.executor import execute_trade
 from ...monitoring.pnl_calculator import PnLCalculator
@@ -107,7 +107,9 @@ _DEFAULT_MAX_OPEN_POSITIONS: int = 5
 _DEFAULT_COOLDOWN_S: float = 30.0
 _MIN_LOOP_INTERVAL_S: float = 1.0       # absolute floor — loop must never run faster than 1 s
 _FAST_LOOP_GUARD_S: float = 0.5         # if a tick finishes in < 0.5 s, force an extra sleep
-_MAX_MARKETS_PER_TICK: int = 20         # cap markets evaluated per loop tick
+_MAX_MARKETS_PER_TICK: int = 50         # expanded from 20 → 50 for broader market coverage
+_NO_TRADE_FALLBACK_S: float = 1800.0    # 30 minutes — activate force mode when no trade in this window
+_FORCE_TRADE_COOLDOWN_S: float = 300.0  # 5 minutes per-market guard when in force-trade fallback
 
 
 def _env_float(name: str, default: float) -> float:
@@ -218,6 +220,11 @@ async def run_trading_loop(
     # ── Per-market cooldown tracker: market_id → last trade timestamp ─────────
     _market_last_trade: dict[str, float] = {}
 
+    # ── Force-trade fallback: track last successful trade timestamp ───────────
+    # When no trade fires for _NO_TRADE_FALLBACK_S (30 min), we lower edge
+    # threshold and activate synthetic signal mode for 1 pass.
+    _last_trade_time: float = time.time()
+
     # ── Loop state ────────────────────────────────────────────────────────────
     _tick: int = 0
 
@@ -304,20 +311,77 @@ async def run_trading_loop(
                     market_prices[market_id] = price
 
                 # ── 3. Generate signals (with real alpha) ─────────────────────────
+                # Force-trade fallback: if no trade in 30 min, activate force mode
+                _now_ts = time.time()
+                _time_since_trade = _now_ts - _last_trade_time
+                _force_trade_fallback = _time_since_trade >= _NO_TRADE_FALLBACK_S
+                _active_force = _force_signal or _force_trade_fallback
+
+                if _force_trade_fallback and not _force_signal:
+                    log.warning(
+                        "force_trade_fallback_active",
+                        time_since_last_trade_s=round(_time_since_trade, 1),
+                        threshold_s=_NO_TRADE_FALLBACK_S,
+                        hint="No trade in 30 min — activating low-confidence fallback",
+                    )
+
+                # PAPER mode: use lower edge threshold (0.5%) for more signal generation
+                _paper_edge_override: float | None = None
+                if _mode == "PAPER":
+                    _paper_edge_override = float(
+                        os.getenv("PAPER_MODE_EDGE_THRESHOLD", "0.005")
+                    )
+
                 signals = await generate_signals(
                     normalised_markets,
                     bankroll=_bankroll,
                     alpha_model=alpha_model,
-                    force_signal_mode=_force_signal,
+                    force_signal_mode=_active_force,
+                    edge_threshold=_paper_edge_override,
                 )
 
-                log.info("signals_generated", count=len(signals), force_mode=_force_signal)
+                log.info(
+                    "signals_generated",
+                    count=len(signals),
+                    force_mode=_active_force,
+                    force_trade_fallback=_force_trade_fallback,
+                    paper_edge_threshold=_paper_edge_override,
+                )
+                if not signals and len(normalised_markets) > 0:
+                    log.warning(
+                        "no_signals_generated",
+                        markets_scanned=len(normalised_markets),
+                        force_mode=_active_force,
+                        hint="No positive-edge markets found this tick",
+                    )
+                    # ── 3a. Synthetic signal injection (force-trade fallback) ──────
+                    # When in fallback mode and no real signal: generate synthetic
+                    # signals with random bias + liquidity/spread sanity check.
+                    if _force_trade_fallback:
+                        try:
+                            _synthetic = await generate_synthetic_signals(
+                                normalised_markets,
+                                bankroll=_bankroll,
+                                top_n=1,
+                            )
+                            if _synthetic:
+                                log.warning(
+                                    "synthetic_signal_injected",
+                                    count=len(_synthetic),
+                                    hint="Using synthetic fallback signal",
+                                )
+                                signals = _synthetic
+                        except Exception as _syn_exc:
+                            log.error(
+                                "synthetic_signal_error",
+                                error=str(_syn_exc),
+                            )
 
                 # ── 4. Execute each signal and update positions ───────────────────
                 _trades_this_tick: int = 0
                 for signal in signals:
                     # ── 4a. Force signal mode: max 1 trade per loop ───────────────
-                    if _force_signal and _trades_this_tick >= 1:
+                    if _active_force and _trades_this_tick >= 1:
                         log.info(
                             "signal_skipped_force_limit",
                             market_id=signal.market_id,
@@ -341,14 +405,19 @@ async def run_trading_loop(
                         continue
 
                     # ── 4c. Per-market cooldown guard ─────────────────────────────
+                    # In force-trade fallback: 5-minute per-market guard to prevent spam
+                    _effective_cooldown = (
+                        _FORCE_TRADE_COOLDOWN_S if _force_trade_fallback else _cooldown_s
+                    )
                     _now = time.time()
                     _last = _market_last_trade.get(signal.market_id, 0.0)
-                    if _now - _last < _cooldown_s:
+                    if _now - _last < _effective_cooldown:
                         log.info(
                             "signal_skipped_cooldown",
                             market_id=signal.market_id,
                             seconds_since_last=round(_now - _last, 1),
-                            cooldown_s=_cooldown_s,
+                            cooldown_s=_effective_cooldown,
+                            force_fallback=_force_trade_fallback,
                         )
                         continue
 
@@ -508,11 +577,13 @@ async def run_trading_loop(
                             mode=result.mode,
                             filled_size_usd=round(result.filled_size_usd or 0.0, 4),
                             fill_price=round(result.fill_price or 0.0, 6),
-                            force_mode=_force_signal,
+                            force_mode=_active_force,
                         )
 
-                        # Record trade time for cooldown tracking
-                        _market_last_trade[signal.market_id] = time.time()
+                        # Record trade time for cooldown tracking and force-fallback reset
+                        _now_trade = time.time()
+                        _market_last_trade[signal.market_id] = _now_trade
+                        _last_trade_time = _now_trade  # reset force-trade fallback counter
 
                         # ── 4e. Persist position (db is always present) ───────────
                         if result.fill_price > 0.0:

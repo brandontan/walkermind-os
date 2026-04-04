@@ -47,11 +47,13 @@ log = structlog.get_logger()
 _DEFAULT_TRADING_MODE: str = "PAPER"
 _DEFAULT_SIGNAL_DEBUG_MODE: bool = False
 _DEFAULT_EDGE_THRESHOLD: float = 0.05
+_DEFAULT_PAPER_EDGE_THRESHOLD: float = 0.005  # 0.5% — lower threshold for PAPER mode
 _DEFAULT_MAX_POSITION: float = 0.02       # 2% of bankroll
 _DEFAULT_MAX_CONCURRENT_TRADES: int = 2
 _DEFAULT_DAILY_LOSS_LIMIT: float = -2000.0
 _DEFAULT_DRAWDOWN_LIMIT: float = 0.08     # 8%
 _DEFAULT_MIN_LIQUIDITY_USD: float = 10_000.0
+_DEFAULT_PAPER_INITIAL_BALANCE: float = 10_000.0  # $10,000 paper trading starting balance
 
 
 # ── Guard error ───────────────────────────────────────────────────────────────
@@ -77,6 +79,9 @@ class LiveConfig:
         enable_live_trading: Explicit opt-in flag from environment.
         signal_debug_mode: If True, relax edge threshold for debugging.
         edge_threshold: Minimum edge required to generate a signal.
+        paper_mode: True when operating in PAPER (simulated) mode.
+        paper_edge_threshold: Lower edge threshold used in PAPER mode (0.5%).
+        paper_initial_balance: Starting balance for paper trading ($10,000).
         max_position_fraction: Max single-position size as fraction of bankroll.
         max_concurrent_trades: Hard cap on open trades at any moment.
         daily_loss_limit: Daily loss limit in USD (negative number).
@@ -88,6 +93,9 @@ class LiveConfig:
     enable_live_trading: bool
     signal_debug_mode: bool
     edge_threshold: float
+    paper_mode: bool
+    paper_edge_threshold: float
+    paper_initial_balance: float
     max_position_fraction: float
     max_concurrent_trades: int
     daily_loss_limit: float
@@ -122,6 +130,13 @@ class LiveConfig:
         debug_str = os.getenv("SIGNAL_DEBUG_MODE", "").strip().lower()
         signal_debug = debug_str == "true" if debug_str else _DEFAULT_SIGNAL_DEBUG_MODE
 
+        is_paper = trading_mode == TradingMode("PAPER")
+        paper_edge = _parse_float(
+            "PAPER_MODE_EDGE_THRESHOLD", _DEFAULT_PAPER_EDGE_THRESHOLD
+        )
+        paper_balance = _parse_float(
+            "PAPER_INITIAL_BALANCE", _DEFAULT_PAPER_INITIAL_BALANCE
+        )
         edge_threshold = _parse_float(
             "SIGNAL_EDGE_THRESHOLD", _DEFAULT_EDGE_THRESHOLD
         )
@@ -146,6 +161,9 @@ class LiveConfig:
             enable_live_trading=enable_live,
             signal_debug_mode=signal_debug,
             edge_threshold=edge_threshold,
+            paper_mode=is_paper,
+            paper_edge_threshold=paper_edge,
+            paper_initial_balance=paper_balance,
             max_position_fraction=max_position,
             max_concurrent_trades=max_concurrent,
             daily_loss_limit=daily_loss,
@@ -159,6 +177,9 @@ class LiveConfig:
             enable_live_trading=enable_live,
             signal_debug_mode=signal_debug,
             edge_threshold=edge_threshold,
+            paper_mode=is_paper,
+            paper_edge_threshold=paper_edge,
+            paper_initial_balance=paper_balance,
             max_position_fraction=max_position,
             max_concurrent_trades=max_concurrent,
             daily_loss_limit=daily_loss,
@@ -230,6 +251,9 @@ class LiveConfig:
             "enable_live_trading": self.enable_live_trading,
             "signal_debug_mode": self.signal_debug_mode,
             "edge_threshold": self.edge_threshold,
+            "paper_mode": self.paper_mode,
+            "paper_edge_threshold": self.paper_edge_threshold,
+            "paper_initial_balance": self.paper_initial_balance,
             "max_position_fraction": self.max_position_fraction,
             "max_concurrent_trades": self.max_concurrent_trades,
             "daily_loss_limit": self.daily_loss_limit,
