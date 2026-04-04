@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-04
-Status: Phase 24 started — Validation Engine Core built ✅ — PerformanceTracker, MetricsEngine, ValidationEngine, RiskAudit, SignalQualityAnalyzer, ValidationStateStore; 33 new tests passing; 1235/1237 tests total (2 pre-existing failures unrelated)
+Status: Phase 24.2 active — Validation Engine wired into live trading pipeline; every executed trade automatically tracked; metrics computed in real-time; non-blocking via asyncio.create_task(); 10 new wiring tests (VW-01→VW-10) all passing; 1245/1247 tests total
 
 ---
 
@@ -37,6 +37,12 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+VALIDATION ENGINE WIRING (Phase 24.2)
+
+- core/pipeline/trading_loop.py (MODIFIED): PerformanceTracker, MetricsEngine, ValidationEngine, ValidationStateStore initialized as singletons; `_run_validation_hook` coroutine added; section 4j schedules `asyncio.create_task()` after each confirmed fill
+- tests/test_validation_engine_wiring.py (NEW): 10 tests (VW-01 → VW-10), all passing
+- Validation runs on every executed trade; non-blocking; Telegram alerts on state change only; CRITICAL logged at critical level
 
 VALIDATION ENGINE CORE (Phase 24.1)
 
@@ -656,18 +662,19 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Stability testing — run ValidationEngine end-to-end in paper trading session
-2. SENTINEL validation of Phase 24.1 — validation engine core
-3. SENTINEL validation of Phase 23.1 — paper trading activation, synthetic signal path, risk rules
-2. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
-3. Add WS disconnect CRITICAL alert to Telegram (currently only WARNING)
-4. Dashboard V4: surface synthetic signal count, force-fallback status, PAPER/LIVE toggle in Telegram
-5. Backtest synthetic signal strategy against historical Polymarket data
+1. Stability testing (24h) — run wired ValidationEngine in paper trading session, monitor state transitions, confirm no false CRITICAL alerts
+2. Wire closed-trade realized PnL back into PerformanceTracker (from db.update_trade_status close events)
+3. SENTINEL validation of Phase 24.2 — validation engine wiring
+4. SENTINEL validation of Phase 24.1 — validation engine core
+5. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
+6. Add WS disconnect CRITICAL alert to Telegram (currently only WARNING)
+7. Dashboard V4: surface synthetic signal count, force-fallback status, PAPER/LIVE toggle in Telegram
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- Entry-trade `pnl` recorded as `0.0` in validation tracker (position open, no realized PnL); metrics become meaningful after positions close and close-event hook is added
 - ValidationEngine thresholds (WR≥0.70, PF≥1.5, MDD≤0.08) are hardcoded from knowledge base — require calibration against live paper trading data before LIVE deployment
 - `test_tl04` (PRE-EXISTING): market dict extra fields from `ingest_markets()` — cosmetic mismatch in test assertion
 - `test_tl17` (PRE-EXISTING): fast-loop guard fires before full interval sleep when markets list is empty
