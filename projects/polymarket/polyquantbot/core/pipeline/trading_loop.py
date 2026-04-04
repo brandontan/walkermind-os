@@ -250,8 +250,58 @@ async def run_trading_loop(
     # ── Stability / observability state ───────────────────────────────────────
     _validation_mode: str = os.getenv("VALIDATION_MODE", _DEFAULT_VALIDATION_MODE).upper()
     _last_heartbeat: list[float] = [0.0]        # mutable so closure can mutate
-    _warning_last_alerted: list[float] = [0.0]  # cooldown: WARNING max 1/10 min
     _validation_hook_errors: list[int] = [0]    # cumulative error counter
+
+    def _to_float(value: Any) -> float:
+        """Return float-safe value for Telegram formatting."""
+        if value is None:
+            return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _format_validation_alert(
+        state: ValidationState,
+        metrics: dict[str, Any],
+    ) -> Optional[str]:
+        """Build concise validation alerts for Telegram."""
+        trade_count = int(_to_float(metrics.get("trade_count", 0)))
+        win_rate = _to_float(metrics.get("win_rate", 0.0))
+        profit_factor = _to_float(metrics.get("profit_factor", 0.0))
+        drawdown = _to_float(metrics.get("max_drawdown", 0.0))
+
+        if state == ValidationState.INSUFFICIENT_DATA:
+            return (
+                "⚠️ VALIDATION: INSUFFICIENT DATA\n"
+                f"Trades: {trade_count}/30\n"
+                "Status: Warming up..."
+            )
+        if state == ValidationState.HEALTHY:
+            return (
+                "✅ VALIDATION: HEALTHY\n"
+                f"Trades: {trade_count}\n"
+                f"WR: {win_rate:.2f}\n"
+                f"PF: {profit_factor:.2f}\n"
+                f"MDD: {drawdown:.2%}"
+            )
+        if state == ValidationState.WARNING:
+            return (
+                "⚠️ VALIDATION: WARNING\n"
+                f"Trades: {trade_count}\n"
+                f"WR: {win_rate:.2f} (target 0.70)\n"
+                f"PF: {profit_factor:.2f} (target 1.50)\n"
+                f"MDD: {drawdown:.2%}"
+            )
+        if state == ValidationState.CRITICAL:
+            return (
+                "🚨 VALIDATION: CRITICAL\n"
+                f"Trades: {trade_count}\n"
+                f"WR: {win_rate:.2f} < 0.70\n"
+                f"PF: {profit_factor:.2f} < 1.50\n"
+                f"MDD: {drawdown:.2%}"
+            )
+        return None
 
     async def _emit_validation_result(
         _val_result: Any,
@@ -261,8 +311,8 @@ async def run_trading_loop(
         """Shared helper: update state store, log, and send Telegram alerts."""
         _validation_state.update(_val_result.state, _computed)
 
-        _tc = _performance_tracker.get_trade_count()
-        _last_pnl = _computed.get("last_pnl", 0.0)
+        _tc = int(_to_float(_computed.get("trade_count", _performance_tracker.get_trade_count())))
+        _last_pnl = _to_float(_computed.get("last_pnl", 0.0))
 
         _log_fn = (
             log.critical
@@ -280,47 +330,22 @@ async def run_trading_loop(
             validation_mode=_validation_mode,
         )
 
-        # ── Telegram alert on state change (with WARNING cooldown) ───────────
-        if _val_result.state != _prev_vs[0] or _val_result.state == ValidationState.CRITICAL:
-            _now_alert = time.time()
-            _send_alert = True
+        state_changed = _val_result.state != _prev_vs[0]
+        if state_changed:
+            _prev_vs[0] = _val_result.state
 
             if _val_result.state == ValidationState.CRITICAL:
-                _alert = (
-                    f"🚨 CRITICAL: validation state → CRITICAL\n"
-                    f"{', '.join(_val_result.reasons)}"
-                )
                 # Engage kill switch on CRITICAL when not in observation-only mode
-                if _validation_mode != "LIVE_OBSERVATION":
-                    if stop_event is not None:
-                        log.critical(
-                            "validation_critical_halt",
-                            reason="CRITICAL validation state — stop_event set",
-                            validation_mode=_validation_mode,
-                        )
-                        stop_event.set()
-            elif _val_result.state == ValidationState.WARNING:
-                # Apply 10-minute cooldown for WARNING alerts
-                if _now_alert - _warning_last_alerted[0] < _WARNING_ALERT_COOLDOWN_S:
-                    _send_alert = False
-                    log.debug(
-                        "validation_warning_cooldown_active",
-                        seconds_since_last=round(_now_alert - _warning_last_alerted[0], 1),
-                        cooldown_s=_WARNING_ALERT_COOLDOWN_S,
+                if _validation_mode != "LIVE_OBSERVATION" and stop_event is not None:
+                    log.critical(
+                        "validation_critical_halt",
+                        reason="CRITICAL validation state — stop_event set",
+                        validation_mode=_validation_mode,
                     )
-                _alert = (
-                    f"⚠️ WARNING: validation state → WARNING\n"
-                    f"{', '.join(_val_result.reasons)}"
-                )
-            else:
-                _alert = None  # HEALTHY transition — silent
+                    stop_event.set()
 
-            if _val_result.state != _prev_vs[0]:
-                _prev_vs[0] = _val_result.state
-
-            if _alert and _send_alert and tg_cb is not None:
-                if _val_result.state == ValidationState.WARNING:
-                    _warning_last_alerted[0] = _now_alert
+            _alert = _format_validation_alert(_val_result.state, _computed)
+            if _alert and tg_cb is not None:
                 try:
                     await tg_cb(_alert)
                 except Exception as _tg_val_exc:  # noqa: BLE001
@@ -328,8 +353,6 @@ async def run_trading_loop(
                         "validation_telegram_failed",
                         error=str(_tg_val_exc),
                     )
-        elif _val_result.state != _prev_vs[0]:
-            _prev_vs[0] = _val_result.state
 
     async def _run_validation_hook(
         trade: dict[str, Any],
