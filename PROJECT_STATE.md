@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-04
-Status: Phase 24.3b logging hotfix applied. structlog.stdlib.add_logger_name removed from production processor chain — incompatible with PrintLogger. System startup crash resolved. 24h validation run reset and active. Two P1 gates remain for LIVE promotion: (1) CRITICAL→kill-switch wiring, (2) LIVE/CLOB closed-trade hook. Report: reports/forge/24_3b_logging_hotfix.md
+Status: Phase 24.3d1 min sample guard applied. Validation now returns INSUFFICIENT_DATA when trade_count < 30, preventing misleading HEALTHY/WARNING/CRITICAL states on undersampled windows. 24h validation run remains active in staging. P1 gates unchanged for LIVE promotion: (1) CRITICAL→kill-switch wiring, (2) LIVE/CLOB closed-trade hook. Report: reports/forge/24_3d1_min_sample_guard.md
 
 ---
 
@@ -68,6 +68,12 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+MIN SAMPLE GUARD (Phase 24.3d1)
+
+- monitoring/metrics_engine.py (MODIFIED): `compute()` output now always includes `"trade_count"` using `len(trades)` (safe for empty trades)
+- monitoring/validation_engine.py (MODIFIED): `evaluate(metrics)` now applies top-of-function guard and returns `INSUFFICIENT_DATA` with reason `minimum 30 trades required` when `trade_count < 30`
+- reports/forge/24_3d1_min_sample_guard.md (NEW): this phase's report
 
 LOGGING HOTFIX (Phase 24.3b)
 
@@ -685,7 +691,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
-- **24h validation observation run** — logging hotfix applied (Phase 24.3b); run reset and active in staging; collecting: uptime stats, crash count, validation state distribution, WR/PF/last_pnl metrics
+- **24h validation observation run** — min sample guard applied (Phase 24.3d1); run active in staging; collecting: uptime stats, crash count, validation state distribution, WR/PF/last_pnl/trade_count metrics
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
 - Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
 - Wire StrategyStateManager(db=db) into main.py startup and save(db=db) after every Telegram toggle
@@ -714,11 +720,11 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Phase 24.4 — Truth extraction** — calibrate WR/PF/MDD thresholds against 24h run data; use `last_pnl` field now available in validation_update logs
-2. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-3. **Wire LIVE/CLOB closed-trade hook** — `_run_closed_validation_hook` must be called from `execution/clob_executor.py` close path for real-money fills
-4. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
-5. Add WS disconnect CRITICAL alert to Telegram (currently only WARNING)
+1. **Telegram UX improvement** — simplify validation status messaging and improve readability for INSUFFICIENT_DATA vs actionable WARNING/CRITICAL alerts
+2. **Phase 24.4 — Truth extraction** — calibrate WR/PF/MDD thresholds against 24h run data; use `last_pnl` field now available in validation_update logs
+3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
+4. **Wire LIVE/CLOB closed-trade hook** — `_run_closed_validation_hook` must be called from `execution/clob_executor.py` close path for real-money fills
+5. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
 
 ---
 
