@@ -262,7 +262,7 @@ async def run_trading_loop(
         _validation_state.update(_val_result.state, _computed)
 
         _tc = _performance_tracker.get_trade_count()
-        _last_pnl = _computed.get("last_pnl", _computed.get("expectancy", 0.0))
+        _last_pnl = _computed.get("last_pnl", 0.0)
 
         _log_fn = (
             log.critical
