@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-04
-Status: Phase 24.3e market intelligence layer added in shadow-only mode. Market-type telemetry now logs and snapshots distribution data without affecting signal, risk, validation, or execution decisions. Validation run remains active in staging. Next report: projects/polymarket/polyquantbot/reports/forge/24_3e_market_intelligence.md
+Status: Phase 24.3f Telegram private mode enabled. Trade, validation, and snapshot notifications now route to private DM chat_id captured from /start; staging validation run remains active. Next report: projects/polymarket/polyquantbot/reports/forge/24_3f_telegram_private_mode.md
 
 ---
 
@@ -68,6 +68,13 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+TELEGRAM PRIVATE MODE (Phase 24.3f)
+
+- projects/polymarket/polyquantbot/telegram/utils/telegram_sender.py (NEW): Added centralized private-DM sender with USER_CHAT_ID capture/load/persist and safe no-chat-id warning behavior
+- projects/polymarket/polyquantbot/main.py (MODIFIED): Captures chat_id from /start and stores it as USER_CHAT_ID; wires centralized private sender implementation
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Trade, validation, and snapshot alerts now use centralized telegram_sender.send(msg) private routing
+- projects/polymarket/polyquantbot/reports/forge/24_3f_telegram_private_mode.md (NEW): completion report
 
 MARKET INTELLIGENCE LAYER (Phase 24.3e)
 
@@ -710,7 +717,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
-- **24h validation observation run** — Market intelligence shadow layer (Phase 24.3e) + snapshot system + Telegram UX improvements deployed; run active in staging; collecting uptime, state distribution, snapshot trend logs, and market_type distribution telemetry
+- **Validation run (staging)** — Telegram private mode (Phase 24.3f) active with market intelligence shadow layer + snapshot system; collecting DM delivery checks, uptime, and state/snapshot telemetry
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
 - Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
 - Wire StrategyStateManager(db=db) into main.py startup and save(db=db) after every Telegram toggle
@@ -739,16 +746,18 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Performance breakdown per market type** — compute PnL and win-rate slices by `market_type` using new shadow telemetry
-2. **Phase 24.4 — Truth extraction** — calibrate WR/PF/MDD thresholds against 24h run data; use `last_pnl` + periodic snapshot logs for threshold tuning
+1. **Phase 24.4 analysis** — truth extraction and threshold calibration (WR/PF/MDD) using 24h validation snapshots + last_pnl
+2. **Performance breakdown per market type** — compute PnL and win-rate slices by `market_type` using shadow telemetry
 3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-4. SENTINEL validation required for market intelligence layer before merge.
-   Source: projects/polymarket/polyquantbot/reports/forge/24_3e_market_intelligence.md
+4. SENTINEL validation required for telegram private mode before merge.
+   Source: projects/polymarket/polyquantbot/reports/forge/24_3f_telegram_private_mode.md
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- Telegram private chat ID persists locally; if missing after restart, operator must send /start again to re-capture DM target
+- Single-user overwrite behavior is active by design: latest /start caller replaces USER_CHAT_ID
 - `docs/CLAUDE.md` referenced by process checklist is missing from repository
 - **LIVE path closed-trade PnL hook missing** — `_run_closed_validation_hook` is wired only in the PAPER close-order pipeline; LIVE mode CLOB executor close events do not yet feed realized PnL into PerformanceTracker
 - ValidationEngine thresholds (WR≥0.70, PF≥1.5, MDD≤0.08) are hardcoded from knowledge base — require calibration against live paper trading data before LIVE deployment

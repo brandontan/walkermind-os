@@ -109,6 +109,7 @@ async def main() -> None:
 
     # ── Telegram (optional) ────────────────────────────────────────────────────
     from .telegram.telegram_live import TelegramLive
+    from .telegram.utils import telegram_sender as _telegram_sender
     tg = TelegramLive.from_env()
     await tg.start()
     chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -269,6 +270,8 @@ async def main() -> None:
         mode=mode,
         strategy_state=strategy_mgr,
     )
+
+    _telegram_sender.load_user_chat_id()
 
     async def _polling_loop() -> None:
         """Long-poll Telegram getUpdates and route commands + callback_query.
@@ -452,6 +455,8 @@ async def main() -> None:
                         if reply_chat:
                             # ── /start: send reply keyboard first ─────────
                             if cmd_name in ("start", "help", "menu", "main_menu"):
+                                if cmd_name == "start":
+                                    _telegram_sender.set_user_chat_id(reply_chat)
                                 try:
                                     await session.post(
                                         f"{_tg_api}/sendMessage",
@@ -596,6 +601,32 @@ async def main() -> None:
                     error=str(exc),
                 )
         log.error("telegram_callback_failed", retries=2, message_preview=message[:80])
+
+    async def _tg_send_private(chat_id: int, message: str) -> None:
+        """Send message to explicit private chat_id using Telegram Bot API."""
+        import aiohttp
+
+        if not tg.enabled:
+            return
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{_tg_api}/sendMessage",
+                    json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    if resp.status != 200:
+                        body = await resp.text()
+                        log.warning(
+                            "telegram_private_send_non_200",
+                            status=resp.status,
+                            body=body[:200],
+                            chat_id=chat_id,
+                        )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("telegram_private_send_failed", error=str(exc), chat_id=chat_id)
+
+    _telegram_sender.set_sender(_tg_send_private)
 
     # ── Bootstrap: market discovery + pipeline startup ─────────────────────────
     from .core.bootstrap import run_bootstrap

@@ -87,6 +87,7 @@ from ...monitoring.metrics_engine import MetricsEngine
 from ...monitoring.validation_engine import ValidationEngine, ValidationState
 from ...monitoring.snapshot_engine import SnapshotEngine
 from ...strategy.market_intelligence import MarketIntelligenceEngine
+from ...telegram.utils import telegram_sender
 from ..validation_state import ValidationStateStore
 from ..logging.logger import (
     log_market_metadata_used,
@@ -364,9 +365,9 @@ async def run_trading_loop(
                 snapshot=_snapshot,
             )
 
-            if _snapshot_telegram_enabled and tg_cb is not None:
+            if _snapshot_telegram_enabled:
                 try:
-                    await tg_cb(_format_snapshot_alert(_snapshot))
+                    await telegram_sender.send(_format_snapshot_alert(_snapshot))
                 except Exception as _snap_tg_exc:  # noqa: BLE001
                     log.warning(
                         "snapshot_telegram_failed",
@@ -389,9 +390,9 @@ async def run_trading_loop(
                     stop_event.set()
 
             _alert = _format_validation_alert(_val_result.state, _computed)
-            if _alert and tg_cb is not None:
+            if _alert:
                 try:
-                    await tg_cb(_alert)
+                    await telegram_sender.send(_alert)
                 except Exception as _tg_val_exc:  # noqa: BLE001
                     log.warning(
                         "validation_telegram_failed",
@@ -977,7 +978,7 @@ async def run_trading_loop(
                                 )
 
                         # ── 4i. Send enriched Telegram trade alert ────────────────
-                        if telegram_callback is not None and result.fill_price > 0.0:
+                        if result.fill_price > 0.0:
                             try:
                                 # Pick the outcome label matching the traded side, or
                                 # fall back to result.side if no matching outcome found.
@@ -1003,7 +1004,7 @@ async def run_trading_loop(
                                     realized_pnl=_pos_realized if pnl_tracker is not None else None,
                                     unrealized_pnl=_pos_unrealized if position_manager is not None else None,
                                 )
-                                await telegram_callback(_trade_msg)
+                                await telegram_sender.send(_trade_msg)
                                 log_telegram_trade_detailed(
                                     trade_id=result.trade_id,
                                     market_id=result.market_id,
@@ -1174,7 +1175,6 @@ async def run_trading_loop(
                                         )
                                         await paper_engine._wallet.persist(db)  # type: ignore[attr-defined]
                                     # Telegram close alert
-                                    if telegram_callback is not None:
                                         try:
                                             _close_msg = (
                                                 f"🔒 CLOSE [{_trigger_reason.upper()}] "
@@ -1182,7 +1182,7 @@ async def run_trading_loop(
                                                 f"@ {_cur_price:.4f} | "
                                                 f"Entry: {_pos.entry_price:.4f}"
                                             )
-                                            await telegram_callback(_close_msg)
+                                            await telegram_sender.send(_close_msg)
                                         except Exception:
                                             pass
                                 except Exception as _close_exc:
@@ -1262,17 +1262,16 @@ async def run_trading_loop(
                                                     telegram_callback,
                                                 )
                                             )
-                                        if telegram_callback is not None:
-                                            try:
-                                                _live_close_msg = (
-                                                    f"🔒 LIVE CLOSE [{_live_trigger.upper()}] "
-                                                    f"{_lpos.market_id[:12]}… "
-                                                    f"@ {_cur_price:.4f} | "
-                                                    f"Entry: {_lpos.avg_price:.4f}"
-                                                )
-                                                await telegram_callback(_live_close_msg)
-                                            except Exception:
-                                                pass
+                                        try:
+                                            _live_close_msg = (
+                                                f"🔒 LIVE CLOSE [{_live_trigger.upper()}] "
+                                                f"{_lpos.market_id[:12]}… "
+                                                f"@ {_cur_price:.4f} | "
+                                                f"Entry: {_lpos.avg_price:.4f}"
+                                            )
+                                            await telegram_sender.send(_live_close_msg)
+                                        except Exception:
+                                            pass
                                 except Exception as _live_close_exc:
                                     log.error(
                                         "live_close_order_failed",
