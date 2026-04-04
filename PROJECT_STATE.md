@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-04
-Status: Phase 24.3d2 Telegram validation UX improved. Validation alerts are now state-specific, readable, and sent only on state transitions (including INSUFFICIENT_DATA warm-up context). 24h validation run remains active in staging. Next report: projects/polymarket/polyquantbot/reports/forge/24_3d2_validation_telegram_ux.md
+Status: Phase 24.3d3 validation snapshot system added. Periodic system snapshots now emit every ~10 minutes from the validation path for real-time trend visibility without execution-path impact. 24h validation run remains active in staging. Next report: projects/polymarket/polyquantbot/reports/forge/24_3d3_validation_snapshot.md
 
 ---
 
@@ -68,6 +68,12 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+VALIDATION SNAPSHOT SYSTEM (Phase 24.3d3)
+
+- projects/polymarket/polyquantbot/monitoring/snapshot_engine.py (NEW): Added `SnapshotEngine.build_snapshot(metrics, state)` with safe defaults for trade_count/win_rate/profit_factor/drawdown/state/last_pnl and no-exception fallback behavior
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Wired `SnapshotEngine` into validation emission path, added 10-minute snapshot interval gate, structured `system_snapshot` logging payload, and optional low-priority Telegram snapshot toggle (`VALIDATION_SNAPSHOT_TELEGRAM_ENABLED`)
+- projects/polymarket/polyquantbot/reports/forge/24_3d3_validation_snapshot.md (NEW): completion report
 
 TELEGRAM VALIDATION UX IMPROVEMENT (Phase 24.3d2)
 
@@ -696,7 +702,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
-- **24h validation observation run** — Telegram UX improvement deployed (Phase 24.3d2); run active in staging; collecting: uptime stats, crash count, validation state distribution, WR/PF/last_pnl/trade_count metrics
+- **24h validation observation run** — Snapshot system + Telegram UX improvements deployed (Phase 24.3d3/24.3d2); run active in staging; collecting: uptime stats, crash count, validation state distribution, WR/PF/last_pnl/trade_count metrics and 10-minute snapshot trend logs
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
 - Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
 - Wire StrategyStateManager(db=db) into main.py startup and save(db=db) after every Telegram toggle
@@ -725,12 +731,11 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Validation snapshot system** — periodic state/metric snapshots for post-run analysis and threshold calibration
-2. **Phase 24.4 — Truth extraction** — calibrate WR/PF/MDD thresholds against 24h run data; use `last_pnl` field now available in validation_update logs
-3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-4. **Wire LIVE/CLOB closed-trade hook** — `_run_closed_validation_hook` must be called from `execution/clob_executor.py` close path for real-money fills
-5. SENTINEL validation required for telegram validation UX improvement before merge.
-   Source: projects/polymarket/polyquantbot/reports/forge/24_3d2_validation_telegram_ux.md
+1. **Phase 24.4 — Truth extraction** — calibrate WR/PF/MDD thresholds against 24h run data; use `last_pnl` + periodic snapshot logs for threshold tuning
+2. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
+3. **Wire LIVE/CLOB closed-trade hook** — `_run_closed_validation_hook` must be called from `execution/clob_executor.py` close path for real-money fills
+4. SENTINEL validation required for validation snapshot system before merge.
+   Source: projects/polymarket/polyquantbot/reports/forge/24_3d3_validation_snapshot.md
 
 ---
 

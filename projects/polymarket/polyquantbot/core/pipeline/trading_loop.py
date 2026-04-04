@@ -85,6 +85,7 @@ from ...monitoring.pnl_calculator import PnLCalculator
 from ...monitoring.performance_tracker import PerformanceTracker
 from ...monitoring.metrics_engine import MetricsEngine
 from ...monitoring.validation_engine import ValidationEngine, ValidationState
+from ...monitoring.snapshot_engine import SnapshotEngine
 from ..validation_state import ValidationStateStore
 from ..logging.logger import (
     log_market_metadata_used,
@@ -109,6 +110,7 @@ _DEFAULT_USER_ID: str = "default"
 _HEARTBEAT_INTERVAL_S: float = 300.0     # emit system_alive log every 5 min
 _WARNING_ALERT_COOLDOWN_S: float = 600.0 # WARNING alert max once per 10 min
 _DEFAULT_VALIDATION_MODE: str = "LIVE_OBSERVATION"  # no kill-switch action
+_SNAPSHOT_INTERVAL_S: float = 600.0      # system snapshot every 10 min
 
 # ── Exit trigger thresholds ───────────────────────────────────────────────────
 
@@ -243,12 +245,15 @@ async def run_trading_loop(
     _performance_tracker = PerformanceTracker()
     _metrics_engine = MetricsEngine()
     _validation_engine = ValidationEngine()
+    _snapshot_engine = SnapshotEngine()
     _validation_state = ValidationStateStore()
     # Mutable container for previous validation state — enables change detection
     _prev_vs: list[ValidationState] = [ValidationState.HEALTHY]
 
     # ── Stability / observability state ───────────────────────────────────────
     _validation_mode: str = os.getenv("VALIDATION_MODE", _DEFAULT_VALIDATION_MODE).upper()
+    _snapshot_telegram_enabled: bool = _env_bool("VALIDATION_SNAPSHOT_TELEGRAM_ENABLED", False)
+    _last_snapshot_time: list[float] = [0.0]
     _last_heartbeat: list[float] = [0.0]        # mutable so closure can mutate
     _validation_hook_errors: list[int] = [0]    # cumulative error counter
 
@@ -303,6 +308,17 @@ async def run_trading_loop(
             )
         return None
 
+    def _format_snapshot_alert(snapshot: dict[str, Any]) -> str:
+        """Build LOW PRIORITY Telegram snapshot message."""
+        return (
+            "📊 SNAPSHOT\n"
+            f"Trades: {int(_to_float(snapshot.get('trade_count', 0)))}\n"
+            f"WR: {_to_float(snapshot.get('win_rate', 0.0)):.2f}\n"
+            f"PF: {_to_float(snapshot.get('profit_factor', 0.0)):.2f}\n"
+            f"MDD: {_to_float(snapshot.get('drawdown', 0.0)):.2%}\n"
+            f"State: {snapshot.get('state', 'UNKNOWN')}"
+        )
+
     async def _emit_validation_result(
         _val_result: Any,
         _computed: dict[str, Any],
@@ -329,6 +345,24 @@ async def run_trading_loop(
             last_pnl=round(_last_pnl, 6),
             validation_mode=_validation_mode,
         )
+
+        _now = time.time()
+        if _now - _last_snapshot_time[0] >= _SNAPSHOT_INTERVAL_S:
+            _snapshot = _snapshot_engine.build_snapshot(_computed, _val_result.state.value)
+            log.info(
+                "system_snapshot",
+                snapshot=_snapshot,
+            )
+
+            if _snapshot_telegram_enabled and tg_cb is not None:
+                try:
+                    await tg_cb(_format_snapshot_alert(_snapshot))
+                except Exception as _snap_tg_exc:  # noqa: BLE001
+                    log.warning(
+                        "snapshot_telegram_failed",
+                        error=str(_snap_tg_exc),
+                    )
+            _last_snapshot_time[0] = _now
 
         state_changed = _val_result.state != _prev_vs[0]
         if state_changed:
