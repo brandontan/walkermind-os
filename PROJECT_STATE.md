@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
-Last Updated: 2026-04-05
-Status: UI V3 + Paper Trading Activation COMPLETE ✅ — KRUSADER v2.0 header; ✅/⚪ strategy icons; USED MARGIN/FREE MARGIN wallet card; market expansion (2→50+); PAPER edge threshold 0.5%; 30-min force-trade fallback; synthetic signal injection; 100-500ms execution delay; 1202/1204 tests passing (2 pre-existing failures unrelated to PR)
+Last Updated: 2026-04-04
+Status: Phase 24 started — Validation Engine Core built ✅ — PerformanceTracker, MetricsEngine, ValidationEngine, RiskAudit, SignalQualityAnalyzer, ValidationStateStore; 33 new tests passing; 1235/1237 tests total (2 pre-existing failures unrelated)
 
 ---
 
@@ -37,6 +37,16 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+VALIDATION ENGINE CORE (Phase 24.1)
+
+- monitoring/performance_tracker.py (NEW): PerformanceTracker — bounded rolling window (100 trades), required-key validation, explicit error on malformed input
+- monitoring/metrics_engine.py (NEW): MetricsEngine — WR, PF, Expectancy, MDD; divide-by-zero safe; no NaN/inf outputs; equity curve builder
+- monitoring/validation_engine.py (NEW): ValidationEngine + ValidationState enum (HEALTHY/WARNING/CRITICAL); hard MDD limit always produces CRITICAL
+- risk/risk_audit.py (NEW): RiskAudit — EV > 0 check, position ≤ 10% bankroll, correlation placeholder; raises RiskAuditError on violation
+- strategy/signal_quality.py (NEW): SignalQualityAnalyzer — separates REAL vs SYNTHETIC trades; drift warning when synthetic_wr − real_wr > 0.20
+- core/validation_state.py (NEW): ValidationStateStore — shared in-memory state registry; asyncio-safe; get_state() returns copy
+- tests/test_validation_engine_core.py (NEW): 33 tests (VE-01 → VE-33), all passing
 
 UI V3 POLISH + PAPER TRADING ACTIVATION (Phase 23.1)
 
@@ -618,6 +628,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
 - Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
 - Wire StrategyStateManager(db=db) into main.py startup and save(db=db) after every Telegram toggle
 - Wire strategy_mgr.get_state() into run_trading_loop() → generate_signals() strategy_state param
@@ -645,7 +656,9 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. SENTINEL validation of Phase 23.1 — paper trading activation, synthetic signal path, risk rules
+1. Stability testing — run ValidationEngine end-to-end in paper trading session
+2. SENTINEL validation of Phase 24.1 — validation engine core
+3. SENTINEL validation of Phase 23.1 — paper trading activation, synthetic signal path, risk rules
 2. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
 3. Add WS disconnect CRITICAL alert to Telegram (currently only WARNING)
 4. Dashboard V4: surface synthetic signal count, force-fallback status, PAPER/LIVE toggle in Telegram
@@ -655,6 +668,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## ⚠️ KNOWN ISSUES
 
+- ValidationEngine thresholds (WR≥0.70, PF≥1.5, MDD≤0.08) are hardcoded from knowledge base — require calibration against live paper trading data before LIVE deployment
 - `test_tl04` (PRE-EXISTING): market dict extra fields from `ingest_markets()` — cosmetic mismatch in test assertion
 - `test_tl17` (PRE-EXISTING): fast-loop guard fires before full interval sleep when markets list is empty
 - WS PriceFeedHandler not yet wired as background task in main.py (module ready, wiring pending)
