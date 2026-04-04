@@ -210,8 +210,12 @@ async def test_vs06_closed_hook_updates_pnl_and_revalidates() -> None:
     assert snap["state"] in {"HEALTHY", "WARNING", "CRITICAL"}
 
 
-async def test_vs07_closed_hook_skips_zero_pnl() -> None:
-    """VS-07: _run_closed_validation_hook skips update when pnl == 0.0."""
+async def test_vs07_closed_hook_records_zero_pnl() -> None:
+    """VS-07: _run_closed_validation_hook records breakeven (pnl == 0.0) trades.
+
+    FIX R-6: Zero-PnL trades must NOT be skipped — only missing trade_id is
+    a skip condition.  The PerformanceTracker update still runs for breakeven.
+    """
     tracker = PerformanceTracker()
     me = MetricsEngine()
     ve = ValidationEngine()
@@ -223,9 +227,9 @@ async def test_vs07_closed_hook_skips_zero_pnl() -> None:
     hook = _build_closed_hook(tracker, me, ve, vs, prev_vs, wla, errs)
     tracker.add_trade(_make_trade(pnl=0.0, trade_id="open-trade"))
 
-    await hook("open-trade", 0.0, None)  # zero pnl → skip
+    await hook("open-trade", 0.0, None)  # breakeven — update still runs
 
-    # pnl stays 0.0 — no update performed
+    # pnl stays 0.0 — update ran but value unchanged (breakeven)
     assert tracker.trades[0]["pnl"] == 0.0
 
 

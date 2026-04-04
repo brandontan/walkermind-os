@@ -71,6 +71,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+import uuid
 from typing import Any, Callable, Awaitable, Optional
 
 import structlog
@@ -289,6 +290,15 @@ async def run_trading_loop(
                     f"🚨 CRITICAL: validation state → CRITICAL\n"
                     f"{', '.join(_val_result.reasons)}"
                 )
+                # Engage kill switch on CRITICAL when not in observation-only mode
+                if _validation_mode != "LIVE_OBSERVATION":
+                    if stop_event is not None:
+                        log.critical(
+                            "validation_critical_halt",
+                            reason="CRITICAL validation state — stop_event set",
+                            validation_mode=_validation_mode,
+                        )
+                        stop_event.set()
             elif _val_result.state == ValidationState.WARNING:
                 # Apply 10-minute cooldown for WARNING alerts
                 if _now_alert - _warning_last_alerted[0] < _WARNING_ALERT_COOLDOWN_S:
@@ -367,12 +377,12 @@ async def run_trading_loop(
         position is closed and its realized PnL is known.  All failures are
         caught and logged; the coroutine never propagates exceptions.
         """
-        if not trade_id or pnl == 0.0:
+        if not trade_id:
             log.debug(
                 "closed_validation_skipped",
                 trade_id=trade_id,
                 pnl=pnl,
-                reason="no trade_id or zero pnl",
+                reason="no trade_id",
             )
             return
 
@@ -1001,8 +1011,7 @@ async def run_trading_loop(
                                 _trigger_reason = "stop_loss"
 
                             if _trigger_reason is not None:
-                                import uuid as _uuid  # noqa: PLC0415
-                                _close_trade_id = f"close-{_trigger_reason}-{_uuid.uuid4().hex[:12]}"
+                                _close_trade_id = f"close-{_trigger_reason}-{uuid.uuid4().hex[:12]}"
                                 log.info(
                                     "close_order_event",
                                     market_id=_pos.market_id,
@@ -1080,7 +1089,93 @@ async def run_trading_loop(
                             exc_info=True,
                         )
 
-                # ── Tick completed successfully — exit retry loop ─────────────────
+                # ── 5d. LIVE close order pipeline: TP / SL ───────────────────
+                elif _mode == "LIVE" and position_manager is not None:
+                    try:
+                        for _lpos in position_manager.all_positions():
+                            _cur_price = market_prices.get(_lpos.market_id)
+                            if _cur_price is None:
+                                continue
+                            _entry_cost = _lpos.size
+                            if _entry_cost <= 0:
+                                continue
+                            if _lpos.side == "YES":
+                                _live_unreal_ratio = (_cur_price - _lpos.avg_price) / _lpos.avg_price
+                            else:
+                                _live_unreal_ratio = (_lpos.avg_price - _cur_price) / _lpos.avg_price
+                            _live_trigger: Optional[str] = None
+                            if _live_unreal_ratio >= tp_pct:
+                                _live_trigger = "take_profit"
+                            elif _live_unreal_ratio <= -sl_pct:
+                                _live_trigger = "stop_loss"
+                            if _live_trigger is not None:
+                                _live_close_id = f"live-close-{_live_trigger}-{uuid.uuid4().hex[:12]}"
+                                log.info(
+                                    "live_close_order_event",
+                                    market_id=_lpos.market_id,
+                                    reason=_live_trigger,
+                                    unrealized_ratio=round(_live_unreal_ratio, 4),
+                                    entry_price=_lpos.avg_price,
+                                    close_price=_cur_price,
+                                    trade_id=_live_close_id,
+                                )
+                                try:
+                                    _closed_lpos, _live_rpnl = position_manager.close(
+                                        _lpos.market_id, _cur_price
+                                    )
+                                    if _closed_lpos is not None:
+                                        log.info(
+                                            "live_close_order_executed",
+                                            trade_id=_live_close_id,
+                                            market_id=_lpos.market_id,
+                                            realized_pnl=round(_live_rpnl, 6),
+                                            close_price=_cur_price,
+                                            reason=_live_trigger,
+                                        )
+                                        if db is not None:
+                                            _live_orig_id = (
+                                                _lpos.trade_ids[0]
+                                                if hasattr(_lpos, "trade_ids") and _lpos.trade_ids
+                                                else _live_close_id
+                                            )
+                                            await db.update_trade_status(
+                                                _live_orig_id,
+                                                "closed",
+                                                pnl=_live_rpnl,
+                                                won=_live_rpnl > 0,
+                                            )
+                                            # ── 5d-i. Closed-trade PnL → PerformanceTracker ──
+                                            asyncio.create_task(
+                                                _run_closed_validation_hook(
+                                                    _live_orig_id,
+                                                    _live_rpnl,
+                                                    telegram_callback,
+                                                )
+                                            )
+                                        if telegram_callback is not None:
+                                            try:
+                                                _live_close_msg = (
+                                                    f"🔒 LIVE CLOSE [{_live_trigger.upper()}] "
+                                                    f"{_lpos.market_id[:12]}… "
+                                                    f"@ {_cur_price:.4f} | "
+                                                    f"Entry: {_lpos.avg_price:.4f}"
+                                                )
+                                                await telegram_callback(_live_close_msg)
+                                            except Exception:
+                                                pass
+                                except Exception as _live_close_exc:
+                                    log.error(
+                                        "live_close_order_failed",
+                                        trade_id=_live_close_id,
+                                        market_id=_lpos.market_id,
+                                        error=str(_live_close_exc),
+                                    )
+                    except Exception as _live_exit_exc:
+                        log.error(
+                            "live_exit_pipeline_error",
+                            error=str(_live_exit_exc),
+                            exc_info=True,
+                        )
                 break
 
             except Exception as exc:  # noqa: BLE001
