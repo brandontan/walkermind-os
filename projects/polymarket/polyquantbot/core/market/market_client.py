@@ -62,7 +62,8 @@ async def get_active_markets(
     params: dict[str, Any] = {
         "active": "true",
         "closed": "false",
-        "limit": 100,
+        "limit": 500,  # expanded from 100 → 500 for broader market scanning (min 50 active markets)
+        "min_volume": 10000,  # only markets with ≥$10k liquidity
     }
 
     log.info("market_discovery_start", url=url)

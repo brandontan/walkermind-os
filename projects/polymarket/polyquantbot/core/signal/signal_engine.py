@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import math
 import os
+import random
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence, TYPE_CHECKING
@@ -596,3 +597,144 @@ async def generate_signals(
         signals.append(signal)
 
     return signals
+
+
+# ── Synthetic Signal Generator ────────────────────────────────────────────────
+
+
+async def generate_synthetic_signals(
+    markets: Sequence[dict[str, Any]],
+    bankroll: float = 1_000.0,
+    top_n: int = 1,
+    min_liquidity_usd: float | None = None,
+    max_spread: float = 0.50,
+) -> list[SignalResult]:
+    """Generate synthetic fallback signals when no organic signal fires.
+
+    Used as a last-resort mechanism when no real signal is generated for
+    ``_NO_TRADE_FALLBACK_S`` (30 minutes).  Picks liquid markets and creates
+    signals with a slight random probability bias + market-drift direction.
+
+    Sanity checks (both must pass):
+      - ``liquidity_usd >= min_liquidity_usd`` ($10k default)
+      - ``spread = ask - bid <= max_spread`` (default 0.50)
+
+    The synthetic edge is in the range [0.005, 0.02] — below the normal
+    2 % threshold but above zero.  Position size is capped at 0.5% of bankroll.
+
+    Args:
+        markets:          List of market context dicts (same format as
+                          :func:`generate_signals`).
+        bankroll:         Current account balance in USD.
+        top_n:            Maximum number of synthetic signals to generate.
+        min_liquidity_usd: Minimum market liquidity required (default $10k).
+        max_spread:       Maximum bid-ask spread allowed (default 0.50).
+
+    Returns:
+        List of :class:`SignalResult` with ``force_mode=True``.
+    """
+    _ml = min_liquidity_usd if min_liquidity_usd is not None else _env_float(
+        "SIGNAL_MIN_LIQUIDITY_USD", _MIN_LIQUIDITY_USD
+    )
+    _rng = random.Random()  # non-seeded for production randomness
+
+    # ── Filter: only liquid, tight-spread markets ─────────────────────────────
+    candidates: list[dict[str, Any]] = []
+    for market in markets:
+        liquidity_usd = float(market.get("liquidity_usd", 0.0))
+        if liquidity_usd < _ml:
+            continue
+
+        bid = float(market.get("bid", 0.0))
+        ask = float(market.get("ask", 1.0))
+        spread = ask - bid
+        if spread > max_spread:
+            continue
+
+        candidates.append(market)
+
+    if not candidates:
+        log.warning(
+            "synthetic_signal_no_candidates",
+            total_markets=len(list(markets)),
+            min_liquidity_usd=_ml,
+            max_spread=max_spread,
+            hint="No markets passed liquidity+spread sanity check",
+        )
+        return []
+
+    # ── Pick top_n candidates (random shuffle for variety) ───────────────────
+    _rng.shuffle(candidates)
+    selected = candidates[:top_n]
+
+    _force_size = bankroll * 0.005  # cap at 0.5% of bankroll (conservative)
+    synthetic: list[SignalResult] = []
+
+    for market in selected:
+        market_id = str(market.get("market_id", ""))
+        p_market = float(market.get("p_market", 0.5))
+
+        # ── Apply slight random bias + market drift ───────────────────────────
+        # Drift direction: markets closer to 0 drift toward 0, closer to 1 drift toward 1
+        drift = (p_market - 0.5) * 0.01          # ±0.5% directional drift
+        random_bias = _rng.uniform(0.005, 0.02)  # 0.5% – 2.0% random bias
+        bias_direction = 1 if _rng.random() > 0.4 else -1  # slight long bias (60/40)
+        p_model = max(0.001, min(0.999, p_market + drift + bias_direction * random_bias))
+
+        edge = p_model - p_market
+        if edge <= 0:
+            # Flip to ensure positive edge (fallback)
+            p_model = p_market + random_bias
+            edge = random_bias
+
+        # Clamp to safe probability range
+        p_model = max(0.001, min(0.999, p_model))
+        edge = p_model - p_market
+
+        volatility = max(_spread_volatility(market, p_market), _VOLATILITY_FLOOR)
+        confidence_score = max(
+            -_S_SCORE_MAX_ABS, min(_S_SCORE_MAX_ABS, edge / volatility)
+        )
+
+        b = (1.0 / p_market - 1.0) if p_market > 0 else 0.0
+        q = 1.0 - p_model
+        ev = (p_model * b - q) if b > 0 else 0.0
+        kelly_f = max((p_model * b - q) / b, 0.0) if b > 0 else 0.0
+
+        side = "YES" if p_model > 0.5 else "NO"
+
+        log.warning(
+            "synthetic_signal_generated",
+            market_id=market_id,
+            p_market=round(p_market, 4),
+            p_model=round(p_model, 4),
+            edge=round(edge, 4),
+            confidence=round(confidence_score, 4),
+            size_usd=round(_force_size, 4),
+            liquidity_usd=float(market.get("liquidity_usd", 0.0)),
+            hint="Fallback synthetic signal — no real edge found",
+        )
+
+        extra: dict[str, Any] = {
+            k: v
+            for k, v in market.items()
+            if k not in {"market_id", "p_market", "p_model", "liquidity_usd", "side"}
+        }
+        extra["synthetic"] = True
+
+        synthetic.append(SignalResult(
+            signal_id=uuid.uuid4().hex[:12],
+            market_id=market_id,
+            side=side,
+            p_market=round(p_market, 6),
+            p_model=round(p_model, 6),
+            edge=round(edge, 6),
+            ev=round(ev, 6),
+            kelly_f=round(kelly_f, 6),
+            size_usd=round(_force_size, 4),
+            liquidity_usd=round(float(market.get("liquidity_usd", 0.0)), 2),
+            force_mode=True,
+            extra=extra,
+        ))
+
+    return synthetic

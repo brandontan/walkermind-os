@@ -214,6 +214,7 @@ class TestLiveConfig:
             "trading_mode", "enable_live_trading", "signal_debug_mode",
             "edge_threshold", "max_position_fraction", "max_concurrent_trades",
             "daily_loss_limit", "drawdown_limit", "min_liquidity_usd",
+            "paper_mode", "paper_edge_threshold", "paper_initial_balance",
         }
         assert expected_keys == set(d.keys())
 

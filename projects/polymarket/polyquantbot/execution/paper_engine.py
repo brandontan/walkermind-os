@@ -59,6 +59,8 @@ _EXECUTION_TIMEOUT_S: float = 0.5       # warn if execution takes > 500 ms
 _SLIPPAGE_PCT: float = 0.005            # ±0.5 % slippage
 _FILL_MIN_PCT: float = 0.80             # minimum partial fill fraction
 _DEFAULT_FEE_PCT: float = 0.001         # 0.1 % fee on filled size
+_EXEC_DELAY_MIN_MS: float = 100.0       # minimum simulated execution delay (ms)
+_EXEC_DELAY_MAX_MS: float = 500.0       # maximum simulated execution delay (ms)
 
 
 # ── Result types ──────────────────────────────────────────────────────────────
@@ -231,6 +233,10 @@ class PaperEngine:
         fill_pct = self._rng.uniform(_FILL_MIN_PCT, 1.0)
         filled_size = round(size * fill_pct, 4)
         is_partial = fill_pct < 0.9999
+
+        # ── 4a. Simulate execution delay (100–500ms) ─────────────────────────
+        _delay_ms = self._rng.uniform(_EXEC_DELAY_MIN_MS, _EXEC_DELAY_MAX_MS)
+        await asyncio.sleep(_delay_ms / 1000.0)
 
         # ── 5. Apply slippage ────────────────────────────────────────────────
         slippage_direction = self._rng.choice([-1, 1])

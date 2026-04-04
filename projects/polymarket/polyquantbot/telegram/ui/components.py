@@ -211,13 +211,16 @@ def render_wallet_card(
         lines.append(_SEP)
 
     mode_label = "PAPER MODE" if mode.upper() == "PAPER" else "LIVE MODE"
+    # Free margin = cash (uninvested), Used margin = locked (in positions)
+    free_margin = cash
+    used_margin = locked
     lines += [
         f"💼 *WALLET OVERVIEW* — {mode_label}",
         _SEP,
-        render_kv_line("BALANCE", f"${cash:,.2f}"),
-        render_kv_line("LOCKED", f"${locked:,.2f}"),
+        render_kv_line("CASH", f"${cash:,.2f}"),
         render_kv_line("EQUITY", f"${equity:,.2f}"),
-        render_kv_line("EXPOSURE", f"${locked:,.2f}"),
+        render_kv_line("USED MARGIN", f"${used_margin:,.2f}"),
+        render_kv_line("FREE MARGIN", f"${free_margin:,.2f}"),
         render_kv_line("POSITIONS", positions_str),
         _SEP,
         "📊 *PERFORMANCE*",
@@ -229,7 +232,7 @@ def render_wallet_card(
     ]
 
     if mode.upper() == "PAPER":
-        lines.append("_🧪 Paper trading — no real funds at risk_")
+        lines.append("_🧪 Simulated (real execution model) — no real funds at risk_")
     else:
         lines.append("_⚠️ Live mode — real capital deployed_")
 
@@ -381,8 +384,8 @@ def render_strategy_card(
 
     for strat in strategies:
         enabled = active_states.get(strat, False)
-        status_icon = "🟢" if enabled else "🔴"
-        status_label = "ACTIVE" if enabled else "DISABLED"
+        status_icon = "✅" if enabled else "⚪"
+        status_label = "ACTIVE" if enabled else "INACTIVE"
         desc_block = _STRATEGY_DESCRIPTIONS.get(strat, _DEFAULT_STRATEGY_DESC)
 
         lines.append(f"● *{desc_block['title']}*")
@@ -608,7 +611,7 @@ def render_start_screen(
         insight_text = "Scanning markets"
 
     lines = [
-        f"🚀 *KRUSADER AI {version}*",
+        f"🚀 *KRUSADER {version} | Polymarket AI Trader*",
         _SEP,
         "⚙️ *SYSTEM*",
         _SEP_THIN,
