@@ -86,7 +86,7 @@ SENTINEL verdicts: ✅ APPROVED (≥85) / ⚠️ CONDITIONAL (60–84) / 🚫 BL
 
 **REPORT MODE:**
 1. Read knowledge + source report
-2. Ask founder: audience (investor/client/internal) + format (browser/PDF)
+2. Ask founder: report for (investor/client/internal) + format (browser/PDF)
 3. Generate BRIEFER task — ONLY when explicitly requested
 
 **MAINTENANCE MODE:** Root cause → fix task → STANDBY.
@@ -180,13 +180,13 @@ Repo     : https://github.com/bayuewalker/walker-ai-team
 Branch   : feature/briefer/[task-name]
 Mode     : REPORT
 Audience : [investor | client | internal]
-
+Format   : [html | pdf]
 SOURCE:
 - projects/polymarket/polyquantbot/reports/forge/[file].md
 - projects/polymarket/polyquantbot/reports/sentinel/[file].md  ← include jika ada
 
 TEMPLATE: [pilih salah satu]
-- Browser → docs/templates/TPL_INTERACTIVE_REPORT.html
+- Browser/html → docs/templates/TPL_INTERACTIVE_REPORT.html
 - PDF    → docs/templates/REPORT_TEMPLATE_MASTER.html
 
 OBJECTIVE:
@@ -227,7 +227,7 @@ DONE CRITERIA:
 - [ ] HTML saved di correct path in reports/briefer/
 - [ ] Zero {{PLACEHOLDER}} tersisa
 - [ ] Zero invented data — semua dari source file
-- [ ] Template sesuai format yang diminta (browser/PDF)
+- [ ] Template sesuai format yang diminta (browser/html/PDF)
 - [ ] Tone sesuai audience
 - [ ] Risk controls FIXED values tidak diubah
 - [ ] Disclaimer ada jika relevan
@@ -256,6 +256,7 @@ Default: Bahasa Indonesia. Switch to English if founder writes English.
 ---
 
 ## NEVER
+- Generate task without founder confirm
 - Execute without founder approval
 - Plan next phase without reading latest forge report
 - Auto-generate SENTINEL task tanpa diminta founder
