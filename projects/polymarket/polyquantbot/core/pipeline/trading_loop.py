@@ -81,6 +81,10 @@ from ..signal.signal_engine import generate_signals, generate_synthetic_signals
 from ..signal.alpha_model import ProbabilisticAlphaModel
 from ..execution.executor import execute_trade
 from ...monitoring.pnl_calculator import PnLCalculator
+from ...monitoring.performance_tracker import PerformanceTracker
+from ...monitoring.metrics_engine import MetricsEngine
+from ...monitoring.validation_engine import ValidationEngine, ValidationState
+from ..validation_state import ValidationStateStore
 from ..logging.logger import (
     log_market_metadata_used,
     log_position_updated,
@@ -227,6 +231,79 @@ async def run_trading_loop(
 
     # ── Loop state ────────────────────────────────────────────────────────────
     _tick: int = 0
+
+    # ── Validation Engine singletons (initialized once, shared across ticks) ──
+    _performance_tracker = PerformanceTracker()
+    _metrics_engine = MetricsEngine()
+    _validation_engine = ValidationEngine()
+    _validation_state = ValidationStateStore()
+    # Mutable container for previous validation state — enables change detection
+    _prev_vs: list[ValidationState] = [ValidationState.HEALTHY]
+
+    async def _run_validation_hook(
+        trade: dict[str, Any],
+        tg_cb: Optional[Callable[[str], Awaitable[None]]],
+    ) -> None:
+        """Run the validation pipeline for a completed trade.
+
+        Designed to run as a background ``asyncio.create_task()`` so that
+        execution latency is unaffected.  All failures are caught and logged;
+        the coroutine never propagates exceptions to the caller.
+        """
+        try:
+            _performance_tracker.add_trade(trade)
+        except (ValueError, TypeError) as _ve:
+            log.error("validation_trade_invalid", error=str(_ve))
+            return
+
+        try:
+            _recent = _performance_tracker.get_recent_trades()
+            _computed = _metrics_engine.compute(_recent)
+            _val_result = _validation_engine.evaluate(_computed)
+            _validation_state.update(_val_result.state, _computed)
+
+            _log_fn = (
+                log.critical
+                if _val_result.state == ValidationState.CRITICAL
+                else log.info
+            )
+            _log_fn(
+                "validation_update",
+                state=_val_result.state.value,
+                metrics=_computed,
+                reason=_val_result.reasons,
+            )
+
+            # ── Telegram alert on state change only ───────────────────────────
+            if _val_result.state != _prev_vs[0]:
+                _prev_vs[0] = _val_result.state
+                if tg_cb is not None:
+                    if _val_result.state == ValidationState.CRITICAL:
+                        _alert = (
+                            f"🚨 CRITICAL: validation state → CRITICAL\n"
+                            f"{', '.join(_val_result.reasons)}"
+                        )
+                    elif _val_result.state == ValidationState.WARNING:
+                        _alert = (
+                            f"⚠️ WARNING: validation state → WARNING\n"
+                            f"{', '.join(_val_result.reasons)}"
+                        )
+                    else:
+                        _alert = None  # HEALTHY transition — silent
+                    if _alert:
+                        try:
+                            await tg_cb(_alert)
+                        except Exception as _tg_val_exc:  # noqa: BLE001
+                            log.warning(
+                                "validation_telegram_failed",
+                                error=str(_tg_val_exc),
+                            )
+        except Exception as _val_exc:  # noqa: BLE001
+            log.critical(
+                "validation_hook_error",
+                error=str(_val_exc),
+                exc_info=True,
+            )
 
     log.info(
         "trading_loop_started",
@@ -714,6 +791,20 @@ async def run_trading_loop(
                                     market_id=result.market_id,
                                     error=str(tg_exc),
                                 )
+
+                        # ── 4j. Validation engine hook (non-blocking) ─────────────
+                        if result.fill_price > 0.0:
+                            _val_trade: dict[str, Any] = {
+                                "pnl": 0.0,
+                                "entry_price": result.fill_price,
+                                "exit_price": result.fill_price,
+                                "size": result.filled_size_usd or 0.0,
+                                "timestamp": time.time(),
+                                "signal_type": signal.extra.get("signal_type", "REAL"),
+                            }
+                            asyncio.create_task(
+                                _run_validation_hook(_val_trade, telegram_callback)
+                            )
 
                 # ── 5. Compute and log PnL metrics (db always present) ───────────
                 try:
