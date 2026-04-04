@@ -1,35 +1,85 @@
 ## COMMANDER KNOWLEDGE FILE
 - Attach as knowledge document in Custom GPT.
 
----
-
-## INSTRUCTIONS FILE
-- (commander_customgpt.md) always reads this first.
+# Instructions always reads this before responding.
 
 ---
 
-## REPO & PROJECT STRUCTURE
+## REPO
 
 ```
 https://github.com/bayuewalker/walker-ai-team
+```
 
-projects/polymarket/polyquantbot/
+---
+
+## KEY FILE LOCATIONS (FULL PATHS)
+
+```
+PROJECT_STATE.md                                                    ← repo root
+docs/CLAUDE.md                                                      ← agent rules
+docs/KNOWLEDGE_BASE.md                                              ← system knowledge
+docs/pico.pdf                                                       ← reference
+docs/advancee_trade_strategy.pdf                                    ← reference
+docs/templates/TPL_INTERACTIVE_REPORT.html                          ← BRIEFER (browser)
+docs/templates/REPORT_TEMPLATE_MASTER.html                          ← BRIEFER (PDF)
+
+projects/polymarket/polyquantbot/                                   ← main bot
+projects/polymarket/polyquantbot/reports/forge/                     ← FORGE-X reports
+projects/polymarket/polyquantbot/reports/sentinel/                  ← SENTINEL reports
+projects/polymarket/polyquantbot/reports/briefer/                   ← BRIEFER HTML reports
 projects/tradingview/indicators/
 projects/tradingview/strategies/
 projects/mt5/ea/
 projects/mt5/indicators/
 ```
 
-Reference docs:
-- `PROJECT_STATE.md` — current phase, completed, next priority
-- `docs/KNOWLEDGE_BASE.md` — Polymarket CLOB API, auth, order flow, WebSocket
-- `docs/CLAUDE.md` — agent rules and context
-- `docs/pico.pdf` — reference material
-- `docs/advancee_trade_strategy.pdf` — advanced strategy reference
+---
+
+## GITHUB ACTIONS — FULL REFERENCE
+
+All 8 available actions. Always use actions — never open GitHub URLs directly.
+
+### READ
+```
+getRepoContents(path, ref?)
+```
+- File → returns base64-encoded content (decode to read)
+- Directory → returns array of {name, path, type, size}
+- Examples:
+  - getRepoContents("PROJECT_STATE.md")
+  - getRepoContents("projects/polymarket/polyquantbot/reports/forge")
+  - getRepoContents("projects/polymarket/polyquantbot/reports/forge/23_1_report.md")
+
+### WRITE WORKFLOW
+Step 1: `getRepoBranch("main")` → get latest commit SHA from response
+Step 2: `createBranch("refs/heads/feature/[name]", sha)`
+Step 3: `writeRepoFile(path, message, content_b64, sha?, branch)`
+  - `content` must be base64-encoded (UTF-8 text → base64)
+  - `sha` required only when UPDATING existing file (get from getRepoContents first)
+  - `branch` = target branch name e.g. "feature/briefer/23-1-report"
+Step 4: `createPullRequest(title, head, base="main", body)`
+
+### PR MANAGEMENT
+```
+listPullRequests(state="open")       ← list PRs, check Copilot review
+createPullRequest(title, head, base, body)
+mergePullRequest(pull_number)        ← only after founder confirms
+addPRComment(issue_number, body)     ← post SENTINEL verdict or QC notes
+```
+
+### BEFORE EVERY SESSION
+```
+1. getRepoContents("PROJECT_STATE.md") → decode base64 → read
+2. getRepoContents("projects/polymarket/polyquantbot/reports/forge") → get file list → pick latest
+3. getRepoContents("[latest forge report full path]") → decode → read
+```
 
 ---
 
-## DOMAIN STRUCTURE (11 folders — LOCKED)
+## DOMAIN STRUCTURE (11 FOLDERS — LOCKED)
+
+All code must live within these folders only:
 
 ```
 core/           — shared utilities, base classes
@@ -57,8 +107,8 @@ No `phase*/` folders. No files outside these folders. No exceptions.
 | Agent | Format | Example |
 |---|---|---|
 | FORGE-X | `feature/forge/[task-name]` | `feature/forge/kelly-risk-module` |
-| BRIEFER | `feature/briefer/[task-name]` | `feature/briefer/22-2-investor-report` |
-| SENTINEL | uses same branch as FORGE-X task being validated | — |
+| BRIEFER | `feature/briefer/[task-name]` | `feature/briefer/23-1-investor-report` |
+| SENTINEL | same branch as FORGE-X being validated | — |
 
 Rules: lowercase, hyphens only, no spaces, max 50 chars.
 
@@ -75,14 +125,13 @@ Briefer          : [phase]_[increment]_[name].html
 |---|---|
 | `10_8_signal_activation.md` | `FORGE-X_PHASE10.md` |
 | `11_1_cleanup.md` | `report/FORGE-X_PHASE.md` |
-| `22_2_investor_update.md` | `report.md` |
-| `22_2_investor_update.html` | `structure_refactor.md` |
+| `23_1_ui_v3_paper_activation.md` | `report.md` |
+| `23_1_ui_v3_paper_activation.html` | `structure_refactor.md` |
 
 ---
 
 ## FORGE-X REPORT — 6 MANDATORY SECTIONS
 
-Every forge report must contain all 6:
 1. What was built
 2. Current system architecture
 3. Files created / modified (full paths)
@@ -94,7 +143,7 @@ Every forge report must contain all 6:
 
 ## PROJECT_STATE.md — 5 UPDATABLE SECTIONS
 
-FORGE-X updates ONLY these sections after every task:
+FORGE-X updates ONLY these after every task:
 - `STATUS`
 - `COMPLETED`
 - `IN PROGRESS`
@@ -102,8 +151,7 @@ FORGE-X updates ONLY these sections after every task:
 - `KNOWN ISSUES`
 
 Never rewrite other sections.
-
-Commit message format: `"update: project state after [task name]"`
+Commit: `"update: project state after [task name]"`
 
 ---
 
@@ -111,21 +159,21 @@ Commit message format: `"update: project state after [task name]"`
 
 | Phase | Check |
 |---|---|
-| 0 | Pre-test: report exists, naming correct, PROJECT_STATE fresh, no phase* folders |
+| 0 | Pre-test: report exists at correct full path, naming correct, PROJECT_STATE fresh, no phase* folders |
 | 1 | Functional testing per module |
 | 2 | System pipeline end-to-end |
 | 3 | Failure mode simulation (API fail, WS disconnect, stale data, dedup, partial fill) |
 | 4 | Async safety (race conditions, state corruption) |
 | 5 | Risk rules enforced in code |
-| 6 | Latency validation (ingest <100ms, signal <200ms, exec <500ms) |
-| 7 | Infra + Telegram validation (env-dependent) |
+| 6 | Latency: ingest <100ms / signal <200ms / exec <500ms |
+| 7 | Infra + Telegram (env-dependent) |
 
 Stability score:
-- Architecture 20% / Functional 20% / Failure modes 20% / Risk 20% / Infra+Telegram 10% / Latency 10%
+Architecture 20% / Functional 20% / Failure modes 20% / Risk 20% / Infra+Telegram 10% / Latency 10%
 
 Verdict: APPROVED (≥85, zero critical) / CONDITIONAL (60–84) / BLOCKED (any critical or <60)
 
-Environment rules:
+Environment:
 - `dev` → infra/telegram: warn only, risk: enforced
 - `staging` / `prod` → everything enforced
 
@@ -137,7 +185,7 @@ Any single one = immediate 🚫 BLOCKED:
 
 | Code | Condition |
 |---|---|
-| B1 | FORGE-X report missing from `reports/forge/` |
+| B1 | FORGE-X report missing from `projects/polymarket/polyquantbot/reports/forge/` |
 | B2 | Report naming format incorrect |
 | B3 | Report missing any of 6 mandatory sections |
 | B4 | `PROJECT_STATE.md` not updated in PR |
@@ -173,7 +221,7 @@ Any single one = immediate 🚫 BLOCKED:
 ```
 EV       = p·b − (1−p)
 edge     = p_model − p_market
-Kelly    = (p·b − q) / b  →  always use 0.25f
+Kelly    = (p·b − q) / b  →  always 0.25f
 Signal S = (p_model − p_market) / σ
 MDD      = (Peak − Trough) / Peak
 VaR      = μ − 1.645σ  (CVaR monitored)
@@ -193,7 +241,7 @@ VaR      = μ − 1.645σ  (CVaR monitored)
 | Resilience | Retry + timeout on all external calls |
 | Logging | structlog — structured JSON |
 | Errors | Zero silent failures |
-| Pipeline | Every pipeline: timeout + retry + dedup + DLQ |
+| Pipeline | timeout + retry + dedup + DLQ |
 
 ---
 
@@ -207,11 +255,6 @@ VaR      = μ − 1.645σ  (CVaR monitored)
 
 ## BRIEFER — TEMPLATE SELECTION
 
-Decision rule:
-- Dibuka di browser / device → `TPL_INTERACTIVE_REPORT.html` (default)
-- Print / PDF / dokumen formal → `REPORT_TEMPLATE_MASTER.html`
-- COMMANDER tidak specify → default ke interactive
-
 | Report Type | Audience | Template |
 |---|---|---|
 | Internal: phase completion, validation, health, bug, backtest | Team | `TPL_INTERACTIVE_REPORT.html` |
@@ -220,70 +263,87 @@ Decision rule:
 | Investor: capital deployment, risk transparency | Investor | `REPORT_TEMPLATE_MASTER.html` |
 | Any — print / PDF | Any | `REPORT_TEMPLATE_MASTER.html` |
 
-Template locations in repo:
-```
-docs/templates/TPL_INTERACTIVE_REPORT.html   ← cross-device, boot animation, tabs
-docs/templates/REPORT_TEMPLATE_MASTER.html   ← static scroll, PDF-optimized
-```
+Decision rule:
+- Browser / device → `TPL_INTERACTIVE_REPORT.html` (default)
+- Print / PDF / formal document → `REPORT_TEMPLATE_MASTER.html`
+- Not specified → default interactive
 
 ---
 
-## BRIEFER — PLACEHOLDER REFERENCE (TPL_INTERACTIVE)
+## BRIEFER — TPL_INTERACTIVE (browser/device)
+
+Structure: boot animation + tab navigation
+Use `TAB STRUCTURE` in task:
+```
+TAB STRUCTURE:
+- 01_[LABEL] → [content]
+- 02_[LABEL] → [content]
+- 03_[LABEL] → [content]
+- 04_[LABEL] → [content]
+```
+
+Placeholders:
 
 | Placeholder | Replace With |
 |---|---|
-| `{{REPORT_TITLE}}` | e.g. `Investor Update Phase 22.2` |
-| `{{REPORT_CODENAME}}` | e.g. `Phase 22.2` |
-| `{{REPORT_FOCUS}}` | e.g. `Pre-Capital Validation Complete` |
+| `{{REPORT_TITLE}}` | e.g. `Investor Update Phase 23.1` |
+| `{{REPORT_CODENAME}}` | e.g. `Phase 23.1` |
+| `{{REPORT_FOCUS}}` | e.g. `UI V3 Paper Activation` |
 | `{{SYSTEM_NAME}}` | `PolyQuantBot` |
 | `{{OWNER}}` | `Bayue Walker` |
 | `{{REPORT_DATE}}` | e.g. `April 2026` |
-| `{{SYSTEM_STATUS}}` | e.g. `READY_FOR_CAPITAL` |
+| `{{SYSTEM_STATUS}}` | e.g. `PAPER_ACTIVE` |
 | `{{BADGE_1_LABEL}}` | e.g. `Confidential` |
-| `{{BADGE_2_LABEL}}` | e.g. `Pre-Capital Phase` |
-| `{{TAB_1_LABEL}}` … `{{TAB_4_LABEL}}` | Tab labels e.g. `OVERVIEW` |
+| `{{BADGE_2_LABEL}}` | e.g. `Paper Trading` |
+| `{{TAB_1_LABEL}}` … `{{TAB_4_LABEL}}` | e.g. `OVERVIEW` |
 | `{{TAB_1_HEADING}}` | e.g. `Executive Summary` |
 | `{{NOTICE_TEXT}}` | Disclaimer text |
-| `{{M1_LABEL}}` … `{{M8_LABEL}}` | Metric card labels |
-| `{{M1_VALUE}}` … `{{M8_VALUE}}` | Metric card values |
-| `{{M1_NOTE}}` … `{{M8_NOTE}}` | Metric card notes |
-| `{{PROG_1_LABEL}}` / `{{PROG_1_PCT}}` | Progress bar label + % (number only) |
-| `{{PROG_TOTAL_LABEL}}` / `{{PROG_TOTAL_VALUE}}` | Total row |
+| `{{M1_LABEL}}` … `{{M8_LABEL}}` | Metric labels |
+| `{{M1_VALUE}}` … `{{M8_VALUE}}` | Metric values |
+| `{{M1_NOTE}}` … `{{M8_NOTE}}` | Metric notes |
+| `{{PROG_1_LABEL}}` / `{{PROG_1_PCT}}` | Progress bar (% number only) |
 | `{{LIST_1_LABEL}}` / `{{LIST_1_VALUE}}` | Data list rows |
-| `{{S1_PHASE}}` / `{{S1_MODULE}}` / `{{S1_VERDICT}}` | SENTINEL table rows |
+| `{{S1_PHASE}}` / `{{S1_MODULE}}` / `{{S1_VERDICT}}` | SENTINEL table |
 | `{{LIMIT_1_TITLE}}` / `{{LIMIT_1_DESC}}` | Known limitations |
-| `{{FOOTER_DISCLAIMER}}` | Footer disclaimer text |
+| `{{FOOTER_DISCLAIMER}}` | Footer text |
+
+Component classes:
+- Metric cards: `success` / `warn` / `accent` / `danger` / `muted` / `info`
+- Badges: `badge-accent` / `badge-warn` / `badge-success` / `badge-danger` / `badge-muted`
+- Pipeline: `pipe-active` / `pipe-success` / `pipe-warn` / `pipe-inactive`
+- Notice: `notice-warn` / `notice-success` / `notice-info` / `notice-danger`
+- Checklist: default ✓ / `.warn` ! / `.error` ✗ / `.next` › / `.info` ·
+- File tags: `tag-new` / `tag-mod` / `tag-del`
+- SENTINEL verdict: `td-success` / `td-warn` / `td-danger`
 
 ---
 
-## BRIEFER — COMPONENT CLASSES
+## BRIEFER — REPORT_TEMPLATE_MASTER (PDF/print)
 
-**Metric cards** (border-left color):
-`success` green / `warn` amber / `accent` cyan / `danger` red / `muted` gray / `info` blue
+Structure: static scroll, `<section class="card">` blocks
+Use `SECTION STRUCTURE` in task:
+```
+SECTION STRUCTURE:
+(use <section class="card"> blocks)
+- 01 — [TITLE] → [content]
+- 02 — [TITLE] → [content]
+- 03 — [TITLE] → [content]
+- 04 — [TITLE] → [content]
+```
 
-**Badges:**
-`badge-accent` cyan / `badge-warn` amber / `badge-success` green / `badge-danger` red / `badge-muted` gray
+PDF rules BRIEFER must follow:
+- No overflow, no fixed heights, no animations
+- Print-safe layout
+- Include disclaimer if paper trading context
 
-**Pipeline nodes:**
-`pipe-active` cyan / `pipe-success` green / `pipe-warn` amber / `pipe-inactive` gray
-
-**Notice boxes:**
-`notice-warn` amber / `notice-success` green / `notice-info` cyan / `notice-danger` red
-
-**Checklist items:**
-default ✓ green / `.warn` ! amber / `.error` ✗ red / `.next` › cyan / `.info` · gray
-
-**File tags:**
-`tag-new` green / `tag-mod` cyan / `tag-del` red
-
-**SENTINEL table verdict classes:**
-`td-success` / `td-warn` / `td-danger`
+KV box classes: `positive` / `neutral` / `negative` / `info`
+Pill classes: `pill-green` / `pill-orange` / `pill-red` / `pill-blue`
+Milestone dots: `dot-done` / `dot-active` / `dot-pending` / `dot-future`
+Risk cards: default amber / `.red` / `.green`
 
 ---
 
-## BRIEFER — RISK CONTROLS TABLE (FIXED VALUES)
-
-In every report, Risk Controls section uses these FIXED values — never change:
+## BRIEFER — RISK CONTROLS TABLE (FIXED — never change)
 
 | Rule | Value |
 |---|---|
@@ -309,7 +369,7 @@ Phase 4 — Production  : deploy, dashboard, confirm
 
 ---
 
-## FRONTEND STACK (built by BRIEFER)
+## FRONTEND STACK (BRIEFER default)
 
-Default: Vite + React 18 + TypeScript + Tailwind CSS + Recharts + Zustand
-Use only if COMMANDER specifies: Next.js (SSR) / Chart.js / D3 / TradingView Lightweight Charts
+Vite + React 18 + TypeScript + Tailwind CSS + Recharts + Zustand
+Only use if COMMANDER specifies: Next.js / Chart.js / D3 / TradingView Lightweight Charts
