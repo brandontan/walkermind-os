@@ -1,280 +1,1009 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>{{DOC_TITLE}} - Walker AI</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    
-    <style>
-        :root {
-            --bg: #020508;
-            --surface: rgba(10, 16, 23, 0.8);
-            --surface2: #111b27;
-            --border: #1a2c40;
-            --accent: #00d4ff;
-            --success: #00ffb3;
-            --warn: #f59e0b;
-            --danger: #ff3355;
-            --muted: #4b6982;
-            --text-main: #e2e8f0;
-            --text-dim: #94a3b8;
-            --font-sans: 'Inter', sans-serif;
-            --font-mono: 'JetBrains Mono', monospace;
-            --font-disp: 'Rajdhani', sans-serif;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{REPORT_TITLE}} — Walker AI Trading</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════
+       WALKER AI — MASTER REPORT TEMPLATE
+       Version: 1.0 | Dark Futuristic
+       BRIEFER: do not modify this CSS block.
+       Replace only {{PLACEHOLDER}} values in HTML.
+    ═══════════════════════════════════════════════════ */
 
-        /* STRICT VIEWPORT ENFORCEMENT */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; max-width: 100vw; overflow-x: hidden; background-color: var(--bg); color: var(--text-main); font-family: var(--font-sans); line-height: 1.4; -webkit-text-size-adjust: 100%; }
+    :root {
+      --bg:       #020508;
+      --surface:  #060d14;
+      --surface2: #0a1520;
+      --border:   #0d2235;
+      --border2:  #1a3a55;
+      --accent:   #00d4ff;
+      --accent2:  #0088cc;
+      --accent3:  #00ffb3;
+      --warn:     #f59e0b;
+      --danger:   #ff3355;
+      --muted:    #3a6080;
+      --text:     #8ab8d0;
+      --text2:    #c8e0ee;
+      --white:    #e8f4ff;
+    }
 
-        .cyber-grid { position: fixed; inset: 0; z-index: 0; opacity: 0.5; pointer-events: none; background-image: linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px); background-size: 32px 32px; }
-        
-        .container { width: 100%; padding: 12px; margin: 0 auto; position: relative; z-index: 10; max-width: 1000px; }
-        .hidden { display: none !important; }
-        
-        /* RESPONSIVE PANELS */
-        .glass-panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 16px;
-            width: 100%;
-            overflow: hidden; /* Kunci overflow */
-        }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        h1, h2, h3 { font-family: var(--font-disp); text-transform: uppercase; letter-spacing: 0.05em; word-wrap: break-word; }
-        .text-accent { color: var(--accent); } .text-success { color: var(--success); } .text-warn { color: var(--warn); } .text-danger { color: var(--danger); } .text-muted { color: var(--muted); }
-        .font-mono { font-family: var(--font-mono); }
+    body {
+      font-family: 'Exo 2', sans-serif;
+      background: var(--bg);
+      color: var(--text2);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
 
-        /* HEADER */
-        .header-top { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-        .badge { font-family: var(--font-mono); font-size: 9px; padding: 4px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-        .badge-accent { color: var(--accent); border: 1px solid rgba(0,212,255,0.3); background: rgba(0,212,255,0.1); }
-        .badge-warn { color: var(--warn); border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); }
-        .pulse-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    /* Scanline */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 3px,
+        rgba(0,212,255,0.012) 3px, rgba(0,212,255,0.012) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
 
-        .header-title { font-size: 24px; font-weight: 700; margin-bottom: 4px; color: #fff; line-height: 1.1; }
-        .meta-data { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 4px; }
-        .meta-data p { font-family: var(--font-mono); font-size: 10px; }
+    /* Grid bg */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
 
-        /* SCROLLABLE TABS */
-        .tabs-nav { display: flex; flex-wrap: nowrap; overflow-x: auto; border-bottom: 1px solid var(--border); margin-bottom: 16px; padding-bottom: 1px; -webkit-overflow-scrolling: touch; }
-        .tab-btn { background: transparent; border: none; color: var(--muted); padding: 12px; font-family: var(--font-mono); font-size: 10px; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; flex: 0 0 auto; }
-        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: rgba(0,212,255,0.05); }
-        .tab-content { display: none; animation: fadeUp 0.3s ease-out forwards; }
-        .tab-content.active { display: block; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .page-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }
 
-        /* GRIDS (MOBILE FIRST) */
-        .grid-1, .grid-2, .grid-4 { display: grid; grid-template-columns: 1fr; gap: 12px; width: 100%; }
-        
-        /* METRIC CARDS */
-        .metric-card { padding: 12px; background: var(--surface2); border-left: 2px solid; border-radius: 0 4px 4px 0; }
-        .metric-card.success { border-color: var(--success); } .metric-card.warn { border-color: var(--warn); } .metric-card.accent { border-color: var(--accent); } .metric-card.danger { border-color: var(--danger); } .metric-card.muted { border-color: var(--muted); }
-        .m-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; display: block; }
-        .m-val { font-family: var(--font-disp); font-size: 20px; font-weight: 700; line-height: 1; }
-        .success .m-val { color: var(--success); } .warn .m-val { color: var(--warn); } .accent .m-val { color: var(--accent); }
-        .m-note { font-family: var(--font-mono); font-size: 8px; color: var(--text-dim); margin-top: 4px; display: block; }
+    /* ── HEADER ── */
+    .report-header {
+      position: relative;
+      border: 1px solid var(--border2);
+      border-radius: 2px;
+      padding: 36px 36px 28px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(0,212,255,0.04) 0%, transparent 60%);
+    }
 
-        .notice-box { margin-top: 16px; padding: 12px; border-left: 2px solid var(--warn); background: rgba(245,158,11,0.05); font-family: var(--font-mono); font-size: 10px; color: var(--warn); line-height: 1.4; }
+    .report-header::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), var(--accent3), transparent);
+    }
 
-        /* PROGRESS BARS */
-        .prog-row { margin-bottom: 12px; width: 100%; }
-        .prog-labels { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 9px; margin-bottom: 4px; width: 100%; }
-        .prog-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; width: 100%; }
-        .prog-fill { height: 100%; }
+    .header-watermark {
+      position: absolute;
+      bottom: 14px; right: 18px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      opacity: 0.6;
+    }
 
-        /* ISOLATED HORIZONTAL SCROLL FOR WIDE ELEMENTS */
-        .scroll-x { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
-        
-        .data-list { list-style: none; }
-        .data-list li { display: flex; justify-content: space-between; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--border); font-family: var(--font-mono); font-size: 10px; gap: 8px; }
-        .data-list span:first-child { flex: 1; }
-        .data-list span:last-child { white-space: nowrap; text-align: right; }
+    .header-corner {
+      position: absolute;
+      top: 0; right: 0;
+      width: 70px; height: 70px;
+      border-left: 1px solid var(--accent);
+      border-bottom: 1px solid var(--accent);
+      opacity: 0.25;
+    }
 
-        /* SAFE TABLE */
-        table { width: 100%; min-width: 400px; border-collapse: collapse; font-family: var(--font-mono); font-size: 9px; text-align: left; }
-        th { color: var(--muted); padding-bottom: 8px; border-bottom: 1px solid var(--border); font-weight: normal; }
-        td { padding: 8px 4px; border-bottom: 1px solid rgba(26,44,64,0.3); }
+    /* Badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,212,255,0.08);
+      border: 1px solid rgba(0,212,255,0.25);
+      border-radius: 2px;
+      padding: 3px 10px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--accent);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
 
-        /* PIPELINE */
-        .pipeline { display: flex; align-items: center; gap: 6px; min-width: max-content; }
-        .pipe-node { padding: 4px 8px; font-family: var(--font-mono); font-size: 9px; border-radius: 4px; border: 1px solid; }
+    .badge-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: blink 2s infinite;
+    }
 
-        #boot-screen { height: 100vh; display: flex; align-items: center; padding: 16px; }
-        #boot-text { font-family: var(--font-mono); color: var(--accent); font-size: 10px; white-space: pre-wrap; line-height: 1.6; }
+    @keyframes blink {
+      0%,100% { opacity:1; } 50% { opacity:0.2; }
+    }
 
-        /* DESKTOP FIXES */
-        @media (min-width: 768px) {
-            .container { padding: 24px; }
-            .header-title { font-size: 36px; }
-            .meta-data { flex-direction: row; justify-content: space-between; align-items: center; border-top: none; padding-top: 0; margin-top: 0; }
-            .meta-data p { text-align: right; }
-            .grid-2 { grid-template-columns: 1fr 1fr; }
-            .grid-4 { grid-template-columns: repeat(4, 1fr); }
-        }
-    </style>
+    .report-header h1 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+
+    .report-header h1 .hl { color: var(--accent); }
+
+    .report-subtitle {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      border-top: 1px solid var(--border2);
+      padding-top: 16px;
+    }
+
+    .meta-item {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+
+    .meta-item strong { color: var(--accent); margin-right: 5px; }
+
+    /* ── DISCLAIMER ── */
+    .disclaimer {
+      border: 1px solid rgba(245,158,11,0.3);
+      border-left: 2px solid var(--warn);
+      background: rgba(245,158,11,0.04);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #c4880a;
+      margin-bottom: 20px;
+      letter-spacing: 0.3px;
+      line-height: 1.6;
+    }
+
+    /* ── SECTION CARDS ── */
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      background: var(--surface);
+      position: relative;
+      animation: fadeUp 0.35s ease both;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, var(--accent2), transparent);
+      opacity: 0.4;
+    }
+
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(10px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    .card:nth-child(1){animation-delay:.05s}
+    .card:nth-child(2){animation-delay:.10s}
+    .card:nth-child(3){animation-delay:.15s}
+    .card:nth-child(4){animation-delay:.20s}
+    .card:nth-child(5){animation-delay:.25s}
+    .card:nth-child(6){animation-delay:.30s}
+    .card:nth-child(7){animation-delay:.35s}
+    .card:nth-child(8){animation-delay:.40s}
+
+    .card-header {
+      background: rgba(0,212,255,0.04);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-num {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--accent);
+      border: 1px solid var(--accent2);
+      width: 22px; height: 22px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .card-header h2 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--white);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .card-body { padding: 18px; }
+
+    /* ── PILLS ── */
+    .pill {
+      display: inline-block;
+      border-radius: 2px;
+      padding: 2px 8px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .pill-green  { background:rgba(0,255,179,0.1);  color:var(--accent3); border:1px solid rgba(0,255,179,0.3);  }
+    .pill-orange { background:rgba(245,158,11,0.1); color:var(--warn);    border:1px solid rgba(245,158,11,0.3); }
+    .pill-red    { background:rgba(255,51,85,0.1);  color:var(--danger);  border:1px solid rgba(255,51,85,0.3);  }
+    .pill-blue   { background:rgba(0,212,255,0.1);  color:var(--accent);  border:1px solid rgba(0,212,255,0.3);  }
+
+    /* ── KV METRIC GRID ── */
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .kv-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 12px 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kv-box::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; width: 2px; height: 100%;
+      background: var(--muted);
+    }
+
+    .kv-box.positive::after { background: var(--accent3); }
+    .kv-box.neutral::after  { background: var(--warn); }
+    .kv-box.negative::after { background: var(--danger); }
+    .kv-box.info::after     { background: var(--accent); }
+
+    .kv-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 8px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 5px;
+    }
+
+    .kv-value {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text2);
+      line-height: 1;
+    }
+
+    .kv-box.positive .kv-value { color: var(--accent3); }
+    .kv-box.neutral  .kv-value { color: var(--warn); }
+    .kv-box.negative .kv-value { color: var(--danger); }
+    .kv-box.info     .kv-value { color: var(--accent); }
+
+    .kv-note {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 8px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ── TABLE ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    th {
+      background: rgba(0,212,255,0.06);
+      color: var(--accent);
+      font-family: 'Share Tech Mono', monospace;
+      font-weight: 400;
+      text-align: left;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border2);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text2);
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(0,212,255,0.025); }
+    td.positive { color: var(--accent3); font-weight: 600; }
+    td.negative { color: var(--danger);  font-weight: 600; }
+    td.neutral  { color: var(--warn);    font-weight: 600; }
+
+    /* ── PIPELINE ── */
+    .pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0;
+      margin: 12px 0;
+    }
+
+    .pipeline-step {
+      background: rgba(0,212,255,0.07);
+      border: 1px solid var(--accent2);
+      color: var(--accent);
+      border-radius: 2px;
+      padding: 6px 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      white-space: nowrap;
+    }
+
+    .pipeline-arrow {
+      color: var(--accent2);
+      font-size: 14px;
+      padding: 0 6px;
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    /* ── CHECKLIST ── */
+    .checklist { list-style: none; padding: 0; }
+
+    .checklist li {
+      padding: 5px 0 5px 22px;
+      position: relative;
+      font-size: 12px;
+      color: var(--text2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .checklist li:last-child { border-bottom: none; }
+
+    .checklist li::before {
+      content: "✓";
+      position: absolute; left: 0;
+      color: var(--accent3);
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    .checklist li.warn::before  { content: "!"; color: var(--warn); }
+    .checklist li.info::before  { content: "·"; color: var(--accent); }
+    .checklist li.next::before  { content: "›"; color: var(--accent2); }
+    .checklist li.error::before { content: "✗"; color: var(--danger); }
+
+    /* ── RISK CARDS ── */
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .risk-box {
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--warn);
+      background: rgba(245,158,11,0.03);
+      border-radius: 2px;
+      padding: 10px 12px;
+    }
+
+    .risk-box.red { border-left-color: var(--danger); background: rgba(255,51,85,0.03); }
+    .risk-box.green { border-left-color: var(--accent3); background: rgba(0,255,179,0.03); }
+
+    .risk-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--white);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .risk-desc { font-size: 11px; color: var(--text); line-height: 1.5; }
+
+    /* ── STRENGTH GRID ── */
+    .strength-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .strength-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 12px 14px;
+      transition: border-color 0.2s;
+    }
+
+    .strength-box:hover { border-color: var(--border2); }
+
+    .strength-box .icon { font-size: 18px; margin-bottom: 6px; }
+
+    .s-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent3);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .s-desc { font-size: 11px; color: var(--text); line-height: 1.5; }
+
+    /* ── MILESTONES ── */
+    .milestones { list-style: none; padding: 0; }
+
+    .milestones li {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .milestones li:last-child { border-bottom: none; }
+
+    .milestone-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 5px;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    .dot-done    { background: var(--accent3); color: var(--accent3); }
+    .dot-active  { background: var(--accent);  color: var(--accent); }
+    .dot-pending { background: var(--warn);    color: var(--warn); }
+    .dot-future  { background: var(--muted);   color: var(--muted); box-shadow: none; }
+
+    .milestone-text { font-size: 12px; color: var(--text); line-height: 1.5; }
+
+    .milestone-text strong {
+      display: block;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--white);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    /* ── NOTE / GATE BOXES ── */
+    .note-warn {
+      border: 1px solid rgba(245,158,11,0.25);
+      border-left: 2px solid var(--warn);
+      background: rgba(245,158,11,0.04);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #c4880a;
+      margin-top: 14px;
+      line-height: 1.6;
+    }
+
+    .note-warn strong { color: var(--warn); }
+
+    .note-success {
+      border: 1px solid rgba(0,255,179,0.2);
+      border-left: 2px solid var(--accent3);
+      background: rgba(0,255,179,0.03);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #009966;
+      margin-top: 14px;
+      line-height: 1.6;
+    }
+
+    .note-success strong { color: var(--accent3); }
+
+    .note-info {
+      border: 1px solid rgba(0,212,255,0.2);
+      border-left: 2px solid var(--accent);
+      background: rgba(0,212,255,0.03);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--text);
+      margin-top: 14px;
+      line-height: 1.6;
+    }
+
+    .note-info strong { color: var(--accent); }
+
+    /* ── SECTION LABEL DIVIDER ── */
+    .section-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin: 16px 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── CONTEXT BOX ── */
+    .context-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 8px 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      letter-spacing: 0.3px;
+      line-height: 1.6;
+    }
+
+    /* ── PROGRESS BAR ── */
+    .progress-bar {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      height: 6px;
+      overflow: hidden;
+      margin: 8px 0 4px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent2), var(--accent3));
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .progress-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+
+    /* ── FOOTER ── */
+    .report-footer {
+      margin-top: 48px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: 0.5px;
+      line-height: 1.9;
+      position: relative;
+    }
+
+    .report-footer::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 160px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+    }
+
+    /* ════════════════════════════════════════════
+       RESPONSIVE — MOBILE FIRST
+    ════════════════════════════════════════════ */
+
+    /* Large tablets / small desktop */
+    @media (max-width: 860px) {
+      .kv-grid { grid-template-columns: repeat(3, 1fr); }
+      .strength-grid { grid-template-columns: repeat(2, 1fr); }
+      .risk-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Tablets */
+    @media (max-width: 640px) {
+      .page-wrapper { padding: 20px 14px 60px; }
+      .report-header { padding: 24px 18px 18px; }
+      .report-header h1 { font-size: 24px; }
+      .report-subtitle { font-size: 9px; }
+      .card-body { padding: 14px; }
+      .kv-grid { grid-template-columns: repeat(2, 1fr); }
+      .strength-grid { grid-template-columns: repeat(2, 1fr); }
+      .risk-grid { grid-template-columns: 1fr; }
+      .pipeline { gap: 4px; }
+      .pipeline-arrow { display: none; }
+      .meta-row { gap: 12px; }
+      table { font-size: 11px; }
+      th { font-size: 8px; padding: 6px 10px; }
+      td { padding: 7px 10px; }
+    }
+
+    /* Mobile */
+    @media (max-width: 420px) {
+      .report-header h1 { font-size: 20px; letter-spacing: 1px; }
+      .kv-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .kv-value { font-size: 20px; }
+      .strength-grid { grid-template-columns: 1fr; }
+      .card-header h2 { font-size: 12px; }
+      .meta-row { flex-direction: column; gap: 8px; }
+    }
+
+    /* Print / PDF */
+    @media print {
+      body::before, body::after { display: none; }
+      body { background: #000; font-size: 12px; }
+      .card { animation: none; border: 1px solid #1a3a55; }
+      .page-wrapper { padding: 0; max-width: 100%; }
+      .report-header { padding: 24px; }
+      .card-body { padding: 14px; }
+    }
+  </style>
 </head>
 <body>
-    <div class="cyber-grid"></div>
+<div class="page-wrapper">
 
-    <div id="boot-screen">
-        <div style="width: 100%;">
-            <pre id="boot-text"></pre>
-        </div>
+  <!-- ══════════════════════════════════════════
+       HEADER
+       BRIEFER: replace all {{PLACEHOLDER}} values
+  ══════════════════════════════════════════ -->
+  <header class="report-header">
+    <div class="header-corner"></div>
+    <div class="header-watermark">WALKER.AI // {{REPORT_CODENAME}} // {{REPORT_DATE}}</div>
+
+    <div class="badge"><span class="badge-dot"></span>{{CONFIDENTIALITY_LABEL}}</div>
+    <h1>Walker AI <span class="hl">Trading</span></h1>
+    <p class="report-subtitle">{{SYSTEM_NAME}} · {{REPORT_SUBTITLE}}</p>
+
+    <div class="meta-row">
+      <div class="meta-item"><strong>OWNER</strong>{{OWNER}}</div>
+      <div class="meta-item"><strong>DATE</strong>{{REPORT_DATE}}</div>
+      <div class="meta-item"><strong>PHASE</strong>{{PHASE_LABEL}}</div>
+      <div class="meta-item"><strong>MODE</strong><span class="pill {{MODE_PILL_CLASS}}">{{MODE_LABEL}}</span></div>
     </div>
+  </header>
 
-    <div id="dashboard" class="container hidden">
-        
-        <!-- HEADER -->
-        <header class="glass-panel">
-            <div class="header-top">
-                <span class="badge badge-accent"><span class="pulse-dot"></span>{{HEADER_BADGE_1}}</span>
-                <span class="badge badge-warn">{{HEADER_BADGE_2}}</span>
-            </div>
-            <h1 class="header-title">{{PROJECT_NAME}} <span class="text-accent">{{PROJECT_SUFFIX}}</span></h1>
-            <p class="font-mono text-muted" style="font-size: 10px; margin-bottom: 12px;">{{REPORT_SUBTITLE}}</p>
-            
-            <div class="meta-data">
-                <p><span class="text-muted">OWNER:</span> <span class="text-accent">{{META_OWNER}}</span></p>
-                <p><span class="text-muted">DATE:</span> <span class="text-main">{{META_DATE}}</span></p>
-                <p><span class="text-muted">STATUS:</span> <span class="text-success">{{META_STATUS}}</span></p>
-            </div>
-        </header>
+  <!-- ══════════════════════════════════════════
+       DISCLAIMER (remove if not needed)
+  ══════════════════════════════════════════ -->
+  <div class="disclaimer">
+    ⚠ NOTICE — {{DISCLAIMER_TEXT}}
+  </div>
 
-        <!-- TABS -->
-        <nav class="tabs-nav">
-            <button class="tab-btn active" onclick="switchTab('overview', this)">01_OVERVIEW</button>
-            <button class="tab-btn" onclick="switchTab('execution', this)">02_EXECUTION</button>
-            <button class="tab-btn" onclick="switchTab('risk', this)">03_RISK_&_LOGS</button>
-        </nav>
+  <!-- ══════════════════════════════════════════
+       SECTION TEMPLATE — Copy & repeat as needed
+       Available section types below ↓
+  ══════════════════════════════════════════ -->
 
-        <!-- TAB 1: OVERVIEW -->
-        <div id="tab-overview" class="tab-content active">
-            <div class="glass-panel">
-                <h2 style="font-size: 16px; margin-bottom: 12px;"><span class="text-accent">///</span> {{EXEC_TITLE}}</h2>
-                <p style="font-size: 12px; color: var(--text-dim); margin-bottom: 12px;">{{EXEC_PARAGRAPH_1}}</p>
-                <p style="font-size: 12px; color: var(--text-dim);">{{EXEC_PARAGRAPH_2}}</p>
-                <div class="notice-box">⚠ {{NOTICE_TEXT}}</div>
-            </div>
-                
-            <div class="grid-2">
-                <div class="metric-card success"><span class="m-label">{{KPI_1_LABEL}}</span><span class="m-val">{{KPI_1_VALUE}}</span><span class="m-note">{{KPI_1_NOTE}}</span></div>
-                <div class="metric-card warn"><span class="m-label">{{KPI_2_LABEL}}</span><span class="m-val">{{KPI_2_VALUE}}</span><span class="m-note">{{KPI_2_NOTE}}</span></div>
-            </div>
-
-            <div class="glass-panel" style="margin-top: 12px;">
-                <h2 style="font-size: 14px; margin-bottom: 12px;">{{PERF_GRID_TITLE}}</h2>
-                <div class="grid-2">
-                    <div class="metric-card success"><span class="m-label">{{METRIC_1_LABEL}}</span><span class="m-val">{{METRIC_1_VALUE}}</span><span class="m-note">{{METRIC_1_NOTE}}</span></div>
-                    <div class="metric-card success"><span class="m-label">{{METRIC_2_LABEL}}</span><span class="m-val">{{METRIC_2_VALUE}}</span><span class="m-note">{{METRIC_2_NOTE}}</span></div>
-                    <div class="metric-card warn"><span class="m-label">{{METRIC_3_LABEL}}</span><span class="m-val">{{METRIC_3_VALUE}}</span><span class="m-note">{{METRIC_3_NOTE}}</span></div>
-                    <div class="metric-card muted"><span class="m-label">{{METRIC_4_LABEL}}</span><span class="m-val" style="color:var(--text-main)">{{METRIC_4_VALUE}}</span><span class="m-note">{{METRIC_4_NOTE}}</span></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 2: EXECUTION -->
-        <div id="tab-execution" class="tab-content">
-            <div class="glass-panel">
-                <div class="m-label mb-4">{{PIPELINE_TITLE}}</div>
-                <div class="scroll-x">
-                    <div class="pipeline">
-                        <div class="pipe-node badge-accent">{{PIPE_NODE_1}}</div><div class="text-muted">→</div>
-                        <div class="pipe-node badge-accent">{{PIPE_NODE_2}}</div><div class="text-muted">→</div>
-                        <div class="pipe-node badge-warn">{{PIPE_NODE_3}}</div><div class="text-muted">→</div>
-                        <div class="pipe-node" style="color:var(--success); border-color:var(--success); background:rgba(0,255,179,0.1)">{{PIPE_NODE_4}}</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="glass-panel">
-                <h3 style="font-size: 14px; margin-bottom: 16px;">{{FUNNEL_TITLE}}</h3>
-                <div class="prog-row"><div class="prog-labels"><span>{{BAR_1_LABEL}}</span><span class="text-success">{{BAR_1_VAL}} ({{BAR_1_PCT}}%)</span></div><div class="prog-track"><div class="prog-fill" style="width: {{BAR_1_PCT}}%; background: var(--success);"></div></div></div>
-                <div class="prog-row"><div class="prog-labels"><span>{{BAR_2_LABEL}}</span><span class="text-warn">{{BAR_2_VAL}} ({{BAR_2_PCT}}%)</span></div><div class="prog-track"><div class="prog-fill" style="width: {{BAR_2_PCT}}%; background: var(--warn);"></div></div></div>
-                <div class="prog-row"><div class="prog-labels"><span>{{BAR_3_LABEL}}</span><span class="text-danger">{{BAR_3_VAL}} ({{BAR_3_PCT}}%)</span></div><div class="prog-track"><div class="prog-fill" style="width: {{BAR_3_PCT}}%; background: var(--danger);"></div></div></div>
-            </div>
-
-            <div class="glass-panel">
-                <h3 style="font-size: 14px; margin-bottom: 12px;">{{BREAKDOWN_TITLE}}</h3>
-                <ul class="data-list">
-                    <li><span>{{LINE_1_LBL}}</span><strong class="text-success">{{LINE_1_VAL}}</strong></li>
-                    <li><span>{{LINE_2_LBL}}</span><strong class="text-warn">{{LINE_2_VAL}}</strong></li>
-                    <li><span>{{LINE_3_LBL}}</span><strong class="text-danger">{{LINE_3_VAL}}</strong></li>
-                </ul>
-            </div>
-        </div>
-
-        <!-- TAB 3: RISK -->
-        <div id="tab-risk" class="tab-content">
-            <div class="glass-panel">
-                <h3 style="font-size: 14px; margin-bottom: 12px;" class="text-success">{{LEFT_CARD_TITLE}}</h3>
-                <ul class="data-list">
-                    <li><span>{{LIST_1_KEY}}</span><span class="text-success">[{{LIST_1_VAL}}]</span></li>
-                    <li><span>{{LIST_2_KEY}}</span><span class="text-success">[{{LIST_2_VAL}}]</span></li>
-                </ul>
-            </div>
-
-            <div class="glass-panel" style="border-left: 2px solid var(--warn);">
-                <h3 style="font-size: 14px; margin-bottom: 12px;" class="text-warn">{{RIGHT_CARD_TITLE}}</h3>
-                <div style="margin-bottom: 12px;">
-                    <div class="font-mono text-warn" style="font-size: 10px; font-weight: bold; margin-bottom: 2px;">{{DETAIL_1_TITLE}}</div>
-                    <div style="font-size: 11px; color: var(--text-dim);">{{DETAIL_1_DESC}}</div>
-                </div>
-            </div>
-
-            <!-- TABLE -->
-            <div class="glass-panel">
-                <h3 style="font-size: 14px; margin-bottom: 12px;">{{TABLE_TITLE}}</h3>
-                <div class="scroll-x">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>{{TBL_HEAD_1}}</th><th>{{TBL_HEAD_2}}</th><th>{{TBL_HEAD_3}}</th><th style="text-align: right;">{{TBL_HEAD_4}}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>{{ROW_1_COL_1}}</td><td>{{ROW_1_COL_2}}</td><td>{{ROW_1_COL_3}}</td><td style="text-align: right;" class="text-success">[{{ROW_1_COL_4}}]</td>
-                            </tr>
-                            <tr>
-                                <td>{{ROW_2_COL_1}}</td><td>{{ROW_2_COL_2}}</td><td>{{ROW_2_COL_3}}</td><td style="text-align: right;" class="text-warn">[{{ROW_2_COL_4}}]</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+  <!-- SECTION: EXECUTIVE SUMMARY -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">01</div>
+      <h2>Executive Summary</h2>
     </div>
+    <div class="card-body">
+      <p style="color:var(--text);line-height:1.7;margin-bottom:16px;">
+        {{EXEC_SUMMARY_TEXT}}
+      </p>
 
-    <script>
-        const bootTextStr = "BOOT_SEQ_INIT...\nENV_CHECK: MOBILE_STRICT [OK]\nLOADING DATA...\n\nSYSTEM READY.";
-        const pre = document.getElementById('boot-text');
-        let i = 0;
-        
-        const bootInterval = setInterval(() => {
-            pre.textContent = bootTextStr.substring(0, i) + (i % 2 === 0 ? '█' : '');
-            i++;
-            if (i > bootTextStr.length) {
-                clearInterval(bootInterval); pre.textContent = bootTextStr;
-                setTimeout(() => { document.getElementById('boot-screen').classList.add('hidden'); document.getElementById('dashboard').classList.remove('hidden'); }, 400);
-            }
-        }, 15);
+      <!-- KV METRICS GRID -->
+      <div class="kv-grid">
+        <!-- Classes: positive | neutral | negative | info -->
+        <div class="kv-box positive">
+          <div class="kv-label">{{KV_LABEL_1}}</div>
+          <div class="kv-value">{{KV_VALUE_1}}</div>
+          <div class="kv-note">{{KV_NOTE_1}}</div>
+        </div>
+        <div class="kv-box neutral">
+          <div class="kv-label">{{KV_LABEL_2}}</div>
+          <div class="kv-value">{{KV_VALUE_2}}</div>
+          <div class="kv-note">{{KV_NOTE_2}}</div>
+        </div>
+        <div class="kv-box info">
+          <div class="kv-label">{{KV_LABEL_3}}</div>
+          <div class="kv-value">{{KV_VALUE_3}}</div>
+          <div class="kv-note">{{KV_NOTE_3}}</div>
+        </div>
+        <div class="kv-box negative">
+          <div class="kv-label">{{KV_LABEL_4}}</div>
+          <div class="kv-value">{{KV_VALUE_4}}</div>
+          <div class="kv-note">{{KV_NOTE_4}}</div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-        function switchTab(tabId, btnElement) {
-            const contents = document.getElementsByClassName('tab-content');
-            for (let i = 0; i < contents.length; i++) contents[i].classList.remove('active');
-            document.getElementById('tab-' + tabId).classList.add('active');
-            const btns = document.getElementsByClassName('tab-btn');
-            for (let i = 0; i < btns.length; i++) btns[i].classList.remove('active');
-            btnElement.classList.add('active');
-        }
-    </script>
+  <!-- SECTION: SYSTEM OVERVIEW WITH PIPELINE -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">02</div>
+      <h2>System Overview</h2>
+    </div>
+    <div class="card-body">
+      <div class="section-label">Execution Pipeline</div>
+      <div class="pipeline">
+        <div class="pipeline-step">DATA</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">STRATEGY</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">INTELLIGENCE</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">RISK</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">EXECUTION</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">MONITORING</div>
+      </div>
+
+      <!-- STATUS TABLE -->
+      <table>
+        <thead>
+          <tr><th>Component</th><th>Description</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong style="color:var(--white)">{{COMPONENT_1}}</strong></td>
+            <td>{{COMPONENT_1_DESC}}</td>
+            <td><span class="pill pill-green">{{COMPONENT_1_STATUS}}</span></td>
+          </tr>
+          <!-- Repeat <tr> rows as needed -->
+          <!-- pill classes: pill-green | pill-orange | pill-red | pill-blue -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION: PERFORMANCE / METRICS -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">03</div>
+      <h2>Performance Summary</h2>
+    </div>
+    <div class="card-body">
+      <div class="context-box">📌 {{PERFORMANCE_CONTEXT_NOTE}}</div>
+
+      <div class="kv-grid">
+        <!-- Add kv-box items here -->
+      </div>
+
+      <!-- Optional: progress bar -->
+      <div class="section-label" style="margin-top:16px;">Progress Toward Target</div>
+      <div class="progress-label">
+        <span>{{PROGRESS_LABEL}}</span>
+        <span style="color:var(--accent)">{{PROGRESS_VALUE}}</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:{{PROGRESS_PERCENT}}%"></div>
+      </div>
+
+      <!-- Optional: warning note -->
+      <div class="note-warn">
+        <strong>⚠ {{NOTE_TITLE}}</strong><br/>{{NOTE_TEXT}}
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION: DATA TABLE -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">04</div>
+      <h2>{{TABLE_SECTION_TITLE}}</h2>
+    </div>
+    <div class="card-body">
+      <div class="context-box">{{TABLE_CONTEXT}}</div>
+      <div class="section-label">{{TABLE_LABEL}}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>{{COL_1}}</th>
+            <th>{{COL_2}}</th>
+            <th>{{COL_3}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{{ROW_1_A}}</td>
+            <td class="positive">{{ROW_1_B}}</td>
+            <td>{{ROW_1_C}}</td>
+          </tr>
+          <!-- Repeat rows. td classes: positive | negative | neutral | (none) -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION: RISK & LIMITATIONS -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">05</div>
+      <h2>Risk &amp; Limitations</h2>
+    </div>
+    <div class="card-body">
+      <div class="section-label">Enforced Risk Controls</div>
+      <table>
+        <thead><tr><th>Rule</th><th>Value</th><th>Status</th></tr></thead>
+        <tbody>
+          <!-- Standard risk rules — keep these fixed for every report -->
+          <tr><td>Kelly Fraction (α)</td><td>0.25 — fractional only</td><td><span class="pill pill-green">Enforced</span></td></tr>
+          <tr><td>Max Position Size</td><td>≤ 10% of total capital</td><td><span class="pill pill-green">Enforced</span></td></tr>
+          <tr><td>Daily Loss Limit</td><td>−$2,000 hard stop</td><td><span class="pill pill-green">Enforced</span></td></tr>
+          <tr><td>Drawdown Circuit-Breaker</td><td>&gt; 8% → auto-halt</td><td><span class="pill pill-green">Enforced</span></td></tr>
+          <tr><td>Signal Deduplication</td><td>Per (market, side, price, size)</td><td><span class="pill pill-green">Enforced</span></td></tr>
+          <tr><td>Kill Switch</td><td>Telegram-accessible, immediate halt</td><td><span class="pill pill-green">Available</span></td></tr>
+          <!-- Add phase-specific rows here -->
+        </tbody>
+      </table>
+
+      <div class="section-label" style="margin-top:16px;">Known Limitations</div>
+      <div class="risk-grid">
+        <!-- risk-box classes: (default=amber) | red | green -->
+        <div class="risk-box red">
+          <div class="risk-title">{{RISK_1_TITLE}}</div>
+          <div class="risk-desc">{{RISK_1_DESC}}</div>
+        </div>
+        <div class="risk-box">
+          <div class="risk-title">{{RISK_2_TITLE}}</div>
+          <div class="risk-desc">{{RISK_2_DESC}}</div>
+        </div>
+        <!-- Add more risk-box items as needed -->
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION: STRENGTHS -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">06</div>
+      <h2>System Strengths</h2>
+    </div>
+    <div class="card-body">
+      <div class="strength-grid">
+        <div class="strength-box">
+          <div class="icon">{{ICON_1}}</div>
+          <div class="s-title">{{STRENGTH_1_TITLE}}</div>
+          <div class="s-desc">{{STRENGTH_1_DESC}}</div>
+        </div>
+        <!-- Repeat strength-box as needed -->
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION: MILESTONES -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">07</div>
+      <h2>Next Milestones</h2>
+    </div>
+    <div class="card-body">
+      <ul class="milestones">
+        <!-- dot classes: dot-done | dot-active | dot-pending | dot-future -->
+        <li>
+          <div class="milestone-dot dot-pending"></div>
+          <div class="milestone-text">
+            <strong>{{MILESTONE_1_TITLE}}</strong>
+            {{MILESTONE_1_DESC}}
+          </div>
+        </li>
+        <!-- Repeat <li> as needed -->
+      </ul>
+      <div class="note-success">
+        <strong>✓ GATE CRITERIA</strong><br/>{{GATE_CRITERIA_TEXT}}
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION: VALIDATION HISTORY (SENTINEL) -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num" style="color:var(--accent3);border-color:var(--accent3);">✓</div>
+      <h2>Validation History — SENTINEL Reports</h2>
+    </div>
+    <div class="card-body">
+      <table>
+        <thead>
+          <tr><th>Phase</th><th>Title</th><th>Tests</th><th>Verdict</th></tr>
+        </thead>
+        <tbody>
+          <!-- Add rows per SENTINEL report -->
+          <tr>
+            <td>{{SENTINEL_PHASE}}</td>
+            <td>{{SENTINEL_TITLE}}</td>
+            <td>{{SENTINEL_TESTS}}</td>
+            <td><span class="pill pill-green">{{SENTINEL_VERDICT}}</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       CHECKLIST SECTION (optional)
+  ══════════════════════════════════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">08</div>
+      <h2>{{CHECKLIST_TITLE}}</h2>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <!-- li classes: (default=done) | warn | info | next | error -->
+        <li>{{CHECKLIST_ITEM_1}}</li>
+        <li class="warn">{{CHECKLIST_ITEM_2}}</li>
+        <li class="next">{{CHECKLIST_ITEM_3}}</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       FOOTER
+  ══════════════════════════════════════════ -->
+  <footer class="report-footer">
+    <p>
+      WALKER AI TRADING TEAM · {{SYSTEM_NAME}} · {{REPORT_TITLE}}<br/>
+      Generated: {{REPORT_DATE}} · Owner: {{OWNER}}<br/><br/>
+      {{FOOTER_DISCLAIMER}}
+    </p>
+  </footer>
+
+</div>
 </body>
 </html>
-
-
