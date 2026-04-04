@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-04
-Status: Phase 24.3f Telegram private mode enabled. Trade, validation, and snapshot notifications now route to private DM chat_id captured from /start; staging validation run remains active. Next report: projects/polymarket/polyquantbot/reports/forge/24_3f_telegram_private_mode.md
+Status: Phase 24.3h UI architecture refactor delivered for Telegram HOME / PORTFOLIO / WALLET / PERFORMANCE separation with dedicated formatter routing and duplication removal. Next report: projects/polymarket/polyquantbot/reports/forge/24_3h_ui_architecture.md
 
 ---
 
@@ -68,6 +68,12 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+UI ARCHITECTURE REFACTOR (Phase 24.3h)
+
+- projects/polymarket/polyquantbot/utils/ui_formatter.py (NEW): Added modular Telegram UI builders `build_home`, `build_portfolio`, `build_wallet`, `build_performance` with strict section separation and missing-field-safe fallbacks.
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Added UI route map (`/home`, `/portfolio`, `/wallet`, `/performance`) and command-scoped data mapping to enforce zero duplication between menus.
+- projects/polymarket/polyquantbot/reports/forge/24_3h_ui_architecture.md (NEW): completion report.
 
 TELEGRAM PRIVATE MODE (Phase 24.3f)
 
@@ -717,6 +723,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- UI architecture validation run (staging) — manual Telegram view verification for `/home`, `/portfolio`, `/wallet`, `/performance`
 - **Validation run (staging)** — Telegram private mode (Phase 24.3f) active with market intelligence shadow layer + snapshot system; collecting DM delivery checks, uptime, and state/snapshot telemetry
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
 - Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
@@ -746,11 +753,11 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Phase 24.4 analysis** — truth extraction and threshold calibration (WR/PF/MDD) using 24h validation snapshots + last_pnl
-2. **Performance breakdown per market type** — compute PnL and win-rate slices by `market_type` using shadow telemetry
+1. **Performance analysis** — validate UI-driven telemetry readability and operator workflow speed from staging interactions
+2. **Phase 24.4 analysis** — truth extraction and threshold calibration (WR/PF/MDD) using 24h validation snapshots + last_pnl
 3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-4. SENTINEL validation required for telegram private mode before merge.
-   Source: projects/polymarket/polyquantbot/reports/forge/24_3f_telegram_private_mode.md
+4. SENTINEL validation required for UI architecture refactor before merge.
+   Source: projects/polymarket/polyquantbot/reports/forge/24_3h_ui_architecture.md
 
 ---
 

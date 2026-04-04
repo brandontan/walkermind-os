@@ -88,6 +88,12 @@ from ...monitoring.validation_engine import ValidationEngine, ValidationState
 from ...monitoring.snapshot_engine import SnapshotEngine
 from ...strategy.market_intelligence import MarketIntelligenceEngine
 from ...telegram.utils import telegram_sender
+from ...utils.ui_formatter import (
+    build_home,
+    build_performance,
+    build_portfolio,
+    build_wallet,
+)
 from ..validation_state import ValidationStateStore
 from ..logging.logger import (
     log_market_metadata_used,
@@ -125,6 +131,36 @@ _FAST_LOOP_GUARD_S: float = 0.5         # if a tick finishes in < 0.5 s, force a
 _MAX_MARKETS_PER_TICK: int = 50         # expanded from 20 → 50 for broader market coverage
 _NO_TRADE_FALLBACK_S: float = 1800.0    # 30 minutes — activate force mode when no trade in this window
 _FORCE_TRADE_COOLDOWN_S: float = 300.0  # 5 minutes per-market guard when in force-trade fallback
+
+
+def build_ui_view(command: str, data: dict[str, Any]) -> str:
+    """Route UI command to the correct formatter with safe fallback."""
+    normalized = command.strip().lower()
+    if normalized == "/home":
+        return build_home(data)
+    if normalized == "/portfolio":
+        return build_portfolio(data)
+    if normalized == "/wallet":
+        return build_wallet(data)
+    if normalized == "/performance":
+        return build_performance(data)
+    return build_home(data)
+
+
+def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
+    """Return command-scoped data to enforce no duplication between views."""
+    normalized = command.strip().lower()
+    if normalized == "/home":
+        keys = {"status", "mode", "markets", "latency", "strategy", "scan", "distribution", "insight"}
+    elif normalized == "/portfolio":
+        keys = {"positions", "exposure", "side", "risk", "market", "entry", "size", "pnl"}
+    elif normalized == "/wallet":
+        keys = {"balance", "equity", "used", "free", "margin"}
+    elif normalized == "/performance":
+        keys = {"realized", "unreal", "wr", "pf"}
+    else:
+        keys = set(source.keys())
+    return {key: source.get(key) for key in keys}
 
 
 def _env_float(name: str, default: float) -> float:
