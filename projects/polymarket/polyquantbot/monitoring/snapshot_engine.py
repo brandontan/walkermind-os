@@ -32,7 +32,19 @@ class SnapshotEngine:
         except (TypeError, ValueError):
             return default
 
-    def build_snapshot(self, metrics: dict[str, Any], state: str) -> dict[str, Any]:
+    def _to_distribution(self, value: Any) -> dict[str, int]:
+        """Normalize market distribution payload into ``dict[str, int]``."""
+        if not isinstance(value, dict):
+            return {}
+        return {str(k): self._to_int(v, 0) for k, v in value.items()}
+
+    def build_snapshot(
+        self,
+        metrics: dict[str, Any],
+        state: str,
+        market_distribution: dict[str, int] | None = None,
+        trade_distribution: dict[str, int] | None = None,
+    ) -> dict[str, Any]:
         """Return periodic validation snapshot payload with safe defaults."""
         try:
             _metrics = metrics if isinstance(metrics, dict) else {}
@@ -43,6 +55,8 @@ class SnapshotEngine:
                 "drawdown": self._to_float(_metrics.get("max_drawdown", 0.0), 0.0),
                 "state": str(state) if state is not None else "UNKNOWN",
                 "last_pnl": self._to_float(_metrics.get("last_pnl", 0.0), 0.0),
+                "market_distribution": self._to_distribution(market_distribution),
+                "trade_distribution": self._to_distribution(trade_distribution),
             }
         except Exception:
             return {
@@ -52,4 +66,6 @@ class SnapshotEngine:
                 "drawdown": 0.0,
                 "state": str(state) if state is not None else "UNKNOWN",
                 "last_pnl": 0.0,
+                "market_distribution": {},
+                "trade_distribution": {},
             }

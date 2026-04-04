@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-04
-Status: Phase 24.3d3 validation snapshot system added. Periodic system snapshots now emit every ~10 minutes from the validation path for real-time trend visibility without execution-path impact. 24h validation run remains active in staging. Next report: projects/polymarket/polyquantbot/reports/forge/24_3d3_validation_snapshot.md
+Status: Phase 24.3e market intelligence layer added in shadow-only mode. Market-type telemetry now logs and snapshots distribution data without affecting signal, risk, validation, or execution decisions. Validation run remains active in staging. Next report: projects/polymarket/polyquantbot/reports/forge/24_3e_market_intelligence.md
 
 ---
 
@@ -68,6 +68,14 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+MARKET INTELLIGENCE LAYER (Phase 24.3e)
+
+- projects/polymarket/polyquantbot/strategy/market_classifier.py (NEW): Added `MarketClassifier.classify(market)` with BONDS/HIGH_LIQUIDITY/SHORT_TERM/LONG_TERM/GENERAL classification and safe missing-field handling
+- projects/polymarket/polyquantbot/strategy/market_intelligence.py (NEW): Added `MarketIntelligenceEngine.analyze(market, signal=None)` to attach `market_type`, `tags`, optional `confidence`, and `signal_present`
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Integrated shadow-only intelligence analysis after market normalization and before signal generation; emits `market_intelligence` logs per market; tracks `trade_distribution` per market_type after successful fills
+- projects/polymarket/polyquantbot/monitoring/snapshot_engine.py (MODIFIED): Snapshot payload extended with `market_distribution` and `trade_distribution`
+- projects/polymarket/polyquantbot/reports/forge/24_3e_market_intelligence.md (NEW): completion report
 
 VALIDATION SNAPSHOT SYSTEM (Phase 24.3d3)
 
@@ -702,7 +710,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
-- **24h validation observation run** — Snapshot system + Telegram UX improvements deployed (Phase 24.3d3/24.3d2); run active in staging; collecting: uptime stats, crash count, validation state distribution, WR/PF/last_pnl/trade_count metrics and 10-minute snapshot trend logs
+- **24h validation observation run** — Market intelligence shadow layer (Phase 24.3e) + snapshot system + Telegram UX improvements deployed; run active in staging; collecting uptime, state distribution, snapshot trend logs, and market_type distribution telemetry
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
 - Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
 - Wire StrategyStateManager(db=db) into main.py startup and save(db=db) after every Telegram toggle
@@ -731,16 +739,17 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Phase 24.4 — Truth extraction** — calibrate WR/PF/MDD thresholds against 24h run data; use `last_pnl` + periodic snapshot logs for threshold tuning
-2. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-3. **Wire LIVE/CLOB closed-trade hook** — `_run_closed_validation_hook` must be called from `execution/clob_executor.py` close path for real-money fills
-4. SENTINEL validation required for validation snapshot system before merge.
-   Source: projects/polymarket/polyquantbot/reports/forge/24_3d3_validation_snapshot.md
+1. **Performance breakdown per market type** — compute PnL and win-rate slices by `market_type` using new shadow telemetry
+2. **Phase 24.4 — Truth extraction** — calibrate WR/PF/MDD thresholds against 24h run data; use `last_pnl` + periodic snapshot logs for threshold tuning
+3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
+4. SENTINEL validation required for market intelligence layer before merge.
+   Source: projects/polymarket/polyquantbot/reports/forge/24_3e_market_intelligence.md
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- `docs/CLAUDE.md` referenced by process checklist is missing from repository
 - **LIVE path closed-trade PnL hook missing** — `_run_closed_validation_hook` is wired only in the PAPER close-order pipeline; LIVE mode CLOB executor close events do not yet feed realized PnL into PerformanceTracker
 - ValidationEngine thresholds (WR≥0.70, PF≥1.5, MDD≤0.08) are hardcoded from knowledge base — require calibration against live paper trading data before LIVE deployment
 - `test_tl04` (PRE-EXISTING): market dict extra fields from `ingest_markets()` — cosmetic mismatch in test assertion
