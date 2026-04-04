@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Phase 23.1 Client Update — PolyQuantBot - Walker AI</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #020508;
+            --surface: rgba(10, 16, 23, 0.8);
+            --surface2: #111b27;
+            --border: #1a2c40;
+            --accent: #00d4ff;
+            --success: #00ffb3;
+            --warn: #f59e0b;
+            --danger: #ff3355;
+            --muted: #4b6982;
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            --font-sans: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-disp: 'Rajdhani', sans-serif;
+        }
+
+        /* STRICT VIEWPORT ENFORCEMENT */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; max-width: 100vw; overflow-x: hidden; background-color: var(--bg); color: var(--text-main); font-family: var(--font-sans); line-height: 1.4; -webkit-text-size-adjust: 100%; }
+
+        .cyber-grid { position: fixed; inset: 0; z-index: 0; opacity: 0.5; pointer-events: none; background-image: linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px); background-size: 32px 32px; }
+        
+        .container { width: 100%; padding: 12px; margin: 0 auto; position: relative; z-index: 10; max-width: 1000px; }
+        .hidden { display: none !important; }
+        
+        /* RESPONSIVE PANELS */
+        .glass-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            width: 100%;
+            overflow: hidden; /* Kunci overflow */
+        }
+
+        h1, h2, h3 { font-family: var(--font-disp); text-transform: uppercase; letter-spacing: 0.05em; word-wrap: break-word; }
+        .text-accent { color: var(--accent); } .text-success { color: var(--success); } .text-warn { color: var(--warn); } .text-danger { color: var(--danger); } .text-muted { color: var(--muted); }
+        .font-mono { font-family: var(--font-mono); }
+
+        /* HEADER */
+        .header-top { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .badge { font-family: var(--font-mono); font-size: 9px; padding: 4px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+        .badge-accent { color: var(--accent); border: 1px solid rgba(0,212,255,0.3); background: rgba(0,212,255,0.1); }
+        .badge-warn { color: var(--warn); border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); }
+        .pulse-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .header-title { font-size: 24px; font-weight: 700; margin-bottom: 4px; color: #fff; line-height: 1.1; }
+        .meta-data { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+        .meta-data p { font-family: var(--font-mono); font-size: 10px; }
+
+        /* SCROLLABLE TABS */
+        .tabs-nav { display: flex; flex-wrap: nowrap; overflow-x: auto; border-bottom: 1px solid var(--border); margin-bottom: 16px; padding-bottom: 1px; -webkit-overflow-scrolling: touch; }
+        .tab-btn { background: transparent; border: none; color: var(--muted); padding: 12px; font-family: var(--font-mono); font-size: 10px; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; flex: 0 0 auto; }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: rgba(0,212,255,0.05); }
+        .tab-content { display: none; animation: fadeUp 0.3s ease-out forwards; }
+        .tab-content.active { display: block; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* GRIDS (MOBILE FIRST) */
+        .grid-1, .grid-2, .grid-4 { display: grid; grid-template-columns: 1fr; gap: 12px; width: 100%; }
+        
+        /* METRIC CARDS */
+        .metric-card { padding: 12px; background: var(--surface2); border-left: 2px solid; border-radius: 0 4px 4px 0; }
+        .metric-card.success { border-color: var(--success); } .metric-card.warn { border-color: var(--warn); } .metric-card.accent { border-color: var(--accent); } .metric-card.danger { border-color: var(--danger); } .metric-card.muted { border-color: var(--muted); }
+        .m-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; display: block; }
+        .m-val { font-family: var(--font-disp); font-size: 20px; font-weight: 700; line-height: 1; }
+        .success .m-val { color: var(--success); } .warn .m-val { color: var(--warn); } .accent .m-val { color: var(--accent); }
+        .m-note { font-family: var(--font-mono); font-size: 8px; color: var(--text-dim); margin-top: 4px; display: block; }
+
+        .notice-box { margin-top: 16px; padding: 12px; border-left: 2px solid var(--warn); background: rgba(245,158,11,0.05); font-family: var(--font-mono); font-size: 10px; color: var(--warn); line-height: 1.4; }
+
+        /* PROGRESS BARS */
+        .prog-row { margin-bottom: 12px; width: 100%; }
+        .prog-labels { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 9px; margin-bottom: 4px; width: 100%; }
+        .prog-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; width: 100%; }
+        .prog-fill { height: 100%; }
+
+        /* ISOLATED HORIZONTAL SCROLL FOR WIDE ELEMENTS */
+        .scroll-x { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+        
+        .data-list { list-style: none; }
+        .data-list li { display: flex; justify-content: space-between; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--border); font-family: var(--font-mono); font-size: 10px; gap: 8px; }
+        .data-list span:first-child { flex: 1; }
+        .data-list span:last-child { white-space: nowrap; text-align: right; }
+
+        /* SAFE TABLE */
+        table { width: 100%; min-width: 400px; border-collapse: collapse; font-family: var(--font-mono); font-size: 9px; text-align: left; }
+        th { color: var(--muted); padding-bottom: 8px; border-bottom: 1px solid var(--border); font-weight: normal; }
+        td { padding: 8px 4px; border-bottom: 1px solid rgba(26,44,64,0.3); }
+
+        /* PIPELINE */
+        .pipeline { display: flex; align-items: center; gap: 6px; min-width: max-content; }
+        .pipe-node { padding: 4px 8px; font-family: var(--font-mono); font-size: 9px; border-radius: 4px; border: 1px solid; }
+
+        #boot-screen { height: 100vh; display: flex; align-items: center; padding: 16px; }
+        #boot-text { font-family: var(--font-mono); color: var(--accent); font-size: 10px; white-space: pre-wrap; line-height: 1.6; }
+
+        /* DESKTOP FIXES */
+        @media (min-width: 768px) {
+            .container { padding: 24px; }
+            .header-title { font-size: 36px; }
+            .meta-data { flex-direction: row; justify-content: space-between; align-items: center; border-top: none; padding-top: 0; margin-top: 0; }
+            .meta-data p { text-align: right; }
+            .grid-2 { grid-template-columns: 1fr 1fr; }
+            .grid-4 { grid-template-columns: repeat(4, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="cyber-grid"></div>
+
+    <div id="boot-screen">
+        <div style="width: 100%;">
+            <pre id="boot-text"></pre>
+        </div>
+    </div>
+
+    <div id="dashboard" class="container hidden">
+        
+        <!-- HEADER -->
+        <header class="glass-panel">
+            <div class="header-top">
+                <span class="badge badge-accent"><span class="pulse-dot"></span>PAPER TRADING ACTIVE</span>
+                <span class="badge badge-warn">Phase 23.1 — Simulation Mode</span>
+            </div>
+            <h1 class="header-title">PolyQuantBot <span class="text-accent">Phase 23.1</span></h1>
+            <p class="font-mono text-muted" style="font-size: 10px; margin-bottom: 12px;">Client Update — UI V3 Launch &amp; Paper Trading Activation</p>
+            
+            <div class="meta-data">
+                <p><span class="text-muted">OWNER:</span> <span class="text-accent">Bayue Walker</span></p>
+                <p><span class="text-muted">DATE:</span> <span class="text-main">April 2026</span></p>
+                <p><span class="text-muted">STATUS:</span> <span class="text-success">PAPER TRADING ACTIVE</span></p>
+            </div>
+        </header>
+
+        <!-- TABS -->
+        <nav class="tabs-nav">
+            <button class="tab-btn active" onclick="switchTab('overview', this)">01_EXECUTIVE_SUMMARY</button>
+            <button class="tab-btn" onclick="switchTab('execution', this)">02_CAPABILITIES &amp; NEXT STEPS</button>
+            <button class="tab-btn" onclick="switchTab('risk', this)">03_SAFETY &amp; RISK</button>
+        </nav>
+
+        <!-- TAB 1: EXECUTIVE SUMMARY -->
+        <div id="tab-overview" class="tab-content active">
+            <div class="glass-panel">
+                <h2 style="font-size: 16px; margin-bottom: 12px;"><span class="text-accent">///</span> Executive Summary</h2>
+                <p style="font-size: 12px; color: var(--text-dim); margin-bottom: 12px;">The PolyQuantBot system has completed Phase 23.1, a major milestone in its development. The trading interface (UI V3) has been launched with a cleaner, more informative display, and the system is now actively running in paper trading mode — executing simulated trades using real market data with zero real capital at risk.</p>
+                <p style="font-size: 12px; color: var(--text-dim);">All core components are operational end-to-end: market data collection, signal generation, risk evaluation, and simulated execution. The system is now in a controlled validation phase before any live capital deployment is considered.</p>
+                <div class="notice-box">⚠ PAPER TRADING ONLY — No real capital is at risk. All trades are simulated using live market data. Live capital deployment is not yet enabled and will only proceed after SENTINEL validation and formal go-live approval.</div>
+            </div>
+
+            <div class="grid-2">
+                <div class="metric-card success"><span class="m-label">System Status</span><span class="m-val">PAPER ACTIVE</span><span class="m-note">End-to-end pipeline operational — zero real capital at risk</span></div>
+                <div class="metric-card warn"><span class="m-label">Test Pass Rate</span><span class="m-val">1202/1204</span><span class="m-note">2 pre-existing failures — unrelated to this phase</span></div>
+            </div>
+
+            <div class="glass-panel" style="margin-top: 12px;">
+                <h2 style="font-size: 14px; margin-bottom: 12px;">System Performance Overview</h2>
+                <div class="grid-2">
+                    <div class="metric-card success"><span class="m-label">Markets Per Cycle</span><span class="m-val">50+</span><span class="m-note">Processes 50+ markets per tick (up from 20 in previous phase)</span></div>
+                    <div class="metric-card success"><span class="m-label">Market Data Pool</span><span class="m-val">500</span><span class="m-note">Monitors up to 500 markets with $10,000+ liquidity filter</span></div>
+                    <div class="metric-card warn"><span class="m-label">Trading Mode</span><span class="m-val">SIMULATION</span><span class="m-note">Paper mode active — real execution model, no real funds</span></div>
+                    <div class="metric-card muted"><span class="m-label">Phase</span><span class="m-val" style="color:var(--text-main)">23.1</span><span class="m-note">April 2026 — UI V3 + Paper Activation</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: SYSTEM CAPABILITIES & NEXT STEPS -->
+        <div id="tab-execution" class="tab-content">
+
+            <!-- SECTION 02: SYSTEM CAPABILITIES -->
+            <div class="glass-panel">
+                <div class="m-label" style="margin-bottom: 8px;">Trading System Pipeline</div>
+                <div class="scroll-x">
+                    <div class="pipeline">
+                        <div class="pipe-node badge-accent">DATA</div><div class="text-muted">→</div>
+                        <div class="pipe-node badge-accent">STRATEGY</div><div class="text-muted">→</div>
+                        <div class="pipe-node badge-warn">RISK</div><div class="text-muted">→</div>
+                        <div class="pipe-node" style="color:var(--success); border-color:var(--success); background:rgba(0,255,179,0.1)">EXECUTION</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <h3 style="font-size: 14px; margin-bottom: 16px;">Deployment Readiness</h3>
+                <div class="prog-row"><div class="prog-labels"><span>System Build &amp; Integration</span><span class="text-success">Complete (100%)</span></div><div class="prog-track"><div class="prog-fill" style="width: 100%; background: var(--success);"></div></div></div>
+                <div class="prog-row"><div class="prog-labels"><span>Paper Trading Validation</span><span class="text-warn">In Progress (60%)</span></div><div class="prog-track"><div class="prog-fill" style="width: 60%; background: var(--warn);"></div></div></div>
+                <div class="prog-row"><div class="prog-labels"><span>Live Capital Deployment</span><span class="text-danger">Not Yet Started (0%)</span></div><div class="prog-track"><div class="prog-fill" style="width: 0%; background: var(--danger);"></div></div></div>
+            </div>
+
+            <div class="glass-panel">
+                <h3 style="font-size: 14px; margin-bottom: 12px;">Capabilities Delivered in Phase 23.1</h3>
+                <ul class="data-list">
+                    <li><span>UI V3 Control Panel (KRUSADER v2.0 | Polymarket AI Trader)</span><strong class="text-success">DELIVERED</strong></li>
+                    <li><span>Market Coverage Expansion (up to 500 fetched, 50+ processed per tick)</span><strong class="text-success">DELIVERED</strong></li>
+                    <li><span>Synthetic Signal Engine with liquidity and spread filters</span><strong class="text-success">DELIVERED</strong></li>
+                    <li><span>Realistic Paper Execution (100–500ms delay, partial fills, slippage)</span><strong class="text-success">DELIVERED</strong></li>
+                    <li><span>Live Capital Trading</span><strong class="text-danger">NOT YET ENABLED</strong></li>
+                </ul>
+            </div>
+
+            <!-- SECTION 04: CURRENT STATUS & NEXT PHASE -->
+            <div class="glass-panel">
+                <h3 style="font-size: 14px; margin-bottom: 12px;">Current Status &amp; Next Phase</h3>
+                <p style="font-size: 12px; color: var(--text-dim); margin-bottom: 12px;">The system is currently operating in paper trading / simulation mode. The following milestones must be completed before any transition to live capital trading is considered.</p>
+                <ul class="data-list">
+                    <li><span>Execution Validation</span><span class="text-warn">NEXT STEP</span></li>
+                    <li><span>Stress Testing</span><span class="text-warn">PENDING</span></li>
+                    <li><span>SENTINEL Go-Live Validation</span><span class="text-warn">PENDING</span></li>
+                    <li><span>Controlled Live Capital Transition</span><span class="text-muted">PENDING — REQUIRES FORMAL APPROVAL</span></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- TAB 3: SAFETY & RISK CONTROLS -->
+        <div id="tab-risk" class="tab-content">
+
+            <!-- SECTION 03: SAFETY & RISK CONTROLS -->
+            <div class="glass-panel">
+                <h3 style="font-size: 14px; margin-bottom: 12px;" class="text-success">Safety Architecture</h3>
+                <ul class="data-list">
+                    <li><span>Current Mode</span><span class="text-success">[PAPER TRADING — ZERO REAL CAPITAL EXPOSURE]</span></li>
+                    <li><span>Kill Switch</span><span class="text-success">[ACTIVE — TELEGRAM-ACCESSIBLE, IMMEDIATE HALT]</span></li>
+                </ul>
+            </div>
+
+            <div class="glass-panel" style="border-left: 2px solid var(--warn);">
+                <h3 style="font-size: 14px; margin-bottom: 12px;" class="text-warn">Live Trading Gate — Not Yet Active</h3>
+                <div style="margin-bottom: 12px;">
+                    <div class="font-mono text-warn" style="font-size: 10px; font-weight: bold; margin-bottom: 2px;">NEXT STEP: SENTINEL VALIDATION</div>
+                    <div style="font-size: 11px; color: var(--text-dim);">Before any live capital is deployed, the system must pass a full SENTINEL go-live validation. This includes stress testing, execution validation, and formal risk compliance review. The client will be notified before any transition to live trading.</div>
+                </div>
+            </div>
+
+            <!-- RISK CONTROLS TABLE — FIXED VALUES, DO NOT MODIFY -->
+            <div class="glass-panel">
+                <h3 style="font-size: 14px; margin-bottom: 12px;">Risk Controls — Fixed Parameters</h3>
+                <div class="scroll-x">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Control</th><th>Rule</th><th>Value</th><th style="text-align: right;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Position Sizing</td><td>Fractional Kelly (α = 0.25)</td><td>25% of Kelly — conservative sizing only</td><td style="text-align: right;" class="text-success">[ENFORCED]</td>
+                            </tr>
+                            <tr>
+                                <td>Max Position Size</td><td>≤ 10% of capital</td><td>Hard cap per individual trade</td><td style="text-align: right;" class="text-success">[ENFORCED]</td>
+                            </tr>
+                            <tr>
+                                <td>Daily Loss Limit</td><td>−$2,000 hard stop</td><td>Automatic system halt on breach</td><td style="text-align: right;" class="text-success">[ENFORCED]</td>
+                            </tr>
+                            <tr>
+                                <td>Max Drawdown</td><td>&gt; 8% → system halt</td><td>Auto-stop on excess drawdown</td><td style="text-align: right;" class="text-success">[ENFORCED]</td>
+                            </tr>
+                            <tr>
+                                <td>Order Deduplication</td><td>Per (market, side, price, size)</td><td>Prevents duplicate order execution</td><td style="text-align: right;" class="text-success">[ENFORCED]</td>
+                            </tr>
+                            <tr>
+                                <td>Kill Switch</td><td>Telegram-accessible</td><td>Immediate full system halt</td><td style="text-align: right;" class="text-success">[ACTIVE]</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- FOOTER DISCLAIMER -->
+            <div class="notice-box">⚠ DISCLAIMER — This report is prepared for client review only. PolyQuantBot is currently operating in paper trading mode exclusively. No real capital has been deployed. All simulated trades and system statistics are based on paper trading only and do not represent actual financial results. Live capital deployment will only proceed after formal SENTINEL validation and explicit client authorization.</div>
+        </div>
+
+    </div>
+
+    <script>
+        const bootTextStr = "WALKER AI — POLYQUANTBOT\nPHASE 23.1 — CLIENT UPDATE\n\nINIT...\nPAPER TRADING: ACTIVE\nUI V3: DEPLOYED\nSYSTEM STATUS: COMPLETE\n\nLOADING REPORT...";
+        const pre = document.getElementById('boot-text');
+        let i = 0;
+        
+        const bootInterval = setInterval(() => {
+            pre.textContent = bootTextStr.substring(0, i) + (i % 2 === 0 ? '█' : '');
+            i++;
+            if (i > bootTextStr.length) {
+                clearInterval(bootInterval); pre.textContent = bootTextStr;
+                setTimeout(() => { document.getElementById('boot-screen').classList.add('hidden'); document.getElementById('dashboard').classList.remove('hidden'); }, 400);
+            }
+        }, 15);
+
+        function switchTab(tabId, btnElement) {
+            const contents = document.getElementsByClassName('tab-content');
+            for (let i = 0; i < contents.length; i++) contents[i].classList.remove('active');
+            document.getElementById('tab-' + tabId).classList.add('active');
+            const btns = document.getElementsByClassName('tab-btn');
+            for (let i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+            btnElement.classList.add('active');
+        }
+    </script>
+</body>
+</html>
