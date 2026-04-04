@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-04
-Status: Phase 24.3b logging hotfix applied. structlog.stdlib.add_logger_name removed from production processor chain — incompatible with PrintLogger. System startup crash resolved. 24h validation run reset and active. Two P1 gates remain for LIVE promotion: (1) CRITICAL→kill-switch wiring, (2) LIVE/CLOB closed-trade hook. Report: reports/forge/24_3b_logging_hotfix.md
+Status: Phase 24.3d2 Telegram validation UX improvement applied in staging. Validation alerts now emit clear state-based operator messages (INSUFFICIENT_DATA/HEALTHY/WARNING/CRITICAL) with safe metric fallbacks and state-change-only anti-spam behavior. 24h validation run remains active.
 
 ---
 
@@ -68,6 +68,12 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+TELEGRAM VALIDATION UX IMPROVEMENT (Phase 24.3d2)
+
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): `_emit_validation_result` now emits clean 3–5 line Telegram validation alerts for INSUFFICIENT_DATA / HEALTHY / WARNING / CRITICAL using metrics trade_count/win_rate/profit_factor/max_drawdown with safe `0` fallbacks for missing/None values
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Telegram validation alerts now fire on **state change only** to prevent spam; Telegram send failures remain log-only and non-blocking
+- projects/polymarket/polyquantbot/reports/forge/24_3d2_validation_telegram_ux.md (NEW): this phase's report
 
 LOGGING HOTFIX (Phase 24.3b)
 
@@ -685,6 +691,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- **Validation run (staging)** — active after Telegram UX improvement (Phase 24.3d2); monitoring clarity/readability of validation state transitions and operator response time from Telegram alerts
 - **24h validation observation run** — logging hotfix applied (Phase 24.3b); run reset and active in staging; collecting: uptime stats, crash count, validation state distribution, WR/PF/last_pnl metrics
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
 - Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
@@ -714,11 +721,13 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Phase 24.4 — Truth extraction** — calibrate WR/PF/MDD thresholds against 24h run data; use `last_pnl` field now available in validation_update logs
-2. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-3. **Wire LIVE/CLOB closed-trade hook** — `_run_closed_validation_hook` must be called from `execution/clob_executor.py` close path for real-money fills
-4. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
-5. Add WS disconnect CRITICAL alert to Telegram (currently only WARNING)
+1. **Snapshot system (Phase 24.4)** — implement and wire periodic validation snapshots for Telegram + operator review in staging
+2. **Phase 24.4 — Truth extraction** — calibrate WR/PF/MDD thresholds against 24h run data; use `last_pnl` field now available in validation_update logs
+3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
+4. **Wire LIVE/CLOB closed-trade hook** — `_run_closed_validation_hook` must be called from `execution/clob_executor.py` close path for real-money fills
+5. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
+6. Add WS disconnect CRITICAL alert to Telegram (currently only WARNING)
+7. SENTINEL validation required for telegram validation UX improvement before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_3d2_validation_telegram_ux.md
 
 ---
 
