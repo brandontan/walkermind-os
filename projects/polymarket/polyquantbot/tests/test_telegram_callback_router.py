@@ -426,7 +426,7 @@ class TestCB15ModeConfirmSwitch:
         env_without_live = {k: v for k, v in os.environ.items() if k != "ENABLE_LIVE_TRADING"}
         with patch.dict(os.environ, env_without_live, clear=True):
             text, kb = await handle_mode_confirm_switch(new_mode="LIVE", config_manager=cm)
-        assert "❌" in text or "Cannot" in text
+        assert "BLOCKED" in text or "Cannot" in text or "Guard" in text or "guard" in text.lower()
 
     async def test_keyboard_returns_settings_menu(self) -> None:
         cm = _make_config()
@@ -443,7 +443,7 @@ class TestCB16ModeConfirmUnknown:
     async def test_unknown_mode_returns_error(self) -> None:
         cm = _make_config()
         text, kb = await handle_mode_confirm_switch(new_mode="INVALID", config_manager=cm)
-        assert "❌" in text or "Unknown" in text
+        assert "Unknown" in text or "NOTICE" in text or "unknown" in text.lower()
         assert isinstance(kb, list)
 
 

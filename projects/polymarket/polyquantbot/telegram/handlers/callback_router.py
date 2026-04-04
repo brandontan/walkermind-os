@@ -44,6 +44,7 @@ from ..ui.screens import (
     error_screen,
     noop_screen,
 )
+from ..ui.components import render_kv_line, render_insight, SEP
 
 if TYPE_CHECKING:
     import aiohttp
@@ -453,15 +454,27 @@ class CallbackRouter:
             except ValueError:
                 log.warning("risk_set_invalid_value", raw=raw_value)
                 return (
-                    f"❌ Invalid risk value: `{raw_value}`\n"
-                    "Please select a button or use `/set_risk [0.10–1.00]`.",
+                    "\n".join([
+                        "⚠️ *SYSTEM NOTICE*",
+                        SEP,
+                        render_kv_line("STATUS", "Invalid value"),
+                        f"_Value `{raw_value}` is not a valid number._",
+                        SEP,
+                        render_insight("Select a preset or use /set_risk [0.10–1.00]"),
+                    ]),
                     build_risk_level_menu(),
                 )
             if requested < 0.10 or requested > 1.00:
                 log.warning("risk_set_out_of_range", requested=requested)
                 return (
-                    f"❌ Risk `{requested:.2f}` is out of range.\n"
-                    "Allowed: `0.10` – `1.00`",
+                    "\n".join([
+                        "⚠️ *SYSTEM NOTICE*",
+                        SEP,
+                        render_kv_line("REQUESTED", f"{requested:.2f}"),
+                        render_kv_line("ALLOWED", "0.10 – 1.00"),
+                        SEP,
+                        render_insight("Choose a value within the allowed risk range"),
+                    ]),
                     build_risk_level_menu(),
                 )
             try:
@@ -469,15 +482,27 @@ class CallbackRouter:
                 log.info("risk_updated", requested=requested, applied=applied)
                 snap = self._config.snapshot()
                 return (
-                    f"✅ Risk multiplier updated to `{applied:.2f}`\n\n"
-                    f"Current: `{snap.risk_multiplier:.2f}`\n"
-                    "Use `/set_risk [value]` to set a custom value.",
+                    "\n".join([
+                        "✅ *RISK LEVEL UPDATED*",
+                        SEP,
+                        render_kv_line("APPLIED", f"{applied:.2f}"),
+                        render_kv_line("CURRENT", f"{snap.risk_multiplier:.2f}"),
+                        SEP,
+                        render_insight("Risk multiplier updated — takes effect on next cycle"),
+                    ]),
                     build_risk_level_menu(),
                 )
             except Exception as risk_exc:  # noqa: BLE001
                 log.error("risk_set_error", error=str(risk_exc))
                 return (
-                    f"❌ Failed to update risk: `{str(risk_exc)}`",
+                    "\n".join([
+                        "⚠️ *SYSTEM NOTICE*",
+                        SEP,
+                        render_kv_line("STATUS", "Update failed"),
+                        f"_{risk_exc}_",
+                        SEP,
+                        render_insight("Risk update failed — check configuration"),
+                    ]),
                     build_settings_menu(),
                 )
 
@@ -501,8 +526,15 @@ class CallbackRouter:
         log.warning("callback_unknown_action", action=action)
         snap = self._state.snapshot()
         return (
-            f"❓ Unknown action: `{action}`\n\n"
-            + main_screen(mode=self._mode, state=snap.get("state", "UNKNOWN")),
+            "\n".join([
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Unknown action"),
+                f"_Action `{action}` not recognized._",
+                SEP,
+                main_screen(mode=self._mode, state=snap.get("state", "UNKNOWN")),
+                render_insight("Unexpected action — returning to main menu"),
+            ]),
             build_main_menu(),
         )
 

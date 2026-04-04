@@ -12,7 +12,7 @@ from typing import Optional, TYPE_CHECKING
 
 import structlog
 
-from ..ui.components import render_trade_card, render_status_bar
+from ..ui.components import render_trade_card, render_status_bar, render_kv_line, render_insight, SEP
 from ..ui.keyboard import build_status_menu
 
 if TYPE_CHECKING:
@@ -125,7 +125,16 @@ async def handle_trade(mode: str = "default") -> tuple[str, list]:
     if _position_manager is None:
         log.warning("trade_handler_no_position_manager")
         return (
-            f"{status_bar}\n⚠️ *Paper Trading*\n\n_Position manager not available._",
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Manager unavailable"),
+                "_Position manager not injected._",
+                SEP,
+                render_insight("System not ready — restart bot"),
+            ]),
             build_status_menu(),
         )
 
@@ -133,7 +142,19 @@ async def handle_trade(mode: str = "default") -> tuple[str, list]:
         open_positions = _position_manager.get_all_open()
     except Exception as exc:
         log.error("trade_handler_fetch_positions_error", error=str(exc))
-        return f"{status_bar}\n❌ *Error loading positions*", build_status_menu()
+        return (
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Positions fetch error"),
+                f"_{exc}_",
+                SEP,
+                render_insight("Positions unavailable — retry shortly"),
+            ]),
+            build_status_menu(),
+        )
 
     # ── No open positions ─────────────────────────────────────────────────────
     if not open_positions:
@@ -152,23 +173,30 @@ async def handle_trade(mode: str = "default") -> tuple[str, list]:
                 realized_pnl = closed_summary.get("realized_pnl", 0.0)
 
         pnl_sign = "+" if realized_pnl >= 0 else ""
-        sep = "━━━━━━━━━━━━━━━━━━━━━━"
-        text = (
-            f"{status_bar}\n{sep}\n"
-            "📊 *POSITIONS*\n\n"
-            "📭 _No open positions._\n\n"
-            "_Execute a paper trade to see positions here._\n"
-            f"\n{sep}\n"
-            f"✅ Realized PnL: `{pnl_sign}${realized_pnl:,.4f}`"
-        )
+        text = "\n".join([
+            status_bar,
+            SEP,
+            "📊 *POSITIONS*",
+            SEP,
+            render_kv_line("POSITIONS", "0 (IDLE)"),
+            render_kv_line("REALIZED", f"{pnl_sign}${realized_pnl:,.4f}"),
+            SEP,
+            "_Execute a paper trade to see positions here._",
+            render_insight("No open positions — scanning markets"),
+        ])
         return text, build_status_menu()
 
     # ── Build position cards ──────────────────────────────────────────────────
     total_unrealized = sum(p.unrealized_pnl for p in open_positions)
     pnl_summary = _get_pnl_summary()
 
-    sep = "━━━━━━━━━━━━━━━━━━━━━━"
-    header = f"{status_bar}\n{sep}\n📊 *POSITIONS* — {len(open_positions)} open\n"
+    header = "\n".join([
+        status_bar,
+        SEP,
+        f"📊 *POSITIONS* — {len(open_positions)} open",
+        SEP,
+        "",
+    ])
 
     cards = []
     for pos in open_positions:
@@ -189,25 +217,33 @@ async def handle_trade(mode: str = "default") -> tuple[str, list]:
     # Summary footer
     u_sign = "+" if total_unrealized >= 0 else ""
     footer_parts = [
-        f"\n{sep}",
-        f"💹 Total Unrealized: `{u_sign}${total_unrealized:,.4f}`",
+        SEP,
+        render_kv_line("UNREALIZED", f"{u_sign}${total_unrealized:,.4f}"),
     ]
     if pnl_summary:
         r_pnl = pnl_summary.get("total_realized", 0.0)
         r_sign = "+" if r_pnl >= 0 else ""
-        footer_parts.append(f"✅ Realized PnL:     `{r_sign}${r_pnl:,.4f}`")
+        footer_parts.append(render_kv_line("REALIZED", f"{r_sign}${r_pnl:,.4f}"))
 
     # Add wallet state
     if _paper_engine is not None:
         try:
             ws = _paper_engine._wallet.get_state()  # type: ignore[attr-defined]
-            footer_parts.append(
-                f"💰 Cash: `${ws.cash:.2f}` | 🔒 Locked: `${ws.locked:.2f}` | 📊 Equity: `${ws.equity:.2f}`"
-            )
+            footer_parts += [
+                render_kv_line("CASH", f"${ws.cash:.2f}"),
+                render_kv_line("LOCKED", f"${ws.locked:.2f}"),
+                render_kv_line("EQUITY", f"${ws.equity:.2f}"),
+            ]
         except Exception:
             pass
 
-    text = header + "\n\n".join(cards) + "\n".join(footer_parts)
+    count = len(open_positions)
+    footer_parts += [
+        SEP,
+        render_insight(f"Monitoring {count} position{'s' if count != 1 else ''}"),
+    ]
+
+    text = header + "\n\n".join(cards) + "\n" + "\n".join(footer_parts)
     log.info("trade_handler_positions_displayed", count=len(open_positions))
     return text, build_status_menu()
 
@@ -225,19 +261,50 @@ async def handle_trade_detail(market_id: str) -> tuple[str, list]:
 
     if _position_manager is None:
         log.warning("trade_handler_detail_no_manager", market_id=market_id)
-        return f"{status_bar}\n⚠️ _Position manager not available._", build_status_menu()
+        return (
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Manager unavailable"),
+                SEP,
+                render_insight("System not ready — restart bot"),
+            ]),
+            build_status_menu(),
+        )
 
     try:
         pos = _position_manager.get_position(market_id)
     except Exception as exc:
         log.error("trade_handler_detail_fetch_error", market_id=market_id, error=str(exc))
-        return f"{status_bar}\n❌ *Error loading position*", build_status_menu()
+        return (
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Position fetch error"),
+                SEP,
+                render_insight("Position data unavailable — retry"),
+            ]),
+            build_status_menu(),
+        )
 
     if pos is None:
         return (
-            f"{status_bar}\n⚠️ *Position Not Found*\n\n"
-            f"`{market_id}`\n\n_Position may have been closed._"
-        ), build_status_menu()
+            "\n".join([
+                status_bar,
+                SEP,
+                "📊 *POSITION NOT FOUND*",
+                SEP,
+                render_kv_line("MARKET ID", market_id[:20] + "…" if len(market_id) > 20 else market_id),
+                SEP,
+                "_Position may have been closed or does not exist._",
+                render_insight("No active position — check trade history"),
+            ]),
+            build_status_menu(),
+        )
 
     market_question = _resolve_market_question(pos.market_id)
 

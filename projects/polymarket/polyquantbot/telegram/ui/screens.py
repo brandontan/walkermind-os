@@ -251,8 +251,21 @@ def control_halted_screen() -> str:
 
 
 def error_screen(context: str, error: str) -> str:
-    """Generic error display."""
-    return f"⚠️ *Error in {context}*\n`{error}`"
+    """Structured error screen with diagnostics and actionable insight."""
+    from .components import render_insight, SEP  # noqa: PLC0415
+    return "\n".join([
+        "⚠️ *SYSTEM NOTICE*",
+        SEP,
+        f"*Context:* `{context}`",
+        "",
+        "📋 *Diagnostics:*",
+        f"_{error}_",
+        "",
+        "⚡ *What to do:*",
+        "_Check connection, retry, or contact support if persistent._",
+        SEP,
+        render_insight("System encountered an issue — monitoring recovery"),
+    ])
 
 
 def noop_screen() -> str:
