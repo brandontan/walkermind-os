@@ -21,6 +21,8 @@ from ..ui.components import (
     render_strategy_card,
     render_mode_card,
     render_status_bar,
+    render_kv_line,
+    render_insight,
     SEP,
 )
 from ..ui.screens import mode_switched_screen, error_screen
@@ -72,18 +74,23 @@ async def handle_settings(
     config_manager: "ConfigManager",
     mode: str,
 ) -> tuple[str, list]:
-    """Return settings overview screen with current values and explanations."""
+    """Return settings overview screen with current values in STYLE B."""
     snap = config_manager.snapshot()
     status_bar = _get_status_bar()
 
-    text = (
-        f"{status_bar}\n{SEP}\n"
-        "⚙️ *SETTINGS*\n\n"
-        f"⚠️ Risk Level:    `{snap.risk_multiplier:.2f}` (Kelly fraction)\n"
-        f"📏 Max Position:  `{snap.max_position:.2f}` (USD cap per trade)\n"
-        f"🔀 Mode:          `{mode}`\n\n"
-        "_Select a setting to configure:_"
-    )
+    mode_icon = "📄" if mode.upper() == "PAPER" else "💵"
+    text = "\n".join([
+        status_bar,
+        SEP,
+        "⚙️ *SETTINGS*",
+        SEP,
+        render_kv_line("RISK", f"{snap.risk_multiplier:.2f} (Kelly)"),
+        render_kv_line("MAX POS", f"${snap.max_position:.2f}"),
+        render_kv_line("MODE", f"{mode_icon} {mode.upper()}"),
+        SEP,
+        "_Select a setting to configure:_",
+        render_insight("Settings control risk and execution behaviour"),
+    ])
     return text, build_settings_menu()
 
 
@@ -148,42 +155,50 @@ async def handle_settings_mode(current_mode: str) -> tuple[str, list]:
 
 
 async def handle_settings_auto(mode: str) -> tuple[str, list]:
-    """Return auto-trade setting screen with explanation."""
+    """Return auto-trade setting screen with explanation (STYLE B)."""
     status_bar = _get_status_bar()
-    text = (
-        f"{status_bar}\n{SEP}\n"
-        "🤖 *AUTO TRADE*\n\n"
-        "📋 *What it does:*\n"
-        "_When enabled, the bot automatically executes trades based on\n"
-        "active strategy signals without manual confirmation._\n\n"
-        "📌 *When to use:*\n"
-        "_When signals are validated and risk limits are set correctly._\n\n"
-        "⚠️ *Risk impact:*\n"
-        "_Higher throughput — more trades per cycle. Ensure Kelly α ≤ 0.25._\n\n"
-        f"{SEP}\n"
-        f"Current Mode: `{mode}`\n"
-        "_Use `/set_auto true/false` to configure._"
-    )
+    mode_icon = "📄" if mode.upper() == "PAPER" else "💵"
+    text = "\n".join([
+        status_bar,
+        SEP,
+        "🤖 *AUTO TRADE*",
+        SEP,
+        render_kv_line("MODE", f"{mode_icon} {mode.upper()}"),
+        SEP,
+        "📋 *What it does:*",
+        "_Automatically executes trades from active strategy signals_",
+        "_without manual confirmation._",
+        "",
+        "📌 *When to use:*",
+        "_When signals are validated and risk limits are correctly set._",
+        "",
+        "⚠️ *Risk impact:*",
+        "_Higher throughput — more trades per cycle. Kelly α ≤ 0.25._",
+        SEP,
+        "_Use `/set_auto true/false` to configure._",
+        render_insight("Auto-trade requires validated signals and risk controls"),
+    ])
     return text, build_settings_menu()
 
 
 async def handle_settings_notify() -> tuple[str, list]:
-    """Return notifications explanation screen."""
+    """Return notifications explanation screen (STYLE B)."""
     status_bar = _get_status_bar()
-    text = (
-        f"{status_bar}\n{SEP}\n"
-        "🔔 *NOTIFICATIONS*\n\n"
-        "📋 *What it does:*\n"
-        "_Controls which events trigger Telegram alerts._\n\n"
-        "📌 *Alert types:*\n"
-        "  • 📈 Trade opened / closed\n"
-        "  • ⚠️ Risk limit breached\n"
-        "  • 🔴 System halt triggered\n"
-        "  • 💹 Daily PnL summary\n\n"
-        "_Notifications are always active for critical events (halt, risk breach)._\n\n"
-        f"{SEP}\n"
-        "_Use `/set_notify` commands to configure levels._"
-    )
+    text = "\n".join([
+        status_bar,
+        SEP,
+        "🔔 *NOTIFICATIONS*",
+        SEP,
+        "📋 *Alert types:*",
+        "  ● Trade opened / closed",
+        "  ● Risk limit breached",
+        "  ● System halt triggered",
+        "  ● Daily PnL summary",
+        SEP,
+        "_Critical alerts (halt, risk breach) are always active._",
+        "_Use `/set_notify` commands to configure levels._",
+        render_insight("Notifications keep you informed of all system events"),
+    ])
     return text, build_settings_menu()
 
 
@@ -194,15 +209,36 @@ async def handle_mode_confirm_switch(
     """Handle confirmed mode switch — validates ENABLE_LIVE_TRADING guard."""
     if new_mode not in ("PAPER", "LIVE"):
         log.warning("mode_confirm_unknown_mode", new_mode=new_mode)
-        return "❌ Unknown mode. Returning to settings.", build_settings_menu()
+        status_bar = _get_status_bar()
+        return (
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Unknown mode"),
+                SEP,
+                render_insight("Use PAPER or LIVE — returning to settings"),
+            ]),
+            build_settings_menu(),
+        )
 
     if new_mode == "LIVE":
         live_enabled = os.environ.get("ENABLE_LIVE_TRADING", "").lower() == "true"
         if not live_enabled:
             log.warning("mode_switch_live_blocked", reason="ENABLE_LIVE_TRADING not set")
+            status_bar = _get_status_bar()
             return (
-                "❌ Cannot switch to LIVE — `ENABLE_LIVE_TRADING` env var not set.\n"
-                "Set it to `true` and restart.",
+                "\n".join([
+                    status_bar,
+                    SEP,
+                    "⚠️ *MODE SWITCH BLOCKED*",
+                    SEP,
+                    render_kv_line("REASON", "Guard not set"),
+                    "_Set `ENABLE_LIVE_TRADING=true` and restart._",
+                    SEP,
+                    render_insight("Live mode requires explicit environment flag"),
+                ]),
                 build_settings_menu(),
             )
 

@@ -12,7 +12,7 @@ from typing import Optional, TYPE_CHECKING
 
 import structlog
 
-from ..ui.components import render_positions_summary, render_status_bar
+from ..ui.components import render_positions_summary, render_status_bar, render_kv_line, render_insight, SEP
 from ..ui.keyboard import build_status_menu
 
 if TYPE_CHECKING:
@@ -104,12 +104,16 @@ async def handle_exposure() -> tuple[str, list]:
             has_pm=_position_manager is not None,
             has_wallet=_wallet_engine is not None,
         )
-        from ..ui.components import SEP  # noqa: PLC0415
-        text = (
-            f"{status_bar}\n{SEP}\n"
-            "📉 *EXPOSURE*\n\n"
-            "⚠️ _Services not yet available — please try again._"
-        )
+        text = "\n".join([
+            status_bar,
+            SEP,
+            "📉 *EXPOSURE*",
+            SEP,
+            render_kv_line("STATUS", "⚠️ Services not ready"),
+            "_Please try again momentarily._",
+            SEP,
+            render_insight("System initializing — retry in a few seconds"),
+        ])
         return text, build_status_menu()
 
     # ── Fetch positions ──────────────────────────────────────────────────────
@@ -117,7 +121,19 @@ async def handle_exposure() -> tuple[str, list]:
         raw_positions = _position_manager.get_all_open()
     except Exception as exc:
         log.error("exposure_handler_fetch_positions_error", error=str(exc))
-        return "❌ *Error loading positions*", build_status_menu()
+        return (
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Positions fetch error"),
+                f"_{exc}_",
+                SEP,
+                render_insight("Position data unavailable — retry shortly"),
+            ]),
+            build_status_menu(),
+        )
 
     # ── Fetch wallet equity ──────────────────────────────────────────────────
     try:

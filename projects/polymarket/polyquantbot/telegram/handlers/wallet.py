@@ -21,7 +21,7 @@ from typing import Optional, TYPE_CHECKING
 import structlog
 
 from ..ui.keyboard import build_wallet_menu, build_paper_wallet_menu
-from ..ui.components import render_wallet_card, render_status_bar
+from ..ui.components import render_wallet_card, render_status_bar, render_kv_line, render_insight, SEP
 from ..ui.screens import (
     wallet_withdraw_screen,
     wallet_withdraw_result_screen,
@@ -143,23 +143,27 @@ def _live_wallet_screen(
     balance: Optional[float],
     stale: bool = False,
 ) -> str:
-    """Render live wallet screen text for LIVE mode.
+    """Render live wallet screen text for LIVE mode (STYLE B).
 
     Args:
-        status_bar: Pre-rendered status bar line.
+        status_bar: Pre-rendered status bar block.
         address:    Wallet address or None.
         balance:    Current balance or None.
-        stale:      True when using cached data (shows ⚠️ prefix on balance).
+        stale:      True when using cached data.
     """
-    bal_str = f"${balance or 0.0:,.4f} USDC"
-    bal_prefix = "⚠️ Cached balance:" if stale else "💵 Balance:"
-    return (
-        f"{status_bar}\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💼 *WALLET* — LIVE MODE\n\n"
-        f"🔑 Address: `{address or 'N/A'}`\n"
-        f"{bal_prefix} `{bal_str}`"
-    )
+    bal_val = balance or 0.0
+    bal_label = "BAL (CACHED)" if stale else "BALANCE"
+    lines = [
+        status_bar,
+        SEP,
+        "💼 *WALLET OVERVIEW* — LIVE MODE",
+        SEP,
+        render_kv_line("ADDRESS", f"`{address or 'N/A'}`"),
+        render_kv_line(bal_label, f"${bal_val:,.4f}"),
+        SEP,
+        render_insight("Live balance fetched" if not stale else "Using cached balance — retry pending"),
+    ]
+    return "\n".join(lines)
 
 
 # ── Main wallet screens ───────────────────────────────────────────────────────
@@ -179,12 +183,15 @@ async def handle_wallet(mode: str, user_id: Optional[int] = None) -> tuple[str, 
     # Live mode — use WalletService
     if _wallet_service is None or user_id is None:
         status_bar = _get_status_bar()
-        text = (
-            f"{status_bar}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "💼 *WALLET*\n\n"
-            "_Wallet service not available._"
-        )
+        text = "\n".join([
+            status_bar,
+            SEP,
+            "💼 *WALLET OVERVIEW*",
+            SEP,
+            render_kv_line("STATUS", "⚠️ N/A"),
+            SEP,
+            render_insight("Wallet service unavailable — check configuration"),
+        ])
         return text, build_wallet_menu()
 
     try:
@@ -229,7 +236,15 @@ async def handle_paper_wallet(mode: str = "default") -> tuple[str, list]:
         log.warning("handle_paper_wallet_no_engine")
         status_bar = _get_status_bar()
         return (
-            f"{status_bar}\n⚠️ *Paper Wallet*\n\n_Engine not available._",
+            "\n".join([
+                status_bar,
+                SEP,
+                "💼 *WALLET OVERVIEW* — PAPER MODE",
+                SEP,
+                render_kv_line("STATUS", "⚠️ Engine unavailable"),
+                SEP,
+                render_insight("Paper wallet engine not injected — restart bot"),
+            ]),
             build_wallet_menu(),
         )
 
@@ -272,7 +287,15 @@ async def handle_wallet_balance(user_id: Optional[int] = None) -> tuple[str, lis
     if _wallet_service is None or user_id is None:
         status_bar = _get_status_bar()
         return (
-            f"{status_bar}\n💵 *BALANCE*\n\n_Wallet service not available._",
+            "\n".join([
+                status_bar,
+                SEP,
+                "💼 *WALLET OVERVIEW*",
+                SEP,
+                render_kv_line("STATUS", "⚠️ N/A"),
+                SEP,
+                render_insight("Wallet service unavailable — check configuration"),
+            ]),
             build_wallet_menu(),
         )
 
@@ -292,15 +315,18 @@ async def handle_wallet_balance(user_id: Optional[int] = None) -> tuple[str, lis
             log.info("wallet_fetch", status="success", user_id=user_id, balance=balance, attempt=attempt)
 
             status_bar = _get_status_bar()
-            text = (
-                f"{status_bar}\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                "💵 *BALANCE DETAIL*\n\n"
-                f"🔑 Address: `{address or 'N/A'}`\n"
-                f"💵 Available: `${balance or 0.0:,.4f}`\n"
-                f"🔒 Locked:    `$0.0000` _(tracked in paper wallet)_\n"
-                f"📊 Total:     `${balance or 0.0:,.4f}`"
-            )
+            text = "\n".join([
+                status_bar,
+                SEP,
+                "💼 *WALLET OVERVIEW* — LIVE MODE",
+                SEP,
+                render_kv_line("ADDRESS", f"`{address or 'N/A'}`"),
+                render_kv_line("BALANCE", f"${balance or 0.0:,.4f}"),
+                render_kv_line("LOCKED", "$0.0000"),
+                render_kv_line("EQUITY", f"${balance or 0.0:,.4f}"),
+                SEP,
+                render_insight("Live balance fetched successfully"),
+            ])
             return text, build_wallet_menu()
         except asyncio.CancelledError:
             raise
@@ -315,10 +341,31 @@ async def handle_wallet_balance(user_id: Optional[int] = None) -> tuple[str, lis
     if _cached_balance is not None:
         status_bar = _get_status_bar()
         return (
-            f"{status_bar}\n💵 *BALANCE*\n\n⚠️ Cached: `${_cached_balance:,.4f} USDC`",
+            "\n".join([
+                status_bar,
+                SEP,
+                "💼 *WALLET OVERVIEW* — LIVE MODE",
+                SEP,
+                render_kv_line("BAL (CACHED)", f"${_cached_balance:,.4f}"),
+                SEP,
+                render_insight("Using cached balance — live fetch failed, retrying"),
+            ]),
             build_wallet_menu(),
         )
-    return "❌ Failed to fetch wallet balance.", build_wallet_menu()
+    status_bar = _get_status_bar()
+    return (
+        "\n".join([
+            status_bar,
+            SEP,
+            "⚠️ *SYSTEM NOTICE*",
+            SEP,
+            render_kv_line("STATUS", "Balance unavailable"),
+            "_All retry attempts exhausted._",
+            SEP,
+            render_insight("Wallet fetch failed — check network and API keys"),
+        ]),
+        build_wallet_menu(),
+    )
 
 
 async def handle_wallet_exposure(user_id: Optional[int] = None) -> tuple[str, list]:
@@ -336,18 +383,29 @@ async def handle_wallet_withdraw(user_id: Optional[int] = None) -> tuple[str, li
     if _mode == "PAPER" and _paper_wallet_engine is not None:
         try:
             ws = _paper_wallet_engine.get_state()
-            text = (
-                f"{status_bar}\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                "💸 *WITHDRAW — PAPER SIMULATION*\n\n"
-                f"💵 Available Cash: `${ws.cash:,.4f}`\n"
-                f"🔒 Locked (positions): `${ws.locked:,.4f}`\n\n"
-                "_Use `/withdraw <amount>` to simulate deduction._\n"
-                "_(No real funds will move — paper mode only)_"
-            )
+            text = "\n".join([
+                status_bar,
+                SEP,
+                "💸 *WITHDRAW — PAPER SIMULATION*",
+                SEP,
+                render_kv_line("AVAILABLE", f"${ws.cash:,.4f}"),
+                render_kv_line("LOCKED", f"${ws.locked:,.4f}"),
+                SEP,
+                "_Use `/withdraw <amount>` to simulate deduction._",
+                "_(No real funds will move — paper mode only)_",
+                render_insight("Paper simulation — no real funds at risk"),
+            ])
         except Exception as exc:
             log.error("wallet_withdraw_paper_state_error", error=str(exc))
-            text = f"{status_bar}\n❌ *Error fetching paper wallet state*"
+            text = "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "State fetch error"),
+                SEP,
+                render_insight("Paper wallet state unavailable — retry"),
+            ])
         return text, build_paper_wallet_menu()
 
     # Live mode
@@ -390,13 +448,30 @@ async def handle_paper_withdraw_command(amount: float) -> tuple[str, list]:
 
     if _paper_wallet_engine is None:
         return (
-            f"{status_bar}\n⚠️ Paper wallet engine not available.",
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Engine unavailable"),
+                SEP,
+                render_insight("Paper wallet engine not injected — restart bot"),
+            ]),
             build_paper_wallet_menu(),
         )
 
     if amount <= 0:
         return (
-            f"{status_bar}\n❌ *Invalid amount.* Must be > 0.",
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Invalid amount"),
+                "_Amount must be greater than zero._",
+                SEP,
+                render_insight("Provide a positive withdrawal amount"),
+            ]),
             build_paper_wallet_menu(),
         )
 
@@ -404,12 +479,17 @@ async def handle_paper_withdraw_command(amount: float) -> tuple[str, list]:
         state_before = _paper_wallet_engine.get_state()
         if state_before.cash < amount:
             return (
-                f"{status_bar}\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                "❌ *Withdraw Rejected*\n\n"
-                f"Requested: `${amount:,.4f}`\n"
-                f"Available: `${state_before.cash:,.4f}`\n\n"
-                "_Insufficient funds. Cannot withdraw._",
+                "\n".join([
+                    status_bar,
+                    SEP,
+                    "⚠️ *WITHDRAW REJECTED*",
+                    SEP,
+                    render_kv_line("REQUESTED", f"${amount:,.4f}"),
+                    render_kv_line("AVAILABLE", f"${state_before.cash:,.4f}"),
+                    SEP,
+                    "_Insufficient funds. Cannot withdraw._",
+                    render_insight("Reduce withdrawal amount or close positions"),
+                ]),
                 build_paper_wallet_menu(),
             )
 
@@ -424,25 +504,47 @@ async def handle_paper_withdraw_command(amount: float) -> tuple[str, list]:
             equity_after=new_state.equity,
         )
         return (
-            f"{status_bar}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "✅ *Paper Withdrawal Simulated*\n\n"
-            f"💸 Amount:    `-${amount:,.4f}`\n"
-            f"💵 Cash Now:  `${new_state.cash:,.4f}`\n"
-            f"📊 Equity:    `${new_state.equity:,.4f}`\n\n"
-            "_No real funds moved — paper simulation only._",
+            "\n".join([
+                status_bar,
+                SEP,
+                "✅ *PAPER WITHDRAWAL SIMULATED*",
+                SEP,
+                render_kv_line("WITHDRAWN", f"-${amount:,.4f}"),
+                render_kv_line("CASH NOW", f"${new_state.cash:,.4f}"),
+                render_kv_line("EQUITY", f"${new_state.equity:,.4f}"),
+                SEP,
+                "_No real funds moved — paper simulation only._",
+                render_insight("Simulation complete — equity updated"),
+            ]),
             build_paper_wallet_menu(),
         )
     except InsufficientFundsError as exc:
         log.warning("paper_withdraw_insufficient_funds", amount=amount, error=str(exc))
         return (
-            f"{status_bar}\n❌ *Withdraw failed:* `{exc}`",
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *WITHDRAW FAILED*",
+                SEP,
+                render_kv_line("REASON", "Insufficient funds"),
+                SEP,
+                render_insight("Reduce withdrawal amount or close positions"),
+            ]),
             build_paper_wallet_menu(),
         )
     except Exception as exc:
         log.error("paper_withdraw_unexpected_error", amount=amount, error=str(exc))
         return (
-            f"{status_bar}\n❌ *Unexpected error during withdraw.*",
+            "\n".join([
+                status_bar,
+                SEP,
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Withdraw error"),
+                "_An unexpected error occurred._",
+                SEP,
+                render_insight("System encountered an issue — retry shortly"),
+            ]),
             build_paper_wallet_menu(),
         )
 

@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
-Last Updated: 2026-04-06
-Status: UI Wallet UX Finalization COMPLETE ✅ — Premium terminal UI, wallet engine withdraw simulation, strategy toggle with descriptions, settings UX intelligence layer, start screen boot UI all implemented
+Last Updated: 2026-04-04
+Status: UI STYLE B Finalization COMPLETE ✅ — SPACING SYSTEM V2 applied across all Telegram screens; V2 primitives (render_kv_line, render_section, render_insight, render_separator) added; ASCII boxes removed; insight lines on all major screens; structured error messages; 103/103 tests passing
 
 ---
 
@@ -37,6 +37,18 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+UI STYLE B FINALIZATION (Phase 22.1)
+
+- telegram/ui/components.py: REWRITTEN — Added V2 primitives: render_separator(), render_kv_line(), render_section(), render_insight(); All renderers updated to STYLE B (LABEL ● VALUE format); ASCII boxes removed from start screen; insight lines on all screens
+- telegram/ui/screens.py: error_screen() updated with structured diagnostics + insight line
+- telegram/handlers/wallet.py: Live wallet, error cases, withdraw screens updated to STYLE B kv format
+- telegram/handlers/trade.py: Empty/error states, position summary footer updated to STYLE B
+- telegram/handlers/exposure.py: Guard/error messages updated to STYLE B
+- telegram/handlers/settings.py: All screens updated to kv format with insight injection
+- telegram/handlers/callback_router.py: Risk error messages and unknown action updated to STYLE B
+- tests/test_telegram_callback_router.py: Two assertions updated for new STYLE B format strings
+- reports/forge/22_1_ui_style_b_finalization.md: completion report
 
 PRE-CAPITAL HARDENING (Phase 21.1)
 
@@ -621,12 +633,12 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. Wire pipeline metrics (latency_ms, markets_count) into `handle_start()` for live boot screen stats
-2. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
-3. Auto-persist ledger entries inside PaperEngine (inject db into PaperEngine directly)
-4. Signal reversal close trigger (side-flip signal on open position → close_order())
-5. Run SENTINEL pre-capital go-live validation gate
-6. Load live bankroll from WalletManager into run_trading_loop (replace static default)
+1. SENTINEL validation of STYLE B UI screens (visual + format review)
+2. Wire pipeline metrics (latency_ms, markets_count) into `handle_start()` for live boot screen stats
+3. Wire PriceFeedHandler to main.py as background task for continuous WS mark-to-market
+4. Auto-persist ledger entries inside PaperEngine (inject db into PaperEngine directly)
+5. Signal reversal close trigger (side-flip signal on open position → close_order())
+6. Run SENTINEL pre-capital go-live validation gate
 
 ---
 
@@ -637,9 +649,10 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 - Pre-existing test failure: test_tl04 (market dict extra fields), test_tl17 (timing), eth_account missing in CI
 - drawdown in /performance always 0.0 — MultiStrategyMetrics lacks time-series equity curve
 - StrategyStateManager.save(db=db) requires db.connect() to be called first
-- render_start_screen() latency_ms/markets_count shows n/a until pipeline metrics injected
+- render_start_screen() latency_ms/markets_count shows N/A until pipeline metrics injected
 - RedisClient not yet wired into pipeline startup (infra ready, wiring pending)
 - Telegram delivery not stress-tested under real network load
+- render_status_bar() now multi-line (V2 kv format) — cosmetically different from previous single-line bar
 
 ---
 
