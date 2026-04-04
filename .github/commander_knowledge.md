@@ -1,7 +1,8 @@
 ## COMMANDER KNOWLEDGE FILE
 - Attach as knowledge document in Custom GPT.
 
-# Instructions always reads this before responding.
+# INSTRUCTIONS
+- always reads this before responding.
 
 ---
 
