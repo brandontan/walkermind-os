@@ -1,6 +1,10 @@
-# COMMANDER KNOWLEDGE FILE
-# Attach as knowledge document in Custom GPT.
-# Instructions file (commander_customgpt.md) always reads this first.
+## COMMANDER KNOWLEDGE FILE
+- Attach as knowledge document in Custom GPT.
+
+---
+
+## INSTRUCTIONS FILE
+- (commander_customgpt.md) always reads this first.
 
 ---
 
