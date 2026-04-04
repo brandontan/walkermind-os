@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-04
-Status: Phase 24.3 active — Stability infrastructure deployed; closed-trade PnL hook wired into PerformanceTracker; heartbeat, alert cooldown, VALIDATION_MODE flag, and enhanced validation logs added; 11 new stability tests (VS-01→VS-11) passing; 54 Phase-24 tests total; 24h observation run in staging ready to start
+Status: Phase 24.3 SENTINEL validated — CONDITIONAL GO-LIVE (78/100). Zero critical blockers. 54/54 tests passing. 24h staging observation run cleared to start. Three P1 gates remain for LIVE (real-money) promotion: (1) CRITICAL→kill-switch wiring, (2) LIVE/CLOB closed-trade hook, (3) PF=0 all-win false-positive fix. SENTINEL report: reports/sentinel/24_1_validation_system_audit.md
 
 ---
 
@@ -33,6 +33,37 @@ Structure:
 - api/ (telegram, external clients)
 - infra/ (redis, db, config)
 - reports/ (forge / sentinel / briefer)
+
+---
+
+## 🛡 SENTINEL VALIDATION — Phase 24.1
+
+**Report:** `reports/sentinel/24_1_validation_system_audit.md`
+**Date:** 2026-04-04
+**Environment:** staging
+**Verdict:** ⚠️ CONDITIONAL
+**Score:** 78/100
+
+**Status:** Cleared for 24h staging observation run. NOT cleared for LIVE (real-money).
+
+**Phase scores:**
+- Architecture compliance: 19/20
+- Functional correctness: 14/20 (PF=0 all-win false positive; MDD=0 all-loss edge case)
+- Failure mode handling: 16/20 (CRITICAL alerting-only in LIVE_OBSERVATION mode; LIVE path hook gap)
+- Risk rule enforcement: 15/20 (CRITICAL ≠ kill switch; Kelly α enforced implicitly only)
+- Infra + Telegram: 6/10 (Redis not wired; no structlog JSON for production)
+- Latency targets: 8/10 (non-blocking design confirmed; no measured pipeline latencies)
+
+**P1 gates for LIVE promotion (must fix before real-money):**
+1. Wire `ValidationState.CRITICAL` → `stop_event.set()` / kill switch
+2. Wire `_run_closed_validation_hook` into LIVE/CLOB executor close path
+3. Fix `MetricsEngine.compute_profit_factor()` — return 999.0 (not 0.0) when all trades are wins
+
+**P2/P3 improvements:**
+4. Add `last_pnl` key to `MetricsEngine.compute()` output (currently proxied to expectancy)
+5. Configure structlog JSONRenderer for production log ingestion
+6. Handle breakeven pnl==0.0 close event in `_run_closed_validation_hook`
+7. Add explicit Kelly α=0.25 constant to CapitalAllocator for audit trail
 
 ---
 
