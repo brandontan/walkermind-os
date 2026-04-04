@@ -86,6 +86,7 @@ from ...monitoring.performance_tracker import PerformanceTracker
 from ...monitoring.metrics_engine import MetricsEngine
 from ...monitoring.validation_engine import ValidationEngine, ValidationState
 from ...monitoring.snapshot_engine import SnapshotEngine
+from ...strategy.market_intelligence import MarketIntelligenceEngine
 from ..validation_state import ValidationStateStore
 from ..logging.logger import (
     log_market_metadata_used,
@@ -246,6 +247,7 @@ async def run_trading_loop(
     _metrics_engine = MetricsEngine()
     _validation_engine = ValidationEngine()
     _snapshot_engine = SnapshotEngine()
+    _market_intel_engine = MarketIntelligenceEngine()
     _validation_state = ValidationStateStore()
     # Mutable container for previous validation state — enables change detection
     _prev_vs: list[ValidationState] = [ValidationState.HEALTHY]
@@ -256,6 +258,9 @@ async def run_trading_loop(
     _last_snapshot_time: list[float] = [0.0]
     _last_heartbeat: list[float] = [0.0]        # mutable so closure can mutate
     _validation_hook_errors: list[int] = [0]    # cumulative error counter
+    _last_market_distribution: dict[str, int] = {}
+    _trade_type_distribution: dict[str, int] = {}
+    _market_type_by_id: dict[str, str] = {}
 
     def _to_float(value: Any) -> float:
         """Return float-safe value for Telegram formatting."""
@@ -348,7 +353,12 @@ async def run_trading_loop(
 
         _now = time.time()
         if _now - _last_snapshot_time[0] >= _SNAPSHOT_INTERVAL_S:
-            _snapshot = _snapshot_engine.build_snapshot(_computed, _val_result.state.value)
+            _snapshot = _snapshot_engine.build_snapshot(
+                _computed,
+                _val_result.state.value,
+                market_distribution=_last_market_distribution,
+                trade_distribution=_trade_type_distribution,
+            )
             log.info(
                 "system_snapshot",
                 snapshot=_snapshot,
@@ -558,6 +568,37 @@ async def run_trading_loop(
                         capped_to=_MAX_MARKETS_PER_TICK,
                     )
                     normalised_markets = normalised_markets[:_MAX_MARKETS_PER_TICK]
+
+                # ── 1d. Shadow-only market intelligence (no decision impact) ─────
+                market_distribution: dict[str, int] = {}
+                _market_type_by_id = {}
+                for market in normalised_markets:
+                    market_id = str(market.get("market_id", "unknown"))
+                    try:
+                        intel = _market_intel_engine.analyze(market)
+                    except Exception as _intel_exc:  # noqa: BLE001
+                        log.warning(
+                            "market_intelligence_warning",
+                            market_id=market_id,
+                            error=str(_intel_exc),
+                        )
+                        intel = {"market_type": "GENERAL", "tags": []}
+
+                    market_type = str(intel.get("market_type", "GENERAL"))
+                    tags = intel.get("tags", [])
+                    if not isinstance(tags, list):
+                        tags = []
+
+                    _market_type_by_id[market_id] = market_type
+                    market_distribution[market_type] = market_distribution.get(market_type, 0) + 1
+
+                    log.info(
+                        "market_intelligence",
+                        market_id=market_id,
+                        type=market_type,
+                        tags=tags,
+                    )
+                _last_market_distribution = market_distribution
 
                 # ── 2. Feed price data into alpha model ───────────────────────────
                 market_prices: dict[str, float] = {}
@@ -827,6 +868,18 @@ async def run_trading_loop(
 
                     if result.success:
                         _trades_this_tick += 1
+
+                        _signal_market_type = _market_type_by_id.get(signal.market_id, "GENERAL")
+                        _trade_type_distribution[_signal_market_type] = (
+                            _trade_type_distribution.get(_signal_market_type, 0) + 1
+                        )
+                        log.info(
+                            "market_type_trade_recorded",
+                            market_id=result.market_id,
+                            market_type=_signal_market_type,
+                            trade_count=_trade_type_distribution[_signal_market_type],
+                        )
+
                         log.info(
                             "trade_loop_executed",
                             market_id=result.market_id,
