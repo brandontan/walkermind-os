@@ -1,5 +1,6 @@
 # CLAUDE.md — Walker AI Trading Team
-# Universal Backup Agent for Claude Code
+- Universal Backup Agent for Claude Code
+
 # Covers: FORGE-X | SENTINEL | BRIEFER
 
 Owner: Bayue Walker
