@@ -34,6 +34,7 @@ import structlog
 
 from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
+from ..interface.telegram.view_handler import render_view
 from .message_formatter import (
     format_capital_allocation_report,
     format_command_response,
@@ -41,10 +42,8 @@ from .message_formatter import (
     format_health_snapshot,
     format_kill_alert,
     format_metrics,
-    format_performance_report,
     format_prelive_check,
     format_state_change,
-    format_status,
 )
 
 log = structlog.get_logger()
@@ -228,6 +227,8 @@ class CommandHandler:
             )
         if cmd == "status":
             return await self._handle_status()
+        if cmd == "home":
+            return await self._handle_home()
         if cmd == "pause":
             return await self._handle_pause()
         if cmd == "resume":
@@ -252,6 +253,10 @@ class CommandHandler:
             return await self._handle_analysis()
         if cmd == "health":
             return await self._handle_health()
+        if cmd == "exposure":
+            return await self._handle_exposure()
+        if cmd == "risk":
+            return await self._handle_risk()
         if cmd == "settings":
             return await self._handle_settings()
         if cmd == "set_markets":
@@ -325,41 +330,39 @@ class CommandHandler:
         )
 
     async def _handle_status(self) -> CommandResult:
+        return await self._handle_home()
+
+    def _get_metrics_snapshot(self) -> dict:
+        if self._metrics_source is None or not hasattr(self._metrics_source, "snapshot"):
+            return {}
+        try:
+            snap = self._metrics_source.snapshot()
+            return snap if isinstance(snap, dict) else {}
+        except Exception:
+            return {}
+
+    def _build_home_payload(self) -> dict[str, object]:
+        metrics = self._get_metrics_snapshot()
         snap_state = self._state.snapshot()
         snap_cfg = self._config.snapshot()
+        return {
+            "status": snap_state.get("state", "N/A"),
+            "mode": self._mode,
+            "markets": len(getattr(self._runner, "_market_ids", []) or []),
+            "positions": metrics.get("open_positions", metrics.get("positions", "N/A")),
+            "exposure": metrics.get("exposure", "N/A"),
+            "unrealized": metrics.get("unrealized_pnl", metrics.get("unreal", "N/A")),
+            "pnl": metrics.get("pnl", metrics.get("realized", "N/A")),
+            "winrate": metrics.get("win_rate", metrics.get("wr", "N/A")),
+            "drawdown": metrics.get("drawdown", "N/A"),
+            "insight": (
+                f"Risk {snap_cfg.risk_multiplier:.2f} • Max Pos {snap_cfg.max_position:.2f}"
+            ),
+        }
 
-        # Pull live pipeline stats if runner is wired
-        pipeline_lines = []
-        if self._runner is not None:
-            try:
-                rs = self._runner.snapshot()
-                ws_ok = self._runner._ws._stats.connected
-                pipeline_lines = [
-                    "",
-                    "*Pipeline*",
-                    f"WS: `{'connected' if ws_ok else 'disconnected'}`",
-                    f"Events: `{rs.event_count}`",
-                    f"Signals: `{rs.signal_count}`",
-                    f"Fills: `{rs.fill_count}`",
-                    f"Markets: `{len(self._runner._market_ids)}`",
-                ]
-            except Exception:
-                pass
-
-        msg = format_status(
-            state=snap_state["state"],
-            reason=snap_state["reason"],
-            risk_multiplier=snap_cfg.risk_multiplier,
-            max_position=snap_cfg.max_position,
-        )
-        if pipeline_lines:
-            msg = msg + "\n" + "\n".join(pipeline_lines)
-
-        return CommandResult(
-            success=True,
-            message=msg,
-            payload={"state": snap_state, "config": snap_cfg.__dict__},
-        )
+    async def _handle_home(self) -> CommandResult:
+        payload = self._build_home_payload()
+        return CommandResult(success=True, message=render_view("home", payload), payload=payload)
 
     async def _handle_pause(self) -> CommandResult:
         current = self._state.state
@@ -652,22 +655,15 @@ class CommandHandler:
             )
         try:
             snapshot = self._multi_metrics.snapshot()
-            total_signals = self._multi_metrics.total_signals
-            total_trades = self._multi_metrics.total_trades
-            conflicts = self._multi_metrics.total_conflicts
-
-            from .message_formatter import format_multi_strategy_report
-            msg = format_multi_strategy_report(
-                strategy_breakdown=snapshot,
-                conflicts_count=conflicts,
-                skipped_trades=0,
-                total_signals=total_signals,
-                total_trades=total_trades,
-            )
+            strategy_states = {
+                str(strategy_id): bool((m_data or {}).get("enabled", True))
+                for strategy_id, m_data in snapshot.items()
+            }
+            msg = render_view("strategy", {"strategies": strategy_states})
             return CommandResult(
                 success=True,
                 message=msg,
-                payload={"snapshot": snapshot, "conflicts": conflicts},
+                payload={"snapshot": snapshot},
             )
         except Exception as exc:
             return CommandResult(
@@ -714,19 +710,15 @@ class CommandHandler:
                 total_wins / total_trade_count if total_trade_count > 0 else 0.0
             )
 
-            msg = format_performance_report(
-                per_strategy_pnl=per_pnl,
-                per_strategy_win_rate=per_wr,
-                per_strategy_trades=per_trades,
-                total_pnl=round(total_pnl, 4),
-                total_trades=self._multi_metrics.total_trades,
-                mode=self._mode,
-                win_rate=round(overall_win_rate, 4),
-                drawdown=round(max_drawdown, 4),
-            )
+            ui_payload = {
+                "pnl": round(total_pnl, 4),
+                "winrate": round(overall_win_rate, 4),
+                "trades": self._multi_metrics.total_trades,
+                "drawdown": round(max_drawdown, 4),
+            }
             return CommandResult(
                 success=True,
-                message=msg,
+                message=render_view("performance", ui_payload),
                 payload={
                     "total_pnl": round(total_pnl, 4),
                     "total_trades": self._multi_metrics.total_trades,
@@ -1067,15 +1059,39 @@ class CommandHandler:
     async def _handle_wallet(self) -> CommandResult:
         """Show wallet / portfolio overview with new-menu keyboard."""
         from .ui.keyboard import build_wallet_menu
+        metrics = self._get_metrics_snapshot()
+        payload = {
+            "cash": metrics.get("cash", metrics.get("balance", "N/A")),
+            "equity": metrics.get("equity", "N/A"),
+            "used": metrics.get("used", metrics.get("margin", "N/A")),
+            "free": metrics.get("free", "N/A"),
+            "positions": metrics.get("open_positions", metrics.get("positions", 0)),
+        }
         return CommandResult(
             success=True,
-            message=(
-                "💰 *WALLET*\n\n"
-                "Live exposure and balance data is available via /health.\n"
-                "_Direct wallet integration coming in next phase._"
-            ),
+            message=render_view("wallet", payload),
             payload={"_keyboard": build_wallet_menu()},
         )
+
+    async def _handle_exposure(self) -> CommandResult:
+        metrics = self._get_metrics_snapshot()
+        payload = {
+            "total_exposure": metrics.get("total_exposure", metrics.get("exposure", "N/A")),
+            "ratio": metrics.get("exposure_ratio", "N/A"),
+            "positions": metrics.get("open_positions", metrics.get("positions", 0)),
+            "unrealized": metrics.get("unrealized_pnl", metrics.get("unreal", "N/A")),
+            "position_lines": metrics.get("position_lines", []),
+        }
+        return CommandResult(success=True, message=render_view("exposure", payload), payload=payload)
+
+    async def _handle_risk(self) -> CommandResult:
+        cfg = self._config.snapshot()
+        payload = {
+            "kelly": "0.25f",
+            "level": f"{cfg.risk_multiplier:.2f}",
+            "profile": "Conservative controls active",
+        }
+        return CommandResult(success=True, message=render_view("risk", payload), payload=payload)
 
     async def _handle_control(self) -> CommandResult:
         """Show control panel with state-aware keyboard."""

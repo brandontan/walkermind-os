@@ -88,11 +88,13 @@ from ...monitoring.validation_engine import ValidationEngine, ValidationState
 from ...monitoring.snapshot_engine import SnapshotEngine
 from ...strategy.market_intelligence import MarketIntelligenceEngine
 from ...telegram.utils import telegram_sender
-from ...utils.ui_formatter import (
-    build_home,
-    build_performance,
-    build_portfolio,
-    build_wallet,
+from ...interface.ui.views import (
+    render_exposure_view,
+    render_home_view,
+    render_performance_view,
+    render_risk_view,
+    render_strategy_view,
+    render_wallet_view,
 )
 from ..validation_state import ValidationStateStore
 from ..logging.logger import (
@@ -137,14 +139,18 @@ def build_ui_view(command: str, data: dict[str, Any]) -> str:
     """Route UI command to the correct formatter with safe fallback."""
     normalized = command.strip().lower()
     if normalized == "/home":
-        return build_home(data)
-    if normalized == "/portfolio":
-        return build_portfolio(data)
+        return render_home_view(data)
     if normalized == "/wallet":
-        return build_wallet(data)
+        return render_wallet_view(data)
+    if normalized in ("/portfolio", "/exposure"):
+        return render_exposure_view(data)
     if normalized == "/performance":
-        return build_performance(data)
-    return build_home(data)
+        return render_performance_view(data)
+    if normalized == "/strategy":
+        return render_strategy_view(data)
+    if normalized == "/risk":
+        return render_risk_view(data)
+    return render_home_view(data)
 
 
 def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
@@ -165,25 +171,23 @@ def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
             "winrate",
             "profit_factor",
         }
-    elif normalized == "/portfolio":
+    elif normalized in ("/portfolio", "/exposure"):
         keys = {
+            "total_exposure",
+            "ratio",
             "positions",
             "exposure",
-            "side",
-            "risk",
-            "market",
-            "entry",
-            "size",
-            "pnl",
-            "confidence",
-            "edge",
-            "signal",
-            "reason",
+            "unrealized",
+            "position_lines",
         }
     elif normalized == "/wallet":
-        keys = {"balance", "equity", "used", "free", "margin"}
+        keys = {"cash", "balance", "equity", "used", "free", "positions"}
     elif normalized == "/performance":
-        keys = {"realized", "unreal", "wr", "pf"}
+        keys = {"pnl", "total_pnl", "winrate", "wr", "trades", "total_trades", "drawdown"}
+    elif normalized == "/strategy":
+        keys = {"strategies"}
+    elif normalized == "/risk":
+        keys = {"kelly", "level", "profile"}
     else:
         keys = set(source.keys())
     payload = {key: source.get(key) for key in keys}
@@ -195,18 +199,6 @@ def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
                 "winrate": _winrate,
                 "profit_factor": _profit_factor,
                 "validation_status": _validation_status,
-            }
-        )
-    if normalized == "/portfolio":
-        _portfolio = build_portfolio_intelligence(
-            probability=source.get("confidence", source.get("probability")),
-            expected_value=source.get("ev"),
-            reason=source.get("reason"),
-        )
-        payload.update(
-            {
-                key: payload.get(key) if payload.get(key) is not None else value
-                for key, value in _portfolio.items()
             }
         )
     return payload
