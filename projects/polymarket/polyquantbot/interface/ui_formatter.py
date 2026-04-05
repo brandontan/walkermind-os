@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Optional
 import structlog
 
-from data.market_context import get_market_context
+from ..data.market_context import get_market_context
 
 log = structlog.get_logger(__name__)
 
