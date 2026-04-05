@@ -39,6 +39,12 @@ def build_home(data: Mapping[str, Any]) -> str:
 ├ SCAN       {_value(data, "scan")}
 └ DISTRIB    {_value(data, "distribution")}
 
+🧪 VALIDATION
+├ STATUS     {_value(data, "validation_status")}
+├ TRADES     {_value(data, "trades_count")}/30
+├ WR         {_value(data, "winrate")}
+└ PF         {_value(data, "profit_factor")}
+
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 {_value(data, "insight")}
 """.strip()
@@ -57,7 +63,11 @@ def build_portfolio(data: Mapping[str, Any]) -> str:
 ├ MARKET     {_value(data, "market")}
 ├ ENTRY      {_value(data, "entry")}
 ├ SIZE       {_value(data, "size")}
-└ PNL        {_value(data, "pnl")}
+├ PNL        {_value(data, "pnl")}
+├ CONF       {_value(data, "confidence")}
+├ EDGE       {_value(data, "edge")}
+├ SIGNAL     {_value(data, "signal")}
+└ REASON     {_value(data, "reason")}
 """.strip()
 
 

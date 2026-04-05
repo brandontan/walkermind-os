@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
-Last Updated: 2026-04-04
-Status: Phase 24.3h UI architecture refactor delivered for Telegram HOME / PORTFOLIO / WALLET / PERFORMANCE separation with dedicated formatter routing and duplication removal. Next report: projects/polymarket/polyquantbot/reports/forge/24_3h_ui_architecture.md
+Last Updated: 2026-04-05
+Status: Phase 24.4 delivered intelligence + validation visibility in Telegram UI (`/portfolio` and `/home`) with safe classifier mapping and no-crash fallbacks. Next report: projects/polymarket/polyquantbot/reports/forge/24_4_intelligence_validation.md
 
 ---
 
@@ -68,6 +68,12 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+INTELLIGENCE + VALIDATION UI VISIBILITY (Phase 24.4)
+
+- projects/polymarket/polyquantbot/utils/ui_formatter.py (MODIFIED): `/portfolio` active position now exposes `CONF`, `EDGE`, `SIGNAL`, `REASON`; `/home` now includes `🧪 VALIDATION` with STATUS/TRADES/WR/PF.
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Added UI classifier/mapping logic for intelligence + validation data (`classify_edge`, `classify_strength`, `resolve_validation_status`) with missing-data-safe `N/A` handling.
+- projects/polymarket/polyquantbot/reports/forge/24_4_intelligence_validation.md (NEW): completion report.
 
 UI ARCHITECTURE REFACTOR (Phase 24.3h)
 
@@ -723,6 +729,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- Validation run (staging) — verify `/home` validation block and `/portfolio` intelligence fields under live paper telemetry
 - UI architecture validation run (staging) — manual Telegram view verification for `/home`, `/portfolio`, `/wallet`, `/performance`
 - **Validation run (staging)** — Telegram private mode (Phase 24.3f) active with market intelligence shadow layer + snapshot system; collecting DM delivery checks, uptime, and state/snapshot telemetry
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
@@ -753,11 +760,11 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Performance analysis** — validate UI-driven telemetry readability and operator workflow speed from staging interactions
-2. **Phase 24.4 analysis** — truth extraction and threshold calibration (WR/PF/MDD) using 24h validation snapshots + last_pnl
+1. **Performance analysis** — validate operator decision speed and readability impact from new intelligence + validation blocks
+2. **Validation run completion** — confirm PASS/WARMING/CRITICAL transitions against observed WR/PF/trade-count telemetry
 3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-4. SENTINEL validation required for UI architecture refactor before merge.
-   Source: projects/polymarket/polyquantbot/reports/forge/24_3h_ui_architecture.md
+4. SENTINEL validation required for intelligence + validation visibility before merge.
+   Source: projects/polymarket/polyquantbot/reports/forge/24_4_intelligence_validation.md
 
 ---
 

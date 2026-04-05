@@ -147,20 +147,129 @@ def build_ui_view(command: str, data: dict[str, Any]) -> str:
     return build_home(data)
 
 
+def classify_edge(ev: Any) -> str:
+    """Classify EV into LOW/MEDIUM/HIGH buckets with safe fallback."""
+    try:
+        ev_value = float(ev)
+    except (TypeError, ValueError):
+        return "N/A"
+    if ev_value < 0.01:
+        return "LOW"
+    if ev_value <= 0.05:
+        return "MEDIUM"
+    return "HIGH"
+
+
+def classify_strength(probability: Any) -> str:
+    """Classify probability confidence into WEAK/MODERATE/STRONG buckets."""
+    try:
+        probability_value = float(probability)
+    except (TypeError, ValueError):
+        return "N/A"
+    if probability_value < 0.55:
+        return "WEAK"
+    if probability_value <= 0.65:
+        return "MODERATE"
+    return "STRONG"
+
+
+def resolve_validation_status(
+    trades_count: Any,
+    winrate: Any,
+    profit_factor: Any,
+) -> str:
+    """Resolve validation status label for HOME view."""
+    try:
+        trade_count_value = int(float(trades_count))
+    except (TypeError, ValueError):
+        return "N/A"
+
+    if trade_count_value < 30:
+        return "WARMING"
+
+    try:
+        winrate_value = float(winrate)
+        profit_factor_value = float(profit_factor)
+    except (TypeError, ValueError):
+        return "N/A"
+
+    if winrate_value >= 0.70 and profit_factor_value >= 1.50:
+        return "PASS"
+    return "CRITICAL"
+
+
 def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
     """Return command-scoped data to enforce no duplication between views."""
+    source_probability = source.get("probability")
+    source_ev = source.get("ev")
+    source_trades_count = source.get("trades_count", source.get("trade_count"))
+    source_winrate = source.get("winrate", source.get("wr", source.get("win_rate")))
+    source_profit_factor = source.get("profit_factor", source.get("pf"))
+
+    confidence: Any = "N/A"
+    if source_probability is not None:
+        try:
+            confidence = round(float(source_probability), 2)
+        except (TypeError, ValueError):
+            confidence = "N/A"
+
+    intelligence_values: dict[str, Any] = {
+        "confidence": confidence,
+        "edge": classify_edge(source_ev),
+        "signal": classify_strength(source_probability),
+        "reason": source.get("reason", "N/A"),
+    }
+
+    validation_values: dict[str, Any] = {
+        "validation_status": resolve_validation_status(
+            trades_count=source_trades_count,
+            winrate=source_winrate,
+            profit_factor=source_profit_factor,
+        ),
+        "trades_count": source_trades_count if source_trades_count is not None else "N/A",
+        "winrate": source_winrate if source_winrate is not None else "N/A",
+        "profit_factor": source_profit_factor if source_profit_factor is not None else "N/A",
+    }
+
     normalized = command.strip().lower()
     if normalized == "/home":
-        keys = {"status", "mode", "markets", "latency", "strategy", "scan", "distribution", "insight"}
+        keys = {
+            "status",
+            "mode",
+            "markets",
+            "latency",
+            "strategy",
+            "scan",
+            "distribution",
+            "insight",
+            "validation_status",
+            "trades_count",
+            "winrate",
+            "profit_factor",
+        }
     elif normalized == "/portfolio":
-        keys = {"positions", "exposure", "side", "risk", "market", "entry", "size", "pnl"}
+        keys = {
+            "positions",
+            "exposure",
+            "side",
+            "risk",
+            "market",
+            "entry",
+            "size",
+            "pnl",
+            "confidence",
+            "edge",
+            "signal",
+            "reason",
+        }
     elif normalized == "/wallet":
         keys = {"balance", "equity", "used", "free", "margin"}
     elif normalized == "/performance":
         keys = {"realized", "unreal", "wr", "pf"}
     else:
         keys = set(source.keys())
-    return {key: source.get(key) for key in keys}
+    merged: dict[str, Any] = {**source, **intelligence_values, **validation_values}
+    return {key: merged.get(key) for key in keys}
 
 
 def _env_float(name: str, default: float) -> float:
