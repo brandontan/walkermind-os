@@ -44,13 +44,23 @@ Format: [phase]_[increment]_[name].md (forge/sentinel) or .html (briefer)
 
 ## BRANCH NAMING
 
-| Agent | Format | Example |
-|---|---|---|
-| FORGE-X | feature/forge/[task-name] | feature/forge/kelly-risk-module |
-| SENTINEL | feature/sentinel/[phase]-[inc]-[name] | feature/sentinel/24-1-validation |
-| BRIEFER | feature/briefer/[phase]-[inc]-[name] | feature/briefer/24-1-investor-report |
+Format: `feature/[area]-[specific-purpose]`
 
-Rules: lowercase, hyphens only, no spaces, max 50 chars.
+| Area | Use For | Example |
+|---|---|---|
+| `ui` | tampilan / layout / hierarchy | feature/ui-dashboard-portfolio |
+| `ux` | readability / flow / humanization | feature/ux-telegram-alerts |
+| `execution` | engine / order / lifecycle | feature/execution-kelly-sizing |
+| `risk` | risk control / exposure | feature/risk-drawdown-circuit |
+| `monitoring` | performance tracking | feature/monitoring-latency-log |
+| `data` | market data / ingestion | feature/data-ws-reconnect |
+| `infra` | deployment / config | feature/infra-env-setup |
+| `forge` | general build / multi-domain | feature/forge-signal-activation |
+| `sentinel` | validation tasks | feature/sentinel-24-1-validation |
+| `briefer` | report tasks | feature/briefer-24-1-investor-report |
+
+Rules: lowercase, hyphens only, no spaces, max 50 chars total.
+Pick the most specific area — use forge/sentinel/briefer only when no area fits.
 
 ---
 
