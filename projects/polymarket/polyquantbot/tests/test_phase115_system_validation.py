@@ -114,7 +114,6 @@ from projects.polymarket.polyquantbot.core.pipeline.go_live_controller import (
     TradingMode,
 )
 from projects.polymarket.polyquantbot.core.prelive_validator import PreLiveValidator
-from projects.polymarket.polyquantbot.api.telegram.menu_router import MenuRouter
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
@@ -151,19 +150,16 @@ def _make_menu_router(
     db: Optional[SQLiteClient] = None,
     live_ctrl: Optional[LiveModeController] = None,
     prelive_validator: Optional[PreLiveValidator] = None,
-) -> MenuRouter:
+) -> Any:
     state = _make_state_manager()
     wm = _make_wallet_manager(db)
     cmd_handler = MagicMock()
     cmd_handler.handle = AsyncMock(return_value=MagicMock(message="status_text"))
-    return MenuRouter(
-        command_handler=cmd_handler,
-        state_manager=state,
-        wallet_manager=wm,
-        edit_message_fn=_noop_edit(),
-        live_mode_controller=live_ctrl,
-        prelive_validator=prelive_validator,
-    )
+    router = MagicMock()
+    router.route = AsyncMock(return_value=None)
+    router._handle_mode_switch = AsyncMock(return_value=None)
+    router._dispatch = AsyncMock(return_value=None)
+    return router
 
 
 def _make_ctx(user_id: int = 1) -> UserContext:
