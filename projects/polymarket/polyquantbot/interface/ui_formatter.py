@@ -1,147 +1,115 @@
-"""Premium UI formatter for human-readable Telegram output."""
-from __future__ import annotations
-from typing import List, Optional
-import structlog
+"""Refactored Premium UI Formatter (Production-Ready)""" from future import annotations from typing import Optional
 
 from projects.polymarket.polyquantbot.data.market_context import get_market_context
 
-log = structlog.get_logger(__name__)
+=========================
 
-# Emoji mapping for semantic UI
-EMOJI = {
-    "equity": "💰",
-    "positions": "📦",
-    "exposure": "📊",
-    "insight": "🧠",
-    "risk": "⚠️",
-    "action": "💡",
-    "bullish": "📈",
-    "bearish": "📉",
-    "neutral": "🔄",
-    "high": "🔥",
-    "medium": "🟡",
-    "low": "🟢",
-    "waiting": "⏳",
-    "active": "🚀",
-    "notrade": "🛑",
-}
+SAFETY HELPERS
 
+=========================
 
-def _divider(title: str) -> str:
-    """Render a section divider with title."""
-    return f"━━━━━━━━━━━━━━\n{title}\n━━━━━━━━━━━━━━"
+def _safe_float(x) -> float: try: return float(x) except Exception: return 0.0
 
+def _safe_str(x) -> str: return str(x) if x is not None else "N/A"
 
-def _hierarchy(items: List[str], prefix: str = "┣") -> str:
-    """Render a hierarchy tree."""
-    return "\n".join(f"{prefix} {item}" for item in items)
+=========================
 
+EMOJI SYSTEM
 
-def _humanize_pnl(pnl: float) -> str:
-    """Convert PnL to human-readable string with emoji."""
-    if pnl > 0:
-        return f"🟢 +{pnl:.2f}"
-    elif pnl < 0:
-        return f"🔴 {pnl:.2f}"
-    return "🟡 0.00"
+=========================
 
+EMOJI = { "equity": "💰", "positions": "📦", "exposure": "📊", "insight": "🧠", "risk": "⚠️", "action": "💡", "system": "⚙️", }
 
-def _humanize_exposure(exposure: float) -> str:
-    """Convert exposure to human-readable string."""
-    if exposure < 0.1:
-        return "Capital mostly idle, ready to deploy"
-    elif exposure > 0.8:
-        return "High exposure, consider reducing"
-    return "Moderate exposure"
+=========================
 
+CORE UI BUILDERS
 
-def render_portfolio_block(equity: float, positions: int, exposure: float) -> str:
-    """Render the portfolio block."""
-    return (
-        _divider(f"{EMOJI['equity']} PORTFOLIO") + "\n"
-        f"{EMOJI['equity']} Equity: ${equity:,.2f}\n"
-        f"{EMOJI['positions']} Active Positions: {positions}\n"
-        f"{EMOJI['exposure']} Exposure: {exposure:.1%} ({_humanize_exposure(exposure)})"
-    )
+=========================
 
+def _divider(title: str) -> str: return f"━━━━━━━━━━━━━━\n{title}\n━━━━━━━━━━━━━━"
 
-def render_market_insight(trend: str, edge: str, status: str) -> str:
-    """Render the market insight block."""
-    return (
-        _divider(f"{EMOJI['insight']} MARKET INSIGHT") + "\n"
-        f"{EMOJI['bullish' if trend == 'bullish' else 'bearish' if trend == 'bearish' else 'neutral']} Trend: {trend.capitalize()}\n"
-        f"{EMOJI[edge]} Edge: {edge.capitalize()}\n"
-        f"{EMOJI[status]} Status: {status.replace('_', ' ').capitalize()}"
-    )
+def _pnl(pnl: float) -> str: pnl = _safe_float(pnl) if pnl > 0: return f"🟢 +{pnl:.2f}" elif pnl < 0: return f"🔴 {pnl:.2f}" return "🟡 0.00"
 
+=========================
 
-async def render_active_position(
-    market_id: str,
-    side: str,
-    entry_price: float,
-    size: float,
-    pnl: float,
-) -> str:
-    """Render the active position block using live market context."""
-    context = await get_market_context(market_id)
-    return (
-        _divider(f"{EMOJI['positions']} ACTIVE POSITION") + "\n"
-        f"{EMOJI['positions']} Market: {context['name']}\n"
-        f"Category: {context['category']}\n"
-        f"Resolve: {context['resolution']}\n"
-        f"Side: {side}\n"
-        f"Entry: ${entry_price:,.2f}\n"
-        f"Size: ${size:,.2f}\n"
-        f"PnL: {_humanize_pnl(pnl)}"
-    )
+BLOCKS
 
+=========================
 
-def render_risk_status(exposure_safe: bool, position_safe: bool, drawdown: float) -> str:
-    """Render the risk status block."""
-    return (
-        _divider(f"{EMOJI['risk']} RISK STATUS") + "\n"
-        f"{EMOJI['risk']} Exposure Safe: {'✅' if exposure_safe else '❌'}\n"
-        f"Position Size Safe: {'✅' if position_safe else '❌'}\n"
-        f"Drawdown: {drawdown:.1%}"
-    )
+def render_system(state: str, mode: str) -> str: return ( _divider(f"{EMOJI['system']} SYSTEM") + "\n" f"State : {_safe_str(state)}\n" f"Mode  : {_safe_str(mode)}" )
 
+def render_portfolio(equity, positions, exposure) -> str: equity = _safe_float(equity) exposure = _safe_float(exposure)
 
-def render_bot_decision(decision: str) -> str:
-    """Render the bot decision block."""
-    return (
-        _divider(f"{EMOJI['action']} BOT DECISION") + "\n"
-        f"{EMOJI['action']} {decision.capitalize()}"
-    )
+return (
+    _divider(f"{EMOJI['equity']} PORTFOLIO") + "\n"
+    f"Equity    : ${equity:,.2f}\n"
+    f"Positions : {_safe_float(positions):.0f}\n"
+    f"Exposure  : {exposure:.1%}"
+)
 
+async def render_position(market_id, side, entry, size, pnl) -> str: context = await get_market_context(market_id) or {}
 
-async def render_dashboard(
-    equity: float,
-    positions: int,
-    exposure: float,
-    trend: str,
-    edge: str,
-    status: str,
-    market_id: Optional[str] = None,
-    side: Optional[str] = None,
-    entry_price: Optional[float] = None,
-    size: Optional[float] = None,
-    pnl: Optional[float] = None,
-    exposure_safe: bool = True,
-    position_safe: bool = True,
-    drawdown: float = 0.0,
-    decision: str = "waiting for opportunity",
-) -> str:
-    """Render the full dashboard."""
-    blocks = [
-        render_portfolio_block(equity, positions, exposure),
-        render_market_insight(trend, edge, status),
-    ]
-    if market_id:
-        blocks.append(
-            await render_active_position(market_id, side, entry_price, size, pnl)
-        )
-    blocks.extend([
-        render_risk_status(exposure_safe, position_safe, drawdown),
-        render_bot_decision(decision),
-    ])
-    return "\n\n".join(blocks)
+name = context.get("name", "Unknown Market")
+
+entry = _safe_float(entry)
+size = _safe_float(size)
+pnl = _safe_float(pnl)
+
+return (
+    _divider(f"{EMOJI['positions']} POSITION") + "\n"
+    f"Market : {name}\n"
+    f"Side   : {_safe_str(side)}\n"
+    f"Entry  : ${entry:,.2f}\n"
+    f"Size   : ${size:,.2f}\n"
+    f"PnL    : {_pnl(pnl)}"
+)
+
+def render_risk(drawdown) -> str: dd = _safe_float(drawdown) return ( _divider(f"{EMOJI['risk']} RISK") + "\n" f"Drawdown : {dd:.1%}" )
+
+def render_insight(text: str) -> str: return ( _divider(f"{EMOJI['insight']} INSIGHT") + "\n" f"{_safe_str(text)}" )
+
+def render_decision(text: str) -> str: return ( _divider(f"{EMOJI['action']} DECISION") + "\n" f"{_safe_str(text)}" )
+
+=========================
+
+SINGLE ENTRY POINT
+
+=========================
+
+async def render_dashboard(data: dict) -> str: """ONLY ENTRY POINT — do not bypass this."""
+
+blocks = []
+
+# SYSTEM
+blocks.append(render_system(
+    data.get("state"),
+    data.get("mode")
+))
+
+# PORTFOLIO
+blocks.append(render_portfolio(
+    data.get("equity"),
+    data.get("positions"),
+    data.get("exposure")
+))
+
+# POSITION (optional)
+if data.get("market_id"):
+    blocks.append(await render_position(
+        data.get("market_id"),
+        data.get("side"),
+        data.get("entry"),
+        data.get("size"),
+        data.get("pnl")
+    ))
+
+# RISK
+blocks.append(render_risk(data.get("drawdown")))
+
+# INSIGHT
+blocks.append(render_insight(data.get("insight")))
+
+# DECISION
+blocks.append(render_decision(data.get("decision")))
+
+return "\n\n".join(blocks)
