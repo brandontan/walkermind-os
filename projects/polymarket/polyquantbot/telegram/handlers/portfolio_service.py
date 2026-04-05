@@ -182,3 +182,33 @@ _portfolio_service = PortfolioService()
 
 def get_portfolio_service() -> PortfolioService:
     return _portfolio_service
+
+
+async def get_performance_view() -> dict[str, Any]:
+    from ...execution.trade_trace import TradeTraceEngine
+    from ...execution.engine import get_execution_engine
+    
+    engine = get_execution_engine()
+    analytics = engine.get_analytics()
+    trace_engine = TradeTraceEngine()
+    summary = analytics.summary()
+    traces = trace_engine.get_traces()
+
+    return {
+        "performance": {
+            "trades": summary["trades"],
+            "win_rate": f"{summary['win_rate']:.2f}",
+            "avg_pnl": f"{summary['avg_pnl']:.2f}",
+            "max_drawdown": f"{summary['max_drawdown']:.2f}",
+        },
+        "traces": [
+            {
+                "position_id": t.position_id,
+                "score": t.intelligence_score,
+                "threshold": t.decision_threshold,
+                "action": t.action,
+                "reasons": t.intelligence_reasons,
+            }
+            for t in traces[-5:]  # Last 5 traces
+        ],
+    }
