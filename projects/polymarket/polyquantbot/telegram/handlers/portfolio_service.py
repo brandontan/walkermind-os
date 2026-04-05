@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ...core.portfolio.pnl import PnLTracker
     from ...core.wallet_engine import WalletEngine
     from ...core.positions import PaperPositionManager
+    from ..execution.engine import ExecutionEngine
 
 log = structlog.get_logger(__name__)
 
@@ -37,7 +38,7 @@ class _WalletStateProtocol(Protocol):
 
 class PortfolioService:
     """Single source of truth for Telegram portfolio views.
-
+    
     Aggregates wallet, positions, and pnl into an immutable snapshot so all
     Telegram views render from the same state in a single read.
     """
@@ -109,7 +110,7 @@ class PortfolioService:
 
     def get_state(self) -> Optional[PortfolioState]:
         """Return immutable portfolio snapshot or ``None`` when unavailable.
-
+        
         Returns ``None`` for partial/inconsistent payloads so view handlers can
         safely show a single fallback message instead of mismatched values.
         """
