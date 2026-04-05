@@ -1,21 +1,23 @@
-"""WALLET product dashboard view."""
+"""WALLET unified premium hierarchy dashboard view."""
 from __future__ import annotations
 
 from typing import Any, Mapping
 
-from .helpers import SEPARATOR, block, generate_insight
-
-
-TITLE = "💼 WALLET"
-SUBTITLE = "Polymarket AI Trader"
+from ..formatters.premium_formatter import block, divider, format_money, item, item_last, section
 
 
 def render_wallet_view(data: Mapping[str, Any]) -> str:
-    sections = [
-        f"{TITLE}\n{SUBTITLE}",
-        block(data.get("cash", data.get("balance")), "Balance"),
-        block(data.get("equity"), "Equity"),
-        block(data.get("free_margin", data.get("free")), "Available"),
-        f"🧠 Insight\n{generate_insight(data)}",
-    ]
-    return f"\n{SEPARATOR}\n".join(sections)
+    lines = [section("💼 WALLET")]
+    lines.extend(
+        [
+            "💼 Account",
+            item("Balance", format_money(data.get("cash", data.get("balance", 0.0)))),
+            item("Equity", format_money(data.get("equity", 0.0))),
+            item_last("Available", format_money(data.get("free_margin", data.get("free", 0.0)))),
+            "",
+            "🧠 Insight",
+            "└─ Wallet ledger synchronized",
+            divider(),
+        ]
+    )
+    return block(lines)

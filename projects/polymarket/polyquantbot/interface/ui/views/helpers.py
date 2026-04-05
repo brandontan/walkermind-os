@@ -12,7 +12,7 @@ def fmt(value: Any) -> str:
         return "—"
     if isinstance(value, str):
         text = value.strip()
-        if not text or text.upper() == "N/A":
+        if not text or text.replace("/", "").upper() == "NA":
             return "—"
         return text
     if isinstance(value, float):

@@ -32,10 +32,12 @@ def divider() -> str:
 
 def _safe_text(value: Any) -> str:
     if value is None:
-        return "N/A"
+        return "—"
     if isinstance(value, str):
         text = value.strip()
-        return text if text else "N/A"
+        if not text:
+            return "—"
+        return "—" if text.replace("/", "").upper() == "NA" else text
     return str(value)
 
 
@@ -46,25 +48,46 @@ def _to_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def pnl_color(pnl: float) -> str:
+    """Return emoji color marker for pnl direction."""
+    if pnl > 0:
+        return "🟢"
+    if pnl < 0:
+        return "🔴"
+    return "⚪"
+
+
+def format_pnl(value: Any) -> str:
+    """Format pnl with directional emoji marker."""
+    pnl = _to_float(value)
+    return f"{pnl_color(pnl)} ${pnl:,.2f}"
+
+
 def _market_obj_from_mapping(data: Mapping[str, Any]) -> Any:
-    market_id = data.get("market_id") or data.get("id") or "N/A"
+    market_id = data.get("market_id") or data.get("id") or "—"
+    title = data.get("market_title") or data.get("question") or data.get("title")
+    if not title:
+        title = "Unknown Market"
     return SimpleNamespace(
         id=market_id,
-        title=data.get("market_title") or data.get("question") or data.get("title") or "N/A",
-        category=data.get("market_category") or data.get("category") or "N/A",
+        title=title,
+        category=data.get("market_category") or data.get("category") or "—",
     )
 
 
 def format_market(market: Any) -> list[str]:
-    """Render market context tree with truncation and N/A fallback."""
+    """Render market context tree with truncation and safe fallback."""
     if isinstance(market, Mapping):
         market = _market_obj_from_mapping(market)
 
-    market_id = getattr(market, "id", "N/A")
-    title = getattr(market, "title", "N/A")
-    category = getattr(market, "category", "N/A")
+    market_id = getattr(market, "id", "—")
+    title = getattr(market, "title", None)
+    category = getattr(market, "category", "—")
 
-    title_text = str(title) if title is not None else "N/A"
+    if not title:
+        title = "Unknown Market"
+
+    title_text = str(title)
     if len(title_text) > 40:
         title_text = title_text[:40] + "..."
 
@@ -76,7 +99,7 @@ def format_market(market: Any) -> list[str]:
     ]
 
 
-def format_position(position: Any, market: Any) -> str:
+def format_position(position: Any, market: Any, index: int = 1) -> str:
     """Render one fully humanized position card."""
     side = getattr(position, "side", "NO")
     direction = "🟢 YES" if side == "YES" else "🔴 NO"
@@ -87,7 +110,7 @@ def format_position(position: Any, market: Any) -> str:
 
     lines: list[str] = []
     lines += [
-        "📊 POSITION",
+        f"📊 POSITION #{index}",
         "━━━━━━━━━━━━━━",
     ]
     lines += format_market(market)
@@ -100,7 +123,7 @@ def format_position(position: Any, market: Any) -> str:
         f"└─ Position Size ($): ${size:.0f}",
         "",
         "💰 Profit / Loss",
-        f"└─ Unrealized  : ${pnl:.2f}",
+        f"└─ Unrealized  : {format_pnl(pnl)}",
         "",
         "🧠 Insight",
         "└─ Monitoring active position",
@@ -109,13 +132,13 @@ def format_position(position: Any, market: Any) -> str:
     return "\n".join(lines)
 
 
-
 def format_count(value: Any) -> int:
     if isinstance(value, list):
         return len(value)
     if isinstance(value, tuple):
         return len(value)
     return int(_to_float(value, default=0.0))
+
 
 def format_money(value: Any) -> str:
     return f"${_to_float(value):,.2f}"
