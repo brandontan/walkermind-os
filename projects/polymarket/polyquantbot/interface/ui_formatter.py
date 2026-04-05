@@ -25,13 +25,19 @@ EMOJI = {
 }
 
 # Market name mapping (fallback to ID if not found)
-MARKET_NAMES = {
-    "BTC-USD": "Bitcoin",
-    "ETH-USD": "Ethereum",
-    "SOL-USD": "Solana",
-    "APT-USD": "Aptos",
-}
-
+async def render_active_position(market_id: str, side: str, entry_price: float, size: float, pnl: float) -> str:
+    context = await get_market_context(market_id)
+    return (
+        _divider(f"{EMOJI['positions']} ACTIVE POSITION") + "\n"
+        f"{EMOJI['positions']} Market: {context['name']}\n"
+        f"Category: {context['category']}\n"
+        f"Resolve: {context['resolution']}\n"
+        f"Side: {side}\n"
+        f"Entry: ${entry_price:,.2f}\n"
+        f"Size: ${size:,.2f}\n"
+        f"PnL: {_humanize_pnl(pnl)}"
+    )
+    
 def _divider(title: str) -> str:
     """Render a section divider with title."""
     return f"━━━━━━━━━━━━━━\n{title}\n━━━━━━━━━━━━━━"
