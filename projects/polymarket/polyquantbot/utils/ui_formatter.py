@@ -57,7 +57,11 @@ def build_portfolio(data: Mapping[str, Any]) -> str:
 ├ MARKET     {_value(data, "market")}
 ├ ENTRY      {_value(data, "entry")}
 ├ SIZE       {_value(data, "size")}
-└ PNL        {_value(data, "pnl")}
+├ PNL        {_value(data, "pnl")}
+├ CONF       {_value(data, "confidence")}
+├ EDGE       {_value(data, "edge")}
+├ SIGNAL     {_value(data, "signal")}
+└ REASON     {_value(data, "reason")}
 """.strip()
 
 

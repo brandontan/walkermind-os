@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
-Last Updated: 2026-04-04
-Status: Phase 24.3h UI architecture refactor delivered for Telegram HOME / PORTFOLIO / WALLET / PERFORMANCE separation with dedicated formatter routing and duplication removal. Next report: projects/polymarket/polyquantbot/reports/forge/24_3h_ui_architecture.md
+Last Updated: 2026-04-05
+Status: Phase 24.4a portfolio intelligence layer delivered for PORTFOLIO active-position explainability (CONF / EDGE / SIGNAL / REASON) with safe missing-data fallbacks. Next report: projects/polymarket/polyquantbot/reports/forge/24_4a_portfolio_intelligence.md
 
 ---
 
@@ -68,6 +68,12 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+PORTFOLIO INTELLIGENCE LAYER (Phase 24.4a)
+
+- projects/polymarket/polyquantbot/utils/ui_formatter.py (MODIFIED): Portfolio ACTIVE POSITION block now renders CONF / EDGE / SIGNAL / REASON with N/A-safe fallbacks.
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Added portfolio intelligence classifiers and mapper (`classify_edge`, `classify_strength`, `build_portfolio_intelligence`) and wired portfolio mapping fields (`confidence`, `edge`, `signal`, `reason`) from signal probability + EV context.
+- projects/polymarket/polyquantbot/reports/forge/24_4a_portfolio_intelligence.md (NEW): completion report.
 
 UI ARCHITECTURE REFACTOR (Phase 24.3h)
 
@@ -723,7 +729,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
-- UI architecture validation run (staging) — manual Telegram view verification for `/home`, `/portfolio`, `/wallet`, `/performance`
+- Validation tracking (staging) — portfolio intelligence visibility checks for CONF / EDGE / SIGNAL / REASON across active positions
 - **Validation run (staging)** — Telegram private mode (Phase 24.3f) active with market intelligence shadow layer + snapshot system; collecting DM delivery checks, uptime, and state/snapshot telemetry
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
 - Wire PriceFeedHandler to main.py as background asyncio task for continuous WS mark-to-market
@@ -753,11 +759,11 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Performance analysis** — validate UI-driven telemetry readability and operator workflow speed from staging interactions
+1. **Validation visibility** — verify operator readability and decision-trace clarity for portfolio intelligence fields in staging runtime
 2. **Phase 24.4 analysis** — truth extraction and threshold calibration (WR/PF/MDD) using 24h validation snapshots + last_pnl
 3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-4. SENTINEL validation required for UI architecture refactor before merge.
-   Source: projects/polymarket/polyquantbot/reports/forge/24_3h_ui_architecture.md
+4. SENTINEL validation required for portfolio intelligence layer before merge.
+   Source: projects/polymarket/polyquantbot/reports/forge/24_4a_portfolio_intelligence.md
 
 ---
 
