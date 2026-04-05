@@ -1,24 +1,27 @@
-"""PERFORMANCE product dashboard view."""
+"""PERFORMANCE unified premium hierarchy dashboard view."""
 from __future__ import annotations
 
 from typing import Any, Mapping
 
-from .helpers import SEPARATOR, block, generate_insight, pnl
-
-
-TITLE = "📈 PERFORMANCE"
-SUBTITLE = "Polymarket AI Trader"
+from ..formatters.premium_formatter import block, divider, format_count, format_market, format_money, format_percent, item, item_last, section
 
 
 def render_performance_view(data: Mapping[str, Any]) -> str:
-    total_pnl = data.get("total_pnl", data.get("pnl", 0.0))
-    unrealized = data.get("unrealized", 0.0)
-
-    sections = [
-        f"{TITLE}\n{SUBTITLE}",
-        block(pnl(total_pnl), "Total PnL"),
-        block(pnl(unrealized), "Unrealized"),
-        block(data.get("trades", data.get("total_trades")), "Trades"),
-        f"🧠 Insight\n{generate_insight(data)}",
-    ]
-    return f"\n{SEPARATOR}\n".join(sections)
+    lines = [section("📈 PERFORMANCE")]
+    lines.extend(format_market(data))
+    lines.extend([
+        "",
+        "💰 Profit / Loss",
+        item("Total", format_money(data.get("total_pnl", data.get("pnl", 0.0)))),
+        item_last("Unrealized", format_money(data.get("unrealized", 0.0))),
+        "",
+        "📊 Trading Quality",
+        item("Trades", format_count(data.get("trades", data.get("total_trades", 0)))),
+        item("Win Rate", format_percent(data.get("win_rate", 0.0))),
+        item_last("Drawdown", format_percent(data.get("drawdown", 0.0))),
+        "",
+        "🧠 Insight",
+        "└─ Performance telemetry synchronized",
+        divider(),
+    ])
+    return block(lines)
