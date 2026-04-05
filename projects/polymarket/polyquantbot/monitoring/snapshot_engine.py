@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .performance_breakdown import PerformanceBreakdown
+
 
 class SnapshotEngine:
     """Builds read-only system snapshots from validation metrics.
@@ -44,6 +46,7 @@ class SnapshotEngine:
         state: str,
         market_distribution: dict[str, int] | None = None,
         trade_distribution: dict[str, int] | None = None,
+        trades: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Return periodic validation snapshot payload with safe defaults."""
         try:
@@ -57,6 +60,7 @@ class SnapshotEngine:
                 "last_pnl": self._to_float(_metrics.get("last_pnl", 0.0), 0.0),
                 "market_distribution": self._to_distribution(market_distribution),
                 "trade_distribution": self._to_distribution(trade_distribution),
+                "performance_breakdown": self._performance_breakdown.analyze(trades),
             }
         except Exception:
             return {
@@ -68,4 +72,11 @@ class SnapshotEngine:
                 "last_pnl": 0.0,
                 "market_distribution": {},
                 "trade_distribution": {},
+                "performance_breakdown": {
+                    "by_market": {},
+                    "by_signal": {},
+                    "by_edge": {},
+                },
             }
+    def __init__(self) -> None:
+        self._performance_breakdown = PerformanceBreakdown()
