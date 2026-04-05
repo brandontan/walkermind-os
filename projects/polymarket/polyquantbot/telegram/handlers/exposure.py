@@ -14,6 +14,7 @@ import structlog
 
 from ..ui.components import render_positions_summary, render_status_bar, render_kv_line, render_insight, SEP
 from ..ui.keyboard import build_status_menu
+from .portfolio_service import get_portfolio_service
 
 if TYPE_CHECKING:
     from ...core.exposure import ExposureCalculator
@@ -97,51 +98,11 @@ async def handle_exposure() -> tuple[str, list]:
 
     status_bar = render_status_bar(state=sys_state, mode=_mode)
 
-    # ── Guard: services must be ready ────────────────────────────────────────
-    if _position_manager is None or _wallet_engine is None:
-        log.warning(
-            "exposure_handler_not_ready",
-            has_pm=_position_manager is not None,
-            has_wallet=_wallet_engine is not None,
-        )
-        text = "\n".join([
-            status_bar,
-            SEP,
-            "📉 *EXPOSURE*",
-            SEP,
-            render_kv_line("STATUS", "⚠️ Services not ready"),
-            "_Please try again momentarily._",
-            SEP,
-            render_insight("System initializing — retry in a few seconds"),
-        ])
-        return text, build_status_menu()
-
-    # ── Fetch positions ──────────────────────────────────────────────────────
-    try:
-        raw_positions = _position_manager.get_all_open()
-    except Exception as exc:
-        log.error("exposure_handler_fetch_positions_error", error=str(exc))
-        return (
-            "\n".join([
-                status_bar,
-                SEP,
-                "⚠️ *SYSTEM NOTICE*",
-                SEP,
-                render_kv_line("STATUS", "Positions fetch error"),
-                f"_{exc}_",
-                SEP,
-                render_insight("Position data unavailable — retry shortly"),
-            ]),
-            build_status_menu(),
-        )
-
-    # ── Fetch wallet equity ──────────────────────────────────────────────────
-    try:
-        wallet_state = _wallet_engine.get_state()
-        wallet_equity = wallet_state.equity
-    except Exception as exc:
-        log.error("exposure_handler_fetch_wallet_error", error=str(exc))
-        wallet_equity = 0.0
+    portfolio = get_portfolio_service().get_state()
+    if portfolio is None:
+        return "⚠️ Data unavailable", build_status_menu()
+    raw_positions = portfolio.positions
+    wallet_equity = portfolio.equity
 
     # ── Resolve market questions ─────────────────────────────────────────────
     positions: list[dict] = []
@@ -191,4 +152,3 @@ async def handle_exposure() -> tuple[str, list]:
 def _truncate(s: str, max_len: int) -> str:
     """Truncate a string with ellipsis if it exceeds *max_len*."""
     return s if len(s) <= max_len else s[: max_len - 1] + "…"
-

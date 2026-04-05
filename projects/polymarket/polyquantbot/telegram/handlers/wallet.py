@@ -26,6 +26,7 @@ from ..ui.screens import (
     wallet_withdraw_screen,
     wallet_withdraw_result_screen,
 )
+from .portfolio_service import get_portfolio_service
 
 if TYPE_CHECKING:
     from ...core.wallet.service import WalletService
@@ -105,35 +106,18 @@ def _get_status_bar() -> str:
     return render_status_bar(state=sys_state, mode=_mode)
 
 
-def _collect_paper_metrics() -> tuple[float, float, float, float, float, int]:
+def _collect_paper_metrics() -> Optional[tuple[float, float, float, float, float, int]]:
     """Return (cash, locked, equity, realized_pnl, unrealized_pnl, open_count)."""
-    cash = locked = equity = realized_pnl = unrealized_pnl = 0.0
-    open_count = 0
+    portfolio = get_portfolio_service().get_state()
+    if portfolio is None:
+        return None
 
-    if _paper_wallet_engine is not None:
-        try:
-            ws = _paper_wallet_engine.get_state()
-            cash = ws.cash
-            locked = ws.locked
-            equity = ws.equity
-        except Exception as exc:
-            log.warning("wallet_paper_state_error", error=str(exc))
-
-    if _position_manager is not None:
-        try:
-            positions = _position_manager.get_all_open()
-            open_count = len(positions)
-            unrealized_pnl = sum(p.unrealized_pnl for p in positions)
-        except Exception as exc:
-            log.warning("wallet_positions_error", error=str(exc))
-
-    if _pnl_tracker is not None:
-        try:
-            summary = _pnl_tracker.summary()
-            realized_pnl = summary.get("total_realized", 0.0)
-        except Exception as exc:
-            log.warning("wallet_pnl_tracker_error", error=str(exc))
-
+    cash = portfolio.cash
+    equity = portfolio.equity
+    realized_pnl = portfolio.pnl
+    unrealized_pnl = sum(pos.unrealized_pnl for pos in portfolio.positions)
+    open_count = len(portfolio.positions)
+    locked = max(equity - cash, 0.0)
     return cash, locked, equity, realized_pnl, unrealized_pnl, open_count
 
 
@@ -248,7 +232,11 @@ async def handle_paper_wallet(mode: str = "default") -> tuple[str, list]:
             build_wallet_menu(),
         )
 
-    cash, locked, equity, realized_pnl, unrealized_pnl, open_count = _collect_paper_metrics()
+    metrics = _collect_paper_metrics()
+    if metrics is None:
+        return "⚠️ Data unavailable", build_paper_wallet_menu()
+
+    cash, locked, equity, realized_pnl, unrealized_pnl, open_count = metrics
 
     status_bar = _get_status_bar()
     text = render_wallet_card(
@@ -597,4 +585,3 @@ async def handle_withdraw_command(
         return await handle_paper_withdraw_command(amount=amount_usdc)
 
     return wallet_withdraw_screen(), build_wallet_menu()
-

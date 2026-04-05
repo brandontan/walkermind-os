@@ -13,6 +13,7 @@ import structlog
 
 from ..ui.keyboard import build_status_menu
 from ..ui.screens import performance_screen
+from .portfolio_service import get_portfolio_service
 
 if TYPE_CHECKING:
     from ...monitoring.multi_strategy_metrics import MultiStrategyMetrics
@@ -51,32 +52,23 @@ async def handle_performance(mode: str) -> tuple[str, list]:
     Returns:
         ``(screen_text, keyboard)`` tuple.
     """
-    total_pnl = 0.0
+    portfolio = get_portfolio_service().get_state()
+    if portfolio is None:
+        return "⚠️ Data unavailable", build_status_menu()
+
+    total_pnl = portfolio.pnl
     win_rate = 0.0
-    total_trades = 0
+    total_trades = len(portfolio.positions)
     drawdown = 0.0
 
     if _multi_metrics is not None:
         try:
             perf = _multi_metrics.aggregate_performance()
-            total_trades = perf.get("total_trades", 0)
+            total_trades = max(total_trades, perf.get("total_trades", 0))
             win_rate = perf.get("win_rate", 0.0)
             drawdown = perf.get("drawdown", 0.0)
-            # Use total_pnl from multi_metrics as primary source
-            total_pnl = perf.get("total_pnl", 0.0)
         except Exception as exc:
             log.error("performance_handler_metrics_error", error=str(exc))
-
-    # Augment total_pnl from PnLTracker when available
-    if _pnl_tracker is not None:
-        try:
-            summary = _pnl_tracker.summary()
-            tracker_pnl = summary.get("total_pnl", 0.0)
-            # Prefer PnLTracker total when multi_metrics has no trades yet
-            if total_trades == 0 and tracker_pnl != 0.0:
-                total_pnl = tracker_pnl
-        except Exception as exc:
-            log.error("performance_handler_pnl_tracker_error", error=str(exc))
 
     log.info(
         "performance_handler_response",

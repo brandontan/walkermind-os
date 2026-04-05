@@ -21,6 +21,7 @@ import structlog
 
 from ..ui.components import render_start_screen, render_status_bar
 from ..ui.keyboard import build_main_menu
+from .portfolio_service import get_portfolio_service
 
 if TYPE_CHECKING:
     from ...core.system_state import SystemStateManager
@@ -121,45 +122,18 @@ async def handle_start() -> tuple[str, list]:
         except Exception as exc:
             log.warning("start_handler_state_fetch_error", error=str(exc))
 
-    # ── Collect wallet data ─────────────────────────────────────────────────
-    wallet_cash: float = 0.0
-    wallet_equity: float = 0.0
-    open_positions: int = 0
+    # ── Collect portfolio snapshot (single source of truth) ────────────────
+    portfolio = get_portfolio_service().get_state()
+    if portfolio is None:
+        return "⚠️ Data unavailable", build_main_menu()
 
-    if _wallet_engine is not None:
-        try:
-            ws = _wallet_engine.get_state()
-            wallet_cash = ws.cash
-            wallet_equity = ws.equity
-        except Exception as exc:
-            log.warning("start_handler_wallet_fetch_error", error=str(exc))
-
-    if _position_manager is not None:
-        try:
-            positions = _position_manager.get_all_open()
-            open_positions = len(positions)
-        except Exception as exc:
-            log.warning("start_handler_positions_fetch_error", error=str(exc))
-
-    # ── Collect PnL ─────────────────────────────────────────────────────────
-    realized_pnl: float = 0.0
-    unrealized_pnl: float = 0.0
-
-    if _pnl_tracker is not None:
-        try:
-            summary = _pnl_tracker.summary()
-            realized_pnl = summary.get("total_realized", 0.0)
-            unrealized_pnl = summary.get("total_unrealized", 0.0)
-        except Exception as exc:
-            log.warning("start_handler_pnl_fetch_error", error=str(exc))
-
-    # Also check positions for unrealized if tracker didn't provide it
-    if unrealized_pnl == 0.0 and _position_manager is not None:
-        try:
-            positions = _position_manager.get_all_open()
-            unrealized_pnl = sum(p.unrealized_pnl for p in positions)
-        except Exception:
-            pass
+    positions = portfolio.positions
+    wallet_cash = portfolio.cash
+    wallet_equity = portfolio.equity
+    open_positions = len(positions)
+    total_pnl = portfolio.pnl
+    realized_pnl: float = total_pnl
+    unrealized_pnl: float = sum(pos.unrealized_pnl for pos in positions)
 
     # ── Collect strategies ──────────────────────────────────────────────────
     active_strategies: list[str] = []
