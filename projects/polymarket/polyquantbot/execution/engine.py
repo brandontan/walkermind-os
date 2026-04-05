@@ -7,6 +7,7 @@ from typing import Any
 import structlog
 
 from .models import Position
+from .analytics import PerformanceTracker
 
 log = structlog.get_logger(__name__)
 
@@ -21,7 +22,7 @@ class ExecutionSnapshot:
 
 
 class ExecutionEngine:
-    """Paper-only execution engine with sizing and PnL tracking."""
+    """Paper-only execution engine with sizing, PnL tracking, and performance analytics."""
 
     def __init__(self, starting_equity: float = 10_000.0) -> None:
         self._lock = asyncio.Lock()
@@ -32,6 +33,7 @@ class ExecutionEngine:
         self._unrealized_pnl: float = 0.0
         self.max_position_size_ratio: float = 0.10
         self.max_total_exposure_ratio: float = 0.30
+        self._analytics = PerformanceTracker()
 
     async def open_position(self, market: str, side: str, price: float, size: float) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
@@ -95,6 +97,7 @@ class ExecutionEngine:
             realized_pnl = live_position.update_price(float(price))
             self._realized_pnl += realized_pnl
             self._cash += live_position.size + realized_pnl
+            self._analytics.record_trade(live_position)  # Record trade for analytics
             del self._positions[live_position.market_id]
             self._recalculate_unrealized()
             self._refresh_equity()
@@ -132,6 +135,10 @@ class ExecutionEngine:
     def _refresh_equity(self) -> None:
         locked_notional = self._current_total_exposure()
         self._equity = self._cash + locked_notional + self._unrealized_pnl
+
+    def get_analytics(self) -> PerformanceTracker:
+        """Expose analytics for UI integration."""
+        return self._analytics
 
 
 _engine_singleton: ExecutionEngine | None = None
