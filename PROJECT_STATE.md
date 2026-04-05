@@ -1,7 +1,7 @@
 Last Updated  : 2026-04-05
-Status        : Phase 10.11 elite premium HOME UI deployed with hero-first PnL focus, compressed portfolio/exposure blocks, and Smart Insight Engine v2.
-COMPLETED     : Upgraded HOME visual flow to 4-section premium layout in projects/polymarket/polyquantbot/interface/ui/views/home_view.py; replaced shared generate_insight logic in projects/polymarket/polyquantbot/interface/ui/views/helpers.py with Smart Insight Engine v2 state logic; generated forge report projects/polymarket/polyquantbot/reports/forge/10_11_ui_elite_mode.md.
-IN PROGRESS   : Dev runtime verification for Telegram HOME render spacing and callback output parity.
-NOT STARTED   : SENTINEL validation pass for phase 10.11 UI elite mode.
-NEXT PRIORITY : SENTINEL validation required for ui elite mode before merge. Source: projects/polymarket/polyquantbot/reports/forge/10_11_ui_elite_mode.md
-KNOWN ISSUES  : docs/CLAUDE.md is missing from repository checklist path; full Telegram end-to-end UX validation requires bot credentials and live chat runtime.
+Status        : UI critical fix deployed for HOME data rendering and Telegram routing consistency in dev.
+COMPLETED     : Fixed HOME data fallback rendering in projects/polymarket/polyquantbot/interface/ui/views/home_view.py (balance/equity/positions/pnl defaults and hero metric ordering); updated action routing in projects/polymarket/polyquantbot/interface/telegram/view_handler.py to include explicit strategy + home/trade/wallet/performance/exposure mapping; aligned reply keyboard callbacks in projects/polymarket/polyquantbot/telegram/ui/reply_keyboard.py so 🧠 Strategy maps to strategy and menu actions match route keys; reduced HOME separator usage to two separators maximum; generated forge report projects/polymarket/polyquantbot/reports/forge/10_11a_ui_fix.md.
+IN PROGRESS   : Dev runtime verification for Telegram callback flow and live payload rendering parity.
+NOT STARTED   : SENTINEL validation pass for UI critical fix batch.
+NEXT PRIORITY : SENTINEL validation required for ui critical fix before merge. Source: projects/polymarket/polyquantbot/reports/forge/10_11a_ui_fix.md
+KNOWN ISSUES  : docs/CLAUDE.md remains missing at expected checklist path; end-to-end Telegram visual validation still requires live bot credentials/chat runtime.

@@ -16,21 +16,27 @@ from ..ui.views import (
 
 
 def render_view(name: str, payload: Mapping[str, Any]) -> str:
-    key = name.strip().lower()
-    if key == "home":
-        return render_home_view(payload)
-    if key == "wallet":
-        return render_wallet_view(payload)
-    if key == "performance":
-        return render_performance_view(payload)
-    if key in {"exposure", "portfolio"}:
-        return render_exposure_view(payload)
-    if key in {"positions", "trade"}:
+    action = name.strip().lower()
+    if action == "trade":
         return render_positions_view(payload)
-    if key in {"strategy", "strategies"}:
+    elif action == "wallet":
+        return render_wallet_view(payload)
+    elif action == "performance":
+        return render_performance_view(payload)
+    elif action == "exposure":
+        return render_exposure_view(payload)
+    elif action == "strategy":
         return render_strategy_view(payload)
-    if key == "risk":
+    elif action == "home":
+        return render_home_view(payload)
+    elif action == "positions":
+        return render_positions_view(payload)
+    elif action == "portfolio":
+        return render_exposure_view(payload)
+    elif action == "strategies":
+        return render_strategy_view(payload)
+    elif action == "risk":
         return render_risk_view(payload)
-    if key in {"market", "markets"}:
+    elif action in {"market", "markets"}:
         return render_market_view(payload)
     return render_home_view(payload)
