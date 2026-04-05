@@ -1,54 +1,52 @@
-"""Centralized UI formatting blocks for Telegram monospace views."""
+"""Centralized UI formatting blocks for Telegram premium views."""
 from __future__ import annotations
 
 from typing import Iterable
 
-_LABEL_WIDTH: int = 12
+_LABEL_WIDTH: int = 14
+_SEPARATOR = "━━━━━━━━━━━━━━━"
+_NULL = "—"
 
 
 def _safe_text(value: object) -> str:
     if value is None:
-        return "N/A"
-    if isinstance(value, (int, float)):
-        if isinstance(value, bool):
-            return str(value)
-        if isinstance(value, float):
-            if value.is_integer():
-                return f"{int(value):,}"
-            return f"{value:,.2f}"
+        return _NULL
+    if isinstance(value, str):
+        text = value.strip()
+        return _NULL if not text or text.upper() == "N/A" else text
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int):
         return f"{value:,}"
+    if isinstance(value, float):
+        if value.is_integer():
+            return f"{int(value):,}"
+        return f"{value:,.2f}"
     text = str(value).strip()
-    return text or "N/A"
+    return _NULL if not text or text.upper() == "N/A" else text
 
 
-def row(label: str, value: str) -> str:
-    """Render one strict-alignment key-value row."""
+def row(label: str, value: object) -> str:
+    """Render one aligned key-value row."""
     left = label.strip()[:_LABEL_WIDTH].ljust(_LABEL_WIDTH)
     return f"{left} {_safe_text(value)}"
 
 
 def section(title: str, rows: list[str]) -> str:
-    """Render one section with tree connectors and no extra spacing."""
-    body: list[str] = [str(title).strip()]
-    if not rows:
-        body.append(f"└ {row('Status', 'N/A')}")
-        return "\n".join(body)
-
-    for idx, item in enumerate(rows):
-        prefix = "└" if idx == len(rows) - 1 else "├"
-        body.append(f"{prefix} {item}")
-    return "\n".join(body)
+    """Render one section with a premium separator and no tree connectors."""
+    safe_rows = rows or [row("Status", _NULL)]
+    return "\n".join([str(title).strip(), *safe_rows, _SEPARATOR])
 
 
-def insight(text: str) -> str:
-    """Render one compact single-line insight section."""
-    return section("Insight", [row("Note", text)])
+def insight(text: object) -> str:
+    """Render one compact insight line."""
+    return section("🧠 Insight", [row("Note", text)])
 
 
 def format_position_lines(lines: Iterable[str]) -> list[str]:
     """Convert arbitrary position lines into safe renderable rows."""
     rendered = [str(line).strip() for line in lines if str(line).strip()]
-    return rendered or ["No open positions"]
+    return rendered or [_NULL]
 
 
 # Backward-compatible aliases for existing callers.
