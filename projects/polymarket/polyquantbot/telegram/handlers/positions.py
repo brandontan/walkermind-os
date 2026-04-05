@@ -13,6 +13,7 @@ import structlog
 
 from ..ui.keyboard import build_status_menu
 from ..ui.screens import positions_screen
+from .portfolio_service import get_portfolio_service
 
 if TYPE_CHECKING:
     from ...core.portfolio.position_manager import PositionManager
@@ -56,37 +57,23 @@ async def handle_positions() -> tuple[str, list]:
     Returns:
         ``(screen_text, keyboard)`` tuple.
     """
-    if _position_manager is None:
-        log.warning("positions_handler_no_manager")
-        return positions_screen(positions=[]), build_status_menu()
+    portfolio = get_portfolio_service().get_state()
+    if portfolio is None:
+        return "⚠️ Data unavailable", build_status_menu()
 
-    try:
-        raw_positions = _position_manager.all_positions()
-    except Exception as exc:
-        log.error("positions_handler_fetch_error", error=str(exc))
-        return positions_screen(positions=[]), build_status_menu()
-
-    if not raw_positions:
+    positions_data = portfolio.positions
+    if not positions_data:
         log.info("positions_handler_no_open_positions")
-        return positions_screen(positions=[]), build_status_menu()
+        return "📋 *POSITIONS*\n\nNo open positions", build_status_menu()
 
     positions: list[dict] = []
-    for pos in raw_positions:
+    for pos in positions_data:
         question = pos.market_id  # default fallback
         if _market_cache is not None:
             try:
                 question = _market_cache.get_question(pos.market_id, fallback=pos.market_id)
             except Exception:
                 pass  # non-fatal: use market_id as fallback
-
-        unrealized_pnl = 0.0
-        if _pnl_tracker is not None:
-            try:
-                rec = _pnl_tracker.get(pos.market_id)
-                if rec is not None:
-                    unrealized_pnl = rec.unrealized
-            except Exception:
-                pass  # non-fatal
 
         positions.append(
             {
@@ -95,7 +82,7 @@ async def handle_positions() -> tuple[str, list]:
                 "side": pos.side,
                 "avg_price": pos.avg_price,
                 "size": pos.size,
-                "unrealized_pnl": unrealized_pnl,
+                "unrealized_pnl": pos.unrealized_pnl,
             }
         )
 

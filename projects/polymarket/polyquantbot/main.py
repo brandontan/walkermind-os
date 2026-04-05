@@ -549,12 +549,15 @@ async def main() -> None:
         set_pnl_tracker as _set_pos_pnl,
     )
     from .telegram.handlers.pnl import set_pnl_tracker as _set_pnl_handler
+    from .telegram.handlers.portfolio_service import get_portfolio_service as _get_portfolio_service
     _set_perf_metrics(multi_metrics)
     _set_perf_pnl(pnl_tracker)
     _set_pos_pm(position_manager)
     _set_pos_mc(market_cache)
     _set_pos_pnl(pnl_tracker)
     _set_pnl_handler(pnl_tracker)
+    _portfolio_service = _get_portfolio_service()
+    _portfolio_service.set_pnl_tracker(pnl_tracker)
     log.info("trade_visibility_handlers_wired")
 
     # ── Paper trading engine container (wallet, positions, ledger, exposure) ───
@@ -581,6 +584,8 @@ async def main() -> None:
     _callback_router.set_paper_engine(engine_container.paper_engine)
     _callback_router.set_paper_position_manager(engine_container.positions)
     _callback_router.set_exposure_calculator(engine_container.exposure)
+    _portfolio_service.set_wallet_engine(engine_container.wallet)
+    _portfolio_service.set_position_manager(engine_container.positions)
     log.info("callback_router_engines_injected", mode=mode)
 
     # ── Telegram callback — accepts a pre-formatted string ────────────────────
