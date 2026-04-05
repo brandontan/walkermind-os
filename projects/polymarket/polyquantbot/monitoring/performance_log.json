@@ -1,0 +1,11 @@
+[
+  {
+    "total_trades": 24,
+    "win_rate": 0.58,
+    "avg_pnl": 5.0,
+    "total_pnl": 120.0,
+    "max_drawdown": -0.032,
+    "equity_curve": [10000, 10120],
+    "timestamp": "2026-04-05 18:08:50"
+  }
+]
