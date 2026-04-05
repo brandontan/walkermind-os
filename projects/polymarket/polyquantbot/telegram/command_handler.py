@@ -348,13 +348,12 @@ class CommandHandler:
         return {
             "status": snap_state.get("state", "N/A"),
             "mode": self._mode,
-            "markets": len(getattr(self._runner, "_market_ids", []) or []),
+            "latency": metrics.get("latency_ms", metrics.get("latency", "N/A")),
+            "balance": metrics.get("cash", metrics.get("balance", "N/A")),
+            "equity": metrics.get("equity", "N/A"),
             "positions": metrics.get("open_positions", metrics.get("positions", "N/A")),
-            "exposure": metrics.get("exposure", "N/A"),
             "unrealized": metrics.get("unrealized_pnl", metrics.get("unreal", "N/A")),
-            "pnl": metrics.get("pnl", metrics.get("realized", "N/A")),
-            "winrate": metrics.get("win_rate", metrics.get("wr", "N/A")),
-            "drawdown": metrics.get("drawdown", "N/A"),
+            "realized": metrics.get("pnl", metrics.get("realized", "N/A")),
             "insight": (
                 f"Risk {snap_cfg.risk_multiplier:.2f} • Max Pos {snap_cfg.max_position:.2f}"
             ),
@@ -656,9 +655,19 @@ class CommandHandler:
         try:
             snapshot = self._multi_metrics.snapshot()
             strategy_states = {
-                str(strategy_id): bool((m_data or {}).get("enabled", True))
-                for strategy_id, m_data in snapshot.items()
+                "EV Momentum": True,
+                "Mean Reversion": True,
+                "Liquidity Edge": False,
             }
+            for strategy_id, m_data in snapshot.items():
+                enabled = bool((m_data or {}).get("enabled", True))
+                sid = str(strategy_id).strip().lower()
+                if "ev" in sid or "moment" in sid:
+                    strategy_states["EV Momentum"] = enabled
+                elif "mean" in sid or "revert" in sid:
+                    strategy_states["Mean Reversion"] = enabled
+                elif "liq" in sid or "edge" in sid:
+                    strategy_states["Liquidity Edge"] = enabled
             msg = render_view("strategy", {"strategies": strategy_states})
             return CommandResult(
                 success=True,
@@ -1063,8 +1072,8 @@ class CommandHandler:
         payload = {
             "cash": metrics.get("cash", metrics.get("balance", "N/A")),
             "equity": metrics.get("equity", "N/A"),
-            "used": metrics.get("used", metrics.get("margin", "N/A")),
-            "free": metrics.get("free", "N/A"),
+            "used_margin": metrics.get("used_margin", metrics.get("used", metrics.get("margin", "N/A"))),
+            "free_margin": metrics.get("free_margin", metrics.get("free", "N/A")),
             "positions": metrics.get("open_positions", metrics.get("positions", 0)),
         }
         return CommandResult(
