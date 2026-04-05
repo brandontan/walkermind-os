@@ -1,5 +1,12 @@
 Last Updated  : 2026-04-05
-Status        : Execution engine v1 paper-trading core deployed on feature/forge/execution-engine-v1 in dev scope.
-COMPLETED     : Added projects/polymarket/polyquantbot/execution/engine.py with open/close/mark-to-market lifecycle + risk gating (10% max position, 30% max exposure); added projects/polymarket/polyquantbot/execution/models.py Position model; added projects/polymarket/polyquantbot/execution/strategy_trigger.py simple threshold/target trigger; integrated simulated execution state into projects/polymarket/polyquantbot/telegram/handlers/portfolio_service.py; added /trade test sample flow in projects/polymarket/polyquantbot/telegram/command_handler.py; created forge report projects/polymarket/polyquantbot/reports/forge/11_1_execution_engine.md.
-IN PROGRESS   : Wiring execution engine v1 into broader callback-driven Telegram action flows and expanding command argument parsing for explicit subcommands.
-NEXT PRIORITY : SENTINEL validation required for execution engine v1 before merge. Source: projects/polymarket/polyquantbot/reports/forge/11_1_execution_engine.md
+Status        : Execution engine v1 paper-trading core hardened on feature/forge/execution-hardening in dev scope.
+COMPLETED     : 
+- Added /trade test/close/status command parsing with string args in telegram/command_handler.py
+- Added position_id (UUID) and timestamp to Position model in execution/models.py
+- Added cooldown window (30s) to StrategyTrigger in execution/strategy_trigger.py
+- Added merge_execution_state for safe updates in telegram/handlers/portfolio_service.py
+- Created forge report projects/polymarket/polyquantbot/reports/forge/11_2_execution_hardening.md
+IN PROGRESS   : 
+- SENTINEL validation required for execution hardening. Source: projects/polymarket/polyquantbot/reports/forge/11_2_execution_hardening.md
+NEXT PRIORITY : 
+- SENTINEL validation required for execution hardening before merge.
