@@ -91,6 +91,7 @@ from ...telegram.utils import telegram_sender
 from ...interface.ui.views import (
     render_exposure_view,
     render_home_view,
+    render_market_view,
     render_performance_view,
     render_risk_view,
     render_strategy_view,
@@ -150,6 +151,8 @@ def build_ui_view(command: str, data: dict[str, Any]) -> str:
         return render_strategy_view(data)
     if normalized == "/risk":
         return render_risk_view(data)
+    if normalized == "/markets":
+        return render_market_view(data)
     return render_home_view(data)
 
 
@@ -188,6 +191,14 @@ def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
         keys = {"strategies"}
     elif normalized == "/risk":
         keys = {"kelly", "level", "profile"}
+    elif normalized == "/markets":
+        keys = {
+            "total_markets",
+            "active_markets",
+            "top_edge_type",
+            "dominant_signal",
+            "top_opportunities",
+        }
     else:
         keys = set(source.keys())
     payload = {key: source.get(key) for key in keys}
@@ -324,6 +335,79 @@ def build_portfolio_intelligence(
     }
 
 
+def short_name(name: str) -> str:
+    return name[:18] + "..." if len(name) > 18 else name
+
+
+def summarize_edge_type(distribution: dict[str, int]) -> str:
+    if not distribution:
+        return "N/A"
+    total = sum(distribution.values())
+    bond_count = sum(
+        count for key, count in distribution.items() if "bond" in key.strip().lower()
+    )
+    if bond_count > total / 2:
+        return "BOND ARB"
+    if len(distribution) > 1:
+        return "DIVERSIFIED"
+    return "TREND"
+
+
+def summarize_signal(signals: list[Any], distribution: dict[str, int]) -> str:
+    if not signals:
+        return "N/A"
+    avg_prob = 0.0
+    prob_count = 0
+    yes_count = 0
+    no_count = 0
+
+    for signal in signals:
+        try:
+            avg_prob += float(getattr(signal, "p_model", 0.0))
+            prob_count += 1
+        except (TypeError, ValueError):
+            continue
+        side = str(getattr(signal, "side", "")).upper()
+        if side == "YES":
+            yes_count += 1
+        elif side == "NO":
+            no_count += 1
+
+    dominant_class = max(distribution, key=distribution.get) if distribution else "GENERAL"
+    side_label = "YES" if yes_count >= no_count else "NO"
+    if prob_count <= 0:
+        return f"{side_label} • {dominant_class}"
+    return f"{side_label} {avg_prob / prob_count:.2f} • {dominant_class}"
+
+
+def build_market_intel_payload(
+    *,
+    markets: list[dict[str, Any]],
+    distribution: dict[str, int],
+    signals: list[Any],
+) -> dict[str, Any]:
+    opportunities: list[dict[str, Any]] = []
+    for signal in sorted(
+        signals,
+        key=lambda item: float(getattr(item, "ev", 0.0) or 0.0),
+        reverse=True,
+    )[:5]:
+        opportunities.append(
+            {
+                "name": short_name(str(getattr(signal, "market_id", "N/A"))),
+                "ev": round(float(getattr(signal, "ev", 0.0) or 0.0), 3),
+                "signal": classify_strength(float(getattr(signal, "p_model", 0.0) or 0.0)),
+            }
+        )
+    return {
+        "total_markets": len(markets),
+        "active_markets": len(signals),
+        "top_edge_type": summarize_edge_type(distribution),
+        "dominant_signal": summarize_signal(signals, distribution),
+        "top_opportunities": opportunities[:5],
+    }
+
+
 def _env_float(name: str, default: float) -> float:
     try:
         return float(os.getenv(name, str(default)))
@@ -457,6 +541,7 @@ async def run_trading_loop(
     _last_heartbeat: list[float] = [0.0]        # mutable so closure can mutate
     _validation_hook_errors: list[int] = [0]    # cumulative error counter
     _last_market_distribution: dict[str, int] = {}
+    _last_market_intel_payload: dict[str, Any] = {}
     _trade_type_distribution: dict[str, int] = {}
     _market_type_by_id: dict[str, str] = {}
 
@@ -844,6 +929,12 @@ async def run_trading_loop(
                     force_trade_fallback=_force_trade_fallback,
                     paper_edge_threshold=_paper_edge_override,
                 )
+                _last_market_intel_payload = build_market_intel_payload(
+                    markets=normalised_markets,
+                    distribution=_last_market_distribution,
+                    signals=signals,
+                )
+                log.info("market_intel_payload", payload=_last_market_intel_payload)
                 if not signals and len(normalised_markets) > 0:
                     log.warning(
                         "no_signals_generated",
@@ -1266,6 +1357,7 @@ async def run_trading_loop(
                     metrics["unrealized_pnl"] = unrealized
                     metrics["realized_pnl"] = realized
                     metrics["total_pnl"] = realized + unrealized
+                    metrics.update(_last_market_intel_payload)
 
                     log.info("pnl_update", pnl=metrics)
 

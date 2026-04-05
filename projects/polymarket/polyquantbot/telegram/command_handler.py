@@ -765,6 +765,39 @@ class CommandHandler:
         except Exception:
             return {}
 
+    def _derive_edge_type(self, distribution: dict[str, int]) -> str:
+        if not distribution:
+            return "N/A"
+        total = sum(distribution.values())
+        bond_count = sum(
+            count for key, count in distribution.items() if "bond" in str(key).lower()
+        )
+        if bond_count > total / 2:
+            return "BOND ARB"
+        if len(distribution) > 1:
+            return "DIVERSIFIED"
+        return "TREND"
+
+    def _build_market_payload(self, metrics: dict[str, object]) -> dict[str, object]:
+        distribution_raw = metrics.get("market_distribution", {})
+        distribution = distribution_raw if isinstance(distribution_raw, dict) else {}
+
+        top_raw = metrics.get("top_opportunities", [])
+        top_items = top_raw if isinstance(top_raw, list) else []
+
+        total_markets = metrics.get("total_markets", metrics.get("markets_scanned", 0))
+        active_markets = metrics.get("active_markets", len(top_items))
+        dominant_signal = metrics.get("dominant_signal", "N/A")
+        top_edge_type = metrics.get("top_edge_type", self._derive_edge_type(distribution))
+
+        return {
+            "total_markets": total_markets,
+            "active_markets": active_markets,
+            "top_edge_type": top_edge_type,
+            "dominant_signal": dominant_signal,
+            "top_opportunities": top_items[:5],
+        }
+
     def _format_analysis_line(
         self,
         key: str,
@@ -965,50 +998,13 @@ class CommandHandler:
         )
 
     async def _handle_markets(self) -> CommandResult:
-        """Show currently active markets with name, price and volume."""
-        snap = self._config.snapshot()
-        meta = self._config.market_meta
-
-        # Fallback: read from runner if meta not yet loaded
-        if not meta and self._runner is not None:
-            try:
-                ids = list(self._runner._market_ids)
-            except Exception:
-                ids = []
-            if not ids:
-                return CommandResult(success=True,
-                    message="No markets active. Tap 🔍 Rediscover or run /rediscover.")
-            lines = [f"📋 *ACTIVE MARKETS* ({len(ids)})\n"]
-            for i, mid in enumerate(ids[:15], 1):
-                short = mid[:10] + "…" + mid[-6:] if len(mid) > 18 else mid
-                lines.append(f"`{i}.` `{short}`")
-            return CommandResult(success=True, message="\n".join(lines))
-
-        if not meta:
-            return CommandResult(success=True,
-                message="No markets active. Tap 🔍 Rediscover or run /rediscover.")
-
-        lines = [f"📋 *ACTIVE MARKETS* ({len(meta)})\n"]
-        for i, m in enumerate(meta, 1):
-            q = m.get("question", "Unknown")
-            q = q if len(q) <= 55 else q[:52] + "…"
-            vol = m.get("volume", 0)
-            vol_str = f"${vol/1000:.0f}K" if vol >= 1000 else f"${vol:.0f}"
-            yes = m.get("yes_price")
-            no = m.get("no_price")
-            price_str = f"YES {yes:.0%} | NO {no:.0%}" if yes and no else ""
-            end = m.get("end_date", "")
-            lines.append(
-                f"*{i}.* {q}\n"
-                f"   {price_str}  Vol: {vol_str}"
-                + (f"  Ends: {end}" if end else "")
-            )
-            lines.append("")  # blank line between markets
-
+        """Read-only market intelligence dashboard."""
+        metrics = self._get_metrics_snapshot()
+        payload = self._build_market_payload(metrics)
         return CommandResult(
             success=True,
-            message="\n".join(lines),
-            payload={"markets": meta, "count": len(meta)},
+            message=render_view("markets", payload),
+            payload=payload,
         )
 
     async def _handle_rediscover(self) -> CommandResult:

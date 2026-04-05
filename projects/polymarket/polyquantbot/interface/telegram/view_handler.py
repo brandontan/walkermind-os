@@ -6,6 +6,7 @@ from typing import Any, Mapping
 from ..ui.views import (
     render_exposure_view,
     render_home_view,
+    render_market_view,
     render_performance_view,
     render_risk_view,
     render_strategy_view,
@@ -27,4 +28,6 @@ def render_view(name: str, payload: Mapping[str, Any]) -> str:
         return render_strategy_view(payload)
     if key == "risk":
         return render_risk_view(payload)
+    if key in {"market", "markets"}:
+        return render_market_view(payload)
     return render_home_view(payload)
