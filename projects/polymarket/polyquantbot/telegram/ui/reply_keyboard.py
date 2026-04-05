@@ -62,7 +62,7 @@ def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
         "resize_keyboard": True,
     }
 
-_REPLY_KB_READY_MSG = "🤖 Menu ready. Use the buttons below to navigate."
+_REPLY_KB_READY_MSG = "✨ Premium home loaded. Use the controls below to navigate."
 
 
 def get_reply_keyboard_remove() -> dict[str, bool]:
