@@ -9,13 +9,13 @@ import time
 class Position:
     """Paper trading position state for execution engine."""
 
-    position_id: str = str(uuid.uuid4())
-    created_at: float = time.time()
     market_id: str
     side: str
     entry_price: float
     current_price: float
     size: float
+    position_id: str = str(uuid.uuid4())
+    created_at: float = time.time()
     pnl: float = 0.0
 
     def exposure(self) -> float:
