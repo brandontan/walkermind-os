@@ -1,7 +1,9 @@
 """Premium UI formatter for human-readable Telegram output."""
 from __future__ import annotations
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 import structlog
+
+from data.market_context import get_market_context
 
 log = structlog.get_logger(__name__)
 
@@ -24,8 +26,63 @@ EMOJI = {
     "notrade": "🛑",
 }
 
-# Market name mapping (fallback to ID if not found)
-async def render_active_position(market_id: str, side: str, entry_price: float, size: float, pnl: float) -> str:
+
+def _divider(title: str) -> str:
+    """Render a section divider with title."""
+    return f"━━━━━━━━━━━━━━\n{title}\n━━━━━━━━━━━━━━"
+
+
+def _hierarchy(items: List[str], prefix: str = "┣") -> str:
+    """Render a hierarchy tree."""
+    return "\n".join(f"{prefix} {item}" for item in items)
+
+
+def _humanize_pnl(pnl: float) -> str:
+    """Convert PnL to human-readable string with emoji."""
+    if pnl > 0:
+        return f"🟢 +{pnl:.2f}"
+    elif pnl < 0:
+        return f"🔴 {pnl:.2f}"
+    return "🟡 0.00"
+
+
+def _humanize_exposure(exposure: float) -> str:
+    """Convert exposure to human-readable string."""
+    if exposure < 0.1:
+        return "Capital mostly idle, ready to deploy"
+    elif exposure > 0.8:
+        return "High exposure, consider reducing"
+    return "Moderate exposure"
+
+
+def render_portfolio_block(equity: float, positions: int, exposure: float) -> str:
+    """Render the portfolio block."""
+    return (
+        _divider(f"{EMOJI['equity']} PORTFOLIO") + "\n"
+        f"{EMOJI['equity']} Equity: ${equity:,.2f}\n"
+        f"{EMOJI['positions']} Active Positions: {positions}\n"
+        f"{EMOJI['exposure']} Exposure: {exposure:.1%} ({_humanize_exposure(exposure)})"
+    )
+
+
+def render_market_insight(trend: str, edge: str, status: str) -> str:
+    """Render the market insight block."""
+    return (
+        _divider(f"{EMOJI['insight']} MARKET INSIGHT") + "\n"
+        f"{EMOJI['bullish' if trend == 'bullish' else 'bearish' if trend == 'bearish' else 'neutral']} Trend: {trend.capitalize()}\n"
+        f"{EMOJI[edge]} Edge: {edge.capitalize()}\n"
+        f"{EMOJI[status]} Status: {status.replace('_', ' ').capitalize()}"
+    )
+
+
+async def render_active_position(
+    market_id: str,
+    side: str,
+    entry_price: float,
+    size: float,
+    pnl: float,
+) -> str:
+    """Render the active position block using live market context."""
     context = await get_market_context(market_id)
     return (
         _divider(f"{EMOJI['positions']} ACTIVE POSITION") + "\n"
@@ -37,63 +94,7 @@ async def render_active_position(market_id: str, side: str, entry_price: float, 
         f"Size: ${size:,.2f}\n"
         f"PnL: {_humanize_pnl(pnl)}"
     )
-    
-def _divider(title: str) -> str:
-    """Render a section divider with title."""
-    return f"━━━━━━━━━━━━━━\n{title}\n━━━━━━━━━━━━━━"
 
-def _hierarchy(items: List[str], prefix: str = "┣") -> str:
-    """Render a hierarchy tree."""
-    return "\n".join(f"{prefix} {item}" for item in items)
-
-def _humanize_pnl(pnl: float) -> str:
-    """Convert PnL to human-readable string with emoji."""
-    if pnl > 0:
-        return f"🟢 +{pnl:.2f}"
-    elif pnl < 0:
-        return f"🔴 {pnl:.2f}"
-    return "🟡 0.00"
-
-def _humanize_exposure(exposure: float) -> str:
-    """Convert exposure to human-readable string."""
-    if exposure < 0.1:
-        return "Capital mostly idle, ready to deploy"
-    elif exposure > 0.8:
-        return "High exposure, consider reducing"
-    return "Moderate exposure"
-
-def _market_name(market_id: str) -> str:
-    """Convert market_id to human-readable name."""
-    return MARKET_NAMES.get(market_id, market_id)
-
-def render_portfolio_block(equity: float, positions: int, exposure: float) -> str:
-    """Render the portfolio block."""
-    return (
-        _divider(f"{EMOJI['equity']} PORTFOLIO") + "\n"
-        f"{EMOJI['equity']} Equity: ${equity:,.2f}\n"
-        f"{EMOJI['positions']} Active Positions: {positions}\n"
-        f"{EMOJI['exposure']} Exposure: {exposure:.1%} ({_humanize_exposure(exposure)})"
-    )
-
-def render_market_insight(trend: str, edge: str, status: str) -> str:
-    """Render the market insight block."""
-    return (
-        _divider(f"{EMOJI['insight']} MARKET INSIGHT") + "\n"
-        f"{EMOJI['bullish' if trend == 'bullish' else 'bearish' if trend == 'bearish' else 'neutral']} Trend: {trend.capitalize()}\n"
-        f"{EMOJI[edge]} Edge: {edge.capitalize()}\n"
-        f"{EMOJI[status]} Status: {status.replace('_', ' ').capitalize()}"
-    )
-
-def render_active_position(market_id: str, side: str, entry_price: float, size: float, pnl: float) -> str:
-    """Render the active position block."""
-    return (
-        _divider(f"{EMOJI['positions']} ACTIVE POSITION") + "\n"
-        f"{EMOJI['positions']} Market: {_market_name(market_id)}\n"
-        f"Side: {side}\n"
-        f"Entry Price: ${entry_price:,.2f}\n"
-        f"Size: ${size:,.2f}\n"
-        f"PnL: {_humanize_pnl(pnl)}"
-    )
 
 def render_risk_status(exposure_safe: bool, position_safe: bool, drawdown: float) -> str:
     """Render the risk status block."""
@@ -104,6 +105,7 @@ def render_risk_status(exposure_safe: bool, position_safe: bool, drawdown: float
         f"Drawdown: {drawdown:.1%}"
     )
 
+
 def render_bot_decision(decision: str) -> str:
     """Render the bot decision block."""
     return (
@@ -111,7 +113,8 @@ def render_bot_decision(decision: str) -> str:
         f"{EMOJI['action']} {decision.capitalize()}"
     )
 
-def render_dashboard(
+
+async def render_dashboard(
     equity: float,
     positions: int,
     exposure: float,
@@ -135,7 +138,7 @@ def render_dashboard(
     ]
     if market_id:
         blocks.append(
-            render_active_position(market_id, side, entry_price, size, pnl)
+            await render_active_position(market_id, side, entry_price, size, pnl)
         )
     blocks.extend([
         render_risk_status(exposure_safe, position_safe, drawdown),
