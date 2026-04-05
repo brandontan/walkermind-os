@@ -35,6 +35,9 @@ import structlog
 from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
 from ..interface.telegram.view_handler import render_view
+from ..execution.engine import export_execution_payload, get_execution_engine
+from ..execution.strategy_trigger import StrategyConfig, StrategyTrigger
+from .handlers.portfolio_service import get_portfolio_service
 from .message_formatter import (
     format_capital_allocation_report,
     format_command_response,
@@ -268,6 +271,8 @@ class CommandHandler:
             return await self._handle_rediscover()
         if cmd == "alpha":
             return await self._handle_alpha()
+        if cmd == "trade":
+            return await self._handle_trade_test()
 
         # ── New menu callbacks (new Telegram system) ───────────────────────────
         if cmd == "wallet":
@@ -326,6 +331,36 @@ class CommandHandler:
             message=(
                 "Unknown command. Type /start or /help for available commands."
             ),
+        )
+
+    async def _handle_trade_test(self) -> CommandResult:
+        """Run a sample paper trade for /trade test command."""
+        engine = get_execution_engine()
+        trigger = StrategyTrigger(
+            engine=engine,
+            config=StrategyConfig(
+                market_id="paper-test-market",
+                side="YES",
+                threshold=0.50,
+                target_pnl=20.0,
+            ),
+        )
+
+        await trigger.evaluate(0.42)
+        await engine.update_mark_to_market({"paper-test-market": 0.46})
+
+        payload = await export_execution_payload()
+        get_portfolio_service().update_simulated_state(
+            positions=payload.get("positions", []),
+            cash=float(payload.get("cash", 0.0)),
+            equity=float(payload.get("equity", 0.0)),
+            realized_pnl=float(payload.get("realized", 0.0)),
+        )
+
+        return CommandResult(
+            success=True,
+            message=render_view("positions", payload),
+            payload=payload,
         )
 
     async def _handle_status(self) -> CommandResult:

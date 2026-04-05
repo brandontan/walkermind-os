@@ -46,6 +46,10 @@ class PortfolioService:
         self._wallet_engine: Optional["WalletEngine"] = None
         self._position_manager: Optional["PaperPositionManager"] = None
         self._pnl_tracker: Optional["PnLTracker"] = None
+        self._sim_positions: list[PortfolioPosition] = []
+        self._sim_cash: float = 0.0
+        self._sim_equity: float = 0.0
+        self._sim_realized_pnl: float = 0.0
 
     def set_wallet_engine(self, wallet_engine: "WalletEngine") -> None:
         self._wallet_engine = wallet_engine
@@ -59,6 +63,32 @@ class PortfolioService:
         self._pnl_tracker = pnl_tracker
         log.info("portfolio_service_pnl_tracker_injected")
 
+
+    def update_simulated_state(
+        self,
+        positions: list[dict[str, Any]],
+        cash: float,
+        equity: float,
+        realized_pnl: float,
+    ) -> None:
+        """Update paper-simulation snapshot for execution-engine-only mode."""
+        normalized: list[PortfolioPosition] = []
+        for pos in positions:
+            normalized.append(
+                PortfolioPosition(
+                    market_id=str(pos.get("market_id", "")),
+                    side=str(pos.get("side", "")),
+                    avg_price=float(pos.get("entry_price", pos.get("avg_price", 0.0)) or 0.0),
+                    size=float(pos.get("size", 0.0) or 0.0),
+                    unrealized_pnl=float(pos.get("pnl", pos.get("unrealized_pnl", 0.0)) or 0.0),
+                )
+            )
+        self._sim_positions = normalized
+        self._sim_cash = float(cash)
+        self._sim_equity = float(equity)
+        self._sim_realized_pnl = float(realized_pnl)
+        log.info("portfolio_service_simulated_state_updated", positions=len(normalized), equity=self._sim_equity)
+
     def get_state(self) -> Optional[PortfolioState]:
         """Return immutable portfolio snapshot or ``None`` when unavailable.
 
@@ -66,6 +96,13 @@ class PortfolioService:
         safely show a single fallback message instead of mismatched values.
         """
         if self._wallet_engine is None or self._position_manager is None or self._pnl_tracker is None:
+            if self._sim_equity > 0.0:
+                return PortfolioState(
+                    positions=tuple(self._sim_positions),
+                    equity=self._sim_equity,
+                    cash=self._sim_cash,
+                    pnl=self._sim_realized_pnl + sum(p.unrealized_pnl for p in self._sim_positions),
+                )
             log.warning(
                 "portfolio_service_not_ready",
                 has_wallet=self._wallet_engine is not None,
