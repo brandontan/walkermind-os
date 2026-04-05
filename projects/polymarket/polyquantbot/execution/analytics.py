@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 import time
+import structlog
+
+log = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -18,21 +21,25 @@ class PerformanceTracker:
         self._equity_curve: List[float] = []
 
     def record_trade(self, position: Dict) -> None:
-        """Store trade details, prevent duplicates."""
-        if not hasattr(position, "position_id"):
-            raise ValueError("position_id required")
-        if any(t.position_id == position.position_id for t in self._trades):
+        """Store trade details, prevent duplicates and handle edge cases."""
+        if not position.get("position_id"):
+            log.warning("analytics_skip", reason="missing_position_id")
+            return
+        if position.get("size", 0) <= 0:
+            log.warning("analytics_skip", reason="size_zero_or_negative")
+            return
+        if any(t.position_id == position["position_id"] for t in self._trades):
             return  # Skip duplicates
         self._trades.append(
             TradeRecord(
-                position_id=position.position_id,
-                entry_price=position.entry_price,
-                exit_price=position.current_price,
-                pnl=position.pnl,
-                duration=time.time() - position.created_at,
+                position_id=position["position_id"],
+                entry_price=position["entry_price"],
+                exit_price=position.get("current_price", position["entry_price"]),
+                pnl=position["pnl"],
+                duration=time.time() - getattr(position, "created_at", time.time()),
             )
         )
-        self._update_equity_curve(position.pnl)
+        self._update_equity_curve(position["pnl"])
 
     def _update_equity_curve(self, pnl: float):
         """Track equity for drawdown calculation."""

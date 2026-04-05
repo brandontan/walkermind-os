@@ -37,12 +37,15 @@ class ExecutionEngine:
         self._analytics = PerformanceTracker()
         self._trace_engine = TradeTraceEngine()
 
-    async def open_position(self, market: str, side: str, price: float, size: float) -> Position | None:
+    async def open_position(self, market: str, side: str, price: float, size: float, position_id: str) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
             size = float(size)
             if size <= 0:
                 log.warning("execution_engine_open_rejected", reason="size_non_positive", size=size)
+                return None
+            if not position_id:
+                log.warning("execution_engine_open_rejected", reason="missing_position_id")
                 return None
             equity_base = max(self._equity, 0.0)
             max_position_size = equity_base * self.max_position_size_ratio
@@ -80,6 +83,7 @@ class ExecutionEngine:
                 current_price=float(price),
                 size=size,
                 pnl=0.0,
+                position_id=position_id
             )
             self._positions[market] = position
             self._cash -= size
