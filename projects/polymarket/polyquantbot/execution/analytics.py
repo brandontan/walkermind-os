@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 import time
@@ -71,7 +73,7 @@ class PerformanceTracker:
         """Placeholder for Sharpe ratio."""
         return 0.0
 
-    def reconcile(self, trace_engine: TradeTraceEngine) -> bool:
+    def reconcile(self, trace_engine: "TradeTraceEngine") -> bool:
         """Verify analytics match trace data."""
         trace_pnl = sum(t.pnl for t in trace_engine.get_traces())
         analytics_pnl = sum(t.pnl for t in self._trades)
