@@ -8,6 +8,7 @@ from ..ui.views import (
     render_home_view,
     render_market_view,
     render_performance_view,
+    render_positions_view,
     render_risk_view,
     render_strategy_view,
     render_wallet_view,
@@ -24,6 +25,8 @@ def render_view(name: str, payload: Mapping[str, Any]) -> str:
         return render_performance_view(payload)
     if key in {"exposure", "portfolio"}:
         return render_exposure_view(payload)
+    if key in {"positions", "trade"}:
+        return render_positions_view(payload)
     if key in {"strategy", "strategies"}:
         return render_strategy_view(payload)
     if key == "risk":

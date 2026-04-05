@@ -3,10 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
-# ── Type alias ─────────────────────────────────────────────────────────────────
 ReplyKeyboardMarkup = dict[str, Any]
 
-# ── Button labels ──────────────────────────────────────────────────────────────
 _TRADE_BTN = "📊 Trade"
 _WALLET_BTN = "💼 Wallet"
 _PERFORMANCE_BTN = "📈 Performance"
@@ -16,7 +14,6 @@ _STRATEGY_BTN = "🧠 Strategy"
 _REFRESH_BTN = "🔄 Refresh"
 _HOME_BTN = "🏠 Home"
 
-# ── Mapping: reply keyboard button text → callback action name ─────────────────
 REPLY_MENU_MAP: dict[str, str] = {
     _TRADE_BTN: "status",
     _WALLET_BTN: "wallet",
@@ -30,7 +27,7 @@ REPLY_MENU_MAP: dict[str, str] = {
 
 
 def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
-    """Build the persistent bottom reply keyboard with premium global layout."""
+    """Build the persistent bottom reply keyboard with premium layout."""
     return {
         "keyboard": [
             [_TRADE_BTN, _WALLET_BTN],

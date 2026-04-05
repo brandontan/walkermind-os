@@ -3,33 +3,27 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from ..ui_blocks import row, section
+from .helpers import SEPARATOR, fmt, pnl, row
 
 
 def render_home_view(data: Mapping[str, Any]) -> str:
-    system_rows = [
+    insight = fmt(data.get("insight"))
+    if insight == "—":
+        insight = "System synced and scanning for edge."
+
+    lines = [
+        "🏠 PREMIUM HOME",
         row("State", data.get("status")),
         row("Mode", data.get("mode")),
         row("Latency", data.get("latency")),
-    ]
-    portfolio_rows = [
+        SEPARATOR,
         row("Balance", data.get("balance")),
         row("Equity", data.get("equity")),
         row("Positions", data.get("positions")),
+        SEPARATOR,
+        row("Realized", pnl(data.get("realized"))),
+        row("Unrealized", pnl(data.get("unrealized"))),
+        SEPARATOR,
+        f"🧠 Insight  {insight}",
     ]
-    performance_rows = [
-        row("Realized", data.get("realized")),
-        row("Unrealized", data.get("unrealized")),
-    ]
-    insight_rows = [
-        row("Summary", data.get("insight", "Portfolio and system telemetry synced.")),
-    ]
-
-    return "\n\n".join(
-        [
-            section("🏠 HOME", system_rows),
-            section("💼 PORTFOLIO", portfolio_rows),
-            section("📈 PERFORMANCE", performance_rows),
-            section("🧠 INSIGHT", insight_rows),
-        ]
-    )
+    return "\n".join(lines)
