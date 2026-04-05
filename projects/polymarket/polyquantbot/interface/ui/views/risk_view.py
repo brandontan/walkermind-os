@@ -1,16 +1,24 @@
-"""RISK premium control view."""
+"""RISK premium dashboard view."""
 from __future__ import annotations
 
 from typing import Any, Mapping
 
-from ..ui_blocks import section, row
+from .helpers import SEPARATOR, fmt, row
 
 
 def render_risk_view(data: Mapping[str, Any]) -> str:
-    rows = [
-        row("Kelly", data.get("kelly", "0.25f")),
-        row("Level", data.get("level")),
-        row("Profile", data.get("profile", "Balanced")),
+    kelly = fmt(data.get("kelly", "0.25f"))
+    level = fmt(data.get("level"))
+    profile = fmt(data.get("profile"))
+
+    lines = [
+        "🛡️ RISK",
+        row("Kelly", kelly),
+        row("Level", level),
+        row("Profile", profile),
+        SEPARATOR,
+        row("Rule", "Fractional Kelly only"),
+        SEPARATOR,
+        "🧠 Insight  Kelly 0.25f limits variance while preserving edge.",
     ]
-    insight_rows = [row("Summary", "Risk engine active: fractional Kelly and drawdown limits enforced.")]
-    return "\n\n".join([section("🛡️ RISK", rows), section("🧠 INSIGHT", insight_rows)])
+    return "\n".join(lines)

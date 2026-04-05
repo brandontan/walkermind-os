@@ -1,62 +1,33 @@
-"""MARKET INTELLIGENCE premium read-only view."""
+"""MARKET premium dashboard view."""
 from __future__ import annotations
 
 from typing import Any, Mapping
 
-from ..ui_blocks import row, section
+from .helpers import SEPARATOR, fmt, row
 
 
-def short_name(name: object) -> str:
-    text = str(name or "—").strip()
-    return text[:18] + "..." if len(text) > 18 else text
-
-
-def _safe_int(value: object) -> str:
+def _to_int(value: Any) -> str:
     try:
-        if value is None:
-            return "—"
         return str(int(float(value)))
     except (TypeError, ValueError):
         return "—"
 
 
-def _safe_text(value: object, default: str = "—") -> str:
-    text = str(value).strip() if value is not None else ""
-    return text if text and text.upper() != "N/A" else default
-
-
-def _opportunity_line(item: Mapping[str, Any]) -> str:
-    name = short_name(item.get("name", "—"))
-    signal = _safe_text(item.get("signal"))
-    ev_raw = item.get("ev")
-    try:
-        ev_text = f"{float(ev_raw):.3f}"
-    except (TypeError, ValueError):
-        ev_text = "—"
-    return row(name, f"EV {ev_text} | {signal}")
-
-
 def render_market_view(data: Mapping[str, Any]) -> str:
-    top = data.get("top_opportunities")
-    opportunities = top if isinstance(top, list) else []
+    opportunities = data.get("top_opportunities") if isinstance(data.get("top_opportunities"), list) else []
+    top_name = "—"
+    if opportunities and isinstance(opportunities[0], Mapping):
+        top_name = fmt(opportunities[0].get("name"))
 
-    intel_rows = [
-        row("Scanned", _safe_int(data.get("total_markets"))),
-        row("Active", _safe_int(data.get("active_markets"))),
-        row("Top Edge", _safe_text(data.get("top_edge_type"))),
-        row("Signal", _safe_text(data.get("dominant_signal"))),
+    lines = [
+        "📡 MARKET",
+        row("Scanned", _to_int(data.get("total_markets"))),
+        row("Active", _to_int(data.get("active_markets"))),
+        row("Signal", data.get("dominant_signal")),
+        SEPARATOR,
+        row("Top", top_name),
+        row("Edge", data.get("top_edge_type")),
+        SEPARATOR,
+        "🧠 Insight  Prioritize markets where edge and depth align.",
     ]
-
-    opportunity_rows = [_opportunity_line(item if isinstance(item, Mapping) else {}) for item in opportunities[:5]]
-    if not opportunity_rows:
-        opportunity_rows = [row("Status", "No opportunities available")]
-
-    insight_rows = [row("Summary", "Signal quality is strongest when edge and momentum align.")]
-
-    return "\n\n".join(
-        [
-            section("📡 MARKET INTEL", intel_rows),
-            section("🔥 OPPORTUNITIES", opportunity_rows),
-            section("🧠 INSIGHT", insight_rows),
-        ]
-    )
+    return "\n".join(lines)
