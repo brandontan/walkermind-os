@@ -4,7 +4,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, Mapping
 
-from ..formatters.premium_formatter import format_position
+from ..formatters.premium_formatter import block, format_position, section
 
 
 def _to_position_obj(item: Mapping[str, Any]) -> Any:
@@ -18,24 +18,37 @@ def _to_position_obj(item: Mapping[str, Any]) -> Any:
 
 
 def _to_market_obj(item: Mapping[str, Any]) -> Any:
+    title = item.get("question") or item.get("title")
+    if not title:
+        title = "Unknown Market"
+
     return SimpleNamespace(
-        id=item.get("market_id", "N/A"),
-        title=item.get("question", item.get("title", "N/A")),
-        category=item.get("category", "N/A"),
+        id=item.get("market_id") or "—",
+        title=title,
+        category=item.get("category") or "—",
     )
 
 
 def render_positions_view(data: Mapping[str, Any]) -> str:
     positions = data.get("positions")
-    if isinstance(positions, list) and positions:
-        first = positions[0] if isinstance(positions[0], Mapping) else {}
-    else:
-        first = None
+    if not isinstance(positions, list) or not positions:
+        return block(
+            [
+                section("📊 POSITIONS"),
+                "📭 No active positions",
+                "└─ Waiting for execution-qualified setup",
+            ]
+        )
 
-    if first is None:
-        return "━━━━━━━━━━━━━━\n📊 POSITIONS\n━━━━━━━━━━━━━━\nNo active positions."
+    cards: list[str] = [section("📊 POSITIONS")]
+    for idx, raw in enumerate(positions, start=1):
+        item = raw if isinstance(raw, Mapping) else {}
+        cards.append(
+            format_position(
+                position=_to_position_obj(item),
+                market=_to_market_obj(item),
+                index=idx,
+            )
+        )
 
-    return format_position(
-        position=_to_position_obj(first),
-        market=_to_market_obj(first),
-    )
+    return "\n\n".join(cards)

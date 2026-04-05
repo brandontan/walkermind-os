@@ -13,7 +13,7 @@ def _safe_text(value: object) -> str:
         return _NULL
     if isinstance(value, str):
         text = value.strip()
-        return _NULL if not text or text.upper() == "N/A" else text
+        return _NULL if not text or text.replace("/", "").upper() == "NA" else text
     if isinstance(value, bool):
         return str(value)
     if isinstance(value, int):
@@ -23,7 +23,7 @@ def _safe_text(value: object) -> str:
             return f"{int(value):,}"
         return f"{value:,.2f}"
     text = str(value).strip()
-    return _NULL if not text or text.upper() == "N/A" else text
+    return _NULL if not text or text.replace("/", "").upper() == "NA" else text
 
 
 def row(label: str, value: object) -> str:
