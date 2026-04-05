@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-05
-Status: Phase 24.5 performance breakdown engine delivered in staging snapshot flow (market/signal/edge grouping with WR/PF). Next report: projects/polymarket/polyquantbot/reports/forge/24_5_performance_breakdown.md
+Status: Phase 24.5 performance breakdown engine completed with closed-trade-only grouped analytics and Telegram /analysis visibility. Validation run in staging is now in progress; next priority is strategy filtering.
 
 ---
 
@@ -71,9 +71,9 @@ Structure:
 
 PERFORMANCE BREAKDOWN ENGINE (Phase 24.5)
 
-- projects/polymarket/polyquantbot/monitoring/performance_breakdown.py (NEW): Added `PerformanceBreakdown` grouped analytics for `by_market`, `by_signal`, and `by_edge` with safe WR/PF math and no-trade empty output.
-- projects/polymarket/polyquantbot/monitoring/snapshot_engine.py (MODIFIED): Snapshot payload now includes `performance_breakdown` with safe fallback payload on errors.
-- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Added performance data hook on executed trades (`result`, `market_type`, `signal`, `edge`) and wired rolling-trade feed into snapshot breakdown generation.
+- projects/polymarket/polyquantbot/monitoring/performance_breakdown.py (MODIFIED): Closed-trade-only analyzer with grouping by market/signal/edge, full group metrics (trades/wins/losses/WR/PF/avg_win/avg_loss/expectancy), min-sample quality guard, and safe missing-field handling.
+- projects/polymarket/polyquantbot/monitoring/performance_tracker.py (MODIFIED): Trade normalization now defaults status to `open`; `update_trade()` marks status `closed` with realized PnL for strict closed-trade analytics.
+- projects/polymarket/polyquantbot/telegram/command_handler.py (MODIFIED): Added `/analysis` command routing and grouped MARKET/SIGNAL/EDGE performance breakdown output with safe NO DATA fallback.
 - projects/polymarket/polyquantbot/reports/forge/24_5_performance_breakdown.md (NEW): completion report.
 
 INTELLIGENCE + VALIDATION UI VISIBILITY (Phase 24.4)
@@ -774,8 +774,8 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Strategy optimization** — use Phase 24.5 grouped WR/PF output to tune underperforming market/signal/edge cohorts.
-2. **Validation run (staging)** — monitor stability and consistency of performance breakdown under live paper traffic.
+1. **Strategy filtering** — apply grouped breakdown output to suppress low-quality cohorts and prioritize statistically meaningful edges.
+2. **Validation run (staging)** — verify closed-trade-only /analysis and snapshot consistency in live paper traffic.
 3. SENTINEL validation required for performance breakdown engine before merge.
    Source: projects/polymarket/polyquantbot/reports/forge/24_5_performance_breakdown.md
 
@@ -783,7 +783,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## ⚠️ KNOWN ISSUES
 
-- `/analysis` Telegram command is not yet wired into command handler routing; breakdown currently ships through periodic `system_snapshot` payload/log path.
+- `/analysis` depends on snapshot payload availability from the wired metrics source; when payload is missing it safely returns `NO DATA`.
 - Telegram private chat ID persists locally; if missing after restart, operator must send /start again to re-capture DM target
 - Single-user overwrite behavior is active by design: latest /start caller replaces USER_CHAT_ID
 - `docs/CLAUDE.md` referenced by process checklist is missing from repository

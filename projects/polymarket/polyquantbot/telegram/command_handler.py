@@ -248,6 +248,8 @@ class CommandHandler:
             return await self._handle_strategies()
         if cmd == "performance":
             return await self._handle_performance()
+        if cmd == "analysis":
+            return await self._handle_analysis()
         if cmd == "health":
             return await self._handle_health()
         if cmd == "settings":
@@ -739,6 +741,101 @@ class CommandHandler:
                     context="performance", error=str(exc), severity="ERROR"
                 ),
             )
+
+    def _safe_float(self, value: object, default: float = 0.0) -> float:
+        """Best-effort float conversion with fallback."""
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _extract_breakdown_payload(self) -> dict[str, object]:
+        """Load performance_breakdown payload from metrics source snapshot."""
+        if self._metrics_source is None or not hasattr(self._metrics_source, "snapshot"):
+            return {}
+        try:
+            snap = self._metrics_source.snapshot()
+            if not isinstance(snap, dict):
+                return {}
+            payload = snap.get("performance_breakdown", {})
+            return payload if isinstance(payload, dict) else {}
+        except Exception:
+            return {}
+
+    def _format_analysis_line(
+        self,
+        key: str,
+        payload: dict[str, object],
+        metric_mode: str = "all",
+    ) -> str:
+        """Format one grouped analysis line for Telegram."""
+        wr = self._safe_float(payload.get("win_rate"), 0.0) * 100.0
+        pf = self._safe_float(payload.get("profit_factor"), 0.0)
+        exp = self._safe_float(payload.get("expectancy"), 0.0)
+
+        if metric_mode == "wr":
+            stats = f"WR {wr:.0f}%"
+        elif metric_mode == "pf":
+            stats = f"PF {pf:.2f}"
+        else:
+            stats = f"WR {wr:.0f}% PF {pf:.2f} EXP {exp:.2f}"
+
+        return f"├ {key:<10} {stats}"
+
+    async def _handle_analysis(self) -> CommandResult:
+        """Return grouped closed-trade edge analysis."""
+        log.info("command_analysis_invoked")
+
+        breakdown = self._extract_breakdown_payload()
+        by_market = breakdown.get("by_market", {}) if isinstance(breakdown, dict) else {}
+        by_signal = breakdown.get("by_signal", {}) if isinstance(breakdown, dict) else {}
+        by_edge = breakdown.get("by_edge", {}) if isinstance(breakdown, dict) else {}
+
+        lines = ["📊 PERFORMANCE BREAKDOWN", "", "MARKET"]
+
+        if isinstance(by_market, dict) and by_market:
+            items = sorted(by_market.items())
+            for idx, (name, metrics) in enumerate(items):
+                if not isinstance(metrics, dict):
+                    continue
+                prefix = "└" if idx == len(items) - 1 else "├"
+                line = self._format_analysis_line(str(name), metrics, metric_mode="all")
+                lines.append(prefix + line[1:])
+        else:
+            lines.append("└ NO DATA")
+
+        lines += ["", "SIGNAL"]
+        if isinstance(by_signal, dict) and by_signal:
+            items = sorted(by_signal.items())
+            for idx, (name, metrics) in enumerate(items):
+                if not isinstance(metrics, dict):
+                    continue
+                prefix = "└" if idx == len(items) - 1 else "├"
+                line = self._format_analysis_line(str(name), metrics, metric_mode="wr")
+                lines.append(prefix + line[1:])
+        else:
+            lines.append("└ NO DATA")
+
+        lines += ["", "EDGE"]
+        if isinstance(by_edge, dict) and by_edge:
+            items = sorted(by_edge.items())
+            for idx, (name, metrics) in enumerate(items):
+                if not isinstance(metrics, dict):
+                    continue
+                prefix = "└" if idx == len(items) - 1 else "├"
+                line = self._format_analysis_line(str(name), metrics, metric_mode="pf")
+                lines.append(prefix + line[1:])
+        else:
+            lines.append("└ NO DATA")
+
+        message = "\n".join(lines)
+        return CommandResult(
+            success=True,
+            message=message,
+            payload={"performance_breakdown": breakdown},
+        )
 
     async def _handle_health(self) -> CommandResult:
         """Return full system health snapshot."""
