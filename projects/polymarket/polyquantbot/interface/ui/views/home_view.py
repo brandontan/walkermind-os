@@ -22,7 +22,7 @@ def _fmt_money(value: Any) -> str:
     """Format values as compact currency for premium inline layout."""
     numeric = _to_float(value)
     if numeric is None:
-        return "$—"
+        return "$0"
     return f"${numeric:,.0f}"
 
 
@@ -43,30 +43,40 @@ def _fmt_exposure_ratio(data: Mapping[str, Any]) -> str:
         if numeric > 1:
             return f"{numeric:.1f}%"
         return f"{numeric * 100:.1f}%"
-    return "—"
+    return "0.0%"
 
 
 def _build_portfolio_line(data: Mapping[str, Any]) -> str:
     """Compose compressed portfolio summary line."""
-    balance = _fmt_money(data.get("balance"))
-    equity = _fmt_money(data.get("equity", data.get("net_worth")))
-    positions = _fmt_positions(data.get("positions", data.get("open_positions")))
+    balance = _fmt_money(data.get("balance") or 0)
+    equity = _fmt_money(data.get("equity") or data.get("net_worth") or 0)
+    positions = _fmt_positions(data.get("positions") or data.get("open_positions") or 0)
     return f"{balance} • {equity} • {positions}"
 
 
 def _build_exposure_line(data: Mapping[str, Any]) -> str:
     """Compose compact exposure line: percent and absolute value."""
     ratio = _fmt_exposure_ratio(data)
-    exposure = _fmt_money(data.get("total_exposure", data.get("exposure", data.get("unrealized"))))
+    exposure = _fmt_money(
+        data.get("total_exposure")
+        or data.get("exposure")
+        or data.get("unrealized")
+        or 0
+    )
     return f"{ratio} • {exposure}"
 
 
 def render_home_view(data: Mapping[str, Any]) -> str:
-    sections = [
-        f"{TITLE}\n{SUBTITLE}",
-        block(pnl(data.get("total_pnl", data.get("pnl", 0.0))), "Total PnL"),
-        block(_build_portfolio_line(data), "Portfolio"),
-        block(_build_exposure_line(data), "Exposure"),
-        f"🧠 Insight\n{generate_insight(data)}",
-    ]
-    return f"\n{SEPARATOR}\n".join(sections)
+    hero_metric = block(pnl(data.get("total_pnl") or data.get("pnl") or 0.0), "Total PnL")
+    portfolio = block(_build_portfolio_line(data), "Portfolio")
+    exposure = block(_build_exposure_line(data), "Exposure")
+    insight = f"🧠 Insight\n{generate_insight(data)}"
+    return (
+        f"{hero_metric}\n"
+        f"{TITLE}\n{SUBTITLE}\n"
+        f"{SEPARATOR}\n"
+        f"{portfolio}\n"
+        f"{exposure}\n"
+        f"{SEPARATOR}\n"
+        f"{insight}"
+    )

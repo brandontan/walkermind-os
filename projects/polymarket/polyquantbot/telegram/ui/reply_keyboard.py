@@ -9,20 +9,16 @@ _TRADE_BTN = "📊 Trade"
 _WALLET_BTN = "💼 Wallet"
 _PERFORMANCE_BTN = "📈 Performance"
 _EXPOSURE_BTN = "📉 Exposure"
-_SETTINGS_BTN = "⚙️ Settings"
 _STRATEGY_BTN = "🧠 Strategy"
-_REFRESH_BTN = "🔄 Refresh"
 _HOME_BTN = "🏠 Home"
 
 REPLY_MENU_MAP: dict[str, str] = {
-    _TRADE_BTN: "status",
+    _TRADE_BTN: "trade",
     _WALLET_BTN: "wallet",
     _PERFORMANCE_BTN: "performance",
     _EXPOSURE_BTN: "exposure",
-    _SETTINGS_BTN: "settings",
     _STRATEGY_BTN: "strategy",
-    _REFRESH_BTN: "refresh",
-    _HOME_BTN: "back_main",
+    _HOME_BTN: "home",
 }
 
 
@@ -32,8 +28,7 @@ def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
         "keyboard": [
             [_TRADE_BTN, _WALLET_BTN],
             [_PERFORMANCE_BTN, _EXPOSURE_BTN],
-            [_SETTINGS_BTN, _STRATEGY_BTN],
-            [_REFRESH_BTN, _HOME_BTN],
+            [_STRATEGY_BTN, _HOME_BTN],
         ],
         "resize_keyboard": True,
     }
