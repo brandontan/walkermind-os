@@ -63,17 +63,10 @@ class PortfolioService:
         self._pnl_tracker = pnl_tracker
         log.info("portfolio_service_pnl_tracker_injected")
 
-
-    def update_simulated_state(
-        self,
-        positions: list[dict[str, Any]],
-        cash: float,
-        equity: float,
-        realized_pnl: float,
-    ) -> None:
-        """Update paper-simulation snapshot for execution-engine-only mode."""
+    def _normalize_positions(self, raw_positions: list[dict[str, Any]]) -> list[PortfolioPosition]:
+        """Convert raw position dicts to PortfolioPosition objects."""
         normalized: list[PortfolioPosition] = []
-        for pos in positions:
+        for pos in raw_positions:
             normalized.append(
                 PortfolioPosition(
                     market_id=str(pos.get("market_id", "")),
@@ -83,11 +76,36 @@ class PortfolioService:
                     unrealized_pnl=float(pos.get("pnl", pos.get("unrealized_pnl", 0.0)) or 0.0),
                 )
             )
-        self._sim_positions = normalized
-        self._sim_cash = float(cash)
-        self._sim_equity = float(equity)
-        self._sim_realized_pnl = float(realized_pnl)
-        log.info("portfolio_service_simulated_state_updated", positions=len(normalized), equity=self._sim_equity)
+        return normalized
+
+    def merge_execution_state(
+        self,
+        positions: list[dict[str, Any]],
+        cash: float,
+        equity: float,
+        realized_pnl: float,
+    ) -> None:
+        """Merge execution state without overwriting existing data."""
+        if equity > 0:
+            self._sim_positions = self._normalize_positions(positions)
+            self._sim_cash = cash
+            self._sim_equity = equity
+            self._sim_realized_pnl = realized_pnl
+            log.info("portfolio_service_execution_state_merged", positions=len(self._sim_positions), equity=equity)
+
+    def update_simulated_state(
+        self,
+        positions: list[dict[str, Any]],
+        cash: float,
+        equity: float,
+        realized_pnl: float,
+    ) -> None:
+        """Update paper-simulation snapshot for execution-engine-only mode."""
+        self._sim_positions = self._normalize_positions(positions)
+        self._sim_cash = cash
+        self._sim_equity = equity
+        self._sim_realized_pnl = realized_pnl
+        log.info("portfolio_service_simulated_state_updated", positions=len(self._sim_positions), equity=equity)
 
     def get_state(self) -> Optional[PortfolioState]:
         """Return immutable portfolio snapshot or ``None`` when unavailable.
