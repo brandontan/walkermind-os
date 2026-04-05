@@ -153,14 +153,96 @@ def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
     if normalized == "/home":
         keys = {"status", "mode", "markets", "latency", "strategy", "scan", "distribution", "insight"}
     elif normalized == "/portfolio":
-        keys = {"positions", "exposure", "side", "risk", "market", "entry", "size", "pnl"}
+        keys = {
+            "positions",
+            "exposure",
+            "side",
+            "risk",
+            "market",
+            "entry",
+            "size",
+            "pnl",
+            "confidence",
+            "edge",
+            "signal",
+            "reason",
+        }
     elif normalized == "/wallet":
         keys = {"balance", "equity", "used", "free", "margin"}
     elif normalized == "/performance":
         keys = {"realized", "unreal", "wr", "pf"}
     else:
         keys = set(source.keys())
-    return {key: source.get(key) for key in keys}
+    payload = {key: source.get(key) for key in keys}
+    if normalized == "/portfolio":
+        _portfolio = build_portfolio_intelligence(
+            probability=source.get("confidence", source.get("probability")),
+            expected_value=source.get("ev"),
+            reason=source.get("reason"),
+        )
+        payload.update(
+            {
+                key: payload.get(key) if payload.get(key) is not None else value
+                for key, value in _portfolio.items()
+            }
+        )
+    return payload
+
+
+def classify_edge(expected_value: Optional[float]) -> str:
+    """Classify EV into LOW/MEDIUM/HIGH buckets for portfolio UI."""
+    if expected_value is None:
+        return "N/A"
+    if expected_value < 0.01:
+        return "LOW"
+    if expected_value <= 0.05:
+        return "MEDIUM"
+    return "HIGH"
+
+
+def classify_strength(probability: Optional[float]) -> str:
+    """Classify probability into WEAK/MODERATE/STRONG buckets for portfolio UI."""
+    if probability is None:
+        return "N/A"
+    if probability < 0.55:
+        return "WEAK"
+    if probability <= 0.65:
+        return "MODERATE"
+    return "STRONG"
+
+
+def build_portfolio_intelligence(
+    *,
+    probability: Any,
+    expected_value: Any,
+    reason: Any,
+) -> dict[str, str]:
+    """Build portfolio intelligence fields from signal/scoring values with safe fallbacks."""
+    _prob: Optional[float] = None
+    _ev: Optional[float] = None
+
+    try:
+        if probability is not None:
+            _prob = float(probability)
+    except (TypeError, ValueError):
+        _prob = None
+    try:
+        if expected_value is not None:
+            _ev = float(expected_value)
+    except (TypeError, ValueError):
+        _ev = None
+
+    _confidence = f"{round(_prob, 2):.2f}" if _prob is not None else "N/A"
+    _reason = str(reason).strip() if reason is not None and str(reason).strip() else "N/A"
+    if _reason == "N/A" and _prob is not None and _ev is not None:
+        _reason = f"p={_prob:.2f}, ev={_ev:.3f}"
+
+    return {
+        "confidence": _confidence,
+        "edge": classify_edge(_ev),
+        "signal": classify_strength(_prob),
+        "reason": _reason,
+    }
 
 
 def _env_float(name: str, default: float) -> float:
@@ -905,6 +987,11 @@ async def run_trading_loop(
 
                     if result.success:
                         _trades_this_tick += 1
+                        _portfolio_intelligence = build_portfolio_intelligence(
+                            probability=signal.p_model,
+                            expected_value=signal.ev,
+                            reason=signal.extra.get("decision_reason"),
+                        )
 
                         _signal_market_type = _market_type_by_id.get(signal.market_id, "GENERAL")
                         _trade_type_distribution[_signal_market_type] = (
@@ -925,6 +1012,10 @@ async def run_trading_loop(
                             filled_size_usd=round(result.filled_size_usd or 0.0, 4),
                             fill_price=round(result.fill_price or 0.0, 6),
                             force_mode=_active_force,
+                            confidence=_portfolio_intelligence["confidence"],
+                            edge_class=_portfolio_intelligence["edge"],
+                            signal_class=_portfolio_intelligence["signal"],
+                            decision_reason=_portfolio_intelligence["reason"],
                         )
 
                         # Record trade time for cooldown tracking and force-fallback reset
