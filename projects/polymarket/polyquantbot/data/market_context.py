@@ -1,6 +1,6 @@
 from typing import Dict
 import structlog
-from data.polymarket_api import fetch_market_details
+from .data.polymarket_api import fetch_market_details
 
 log = structlog.get_logger(__name__)
 market_cache: Dict[str, dict] = {}
