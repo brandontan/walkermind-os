@@ -1,14 +1,16 @@
 from dataclasses import dataclass
 import math
 
+
 @dataclass
 class MarketSnapshot:
     price: float
     implied_prob: float
     volatility: float
 
+
 class ExecutionIntelligence:
-    def evaluate_entry(self, market: MarketSnapshot) -> dict:
+    def evaluate_entry(self, market: MarketSnapshot, threshold: float = 0.5) -> dict:
         """Score entry opportunity (0–1) with reasons."""
         price_edge = 1 - abs(market.price - market.implied_prob)
         volatility_penalty = 1 / (1 + math.log(market.volatility + 1))
@@ -19,6 +21,10 @@ class ExecutionIntelligence:
         if market.volatility < 0.5:
             reasons.append("low volatility")
         return {"score": score, "reasons": reasons}
+
+    def should_open(self, score: float, threshold: float) -> bool:
+        """Strictly enforce threshold."""
+        return score >= threshold
 
     def evaluate_exit(self, position) -> str:
         """Signal exit action."""
