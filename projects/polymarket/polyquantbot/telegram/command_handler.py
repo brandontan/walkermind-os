@@ -199,7 +199,7 @@ class CommandHandler:
             payload = self._build_home_payload()
             return CommandResult(
                 success=True,
-                message=render_view("home", payload),
+                message=await render_view("home", payload),
                 payload=payload,
             )
         if cmd == "status":
@@ -380,7 +380,7 @@ class CommandHandler:
         )
         return CommandResult(
             success=True,
-            message=render_view("positions", payload),
+            message=await render_view("positions", payload),
             payload=payload,
         )
 
@@ -419,7 +419,7 @@ class CommandHandler:
         payload = await export_execution_payload()
         return CommandResult(
             success=True,
-            message=render_view("positions", payload),
+            message=await render_view("positions", payload),
             payload=payload,
         )
 
@@ -455,7 +455,7 @@ class CommandHandler:
 
     async def _handle_home(self) -> CommandResult:
         payload = self._build_home_payload()
-        return CommandResult(success=True, message=render_view("home", payload), payload=payload)
+        return CommandResult(success=True, message=await render_view("home", payload), payload=payload)
 
     async def _handle_pause(self) -> CommandResult:
         current = self._state.state
@@ -762,7 +762,7 @@ class CommandHandler:
                     strategy_states["Mean Reversion"] = enabled
                 elif "liq" in sid or "edge" in sid:
                     strategy_states["Liquidity Edge"] = enabled
-            msg = render_view("strategy", {"strategies": strategy_states})
+            msg = await render_view("strategy", {"strategies": strategy_states})
             return CommandResult(
                 success=True,
                 message=msg,
@@ -821,7 +821,7 @@ class CommandHandler:
             }
             return CommandResult(
                 success=True,
-                message=render_view("performance", ui_payload),
+                message=await render_view("performance", ui_payload),
                 payload={
                     "total_pnl": round(total_pnl, 4),
                     "total_trades": self._multi_metrics.total_trades,

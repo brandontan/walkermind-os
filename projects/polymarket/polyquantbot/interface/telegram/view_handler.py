@@ -4,10 +4,11 @@ from __future__ import annotations
 from typing import Any, Mapping
 from ..ui_formatter import render_dashboard
 
-def render_view(name: str, payload: Mapping[str, Any]) -> str:
+
+async def render_view(name: str, payload: Mapping[str, Any]) -> str:
     action = name.strip().lower()
     if action == "trade":
-        return render_dashboard(
+        return await render_dashboard(
             equity=payload.get("equity", 0),
             positions=len(payload.get("positions", [])),
             exposure=payload.get("exposure", 0),
@@ -25,7 +26,7 @@ def render_view(name: str, payload: Mapping[str, Any]) -> str:
             decision=payload.get("decision", "waiting for opportunity"),
         )
     elif action == "wallet":
-        return render_dashboard(
+        return await render_dashboard(
             equity=payload.get("equity", 0),
             positions=0,
             exposure=0,
@@ -35,7 +36,7 @@ def render_view(name: str, payload: Mapping[str, Any]) -> str:
             decision="no active trades",
         )
     elif action == "performance":
-        return render_dashboard(
+        return await render_dashboard(
             equity=payload.get("equity", 0),
             positions=len(payload.get("positions", [])),
             exposure=payload.get("exposure", 0),
@@ -45,7 +46,7 @@ def render_view(name: str, payload: Mapping[str, Any]) -> str:
             decision="performance review mode",
         )
     elif action in {"market", "markets"}:
-        return render_dashboard(
+        return await render_dashboard(
             equity=payload.get("equity", 0),
             positions=0,
             exposure=0,
@@ -54,7 +55,7 @@ def render_view(name: str, payload: Mapping[str, Any]) -> str:
             status=payload.get("status", "waiting"),
             decision="market analysis mode",
         )
-    return render_dashboard(
+    return await render_dashboard(
         equity=payload.get("equity", 0),
         positions=0,
         exposure=0,
