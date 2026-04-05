@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-05
-Status: Phase 24.4 intelligence + validation UI visibility delivered for HOME and PORTFOLIO (CONF / EDGE / SIGNAL / REASON + VALIDATION STATUS/TRADES/WR/PF). Next report: projects/polymarket/polyquantbot/reports/forge/24_4_intelligence_validation.md
+Status: Phase 24.5 performance breakdown engine delivered in staging snapshot flow (market/signal/edge grouping with WR/PF). Next report: projects/polymarket/polyquantbot/reports/forge/24_5_performance_breakdown.md
 
 ---
 
@@ -68,6 +68,13 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+PERFORMANCE BREAKDOWN ENGINE (Phase 24.5)
+
+- projects/polymarket/polyquantbot/monitoring/performance_breakdown.py (NEW): Added `PerformanceBreakdown` grouped analytics for `by_market`, `by_signal`, and `by_edge` with safe WR/PF math and no-trade empty output.
+- projects/polymarket/polyquantbot/monitoring/snapshot_engine.py (MODIFIED): Snapshot payload now includes `performance_breakdown` with safe fallback payload on errors.
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Added performance data hook on executed trades (`result`, `market_type`, `signal`, `edge`) and wired rolling-trade feed into snapshot breakdown generation.
+- projects/polymarket/polyquantbot/reports/forge/24_5_performance_breakdown.md (NEW): completion report.
 
 INTELLIGENCE + VALIDATION UI VISIBILITY (Phase 24.4)
 
@@ -735,6 +742,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- Validation run (staging) — performance breakdown telemetry verification for market/signal/edge WR/PF consistency in periodic snapshots
 - Validation run (staging) — intelligence + validation UI telemetry collection for `/home` and `/portfolio`
 - Validation tracking (staging) — portfolio intelligence visibility checks for CONF / EDGE / SIGNAL / REASON across active positions
 - **Validation run (staging)** — Telegram private mode (Phase 24.3f) active with market intelligence shadow layer + snapshot system; collecting DM delivery checks, uptime, and state/snapshot telemetry
@@ -766,16 +774,16 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Performance analysis (Phase 24.4)** — evaluate WR/PF trend quality and validation-state transitions using staging runtime snapshots
-2. **Validation visibility** — verify operator readability and decision-trace clarity for HOME + PORTFOLIO intelligence/validation fields in staging runtime
-3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-4. SENTINEL validation required for intelligence + validation UI visibility before merge.
-   Source: projects/polymarket/polyquantbot/reports/forge/24_4_intelligence_validation.md
+1. **Strategy optimization** — use Phase 24.5 grouped WR/PF output to tune underperforming market/signal/edge cohorts.
+2. **Validation run (staging)** — monitor stability and consistency of performance breakdown under live paper traffic.
+3. SENTINEL validation required for performance breakdown engine before merge.
+   Source: projects/polymarket/polyquantbot/reports/forge/24_5_performance_breakdown.md
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- `/analysis` Telegram command is not yet wired into command handler routing; breakdown currently ships through periodic `system_snapshot` payload/log path.
 - Telegram private chat ID persists locally; if missing after restart, operator must send /start again to re-capture DM target
 - Single-user overwrite behavior is active by design: latest /start caller replaces USER_CHAT_ID
 - `docs/CLAUDE.md` referenced by process checklist is missing from repository

@@ -564,6 +564,7 @@ async def run_trading_loop(
                 _val_result.state.value,
                 market_distribution=_last_market_distribution,
                 trade_distribution=_trade_type_distribution,
+                trades=_performance_tracker.get_recent_trades(),
             )
             log.info(
                 "system_snapshot",
@@ -1242,9 +1243,14 @@ async def run_trading_loop(
 
                         # ── 4j. Validation engine hook (non-blocking) ─────────────
                         if result.fill_price > 0.0:
+                            _result_label = "WIN" if _to_float(signal.ev) > 0.0 else "LOSS"
                             _val_trade: dict[str, Any] = {
                                 "trade_id": result.trade_id,
                                 "pnl": 0.0,
+                                "result": _result_label,
+                                "market_type": _signal_market_type,
+                                "signal": _portfolio_intelligence["signal"],
+                                "edge": _portfolio_intelligence["edge"],
                                 "entry_price": result.fill_price,
                                 "exit_price": result.fill_price,
                                 "size": result.filled_size_usd or 0.0,
