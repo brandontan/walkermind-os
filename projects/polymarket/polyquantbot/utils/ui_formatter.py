@@ -39,6 +39,12 @@ def build_home(data: Mapping[str, Any]) -> str:
 ├ SCAN       {_value(data, "scan")}
 └ DISTRIB    {_value(data, "distribution")}
 
+🧪 VALIDATION
+├ STATUS     {_value(data, "validation_status")}
+├ TRADES     {_value(data, "trades_count")}/30
+├ WR         {_value(data, "winrate")}
+└ PF         {_value(data, "profit_factor")}
+
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 {_value(data, "insight")}
 """.strip()
