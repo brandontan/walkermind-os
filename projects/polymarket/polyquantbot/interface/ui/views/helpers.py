@@ -34,44 +34,43 @@ def block(value: Any, label: str) -> str:
     return f"{fmt(value)}\n{label}"
 
 
-def generate_insight(data: Mapping[str, Any]) -> str:
-    """Generate a concise AI insight across all UI views."""
-    raw_positions = data.get("positions", data.get("open_positions", 0))
+def _as_float(value: Any) -> float | None:
+    """Convert mixed numeric-like values to float when possible."""
     try:
-        positions = int(float(raw_positions))
-    except (TypeError, ValueError):
-        positions = 0
+        return float(str(value).replace("%", "").replace("$", "").replace(",", "").strip())
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def generate_insight(data: Mapping[str, Any]) -> str:
+    """Generate smart UI insight with risk-aware precedence."""
+    raw_positions = data.get("positions", data.get("open_positions", 0))
+    positions_value = _as_float(raw_positions)
+    positions = int(positions_value) if positions_value is not None else 0
 
     if positions <= 0:
-        return "No active trades • Waiting signal"
+        return "Market inactive • Waiting edge"
 
-    drawdown = data.get("drawdown")
-    if drawdown not in (None, "", "—"):
-        try:
-            drawdown_value = float(drawdown)
-        except (TypeError, ValueError):
-            drawdown_value = 0.0
-        if abs(drawdown_value) > 0:
-            return "Drawdown detected • Risk active"
+    drawdown_value = _as_float(data.get("drawdown"))
+    if drawdown_value is not None and drawdown_value > 0:
+        return "Drawdown active • Risk control engaged"
 
-    low_exposure = False
-    exposure_candidates = [
+    exposure_candidates = (
         data.get("ratio"),
         data.get("exposure_ratio"),
-        data.get("exposure"),
-        data.get("total_exposure"),
-        data.get("unrealized"),
-    ]
+        data.get("exposure_pct"),
+        data.get("exposure_percent"),
+    )
     for value in exposure_candidates:
-        try:
-            numeric = abs(float(value))
-        except (TypeError, ValueError):
+        exposure = _as_float(value)
+        if exposure is None:
             continue
-        if numeric <= 0.3:
-            low_exposure = True
-            break
+        if exposure > 1:
+            exposure = exposure / 100
+        if exposure >= 0.3:
+            return "Risk elevated • Exposure high"
 
-    if low_exposure:
-        return "Low exposure • Safe positioning"
+    if positions == 1:
+        return "Position open • Monitoring outcome"
 
-    return "Monitoring positions"
+    return "Positions active • Monitoring outcome"
