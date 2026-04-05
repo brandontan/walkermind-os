@@ -1,5 +1,5 @@
 Last Updated  : 2026-04-05
-Status        : Market context runtime errors fixed; async pipeline restored
+Status        : System intelligence upgrade complete — data hardening + AI insight layer
 COMPLETED     :
 - Added execution intelligence (dynamic entry/exit scoring) in execution/intelligence.py
 - Added performance analytics (trade history + metrics) in execution/analytics.py
@@ -27,19 +27,16 @@ COMPLETED     :
 - Upgraded UI system to premium human-readable format in interface/ui_formatter.py and interface/telegram/view_handler.py
 - Added dynamic market context resolver in data/market_context.py (16_1)
 - Created Polymarket CLOB API client in data/polymarket_api.py (16_3)
-- Fixed all 4 CRITICAL runtime errors from SENTINEL report 16_2 (16_3):
-  - CRITICAL-A: added get_market_context import to interface/ui_formatter.py
-  - CRITICAL-B: removed dead async render_active_position duplicate
-  - CRITICAL-C: removed undefined MARKET_NAMES / _market_name; replaced with live context
-  - CRITICAL-D: created data/polymarket_api.py (was missing)
-- Fixed cache poisoning in data/market_context.py (fallback no longer cached)
-- Fixed question field parsing for Polymarket CLOB API response format
-- Made render_active_position, render_dashboard, render_view fully async
-- Added await to all 6 render_view call sites in telegram/command_handler.py
+- Fixed all 4 CRITICAL runtime errors from SENTINEL report 16_2 (16_3)
+- Fixed cache poisoning; question field parsing; async flow end-to-end (16_3)
+- Added await to all 6 render_view call sites in telegram/command_handler.py (16_3)
+- Part A data hardening (16_4A): asyncio.wait_for timeout, 3-retry+backoff, TTL cache (60s/100 max), no cache poisoning, metrics
+- Part B AI insight layer (16_4A): intelligence/insight_engine.py with generate_insight() rule engine
+- Integrated insight into interface/ui_formatter.py: MARKET INSIGHT + BOT DECISION sections driven by insight engine
 
 IN PROGRESS   :
 - None
 
 NEXT PRIORITY :
-- SENTINEL validation required for market context fix (16_3) before merge.
-  Source: projects/polymarket/polyquantbot/reports/forge/16_3_market_context_fix.md
+- SENTINEL validation required for system intelligence upgrade (16_4A) before merge.
+  Source: projects/polymarket/polyquantbot/reports/forge/16_4A_system_intelligence.md
