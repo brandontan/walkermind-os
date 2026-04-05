@@ -23,7 +23,7 @@ def render_view(name: str, payload: Mapping[str, Any]) -> str:
         return render_performance_view(payload)
     if key in {"exposure", "portfolio"}:
         return render_exposure_view(payload)
-    if key == "strategy":
+    if key in {"strategy", "strategies"}:
         return render_strategy_view(payload)
     if key == "risk":
         return render_risk_view(payload)

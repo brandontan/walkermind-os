@@ -3,29 +3,29 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from ..ui_blocks import format_block, format_insight, format_row
+from ..ui_blocks import row, section
 
 
 def render_home_view(data: Mapping[str, Any]) -> str:
     system_rows = [
-        format_row("status", str(data.get("status", "N/A"))),
-        format_row("mode", str(data.get("mode", "N/A"))),
-        format_row("markets", str(data.get("markets", "N/A"))),
+        row("State", str(data.get("status", "N/A"))),
+        row("Mode", str(data.get("mode", "N/A"))),
+        row("Latency", str(data.get("latency", "N/A"))),
     ]
     portfolio_rows = [
-        format_row("positions", str(data.get("positions", "N/A"))),
-        format_row("exposure", str(data.get("exposure", "N/A"))),
-        format_row("unrealized", str(data.get("unrealized", "N/A"))),
+        row("Balance", str(data.get("balance", "N/A"))),
+        row("Equity", str(data.get("equity", "N/A"))),
+        row("Positions", str(data.get("positions", "N/A"))),
     ]
     performance_rows = [
-        format_row("pnl", str(data.get("pnl", "N/A"))),
-        format_row("winrate", str(data.get("winrate", "N/A"))),
-        format_row("drawdown", str(data.get("drawdown", "N/A"))),
+        row("Realized", str(data.get("realized", "N/A"))),
+        row("Unrealized", str(data.get("unrealized", "N/A"))),
     ]
+    insight_text = row("Insight", str(data.get("insight", "N/A")))
 
     return "\n\n".join([
-        format_block("🧭 SYSTEM", system_rows),
-        format_block("💼 PORTFOLIO", portfolio_rows),
-        format_block("📈 PERFORMANCE", performance_rows),
-        format_insight(str(data.get("insight", "N/A"))),
+        section("SYSTEM", system_rows),
+        section("PORTFOLIO", portfolio_rows),
+        section("PERFORMANCE", performance_rows),
+        section("Insight", [insight_text]),
     ])

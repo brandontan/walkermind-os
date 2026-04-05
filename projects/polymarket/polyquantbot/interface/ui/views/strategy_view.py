@@ -3,27 +3,24 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from ..ui_blocks import format_block, format_row
+from ..ui_blocks import row, section
 
 
-_DEFAULT_STRATEGIES = [
-    ("EV Momentum", True),
-    ("Mean Revert", True),
-    ("Liquidity", False),
-]
+def _normalize_state(value: object, default: bool) -> bool:
+    if value is None:
+        return default
+    return bool(value)
 
 
 def render_strategy_view(data: Mapping[str, Any]) -> str:
-    strategies = data.get("strategies")
-    rows: list[str] = []
+    strategies = data.get("strategies") if isinstance(data.get("strategies"), dict) else {}
+    ev_momentum = _normalize_state(strategies.get("EV Momentum"), True)
+    mean_reversion = _normalize_state(strategies.get("Mean Reversion"), True)
+    liquidity_edge = _normalize_state(strategies.get("Liquidity Edge"), False)
 
-    if isinstance(strategies, dict) and strategies:
-        for name, enabled in strategies.items():
-            state = "🟢 ON" if bool(enabled) else "🔴 OFF"
-            rows.append(format_row(str(name), state))
-    else:
-        for name, enabled in _DEFAULT_STRATEGIES:
-            state = "🟢 ON" if enabled else "🔴 OFF"
-            rows.append(format_row(name, state))
-
-    return format_block("🎯 STRATEGY", rows)
+    rows = [
+        row("EV Momentum", "🟢 ON" if ev_momentum else "🔴 OFF"),
+        row("Mean Revert", "🟢 ON" if mean_reversion else "🔴 OFF"),
+        row("Liquidity", "🟢 ON" if liquidity_edge else "🔴 OFF"),
+    ]
+    return section("STRATEGIES", rows)
