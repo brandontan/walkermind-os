@@ -8,6 +8,7 @@ from ..ui.views import (
     render_home_view,
     render_market_view,
     render_performance_view,
+    render_portfolio_view,
     render_positions_view,
     render_risk_view,
     render_strategy_view,
@@ -32,7 +33,7 @@ def render_view(name: str, payload: Mapping[str, Any]) -> str:
     elif action == "positions":
         return render_positions_view(payload)
     elif action == "portfolio":
-        return render_exposure_view(payload)
+        return render_portfolio_view(payload)
     elif action == "strategies":
         return render_strategy_view(payload)
     elif action == "risk":
