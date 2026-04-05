@@ -1,28 +1,20 @@
-"""POSITIONS premium dashboard view."""
+"""POSITIONS product dashboard view."""
 from __future__ import annotations
 
 from typing import Any, Mapping
 
-from .helpers import SEPARATOR, block, fmt
+from .helpers import SEPARATOR, block, fmt, generate_insight
 
 
 TITLE = "📊 POSITIONS"
 SUBTITLE = "Polymarket AI Trader"
 
 
-def _compact_position(item: Any) -> str:
+def _top_position(item: Any) -> str:
     text = fmt(item)
     if text == "—":
         return text
-    return text if len(text) <= 54 else f"{text[:51]}..."
-
-
-def _positions_insight(count: int) -> str:
-    if count == 0:
-        return "No active trades • Waiting signal"
-    if count == 1:
-        return "1 position open • Monitoring"
-    return "Low exposure • Safe positioning" if count <= 3 else f"{count} positions open • Monitoring"
+    return text if len(text) <= 56 else f"{text[:53]}..."
 
 
 def render_positions_view(data: Mapping[str, Any]) -> str:
@@ -32,16 +24,9 @@ def render_positions_view(data: Mapping[str, Any]) -> str:
 
     sections = [
         f"{TITLE}\n{SUBTITLE}",
-        block("Open Positions", count, "Open Positions"),
+        block(count, "Open Positions"),
+        block(_top_position(items[0]) if count else "No open positions", "Top Position"),
+        block(_top_position(items[1]) if count > 1 else "—", "Second Position"),
+        f"🧠 Insight\n{generate_insight({**data, 'positions': count})}",
     ]
-
-    if count == 0:
-        sections.append(block("Status", "No open positions", "Position Status"))
-        sections.append(f"🧠 Insight\n{_positions_insight(count)}")
-        return f"\n{SEPARATOR}\n".join(sections)
-
-    for idx, item in enumerate(items[:5], start=1):
-        sections.append(block(f"Position {idx}", _compact_position(item), f"Position {idx}"))
-
-    sections.append(f"🧠 Insight\n{_positions_insight(count)}")
     return f"\n{SEPARATOR}\n".join(sections)
