@@ -2,42 +2,64 @@
 from __future__ import annotations
 
 from typing import Any, Mapping
-
-from ..ui.views import (
-    render_exposure_view,
-    render_home_view,
-    render_market_view,
-    render_performance_view,
-    render_portfolio_view,
-    render_positions_view,
-    render_risk_view,
-    render_strategy_view,
-    render_wallet_view,
-)
-
+from ..ui_formatter import render_dashboard
 
 def render_view(name: str, payload: Mapping[str, Any]) -> str:
     action = name.strip().lower()
     if action == "trade":
-        return render_positions_view(payload)
+        return render_dashboard(
+            equity=payload.get("equity", 0),
+            positions=len(payload.get("positions", [])),
+            exposure=payload.get("exposure", 0),
+            trend=payload.get("trend", "neutral"),
+            edge=payload.get("edge", "low"),
+            status=payload.get("status", "waiting"),
+            market_id=payload.get("market_id"),
+            side=payload.get("side"),
+            entry_price=payload.get("entry_price"),
+            size=payload.get("size"),
+            pnl=payload.get("pnl"),
+            exposure_safe=payload.get("exposure_safe", True),
+            position_safe=payload.get("position_safe", True),
+            drawdown=payload.get("drawdown", 0),
+            decision=payload.get("decision", "waiting for opportunity"),
+        )
     elif action == "wallet":
-        return render_wallet_view(payload)
+        return render_dashboard(
+            equity=payload.get("equity", 0),
+            positions=0,
+            exposure=0,
+            trend="neutral",
+            edge="low",
+            status="waiting",
+            decision="no active trades",
+        )
     elif action == "performance":
-        return render_performance_view(payload)
-    elif action == "exposure":
-        return render_exposure_view(payload)
-    elif action == "strategy":
-        return render_strategy_view(payload)
-    elif action == "home":
-        return render_home_view(payload)
-    elif action == "positions":
-        return render_positions_view(payload)
-    elif action == "portfolio":
-        return render_portfolio_view(payload)
-    elif action == "strategies":
-        return render_strategy_view(payload)
-    elif action == "risk":
-        return render_risk_view(payload)
+        return render_dashboard(
+            equity=payload.get("equity", 0),
+            positions=len(payload.get("positions", [])),
+            exposure=payload.get("exposure", 0),
+            trend=payload.get("trend", "neutral"),
+            edge=payload.get("edge", "low"),
+            status=payload.get("status", "waiting"),
+            decision="performance review mode",
+        )
     elif action in {"market", "markets"}:
-        return render_market_view(payload)
-    return render_home_view(payload)
+        return render_dashboard(
+            equity=payload.get("equity", 0),
+            positions=0,
+            exposure=0,
+            trend=payload.get("trend", "neutral"),
+            edge=payload.get("edge", "low"),
+            status=payload.get("status", "waiting"),
+            decision="market analysis mode",
+        )
+    return render_dashboard(
+        equity=payload.get("equity", 0),
+        positions=0,
+        exposure=0,
+        trend="neutral",
+        edge="low",
+        status="waiting",
+        decision="home view",
+    )
