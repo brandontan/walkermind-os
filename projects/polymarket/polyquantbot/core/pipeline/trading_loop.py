@@ -151,7 +151,20 @@ def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
     """Return command-scoped data to enforce no duplication between views."""
     normalized = command.strip().lower()
     if normalized == "/home":
-        keys = {"status", "mode", "markets", "latency", "strategy", "scan", "distribution", "insight"}
+        keys = {
+            "status",
+            "mode",
+            "markets",
+            "latency",
+            "strategy",
+            "scan",
+            "distribution",
+            "insight",
+            "validation_status",
+            "trades_count",
+            "winrate",
+            "profit_factor",
+        }
     elif normalized == "/portfolio":
         keys = {
             "positions",
@@ -174,6 +187,16 @@ def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
     else:
         keys = set(source.keys())
     payload = {key: source.get(key) for key in keys}
+    if normalized == "/home":
+        _trades_count, _winrate, _profit_factor, _validation_status = build_validation_snapshot(source)
+        payload.update(
+            {
+                "trades_count": _trades_count,
+                "winrate": _winrate,
+                "profit_factor": _profit_factor,
+                "validation_status": _validation_status,
+            }
+        )
     if normalized == "/portfolio":
         _portfolio = build_portfolio_intelligence(
             probability=source.get("confidence", source.get("probability")),
@@ -187,6 +210,70 @@ def map_ui_data(command: str, source: dict[str, Any]) -> dict[str, Any]:
             }
         )
     return payload
+
+
+def classify_validation_status(
+    *,
+    trades_count: int,
+    winrate: Optional[float],
+    profit_factor: Optional[float],
+) -> str:
+    """Classify validation state from sample size + WR/PF thresholds."""
+    if trades_count < 30:
+        return "WARMING"
+    if winrate is None or profit_factor is None:
+        return "N/A"
+    if winrate >= 0.70 and profit_factor >= 1.50:
+        return "PASS"
+    return "CRITICAL"
+
+
+def build_validation_snapshot(source: dict[str, Any]) -> tuple[str, str, str, str]:
+    """Build Telegram home validation block fields with N/A-safe fallbacks."""
+    _trades_raw = source.get("trades_count", source.get("trade_count"))
+    _wr_raw = source.get("winrate", source.get("wr", source.get("win_rate")))
+    _pf_raw = source.get("profit_factor", source.get("pf"))
+    _provided_status = source.get("validation_status")
+
+    _trades_count: Optional[int] = None
+    _winrate: Optional[float] = None
+    _profit_factor: Optional[float] = None
+
+    try:
+        if _trades_raw is not None:
+            _trades_count = int(float(_trades_raw))
+    except (TypeError, ValueError):
+        _trades_count = None
+
+    try:
+        if _wr_raw is not None:
+            _winrate = float(_wr_raw)
+    except (TypeError, ValueError):
+        _winrate = None
+
+    try:
+        if _pf_raw is not None:
+            _profit_factor = float(_pf_raw)
+    except (TypeError, ValueError):
+        _profit_factor = None
+
+    _status = str(_provided_status).strip().upper() if _provided_status is not None else ""
+    if not _status:
+        if _trades_count is None:
+            _status = "N/A"
+        else:
+            _status = classify_validation_status(
+                trades_count=_trades_count,
+                winrate=_winrate,
+                profit_factor=_profit_factor,
+            )
+
+    return (
+        str(_trades_count) if _trades_count is not None else "N/A",
+        f"{_winrate:.2f}" if _winrate is not None else "N/A",
+        f"{_profit_factor:.2f}" if _profit_factor is not None else "N/A",
+        _status,
+    )
 
 
 def classify_edge(expected_value: Optional[float]) -> str:

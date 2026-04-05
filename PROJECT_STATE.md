@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-05
-Status: Phase 24.4a portfolio intelligence layer delivered for PORTFOLIO active-position explainability (CONF / EDGE / SIGNAL / REASON) with safe missing-data fallbacks. Next report: projects/polymarket/polyquantbot/reports/forge/24_4a_portfolio_intelligence.md
+Status: Phase 24.4 intelligence + validation UI visibility delivered for HOME and PORTFOLIO (CONF / EDGE / SIGNAL / REASON + VALIDATION STATUS/TRADES/WR/PF). Next report: projects/polymarket/polyquantbot/reports/forge/24_4_intelligence_validation.md
 
 ---
 
@@ -68,6 +68,12 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+INTELLIGENCE + VALIDATION UI VISIBILITY (Phase 24.4)
+
+- projects/polymarket/polyquantbot/utils/ui_formatter.py (MODIFIED): HOME now renders 🧪 VALIDATION (STATUS / TRADES / WR / PF), and PORTFOLIO ACTIVE POSITION continues to expose CONF / EDGE / SIGNAL / REASON with safe fallback formatting.
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): Added validation snapshot mapper + `classify_validation_status` (`WARMING` / `PASS` / `CRITICAL`), and ensured intelligence mapping uses confidence/edge/signal classifiers with N/A-safe handling.
+- projects/polymarket/polyquantbot/reports/forge/24_4_intelligence_validation.md (NEW): completion report.
 
 PORTFOLIO INTELLIGENCE LAYER (Phase 24.4a)
 
@@ -729,6 +735,7 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- Validation run (staging) — intelligence + validation UI telemetry collection for `/home` and `/portfolio`
 - Validation tracking (staging) — portfolio intelligence visibility checks for CONF / EDGE / SIGNAL / REASON across active positions
 - **Validation run (staging)** — Telegram private mode (Phase 24.3f) active with market intelligence shadow layer + snapshot system; collecting DM delivery checks, uptime, and state/snapshot telemetry
 - Validation metrics tuning — calibrate WR/PF thresholds against live paper trading data
@@ -759,11 +766,11 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Validation visibility** — verify operator readability and decision-trace clarity for portfolio intelligence fields in staging runtime
-2. **Phase 24.4 analysis** — truth extraction and threshold calibration (WR/PF/MDD) using 24h validation snapshots + last_pnl
+1. **Performance analysis (Phase 24.4)** — evaluate WR/PF trend quality and validation-state transitions using staging runtime snapshots
+2. **Validation visibility** — verify operator readability and decision-trace clarity for HOME + PORTFOLIO intelligence/validation fields in staging runtime
 3. **Wire CRITICAL → kill-switch** — `ValidationState.CRITICAL` must call `stop_event.set()` before LIVE promotion
-4. SENTINEL validation required for portfolio intelligence layer before merge.
-   Source: projects/polymarket/polyquantbot/reports/forge/24_4a_portfolio_intelligence.md
+4. SENTINEL validation required for intelligence + validation UI visibility before merge.
+   Source: projects/polymarket/polyquantbot/reports/forge/24_4_intelligence_validation.md
 
 ---
 
