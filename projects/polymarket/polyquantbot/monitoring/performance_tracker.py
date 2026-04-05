@@ -68,12 +68,16 @@ class PerformanceTracker:
                 f"Trade is missing required keys: {sorted(missing)}"
             )
 
+        _normalized_trade = dict(trade)
+        if "status" not in _normalized_trade:
+            _normalized_trade["status"] = "open"
+
         # Record trade_id → index before appending (index = current length)
-        _tid: str | None = trade.get("trade_id")
+        _tid: str | None = _normalized_trade.get("trade_id")
         if _tid:
             self._trade_id_index[_tid] = len(self.trades)
 
-        self.trades.append(trade)
+        self.trades.append(_normalized_trade)
 
         # Trim oldest entries beyond the rolling window
         if len(self.trades) > self.max_window:
@@ -92,8 +96,8 @@ class PerformanceTracker:
         log.debug(
             "performance_tracker_trade_added",
             trade_count=len(self.trades),
-            signal_type=trade.get("signal_type"),
-            pnl=trade.get("pnl"),
+            signal_type=_normalized_trade.get("signal_type"),
+            pnl=_normalized_trade.get("pnl"),
             trade_id=_tid,
         )
 
@@ -126,7 +130,7 @@ class PerformanceTracker:
             )
             return False
 
-        self.trades[idx] = {**self.trades[idx], "pnl": pnl}
+        self.trades[idx] = {**self.trades[idx], "pnl": pnl, "status": "closed"}
         log.debug(
             "performance_tracker_trade_updated",
             trade_id=trade_id,
