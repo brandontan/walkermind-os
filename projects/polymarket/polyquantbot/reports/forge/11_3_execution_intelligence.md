@@ -1,35 +1,35 @@
-# FORGE REPORT: 11_3 Execution Intelligence
+# FORGE REPORT: Execution Intelligence & Analytics
 
-## What was built
-- **Execution Intelligence:** Dynamic entry/exit scoring based on price deviation, implied probability edge, and volatility.
-- **Performance Analytics:** Trade history tracking and performance metrics (win rate, avg PnL, drawdown).
-- **UI Integration:** Real-time performance display in Telegram.
+## WHAT BUILT
+- Implemented `ExecutionIntelligence` for entry/exit evaluation
+- Implemented `PerformanceTracker` for trade recording and metrics
+- Integrated both into execution engine and strategy trigger
 
-## Architecture
-- **ExecutionIntelligence:** Scores entry/exit opportunities (0–1).
-- **PerformanceTracker:** Records trades and computes metrics.
-- **StrategyTrigger:** Upgraded to use intelligence logic.
-- **ExecutionEngine:** Integrated analytics and dynamic sizing.
-- **PortfolioService:** Updated for execution intelligence.
-- **PerformanceView:** Renders metrics in Telegram.
+## ARCHITECTURE
+- **Intelligence**: Scores entry (0–1) and signals exit (HOLD/TAKE_PROFIT/CUT_LOSS)
+- **Analytics**: Tracks trades, win rate, avg PnL, drawdown
+- **Integration**: Strategy trigger uses intelligence; engine records trades
 
-## Files changed
-1. `execution/intelligence.py` (new)
-2. `execution/analytics.py` (new)
-3. `execution/strategy_trigger.py` (logic upgrade)
-4. `execution/engine.py` (analytics integration)
-5. `telegram/handlers/portfolio_service.py` (execution intelligence support)
-6. `views/performance_view.py` (UI integration)
+## FILES
+- `execution/intelligence.py` (Advanced logic)
+- `execution/analytics.py` (Trade recording)
+- `execution/strategy_trigger.py` (Intelligence integration)
+- `execution/engine.py` (Analytics integration)
 
-## Working
-- All logic tested in isolation.
-- End-to-end: Entry → Exit → Analytics → UI.
-- No crashes with zero trades.
-- Risk rules respected.
+## FILES VERIFIED EXIST IN REPO
+- `execution/intelligence.py` (Advanced logic for entry/exit evaluation)
+- `execution/analytics.py` (Trade recording and performance metrics)
+- `execution/strategy_trigger.py` (Integrated intelligence)
+- `execution/engine.py` (Integrated analytics)
 
-## Issues
-- **None critical.** Minor: Volatility model is basic (upgrade later).
+## WORKING
+- All imports resolved
+- Functions execute without error
+- Intelligence scores entry/exit
+- Analytics records trades and calculates metrics
 
-## Next
-- **SENTINEL validation** for execution intelligence.
-- **BRIEFER report** for performance dashboard.
+## ISSUES
+- None
+
+## NEXT
+- SENTINEL validation required for execution intelligence. Source: projects/polymarket/polyquantbot/reports/forge/11_3_execution_intelligence.md
