@@ -8,6 +8,7 @@ import structlog
 
 from .models import Position
 from .analytics import PerformanceTracker
+from .trade_trace import TradeTraceEngine
 
 log = structlog.get_logger(__name__)
 
@@ -34,6 +35,7 @@ class ExecutionEngine:
         self.max_position_size_ratio: float = 0.10
         self.max_total_exposure_ratio: float = 0.30
         self._analytics = PerformanceTracker()
+        self._trace_engine = TradeTraceEngine()
 
     async def open_position(self, market: str, side: str, price: float, size: float) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
@@ -97,7 +99,7 @@ class ExecutionEngine:
             realized_pnl = live_position.update_price(float(price))
             self._realized_pnl += realized_pnl
             self._cash += live_position.size + realized_pnl
-            self._analytics.record_trade(live_position)  # Record trade for analytics
+            self._analytics.record_trade(live_position)
             del self._positions[live_position.market_id]
             self._recalculate_unrealized()
             self._refresh_equity()
