@@ -1,7 +1,7 @@
 ## WALKER'S AI PROJECT STATE
 
 Last Updated: 2026-04-05
-Status: Phase 24.5 performance breakdown engine completed with closed-trade-only grouped analytics and Telegram /analysis visibility. Validation run in staging is now in progress; next priority is strategy filtering.
+Status: Phase 24.6 UI premium refactor completed with centralized Telegram view rendering and aligned hierarchical blocks. Validation run in dev is now in progress; next priority is SENTINEL UI validation.
 
 ---
 
@@ -68,6 +68,15 @@ Structure:
 ---
 
 ## ✅ COMPLETED
+
+UI PREMIUM REFACTOR (Phase 24.6)
+
+- projects/polymarket/polyquantbot/interface/ui/ui_blocks.py (NEW): centralized aligned formatter primitives (section/row/block/insight) with safe N/A and comma formatting
+- projects/polymarket/polyquantbot/interface/ui/views/* (NEW): independent HOME/WALLET/EXPOSURE/PERFORMANCE/STRATEGY/RISK renderers with zero cross-view duplication
+- projects/polymarket/polyquantbot/interface/telegram/view_handler.py (NEW): centralized Telegram view adapter
+- projects/polymarket/polyquantbot/telegram/command_handler.py (MODIFIED): command routing updated to new premium view system
+- projects/polymarket/polyquantbot/core/pipeline/trading_loop.py (MODIFIED): UI view routing migrated from legacy formatter to interface views
+- projects/polymarket/polyquantbot/reports/forge/24_6_ui_premium_refactor.md (NEW): completion report
 
 PERFORMANCE BREAKDOWN ENGINE (Phase 24.5)
 
@@ -742,6 +751,10 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🚧 IN PROGRESS
 
+- Validation run (dev) — premium Telegram UI alignment verification for home/wallet/performance/exposure/strategy/risk views
+- Validation run (dev) — duplicate-section regression checks across HOME/WALLET/PERFORMANCE screens
+
+
 - Validation run (staging) — performance breakdown telemetry verification for market/signal/edge WR/PF consistency in periodic snapshots
 - Validation run (staging) — intelligence + validation UI telemetry collection for `/home` and `/portfolio`
 - Validation tracking (staging) — portfolio intelligence visibility checks for CONF / EDGE / SIGNAL / REASON across active positions
@@ -762,6 +775,10 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## ❌ NOT STARTED
 
+- Sentinel validation pass for 24.6 UI premium refactor
+- Legacy formatter file removal after downstream dependency review
+
+
 - Signal reversal close trigger (third exit condition alongside TP/SL)
 - Market resolution PnL: update TradeResult.pnl when Polymarket settles
 - Bayesian updater integration: pass posterior confidence as ev_adjustment
@@ -774,15 +791,16 @@ ARCHITECTURE (CRITICAL ACHIEVEMENT)
 
 ## 🎯 NEXT PRIORITY
 
-1. **Strategy filtering** — apply grouped breakdown output to suppress low-quality cohorts and prioritize statistically meaningful edges.
-2. **Validation run (staging)** — verify closed-trade-only /analysis and snapshot consistency in live paper traffic.
-3. SENTINEL validation required for performance breakdown engine before merge.
-   Source: projects/polymarket/polyquantbot/reports/forge/24_5_performance_breakdown.md
+1. SENTINEL validation required for UI premium refactor before merge.
+   Source: projects/polymarket/polyquantbot/reports/forge/24_6_ui_premium_refactor.md
+2. Run Telegram monospace rendering checks in dev for all new view routes.
+3. Deprecate legacy formatter usage completely after confirmation.
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- Telegram monospace visual verification requires runtime check in live chat client for final UI signoff
 - `/analysis` depends on snapshot payload availability from the wired metrics source; when payload is missing it safely returns `NO DATA`.
 - Telegram private chat ID persists locally; if missing after restart, operator must send /start again to re-capture DM target
 - Single-user overwrite behavior is active by design: latest /start caller replaces USER_CHAT_ID
