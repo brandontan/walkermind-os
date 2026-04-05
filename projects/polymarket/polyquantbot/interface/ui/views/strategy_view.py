@@ -1,4 +1,4 @@
-"""STRATEGY status list view."""
+"""STRATEGY premium status view."""
 from __future__ import annotations
 
 from typing import Any, Mapping
@@ -19,8 +19,9 @@ def render_strategy_view(data: Mapping[str, Any]) -> str:
     liquidity_edge = _normalize_state(strategies.get("Liquidity Edge"), False)
 
     rows = [
-        row("EV Momentum", "🟢 ON" if ev_momentum else "🔴 OFF"),
-        row("Mean Revert", "🟢 ON" if mean_reversion else "🔴 OFF"),
-        row("Liquidity", "🟢 ON" if liquidity_edge else "🔴 OFF"),
+        row("EV Momentum", "ON" if ev_momentum else "OFF"),
+        row("Mean Revert", "ON" if mean_reversion else "OFF"),
+        row("Liquidity", "ON" if liquidity_edge else "OFF"),
     ]
-    return section("STRATEGIES", rows)
+    insight_rows = [row("Summary", "Blend momentum with reversion; enable liquidity mode during high depth windows.")]
+    return "\n\n".join([section("🧠 STRATEGY", rows), section("📌 INSIGHT", insight_rows)])
