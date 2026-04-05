@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import time
 
 from .engine import ExecutionEngine
+from .intelligence import ExecutionIntelligence, MarketSnapshot
 
 
 @dataclass(frozen=True)
@@ -15,15 +16,16 @@ class StrategyConfig:
 
 
 class StrategyTrigger:
-    """Simple paper strategy trigger.
-
-    IF price < threshold -> open position
+    """Strategy trigger with execution intelligence.
+    
+    IF price < threshold AND entry_score >= 0.5 -> open position
     IF pnl > target -> close position
     """
 
     def __init__(self, engine: ExecutionEngine, config: StrategyConfig) -> None:
         self._engine = engine
         self._config = config
+        self._intelligence = ExecutionIntelligence()
         self._last_trigger_time: float | None = None
         self._cooldown_seconds = 30.0  # Anti-loop guard
 
@@ -32,10 +34,19 @@ class StrategyTrigger:
         if self._last_trigger_time and (now - self._last_trigger_time) < self._cooldown_seconds:
             return "COOLDOWN"
         self._last_trigger_time = now
+
         snapshot = await self._engine.snapshot()
         open_pos = next((p for p in snapshot.positions if p.market_id == self._config.market_id), None)
 
-        if open_pos is None and market_price < self._config.threshold:
+        # Evaluate entry with intelligence
+        market_snapshot = MarketSnapshot(
+            price=market_price,
+            implied_prob=snapshot.implied_prob,
+            volatility=snapshot.volatility
+        )
+        entry_score = self._intelligence.evaluate_entry(market_snapshot)
+
+        if open_pos is None and market_price < self._config.threshold and entry_score >= 0.5:
             size = snapshot.equity * self._engine.max_position_size_ratio
             created = await self._engine.open_position(
                 market=self._config.market_id,
