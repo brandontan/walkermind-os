@@ -32,3 +32,8 @@ def pnl(value: Any) -> str:
     except (TypeError, ValueError):
         return "—"
     return f"{number:+,.2f}"
+
+
+def block(title: str, value: Any, label: str) -> str:
+    """Render a premium value-first block with contextual label."""
+    return f"{title}\n\n{fmt(value)}\n{label}"
