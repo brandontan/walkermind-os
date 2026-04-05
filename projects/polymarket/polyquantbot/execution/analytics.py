@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Optional
 import time
+
 
 @dataclass
 class TradeRecord:
@@ -9,6 +10,7 @@ class TradeRecord:
     exit_price: float
     pnl: float
     duration: float
+
 
 class PerformanceTracker:
     def __init__(self):
@@ -61,3 +63,11 @@ class PerformanceTracker:
     def _calculate_sharpe(self) -> float:
         """Placeholder for Sharpe ratio."""
         return 0.0
+
+    def reconcile(self, trace_engine: TradeTraceEngine) -> bool:
+        """Verify analytics match trace data."""
+        trace_pnl = sum(t.pnl for t in trace_engine.get_traces())
+        analytics_pnl = sum(t.pnl for t in self._trades)
+        if abs(trace_pnl - analytics_pnl) > 1e-6:
+            raise ValueError(f"Reconciliation failed: trace_pnl={trace_pnl}, analytics_pnl={analytics_pnl}")
+        return True
