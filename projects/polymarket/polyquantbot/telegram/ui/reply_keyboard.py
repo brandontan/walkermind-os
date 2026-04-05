@@ -12,6 +12,15 @@ _EXPOSURE_BTN = "📉 Exposure"
 _STRATEGY_BTN = "🧠 Strategy"
 _HOME_BTN = "🏠 Home"
 
+ROUTE_ACTIONS: tuple[str, ...] = (
+    "trade",
+    "wallet",
+    "performance",
+    "exposure",
+    "strategy",
+    "home",
+)
+
 REPLY_MENU_MAP: dict[str, str] = {
     _TRADE_BTN: "trade",
     _WALLET_BTN: "wallet",
@@ -20,6 +29,10 @@ REPLY_MENU_MAP: dict[str, str] = {
     _STRATEGY_BTN: "strategy",
     _HOME_BTN: "home",
 }
+
+_MISSING_ACTIONS = tuple(action for action in ROUTE_ACTIONS if action not in REPLY_MENU_MAP.values())
+if _MISSING_ACTIONS:
+    raise RuntimeError(f"Reply keyboard action map missing required actions: {_MISSING_ACTIONS}")
 
 
 def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
@@ -32,6 +45,7 @@ def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
         ],
         "resize_keyboard": True,
     }
+
 
 
 _REPLY_KB_READY_MSG = "✨ Premium dashboard ready. Tap a section to navigate."

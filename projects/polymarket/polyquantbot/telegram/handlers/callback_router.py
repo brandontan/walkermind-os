@@ -294,6 +294,21 @@ class CallbackRouter:
         elif chat_id:
             await self._send_message(session, chat_id, text, keyboard)
 
+    async def render_strategy_view(self, user_id: Optional[int] = None) -> tuple[str, list]:
+        """Render strategy view for explicit ``action:strategy`` callbacks."""
+        _ = user_id
+        try:
+            from .strategy import handle_strategy_view  # noqa: PLC0415
+            return await handle_strategy_view(mode=self._mode)
+        except Exception:
+            from .strategy import handle_strategy_menu  # noqa: PLC0415
+            return await handle_strategy_menu()
+
+    async def render_home_view(self) -> tuple[str, list]:
+        """Render home view for explicit ``action:home`` callbacks."""
+        from .start import handle_start  # noqa: PLC0415
+        return await handle_start()
+
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
     async def _dispatch(self, action: str, user_id: Optional[int] = None) -> tuple[str, list]:
@@ -326,8 +341,13 @@ class CallbackRouter:
 
         # ── Navigation ─────────────────────────────────────────────────────
         if action in ("back_main", "back", "start", "menu"):
-            from .start import handle_start  # noqa: PLC0415
-            return await handle_start()
+            return await self.render_home_view()
+
+        if action == "strategy":
+            return await self.render_strategy_view(user_id=user_id)
+
+        if action == "home":
+            return await self.render_home_view()
 
         # ── Status / Refresh ───────────────────────────────────────────────
         if action in ("status", "refresh"):
