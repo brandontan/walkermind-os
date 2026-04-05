@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 
 from .engine import ExecutionEngine
 
@@ -23,8 +24,14 @@ class StrategyTrigger:
     def __init__(self, engine: ExecutionEngine, config: StrategyConfig) -> None:
         self._engine = engine
         self._config = config
+        self._last_trigger_time: float | None = None
+        self._cooldown_seconds = 30.0  # Anti-loop guard
 
     async def evaluate(self, market_price: float) -> str:
+        now = time.time()
+        if self._last_trigger_time and (now - self._last_trigger_time) < self._cooldown_seconds:
+            return "COOLDOWN"
+        self._last_trigger_time = now
         snapshot = await self._engine.snapshot()
         open_pos = next((p for p in snapshot.positions if p.market_id == self._config.market_id), None)
 

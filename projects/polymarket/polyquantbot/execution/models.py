@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import uuid
+import time
 
 
 @dataclass
 class Position:
     """Paper trading position state for execution engine."""
 
+    position_id: str = str(uuid.uuid4())
+    created_at: float = time.time()
     market_id: str
     side: str
     entry_price: float

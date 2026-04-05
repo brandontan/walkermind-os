@@ -1,28 +1,3 @@
-"""Phase 10.6/10.7 — CommandHandler: Routes Telegram commands to system actions.
-
-Handles the following bot commands:
-    /status          — return current system state + config snapshot
-    /pause           — pause trading (RUNNING → PAUSED)
-    /resume          — resume trading (PAUSED → RUNNING)
-    /kill            — halt trading permanently (→ HALTED)
-    /set_risk [v]    — update risk multiplier (0.0–1.0)
-    /set_max_position [v] — update max position (0.0–0.10)
-    /metrics         — return current metrics snapshot
-    /prelive_check   — run PreLiveValidator and return structured result
-
-Design:
-    - All commands are idempotent.
-    - All commands produce a response sent back via Telegram.
-    - Unknown commands return a usage/error response.
-    - Invalid values are rejected with an explanatory error message.
-    - Concurrent command execution is serialised via asyncio.Lock.
-    - Structured JSON logging on every command.
-    - Retry Telegram send 3× with timeout 3s before falling back.
-    - On critical failure: fall back to PAUSED state.
-    - ALL message text produced via telegram.message_formatter (no raw strings).
-
-Thread-safety: single asyncio event loop only.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -272,7 +247,7 @@ class CommandHandler:
         if cmd == "alpha":
             return await self._handle_alpha()
         if cmd == "trade":
-            return await self._handle_trade_test()
+            return await self._handle_trade(value)
 
         # ── New menu callbacks (new Telegram system) ───────────────────────────
         if cmd == "wallet":
@@ -333,30 +308,115 @@ class CommandHandler:
             ),
         )
 
-    async def _handle_trade_test(self) -> CommandResult:
-        """Run a sample paper trade for /trade test command."""
+    async def _handle_trade(self, args: Optional[float] = None) -> CommandResult:
+        """Parse /trade [test/close/status] [args]."""
+        if args is None:
+            return CommandResult(
+                success=False,
+                message="Usage: /trade [test|close|status] [args]",
+            )
+        parts = str(args).split()
+        if not parts:
+            return CommandResult(
+                success=False,
+                message="Usage: /trade [test|close|status] [args]",
+            )
+        action = parts[0].lower()
+        if action == "test":
+            return await self._handle_trade_test(" ".join(parts[1:]))
+        if action == "close":
+            return await self._handle_trade_close(" ".join(parts[1:]))
+        if action == "status":
+            return await self._handle_trade_status()
+        return CommandResult(
+            success=False,
+            message="Usage: /trade [test|close|status] [args]",
+        )
+
+    async def _handle_trade_test(self, args: str) -> CommandResult:
+        """Parse /trade test [market] [side] [size]."""
+        if not args:
+            return CommandResult(
+                success=False,
+                message="Usage: /trade test [market] [side YES/NO] [size]",
+            )
+        parts = args.split()
+        if len(parts) < 3:
+            return CommandResult(
+                success=False,
+                message="Usage: /trade test [market] [side YES/NO] [size]",
+            )
+        market, side, size_str = parts[0], parts[1].upper(), parts[2]
+        try:
+            size = float(size_str)
+        except ValueError:
+            return CommandResult(
+                success=False,
+                message="Size must be a number.",
+            )
+        if side not in ("YES", "NO"):
+            return CommandResult(
+                success=False,
+                message="Side must be YES or NO.",
+            )
         engine = get_execution_engine()
         trigger = StrategyTrigger(
             engine=engine,
             config=StrategyConfig(
-                market_id="paper-test-market",
-                side="YES",
-                threshold=0.50,
+                market_id=market,
+                side=side,
+                threshold=0.45,
                 target_pnl=20.0,
             ),
         )
-
         await trigger.evaluate(0.42)
-        await engine.update_mark_to_market({"paper-test-market": 0.46})
-
+        await engine.update_mark_to_market({market: 0.46})
         payload = await export_execution_payload()
-        get_portfolio_service().update_simulated_state(
+        get_portfolio_service().merge_execution_state(
             positions=payload.get("positions", []),
             cash=float(payload.get("cash", 0.0)),
             equity=float(payload.get("equity", 0.0)),
             realized_pnl=float(payload.get("realized", 0.0)),
         )
+        return CommandResult(
+            success=True,
+            message=render_view("positions", payload),
+            payload=payload,
+        )
 
+    async def _handle_trade_close(self, args: str) -> CommandResult:
+        """Parse /trade close [market]."""
+        if not args:
+            return CommandResult(
+                success=False,
+                message="Usage: /trade close [market]",
+            )
+        market = args.strip()
+        engine = get_execution_engine()
+        snapshot = await engine.snapshot()
+        position = next((p for p in snapshot.positions if p.market_id == market), None)
+        if position is None:
+            return CommandResult(
+                success=False,
+                message=f"No open position for {market}.",
+            )
+        await engine.close_position(position, 0.50)
+        payload = await export_execution_payload()
+        get_portfolio_service().merge_execution_state(
+            positions=payload.get("positions", []),
+            cash=float(payload.get("cash", 0.0)),
+            equity=float(payload.get("equity", 0.0)),
+            realized_pnl=float(payload.get("realized", 0.0)),
+        )
+        return CommandResult(
+            success=True,
+            message=f"Closed position for {market}.",
+            payload=payload,
+        )
+
+    async def _handle_trade_status(self) -> CommandResult:
+        """Return current execution state."""
+        payload = await export_execution_payload()
         return CommandResult(
             success=True,
             message=render_view("positions", payload),
@@ -861,373 +921,4 @@ class CommandHandler:
         by_signal = breakdown.get("by_signal", {}) if isinstance(breakdown, dict) else {}
         by_edge = breakdown.get("by_edge", {}) if isinstance(breakdown, dict) else {}
 
-        lines = ["📊 PERFORMANCE BREAKDOWN", "", "MARKET"]
-
-        if isinstance(by_market, dict) and by_market:
-            items = sorted(by_market.items())
-            for idx, (name, metrics) in enumerate(items):
-                if not isinstance(metrics, dict):
-                    continue
-                prefix = "└" if idx == len(items) - 1 else "├"
-                line = self._format_analysis_line(str(name), metrics, metric_mode="all")
-                lines.append(prefix + line[1:])
-        else:
-            lines.append("└ NO DATA")
-
-        lines += ["", "SIGNAL"]
-        if isinstance(by_signal, dict) and by_signal:
-            items = sorted(by_signal.items())
-            for idx, (name, metrics) in enumerate(items):
-                if not isinstance(metrics, dict):
-                    continue
-                prefix = "└" if idx == len(items) - 1 else "├"
-                line = self._format_analysis_line(str(name), metrics, metric_mode="wr")
-                lines.append(prefix + line[1:])
-        else:
-            lines.append("└ NO DATA")
-
-        lines += ["", "EDGE"]
-        if isinstance(by_edge, dict) and by_edge:
-            items = sorted(by_edge.items())
-            for idx, (name, metrics) in enumerate(items):
-                if not isinstance(metrics, dict):
-                    continue
-                prefix = "└" if idx == len(items) - 1 else "├"
-                line = self._format_analysis_line(str(name), metrics, metric_mode="pf")
-                lines.append(prefix + line[1:])
-        else:
-            lines.append("└ NO DATA")
-
-        message = "\n".join(lines)
-        return CommandResult(
-            success=True,
-            message=message,
-            payload={"performance_breakdown": breakdown},
-        )
-
-    async def _handle_health(self) -> CommandResult:
-        """Return full system health snapshot."""
-        log.info("command_health_invoked")
-        try:
-            from ..core.system_snapshot import build_system_snapshot
-            snap = build_system_snapshot(
-                state_manager=self._state,
-                config_manager=self._config,
-                metrics=self._multi_metrics,
-                allocator=self._allocator,
-                risk_guard=self._risk_guard,
-                mode=self._mode,
-            )
-            msg = format_health_snapshot(
-                mode=snap.mode,
-                system_state=snap.system_state,
-                state_reason=snap.state_reason,
-                total_exposure_usd=snap.total_exposure_usd,
-                total_pnl=snap.total_pnl,
-                drawdown=snap.drawdown,
-                bankroll=snap.bankroll,
-                active_strategies=snap.active_strategies,
-                disabled_strategies=snap.disabled_strategies,
-                suppressed_strategies=snap.suppressed_strategies,
-                total_trades=snap.total_trades,
-                total_signals=snap.total_signals,
-                risk_multiplier=snap.risk_multiplier,
-                max_position=snap.max_position,
-            )
-            return CommandResult(
-                success=True,
-                message=msg,
-                payload=snap.to_dict(),
-            )
-        except Exception as exc:
-            return CommandResult(
-                success=False,
-                message=format_error(
-                    context="health", error=str(exc), severity="ERROR"
-                ),
-            )
-
-    async def _handle_settings(self) -> CommandResult:
-        """Return all current runtime settings in one view."""
-        snap_cfg = self._config.snapshot()
-        snap_state = self._state.snapshot()
-        lines = [
-            "⚙️ *BOT SETTINGS*\n",
-            f"Mode: `{snap_state.get('state', 'UNKNOWN')}`",
-            f"Trading mode: `{self._mode}`",
-            "",
-            "*Risk & Position*",
-            f"Risk multiplier: `{snap_cfg.risk_multiplier:.3f}`",
-            f"Max position: `{snap_cfg.max_position:.3f}` ({snap_cfg.max_position*100:.1f}%)",
-            "",
-            "*Market Discovery*",
-            f"Max markets: `{snap_cfg.max_markets}`",
-            f"Min liquidity: `${snap_cfg.min_liquidity_usd:,.0f}`",
-            f"Active markets: `{len(snap_cfg.market_ids)}`",
-            "",
-            "_Use /set\\_markets, /set\\_liquidity, /set\\_risk, /set\\_max\\_position to update_",
-        ]
-        return CommandResult(
-            success=True,
-            message="\n".join(lines),
-            payload=snap_cfg.__dict__,
-        )
-
-    async def _handle_set_markets(self, value: Optional[float]) -> CommandResult:
-        """Set max auto-discovered markets: /set_markets [1–50]."""
-        if value is None:
-            return CommandResult(
-                success=False,
-                message=format_command_response(
-                    command="set_markets",
-                    success=False,
-                    message="Usage: /set_markets [1–50]  — e.g. /set_markets 10",
-                ),
-            )
-        try:
-            applied = await self._config.set_max_markets(int(value))
-        except (ValueError, TypeError) as exc:
-            return CommandResult(
-                success=False,
-                message=format_error(context="set_markets", error=str(exc), severity="ERROR"),
-            )
-        return CommandResult(
-            success=True,
-            message=format_command_response(
-                command="set_markets",
-                success=True,
-                message=f"Max markets updated to `{applied}`. Use /rediscover to apply now.",
-                payload={"max_markets": applied},
-            ),
-            payload={"max_markets": applied},
-        )
-
-    async def _handle_set_liquidity(self, value: Optional[float]) -> CommandResult:
-        """Set minimum liquidity threshold: /set_liquidity [1000–1000000]."""
-        if value is None:
-            return CommandResult(
-                success=False,
-                message=format_command_response(
-                    command="set_liquidity",
-                    success=False,
-                    message="Usage: /set_liquidity [amount]  — e.g. /set_liquidity 25000",
-                ),
-            )
-        try:
-            applied = await self._config.set_min_liquidity_usd(float(value))
-        except (ValueError, TypeError) as exc:
-            return CommandResult(
-                success=False,
-                message=format_error(context="set_liquidity", error=str(exc), severity="ERROR"),
-            )
-        return CommandResult(
-            success=True,
-            message=format_command_response(
-                command="set_liquidity",
-                success=True,
-                message=f"Min liquidity updated to `${applied:,.0f}`. Use /rediscover to apply now.",
-                payload={"min_liquidity_usd": applied},
-            ),
-            payload={"min_liquidity_usd": applied},
-        )
-
-    async def _handle_markets(self) -> CommandResult:
-        """Read-only market intelligence dashboard."""
-        metrics = self._get_metrics_snapshot()
-        payload = self._build_market_payload(metrics)
-        return CommandResult(
-            success=True,
-            message=render_view("markets", payload),
-            payload=payload,
-        )
-
-    async def _handle_rediscover(self) -> CommandResult:
-        """Trigger fresh market discovery from Gamma API with current settings."""
-        log.info("command_rediscover_invoked")
-        snap = self._config.snapshot()
-        try:
-            from ..core.bootstrap import _fetch_active_markets
-            new_ids = await _fetch_active_markets(
-                gamma_url="https://gamma-api.polymarket.com",
-                min_liquidity=snap.min_liquidity_usd,
-                max_markets=snap.max_markets,
-            )
-        except Exception as exc:  # noqa: BLE001
-            log.error("command_rediscover_failed", error=str(exc))
-            return CommandResult(
-                success=False,
-                message=format_error(
-                    context="rediscover",
-                    error=str(exc),
-                    severity="ERROR",
-                ),
-            )
-        if not new_ids:
-            return CommandResult(
-                success=False,
-                message=format_command_response(
-                    command="rediscover",
-                    success=False,
-                    message=(
-                        f"Discovery returned 0 markets "
-                        f"(min_liquidity=${snap.min_liquidity_usd:,.0f}, max={snap.max_markets}).\n"
-                        "Try /set_liquidity with a lower value."
-                    ),
-                ),
-            )
-        self._config.update_market_ids(new_ids)
-        # Also update the live runner if wired
-        if self._runner is not None:
-            try:
-                self._runner._market_ids = new_ids
-                log.info("command_rediscover_runner_updated", count=len(new_ids))
-            except Exception as exc:
-                log.warning("command_rediscover_runner_update_failed", error=str(exc))
-        lines = [f"🔍 *REDISCOVER COMPLETE* — {len(new_ids)} market(s)\n"]
-        for i, mid in enumerate(new_ids, 1):
-            short = mid[:10] + "..." + mid[-6:] if len(mid) > 20 else mid
-            lines.append(f"`{i}.` `{short}`")
-        lines.append(f"\n_Filter: min_liquidity=${snap.min_liquidity_usd:,.0f}, max={snap.max_markets}_")
-        log.info("command_rediscover_complete", count=len(new_ids), market_ids=new_ids)
-        return CommandResult(
-            success=True,
-            message="\n".join(lines),
-            payload={"market_ids": new_ids, "count": len(new_ids)},
-        )
-
-    async def _handle_wallet(self) -> CommandResult:
-        """Show wallet / portfolio overview with new-menu keyboard."""
-        from .ui.keyboard import build_wallet_menu
-        metrics = self._get_metrics_snapshot()
-        payload = {
-            "cash": metrics.get("cash", metrics.get("balance", "N/A")),
-            "equity": metrics.get("equity", "N/A"),
-            "used_margin": metrics.get("used_margin", metrics.get("used", metrics.get("margin", "N/A"))),
-            "free_margin": metrics.get("free_margin", metrics.get("free", "N/A")),
-            "positions": metrics.get("open_positions", metrics.get("positions", 0)),
-        }
-        return CommandResult(
-            success=True,
-            message=render_view("wallet", payload),
-            payload={"_keyboard": build_wallet_menu()},
-        )
-
-    async def _handle_exposure(self) -> CommandResult:
-        metrics = self._get_metrics_snapshot()
-        payload = {
-            "total_exposure": metrics.get("total_exposure", metrics.get("exposure", "N/A")),
-            "ratio": metrics.get("exposure_ratio", "N/A"),
-            "positions": metrics.get("open_positions", metrics.get("positions", 0)),
-            "unrealized": metrics.get("unrealized_pnl", metrics.get("unreal", "N/A")),
-            "position_lines": metrics.get("position_lines", []),
-        }
-        return CommandResult(success=True, message=render_view("exposure", payload), payload=payload)
-
-    async def _handle_risk(self) -> CommandResult:
-        cfg = self._config.snapshot()
-        payload = {
-            "kelly": "0.25f",
-            "level": f"{cfg.risk_multiplier:.2f}",
-            "profile": "Conservative controls active",
-        }
-        return CommandResult(success=True, message=render_view("risk", payload), payload=payload)
-
-    async def _handle_control(self) -> CommandResult:
-        """Show control panel with state-aware keyboard."""
-        from .ui.keyboard import build_control_menu
-        state_str = self._state.state.value
-        return CommandResult(
-            success=True,
-            message=f"▶ *CONTROL*\nSystem state: `{state_str}`",
-            payload={"_keyboard": build_control_menu(state_str)},
-        )
-
-    async def _handle_mode_confirm_switch(self, new_mode: str) -> CommandResult:
-        """Handle confirmed mode switch from new Telegram menu."""
-        import os as _os
-        if new_mode not in ("PAPER", "LIVE"):
-            return CommandResult(
-                success=False,
-                message="❌ Unknown mode. Returning to settings.",
-            )
-        if new_mode == "LIVE":
-            live_enabled = _os.environ.get("ENABLE_LIVE_TRADING", "").lower() == "true"
-            if not live_enabled:
-                log.warning("mode_switch_live_blocked", reason="ENABLE_LIVE_TRADING not set")
-                return CommandResult(
-                    success=False,
-                    message=(
-                        "❌ Cannot switch to LIVE — `ENABLE_LIVE_TRADING` env var not set.\n"
-                        "Set it to `true` and restart."
-                    ),
-                )
-        self._mode = new_mode
-        log.info("telegram_mode_switched", new_mode=new_mode)
-        return CommandResult(
-            success=True,
-            message=f"✅ Mode switched to `{new_mode}`.",
-        )
-
-    async def _handle_alpha(self) -> CommandResult:
-        """Return alpha model debug diagnostics via /alpha command."""
-        from .handlers.alpha_debug import handle_alpha_debug
-        try:
-            text, _keyboard = await handle_alpha_debug()
-            return CommandResult(success=True, message=text)
-        except Exception as exc:
-            log.error("handle_alpha_error", error=str(exc))
-            return CommandResult(
-                success=False,
-                message="❌ Failed to load alpha debug data.",
-            )
-
-    # ── Telegram send with retry ───────────────────────────────────────────────
-
-    async def _send_response(self, message: str, correlation_id: str) -> None:
-        """Send a response message via Telegram with retry.
-
-        Retries up to 3× with exponential backoff (timeout 3s per attempt).
-        Falls back gracefully — never raises.
-
-        Args:
-            message: Message text to send.
-            correlation_id: Request trace ID for logging.
-        """
-        if self._sender is None or not self._chat_id:
-            return
-
-        for attempt in range(1, _MAX_SEND_RETRIES + 1):
-            try:
-                await asyncio.wait_for(
-                    self._sender(self._chat_id, message),  # type: ignore[operator]
-                    timeout=_SEND_TIMEOUT_S,
-                )
-                log.info(
-                    "command_response_sent",
-                    attempt=attempt,
-                    correlation_id=correlation_id,
-                )
-                return
-            except asyncio.TimeoutError:
-                log.warning(
-                    "command_response_timeout",
-                    attempt=attempt,
-                    correlation_id=correlation_id,
-                )
-            except Exception as exc:  # noqa: BLE001
-                log.warning(
-                    "command_response_send_failed",
-                    attempt=attempt,
-                    correlation_id=correlation_id,
-                    error=str(exc),
-                )
-            if attempt < _MAX_SEND_RETRIES:
-                delay = min(_RETRY_BASE_DELAY_S * (2 ** (attempt - 1)), 4.0)
-                await asyncio.sleep(delay)
-
-        log.error(
-            "command_response_all_attempts_failed",
-            correlation_id=correlation_id,
-        )
-        # Fallback: pause to fail closed
-        await self._state.pause(reason="telegram_send_failure_fallback")
+        lines = ["📊 PERFORMANCE BREAKDOWN", ""]
