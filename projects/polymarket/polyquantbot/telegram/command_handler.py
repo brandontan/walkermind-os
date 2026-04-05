@@ -218,12 +218,11 @@ class CommandHandler:
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
         if cmd in ("start", "help", "menu", "main_menu"):
-            from .handlers.start import handle_start  # noqa: PLC0415
-            text, keyboard = await handle_start()
+            payload = self._build_home_payload()
             return CommandResult(
                 success=True,
-                message=text,
-                payload={"_keyboard": keyboard},
+                message=render_view("home", payload),
+                payload=payload,
             )
         if cmd == "status":
             return await self._handle_status()
