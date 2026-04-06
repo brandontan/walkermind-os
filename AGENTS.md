@@ -259,7 +259,36 @@ If task is planning / analysis only and does not change repo:
 - no report required
 
 ---  
+## FORGE-X HARD COMPLETION RULE (CRITICAL)
 
+A task is NOT COMPLETE if ANY of the following is missing:
+
+- Forge report NOT saved to:
+  projects/polymarket/polyquantbot/reports/forge/[phase]_[increment]_[name].md
+- Report does NOT contain all 6 required sections
+- PROJECT_STATE.md NOT updated (5 sections only)
+- Report path NOT explicitly stated in output
+
+If ANY condition fails:
+
+→ TASK = FAILED  
+→ DO NOT proceed to SENTINEL  
+→ DO NOT allow merge  
+→ Return control to COMMANDER  
+
+---
+
+## FORGE-X OUTPUT REQUIREMENT
+
+FORGE-X must end with:
+
+Done ✅ — [task]
+PR: feature/{feature}-{date}
+Report: projects/polymarket/polyquantbot/reports/forge/[filename].md
+
+Missing "Report:" line = INVALID OUTPUT
+
+---
 # ══════════════════════════════════
 # ROLE: SENTINEL
 # ══════════════════════════════════
