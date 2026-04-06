@@ -37,7 +37,7 @@ If not specified, ask exactly:
 
 1. Read `PROJECT_STATE.md`
 2. Read latest file in `projects/polymarket/polyquantbot/reports/forge/`
-3. Read `NEXUS_KNOWLEDGE.md`
+3. Read `MISTRAL_KNOWLEDGE.md`
 4. Identify role and follow that role section
 
 Do not skip context loading.
@@ -48,7 +48,7 @@ Do not skip context loading.
 
 ```text
 PROJECT_STATE.md
-NEXUS_KNOWLEDGE.md
+MISTRAL_KNOWLEDGE.md
 docs/KNOWLEDGE_BASE.md
 docs/templates/TPL_INTERACTIVE_REPORT.html
 docs/templates/REPORT_TEMPLATE_MASTER.html
