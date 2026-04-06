@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-06 19:57
-- Status        : FORGE-X hardening addendum applied for telegram-menu-scope-hardening-20260407 — live Telegram Home blocker patched with unified safe normalization/hydration fallback; awaiting SENTINEL revalidation before merge decision
+- Last Updated  : 2026-04-06 20:20
+- Status        : FORGE-X P0 live-path blocker fix applied for telegram-menu-scope-hardening-20260407 — `/start` + root menu handler divergence corrected and shared payload float('N/A') coercion hardened; awaiting SENTINEL revalidation before merge decision
 
 ---
 
@@ -23,6 +23,7 @@
 - Category inference hardening applied for weak-metadata and uncategorized markets: deterministic inference order plus fallback inclusion path under category mode to reduce avoidable exclusions while preserving blocked-scope behavior when no categories are active.
 - Telegram /start numeric placeholder blocker patch (2026-04-06): hardened Telegram-facing numeric normalization in view/callback payload paths so `"N/A"`, `None`, empty, missing, and malformed numeric values no longer hard-crash dashboard/menu render.
 - Telegram Home live blocker addendum (2026-04-06): hardened callback Home payload hydration against malformed shared-state payloads, unified Home↔`/start` safe numeric normalization policy, and added callback render fallback so degraded Home payloads do not hard-crash.
+- Telegram live-path blocker fix (2026-04-06): removed root-menu divergence by aligning reply keyboard with 5-item root contract, forced `/start` to emit authoritative inline main menu payload, and hardened shared portfolio normalization path that could still execute `float(\"N/A\")`.
 
 ---
 
