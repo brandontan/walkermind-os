@@ -339,22 +339,48 @@ Audience:
 
 ---
 
-# CODEX WORKTREE RULE
+# CODEX WORKTREE RULE (CRITICAL)
 
-In Codex cloud/worktree environments, current HEAD may appear as "work" or detached HEAD.
-This alone is NOT a failure.
+In Codex environment:
 
-Do NOT block branch validation only because:
-- git rev-parse --abbrev-ref HEAD returns "work"
-- HEAD is detached
+- git rev-parse may return "work"
+- HEAD may be detached
+
+This is NORMAL behavior.
+
+DO NOT treat as failure.
+
+---
+
+## BRANCH VALIDATION RULE
+
+Do NOT rely on:
+
+- git rev-parse --abbrev-ref HEAD
 
 Instead verify:
-- expected feature branch from task metadata
-- whether the worktree was based on the expected branch
-- whether the resulting changes/PR are associated with the expected branch
 
-Only mark BLOCKED if branch association cannot be proven or the base branch is wrong.
+- expected branch from task
+- consistency of changes with task
+- PR branch (if available)
 
+---
+
+## BLOCK CONDITIONS
+
+Only BLOCK if:
+
+- work is based on wrong feature
+- changes mismatch task
+- no branch association exists
+
+---
+
+## SAFE CONDITION
+
+HEAD = "work"
+→ SAFE
+→ continue validation
 ---
 
 # ══════════════════════════════════
