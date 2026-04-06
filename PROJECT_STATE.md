@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-06 19:36
-- Status        : FORGE-X hardening pass complete for telegram-menu-scope-hardening-20260407 — market-scope persistence and category-inference fallback hardening implemented; awaiting SENTINEL revalidation before merge decision
+- Last Updated  : 2026-04-06 19:39
+- Status        : FORGE-X hardening addendum applied for telegram-menu-scope-hardening-20260407 — /start numeric placeholder crash path patched with safe normalization; awaiting SENTINEL revalidation before merge decision
 
 ---
 
@@ -21,6 +21,7 @@
 - No CRITICAL blockers found for this task objective.
 - Telegram scope hardening pass (2026-04-07): persisted Telegram market-scope state (`all_markets_enabled` + enabled categories + selection type) to local scope-state file and restored it on module/router re-init.
 - Category inference hardening applied for weak-metadata and uncategorized markets: deterministic inference order plus fallback inclusion path under category mode to reduce avoidable exclusions while preserving blocked-scope behavior when no categories are active.
+- Telegram /start numeric placeholder blocker patch (2026-04-06): hardened Telegram-facing numeric normalization in view/callback payload paths so `"N/A"`, `None`, empty, missing, and malformed numeric values no longer hard-crash dashboard/menu render.
 
 ---
 
@@ -43,6 +44,7 @@
 
 - SENTINEL validation required for telegram-menu-scope-hardening-20260407 before merge.
 Source: projects/polymarket/polyquantbot/reports/forge/telegram_menu_scope_hardening_20260407.md
+- SENTINEL must include explicit `/start` placeholder regression validation (`"N/A"`, `None`, sparse payload, missing portfolio/performance fields) and confirm no CRITICAL ERROR card for this class.
 - If validation remains clean, move to BRIEFER or COMMANDER merge decision.
 - Merge to main is not yet automatic; COMMANDER decides after the hardening follow-up or explicit acceptance of current CONDITIONAL verdict.
 

@@ -51,6 +51,24 @@ def _first_present(payload: Mapping[str, Any], *keys: str, default: Any = None) 
     return default
 
 
+def _safe_number(value: Any, default: float = 0.0) -> float:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or text.lower() in {"n/a", "na", "none", "null", "nan", "-"}:
+            return default
+        value = text
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_count(value: Any, default: int = 0) -> int:
+    return int(_safe_number(value, float(default)))
+
+
 def _position_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     rows = _as_list(payload.get("positions"))
     if rows and isinstance(rows[0], Mapping):
@@ -62,20 +80,26 @@ def _position_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 def _derive_position_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
     rows = _position_rows(payload)
     primary = _as_mapping(rows[0]) if rows else {}
-    unrealized_total = sum(float(_as_mapping(row).get("unrealized_pnl", _as_mapping(row).get("pnl", 0.0)) or 0.0) for row in rows)
-    largest_position_size = max((float(_as_mapping(row).get("size", 0.0) or 0.0) for row in rows), default=0.0)
+    unrealized_total = sum(
+        _safe_number(_as_mapping(row).get("unrealized_pnl", _as_mapping(row).get("pnl", 0.0)))
+        for row in rows
+    )
+    largest_position_size = max(
+        (_safe_number(_as_mapping(row).get("size", 0.0)) for row in rows),
+        default=0.0,
+    )
     realized = _first_present(payload, "realized_pnl", "realized", default=0.0)
     total_pnl = _first_present(payload, "pnl", default=None)
     if total_pnl is None:
-        total_pnl = float(realized or 0.0) + unrealized_total
+        total_pnl = _safe_number(realized, 0.0) + unrealized_total
     return {
         "rows": rows,
         "primary": primary,
-        "positions_count": payload.get("positions_count", len(rows)),
+        "positions_count": _safe_count(payload.get("positions_count"), len(rows)),
         "unrealized_total": unrealized_total,
         "largest_position_size": largest_position_size,
-        "realized_pnl": realized,
-        "total_pnl": total_pnl,
+        "realized_pnl": _safe_number(realized, 0.0),
+        "total_pnl": _safe_number(total_pnl, 0.0),
     }
 
 
