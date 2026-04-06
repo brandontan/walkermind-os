@@ -9,6 +9,7 @@ from projects.polymarket.polyquantbot.data.market_context import get_market_cont
 
 VIEW_TITLE = {
     "home": "🏠 Home Command",
+    "system": "🧠 System Status",
     "wallet": "💼 Wallet Snapshot",
     "positions": "📈 Open Positions",
     "trade": "🎯 Trade Detail",
@@ -20,6 +21,11 @@ VIEW_TITLE = {
     "market": "📡 Market",
     "markets": "🛰️ Markets",
     "refresh": "🔄 Refresh Summary",
+    "settings": "⚙️ Settings",
+    "notifications": "🔔 Notifications",
+    "auto_trade": "🤖 Auto Trade",
+    "mode": "🔀 Mode",
+    "control": "🎛️ Control",
 }
 
 
@@ -131,10 +137,10 @@ def _resolve_market_label(payload: Mapping[str, Any], context: Mapping[str, Any]
 
     for candidate in (
         payload.get("market_title"),
-        payload.get("market_name"),
         payload.get("market_question"),
-        context.get("name"),
+        payload.get("market_name"),
         context.get("question"),
+        context.get("name"),
         payload.get("market"),
     ):
         text = _compact_text(candidate, "", max_len=86)
@@ -143,7 +149,7 @@ def _resolve_market_label(payload: Mapping[str, Any], context: Mapping[str, Any]
 
     market_id = _safe_text(payload.get("market_id"), "")
     if market_id:
-        return f"Market {market_id[:12]}"
+        return f"Untitled market (ref {market_id[:12]})"
     return "Untitled market"
 
 
@@ -171,6 +177,14 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
                 ("Total Value", _fmt_currency(payload.get("equity"))),
                 ("Exposure", _fmt_percent(payload.get("exposure"))),
                 ("Open Positions", _safe_int(payload.get("positions"))),
+            ],
+        ),
+        "system": (
+            "🧠 Runtime",
+            [
+                ("State", _safe_text(payload.get("state"), "running").upper()),
+                ("Risk State", _safe_text(payload.get("risk_state"), "within limits")),
+                ("Cycle", _safe_text(payload.get("cycle"), "active")),
             ],
         ),
         "wallet": (
@@ -259,6 +273,46 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
                 ("State", _safe_text(payload.get("state"), "running").upper()),
                 ("Open Positions", _safe_int(payload.get("positions"))),
                 ("PNL", _fmt_signed_currency(payload.get("pnl"))),
+            ],
+        ),
+        "settings": (
+            "⚙️ Config Surface",
+            [
+                ("Risk Level", _safe_text(payload.get("risk_level"), "standard")),
+                ("Mode", _safe_text(payload.get("mode_label"), "PAPER")),
+                ("Auto Trade", _safe_text(payload.get("auto_trade_state"), "manual")),
+            ],
+        ),
+        "notifications": (
+            "🔔 Alerting",
+            [
+                ("Critical Alerts", _safe_text(payload.get("critical_alerts"), "enabled")),
+                ("Trade Updates", _safe_text(payload.get("trade_alerts"), "enabled")),
+                ("Summary", _safe_text(payload.get("summary_alerts"), "hourly")),
+            ],
+        ),
+        "auto_trade": (
+            "🤖 Execution Mode",
+            [
+                ("Mode", _safe_text(payload.get("mode_label"), "PAPER")),
+                ("Auto Trade", _safe_text(payload.get("auto_trade_state"), "manual")),
+                ("Risk Guard", "Kelly 0.25 · Max Pos 0.10"),
+            ],
+        ),
+        "mode": (
+            "🔀 Mode Switch",
+            [
+                ("Current", _safe_text(payload.get("mode_label"), "PAPER")),
+                ("Target", _safe_text(payload.get("target_mode"), "N/A")),
+                ("Guard", _safe_text(payload.get("mode_guard"), "Validated before switch")),
+            ],
+        ),
+        "control": (
+            "🎛️ System Control",
+            [
+                ("State", _safe_text(payload.get("state"), "running").upper()),
+                ("Action", _safe_text(payload.get("control_action"), "standby")),
+                ("Kill Switch", "Armed"),
             ],
         ),
     }
@@ -382,11 +436,16 @@ async def render_dashboard(payload: Mapping[str, Any]) -> str:
 
     blocks: list[str] = [_hero_block(mode, normalized), _primary_block(mode, normalized)]
 
-    position_card = _render_position_card(normalized, market_label)
-    if position_card:
-        blocks.append(position_card)
+    position_modes = {"positions", "trade", "exposure"}
+    market_modes = {"market", "markets", "positions", "trade", "exposure"}
 
-    blocks.append(_render_market_card(normalized, market_label))
+    if mode in position_modes:
+        position_card = _render_position_card(normalized, market_label)
+        if position_card:
+            blocks.append(position_card)
+
+    if mode in market_modes:
+        blocks.append(_render_market_card(normalized, market_label))
     empty_state = _render_empty_state(mode, normalized)
     if empty_state:
         blocks.append(empty_state)
