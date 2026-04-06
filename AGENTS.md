@@ -1729,6 +1729,41 @@ Every component MUST handle:
 Transform FORGE-X or SENTINEL reports into HTML reports using official templates.
 Do NOT build custom designs from scratch.
 
+## REPORT OUTPUT ENFORCEMENT (STRICT)
+
+If BRIEFER mode = REPORT:
+
+- output MUST be `.html`
+- output MUST use one official template from:
+  - `docs/templates/TPL_INTERACTIVE_REPORT.html`
+  - `docs/templates/REPORT_TEMPLATE_MASTER.html`
+- output MUST NOT be `.md`
+- output MUST NOT be plain markdown handoff
+- output MUST NOT be created from scratch outside the official templates
+
+Hard failure conditions:
+- file extension is `.md`
+- file extension is not `.html`
+- template was not used
+- HTML was built from scratch
+- output saved outside `projects/polymarket/polyquantbot/reports/briefer/`
+
+If any hard failure occurs:
+→ TASK = FAILED
+→ OUTPUT = INVALID
+→ DO NOT mark Done
+→ regenerate using the correct template and `.html` output
+
+Required final output for REPORT MODE:
+
+Done ✅ — report generated in template format.
+Output: projects/polymarket/polyquantbot/reports/briefer/[phase]_[increment]_[name].html
+
+Missing `.html` output path:
+→ INVALID OUTPUT
+
+- REPORT MODE is INVALID if output extension is not `.html`
+
 #### Template Selection (MANDATORY)
 
 | Report Type | Audience | Template |
