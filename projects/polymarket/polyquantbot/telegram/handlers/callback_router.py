@@ -334,6 +334,17 @@ class CallbackRouter:
 
         primary = positions[0] if positions else None
         exposure = (sum(float(getattr(pos, "size", 0.0)) for pos in positions) / equity) if equity > 0 else 0.0
+        unrealized_total = sum(float(getattr(pos, "unrealized_pnl", 0.0)) for pos in positions)
+        open_positions = [
+            {
+                "market_id": getattr(pos, "market_id", ""),
+                "side": getattr(pos, "side", "flat"),
+                "entry_price": getattr(pos, "avg_price", 0.0),
+                "size": getattr(pos, "size", 0.0),
+                "unrealized_pnl": getattr(pos, "unrealized_pnl", 0.0),
+            }
+            for pos in positions
+        ]
         strategy_states = self._strategy_states()
         active_strategy = [name for name, enabled in strategy_states.items() if bool(enabled)]
 
@@ -348,9 +359,10 @@ class CallbackRouter:
             "balance": cash,
             "available_balance": cash,
             "positions_count": len(positions),
-            "positions": len(positions),
+            "positions": open_positions,
             "pnl": pnl,
             "realized_pnl": 0.0,
+            "unrealized_pnl": unrealized_total,
             "exposure": exposure,
             "market_id": getattr(primary, "market_id", ""),
             "market_title": "",
