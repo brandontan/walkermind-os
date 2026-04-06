@@ -175,6 +175,18 @@ CREATE TABLE IF NOT EXISTS trade_ledger (
 );
 """
 
+_DDL_TRADE_INTENTS = """
+CREATE TABLE IF NOT EXISTS trade_intents (
+    trade_id        TEXT        PRIMARY KEY,
+    market_id       TEXT        NOT NULL,
+    side            TEXT        NOT NULL,
+    status          TEXT        NOT NULL DEFAULT 'reserved',
+    created_at      DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    updated_at      DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    last_error      TEXT
+);
+"""
+
 
 # ── DatabaseClient ─────────────────────────────────────────────────────────────
 
@@ -322,6 +334,7 @@ class DatabaseClient:
             await conn.execute(_DDL_WALLET_STATE)
             await conn.execute(_DDL_PAPER_POSITIONS)
             await conn.execute(_DDL_TRADE_LEDGER)
+            await conn.execute(_DDL_TRADE_INTENTS)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────
@@ -429,6 +442,62 @@ class DatabaseClient:
             )
         sql = "UPDATE trades SET status = $2 WHERE trade_id = $1"
         return await self._execute(sql, trade_id, status, op_label="update_trade_status")
+
+    async def reserve_trade_intent(self, trade_id: str, market_id: str, side: str) -> bool:
+        """Reserve a trade intent ID durably.
+
+        Returns:
+            True when reservation succeeds (new intent row inserted),
+            False when trade_id was already reserved before.
+        """
+        sql = """
+            INSERT INTO trade_intents (trade_id, market_id, side, status, created_at, updated_at)
+            VALUES ($1, $2, $3, 'reserved', $4, $5)
+            ON CONFLICT (trade_id) DO NOTHING
+            RETURNING trade_id
+        """
+        now = time.time()
+        rows = await self._fetch(
+            sql,
+            str(trade_id),
+            str(market_id),
+            str(side),
+            now,
+            now,
+            op_label="reserve_trade_intent",
+        )
+        return bool(rows)
+
+    async def update_trade_intent_status(
+        self,
+        trade_id: str,
+        status: str,
+        last_error: Optional[str] = None,
+    ) -> bool:
+        """Update a reserved trade intent status."""
+        sql = """
+            UPDATE trade_intents
+            SET status = $2, updated_at = $3, last_error = $4
+            WHERE trade_id = $1
+        """
+        return await self._execute(
+            sql,
+            str(trade_id),
+            str(status),
+            time.time(),
+            last_error,
+            op_label="update_trade_intent_status",
+        )
+
+    async def load_reserved_trade_ids(self, limit: int = 5000) -> List[str]:
+        """Load recent trade IDs from durable intent storage."""
+        sql = """
+            SELECT trade_id FROM trade_intents
+            WHERE status IN ('reserved', 'executed')
+            ORDER BY created_at DESC LIMIT $1
+        """
+        rows = await self._fetch(sql, limit, op_label="load_reserved_trade_ids")
+        return [str(row.get("trade_id", "")) for row in rows if row.get("trade_id")]
 
     # ── Positions ─────────────────────────────────────────────────────────────
 

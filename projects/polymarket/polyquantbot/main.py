@@ -728,6 +728,7 @@ async def main() -> None:
                 position_manager=position_manager,
                 pnl_tracker=pnl_tracker,
                 paper_engine=engine_container.paper_engine,
+                risk_guard=risk_guard,
             ),
             name="trading_loop",
         )

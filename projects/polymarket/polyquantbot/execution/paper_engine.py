@@ -516,6 +516,30 @@ class PaperEngine:
             reason="",
         )
 
+    async def hydrate_processed_trade_ids(self, db: object) -> None:
+        """Restore processed trade IDs from durable DB state.
+
+        This reduces restart replay risk by rebuilding dedup memory from
+        persisted trade-intent records.
+        """
+        try:
+            trade_ids = await db.load_reserved_trade_ids()  # type: ignore[attr-defined]
+            restored = 0
+            for trade_id in trade_ids:
+                if trade_id and trade_id not in self._processed_trade_ids:
+                    self._processed_trade_ids.add(trade_id)
+                    restored += 1
+            log.info(
+                "paper_engine_dedup_state_hydrated",
+                restored=restored,
+                total_seen=len(self._processed_trade_ids),
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "paper_engine_dedup_state_hydrate_failed",
+                error=str(exc),
+            )
+
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     @staticmethod

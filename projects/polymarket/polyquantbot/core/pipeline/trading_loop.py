@@ -99,6 +99,7 @@ from ...interface.ui.views import (
     render_wallet_view,
 )
 from ..validation_state import ValidationStateStore
+from ...risk.risk_guard import RiskGuard
 from ..logging.logger import (
     log_market_metadata_used,
     log_position_updated,
@@ -444,6 +445,7 @@ async def run_trading_loop(
     position_manager: Optional[Any] = None,
     pnl_tracker: Optional[Any] = None,
     paper_engine: Optional[Any] = None,
+    risk_guard: Optional[RiskGuard] = None,
     tp_pct: float = _DEFAULT_TP_PCT,
     sl_pct: float = _DEFAULT_SL_PCT,
 ) -> None:
@@ -487,12 +489,21 @@ async def run_trading_loop(
                             fill is forwarded to ``PaperEngine.execute_order()`` so
                             the wallet, paper positions, and trade ledger are kept
                             in sync with real execution state.
+        risk_guard:         Mandatory risk authority used to enforce
+                            kill-switch, daily-loss, drawdown, and exposure
+                            checks before execution.
     """
     # ── Enforce database — no silent fallback ─────────────────────────────────
     if db is None:
         raise RuntimeError(
             "Database required — db must not be None. "
             "Inject a connected DatabaseClient before starting the trading loop."
+        )
+    if risk_guard is None:
+        risk_guard = RiskGuard()
+        log.warning(
+            "risk_guard_missing_injected_default",
+            hint="Inject shared RiskGuard instance for authoritative kill-switch propagation.",
         )
 
     _interval = (
@@ -524,6 +535,20 @@ async def run_trading_loop(
 
     # ── Loop state ────────────────────────────────────────────────────────────
     _tick: int = 0
+    _risk_peak_equity: float = max(_bankroll, 1.0)
+
+    async def _reserve_trade_intent(trade_id: str, market_id: str, side: str) -> bool:
+        if hasattr(db, "reserve_trade_intent"):
+            return await db.reserve_trade_intent(trade_id, market_id, side)
+        return True
+
+    async def _set_trade_intent_status(
+        trade_id: str,
+        status: str,
+        last_error: Optional[str] = None,
+    ) -> None:
+        if hasattr(db, "update_trade_intent_status"):
+            await db.update_trade_intent_status(trade_id, status, last_error)
 
     # ── Validation Engine singletons (initialized once, shared across ticks) ──
     _performance_tracker = PerformanceTracker()
@@ -1064,6 +1089,91 @@ async def run_trading_loop(
                                 error=str(meta_exc),
                             )
 
+                    _reserved_trade_intent = await _reserve_trade_intent(
+                        signal.signal_id,
+                        signal.market_id,
+                        signal.side,
+                    )
+                    if not _reserved_trade_intent:
+                        log.info(
+                            "signal_skipped_duplicate_persistent",
+                            trade_id=signal.signal_id,
+                            market_id=signal.market_id,
+                        )
+                        continue
+
+                    try:
+                        if risk_guard.disabled:
+                            await _set_trade_intent_status(
+                                signal.signal_id,
+                                "blocked_risk",
+                                "kill_switch_active",
+                            )
+                            log.info(
+                                "signal_blocked_risk_guard",
+                                trade_id=signal.signal_id,
+                                market_id=signal.market_id,
+                                reason="kill_switch_active",
+                            )
+                            continue
+
+                        _risk_positions = await db.get_positions(_user_id)
+                        _risk_trades = await db.get_recent_trades(limit=500)
+                        _risk_realized = PnLCalculator.calculate_realized_pnl(_risk_trades)
+                        _risk_unrealized = PnLCalculator.calculate_unrealized_pnl(
+                            _risk_positions, market_prices
+                        )
+                        _risk_total_pnl = _risk_realized + _risk_unrealized
+                        _risk_equity = _bankroll + _risk_total_pnl
+                        if _mode == "PAPER" and paper_engine is not None:
+                            try:
+                                _risk_equity = float(paper_engine._wallet.get_state().equity)  # type: ignore[attr-defined]
+                            except Exception as wallet_exc:  # noqa: BLE001
+                                log.warning(
+                                    "risk_guard_wallet_state_read_failed",
+                                    error=str(wallet_exc),
+                                )
+                        _risk_peak_equity = max(_risk_peak_equity, _risk_equity)
+                        _risk_exposure = sum(float(p.get("size", 0.0)) for p in _risk_positions)
+
+                        await risk_guard.check_daily_loss(_risk_total_pnl)
+                        await risk_guard.check_drawdown(
+                            peak_balance=max(_risk_peak_equity, 1.0),
+                            current_balance=max(_risk_equity, 0.0),
+                        )
+                        await risk_guard.check_exposure(
+                            total_exposure=_risk_exposure,
+                            balance=max(_risk_equity, 1.0),
+                        )
+                    except Exception as risk_exc:  # noqa: BLE001
+                        await _set_trade_intent_status(
+                            signal.signal_id,
+                            "blocked_risk",
+                            f"risk_guard_error:{risk_exc}",
+                        )
+                        log.error(
+                            "risk_guard_check_failed",
+                            trade_id=signal.signal_id,
+                            market_id=signal.market_id,
+                            error=str(risk_exc),
+                            exc_info=True,
+                        )
+                        continue
+
+                    if risk_guard.disabled:
+                        await _set_trade_intent_status(
+                            signal.signal_id,
+                            "blocked_risk",
+                            "risk_guard_disabled_after_checks",
+                        )
+                        log.info(
+                            "signal_blocked_risk_guard",
+                            trade_id=signal.signal_id,
+                            market_id=signal.market_id,
+                            reason="risk_guard_disabled_after_checks",
+                        )
+                        continue
+
                     # ── 4d. UNIFIED EXECUTION ────────────────────────────────
                     # PAPER mode with PaperEngine: PaperEngine is the single
                     # source of truth.  Bypass execute_trade() fill simulation.
@@ -1087,6 +1197,11 @@ async def run_trading_loop(
                                 "trade_id": signal.signal_id,
                             })
                         except Exception as _pe_exc:
+                            await _set_trade_intent_status(
+                                signal.signal_id,
+                                "execution_failed",
+                                str(_pe_exc),
+                            )
                             log.error(
                                 "execution_failed",
                                 trade_id=signal.signal_id,
@@ -1099,6 +1214,11 @@ async def run_trading_loop(
                         _pe_success = _paper_order.status in (_OS.FILLED, _OS.PARTIAL)
 
                         if not _pe_success:
+                            await _set_trade_intent_status(
+                                signal.signal_id,
+                                "execution_failed",
+                                str(_paper_order.reason),
+                            )
                             log.info(
                                 "execution_failed",
                                 trade_id=signal.signal_id,
@@ -1134,6 +1254,7 @@ async def run_trading_loop(
                             fill_price=round(result.fill_price, 6),
                             mode=result.mode,
                         )
+                        await _set_trade_intent_status(signal.signal_id, "executed")
 
                         # ── Persist ledger entry ──────────────────────────────
                         if db is not None and paper_engine is not None:
@@ -1155,8 +1276,14 @@ async def run_trading_loop(
                             signal,
                             mode=_mode,
                             executor_callback=executor_callback,
+                            kill_switch_active=risk_guard.disabled,
                         )
                         if not result.success:
+                            await _set_trade_intent_status(
+                                signal.signal_id,
+                                "execution_failed",
+                                result.reason,
+                            )
                             log.info(
                                 "execution_failed",
                                 trade_id=result.trade_id,
@@ -1164,6 +1291,7 @@ async def run_trading_loop(
                                 reason=result.reason,
                             )
                             continue
+                        await _set_trade_intent_status(signal.signal_id, "executed")
                         log.info(
                             "execution_success",
                             trade_id=result.trade_id,
@@ -1212,34 +1340,53 @@ async def run_trading_loop(
                         _market_last_trade[signal.market_id] = _now_trade
                         _last_trade_time = _now_trade  # reset force-trade fallback counter
 
+                        _projection_errors: list[str] = []
+
                         # ── 4e. Persist position (db is always present) ───────────
                         if result.fill_price > 0.0:
-                            await db.upsert_position({
-                                "user_id": _user_id,
-                                "market_id": result.market_id,
-                                "avg_price": result.fill_price,
-                                "size": result.filled_size_usd,
-                            })
+                            try:
+                                await db.upsert_position({
+                                    "user_id": _user_id,
+                                    "market_id": result.market_id,
+                                    "avg_price": result.fill_price,
+                                    "size": result.filled_size_usd,
+                                })
+                            except Exception as db_pos_exc:  # noqa: BLE001
+                                _projection_errors.append(f"db_position:{db_pos_exc}")
+                                log.error(
+                                    "projection_db_position_failed",
+                                    trade_id=result.trade_id,
+                                    market_id=result.market_id,
+                                    error=str(db_pos_exc),
+                                )
 
                             # ── 4f. Record trade in DB and set status ─────────────
-                            await db.insert_trade({
-                                "trade_id": result.trade_id,
-                                "user_id": _user_id,
-                                "strategy_id": signal.extra.get("strategy_id", ""),
-                                "market_id": result.market_id,
-                                "side": result.side,
-                                "size_usd": result.filled_size_usd,
-                                "price": result.fill_price,
-                                "entry_price": result.fill_price,
-                                "expected_ev": signal.ev,
-                                "pnl": 0.0,
-                                "won": False,
-                                "status": "open",
-                                "mode": result.mode,
-                                "executed_at": time.time(),
-                            })
-
-                            await db.update_trade_status(result.trade_id, "open")
+                            try:
+                                await db.insert_trade({
+                                    "trade_id": result.trade_id,
+                                    "user_id": _user_id,
+                                    "strategy_id": signal.extra.get("strategy_id", ""),
+                                    "market_id": result.market_id,
+                                    "side": result.side,
+                                    "size_usd": result.filled_size_usd,
+                                    "price": result.fill_price,
+                                    "entry_price": result.fill_price,
+                                    "expected_ev": signal.ev,
+                                    "pnl": 0.0,
+                                    "won": False,
+                                    "status": "open",
+                                    "mode": result.mode,
+                                    "executed_at": time.time(),
+                                })
+                                await db.update_trade_status(result.trade_id, "open")
+                            except Exception as db_trade_exc:  # noqa: BLE001
+                                _projection_errors.append(f"db_trade:{db_trade_exc}")
+                                log.error(
+                                    "projection_db_trade_failed",
+                                    trade_id=result.trade_id,
+                                    market_id=result.market_id,
+                                    error=str(db_trade_exc),
+                                )
 
                         # ── 4g. Update in-memory PositionManager ──────────────────
                         _pos_realized: float = 0.0
@@ -1267,6 +1414,7 @@ async def run_trading_loop(
                                     result.market_id, _mark_price
                                 )
                             except Exception as pos_exc:  # noqa: BLE001
+                                _projection_errors.append(f"position_manager:{pos_exc}")
                                 log.warning(
                                     "position_manager_update_failed",
                                     market_id=result.market_id,
@@ -1287,6 +1435,7 @@ async def run_trading_loop(
                                     total=pnl_rec.realized + pnl_rec.unrealized,
                                 )
                             except Exception as pnl_exc:  # noqa: BLE001
+                                _projection_errors.append(f"pnl_tracker:{pnl_exc}")
                                 log.warning(
                                     "pnl_tracker_update_failed",
                                     market_id=result.market_id,
@@ -1335,6 +1484,7 @@ async def run_trading_loop(
                                     unrealized_pnl=_pos_unrealized,
                                 )
                             except Exception as tg_exc:  # noqa: BLE001
+                                _projection_errors.append(f"telegram:{tg_exc}")
                                 log.warning(
                                     "telegram_trade_alert_failed",
                                     trade_id=result.trade_id,
@@ -1360,6 +1510,14 @@ async def run_trading_loop(
                             }
                             asyncio.create_task(
                                 _run_validation_hook(_val_trade, telegram_callback)
+                            )
+                        if _projection_errors:
+                            log.warning(
+                                "execution_projection_partial_failure",
+                                trade_id=result.trade_id,
+                                market_id=result.market_id,
+                                projection_errors=_projection_errors,
+                                projection_error_count=len(_projection_errors),
                             )
 
                 # ── 5. Compute and log PnL metrics (db always present) ───────────
@@ -1505,8 +1663,13 @@ async def run_trading_loop(
                                                 f"Entry: {_pos.entry_price:.4f}"
                                             )
                                             await telegram_sender.send(_close_msg)
-                                        except Exception:
-                                            pass
+                                        except Exception as tg_close_exc:  # noqa: BLE001
+                                            log.warning(
+                                                "telegram_close_alert_failed",
+                                                trade_id=_close_trade_id,
+                                                market_id=_pos.market_id,
+                                                error=str(tg_close_exc),
+                                            )
                                 except Exception as _close_exc:
                                     log.error(
                                         "close_order_failed",
@@ -1592,8 +1755,13 @@ async def run_trading_loop(
                                                 f"Entry: {_lpos.avg_price:.4f}"
                                             )
                                             await telegram_sender.send(_live_close_msg)
-                                        except Exception:
-                                            pass
+                                        except Exception as tg_live_close_exc:  # noqa: BLE001
+                                            log.warning(
+                                                "telegram_live_close_alert_failed",
+                                                trade_id=_live_close_id,
+                                                market_id=_lpos.market_id,
+                                                error=str(tg_live_close_exc),
+                                            )
                                 except Exception as _live_close_exc:
                                     log.error(
                                         "live_close_order_failed",
