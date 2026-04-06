@@ -336,6 +336,8 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
                 ("Active Categories", _safe_int(payload.get("active_categories_count"))),
                 ("Enabled", _compact_text(", ".join(payload.get("enabled_categories", [])) or "None", max_len=86)),
                 ("Summary", _compact_text(payload.get("trading_scope_summary"), "Trading scope: all allowed markets.", max_len=86)),
+                ("Fallback Rule", _compact_text(payload.get("scope_fallback_policy"), "Disabled", max_len=86)),
+                ("Persistence", "Scope restored after restart/re-init"),
             ],
         ),
         "help": (

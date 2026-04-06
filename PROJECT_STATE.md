@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 02:15
-- Status        : SENTINEL validation complete — Telegram menu structure + market scope control pass is CONDITIONAL (96/100), no critical blockers, with persistence and category-inference hardening still required before merge decision
+- Last Updated  : 2026-04-06 19:36
+- Status        : FORGE-X hardening pass complete for telegram-menu-scope-hardening-20260407 — market-scope persistence and category-inference fallback hardening implemented; awaiting SENTINEL revalidation before merge decision
 
 ---
 
@@ -19,41 +19,37 @@
 - SENTINEL confirmed root menu structure, markets controls, dashboard scope summary, callback routing, and trading-loop scope gate behavior all pass for the target task.
 - SENTINEL confirmed blocked-scope behavior prevents downstream ingest/signals when no category is active and All Markets is OFF.
 - No CRITICAL blockers found for this task objective.
+- Telegram scope hardening pass (2026-04-07): persisted Telegram market-scope state (`all_markets_enabled` + enabled categories + selection type) to local scope-state file and restored it on module/router re-init.
+- Category inference hardening applied for weak-metadata and uncategorized markets: deterministic inference order plus fallback inclusion path under category mode to reduce avoidable exclusions while preserving blocked-scope behavior when no categories are active.
 
 ---
 
 ## 🚧 IN PROGRESS
 
 ### Phase 10.4 — 24H Live Paper Run
-- Persistence hardening for Telegram market-scope selection across restart/re-init.
-- Category inference hardening for uncategorized / weak-metadata markets when All Markets is OFF.
 - Final on-device Telegram visual confirmation in live-network environment.
 - Merge decision preparation based on CONDITIONAL validation result.
+- SENTINEL revalidation preparation for `telegram-menu-scope-hardening-20260407`.
 
 ---
 
 ## ❌ NOT STARTED
 
-- Persistent storage implementation for Telegram market-scope state.
-- Post-hardening SENTINEL revalidation after persistence/category work is completed.
 - BRIEFER packaging/reporting for this increment if COMMANDER wants downstream communication artifact.
 
 ---
 
 ## 🎯 NEXT PRIORITY
 
-- FORGE-X hardening pass for `telegram-menu-structure-20260406`:
-  1. Persist market-scope selection across restart
-  2. Improve category inference / fallback handling for uncategorized markets
-  3. Re-run SENTINEL after hardening pass
-  4. If validation remains clean, move to BRIEFER or COMMANDER merge decision
+- SENTINEL validation required for telegram-menu-scope-hardening-20260407 before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/telegram_menu_scope_hardening_20260407.md
+- If validation remains clean, move to BRIEFER or COMMANDER merge decision.
 - Merge to main is not yet automatic; COMMANDER decides after the hardening follow-up or explicit acceptance of current CONDITIONAL verdict.
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
-- Market scope state currently persists in-process only and resets after bot restart/re-init.
-- Category inference is metadata/keyword-based; uncategorized markets are excluded when All Markets is OFF.
+- Weak-metadata fallback may still include some uncategorized markets that operators may prefer to classify explicitly; monitor category hit quality during live-paper usage.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.

@@ -122,11 +122,14 @@ class CallbackRouter:
 
         # ── Propagate mode + state to all handlers at init ────────────────────
         self._propagate_mode_and_state()
+        restored_scope = get_market_scope_snapshot()
 
         log.info(
             "callback_router_initialized",
             mode=mode,
             api_base=tg_api[:40] + "…" if len(tg_api) > 40 else tg_api,
+            all_markets_enabled=restored_scope.get("all_markets_enabled", True),
+            enabled_categories=restored_scope.get("enabled_categories", []),
         )
 
     def _propagate_mode_and_state(self) -> None:
@@ -396,6 +399,8 @@ class CallbackRouter:
             "trading_scope_summary": scope_snapshot.get("trading_scope_summary", "Trading scope: all allowed markets."),
             "scope_label": scope_snapshot.get("scope_label", "All Markets"),
             "scope_warning": scope_warning,
+            "scope_fallback_policy": scope_snapshot.get("fallback_policy", ""),
+            "scope_state_file": scope_snapshot.get("scope_state_file", ""),
         }
 
         if action in {"strategy"}:

@@ -134,6 +134,8 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "enabled_categories": payload.get("enabled_categories", []),
         "trading_scope_summary": payload.get("trading_scope_summary", "Trading scope: all allowed markets."),
         "scope_warning": payload.get("scope_warning", ""),
+        "scope_fallback_policy": payload.get("scope_fallback_policy", ""),
+        "scope_state_file": payload.get("scope_state_file", ""),
     }
 
 
