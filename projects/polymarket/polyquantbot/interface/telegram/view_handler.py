@@ -35,6 +35,7 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "trend": payload.get("trend", "neutral"),
         "edge": payload.get("edge", 0),
         "edge_label": payload.get("edge_label"),
+        "available_balance": payload.get("available_balance", payload.get("free_balance", payload.get("equity", payload.get("balance", 0)))),
         "insight": payload.get("insight"),
         "confidence": payload.get("confidence", 0),
         "decision": payload.get("decision"),
@@ -43,6 +44,9 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "market_question": payload.get("question"),
         "market_id": _first_present(payload, "market_id", "market"),
         "current": _first_present(payload, "current", "current_price", "last_price"),
+        "side": payload.get("side", payload.get("direction", "flat")),
+        "entry": payload.get("entry", payload.get("entry_price", 0)),
+        "size": payload.get("size", payload.get("allocation", 0)),
         "opened_at": _first_present(payload, "opened_at", "opened", "opened_time", "created_at"),
         "strategy_mode": payload.get("strategy_mode"),
         "signal_state": payload.get("signal_state"),
@@ -63,7 +67,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
                 "size": safe_payload.get("size", safe_payload.get("allocation", 0)),
                 "decision": safe_payload.get("decision", "Deploy only if edge + liquidity both qualify"),
                 "operator_note": safe_payload.get("operator_note", "Review slippage and depth before send"),
-                "insight": safe_payload.get("insight", "Position card emphasizes what matters now"),
+                "insight": safe_payload.get("insight", "One-glance card highlights side, price, and risk posture"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -74,7 +78,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             {
                 "decision": safe_payload.get("decision", "Capital intact — deployment is optional"),
                 "operator_note": safe_payload.get("operator_note", "Account summary only; no execution implied"),
-                "insight": safe_payload.get("insight", "Balance, exposure, and reserve are aligned"),
+                "insight": safe_payload.get("insight", "Wallet summary prioritizes capital readiness"),
                 "positions": safe_payload.get("positions_count", len(_as_list(safe_payload.get("open_positions")))),
             }
         )
@@ -89,7 +93,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
                 "size": safe_payload.get("size", safe_payload.get("allocation", 0)),
                 "decision": safe_payload.get("decision", "Monitor active positions; protect downside"),
                 "operator_note": safe_payload.get("operator_note", "Prioritize drawdown and concentration risks"),
-                "insight": safe_payload.get("insight", "Positions sorted for quick read on mobile"),
+                "insight": safe_payload.get("insight", "Active risk and side exposure are visible first"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -100,7 +104,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             {
                 "decision": safe_payload.get("decision", "Track realized vs unrealized before scaling"),
                 "operator_note": safe_payload.get("operator_note", "Evaluate losses before new entries"),
-                "insight": safe_payload.get("insight", "Pnl view highlights trend quality"),
+                "insight": safe_payload.get("insight", "Cash impact is grouped for rapid operator scan"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -111,7 +115,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             {
                 "decision": safe_payload.get("decision", "Optimize based on rolling scorecard"),
                 "operator_note": safe_payload.get("operator_note", "Keep drawdown stable while compounding edge"),
-                "insight": safe_payload.get("insight", "Performance consistency drives sizing confidence"),
+                "insight": safe_payload.get("insight", "Scorecard emphasizes trend stability"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -122,7 +126,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             {
                 "decision": safe_payload.get("decision", "Rebalance if concentration exceeds comfort"),
                 "operator_note": safe_payload.get("operator_note", "Exposure view tracks concentration pressure"),
-                "insight": safe_payload.get("insight", "Allocation split is readable under sparse payloads"),
+                "insight": safe_payload.get("insight", "Concentration pressure is shown before action"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -133,7 +137,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             {
                 "decision": safe_payload.get("decision", "Risk preset active — respect hard limits"),
                 "operator_note": safe_payload.get("operator_note", "Escalate when drawdown or liquidity warnings fire"),
-                "insight": safe_payload.get("insight", "Risk interpretation is surfaced before action"),
+                "insight": safe_payload.get("insight", "Risk consequences are shown in plain language"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -144,7 +148,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             {
                 "decision": safe_payload.get("decision", "Strategy toggles define eligibility for execution"),
                 "operator_note": safe_payload.get("operator_note", "Confirm activation state after each config change"),
-                "insight": safe_payload.get("insight", "Strategy view emphasizes activation and gating"),
+                "insight": safe_payload.get("insight", "Activation gates are explicit for operator control"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -155,7 +159,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             {
                 "decision": safe_payload.get("decision", "Scan for asymmetric opportunity"),
                 "operator_note": safe_payload.get("operator_note", "Use market context before committing capital"),
-                "insight": safe_payload.get("insight", "Human-readable labels prioritized over raw ids"),
+                "insight": safe_payload.get("insight", "Market title-first rendering keeps ids secondary"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -166,7 +170,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             "state": safe_payload.get("status", "running"),
             "decision": safe_payload.get("decision", "System healthy — await qualified signal"),
             "operator_note": safe_payload.get("operator_note", "Command center synced across major views"),
-            "insight": safe_payload.get("insight", "Home view surfaces what matters first"),
+            "insight": safe_payload.get("insight", "Command center highlights immediate posture"),
         }
     )
     return await render_dashboard(dashboard_payload)
