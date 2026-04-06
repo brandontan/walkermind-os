@@ -9,8 +9,11 @@ import pytest
 from projects.polymarket.polyquantbot.config.runtime_config import ConfigManager
 from projects.polymarket.polyquantbot.core import market_scope
 from projects.polymarket.polyquantbot.core.system_state import SystemStateManager
+from projects.polymarket.polyquantbot.telegram.command_handler import CommandHandler
+from projects.polymarket.polyquantbot.telegram.command_router import CommandRouter
 from projects.polymarket.polyquantbot.interface.telegram.view_handler import render_view
 from projects.polymarket.polyquantbot.telegram.handlers.callback_router import CallbackRouter
+from projects.polymarket.polyquantbot.telegram.ui.reply_keyboard import REPLY_MENU_MAP
 
 
 def test_render_view_home_tolerates_na_numeric_placeholders() -> None:
@@ -153,3 +156,87 @@ def test_home_render_after_scope_state_restore_tolerates_sparse_file(tmp_path) -
         market_scope._scope_state_loaded = original_loaded
         market_scope._all_markets_enabled = original_all
         market_scope._enabled_categories = original_categories
+
+
+def test_command_router_start_live_path_tolerates_na_metrics_payload() -> None:
+    state_manager = SystemStateManager()
+    config_manager = ConfigManager()
+    metrics_source = SimpleNamespace(
+        snapshot=lambda: {
+            "cash": "N/A",
+            "equity": None,
+            "open_positions": "N/A",
+            "unrealized_pnl": "",
+            "pnl": "bad-number",
+        }
+    )
+    handler = CommandHandler(
+        state_manager=state_manager,
+        config_manager=config_manager,
+        metrics_source=metrics_source,
+        mode="PAPER",
+    )
+    router = CommandRouter(handler=handler)
+
+    result = asyncio.run(
+        router.route_update(
+            {
+                "update_id": 1,
+                "message": {
+                    "text": "/start",
+                    "from": {"id": 1001},
+                    "chat": {"id": 1001},
+                },
+            }
+        )
+    )
+
+    assert result is not None
+    assert result.success is True
+    assert "🏠 Home Command" in result.message
+    assert "CRITICAL ERROR" not in result.message
+    assert "_keyboard" in result.payload
+
+
+def test_reply_keyboard_routes_align_with_root_menu_actions() -> None:
+    assert set(REPLY_MENU_MAP.values()) == {"dashboard", "portfolio", "markets", "settings", "help"}
+
+
+def test_callback_router_route_home_callback_live_aligned_path() -> None:
+    cmd_handler = MagicMock()
+    state_manager = SystemStateManager()
+    config_manager = ConfigManager()
+    router = CallbackRouter(
+        tg_api="https://api.telegram.org/botTEST",
+        cmd_handler=cmd_handler,
+        state_manager=state_manager,
+        config_manager=config_manager,
+        mode="PAPER",
+    )
+
+    class _StubResponse:
+        async def json(self) -> dict:
+            return {"ok": True, "result": {"message_id": 22}}
+
+    class _StubSession:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        async def post(self, url: str, json: dict) -> _StubResponse:
+            self.calls.append((url, json))
+            return _StubResponse()
+
+    session = _StubSession()
+    cq = {
+        "id": "cb-home-1",
+        "data": "action:home",
+        "from": {"id": 1001},
+        "message": {"chat": {"id": 1001}, "message_id": 777},
+    }
+
+    asyncio.run(router.route(session, cq))
+
+    assert any("editMessageText" in url for url, _ in session.calls)
+    edit_payloads = [body for url, body in session.calls if "editMessageText" in url]
+    assert edit_payloads
+    assert "🏠 Home Command" in edit_payloads[-1]["text"]

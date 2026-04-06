@@ -64,6 +64,20 @@ class PortfolioService:
         self._pnl_tracker = pnl_tracker
         log.info("portfolio_service_pnl_tracker_injected")
 
+    @staticmethod
+    def _safe_float(value: Any, default: float = 0.0) -> float:
+        if value is None:
+            return default
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped or stripped.lower() in {"n/a", "na", "none", "null", "nan", "-"}:
+                return default
+            value = stripped
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
     def _normalize_positions(self, raw_positions: list[dict[str, Any]]) -> list[PortfolioPosition]:
         """Convert raw position dicts to PortfolioPosition objects."""
         normalized: list[PortfolioPosition] = []
@@ -72,9 +86,9 @@ class PortfolioService:
                 PortfolioPosition(
                     market_id=str(pos.get("market_id", "")),
                     side=str(pos.get("side", "")),
-                    avg_price=float(pos.get("entry_price", pos.get("avg_price", 0.0)) or 0.0),
-                    size=float(pos.get("size", 0.0) or 0.0),
-                    unrealized_pnl=float(pos.get("pnl", pos.get("unrealized_pnl", 0.0)) or 0.0),
+                    avg_price=self._safe_float(pos.get("entry_price", pos.get("avg_price", 0.0)), 0.0),
+                    size=self._safe_float(pos.get("size", 0.0), 0.0),
+                    unrealized_pnl=self._safe_float(pos.get("pnl", pos.get("unrealized_pnl", 0.0)), 0.0),
                 )
             )
         return normalized
@@ -147,11 +161,12 @@ class PortfolioService:
             for pos in raw_positions:
                 market_id = str(getattr(pos, "market_id", ""))
                 side = str(getattr(pos, "side", ""))
-                size = float(getattr(pos, "size", 0.0))
-                avg_price = float(
-                    getattr(pos, "avg_price", getattr(pos, "entry_price", 0.0))
+                size = self._safe_float(getattr(pos, "size", 0.0), 0.0)
+                avg_price = self._safe_float(
+                    getattr(pos, "avg_price", getattr(pos, "entry_price", 0.0)),
+                    0.0,
                 )
-                unrealized_pnl = float(getattr(pos, "unrealized_pnl", 0.0))
+                unrealized_pnl = self._safe_float(getattr(pos, "unrealized_pnl", 0.0), 0.0)
                 if not market_id or not side:
                     log.warning("portfolio_service_position_partial", position=repr(pos))
                     return None
@@ -168,11 +183,11 @@ class PortfolioService:
             log.error("portfolio_service_positions_normalization_error", error=str(exc))
             return None
 
-        total_pnl = float(pnl_summary.get("total_pnl", 0.0))
+        total_pnl = self._safe_float(pnl_summary.get("total_pnl", 0.0), 0.0)
         return PortfolioState(
             positions=tuple(positions),
-            equity=float(wallet_state.equity),
-            cash=float(wallet_state.cash),
+            equity=self._safe_float(wallet_state.equity, 0.0),
+            cash=self._safe_float(wallet_state.cash, 0.0),
             pnl=total_pnl,
         )
 

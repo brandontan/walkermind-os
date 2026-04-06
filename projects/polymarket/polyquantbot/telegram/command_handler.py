@@ -9,9 +9,10 @@ import structlog
 
 from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
-from ..interface.telegram.view_handler import render_view
+from ..interface.telegram.view_handler import render_view, safe_count, safe_number
 from ..execution.engine import export_execution_payload, get_execution_engine
 from ..execution.strategy_trigger import StrategyConfig, StrategyTrigger
+from .ui.keyboard import build_main_menu
 from .handlers.portfolio_service import get_portfolio_service
 from .message_formatter import (
     format_capital_allocation_report,
@@ -439,17 +440,20 @@ class CommandHandler:
         metrics = self._get_metrics_snapshot()
         snap_state = self._state.snapshot()
         snap_cfg = self._config.snapshot()
+        risk_multiplier = safe_number(getattr(snap_cfg, "risk_multiplier", 0.25), 0.25)
+        max_position = safe_number(getattr(snap_cfg, "max_position", 0.10), 0.10)
         return {
             "status": snap_state.get("state", "N/A"),
             "mode": self._mode,
-            "latency": metrics.get("latency_ms", metrics.get("latency", "N/A")),
-            "balance": metrics.get("cash", metrics.get("balance", "N/A")),
-            "equity": metrics.get("equity", "N/A"),
-            "positions": metrics.get("open_positions", metrics.get("positions", "N/A")),
-            "unrealized": metrics.get("unrealized_pnl", metrics.get("unreal", "N/A")),
-            "realized": metrics.get("pnl", metrics.get("realized", "N/A")),
+            "latency": safe_number(metrics.get("latency_ms", metrics.get("latency", 0.0)), 0.0),
+            "balance": safe_number(metrics.get("cash", metrics.get("balance", 0.0)), 0.0),
+            "equity": safe_number(metrics.get("equity", 0.0), 0.0),
+            "positions": safe_count(metrics.get("open_positions", metrics.get("positions", 0)), 0),
+            "unrealized": safe_number(metrics.get("unrealized_pnl", metrics.get("unreal", 0.0)), 0.0),
+            "realized": safe_number(metrics.get("pnl", metrics.get("realized", 0.0)), 0.0),
+            "_keyboard": build_main_menu(),
             "insight": (
-                f"Risk {snap_cfg.risk_multiplier:.2f} • Max Pos {snap_cfg.max_position:.2f}"
+                f"Risk {risk_multiplier:.2f} • Max Pos {max_position:.2f}"
             ),
         }
 
