@@ -20,6 +20,7 @@ def _first_present(payload: Mapping[str, Any], *keys: str, default: Any = None) 
 
 def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     positions = _as_list(payload.get("positions"))
+    markets = _as_list(payload.get("markets"))
     return {
         "state": payload.get("status", "waiting"),
         "mode": mode,
@@ -50,6 +51,9 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "opened_at": _first_present(payload, "opened_at", "opened", "opened_time", "created_at"),
         "strategy_mode": payload.get("strategy_mode"),
         "signal_state": payload.get("signal_state"),
+        "markets_total": payload.get("markets_total", payload.get("total_markets", len(markets))),
+        "markets_active": payload.get("markets_active", payload.get("active_markets", 0)),
+        "updated_at": _first_present(payload, "updated_at", "last_updated", "timestamp", "time"),
     }
 
 
@@ -58,10 +62,10 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
     safe_payload: Mapping[str, Any] = payload or {}
 
     if action == "trade":
-        dashboard_payload = _base_payload("positions", safe_payload)
+        dashboard_payload = _base_payload("trade", safe_payload)
         dashboard_payload.update(
             {
-                "mode": "positions",
+                "mode": "trade",
                 "side": safe_payload.get("side", safe_payload.get("direction", "flat")),
                 "entry": safe_payload.get("entry", safe_payload.get("entry_price", 0)),
                 "size": safe_payload.get("size", safe_payload.get("allocation", 0)),
@@ -154,12 +158,24 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
         return await render_dashboard(dashboard_payload)
 
     if action in {"market", "markets"}:
-        dashboard_payload = _base_payload("market", safe_payload)
+        mode = "markets" if action == "markets" else "market"
+        dashboard_payload = _base_payload(mode, safe_payload)
         dashboard_payload.update(
             {
                 "decision": safe_payload.get("decision", "Scan for asymmetric opportunity"),
                 "operator_note": safe_payload.get("operator_note", "Use market context before committing capital"),
                 "insight": safe_payload.get("insight", "Market title-first rendering keeps ids secondary"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action in {"refresh", "summary"}:
+        dashboard_payload = _base_payload("refresh", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Snapshot refreshed — review posture before next action"),
+                "operator_note": safe_payload.get("operator_note", "Refresh confirms current state only; execution remains gated"),
+                "insight": safe_payload.get("insight", "Refresh summary keeps operators aligned with latest values"),
             }
         )
         return await render_dashboard(dashboard_payload)

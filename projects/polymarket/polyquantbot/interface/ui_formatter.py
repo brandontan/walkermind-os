@@ -9,16 +9,17 @@ from projects.polymarket.polyquantbot.data.market_context import get_market_cont
 
 VIEW_TITLE = {
     "home": "🏠 Home Command",
-    "wallet": "🧾 Wallet",
-    "positions": "🎯 Position Monitor",
-    "trade": "🎯 Position Monitor",
+    "wallet": "💼 Wallet Snapshot",
+    "positions": "📈 Open Positions",
+    "trade": "🎯 Trade Detail",
     "pnl": "💰 PnL",
     "performance": "📈 Performance",
     "exposure": "📊 Exposure",
     "risk": "⚠️ Risk",
     "strategy": "⚙️ Strategy",
     "market": "📡 Market",
-    "markets": "📡 Market",
+    "markets": "🛰️ Markets",
+    "refresh": "🔄 Refresh Summary",
 }
 
 
@@ -108,8 +109,15 @@ def _direction(value: object) -> str:
     return f"🟡 {side}"
 
 
-def _tree(label: str, value: object) -> str:
-    return f"|-> {label}: {value}"
+def _tree_group(items: list[tuple[str, object]]) -> list[str]:
+    if not items:
+        return []
+    lines: list[str] = []
+    last_index = len(items) - 1
+    for idx, (label, value) in enumerate(items):
+        branch = "└" if idx == last_index else "├"
+        lines.append(f"{branch} {label}: {value}")
+    return lines
 
 
 def _section(title: str, lines: list[str]) -> str:
@@ -117,6 +125,10 @@ def _section(title: str, lines: list[str]) -> str:
 
 
 def _resolve_market_label(payload: Mapping[str, Any], context: Mapping[str, Any]) -> str:
+    def _is_generic_label(text: str) -> bool:
+        compact = text.strip().lower()
+        return compact in {"market", "market #", "untitled"} or compact.startswith("market #")
+
     for candidate in (
         payload.get("market_title"),
         payload.get("market_name"),
@@ -126,7 +138,7 @@ def _resolve_market_label(payload: Mapping[str, Any], context: Mapping[str, Any]
         payload.get("market"),
     ):
         text = _compact_text(candidate, "", max_len=86)
-        if text:
+        if text and not _is_generic_label(text):
             return text
 
     market_id = _safe_text(payload.get("market_id"), "")
@@ -141,91 +153,117 @@ def _hero_block(mode: str, payload: Mapping[str, Any]) -> str:
     risk_state = _compact_text(payload.get("risk_state"), "within limits", max_len=56)
     return _section(
         VIEW_TITLE.get(mode, VIEW_TITLE["home"]),
-        [
-            _tree("Status", status),
-            _tree("Now", decision),
-            _tree("Risk", risk_state),
-        ],
+        _tree_group(
+            [
+                ("Status", status),
+                ("Now", decision),
+                ("Risk", risk_state),
+            ]
+        ),
     )
 
 
 def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
-    personalities: dict[str, tuple[str, list[str]]] = {
+    personalities: dict[str, tuple[str, list[tuple[str, object]]]] = {
         "home": (
             "📊 Portfolio",
             [
-                _tree("Equity", _fmt_currency(payload.get("equity"))),
-                _tree("Exposure", _fmt_percent(payload.get("exposure"))),
-                _tree("Open Positions", _safe_int(payload.get("positions"))),
+                ("Total Value", _fmt_currency(payload.get("equity"))),
+                ("Exposure", _fmt_percent(payload.get("exposure"))),
+                ("Open Positions", _safe_int(payload.get("positions"))),
             ],
         ),
         "wallet": (
-            "🧾 Wallet",
+            "💰 Account",
             [
-                _tree("Equity", _fmt_currency(payload.get("equity"))),
-                _tree("Available", _fmt_currency(payload.get("available_balance", payload.get("equity")))),
-                _tree("Unrealized", _fmt_signed_currency(payload.get("pnl"))),
+                ("Total Value", _fmt_currency(payload.get("equity"))),
+                ("Available Balance", _fmt_currency(payload.get("available_balance", payload.get("equity")))),
+                ("Unrealized", _fmt_signed_currency(payload.get("pnl"))),
             ],
         ),
         "positions": (
-            "🎯 Position Monitor",
+            "💼 Portfolio",
             [
-                _tree("Open Positions", _safe_int(payload.get("positions"))),
-                _tree("Exposure", _fmt_percent(payload.get("exposure"))),
-                _tree("Confidence", _fmt_percent(payload.get("confidence"), already_percent=True)),
+                ("Total Value", _fmt_currency(payload.get("equity"))),
+                ("PNL", _fmt_signed_currency(payload.get("pnl"))),
+                ("Markets Traded", _safe_int(payload.get("positions"))),
+            ],
+        ),
+        "trade": (
+            "🧭 Trade Focus",
+            [
+                ("Status", _safe_text(payload.get("state"), "ready").upper()),
+                ("Signal Confidence", _fmt_percent(payload.get("confidence"), already_percent=True)),
+                ("Edge", _safe_text(payload.get("edge_label"), _fmt_signed_percent(payload.get("edge")))),
             ],
         ),
         "pnl": (
             "💰 PnL",
             [
-                _tree("Unrealized", _fmt_signed_currency(payload.get("pnl"))),
-                _tree("Realized", _fmt_signed_currency(payload.get("realized_pnl"))),
-                _tree("Drawdown", _fmt_percent(payload.get("drawdown"))),
+                ("Unrealized", _fmt_signed_currency(payload.get("pnl"))),
+                ("Realized", _fmt_signed_currency(payload.get("realized_pnl"))),
+                ("Drawdown", _fmt_percent(payload.get("drawdown"))),
             ],
         ),
         "performance": (
-            "📈 Performance",
+            "🏁 Scorecard",
             [
-                _tree("Net PnL", _fmt_signed_currency(payload.get("pnl"))),
-                _tree("Drawdown", _fmt_percent(payload.get("drawdown"))),
-                _tree("Confidence", _fmt_percent(payload.get("confidence"), already_percent=True)),
+                ("Net PnL", _fmt_signed_currency(payload.get("pnl"))),
+                ("Drawdown", _fmt_percent(payload.get("drawdown"))),
+                ("Confidence", _fmt_percent(payload.get("confidence"), already_percent=True)),
             ],
         ),
         "exposure": (
-            "📊 Exposure",
+            "🧱 Concentration",
             [
-                _tree("Portfolio Exposure", _fmt_percent(payload.get("exposure"))),
-                _tree("Open Positions", _safe_int(payload.get("positions"))),
-                _tree("Risk Tier", _safe_text(payload.get("risk_level"), "standard")),
+                ("Portfolio Exposure", _fmt_percent(payload.get("exposure"))),
+                ("Open Positions", _safe_int(payload.get("positions"))),
+                ("Risk Tier", _safe_text(payload.get("risk_level"), "standard")),
             ],
         ),
         "risk": (
-            "⚠️ Risk",
+            "🛡️ Risk Preset",
             [
-                _tree("Risk Tier", _safe_text(payload.get("risk_level"), "standard")),
-                _tree("Limit State", _safe_text(payload.get("risk_state"), "within limits")),
-                _tree("Drawdown", _fmt_percent(payload.get("drawdown"))),
+                ("Risk Tier", _safe_text(payload.get("risk_level"), "standard")),
+                ("Limit State", _safe_text(payload.get("risk_state"), "within limits")),
+                ("Drawdown", _fmt_percent(payload.get("drawdown"))),
             ],
         ),
         "strategy": (
-            "⚙️ Strategy",
+            "🎛️ Activation",
             [
-                _tree("Mode", _safe_text(payload.get("strategy_mode"), "default")),
-                _tree("Signal", _safe_text(payload.get("signal_state"), "monitoring")),
-                _tree("Activation", _safe_text(payload.get("state"), "active")),
+                ("Mode", _safe_text(payload.get("strategy_mode"), "default")),
+                ("Signal", _safe_text(payload.get("signal_state"), "monitoring")),
+                ("Activation", _safe_text(payload.get("state"), "active")),
             ],
         ),
         "market": (
             "📡 Market",
             [
-                _tree("Regime", _safe_text(payload.get("trend"), "neutral")),
-                _tree("Edge", _safe_text(payload.get("edge_label"), _fmt_signed_percent(payload.get("edge")))),
-                _tree("Context", "Risk 0.25 · Max Pos 0.10"),
+                ("Regime", _safe_text(payload.get("trend"), "neutral")),
+                ("Edge", _safe_text(payload.get("edge_label"), _fmt_signed_percent(payload.get("edge")))),
+                ("Summary", "Risk 0.25 · Max Pos 0.10"),
+            ],
+        ),
+        "markets": (
+            "🗂️ Market Scan",
+            [
+                ("Scanned", _safe_int(payload.get("markets_total"))),
+                ("Active", _safe_int(payload.get("markets_active"))),
+                ("Focus", _compact_text(payload.get("decision"), "Scan for asymmetric opportunity", max_len=56)),
+            ],
+        ),
+        "refresh": (
+            "🔄 Snapshot",
+            [
+                ("State", _safe_text(payload.get("state"), "running").upper()),
+                ("Open Positions", _safe_int(payload.get("positions"))),
+                ("PNL", _fmt_signed_currency(payload.get("pnl"))),
             ],
         ),
     }
     title, lines = personalities.get(mode, personalities["home"])
-    return _section(title, lines)
+    return _section(title, _tree_group(lines))
 
 
 def _render_position_card(payload: Mapping[str, Any], market_label: str) -> str:
@@ -234,36 +272,65 @@ def _render_position_card(payload: Mapping[str, Any], market_label: str) -> str:
 
     now_value = payload.get("current") if payload.get("current") is not None else payload.get("entry")
     lines = [
-        _tree("Market", market_label),
-        _tree("Side", _direction(payload.get("side"))),
-        _tree("Entry", _fmt_probability_cents(payload.get("entry"))),
-        _tree("Now", _fmt_probability_cents(now_value)),
-        _tree("Size", _fmt_currency(payload.get("size"))),
-        _tree("UPNL", _fmt_signed_currency(payload.get("pnl"))),
-        _tree("Opened", _format_opened_time(payload.get("opened_at"))),
-        _tree("Status", _safe_text(payload.get("position_status"), "Monitoring")),
+        ("Market", market_label),
+        ("Side", _direction(payload.get("side"))),
+        ("Entry", _fmt_probability_cents(payload.get("entry"))),
+        ("Now", _fmt_probability_cents(now_value)),
+        ("Size", _fmt_currency(payload.get("size"))),
+        ("UPNL", _fmt_signed_currency(payload.get("pnl"))),
+        ("Opened", _format_opened_time(payload.get("opened_at"))),
+        ("Status", _safe_text(payload.get("position_status"), "Monitoring")),
     ]
     market_id = _safe_text(payload.get("market_id"), "")
     if market_id:
-        lines.append(_tree("Ref", market_id[:18]))
-    return _section("🎯 Position", lines)
+        lines.append(("Ref", market_id[:18]))
+    return _section("🎯 Position", _tree_group(lines))
 
 
 def _render_market_card(payload: Mapping[str, Any], market_label: str) -> str:
-    lines = [
-        _tree("Title", market_label),
-        _tree("Regime", _safe_text(payload.get("trend"), "neutral")),
-        _tree("Edge", _safe_text(payload.get("edge_label"), _fmt_signed_percent(payload.get("edge")))),
-        _tree("Summary", _compact_text(payload.get("insight"), "Monitoring market context", max_len=84)),
+    lines: list[tuple[str, object]] = [
+        ("Title", market_label),
+        ("Regime", _safe_text(payload.get("trend"), "neutral")),
+        ("Edge", _safe_text(payload.get("edge_label"), _fmt_signed_percent(payload.get("edge")))),
+        ("Summary", _compact_text(payload.get("insight"), "Monitoring market context", max_len=84)),
     ]
     if payload.get("market_id"):
-        lines.append(_tree("Ref", _safe_text(payload.get("market_id"))))
-    return _section("📡 Market", lines)
+        lines.append(("Ref", _safe_text(payload.get("market_id"))))
+    return _section("📡 Market", _tree_group(lines))
 
 
 def _render_operator_note(payload: Mapping[str, Any]) -> str:
     note = _compact_text(payload.get("operator_note"), "Monitoring with current safeguards.", max_len=100)
-    return _section("🧠 Operator Note", [_tree("Note", note)])
+    return _section("💡 Operator Note", _tree_group([("Guidance", note)]))
+
+
+def _render_empty_state(mode: str, payload: Mapping[str, Any]) -> str:
+    if mode in {"positions", "trade"} and _safe_int(payload.get("positions")) <= 0:
+        return "\n".join(
+            [
+                "No positions found.",
+                "",
+                "💡 Start trading to see your positions — use tabs to switch views.",
+            ]
+        )
+    if mode in {"market", "markets"} and not (
+        payload.get("market_title") or payload.get("market_question") or payload.get("market_id")
+    ):
+        return "\n".join(
+            [
+                "No market context available.",
+                "",
+                "💡 Refresh markets to load a title-first summary.",
+            ]
+        )
+    return ""
+
+
+def _render_meta(payload: Mapping[str, Any]) -> str:
+    updated = _safe_text(payload.get("updated_at"), "")
+    if not updated:
+        updated = datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:12]
+    return f"🕒 Last updated: {updated}"
 
 
 async def render_position(
@@ -307,16 +374,17 @@ async def render_dashboard(payload: Mapping[str, Any]) -> str:
     context = await get_market_context(_safe_text(normalized.get("market_id"), "")) or {}
     market_label = _resolve_market_label(normalized, context)
 
-    blocks: list[str] = [
-        _hero_block(mode, normalized),
-        _primary_block(mode, normalized),
-    ]
+    blocks: list[str] = [_hero_block(mode, normalized), _primary_block(mode, normalized)]
 
     position_card = _render_position_card(normalized, market_label)
     if position_card:
         blocks.append(position_card)
 
     blocks.append(_render_market_card(normalized, market_label))
+    empty_state = _render_empty_state(mode, normalized)
+    if empty_state:
+        blocks.append(empty_state)
     blocks.append(_render_operator_note(normalized))
+    blocks.append(_render_meta(normalized))
 
     return "\n\n".join(blocks)

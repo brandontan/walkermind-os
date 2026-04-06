@@ -1,16 +1,16 @@
 Last Updated  : 2026-04-06
-Status        : FORGE-X Telegram Premium UI v3 correction pass complete (pending SENTINEL validation)
+Status        : FORGE-X Telegram all-menu tree hierarchy premium pass complete (pending SENTINEL validation)
 COMPLETED     :
-- Telegram premium UI v3 correction pass (2026-04-06): enforced emoji-led hierarchy and mandatory `|->` tree readability, strengthened one-glance position/market cards, and differentiated Telegram view personalities for operator-first mobile scan.
-- Drift correction acknowledged: Telegram premium UI v2 was insufficient in actual Telegram presentation (output remained too flat/monotonous), requiring this v3 correction pass.
+- Telegram all-menu tree hierarchy premium pass (2026-04-06): normalized operator-facing Telegram menus to one emoji-led tree grammar with mandatory `├` / `└`, added premium empty states, improved position/market readability, and unified footer/meta behavior.
+- Prior partial passes were insufficient in real Telegram output (residual flat style and mixed hierarchy persisted), requiring this all-menu normalization pass.
 
 IN PROGRESS   :
 - N/A
 
 NEXT PRIORITY :
-- SENTINEL validation required for telegram-emoji-hierarchy-v3 before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/telegram_emoji_hierarchy_v3_20260406.md
+- SENTINEL validation required for telegram-tree-hierarchy-all-menus before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/telegram_tree_hierarchy_all_menus_20260406.md
 
 KNOWN ISSUES  :
-- Market context API lookup may be unreachable from this container; formatter safely falls back to human-readable local fields and short market label without crashing.
-- Telegram client-specific font and wrapping differences may still produce minor line-wrap variation across devices despite mobile-first compact formatting.
+- Real Telegram screenshot capture is not available in this Codex environment; visual verification used formatter outputs instead.
+- Telegram client-specific font and wrapping differences may still produce minor line-wrap variation across devices.
