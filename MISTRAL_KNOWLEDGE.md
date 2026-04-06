@@ -300,6 +300,37 @@ ANY 0 in critical:
 
 ---
 
+## CRITICAL ISSUES
+- No implementation evidence verified (all phases)
+- Execution safety unverified
+- Risk enforcement unverified
+- Failure handling unverified
+
+---
+
+## STABILITY SCORE
+| Category | Score |
+|---------|------|
+| Architecture | 10 |
+| Functional | 0 |
+| Failure | 0 |
+| Risk | 0 |
+| Infra | 0 |
+| Latency | 0 |
+| Total | 10/100 |
+
+---
+
+## VERDICT
+🚫 BLOCKED
+
+Reason:
+- No code access → no validation possible
+- All critical systems unverified
+- System treated as UNSAFE by default
+
+---
+
 ## 🔴 ANTI FALSE PASS
 
 If score = 100:
