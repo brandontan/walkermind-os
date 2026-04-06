@@ -33,6 +33,7 @@ from ..ui.keyboard import (
     build_stop_confirm_menu,
     build_mode_confirm_menu,
     build_control_menu,
+    build_strategy_menu,
 )
 from ..ui.screens import (
     main_screen,
@@ -45,6 +46,8 @@ from ..ui.screens import (
     noop_screen,
 )
 from ..ui.components import render_kv_line, render_insight, SEP
+from ...interface.telegram.view_handler import render_view
+from .portfolio_service import get_portfolio_service
 
 if TYPE_CHECKING:
     import aiohttp
@@ -309,6 +312,90 @@ class CallbackRouter:
         from .start import handle_start  # noqa: PLC0415
         return await handle_start()
 
+    def _strategy_states(self) -> dict[str, bool]:
+        if self._strategy_state is None:
+            return {}
+        try:
+            snapshot = self._strategy_state.get_state()
+            return snapshot if isinstance(snapshot, dict) else {}
+        except Exception as exc:  # noqa: BLE001
+            log.warning("callback_strategy_state_unavailable", error=str(exc))
+            return {}
+
+    def _build_normalized_payload(self, action: str) -> dict[str, object]:
+        state_snapshot = self._state.snapshot()
+        config_snapshot = self._config.snapshot()
+        portfolio = get_portfolio_service().get_state()
+
+        positions = []
+        equity = 0.0
+        cash = 0.0
+        pnl = 0.0
+        if portfolio is not None:
+            positions = list(portfolio.positions)
+            equity = float(portfolio.equity)
+            cash = float(portfolio.cash)
+            pnl = float(portfolio.pnl)
+
+        primary = positions[0] if positions else None
+        exposure = (sum(float(getattr(pos, "size", 0.0)) for pos in positions) / equity) if equity > 0 else 0.0
+        strategy_states = self._strategy_states()
+        active_strategy = [name for name, enabled in strategy_states.items() if bool(enabled)]
+
+        payload: dict[str, object] = {
+            "status": state_snapshot.get("state", "RUNNING"),
+            "mode": self._mode,
+            "state": state_snapshot.get("state", "RUNNING"),
+            "risk_level": f"{config_snapshot.risk_multiplier:.2f}",
+            "risk_state": state_snapshot.get("reason", "within limits") or "within limits",
+            "drawdown": 0.0,
+            "equity": equity,
+            "balance": cash,
+            "available_balance": cash,
+            "positions_count": len(positions),
+            "positions": len(positions),
+            "pnl": pnl,
+            "realized_pnl": 0.0,
+            "exposure": exposure,
+            "market_id": getattr(primary, "market_id", ""),
+            "market_title": "",
+            "side": getattr(primary, "side", "flat"),
+            "entry": getattr(primary, "avg_price", 0.0),
+            "size": getattr(primary, "size", 0.0),
+            "strategy_mode": "enabled" if active_strategy else "monitoring",
+            "signal_state": f"{len(active_strategy)} active",
+            "updated_at": state_snapshot.get("timestamp") or state_snapshot.get("updated_at"),
+            "markets_total": 0,
+            "markets_active": 0,
+        }
+
+        if action in {"strategy"}:
+            payload["insight"] = "Strategy toggles remain label-first and tree-normalized"
+        return payload
+
+    async def _render_normalized_callback(self, action: str) -> tuple[str, list]:
+        from ..ui.keyboard import build_status_menu  # noqa: PLC0415
+
+        normalized_action = "home" if action in {"back_main", "back", "start", "menu", "status", "home"} else action
+        payload = self._build_normalized_payload(normalized_action)
+        text = await render_view(normalized_action, payload)
+
+        if normalized_action == "home":
+            return text, build_main_menu()
+        if normalized_action == "wallet":
+            if self._mode == "PAPER" and self._paper_wallet_engine is not None:
+                from ..ui.keyboard import build_paper_wallet_menu  # noqa: PLC0415
+                return text, build_paper_wallet_menu()
+            from ..ui.keyboard import build_wallet_menu  # noqa: PLC0415
+            return text, build_wallet_menu()
+        if normalized_action == "strategy":
+            strategy_states = self._strategy_states()
+            return text, build_strategy_menu(
+                strategies=sorted(strategy_states.keys()) if strategy_states else [],
+                active_states=strategy_states,
+            )
+        return text, build_status_menu()
+
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
     async def _dispatch(self, action: str, user_id: Optional[int] = None) -> tuple[str, list]:
@@ -329,9 +416,7 @@ class CallbackRouter:
             raise RuntimeError("LEGACY UI DISABLED")
 
         # Lazy imports — avoids circular deps and speeds up module load
-        from .status import handle_status
         from .wallet import (
-            handle_wallet,
             handle_wallet_balance,
             handle_wallet_exposure,
             handle_wallet_withdraw,
@@ -339,47 +424,28 @@ class CallbackRouter:
         from .settings import handle_settings, handle_settings_strategy, handle_mode_confirm_switch
         from .control import handle_control, handle_pause, handle_resume, handle_kill
 
-        # ── Navigation ─────────────────────────────────────────────────────
-        if action in ("back_main", "back", "start", "menu"):
-            return await self.render_home_view()
-
-        if action == "strategy":
-            return await self.render_strategy_view(user_id=user_id)
-
-        if action == "home":
-            return await self.render_home_view()
-
-        # ── Status / Refresh ───────────────────────────────────────────────
-        if action in ("status", "refresh"):
-            return await handle_status(
-                state_manager=self._state,
-                config_manager=self._config,
-                cmd_handler=self._cmd,
-                mode=self._mode,
-            )
-
-        # ── Performance ────────────────────────────────────────────────────
-        if action == "performance":
-            from .performance import handle_performance
-            return await handle_performance(mode=self._mode)
-
-        # ── Positions ──────────────────────────────────────────────────────
-        if action == "positions":
-            from .positions import handle_positions
-            return await handle_positions()
-
-        # ── PnL ────────────────────────────────────────────────────────────
-        if action == "pnl":
-            from .pnl import handle_pnl
-            return await handle_pnl()
-
-        # ── Wallet ─────────────────────────────────────────────────────────
-        if action == "wallet":
-            # In PAPER mode, always show paper wallet (cash/locked/equity)
-            if self._mode == "PAPER" and self._paper_wallet_engine is not None:
-                from .wallet import handle_paper_wallet
-                return await handle_paper_wallet(mode=self._mode)
-            return await handle_wallet(mode=self._mode, user_id=user_id)
+        normalized_actions = {
+            "back_main",
+            "back",
+            "start",
+            "menu",
+            "home",
+            "status",
+            "refresh",
+            "wallet",
+            "positions",
+            "trade",
+            "pnl",
+            "performance",
+            "exposure",
+            "risk",
+            "strategy",
+            "market",
+            "markets",
+            "summary",
+        }
+        if action in normalized_actions:
+            return await self._render_normalized_callback(action)
 
         if action == "wallet_balance":
             return await handle_wallet_balance(user_id=user_id)
@@ -394,18 +460,6 @@ class CallbackRouter:
         if action == "paper_wallet":
             from .wallet import handle_paper_wallet
             return await handle_paper_wallet(mode=self._mode)
-
-        # ── Trade (paper positions + PnL) ──────────────────────────────────
-        if action == "trade":
-            from .trade import handle_trade
-            log.info("callback_dispatching_trade", mode=self._mode)
-            return await handle_trade(mode=self._mode)
-
-        # ── Exposure (real exposure report via ExposureCalculator) ─────────
-        if action == "exposure":
-            from .exposure import handle_exposure
-            log.info("callback_dispatching_exposure", mode=self._mode)
-            return await handle_exposure()
 
         # ── Settings ───────────────────────────────────────────────────────
         if action == "settings":
@@ -540,7 +594,8 @@ class CallbackRouter:
                         strategy=strategy_name,
                         error=str(save_exc),
                     )
-            return await handle_strategy_toggle(strategy_name)
+            await handle_strategy_toggle(strategy_name)
+            return await self._render_normalized_callback("strategy")
 
         # ── Unknown ────────────────────────────────────────────────────────
         log.warning("callback_unknown_action", action=action)

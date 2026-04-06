@@ -306,22 +306,28 @@ def _render_operator_note(payload: Mapping[str, Any]) -> str:
 
 def _render_empty_state(mode: str, payload: Mapping[str, Any]) -> str:
     if mode in {"positions", "trade"} and _safe_int(payload.get("positions")) <= 0:
-        return "\n".join(
-            [
-                "No positions found.",
-                "",
-                "💡 Start trading to see your positions — use tabs to switch views.",
-            ]
+        return _section(
+            "🫥 Empty State",
+            _tree_group(
+                [
+                    ("Status", "No positions found"),
+                    ("Next", "Start trading to populate this view"),
+                    ("Tip", "Use tabs to switch views quickly"),
+                ]
+            ),
         )
     if mode in {"market", "markets"} and not (
         payload.get("market_title") or payload.get("market_question") or payload.get("market_id")
     ):
-        return "\n".join(
-            [
-                "No market context available.",
-                "",
-                "💡 Refresh markets to load a title-first summary.",
-            ]
+        return _section(
+            "🫥 Empty State",
+            _tree_group(
+                [
+                    ("Status", "No market context available"),
+                    ("Next", "Refresh markets to load context"),
+                    ("Tip", "Title-first summary appears when metadata is available"),
+                ]
+            ),
         )
     return ""
 
