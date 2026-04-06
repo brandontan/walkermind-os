@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-06 22:15
-- Status        : FORGE-X telegram-premium-nav-ux-20260407 build pass complete (post-approval UX consolidation); awaiting SENTINEL validation before COMMANDER merge decision
+- Last Updated  : 2026-04-06 22:40
+- Status        : SENTINEL trade-system truth audit complete (paper-path decision map delivered); premium-nav and trade-hardening merge sequence awaiting COMMANDER direction
 
 ---
 
@@ -27,6 +27,8 @@
 - SENTINEL validation complete for `telegram-menu-scope-hardening-20260407` with verdict **APPROVED** (score **88/100**) and **no critical issues**.
 - BRIEFER handoff completed for `telegram-menu-scope-hardening-20260407`.
 - Telegram premium navigation / UX consolidation pass (2026-04-07): enforced two-layer Telegram navigation with persistent 5-item reply-keyboard root and contextual inline section actions; removed duplicated inline root menu; added active-root cue and compact button layout polish while preserving approved scope-control semantics.
+- SENTINEL trade system truth audit complete (2026-04-07) with verdict **PAPER-ACCEPTABLE WITH RISKS** and score **62/100**; identified critical risk-layer bypass on trading-loop execution path, startup wallet-restore mismatch risk, and partial-state reconciliation gaps blocking real-wallet readiness.
+- Trade-system truth audit report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md`.
 
 ---
 
@@ -35,6 +37,9 @@
 ### Telegram post-approval UX consolidation handoff
 - SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
 - Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
+
+### Trade-system hardening handoff
+- FORGE-X hardening pending for risk-gate unification, reconciliation ownership, restart recovery correctness, and silent-failure removal before any real-wallet enablement.
 
 ---
 
@@ -46,9 +51,9 @@
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL validation required for telegram-premium-nav-ux-20260407 before merge.
-- Source: projects/polymarket/polyquantbot/reports/forge/telegram_premium_nav_ux_20260407.md
-- COMMANDER merge decision after SENTINEL verdict.
+- FORGE-X hardening required for trade-system readiness before any real-wallet enablement.
+- Source: projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md
+- SENTINEL re-validation required after hardening pass; COMMANDER merge/enablement decision only after that validation.
 
 ---
 
@@ -57,3 +62,5 @@
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
+- Trading-loop execution path currently bypasses formal `RiskGuard` kill-switch/daily-loss/drawdown gating and must be hardened before real-wallet mode.
+- Startup wallet restore path in engine container may not apply persisted wallet state correctly (class-method return value is not assigned), creating restart reconciliation risk.
