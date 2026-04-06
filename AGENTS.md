@@ -105,7 +105,7 @@ No `phase*/` folders. No files outside these folders. No exceptions.
 ```
 
 ## Branch
-`feature/forge/[task-name]` — lowercase, hyphens, max 50 chars
+`feature/[area]-[purpose]` — lowercase, hyphens, max 50 chars
 
 ## Report
 - Path: `projects/polymarket/polyquantbot/reports/forge/[phase]_[increment]_[name].md`
@@ -163,7 +163,7 @@ MDD = (Peak − Trough) / Peak | VaR = μ − 1.645σ
 ```
 
 ## Done
-`"Done ✅ — [task] complete. PR: feature/forge/[name]. Report: [phase]_[increment]_[name].md"`
+`"Done ✅ — [task] complete. PR: feature/[area]-[purpose]. Report: [phase]_[increment]_[name].md"`
 
 ## Output Format
 ```
