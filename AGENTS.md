@@ -830,6 +830,45 @@ Rules:
 - Commit message:
   `update: project state after [task name]`
 
+## PROJECT_STATE ENFORCEMENT (STRICT)
+
+FORGE-X MUST update `PROJECT_STATE.md` after every task that changes repository files.
+
+This is NOT optional.
+
+Mandatory sequence:
+1. Finish code changes
+2. Generate forge report
+3. Update `PROJECT_STATE.md`
+4. Commit code + report + PROJECT_STATE in the SAME commit
+5. Include explicit `Report:` path in final output
+
+Validation rule:
+- If repo changed and `PROJECT_STATE.md` was not updated
+  → TASK = FAILED
+  → OUTPUT = INVALID
+  → DO NOT mark Done
+  → DO NOT proceed to SENTINEL
+
+Required final state checks:
+- `Last Updated` reflects current task date
+- `Status` reflects current real repo state
+- `COMPLETED` includes the task outcome
+- `IN PROGRESS` is accurate
+- `NOT STARTED` remains accurate
+- `NEXT PRIORITY` includes proper handoff
+- `KNOWN ISSUES` reflects real remaining issues
+
+Hard failure conditions:
+- forge report exists but PROJECT_STATE not updated
+- code committed without PROJECT_STATE update
+- final output says Done but PROJECT_STATE not updated
+- `NEXT PRIORITY` missing SENTINEL handoff when validation is required
+
+If any hard failure occurs:
+→ return to FORGE-X for state sync fix
+→ task remains incomplete until PROJECT_STATE is updated correctly
+
 ## Handoff to SENTINEL
 
 In `NEXT PRIORITY` after every build task write exactly:
@@ -871,6 +910,8 @@ If GitHub write fails:
 ```text
 Done ⚠️ — [task name] complete. GitHub write failed. Files delivered in chat for manual push.
 ```
+
+Final output is INVALID unless `PROJECT_STATE.md` has been updated in the same task.
 
 ## Output Format
 
