@@ -120,30 +120,32 @@ def render_decision(text: object) -> str:
 # SINGLE ENTRY POINT
 # =========================
 
-async def render_dashboard(data: dict) -> str:
+async def render_dashboard(payload: dict) -> str:
     """ONLY ENTRY POINT — do not bypass this."""
 
     blocks: list[str] = []
 
-    blocks.append(render_system(data.get("state"), data.get("mode")))
+    blocks.append(render_system(payload.get("state"), payload.get("mode")))
 
     blocks.append(
-        render_portfolio(data.get("equity"), data.get("positions"), data.get("exposure"))
+        render_portfolio(
+            payload.get("equity"), payload.get("positions"), payload.get("exposure")
+        )
     )
 
-    if data.get("market_id"):
+    if payload.get("market_id"):
         blocks.append(
             await render_position(
-                data.get("market_id"),
-                data.get("side"),
-                data.get("entry"),
-                data.get("size"),
-                data.get("pnl"),
+                payload.get("market_id"),
+                payload.get("side"),
+                payload.get("entry"),
+                payload.get("size"),
+                payload.get("pnl"),
             )
         )
 
-    blocks.append(render_risk(data.get("drawdown")))
-    blocks.append(render_insight(data.get("insight")))
-    blocks.append(render_decision(data.get("decision")))
+    blocks.append(render_risk(payload.get("drawdown")))
+    blocks.append(render_insight(payload.get("insight")))
+    blocks.append(render_decision(payload.get("decision")))
 
     return "\n\n".join(blocks)
