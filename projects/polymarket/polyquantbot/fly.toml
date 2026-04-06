@@ -1,10 +1,12 @@
 app = "vurtnex-bot"
-primary_region = "sin"
+primary_region = "iad"
 
 [build]
 
 [env]
   ENV = "production"
+  DASHBOARD_ENABLED = "true"
+  PORT = "8080"
 
 [http_service]
   internal_port = 8080
