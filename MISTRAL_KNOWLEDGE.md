@@ -1,4 +1,4 @@
-# MISTRAL KNOWLEDGE FILE — FULL HARDENED (ANTI-FALSE-PASS + BEHAVIOR VALIDATION)
+# MISTRAL KNOWLEDGE FILE — FULL HARDENED (BEHAVIOR-DRIVEN VALIDATION)
 
 Repo: https://github.com/bayuewalker/walker-ai-team
 
@@ -13,10 +13,10 @@ Single source of truth:
 - reports/sentinel → validation truth
 - reports/briefer → communication
 
-IMPORTANT:
-- FORGE report = reference only
+CRITICAL:
+- FORGE report = reference
 - CODE = truth
-- Sentinel must verify code, not trust report
+- RUNTIME BEHAVIOR = final truth
 
 ---
 
@@ -94,7 +94,7 @@ Kill switch required
 
 ---
 
-# 🔴 SENTINEL HARD MODE
+# 🔴 SENTINEL HARD MODE (NEXUS LEVEL)
 
 ---
 
@@ -103,11 +103,11 @@ Kill switch required
 System = UNSAFE
 
 Goal:
-→ PROVE SAFE
+→ PROVE SAFE (WITH EVIDENCE + BEHAVIOR)
 
 ---
 
-## EVIDENCE RULE (CRITICAL)
+## EVIDENCE RULE (MANDATORY)
 
 EVERY claim MUST include:
 
@@ -120,18 +120,33 @@ Missing:
 
 ---
 
-## 🔴 BEHAVIOR VALIDATION (NEW — CRITICAL)
+## 🔴 BEHAVIOR VALIDATION (CRITICAL)
 
 Code existence is NOT enough.
 
-Sentinel MUST verify:
+Sentinel MUST prove:
 
 - function is actually called
 - affects runtime behavior
 - cannot be bypassed
 
-If only existence shown:
+If not proven:
 → max score = 50%
+
+---
+
+## 🔴 RUNTIME PROOF (NEW)
+
+Sentinel MUST include at least ONE:
+
+- execution trace
+- log snippet
+- test output
+- runtime result
+
+If none:
+→ treat as UNVERIFIED
+→ reduce score
 
 ---
 
@@ -143,7 +158,7 @@ Claims like:
 
 MUST include:
 
-- real log snippet
+- actual log snippet
 
 Else:
 → score = 0
@@ -208,11 +223,25 @@ If not:
 Sentinel MUST attempt:
 
 - bypass logic
-- break system
 - force invalid state
+- break execution flow
 
-If no break attempt:
+If not:
 → max score = 70
+
+---
+
+## 🔴 FAILURE TEST FORMAT (MANDATORY)
+
+Each test MUST include:
+
+- Input
+- Expected
+- Actual
+- Evidence (log/snippet)
+
+Missing any:
+→ partial or fail
 
 ---
 
@@ -225,21 +254,24 @@ MUST show:
 - line
 - snippet
 - enforcement logic
+- trigger condition
 
 Missing ANY:
 → BLOCKED
 
 ---
 
-## 🔴 LATENCY RULE
+## 🔴 LATENCY RULE (HARD)
 
 Must include:
 
 - measured value
-- method
+- measurement method
 
 If not:
 → score = 0
+
+NO EXCEPTION
 
 ---
 
@@ -253,17 +285,17 @@ dev:
 staging/prod:
 → FAIL
 
-Never full score without real connection
+Never give full score without live confirmation
 
 ---
 
 ## SCORING RULE
 
-Full = evidence + verified  
-Partial = partial evidence  
+Full = evidence + behavior proven  
+Partial = partial proof  
 None = 0  
 
-ANY 0 critical:
+ANY 0 in critical:
 → BLOCKED
 
 ---
@@ -275,6 +307,7 @@ If score = 100:
 MUST include:
 - ≥5 file references
 - ≥5 snippets
+- ≥1 runtime proof
 
 Else:
 → score -30  
@@ -288,8 +321,9 @@ Any:
 
 - missing code
 - missing risk rule
-- no evidence
+- no behavior proof
 - no failure handling
+- no evidence
 
 → BLOCKED
 
@@ -307,6 +341,7 @@ BLOCKED otherwise
 
 - no report  
 - no evidence  
+- no behavior proof  
 - drift  
 - risk violation  
 
@@ -323,4 +358,7 @@ Mismatch code/report/state
 ## FINAL
 
 Sentinel is NOT reviewer  
-Sentinel = BREAKER
+Sentinel = BREAKER  
+
+Goal:
+Find what fails in production
