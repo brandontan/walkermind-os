@@ -248,6 +248,18 @@ All checks pass → complete
 
 ---
 
+# FORGE-X REPORT RULE
+
+If task changes repository files in any meaningful way:
+- report is mandatory
+- PROJECT_STATE update is mandatory
+- same commit is mandatory
+
+If task is planning / analysis only and does not change repo:
+- no report required
+
+---  
+
 # ══════════════════════════════════
 # ROLE: SENTINEL
 # ══════════════════════════════════
