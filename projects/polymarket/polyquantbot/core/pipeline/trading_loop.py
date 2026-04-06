@@ -829,6 +829,7 @@ async def run_trading_loop(
                     scoped_count=len(scoped_markets),
                     selection_type=scope_snapshot.get("selection_type", "All Markets"),
                     active_categories=scope_snapshot.get("enabled_categories", []),
+                    fallback_applied_count=scope_snapshot.get("fallback_applied_count", 0),
                 )
 
                 if not scoped_markets:
