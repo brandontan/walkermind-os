@@ -25,6 +25,10 @@ def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def _as_mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
 def _first_present(payload: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
     for key in keys:
         if key in payload and payload.get(key) not in (None, ""):
@@ -32,18 +36,48 @@ def _first_present(payload: Mapping[str, Any], *keys: str, default: Any = None) 
     return default
 
 
+def _position_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    rows = _as_list(payload.get("positions"))
+    if rows and isinstance(rows[0], Mapping):
+        return [row for row in rows if isinstance(row, Mapping)]
+    open_rows = _as_list(payload.get("open_positions"))
+    return [row for row in open_rows if isinstance(row, Mapping)]
+
+
+def _derive_position_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
+    rows = _position_rows(payload)
+    primary = _as_mapping(rows[0]) if rows else {}
+    unrealized_total = sum(float(_as_mapping(row).get("unrealized_pnl", _as_mapping(row).get("pnl", 0.0)) or 0.0) for row in rows)
+    largest_position_size = max((float(_as_mapping(row).get("size", 0.0) or 0.0) for row in rows), default=0.0)
+    realized = _first_present(payload, "realized_pnl", "realized", default=0.0)
+    total_pnl = _first_present(payload, "pnl", default=None)
+    if total_pnl is None:
+        total_pnl = float(realized or 0.0) + unrealized_total
+    return {
+        "rows": rows,
+        "primary": primary,
+        "positions_count": payload.get("positions_count", len(rows)),
+        "unrealized_total": unrealized_total,
+        "largest_position_size": largest_position_size,
+        "realized_pnl": realized,
+        "total_pnl": total_pnl,
+    }
+
+
 def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
-    positions = _as_list(payload.get("positions"))
+    metrics = _derive_position_metrics(payload)
+    primary = metrics["primary"]
     markets = _as_list(payload.get("markets"))
     return {
         "state": payload.get("status", "waiting"),
         "mode": mode,
         "cycle": payload.get("cycle", "active"),
         "equity": payload.get("equity", payload.get("balance", 0)),
-        "positions": payload.get("positions_count", len(positions)),
+        "positions": metrics["positions_count"],
         "exposure": payload.get("exposure", 0),
-        "pnl": payload.get("pnl", payload.get("unrealized_pnl", 0)),
-        "realized_pnl": payload.get("realized_pnl", 0),
+        "pnl": metrics["total_pnl"],
+        "unrealized_pnl": payload.get("unrealized_pnl", metrics["unrealized_total"]),
+        "realized_pnl": metrics["realized_pnl"],
         "drawdown": payload.get("drawdown", 0),
         "risk_level": payload.get("risk_level", "standard"),
         "risk_state": payload.get("risk_state", "within limits"),
@@ -55,14 +89,15 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "confidence": payload.get("confidence", 0),
         "decision": payload.get("decision"),
         "operator_note": payload.get("operator_note"),
-        "market_title": _first_present(payload, "market_title", "market_name", "question"),
+        "market_title": _first_present(payload, "market_title", "market_name", "question", default=primary.get("market_title")),
         "market_question": payload.get("question"),
-        "market_id": _first_present(payload, "market_id", "market"),
-        "current": _first_present(payload, "current", "current_price", "last_price"),
-        "side": payload.get("side", payload.get("direction", "flat")),
-        "entry": payload.get("entry", payload.get("entry_price", 0)),
-        "size": payload.get("size", payload.get("allocation", 0)),
-        "opened_at": _first_present(payload, "opened_at", "opened", "opened_time", "created_at"),
+        "market_id": _first_present(payload, "market_id", "market", default=primary.get("market_id")),
+        "current": _first_present(payload, "current", "current_price", "last_price", default=primary.get("current_price")),
+        "side": payload.get("side", payload.get("direction", primary.get("side", "flat"))),
+        "entry": payload.get("entry", payload.get("entry_price", primary.get("entry_price", primary.get("avg_price", 0)))),
+        "size": payload.get("size", payload.get("allocation", primary.get("size", 0))),
+        "opened_at": _first_present(payload, "opened_at", "opened", "opened_time", "created_at", default=primary.get("opened_at")),
+        "largest_position_size": payload.get("largest_position_size", metrics["largest_position_size"]),
         "strategy_mode": payload.get("strategy_mode"),
         "signal_state": payload.get("signal_state"),
         "markets_total": payload.get("markets_total", payload.get("total_markets", len(markets))),
@@ -76,6 +111,8 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "trade_alerts": payload.get("trade_alerts", "enabled"),
         "summary_alerts": payload.get("summary_alerts", "hourly"),
         "control_action": payload.get("control_action", "standby"),
+        "winrate": payload.get("winrate", 0),
+        "trades": payload.get("trades", payload.get("total_trades", 0)),
     }
 
 
@@ -89,9 +126,9 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
         dashboard_payload.update(
             {
                 "mode": "trade",
-                "side": safe_payload.get("side", safe_payload.get("direction", "flat")),
-                "entry": safe_payload.get("entry", safe_payload.get("entry_price", 0)),
-                "size": safe_payload.get("size", safe_payload.get("allocation", 0)),
+                "side": safe_payload.get("side", safe_payload.get("direction", dashboard_payload.get("side", "flat"))),
+                "entry": safe_payload.get("entry", safe_payload.get("entry_price", dashboard_payload.get("entry", 0))),
+                "size": safe_payload.get("size", safe_payload.get("allocation", dashboard_payload.get("size", 0))),
                 "decision": safe_payload.get("decision", "Deploy only if edge + liquidity both qualify"),
                 "operator_note": safe_payload.get("operator_note", "Review slippage and depth before send"),
                 "insight": safe_payload.get("insight", "One-glance card highlights side, price, and risk posture"),
@@ -106,7 +143,6 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
                 "decision": safe_payload.get("decision", "Capital intact — deployment is optional"),
                 "operator_note": safe_payload.get("operator_note", "Account summary only; no execution implied"),
                 "insight": safe_payload.get("insight", "Wallet summary prioritizes capital readiness"),
-                "positions": safe_payload.get("positions_count", len(_as_list(safe_payload.get("open_positions")))),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -115,9 +151,9 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
         dashboard_payload = _base_payload("positions", safe_payload)
         dashboard_payload.update(
             {
-                "side": safe_payload.get("side", safe_payload.get("direction", "flat")),
-                "entry": safe_payload.get("entry", safe_payload.get("entry_price", 0)),
-                "size": safe_payload.get("size", safe_payload.get("allocation", 0)),
+                "side": safe_payload.get("side", safe_payload.get("direction", dashboard_payload.get("side", "flat"))),
+                "entry": safe_payload.get("entry", safe_payload.get("entry_price", dashboard_payload.get("entry", 0))),
+                "size": safe_payload.get("size", safe_payload.get("allocation", dashboard_payload.get("size", 0))),
                 "decision": safe_payload.get("decision", "Monitor active positions; protect downside"),
                 "operator_note": safe_payload.get("operator_note", "Prioritize drawdown and concentration risks"),
                 "insight": safe_payload.get("insight", "Active risk and side exposure are visible first"),
@@ -131,7 +167,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             {
                 "decision": safe_payload.get("decision", "Track realized vs unrealized before scaling"),
                 "operator_note": safe_payload.get("operator_note", "Evaluate losses before new entries"),
-                "insight": safe_payload.get("insight", "Cash impact is grouped for rapid operator scan"),
+                "insight": safe_payload.get("insight", "PnL view binds active-position movement and realized state"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -142,7 +178,7 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
             {
                 "decision": safe_payload.get("decision", "Optimize based on rolling scorecard"),
                 "operator_note": safe_payload.get("operator_note", "Keep drawdown stable while compounding edge"),
-                "insight": safe_payload.get("insight", "Scorecard emphasizes trend stability"),
+                "insight": safe_payload.get("insight", "Scorecard emphasizes historical trading stats over live position state"),
             }
         )
         return await render_dashboard(dashboard_payload)

@@ -130,6 +130,13 @@ def _section(title: str, lines: list[str]) -> str:
     return "\n".join([title, *lines])
 
 
+def _contains_ref_fragment(label: str, market_id: str) -> bool:
+    lowered = label.lower()
+    candidate = market_id.lower()
+    short = candidate[:12]
+    return "ref" in lowered and short and short in lowered
+
+
 def _resolve_market_label(payload: Mapping[str, Any], context: Mapping[str, Any]) -> str:
     def _is_generic_label(text: str) -> bool:
         compact = text.strip().lower()
@@ -188,51 +195,51 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
             ],
         ),
         "wallet": (
-            "💰 Account",
+            "💰 Account Capital",
             [
                 ("Total Value", _fmt_currency(payload.get("equity"))),
                 ("Available Balance", _fmt_currency(payload.get("available_balance", payload.get("equity")))),
-                ("Unrealized", _fmt_signed_currency(payload.get("pnl"))),
+                ("Realized PnL", _fmt_signed_currency(payload.get("realized_pnl"))),
             ],
         ),
         "positions": (
-            "💼 Portfolio",
+            "📌 Position State",
             [
-                ("Total Value", _fmt_currency(payload.get("equity"))),
-                ("PNL", _fmt_signed_currency(payload.get("pnl"))),
-                ("Markets Traded", _safe_int(payload.get("positions"))),
+                ("Open Positions", _safe_int(payload.get("positions"))),
+                ("Unrealized", _fmt_signed_currency(payload.get("unrealized_pnl", payload.get("pnl")))),
+                ("Largest Position", _fmt_currency(payload.get("largest_position_size"))),
             ],
         ),
         "trade": (
             "🧭 Trade Focus",
             [
-                ("Status", _safe_text(payload.get("state"), "ready").upper()),
+                ("Side", _direction(payload.get("side"))),
                 ("Signal Confidence", _fmt_percent(payload.get("confidence"), already_percent=True)),
                 ("Edge", _safe_text(payload.get("edge_label"), _fmt_signed_percent(payload.get("edge")))),
             ],
         ),
         "pnl": (
-            "💰 PnL",
+            "💰 PnL State",
             [
-                ("Unrealized", _fmt_signed_currency(payload.get("pnl"))),
+                ("Unrealized", _fmt_signed_currency(payload.get("unrealized_pnl", payload.get("pnl")))),
                 ("Realized", _fmt_signed_currency(payload.get("realized_pnl"))),
-                ("Drawdown", _fmt_percent(payload.get("drawdown"))),
+                ("Active Positions", _safe_int(payload.get("positions"))),
             ],
         ),
         "performance": (
-            "🏁 Scorecard",
+            "🏁 Performance Scorecard",
             [
                 ("Net PnL", _fmt_signed_currency(payload.get("pnl"))),
-                ("Drawdown", _fmt_percent(payload.get("drawdown"))),
-                ("Confidence", _fmt_percent(payload.get("confidence"), already_percent=True)),
+                ("Win Rate", _fmt_percent(payload.get("winrate"))),
+                ("Trades", _safe_int(payload.get("trades"))),
             ],
         ),
         "exposure": (
-            "🧱 Concentration",
+            "🧱 Exposure Posture",
             [
                 ("Portfolio Exposure", _fmt_percent(payload.get("exposure"))),
-                ("Open Positions", _safe_int(payload.get("positions"))),
-                ("Risk Tier", _safe_text(payload.get("risk_level"), "standard")),
+                ("Exposed Markets", _safe_int(payload.get("positions"))),
+                ("Concentration", _fmt_percent(payload.get("concentration_ratio", payload.get("exposure")))),
             ],
         ),
         "risk": (
@@ -331,12 +338,12 @@ def _render_position_card(payload: Mapping[str, Any], market_label: str) -> str:
         ("Entry", _fmt_probability_cents(payload.get("entry"))),
         ("Now", _fmt_probability_cents(now_value)),
         ("Size", _fmt_currency(payload.get("size"))),
-        ("UPNL", _fmt_signed_currency(payload.get("pnl"))),
+        ("UPNL", _fmt_signed_currency(payload.get("unrealized_pnl", payload.get("pnl")))),
         ("Opened", _format_opened_time(payload.get("opened_at"))),
         ("Status", _safe_text(payload.get("position_status"), "Monitoring")),
     ]
     market_id = _safe_text(payload.get("market_id"), "")
-    if market_id:
+    if market_id and not _contains_ref_fragment(market_label, market_id):
         lines.append(("Ref", market_id[:18]))
     return _section("🎯 Position", _tree_group(lines))
 
@@ -348,9 +355,49 @@ def _render_market_card(payload: Mapping[str, Any], market_label: str) -> str:
         ("Edge", _safe_text(payload.get("edge_label"), _fmt_signed_percent(payload.get("edge")))),
         ("Summary", _compact_text(payload.get("insight"), "Monitoring market context", max_len=84)),
     ]
-    if payload.get("market_id"):
-        lines.append(("Ref", _safe_text(payload.get("market_id"))))
+    market_id = _safe_text(payload.get("market_id"), "")
+    if market_id and not _contains_ref_fragment(market_label, market_id):
+        lines.append(("Ref", market_id))
     return _section("📡 Market", _tree_group(lines))
+
+
+def _render_exposure_card(payload: Mapping[str, Any]) -> str:
+    return _section(
+        "📊 Exposure Summary",
+        _tree_group(
+            [
+                ("Total Exposure", _fmt_percent(payload.get("exposure"))),
+                ("Exposed Markets", _safe_int(payload.get("positions"))),
+                ("Largest Position", _fmt_currency(payload.get("largest_position_size"))),
+            ]
+        ),
+    )
+
+
+def _render_pnl_card(payload: Mapping[str, Any]) -> str:
+    return _section(
+        "📉 PnL Movement",
+        _tree_group(
+            [
+                ("Current Unrealized", _fmt_signed_currency(payload.get("unrealized_pnl", payload.get("pnl")))),
+                ("Current Realized", _fmt_signed_currency(payload.get("realized_pnl"))),
+                ("Active Position", "Yes" if _safe_int(payload.get("positions")) > 0 else "No"),
+            ]
+        ),
+    )
+
+
+def _render_performance_card(payload: Mapping[str, Any]) -> str:
+    return _section(
+        "📈 Session Performance",
+        _tree_group(
+            [
+                ("Trades", _safe_int(payload.get("trades"))),
+                ("Win Rate", _fmt_percent(payload.get("winrate"))),
+                ("Max Drawdown", _fmt_percent(payload.get("drawdown"))),
+            ]
+        ),
+    )
 
 
 def _render_operator_note(payload: Mapping[str, Any]) -> str:
@@ -359,14 +406,36 @@ def _render_operator_note(payload: Mapping[str, Any]) -> str:
 
 
 def _render_empty_state(mode: str, payload: Mapping[str, Any]) -> str:
-    if mode in {"positions", "trade"} and _safe_int(payload.get("positions")) <= 0:
+    if mode == "positions" and _safe_int(payload.get("positions")) <= 0:
         return _section(
             "🫥 Empty State",
             _tree_group(
                 [
-                    ("Status", "No positions found"),
-                    ("Next", "Start trading to populate this view"),
-                    ("Tip", "Use tabs to switch views quickly"),
+                    ("Status", "No active positions"),
+                    ("Next", "Open a trade to populate position cards"),
+                    ("Tip", "Use Trade view for the next eligible setup"),
+                ]
+            ),
+        )
+    if mode == "exposure" and _safe_int(payload.get("positions")) <= 0:
+        return _section(
+            "🫥 Empty State",
+            _tree_group(
+                [
+                    ("Status", "No market exposure"),
+                    ("Next", "Exposure will appear once positions are opened"),
+                    ("Tip", "Wallet and risk limits are still monitored"),
+                ]
+            ),
+        )
+    if mode == "pnl" and _safe_int(payload.get("positions")) <= 0:
+        return _section(
+            "🫥 Empty State",
+            _tree_group(
+                [
+                    ("Status", "No active PnL movement"),
+                    ("Next", "Realized and unrealized values update after trades"),
+                    ("Tip", "Use Performance view for session scorecard"),
                 ]
             ),
         )
@@ -418,6 +487,7 @@ async def render_position(
         "entry": entry,
         "size": size,
         "pnl": pnl,
+        "unrealized_pnl": pnl,
         "confidence": confidence,
         "edge": edge,
         "current": current,
@@ -436,16 +506,21 @@ async def render_dashboard(payload: Mapping[str, Any]) -> str:
 
     blocks: list[str] = [_hero_block(mode, normalized), _primary_block(mode, normalized)]
 
-    position_modes = {"positions", "trade", "exposure"}
-    market_modes = {"market", "markets", "positions", "trade", "exposure"}
-
-    if mode in position_modes:
+    if mode in {"positions", "trade"}:
         position_card = _render_position_card(normalized, market_label)
         if position_card:
             blocks.append(position_card)
 
-    if mode in market_modes:
+    if mode in {"market", "markets", "positions", "trade"}:
         blocks.append(_render_market_card(normalized, market_label))
+
+    if mode == "exposure":
+        blocks.append(_render_exposure_card(normalized))
+    elif mode == "pnl":
+        blocks.append(_render_pnl_card(normalized))
+    elif mode == "performance":
+        blocks.append(_render_performance_card(normalized))
+
     empty_state = _render_empty_state(mode, normalized)
     if empty_state:
         blocks.append(empty_state)
