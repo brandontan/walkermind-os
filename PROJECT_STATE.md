@@ -1,5 +1,5 @@
 Last Updated  : 2026-04-06
-Status        : UI formatter hotfix completed
+Status        : UI contract fixed
 COMPLETED     :
 - Added execution intelligence (dynamic entry/exit scoring) in execution/intelligence.py
 - Added performance analytics (trade history + metrics) in execution/analytics.py
@@ -38,12 +38,13 @@ COMPLETED     :
 - Added await to all 6 render_view call sites in telegram/command_handler.py
 - SENTINEL validation 16_3 completed with BLOCKED verdict (critical UI formatter syntax failure)
 - Fixed fatal syntax crash in projects/polymarket/polyquantbot/interface/ui_formatter.py blocking startup/import path
+- Fixed UI contract mismatch in interface/telegram/view_handler.py and normalized market context category defaults in data/market_context.py
 
 IN PROGRESS   :
 - None
 
 NEXT PRIORITY :
-- Re-run SENTINEL validation for 16_3 after UI formatter hotfix
+- Re-run SENTINEL 16_3
 
 KNOWN ISSUES  :
 - `python projects/polymarket/polyquantbot/main.py` still exits with config/import bootstrap error: "attempted relative import with no known parent package" when run as a script.
