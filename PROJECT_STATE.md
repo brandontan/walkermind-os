@@ -1,5 +1,5 @@
 Last Updated  : 2026-04-06
-Status        : UI formatter crash fixed
+Status        : UI formatter hotfix completed
 COMPLETED     :
 - Added execution intelligence (dynamic entry/exit scoring) in execution/intelligence.py
 - Added performance analytics (trade history + metrics) in execution/analytics.py
@@ -43,5 +43,7 @@ IN PROGRESS   :
 - None
 
 NEXT PRIORITY :
-- Re-run SENTINEL 16_3
+- Re-run SENTINEL validation for 16_3 after UI formatter hotfix
 
+KNOWN ISSUES  :
+- `python projects/polymarket/polyquantbot/main.py` still exits with config/import bootstrap error: "attempted relative import with no known parent package" when run as a script.
