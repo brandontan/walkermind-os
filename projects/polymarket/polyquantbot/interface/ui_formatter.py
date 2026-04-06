@@ -26,6 +26,10 @@ VIEW_TITLE = {
     "auto_trade": "🤖 Auto Trade",
     "mode": "🔀 Mode",
     "control": "🎛️ Control",
+    "active_scope": "✅ Active Scope",
+    "help": "❓ Help",
+    "guidance": "🧭 Guidance",
+    "bot_info": "ℹ️ Bot Info",
 }
 
 
@@ -184,6 +188,7 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
                 ("Total Value", _fmt_currency(payload.get("equity"))),
                 ("Exposure", _fmt_percent(payload.get("exposure"))),
                 ("Open Positions", _safe_int(payload.get("positions"))),
+                ("Scope", _safe_text(payload.get("scope_label"), "All Markets")),
             ],
         ),
         "system": (
@@ -271,7 +276,9 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
             [
                 ("Scanned", _safe_int(payload.get("markets_total"))),
                 ("Active", _safe_int(payload.get("markets_active"))),
-                ("Focus", _compact_text(payload.get("decision"), "Scan for asymmetric opportunity", max_len=56)),
+                ("Selection", _safe_text(payload.get("selection_type"), "All Markets")),
+                ("Categories", _safe_int(payload.get("active_categories_count"))),
+                ("Focus", _compact_text(payload.get("trading_scope_summary"), "Scan for asymmetric opportunity", max_len=56)),
             ],
         ),
         "refresh": (
@@ -320,6 +327,39 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
                 ("State", _safe_text(payload.get("state"), "running").upper()),
                 ("Action", _safe_text(payload.get("control_action"), "standby")),
                 ("Kill Switch", "Armed"),
+            ],
+        ),
+        "active_scope": (
+            "✅ Trading Scope",
+            [
+                ("Selection Type", _safe_text(payload.get("selection_type"), "All Markets")),
+                ("Active Categories", _safe_int(payload.get("active_categories_count"))),
+                ("Enabled", _compact_text(", ".join(payload.get("enabled_categories", [])) or "None", max_len=86)),
+                ("Summary", _compact_text(payload.get("trading_scope_summary"), "Trading scope: all allowed markets.", max_len=86)),
+            ],
+        ),
+        "help": (
+            "❓ Help Center",
+            [
+                ("Guidance", "How to use menus and scope controls"),
+                ("Bot Info", "Runtime behavior and control surfaces"),
+                ("Style", "Concise and mobile-first"),
+            ],
+        ),
+        "guidance": (
+            "🧭 Operator Guidance",
+            [
+                ("Main Menu", "Dashboard · Portfolio · Markets · Settings · Help"),
+                ("Scope Control", "Markets → All Markets / Categories / Active Scope"),
+                ("Refresh", "Use Refresh All in Dashboard or Markets"),
+            ],
+        ),
+        "bot_info": (
+            "ℹ️ Bot Runtime",
+            [
+                ("Pipeline", "DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING"),
+                ("Risk", "Risk checks remain enforced before execution"),
+                ("Scope", _compact_text(payload.get("trading_scope_summary"), "Trading scope: all allowed markets.", max_len=86)),
             ],
         ),
     }
@@ -403,6 +443,13 @@ def _render_performance_card(payload: Mapping[str, Any]) -> str:
 def _render_operator_note(payload: Mapping[str, Any]) -> str:
     note = _compact_text(payload.get("operator_note"), "Monitoring with current safeguards.", max_len=100)
     return _section("💡 Operator Note", _tree_group([("Guidance", note)]))
+
+
+def _render_scope_warning(payload: Mapping[str, Any]) -> str:
+    warning = _safe_text(payload.get("scope_warning"), "")
+    if not warning:
+        return ""
+    return _section("⚠️ Scope Warning", _tree_group([("Action Required", warning)]))
 
 
 def _render_empty_state(mode: str, payload: Mapping[str, Any]) -> str:
@@ -524,6 +571,9 @@ async def render_dashboard(payload: Mapping[str, Any]) -> str:
     empty_state = _render_empty_state(mode, normalized)
     if empty_state:
         blocks.append(empty_state)
+    scope_warning = _render_scope_warning(normalized)
+    if scope_warning:
+        blocks.append(scope_warning)
     blocks.append(_render_operator_note(normalized))
     blocks.append(_render_meta(normalized))
 

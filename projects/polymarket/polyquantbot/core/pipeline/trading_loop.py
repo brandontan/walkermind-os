@@ -77,6 +77,7 @@ from typing import Any, Callable, Awaitable, Optional
 import structlog
 
 from ..market.market_client import get_active_markets, extract_market_data
+from ..market_scope import apply_market_scope
 from ..market.ingest import ingest_markets
 from ..signal.signal_engine import generate_signals, generate_synthetic_signals
 from ..signal.alpha_model import ProbabilisticAlphaModel
@@ -821,15 +822,31 @@ async def run_trading_loop(
                     )
                     break
 
-                log.info("market_feed", count=len(markets))
+                scoped_markets, scope_snapshot = await apply_market_scope(markets)
+                log.info(
+                    "market_feed",
+                    count=len(markets),
+                    scoped_count=len(scoped_markets),
+                    selection_type=scope_snapshot.get("selection_type", "All Markets"),
+                    active_categories=scope_snapshot.get("enabled_categories", []),
+                )
+
+                if not scoped_markets:
+                    log.warning(
+                        "trading_loop_scope_blocked",
+                        all_markets=scope_snapshot.get("all_markets_enabled", True),
+                        active_categories=scope_snapshot.get("enabled_categories", []),
+                        guidance="Enable All Markets or at least one category in Telegram > Markets > Categories",
+                    )
+                    break
 
                 # ── 1a. Debug: log first 3 raw markets (temp) ─────────────────────
                 # TODO: remove once production data structure is confirmed stable
-                for _raw in markets[:3]:
+                for _raw in scoped_markets[:3]:
                     log.info("market_raw_sample", data=_raw)
 
                 # ── 1b. Parse and normalise markets ───────────────────────────────
-                normalised_markets = ingest_markets(markets)
+                normalised_markets = ingest_markets(scoped_markets)
                 for m in normalised_markets:
                     log.info(
                         "market_valid",

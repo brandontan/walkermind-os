@@ -28,6 +28,11 @@ import structlog
 
 from ..ui.keyboard import (
     build_main_menu,
+    build_dashboard_menu,
+    build_portfolio_menu,
+    build_markets_menu,
+    build_help_menu,
+    build_market_categories_menu,
     build_settings_menu,
     build_risk_level_menu,
     build_stop_confirm_menu,
@@ -42,6 +47,12 @@ from ..ui.screens import (
 )
 from ..ui.components import render_kv_line, render_insight, SEP
 from ...interface.telegram.view_handler import render_view
+from ...core.market_scope import (
+    MARKET_SCOPE_CATEGORIES,
+    get_market_scope_snapshot,
+    toggle_all_markets,
+    toggle_category,
+)
 from .portfolio_service import get_portfolio_service
 
 if TYPE_CHECKING:
@@ -57,6 +68,7 @@ if TYPE_CHECKING:
     from ...execution.paper_engine import PaperEngine
 
 _STRATEGY_TOGGLE_PREFIX = "strategy_toggle:"
+_MARKET_CATEGORY_TOGGLE_PREFIX = "markets_category_toggle:"
 
 log = structlog.get_logger(__name__)
 
@@ -347,6 +359,10 @@ class CallbackRouter:
         ]
         strategy_states = self._strategy_states()
         active_strategy = [name for name, enabled in strategy_states.items() if bool(enabled)]
+        scope_snapshot = get_market_scope_snapshot()
+        scope_warning = ""
+        if not bool(scope_snapshot.get("can_trade", True)):
+            scope_warning = "All Markets is OFF and no categories are enabled. Bot scanning/trading is blocked."
 
         payload: dict[str, object] = {
             "status": state_snapshot.get("state", "RUNNING"),
@@ -374,6 +390,12 @@ class CallbackRouter:
             "updated_at": state_snapshot.get("timestamp") or state_snapshot.get("updated_at"),
             "markets_total": 0,
             "markets_active": 0,
+            "selection_type": scope_snapshot.get("selection_type", "All Markets"),
+            "active_categories_count": scope_snapshot.get("active_categories_count", 0),
+            "enabled_categories": scope_snapshot.get("enabled_categories", []),
+            "trading_scope_summary": scope_snapshot.get("trading_scope_summary", "Trading scope: all allowed markets."),
+            "scope_label": scope_snapshot.get("scope_label", "All Markets"),
+            "scope_warning": scope_warning,
         }
 
         if action in {"strategy"}:
@@ -382,7 +404,6 @@ class CallbackRouter:
 
     async def _render_normalized_callback(self, action: str) -> tuple[str, list]:
         from ..ui.keyboard import (
-            build_status_menu,
             build_mode_confirm_menu,
             build_control_menu,
             build_main_menu,
@@ -390,7 +411,23 @@ class CallbackRouter:
             build_risk_level_menu,
         )  # noqa: PLC0415
 
-        normalized_action = "home" if action in {"back_main", "back", "start", "menu", "home"} else action
+        action_aliases = {
+            "dashboard": "dashboard_home",
+            "portfolio": "portfolio_wallet",
+            "markets": "markets_overview",
+            "dashboard_home": "home",
+            "dashboard_system": "system",
+            "dashboard_refresh_all": "refresh",
+            "portfolio_wallet": "wallet",
+            "portfolio_positions": "positions",
+            "portfolio_exposure": "exposure",
+            "portfolio_pnl": "pnl",
+            "portfolio_performance": "performance",
+            "markets_overview": "markets",
+            "markets_refresh_all": "refresh",
+        }
+        base_action = "home" if action in {"back_main", "back", "start", "menu", "home"} else action
+        normalized_action = action_aliases.get(base_action, base_action)
         payload = self._build_normalized_payload(normalized_action)
         payload["mode_label"] = self._mode.upper()
         if normalized_action == "settings_mode":
@@ -401,10 +438,27 @@ class CallbackRouter:
 
         text = await render_view(normalized_action, payload)
 
+        scope_snapshot = get_market_scope_snapshot()
+        enabled_categories = set(scope_snapshot.get("enabled_categories", []))
+
+        if base_action == "dashboard" or normalized_action in {"home", "system", "refresh"} and base_action.startswith("dashboard"):
+            return text, build_dashboard_menu()
+        if base_action == "portfolio" or base_action.startswith("portfolio_"):
+            return text, build_portfolio_menu()
+        if base_action == "markets_categories":
+            return text, build_market_categories_menu(
+                categories=list(MARKET_SCOPE_CATEGORIES),
+                enabled_categories=enabled_categories,
+            )
+        if base_action == "markets" or base_action.startswith("markets_"):
+            return text, build_markets_menu(bool(scope_snapshot.get("all_markets_enabled", True)))
+        if base_action == "help" or base_action.startswith("help_"):
+            return text, build_help_menu()
+
         if normalized_action == "home":
             return text, build_main_menu()
         if normalized_action in {"status", "system", "refresh", "positions", "trade", "pnl", "performance", "exposure", "risk"}:
-            return text, build_status_menu()
+            return text, build_dashboard_menu()
         if normalized_action == "wallet":
             if self._mode == "PAPER" and self._paper_wallet_engine is not None:
                 from ..ui.keyboard import build_paper_wallet_menu  # noqa: PLC0415
@@ -463,6 +517,23 @@ class CallbackRouter:
             "start",
             "menu",
             "home",
+            "dashboard",
+            "dashboard_home",
+            "dashboard_system",
+            "dashboard_refresh_all",
+            "portfolio",
+            "portfolio_wallet",
+            "portfolio_positions",
+            "portfolio_exposure",
+            "portfolio_pnl",
+            "portfolio_performance",
+            "markets_overview",
+            "markets_categories",
+            "markets_active_scope",
+            "markets_refresh_all",
+            "help",
+            "help_guidance",
+            "help_bot_info",
             "status",
             "refresh",
             "wallet",
@@ -485,6 +556,26 @@ class CallbackRouter:
         }
         if action in normalized_actions:
             return await self._render_normalized_callback(action)
+
+        if action == "markets_all_toggle":
+            await toggle_all_markets()
+            payload = self._build_normalized_payload("markets")
+            if bool(payload.get("scope_warning")):
+                payload["decision"] = "Scope blocked until at least one category is enabled or All Markets is turned ON"
+                payload["operator_note"] = "Use Markets → Categories to enable categories"
+            else:
+                payload["decision"] = "All Markets scope updated"
+            payload["insight"] = "Scope updates apply to market scanning and execution eligibility"
+            text = await render_view("markets", payload)
+            scope_snapshot = get_market_scope_snapshot()
+            return text, build_markets_menu(bool(scope_snapshot.get("all_markets_enabled", True)))
+
+        if action == "markets_categories_save":
+            payload = self._build_normalized_payload("active_scope")
+            payload["decision"] = "Category selection saved"
+            payload["operator_note"] = "Active scope now controls allowed scan/trade universe"
+            text = await render_view("active_scope", payload)
+            return text, build_markets_menu(bool(get_market_scope_snapshot().get("all_markets_enabled", True)))
 
         if action == "wallet_balance":
             return await handle_wallet_balance(user_id=user_id)
@@ -682,6 +773,20 @@ class CallbackRouter:
                     )
             await handle_strategy_toggle(strategy_name)
             return await self._render_normalized_callback("strategy")
+
+        if action.startswith(_MARKET_CATEGORY_TOGGLE_PREFIX):
+            category_name = action.removeprefix(_MARKET_CATEGORY_TOGGLE_PREFIX)
+            await toggle_category(category_name)
+            payload = self._build_normalized_payload("markets")
+            payload["decision"] = f"Category toggled: {category_name}"
+            payload["operator_note"] = "Category scope is now active because All Markets is OFF"
+            payload["insight"] = "Tap categories to enable/disable; use Active Scope to verify final trading universe"
+            text = await render_view("markets", payload)
+            scope_snapshot = get_market_scope_snapshot()
+            return text, build_market_categories_menu(
+                categories=list(MARKET_SCOPE_CATEGORIES),
+                enabled_categories=set(scope_snapshot.get("enabled_categories", [])),
+            )
 
         # ── Unknown ────────────────────────────────────────────────────────
         log.warning("callback_unknown_action", action=action)
