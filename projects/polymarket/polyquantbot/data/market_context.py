@@ -27,7 +27,7 @@ async def get_market_context(market_id: str) -> dict:
         name = q if isinstance(q, str) and q else f"Market #{market_id}"
         context = {
             "name": name,
-            "category": market_data.get("category", "Unknown"),
+            "category": market_data.get("category") or "unknown",
             "resolution": market_data.get(
                 "end_date_iso", market_data.get("end_date", "N/A")
             ),
@@ -38,6 +38,6 @@ async def get_market_context(market_id: str) -> dict:
         log.warning("market_context_api_failed", market_id=market_id, error=str(e))
         return {
             "name": f"Market #{market_id}",
-            "category": "Unknown",
+            "category": "unknown",
             "resolution": "N/A",
         }
