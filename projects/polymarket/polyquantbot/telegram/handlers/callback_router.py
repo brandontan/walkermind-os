@@ -37,11 +37,6 @@ from ..ui.keyboard import (
 )
 from ..ui.screens import (
     main_screen,
-    settings_risk_screen,
-    settings_mode_screen,
-    settings_notify_screen,
-    settings_auto_screen,
-    control_stop_confirm_screen,
     error_screen,
     noop_screen,
 )
@@ -374,14 +369,30 @@ class CallbackRouter:
         return payload
 
     async def _render_normalized_callback(self, action: str) -> tuple[str, list]:
-        from ..ui.keyboard import build_status_menu  # noqa: PLC0415
+        from ..ui.keyboard import (
+            build_status_menu,
+            build_mode_confirm_menu,
+            build_control_menu,
+            build_main_menu,
+            build_settings_menu,
+            build_risk_level_menu,
+        )  # noqa: PLC0415
 
-        normalized_action = "home" if action in {"back_main", "back", "start", "menu", "status", "home"} else action
+        normalized_action = "home" if action in {"back_main", "back", "start", "menu", "home"} else action
         payload = self._build_normalized_payload(normalized_action)
+        payload["mode_label"] = self._mode.upper()
+        if normalized_action == "settings_mode":
+            payload["target_mode"] = "PAPER" if self._mode.upper() == "LIVE" else "LIVE"
+            payload["mode_guard"] = "ENABLE_LIVE_TRADING=true required for LIVE"
+        if normalized_action == "control":
+            payload["control_action"] = "standby"
+
         text = await render_view(normalized_action, payload)
 
         if normalized_action == "home":
             return text, build_main_menu()
+        if normalized_action in {"status", "system", "refresh", "positions", "trade", "pnl", "performance", "exposure", "risk"}:
+            return text, build_status_menu()
         if normalized_action == "wallet":
             if self._mode == "PAPER" and self._paper_wallet_engine is not None:
                 from ..ui.keyboard import build_paper_wallet_menu  # noqa: PLC0415
@@ -394,7 +405,17 @@ class CallbackRouter:
                 strategies=sorted(strategy_states.keys()) if strategy_states else [],
                 active_states=strategy_states,
             )
-        return text, build_status_menu()
+        if normalized_action in {"settings", "settings_notify", "settings_auto", "notifications", "auto_trade"}:
+            return text, build_settings_menu()
+        if normalized_action in {"settings_risk"}:
+            return text, build_risk_level_menu()
+        if normalized_action in {"settings_mode", "mode"}:
+            target_mode = "PAPER" if self._mode.upper() == "LIVE" else "LIVE"
+            return text, build_mode_confirm_menu(target_mode)
+        if normalized_action == "control":
+            current_state = self._state.state.value
+            return text, build_control_menu(current_state)
+        return text, build_main_menu()
 
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
@@ -443,6 +464,12 @@ class CallbackRouter:
             "market",
             "markets",
             "summary",
+            "settings",
+            "settings_risk",
+            "settings_mode",
+            "settings_notify",
+            "settings_auto",
+            "control",
         }
         if action in normalized_actions:
             return await self._render_normalized_callback(action)
@@ -506,16 +533,63 @@ class CallbackRouter:
             return await handle_control(state_manager=self._state)
 
         if action == "control_pause":
-            return await handle_pause(state_manager=self._state)
+            _, _ = await handle_pause(state_manager=self._state)
+            payload = self._build_normalized_payload("control")
+            payload.update(
+                {
+                    "mode_label": self._mode.upper(),
+                    "control_action": "paused",
+                    "decision": "System paused via control menu",
+                    "operator_note": "Resume when safety checks pass",
+                    "insight": "Control actions use the same renderer as all operator menus",
+                }
+            )
+            text = await render_view("control", payload)
+            return text, build_control_menu(self._state.state.value)
 
         if action == "control_resume":
-            return await handle_resume(state_manager=self._state)
+            _, _ = await handle_resume(state_manager=self._state)
+            payload = self._build_normalized_payload("control")
+            payload.update(
+                {
+                    "mode_label": self._mode.upper(),
+                    "control_action": "resumed",
+                    "decision": "System resumed via control menu",
+                    "operator_note": "Monitor status and exposure after resume",
+                    "insight": "Control actions use the same renderer as all operator menus",
+                }
+            )
+            text = await render_view("control", payload)
+            return text, build_control_menu(self._state.state.value)
 
         if action == "control_stop_confirm":
-            return control_stop_confirm_screen(), build_stop_confirm_menu()
+            payload = self._build_normalized_payload("control")
+            payload.update(
+                {
+                    "mode_label": self._mode.upper(),
+                    "control_action": "confirm stop",
+                    "decision": "Stop requested — confirmation required",
+                    "operator_note": "Stop triggers halt and requires manual restart",
+                    "insight": "Use confirmation to prevent accidental halts",
+                }
+            )
+            text = await render_view("control", payload)
+            return text, build_stop_confirm_menu()
 
         if action == "control_stop_execute":
-            return await handle_kill(state_manager=self._state)
+            _, _ = await handle_kill(state_manager=self._state)
+            payload = self._build_normalized_payload("control")
+            payload.update(
+                {
+                    "mode_label": self._mode.upper(),
+                    "control_action": "halted",
+                    "decision": "System halted from control menu",
+                    "operator_note": "Manual restart required before trading can resume",
+                    "insight": "Kill-switch state is now rendered in the unified menu format",
+                }
+            )
+            text = await render_view("control", payload)
+            return text, build_control_menu(self._state.state.value)
 
         if action == "noop":
             return noop_screen(), []

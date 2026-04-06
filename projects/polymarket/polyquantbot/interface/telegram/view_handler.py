@@ -11,9 +11,13 @@ _ACTION_ALIAS: dict[str, str] = {
     "menu": "home",
     "main_menu": "home",
     "dashboard": "home",
-    "status": "home",
+    "status": "system",
     "position": "positions",
     "summary": "refresh",
+    "settings_notify": "notifications",
+    "settings_auto": "auto_trade",
+    "settings_mode": "mode",
+    "settings_risk": "risk",
 }
 
 
@@ -64,6 +68,14 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "markets_total": payload.get("markets_total", payload.get("total_markets", len(markets))),
         "markets_active": payload.get("markets_active", payload.get("active_markets", 0)),
         "updated_at": _first_present(payload, "updated_at", "last_updated", "timestamp", "time"),
+        "mode_label": _first_present(payload, "mode_label", "mode", default="PAPER"),
+        "target_mode": payload.get("target_mode"),
+        "mode_guard": payload.get("mode_guard"),
+        "auto_trade_state": payload.get("auto_trade_state", "manual"),
+        "critical_alerts": payload.get("critical_alerts", "enabled"),
+        "trade_alerts": payload.get("trade_alerts", "enabled"),
+        "summary_alerts": payload.get("summary_alerts", "hourly"),
+        "control_action": payload.get("control_action", "standby"),
     }
 
 
@@ -187,6 +199,72 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
                 "decision": safe_payload.get("decision", "Snapshot refreshed — review posture before next action"),
                 "operator_note": safe_payload.get("operator_note", "Refresh confirms current state only; execution remains gated"),
                 "insight": safe_payload.get("insight", "Refresh summary keeps operators aligned with latest values"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "system":
+        dashboard_payload = _base_payload("system", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "System state synchronized across menu paths"),
+                "operator_note": safe_payload.get("operator_note", "Use status menu tabs for detailed operational views"),
+                "insight": safe_payload.get("insight", "System summary stays isolated from trade-specific cards"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "settings":
+        dashboard_payload = _base_payload("settings", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Adjust runtime preferences with guardrails enabled"),
+                "operator_note": safe_payload.get("operator_note", "Settings menus now follow the same renderer grammar"),
+                "insight": safe_payload.get("insight", "Configuration context is isolated from market and position cards"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "notifications":
+        dashboard_payload = _base_payload("notifications", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Notification delivery profile ready"),
+                "operator_note": safe_payload.get("operator_note", "Critical alerts remain always on"),
+                "insight": safe_payload.get("insight", "Alert settings are grouped in one consistent card style"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "auto_trade":
+        dashboard_payload = _base_payload("auto_trade", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Enable only after confirming risk and mode settings"),
+                "operator_note": safe_payload.get("operator_note", "Auto-trade changes execution automation, not risk limits"),
+                "insight": safe_payload.get("insight", "Automation state is explicit and isolated from market cards"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "mode":
+        dashboard_payload = _base_payload("mode", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Review target mode and environment guard before switching"),
+                "operator_note": safe_payload.get("operator_note", "Mode confirmation should match runtime safety flags"),
+                "insight": safe_payload.get("insight", "Mode transition details are rendered consistently for callbacks and commands"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "control":
+        dashboard_payload = _base_payload("control", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Control actions are available with kill-switch safeguards"),
+                "operator_note": safe_payload.get("operator_note", "Pause, resume, and stop remain explicit operator actions"),
+                "insight": safe_payload.get("insight", "Control menu is isolated from unrelated market and position cards"),
             }
         )
         return await render_dashboard(dashboard_payload)
