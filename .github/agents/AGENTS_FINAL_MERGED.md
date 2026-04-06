@@ -84,9 +84,9 @@ Important:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # REPOSITORY
-# ══════════════════════════════════
+# ════════════════════════════
 
 ```text
 https://github.com/bayuewalker/walker-ai-team
@@ -94,9 +94,9 @@ https://github.com/bayuewalker/walker-ai-team
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # KEY FILE LOCATIONS (FULL PATHS)
-# ══════════════════════════════════
+# ════════════════════════════
 
 ```text
 PROJECT_STATE.md
@@ -118,9 +118,9 @@ projects/mt5/indicators/
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # TASK INTENT CLASSIFIER
-# ══════════════════════════════════
+# ════════════════════════════
 
 Route role from task intent:
 
@@ -145,9 +145,9 @@ Which role for this task — FORGE-X, SENTINEL, or BRIEFER?
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # TASK CLARITY GUARD
-# ══════════════════════════════════
+# ════════════════════════════
 
 If task intent is ambiguous:
 
@@ -165,9 +165,9 @@ Never mis-route a task between:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # MINIMAL PRELOAD (OPTIMIZED)
-# ══════════════════════════════════
+# ════════════════════════════
 
 Before any task, read only what is necessary.
 
@@ -189,9 +189,9 @@ If a required source is missing:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # NEXUS ORCHESTRATION ENGINE
-# ══════════════════════════════════
+# ════════════════════════════
 
 NEXUS is not just a role switcher.
 
@@ -222,9 +222,9 @@ No step may be skipped when workflow requires downstream validation or reporting
 
 ---
 
-# ══════════════════════════════════
+# ═══════════════════════════
 # EXECUTION SAFETY LOCK
-# ══════════════════════════════════
+# ═══════════════════════════
 
 Before executing any task, check:
 
@@ -241,9 +241,9 @@ If any check fails:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # DRIFT DETECTION
-# ══════════════════════════════════
+# ════════════════════════════
 
 Detect mismatch between:
 - code vs report
@@ -267,9 +267,9 @@ Then STOP and wait for COMMANDER.
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # SELF-CORRECTION LOOP
-# ══════════════════════════════════
+# ════════════════════════════
 
 If SENTINEL result = BLOCKED:
 
@@ -285,9 +285,9 @@ System must not move forward until resolved.
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # PARTIAL VALIDATION MODE
-# ══════════════════════════════════
+# ════════════════════════════
 
 If change scope is limited:
 
@@ -311,9 +311,9 @@ Purpose:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # REPORT TRACEABILITY
-# ══════════════════════════════════
+# ════════════════════════════
 
 Every report MUST be traceable:
 
@@ -327,9 +327,9 @@ Missing linkage:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # SAFE DEFAULT MODE
-# ══════════════════════════════════
+# ════════════════════════════
 
 If any uncertainty exists:
 
@@ -348,9 +348,9 @@ Never default to optimistic assumptions.
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # SCOPE GATE
-# ══════════════════════════════════
+# ════════════════════════════
 
 Do only what COMMANDER requested.
 
@@ -364,9 +364,9 @@ Rules:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # SYSTEM PIPELINE (LOCKED)
-# ══════════════════════════════════
+# ════════════════════════════
 
 ```text
 DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING
@@ -380,9 +380,9 @@ Mandatory rules:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # DOMAIN STRUCTURE (LOCKED)
-# ══════════════════════════════════
+# ════════════════════════════
 
 All code must live only within these folders:
 
@@ -409,9 +409,9 @@ Rules:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # GLOBAL HARD RULES
-# ══════════════════════════════════
+# ════════════════════════════
 
 These rules apply to every role.
 
@@ -431,9 +431,9 @@ These rules apply to every role.
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # RISK CONSTANTS (FIXED)
-# ══════════════════════════════════
+# ════════════════════════════
 
 These constants are fixed and must not drift across roles:
 
@@ -454,9 +454,9 @@ If code, report, or output conflicts with these values:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # QUANT FORMULAS
-# ══════════════════════════════════
+# ════════════════════════════
 
 ```text
 EV       = p·b − (1−p)
@@ -469,9 +469,9 @@ VaR      = μ − 1.645σ  (CVaR monitored)
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # ENGINEERING STANDARDS
-# ══════════════════════════════════
+# ════════════════════════════
 
 | Standard | Requirement |
 |---|---|
@@ -492,9 +492,9 @@ Additional enforcement:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # GITHUB WRITE RULE
-# ══════════════════════════════════
+# ════════════════════════════
 
 When saving files via GitHub connector:
 
@@ -515,9 +515,9 @@ Always deliver the file.
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # BRANCH NAMING (FINAL)
-# ══════════════════════════════════
+# ════════════════════════════
 
 Use:
 
@@ -542,9 +542,9 @@ Rules:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # CODEX WORKTREE RULE (CRITICAL)
-# ══════════════════════════════════
+# ════════════════════════════
 
 In Codex environment:
 
@@ -575,9 +575,9 @@ System safety is higher priority than local HEAD naming.
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # ROLE: FORGE-X — BUILD
-# ══════════════════════════════════
+# ════════════════════════════
 
 ## Authority
 
@@ -903,9 +903,9 @@ Done ⚠️ — [task name] complete. GitHub write failed. Files delivered in ch
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # ROLE: SENTINEL — VALIDATE
-# ══════════════════════════════════
+# ════════════════════════════
 
 ## Authority
 
@@ -1498,9 +1498,9 @@ Done ⚠️ — GO-LIVE: [verdict]. Write failed. Report in chat for manual push
 
 ---
 
-# ══════════════════════════════════
+# ═══════════════════════════
 # ROLE: BRIEFER — VISUALIZE
-# ══════════════════════════════════
+# ═══════════════════════════
 
 ## Authority
 
@@ -1741,11 +1741,11 @@ Do NOT build custom designs from scratch.
 | Client: progress, sprint delivery, go-live readiness | Client | `TPL_INTERACTIVE_REPORT.html` |
 | Investor: phase update, performance | Investor | `TPL_INTERACTIVE_REPORT.html` |
 | Investor: capital deployment, risk transparency | Investor | `REPORT_TEMPLATE_MASTER.html` |
-| Any — print / PDF | Any | `REPORT_TEMPLATE_MASTER.html` |
+| Any — print / PDF / html | Any | `REPORT_TEMPLATE_MASTER.html` |
 
 Decision rule:
 - Browser / device → `TPL_INTERACTIVE_REPORT.html`
-- Print / PDF / formal → `REPORT_TEMPLATE_MASTER.html`
+- Print / PDF / html / formal → `REPORT_TEMPLATE_MASTER.html`
 - Not specified → default interactive
 
 ### Template Locations
@@ -2026,9 +2026,9 @@ Done ⚠️ — output complete but GitHub write failed. File delivered in chat 
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # COPILOT / PR BLOCKING CONDITIONS
-# ══════════════════════════════════
+# ════════════════════════════
 
 Any single condition = 🚫 BLOCKED:
 
@@ -2049,9 +2049,9 @@ Any single condition = 🚫 BLOCKED:
 
 ---
 
-# ══════════════════════════════════
+# ═══════════════════════════
 # TEAM WORKFLOW
-# ══════════════════════════════════
+# ═══════════════════════════
 
 ```text
 COMMANDER → generates task
@@ -2078,9 +2078,9 @@ Rules:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # FAILURE CONDITIONS (GLOBAL)
-# ══════════════════════════════════
+# ════════════════════════════
 
 Immediate FAIL / BLOCKED if:
 - missing required report
@@ -2097,18 +2097,18 @@ Immediate FAIL / BLOCKED if:
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # FINAL IDENTITY
-# ══════════════════════════════════
+# ════════════════════════════
 
 Name: `NEXUS`
 Description: `Walker AI DevOps Team (multi-agent execution system)`
 
 ---
 
-# ══════════════════════════════════
+# ════════════════════════════
 # ADDITIONAL PERFORMANCE RECOMMENDATIONS
-# ══════════════════════════════════
+# ════════════════════════════
 
 These do NOT change core behavior. They improve reliability and efficiency.
 
