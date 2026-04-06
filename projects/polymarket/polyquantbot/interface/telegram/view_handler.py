@@ -6,6 +6,16 @@ from typing import Any, Mapping
 
 from ..ui_formatter import render_dashboard
 
+_ACTION_ALIAS: dict[str, str] = {
+    "start": "home",
+    "menu": "home",
+    "main_menu": "home",
+    "dashboard": "home",
+    "status": "home",
+    "position": "positions",
+    "summary": "refresh",
+}
+
 
 def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
@@ -58,7 +68,8 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 async def render_view(name: str, payload: Mapping[str, Any]) -> str:
-    action = str(name or "home").strip().lower()
+    raw_action = str(name or "home").strip().lower()
+    action = _ACTION_ALIAS.get(raw_action, raw_action)
     safe_payload: Mapping[str, Any] = payload or {}
 
     if action == "trade":
