@@ -10,7 +10,7 @@ IN PROGRESS   :
 
 NEXT PRIORITY :
 - SENTINEL validation required for telegram-live-coverage-fix-20260406 before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/telegram_live_coverage_fix_20260406.md
+Source: /workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/telegram_live_coverage_fix_20260406.md
 
 KNOWN ISSUES  :
 - Real Telegram screenshot capture is not available in this Codex environment; visual verification used formatter and callback-dispatch outputs instead.
