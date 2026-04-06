@@ -139,6 +139,36 @@ Missing → TASK FAILED
 
 ---
 
+## HARD COMPLETION ENFORCEMENT
+
+A FORGE-X task is INVALID if:
+
+- Report is missing
+- Report is incomplete (not 6 sections)
+- PROJECT_STATE.md not updated
+- Report path not correct
+
+System behavior:
+
+- SENTINEL must NOT run without valid forge report
+- COMMANDER must BLOCK progression
+- Merge must NOT be allowed
+
+---
+
+## FORGE VALIDATION RULE
+
+Before proceeding:
+
+- Verify report file exists in reports/forge/
+- Verify PROJECT_STATE.md updated
+- Verify report referenced in DONE output
+
+If not:
+→ TASK = FAILED
+
+---
+
 ## PROJECT_STATE UPDATE (ONLY THESE)
 
 - STATUS  
