@@ -46,7 +46,7 @@ from ..ui.screens import (
     noop_screen,
 )
 from ..ui.components import render_kv_line, render_insight, SEP
-from ...interface.telegram.view_handler import render_view
+from ...interface.telegram.view_handler import render_view, safe_number, safe_count
 from ...core.market_scope import (
     MARKET_SCOPE_CATEGORIES,
     get_market_scope_snapshot,
@@ -333,52 +333,59 @@ class CallbackRouter:
             return {}
 
     @staticmethod
-    def _safe_number(value: object, default: float = 0.0) -> float:
-        if value is None:
-            return default
-        if isinstance(value, str):
-            text = value.strip()
-            if not text or text.lower() in {"n/a", "na", "none", "null", "nan", "-"}:
-                return default
-            value = text
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
+    def _extract_field(container: object, key: str, default: object = None) -> object:
+        if isinstance(container, dict):
+            return container.get(key, default)
+        return getattr(container, key, default)
+
+    def _normalize_positions(self, raw_positions: object) -> list[dict[str, object]]:
+        if not isinstance(raw_positions, list | tuple):
+            return []
+        normalized: list[dict[str, object]] = []
+        for pos in raw_positions:
+            normalized.append(
+                {
+                    "market_id": str(self._extract_field(pos, "market_id", "") or ""),
+                    "side": str(self._extract_field(pos, "side", "flat") or "flat"),
+                    "entry_price": safe_number(
+                        self._extract_field(
+                            pos,
+                            "avg_price",
+                            self._extract_field(pos, "entry_price", 0.0),
+                        )
+                    ),
+                    "size": safe_number(self._extract_field(pos, "size", 0.0)),
+                    "unrealized_pnl": safe_number(
+                        self._extract_field(pos, "unrealized_pnl", self._extract_field(pos, "pnl", 0.0))
+                    ),
+                }
+            )
+        return normalized
 
     def _build_normalized_payload(self, action: str) -> dict[str, object]:
         state_snapshot = self._state.snapshot()
         config_snapshot = self._config.snapshot()
         portfolio = get_portfolio_service().get_state()
 
-        positions = []
+        positions: list[dict[str, object]] = []
         equity = 0.0
         cash = 0.0
         pnl = 0.0
         if portfolio is not None:
-            positions = list(portfolio.positions)
-            equity = self._safe_number(getattr(portfolio, "equity", 0.0))
-            cash = self._safe_number(getattr(portfolio, "cash", 0.0))
-            pnl = self._safe_number(getattr(portfolio, "pnl", 0.0))
+            positions = self._normalize_positions(self._extract_field(portfolio, "positions", []))
+            equity = safe_number(self._extract_field(portfolio, "equity", 0.0))
+            cash = safe_number(self._extract_field(portfolio, "cash", 0.0))
+            pnl = safe_number(self._extract_field(portfolio, "pnl", 0.0))
 
         primary = positions[0] if positions else None
         exposure = (
-            sum(self._safe_number(getattr(pos, "size", 0.0)) for pos in positions) / equity
+            sum(safe_number(pos.get("size", 0.0)) for pos in positions) / equity
         ) if equity > 0 else 0.0
         unrealized_total = sum(
-            self._safe_number(getattr(pos, "unrealized_pnl", 0.0))
+            safe_number(pos.get("unrealized_pnl", 0.0))
             for pos in positions
         )
-        open_positions = [
-            {
-                "market_id": getattr(pos, "market_id", ""),
-                "side": getattr(pos, "side", "flat"),
-                "entry_price": self._safe_number(getattr(pos, "avg_price", 0.0)),
-                "size": self._safe_number(getattr(pos, "size", 0.0)),
-                "unrealized_pnl": self._safe_number(getattr(pos, "unrealized_pnl", 0.0)),
-            }
-            for pos in positions
-        ]
+        open_positions = positions
         strategy_states = self._strategy_states()
         active_strategy = [name for name, enabled in strategy_states.items() if bool(enabled)]
         scope_snapshot = get_market_scope_snapshot()
@@ -396,17 +403,17 @@ class CallbackRouter:
             "equity": equity,
             "balance": cash,
             "available_balance": cash,
-            "positions_count": len(positions),
+            "positions_count": safe_count(len(positions), 0),
             "positions": open_positions,
             "pnl": pnl,
             "realized_pnl": 0.0,
             "unrealized_pnl": unrealized_total,
             "exposure": exposure,
-            "market_id": getattr(primary, "market_id", ""),
+            "market_id": (primary or {}).get("market_id", ""),
             "market_title": "",
-            "side": getattr(primary, "side", "flat"),
-            "entry": self._safe_number(getattr(primary, "avg_price", 0.0)),
-            "size": self._safe_number(getattr(primary, "size", 0.0)),
+            "side": (primary or {}).get("side", "flat"),
+            "entry": safe_number((primary or {}).get("entry_price", 0.0)),
+            "size": safe_number((primary or {}).get("size", 0.0)),
             "strategy_mode": "enabled" if active_strategy else "monitoring",
             "signal_state": f"{len(active_strategy)} active",
             "updated_at": state_snapshot.get("timestamp") or state_snapshot.get("updated_at"),
@@ -460,7 +467,15 @@ class CallbackRouter:
         if normalized_action == "control":
             payload["control_action"] = "standby"
 
-        text = await render_view(normalized_action, payload)
+        try:
+            text = await render_view(normalized_action, payload)
+        except Exception as exc:  # noqa: BLE001
+            log.error("callback_render_fallback", action=normalized_action, error=str(exc), exc_info=True)
+            fallback_payload = self._build_normalized_payload("home")
+            fallback_payload["decision"] = "Telemetry payload degraded — rendered with safe defaults"
+            fallback_payload["operator_note"] = "Home recovered from malformed input without interruption"
+            fallback_payload["insight"] = "Normalization parity with /start keeps home resilient"
+            text = await render_view("home", fallback_payload)
 
         scope_snapshot = get_market_scope_snapshot()
         enabled_categories = set(scope_snapshot.get("enabled_categories", []))
