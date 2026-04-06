@@ -35,11 +35,15 @@ import os
 import signal
 import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 import structlog
 
 log = structlog.get_logger(__name__)
+
+if __package__ in (None, ""):
+    sys.path.append(str(Path(__file__).resolve().parents[3]))
 
 # ── Startup log (emitted before any imports so Railway sees it early) ──────────
 print("🚀 PolyQuantBot starting (Railway)")
@@ -67,7 +71,7 @@ async def main() -> None:
 
     # ── Load live config from environment ──────────────────────────────────────
     try:
-        from .infra.live_config import LiveConfig
+        from projects.polymarket.polyquantbot.infra.live_config import LiveConfig
         config = LiveConfig.from_env()
         config.validate()
     except Exception as exc:
@@ -82,25 +86,25 @@ async def main() -> None:
     log.info("polyquantbot_mode", mode=mode)
 
     # ── Core components ────────────────────────────────────────────────────────
-    from .core.system_state import SystemStateManager
-    from .config.runtime_config import ConfigManager
+    from projects.polymarket.polyquantbot.core.system_state import SystemStateManager
+    from projects.polymarket.polyquantbot.config.runtime_config import ConfigManager
 
     state_manager = SystemStateManager()
     config_manager = ConfigManager()
 
     # ── Risk guard (lightweight stub for startup) ──────────────────────────────
-    from .risk.risk_guard import RiskGuard
+    from projects.polymarket.polyquantbot.risk.risk_guard import RiskGuard
     risk_guard = RiskGuard(
         daily_loss_limit=config.daily_loss_limit,
         max_drawdown_pct=config.drawdown_limit,
     )
 
     # ── Fill tracker ───────────────────────────────────────────────────────────
-    from .execution.fill_tracker import FillTracker
+    from projects.polymarket.polyquantbot.execution.fill_tracker import FillTracker
     fill_tracker = FillTracker()
 
     # ── Metrics exporter ───────────────────────────────────────────────────────
-    from .monitoring.metrics_exporter import MetricsExporter
+    from projects.polymarket.polyquantbot.monitoring.metrics_exporter import MetricsExporter
     metrics_exporter = MetricsExporter(
         risk_guard=risk_guard,
         fill_tracker=fill_tracker,
@@ -108,20 +112,20 @@ async def main() -> None:
     await metrics_exporter.start_logging_loop()
 
     # ── Telegram (optional) ────────────────────────────────────────────────────
-    from .telegram.telegram_live import TelegramLive
-    from .telegram.utils import telegram_sender as _telegram_sender
+    from projects.polymarket.polyquantbot.telegram.telegram_live import TelegramLive
+    from projects.polymarket.polyquantbot.telegram.utils import telegram_sender as _telegram_sender
     tg = TelegramLive.from_env()
     await tg.start()
     chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
     telegram_sender = None  # polling loop handles all command replies directly
 
     # ── System activation monitor ──────────────────────────────────────────────
-    from .monitoring.system_activation import SystemActivationMonitor
+    from projects.polymarket.polyquantbot.monitoring.system_activation import SystemActivationMonitor
     activation_monitor = SystemActivationMonitor()
     await activation_monitor.start()
 
     # ── WebSocket client (data feed) ──────────────────────────────────────────
-    from .data.websocket.ws_client import PolymarketWSClient
+    from projects.polymarket.polyquantbot.data.websocket.ws_client import PolymarketWSClient
     _raw_market_ids = os.getenv("MARKET_IDS", "").strip()
     market_ids: list[str] = (
         [mid.strip() for mid in _raw_market_ids.split(",") if mid.strip()]
@@ -146,16 +150,16 @@ async def main() -> None:
         )
 
     # ── Strategy state manager ─────────────────────────────────────────────────
-    from .strategy.strategy_manager import StrategyStateManager
+    from projects.polymarket.polyquantbot.strategy.strategy_manager import StrategyStateManager
     strategy_mgr = StrategyStateManager()
 
     # ── Multi-strategy metrics ─────────────────────────────────────────────────
-    from .monitoring.multi_strategy_metrics import MultiStrategyMetrics
+    from projects.polymarket.polyquantbot.monitoring.multi_strategy_metrics import MultiStrategyMetrics
     multi_metrics = MultiStrategyMetrics(["ev_momentum", "mean_reversion", "liquidity_edge"])
     log.info("metrics_initialized", initialized=True)
 
     # ── Command handler ────────────────────────────────────────────────────────
-    from .telegram.command_handler import CommandHandler
+    from projects.polymarket.polyquantbot.telegram.command_handler import CommandHandler
     cmd_handler = CommandHandler(
         state_manager=state_manager,
         config_manager=config_manager,
@@ -170,7 +174,7 @@ async def main() -> None:
     dashboard_enabled = os.getenv("DASHBOARD_ENABLED", "false").strip().lower() == "true"
     if dashboard_enabled:
         try:
-            from .api.dashboard_server import DashboardServer
+            from projects.polymarket.polyquantbot.api.dashboard_server import DashboardServer
             dashboard = DashboardServer(
                 command_handler=cmd_handler,
                 state_manager=state_manager,
@@ -190,7 +194,7 @@ async def main() -> None:
         log.info("dashboard_disabled", hint="Set DASHBOARD_ENABLED=true to enable")
 
     # ── Metrics HTTP server (lightweight /health + /metrics) ───────────────────
-    from .monitoring.server import MetricsServer
+    from projects.polymarket.polyquantbot.monitoring.server import MetricsServer
     metrics_server = MetricsServer(exporter=metrics_exporter)
     asyncio.create_task(metrics_server.start(), name="metrics_server")
 
@@ -261,7 +265,7 @@ async def main() -> None:
     _tg_api = f"https://api.telegram.org/bot{_tg_token}"
 
     # ── Centralized callback router (action: prefix → editMessageText) ─────────
-    from .telegram.handlers.callback_router import CallbackRouter as _CallbackRouter
+    from projects.polymarket.polyquantbot.telegram.handlers.callback_router import CallbackRouter as _CallbackRouter
     _callback_router = _CallbackRouter(
         tg_api=_tg_api,
         cmd_handler=cmd_handler,
@@ -285,14 +289,14 @@ async def main() -> None:
                 (uses sendMessage — always creates new message)
         """
         import aiohttp as _aio
-        from .telegram.command_router import CommandRouter
-        from .telegram.command_handler import CommandResult as _CR
-        from .telegram.ui.reply_keyboard import (
+        from projects.polymarket.polyquantbot.telegram.command_router import CommandRouter
+        from projects.polymarket.polyquantbot.telegram.command_handler import CommandResult as _CR
+        from projects.polymarket.polyquantbot.telegram.ui.reply_keyboard import (
             get_main_reply_keyboard,
             REPLY_MENU_MAP,
             _REPLY_KB_READY_MSG,
         )
-        from .telegram.handlers.text_handler import schedule_user_message_delete
+        from projects.polymarket.polyquantbot.telegram.handlers.text_handler import schedule_user_message_delete
         CommandResult = _CR
         router = CommandRouter(handler=cmd_handler)
         offset = 0
@@ -364,8 +368,8 @@ async def main() -> None:
             else:
                 # No active inline message yet — create one (same as /start inline
                 # portion) and track its message_id for future edits.
-                from .telegram.ui.keyboard import build_main_menu
-                from .telegram.ui.screens import main_screen
+                from projects.polymarket.polyquantbot.telegram.ui.keyboard import build_main_menu
+                from projects.polymarket.polyquantbot.telegram.ui.screens import main_screen
                 snap_state = state_manager.snapshot()
                 result_obj = CommandResult(
                     success=True,
@@ -503,7 +507,7 @@ async def main() -> None:
     )
 
     # ── Database initialisation (required — no silent fallback) ───────────────
-    from .infra.db import DatabaseClient
+    from projects.polymarket.polyquantbot.infra.db import DatabaseClient
     db = DatabaseClient()
     try:
         await db.connect()
@@ -523,33 +527,33 @@ async def main() -> None:
     log.info("strategy_state_loaded_from_db", state=strategy_mgr.get_state())
 
     # ── Market metadata cache ──────────────────────────────────────────────────
-    from .core.market.market_cache import MarketMetadataCache
+    from projects.polymarket.polyquantbot.core.market.market_cache import MarketMetadataCache
     market_cache = MarketMetadataCache()
     await market_cache.start()
     log.info("market_cache_started", size=market_cache.size())
 
     # ── Position manager (in-memory position tracker) ─────────────────────────
-    from .core.portfolio.position_manager import PositionManager
+    from projects.polymarket.polyquantbot.core.portfolio.position_manager import PositionManager
     position_manager = PositionManager()
     log.info("position_manager_initialized")
 
     # ── PnL tracker ───────────────────────────────────────────────────────────
-    from .core.portfolio.pnl import PnLTracker
+    from projects.polymarket.polyquantbot.core.portfolio.pnl import PnLTracker
     pnl_tracker = PnLTracker(db=db)
     log.info("pnl_tracker_initialized")
 
     # ── Wire trade-visibility handlers ────────────────────────────────────────
-    from .telegram.handlers.performance import (
+    from projects.polymarket.polyquantbot.telegram.handlers.performance import (
         set_multi_metrics as _set_perf_metrics,
         set_pnl_tracker as _set_perf_pnl,
     )
-    from .telegram.handlers.positions import (
+    from projects.polymarket.polyquantbot.telegram.handlers.positions import (
         set_position_manager as _set_pos_pm,
         set_market_cache as _set_pos_mc,
         set_pnl_tracker as _set_pos_pnl,
     )
-    from .telegram.handlers.pnl import set_pnl_tracker as _set_pnl_handler
-    from .telegram.handlers.portfolio_service import get_portfolio_service as _get_portfolio_service
+    from projects.polymarket.polyquantbot.telegram.handlers.pnl import set_pnl_tracker as _set_pnl_handler
+    from projects.polymarket.polyquantbot.telegram.handlers.portfolio_service import get_portfolio_service as _get_portfolio_service
     _set_perf_metrics(multi_metrics)
     _set_perf_pnl(pnl_tracker)
     _set_pos_pm(position_manager)
@@ -561,7 +565,7 @@ async def main() -> None:
     log.info("trade_visibility_handlers_wired")
 
     # ── Paper trading engine container (wallet, positions, ledger, exposure) ───
-    from .execution.engine_router import get_engine_container as _get_engines
+    from projects.polymarket.polyquantbot.execution.engine_router import get_engine_container as _get_engines
     engine_container = _get_engines()
 
     # Restore persisted wallet / positions / ledger from DB on startup
@@ -575,7 +579,7 @@ async def main() -> None:
     engine_container.inject_into_handlers()
 
     # Also inject PnLTracker into trade handler (realized PnL display)
-    from .telegram.handlers.trade import set_pnl_tracker as _set_trade_pnl
+    from projects.polymarket.polyquantbot.telegram.handlers.trade import set_pnl_tracker as _set_trade_pnl
     _set_trade_pnl(pnl_tracker)
     log.info("paper_engine_handlers_wired", mode=mode)
 
@@ -589,7 +593,7 @@ async def main() -> None:
     log.info("callback_router_engines_injected", mode=mode)
 
     # ── Telegram callback — accepts a pre-formatted string ────────────────────
-    from .telegram.telegram_live import AlertType as _AlertType
+    from projects.polymarket.polyquantbot.telegram.telegram_live import AlertType as _AlertType
 
     async def _tg_send(message: str) -> None:
         """Forward a pre-formatted string to Telegram (2-retry wrapper)."""
@@ -634,9 +638,9 @@ async def main() -> None:
     _telegram_sender.set_sender(_tg_send_private)
 
     # ── Bootstrap: market discovery + pipeline startup ─────────────────────────
-    from .core.bootstrap import run_bootstrap
-    from .core.pipeline.live_paper_runner import LivePaperRunner
-    from .core.pipeline.trading_loop import run_trading_loop
+    from projects.polymarket.polyquantbot.core.bootstrap import run_bootstrap
+    from projects.polymarket.polyquantbot.core.pipeline.live_paper_runner import LivePaperRunner
+    from projects.polymarket.polyquantbot.core.pipeline.trading_loop import run_trading_loop
 
     runner: Optional["LivePaperRunner"] = None
     pipeline_task = None
