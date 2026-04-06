@@ -39,8 +39,11 @@ def build_main_menu() -> InlineKeyboard:
         [⚙️ Settings]  [▶  Control ]
     """
     return [
-        [_btn("📊 Status",    "status"),   _btn("💰 Wallet",  "wallet")],
-        [_btn("⚙️ Settings", "settings"),  _btn("▶ Control", "control")],
+        [_btn("📊 Dashboard", "dashboard")],
+        [_btn("💼 Portfolio", "portfolio")],
+        [_btn("🎯 Markets", "markets")],
+        [_btn("⚙️ Settings", "settings")],
+        [_btn("❓ Help", "help")],
     ]
 
 
@@ -56,11 +59,65 @@ def build_status_menu() -> InlineKeyboard:
         [📊 Performance] [📉 Exposure     ]
         [🔄 Refresh    ] [🏠 Main Menu    ]
     """
+    return build_dashboard_menu()
+
+
+def build_dashboard_menu() -> InlineKeyboard:
+    """Dashboard sub-menu."""
     return [
-        [_btn("📈 Positions", "positions"), _btn("💹 PnL",          "pnl")],
-        [_btn("📊 Performance", "performance"), _btn("📉 Exposure", "exposure")],
-        [_btn("🔄 Refresh", "refresh"),     _btn("🏠 Main Menu",    "back_main")],
+        [_btn("Home", "dashboard_home"), _btn("System", "dashboard_system")],
+        [_btn("Refresh All", "dashboard_refresh_all")],
+        [_btn("🏠 Main Menu", "back_main")],
     ]
+
+
+def build_portfolio_menu() -> InlineKeyboard:
+    """Portfolio sub-menu."""
+    return [
+        [_btn("Wallet", "portfolio_wallet"), _btn("Positions", "portfolio_positions")],
+        [_btn("Exposure", "portfolio_exposure"), _btn("PnL", "portfolio_pnl")],
+        [_btn("Performance", "portfolio_performance")],
+        [_btn("🏠 Main Menu", "back_main")],
+    ]
+
+
+def build_markets_menu(all_markets_enabled: bool) -> InlineKeyboard:
+    """Markets sub-menu with All Markets scope state."""
+    all_markets_label = "🌍 All Markets ✅" if all_markets_enabled else "🌍 All Markets ⬜"
+    return [
+        [_btn("Overview", "markets_overview")],
+        [_btn(all_markets_label, "markets_all_toggle")],
+        [_btn("🗂 Categories", "markets_categories")],
+        [_btn("✅ Active Scope", "markets_active_scope")],
+        [_btn("🔄 Refresh All", "markets_refresh_all")],
+        [_btn("🏠 Main Menu", "back_main")],
+    ]
+
+
+def build_help_menu() -> InlineKeyboard:
+    """Help sub-menu."""
+    return [
+        [_btn("Guidance", "help_guidance")],
+        [_btn("Bot Info", "help_bot_info")],
+        [_btn("🏠 Main Menu", "back_main")],
+    ]
+
+
+def build_market_categories_menu(
+    categories: list[str],
+    enabled_categories: set[str],
+) -> InlineKeyboard:
+    """Category toggle menu with strategy-like checkbox rows."""
+    rows: InlineKeyboard = []
+    for idx in range(0, len(categories), 2):
+        row: list[dict[str, str]] = []
+        for name in categories[idx : idx + 2]:
+            marker = "✅" if name in enabled_categories else "⬜"
+            row.append(_btn(f"{marker} {name}", f"markets_category_toggle:{name}"))
+        rows.append(row)
+    rows.append([_btn("💾 Save Selection", "markets_categories_save")])
+    rows.append([_btn("🔙 Back", "markets")])
+    return rows
 
 
 # ── Wallet sub-menu ────────────────────────────────────────────────────────────
@@ -95,9 +152,10 @@ def build_paper_wallet_menu() -> InlineKeyboard:
 def build_settings_menu() -> InlineKeyboard:
     """Settings sub-menu."""
     return [
-        [_btn("⚠️ Risk Level",    "settings_risk"),    _btn("🔀 Mode",           "settings_mode")],
-        [_btn("📐 Strategy",       "settings_strategy"), _btn("🔔 Notifications",  "settings_notify")],
-        [_btn("🤖 Auto Trade",     "settings_auto"),     _btn("🏠 Main Menu",      "back_main")],
+        [_btn("Mode", "settings_mode"), _btn("Control", "control")],
+        [_btn("Risk Level", "settings_risk"), _btn("Strategy", "settings_strategy")],
+        [_btn("Notifications", "settings_notify"), _btn("Auto Trade", "settings_auto")],
+        [_btn("🏠 Main Menu", "back_main")],
     ]
 
 

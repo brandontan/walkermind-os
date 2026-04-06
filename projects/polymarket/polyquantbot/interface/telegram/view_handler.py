@@ -18,6 +18,21 @@ _ACTION_ALIAS: dict[str, str] = {
     "settings_auto": "auto_trade",
     "settings_mode": "mode",
     "settings_risk": "risk",
+    "dashboard_home": "home",
+    "dashboard_system": "system",
+    "dashboard_refresh_all": "refresh",
+    "portfolio_wallet": "wallet",
+    "portfolio_positions": "positions",
+    "portfolio_exposure": "exposure",
+    "portfolio_pnl": "pnl",
+    "portfolio_performance": "performance",
+    "markets_overview": "markets",
+    "markets_categories": "markets",
+    "markets_refresh_all": "refresh",
+    "markets_active_scope": "active_scope",
+    "help": "help",
+    "help_guidance": "guidance",
+    "help_bot_info": "bot_info",
 }
 
 
@@ -113,6 +128,12 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "control_action": payload.get("control_action", "standby"),
         "winrate": payload.get("winrate", 0),
         "trades": payload.get("trades", payload.get("total_trades", 0)),
+        "scope_label": payload.get("scope_label", "All Markets"),
+        "selection_type": payload.get("selection_type", "All Markets"),
+        "active_categories_count": payload.get("active_categories_count", 0),
+        "enabled_categories": payload.get("enabled_categories", []),
+        "trading_scope_summary": payload.get("trading_scope_summary", "Trading scope: all allowed markets."),
+        "scope_warning": payload.get("scope_warning", ""),
     }
 
 
@@ -228,6 +249,17 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
         )
         return await render_dashboard(dashboard_payload)
 
+    if action == "active_scope":
+        dashboard_payload = _base_payload("active_scope", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Scope controls exactly what the bot can scan and trade"),
+                "operator_note": safe_payload.get("operator_note", "Use All Markets or category toggles to define market universe"),
+                "insight": safe_payload.get("insight", "Active scope is enforced in the trading loop before signal generation"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
     if action in {"refresh", "summary"}:
         dashboard_payload = _base_payload("refresh", safe_payload)
         dashboard_payload.update(
@@ -257,6 +289,39 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
                 "decision": safe_payload.get("decision", "Adjust runtime preferences with guardrails enabled"),
                 "operator_note": safe_payload.get("operator_note", "Settings menus now follow the same renderer grammar"),
                 "insight": safe_payload.get("insight", "Configuration context is isolated from market and position cards"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "help":
+        dashboard_payload = _base_payload("help", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Use Guidance and Bot Info for quick operational clarity"),
+                "operator_note": safe_payload.get("operator_note", "Help is informational and does not change runtime state"),
+                "insight": safe_payload.get("insight", "Reference surface stays concise for mobile navigation"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "guidance":
+        dashboard_payload = _base_payload("guidance", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Navigate Dashboard, Portfolio, Markets, and Settings from the main menu"),
+                "operator_note": safe_payload.get("operator_note", "If scope is blocked, enable All Markets or at least one category"),
+                "insight": safe_payload.get("insight", "Market scope controls are in Markets → All Markets / Categories / Active Scope"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "bot_info":
+        dashboard_payload = _base_payload("bot_info", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Bot enforces risk before execution and follows selected market scope"),
+                "operator_note": safe_payload.get("operator_note", "Scope selection changes scan/trade universe immediately"),
+                "insight": safe_payload.get("insight", "Use Active Scope to verify what is currently tradable"),
             }
         )
         return await render_dashboard(dashboard_payload)
