@@ -1,6 +1,12 @@
 # telegram_menu_scope_hardening_20260407
 
 ## 1. What was built
+- **FORGE-X addendum (Home live blocker) applied in the same hardening pass:**
+  - Audited Home render path (`action:home`/dashboard/menu callbacks) versus `/start` alias flow and identified divergence in callback payload hydration robustness.
+  - Unified numeric normalization usage between Home callback payload hydration and `/start`-safe render policy by reusing shared Telegram `safe_number`/`safe_count` normalization.
+  - Hardened callback Home payload builder against malformed/shared-state portfolio payload shapes (dict/object/None, malformed numeric strings, missing keys).
+  - Added Home render fallback in callback router so degraded payload render errors are recovered to safe Home output instead of surfacing a hard failure.
+  - Hardened Active Scope text rendering for malformed restored category payload types.
 - Patched `/start` dashboard/menu numeric coercion blocker so placeholder values no longer crash Telegram render flow:
   - Added explicit numeric placeholder normalization in `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` for Telegram-facing dashboard payload derivation.
   - Added callback payload numeric hardening in `projects/polymarket/polyquantbot/telegram/handlers/callback_router.py` so portfolio values such as `"N/A"`, `None`, `""`, and malformed strings are coerced safely before render.
@@ -31,10 +37,28 @@
 - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/telegram/handlers/callback_router.py`
 - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/interface/ui_formatter.py`
 - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/interface/telegram/view_handler.py`
+- `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_telegram_start_numeric_safety.py`
 - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/telegram_menu_scope_hardening_20260407.md`
 - `/workspace/walker-ai-team/PROJECT_STATE.md`
 
 ## 4. Before/after improvement summary
+- **Home callback live blocker path (before → after)**
+  - Before: Home callback payload normalization assumed object-style portfolio fields and could break under malformed/shared-state restored payload shapes.
+  - After: Home payload hydration safely normalizes dict/object/None portfolio states, malformed numerics (`"N/A"`, `None`, `""`, non-numeric strings), and missing keys without hard crash.
+- **Home vs `/start` normalization divergence (before → after)**
+  - Before: callback Home normalization duplicated logic and could drift from `/start`-safe behavior.
+  - After: callback Home path reuses shared Telegram-safe numeric normalization (`safe_number`/`safe_count`) aligned with `/start` safety policy.
+- **Callback-driven Home hard failure behavior (before → after)**
+  - Before: render exception in callback path bubbled to error screen flow.
+  - After: callback router now recovers to safe Home fallback render with operator note instead of hard-failing menu flow.
+- **Persisted scope restore + Home render (before → after)**
+  - Before: malformed restored category payload types could produce inconsistent category render behavior.
+  - After: scope category display path now enforces list-to-text normalization so restored sparse/malformed values cannot break Home/Scope rendering.
+- **Regression evidence added for Home blocker**
+  - Added/extended tests for:
+    - Home render with malformed portfolio dict payload and placeholder numerics.
+    - callback `/start` → Home transition with sparse payload.
+    - Home render after persisted scope-state restore containing sparse/malformed category entries.
 - **`/start` numeric placeholder crash (before → after)**
   - Before: `/start` render path could execute `float("N/A")` during dashboard payload derivation, producing `ValueError` and CRITICAL ERROR card (`command_handler:/start` context).
   - After: all Telegram-facing numeric coercion on `/start` path routes through explicit safe normalization (`_safe_number`, `_safe_count`) with truthful defaults for degraded input.
@@ -79,4 +103,4 @@
 ## 6. Next
 - SENTINEL validation required for telegram-menu-scope-hardening-20260407 before merge.
 Source: projects/polymarket/polyquantbot/reports/forge/telegram_menu_scope_hardening_20260407.md
-- SENTINEL should validate `/start` placeholder regression path explicitly (including `"N/A"`, `None`, sparse/missing numeric fields) and confirm no CRITICAL ERROR card for this class.
+- SENTINEL should validate both `/start` and callback-driven Home placeholder regression paths explicitly (including `"N/A"`, `None`, empty, malformed numerics, sparse/missing fields, and persisted scope restore path) and confirm no CRITICAL ERROR card for this class.

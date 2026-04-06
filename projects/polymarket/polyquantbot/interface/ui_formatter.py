@@ -59,6 +59,12 @@ def _compact_text(value: object, default: str = "N/A", max_len: int = 72) -> str
     return text if len(text) <= max_len else f"{text[: max_len - 1]}…"
 
 
+def _as_text_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [_safe_text(item, "").strip() for item in value if _safe_text(item, "").strip()]
+    return []
+
+
 def _fmt_currency(value: object) -> str:
     return f"${_safe_float(value):,.2f}"
 
@@ -334,7 +340,7 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
             [
                 ("Selection Type", _safe_text(payload.get("selection_type"), "All Markets")),
                 ("Active Categories", _safe_int(payload.get("active_categories_count"))),
-                ("Enabled", _compact_text(", ".join(payload.get("enabled_categories", [])) or "None", max_len=86)),
+                ("Enabled", _compact_text(", ".join(_as_text_list(payload.get("enabled_categories"))) or "None", max_len=86)),
                 ("Summary", _compact_text(payload.get("trading_scope_summary"), "Trading scope: all allowed markets.", max_len=86)),
                 ("Fallback Rule", _compact_text(payload.get("scope_fallback_policy"), "Disabled", max_len=86)),
                 ("Persistence", "Scope restored after restart/re-init"),
