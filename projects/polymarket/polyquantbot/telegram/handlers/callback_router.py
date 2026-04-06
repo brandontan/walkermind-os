@@ -332,6 +332,20 @@ class CallbackRouter:
             log.warning("callback_strategy_state_unavailable", error=str(exc))
             return {}
 
+    @staticmethod
+    def _safe_number(value: object, default: float = 0.0) -> float:
+        if value is None:
+            return default
+        if isinstance(value, str):
+            text = value.strip()
+            if not text or text.lower() in {"n/a", "na", "none", "null", "nan", "-"}:
+                return default
+            value = text
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
     def _build_normalized_payload(self, action: str) -> dict[str, object]:
         state_snapshot = self._state.snapshot()
         config_snapshot = self._config.snapshot()
@@ -343,20 +357,25 @@ class CallbackRouter:
         pnl = 0.0
         if portfolio is not None:
             positions = list(portfolio.positions)
-            equity = float(portfolio.equity)
-            cash = float(portfolio.cash)
-            pnl = float(portfolio.pnl)
+            equity = self._safe_number(getattr(portfolio, "equity", 0.0))
+            cash = self._safe_number(getattr(portfolio, "cash", 0.0))
+            pnl = self._safe_number(getattr(portfolio, "pnl", 0.0))
 
         primary = positions[0] if positions else None
-        exposure = (sum(float(getattr(pos, "size", 0.0)) for pos in positions) / equity) if equity > 0 else 0.0
-        unrealized_total = sum(float(getattr(pos, "unrealized_pnl", 0.0)) for pos in positions)
+        exposure = (
+            sum(self._safe_number(getattr(pos, "size", 0.0)) for pos in positions) / equity
+        ) if equity > 0 else 0.0
+        unrealized_total = sum(
+            self._safe_number(getattr(pos, "unrealized_pnl", 0.0))
+            for pos in positions
+        )
         open_positions = [
             {
                 "market_id": getattr(pos, "market_id", ""),
                 "side": getattr(pos, "side", "flat"),
-                "entry_price": getattr(pos, "avg_price", 0.0),
-                "size": getattr(pos, "size", 0.0),
-                "unrealized_pnl": getattr(pos, "unrealized_pnl", 0.0),
+                "entry_price": self._safe_number(getattr(pos, "avg_price", 0.0)),
+                "size": self._safe_number(getattr(pos, "size", 0.0)),
+                "unrealized_pnl": self._safe_number(getattr(pos, "unrealized_pnl", 0.0)),
             }
             for pos in positions
         ]
@@ -386,8 +405,8 @@ class CallbackRouter:
             "market_id": getattr(primary, "market_id", ""),
             "market_title": "",
             "side": getattr(primary, "side", "flat"),
-            "entry": getattr(primary, "avg_price", 0.0),
-            "size": getattr(primary, "size", 0.0),
+            "entry": self._safe_number(getattr(primary, "avg_price", 0.0)),
+            "size": self._safe_number(getattr(primary, "size", 0.0)),
             "strategy_mode": "enabled" if active_strategy else "monitoring",
             "signal_state": f"{len(active_strategy)} active",
             "updated_at": state_snapshot.get("timestamp") or state_snapshot.get("updated_at"),
