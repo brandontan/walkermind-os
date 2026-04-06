@@ -22,15 +22,13 @@ async def get_market_context(market_id: str) -> dict:
         return market_cache[market_id]
 
     try:
-        market_data = await fetch_market_details(market_id)
-        q = market_data.get("question", "")
+        raw = await fetch_market_details(market_id) or {}
+        q = raw.get("question", "")
         name = q if isinstance(q, str) and q else f"Market #{market_id}"
         context = {
             "name": name,
-            "category": market_data.get("category") or "unknown",
-            "resolution": market_data.get(
-                "end_date_iso", market_data.get("end_date", "N/A")
-            ),
+            "category": raw.get("category") or "unknown",
+            "resolution": raw.get("end_date_iso", raw.get("end_date", "N/A")),
         }
         market_cache[market_id] = context
         return context
