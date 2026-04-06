@@ -58,6 +58,12 @@ async def main() -> None:
 
     log.info("polyquantbot_startup", ts=start_ts)
 
+    from projects.polymarket.polyquantbot.core.startup_phase import (
+        StartupPhase,
+        StartupStateTracker,
+    )
+    startup_state = StartupStateTracker()
+
     # ── Entrypoint assertion — confirms correct runtime path ───────────────────
     print("🚀 NEW TELEGRAM SYSTEM ACTIVE")
     print("ENTRYPOINT: main.py")
@@ -72,18 +78,36 @@ async def main() -> None:
     # ── Load live config from environment ──────────────────────────────────────
     try:
         from projects.polymarket.polyquantbot.infra.live_config import LiveConfig
+        from projects.polymarket.polyquantbot.config.startup_validation import (
+            validate_startup_environment,
+        )
+
         config = LiveConfig.from_env()
         config.validate()
+        mode: str = config.trading_mode.value  # "PAPER" | "LIVE"
+        startup_cfg = validate_startup_environment(mode=mode)
+        log.info(
+            "startup_config_validated",
+            mode=mode,
+            db_host=startup_cfg.db_host,
+            db_port=startup_cfg.db_port,
+            db_name=startup_cfg.db_name,
+            db_user=startup_cfg.db_user,
+        )
     except Exception as exc:
+        startup_state.set_phase(
+            StartupPhase.BLOCKED,
+            reason=f"config_validation_failed: {exc}",
+        )
         log.error(
             "polyquantbot_config_error",
             error=str(exc),
-            hint="Check TRADING_MODE and ENABLE_LIVE_TRADING env vars",
+            hint="Validate DB_DSN, required secrets, and paper/live mode consistency",
+            **startup_state.snapshot(),
         )
         sys.exit(1)
 
-    mode: str = config.trading_mode.value  # "PAPER" | "LIVE"
-    log.info("polyquantbot_mode", mode=mode)
+    log.info("polyquantbot_mode", mode=mode, **startup_state.snapshot())
 
     # ── Core components ────────────────────────────────────────────────────────
     from projects.polymarket.polyquantbot.core.system_state import SystemStateManager
@@ -185,10 +209,15 @@ async def main() -> None:
             asyncio.create_task(dashboard.start(), name="dashboard_server")
             log.info("dashboard_server_task_created")
         except Exception as exc:
+            startup_state.set_phase(
+                StartupPhase.DEGRADED,
+                reason=f"dashboard_init_failed: {exc}",
+            )
             log.error(
                 "dashboard_server_init_failed",
                 error=str(exc),
                 hint="Dashboard disabled — trading pipeline continues",
+                **startup_state.snapshot(),
             )
     else:
         log.info("dashboard_disabled", hint="Set DASHBOARD_ENABLED=true to enable")
@@ -504,22 +533,34 @@ async def main() -> None:
         mode=mode,
         dashboard_enabled=dashboard_enabled,
         startup_s=round(time.time() - start_ts, 3),
+        **startup_state.snapshot(),
     )
 
     # ── Database initialisation (required — no silent fallback) ───────────────
     from projects.polymarket.polyquantbot.infra.db import DatabaseClient
     db = DatabaseClient()
     try:
-        await db.connect()
-        await db.ensure_schema()
+        await db.connect_with_retry(max_attempts=4, base_backoff_s=1.0)
         log.info("db_enabled", status=True)
     except Exception as db_exc:
+        startup_state.set_phase(
+            StartupPhase.BLOCKED,
+            reason=f"database_unavailable: {db_exc}",
+        )
         log.error(
             "db_init_failed",
             error=str(db_exc),
-            hint="Check DB_DSN env var and ensure PostgreSQL is reachable",
+            hint="Check DB_DSN and PostgreSQL network reachability; execution remains blocked",
+            final_reason="database_required_for_audit_and_trade_safety",
+            **startup_state.snapshot(),
+        )
+        await tg.alert_error(
+            f"Startup blocked: database unavailable ({db_exc})",
+            context="startup_database",
         )
         raise RuntimeError(f"Database required — startup aborted: {db_exc}") from db_exc
+
+    startup_state.set_phase(StartupPhase.RUNNING, reason="database_ready")
 
     # ── Load strategy state from DB and wire DB into callback router ──────────
     await strategy_mgr.load(db=db)
