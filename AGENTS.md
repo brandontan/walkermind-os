@@ -53,7 +53,8 @@ Always read:
 Read if needed:
 - docs/KNOWLEDGE_BASE.md
 - docs/CLAUDE.md
-- templates
+- docs/templates/TPL_INTERACTIVE_REPORT.html
+- docs/templates/REPORT_TEMPLATE_MASTER.html
 
 ---
 
@@ -65,6 +66,7 @@ Single source of truth:
 - PROJECT_STATE.md → state
 - reports/forge → build
 - reports/sentinel → validation
+- reports/briefer → communication
 
 Flow (LOCKED):
 COMMANDER → FORGE-X → SENTINEL → BRIEFER
@@ -161,7 +163,9 @@ No phase folders.
 
 Priority:
 EV > accuracy > complexity
-if EV <= 0: reject else: execute
+
+if EV <= 0 → reject  
+else → execute  
 
 ---
 
@@ -183,7 +187,7 @@ Check impact on:
 
 FORGE-X → must handoff to SENTINEL  
 SENTINEL → verdict → COMMANDER  
-BRIEFER → only after data exists  
+BRIEFER → only after validated data exists  
 
 ---
 
@@ -198,28 +202,51 @@ BRIEFER → only after data exists
 ---
 
 # ══════════════════════════════════
-# BRANCH NAMING (UPDATED)
+# BRANCH NAMING (FINAL — FIXED)
 # ══════════════════════════════════
 
 Format:
-feature/[area]-[purpose]
+feature/{feature}-{date}
 
 Rules:
 - lowercase
 - hyphen-separated
-- no vague names
-- ≤ 50 chars
+- no brackets
+- include date (YYYYMMDD)
+- max clarity (area-purpose inside feature)
 
-Area mapping:
-- core, data, strategy, intelligence, risk, execution
-- monitoring, api, infra, backtest, ui, report, validation
+---
 
-Examples:
-- feature/execution-order-engine
-- feature/risk-kelly-module
-- feature/data-ws-handler
-- feature/report-investor-html
-- feature/validation-failure-test
+# ══════════════════════════════════
+# CODEX WORKTREE RULE (CRITICAL)
+# ══════════════════════════════════
+
+In Codex environment:
+
+- git rev-parse may return "work"
+- HEAD may be detached
+
+This is NORMAL behavior.
+
+---
+
+## HARD RULE
+
+Branch mismatch MUST NOT cause BLOCKED.
+
+---
+
+## VALIDATION
+
+PASS if:
+- task context matches feature
+- report path matches task
+- changes align with feature
+
+BLOCK only if:
+- wrong task scope
+- unrelated changes
+- no branch association exists
 
 ---
 
@@ -232,94 +259,241 @@ Process:
 2. Design  
 3. Implement  
 4. Validate structure  
-5. Report  
-6. Update state  
-
-Report (MANDATORY):
-- 6 sections required  
-- correct path  
-
-Hard delete:
-- no phase folders  
-- no duplicate files  
-
-Done:
-All checks pass → complete
+5. Generate report  
+6. Update PROJECT_STATE  
 
 ---
 
-# FORGE-X REPORT RULE
+## FORGE-X REPORT RULE
 
-If task changes repository files in any meaningful way:
-- report is mandatory
-- PROJECT_STATE update is mandatory
-- same commit is mandatory
+Report REQUIRED if:
+- any repo change
 
-If task is planning / analysis only and does not change repo:
-- no report required
-
----  
-## FORGE-X HARD COMPLETION RULE (CRITICAL)
-
-A task is NOT COMPLETE if ANY of the following is missing:
-
-- Forge report NOT saved to:
-  projects/polymarket/polyquantbot/reports/forge/[phase]_[increment]_[name].md
-- Report does NOT contain all 6 required sections
-- PROJECT_STATE.md NOT updated (5 sections only)
-- Report path NOT explicitly stated in output
-
-If ANY condition fails:
-
-→ TASK = FAILED  
-→ DO NOT proceed to SENTINEL  
-→ DO NOT allow merge  
-→ Return control to COMMANDER  
+Report NOT required if:
+- analysis only (no code change)
 
 ---
 
-## FORGE-X OUTPUT REQUIREMENT
+## REPORT STRUCTURE (MANDATORY)
 
-FORGE-X must end with:
-
-Done ✅ — [task]
-PR: feature/{feature}-{date}
-Report: projects/polymarket/polyquantbot/reports/forge/[filename].md
-
-Missing "Report:" line = INVALID OUTPUT
+1. What was built  
+2. Current system architecture  
+3. Files created / modified (full paths)  
+4. What is working  
+5. Known issues  
+6. What is next  
 
 ---
+
+## HARD COMPLETION RULE
+
+Task INVALID if:
+- report missing  
+- report incomplete  
+- PROJECT_STATE not updated  
+
+→ DO NOT PROCEED TO SENTINEL  
+
+---
+
+## OUTPUT FORMAT
+
+Done ✅ — [task name]  
+PR: feature/{feature}-{date}  
+Report: projects/polymarket/polyquantbot/reports/forge/[filename].md  
+
+---
+
 # ══════════════════════════════════
-# ROLE: SENTINEL
+# ROLE: SENTINEL (HARD MODE — FULL)
 # ══════════════════════════════════
 
 Default:
 System = UNSAFE  
 
-Phase 0:
-- report valid  
+Goal:
+PROVE SAFE (WITH EVIDENCE + BEHAVIOR)
+
+---
+
+## PHASE 0 — PRECHECK
+
+- report exists  
 - state updated  
 - structure valid  
 
-Validation:
-- functional  
-- pipeline  
-- failure  
-- async  
-- risk  
-- infra  
+Fail → STOP  
 
-Verdict:
-- APPROVED ≥85  
-- CONDITIONAL  
-- BLOCKED  
+---
 
-Any critical → BLOCKED
+## EVIDENCE RULE (MANDATORY)
+
+Every claim MUST include:
+
+- file path  
+- line number  
+- code snippet  
+
+Missing:
+→ score = 0  
+
+---
+
+## BEHAVIOR VALIDATION
+
+Code existence is NOT enough.
+
+Must prove:
+- function is called  
+- affects runtime  
+- cannot be bypassed  
+
+Else:
+→ max 50%  
+
+---
+
+## RUNTIME PROOF
+
+Must include at least ONE:
+
+- log snippet  
+- execution trace  
+- test output  
+
+Else:
+→ reduce score  
+
+---
+
+## LOG RULE
+
+"logs confirm" MUST include real log  
+
+Else:
+→ score = 0  
+
+---
+
+## NEGATIVE TEST
+
+Must test:
+
+- API failure  
+- invalid input  
+- missing data  
+- concurrency  
+- retry exhaustion  
+
+Missing:
+→ FAIL  
+
+---
+
+## BREAK ATTEMPT
+
+Must attempt:
+
+- bypass logic  
+- break system  
+
+Missing:
+→ max 70%  
+
+---
+
+## FAILURE TEST FORMAT
+
+Each test MUST include:
+
+- Input  
+- Expected  
+- Actual  
+- Evidence  
+
+---
+
+## RISK VALIDATION
+
+Each rule MUST include:
+
+- file  
+- line  
+- enforcement logic  
+
+Missing:
+→ BLOCKED  
+
+---
+
+## LATENCY RULE
+
+Must include:
+
+- measurement  
+- method  
+
+Else:
+→ score = 0  
+
+---
+
+## INFRA RULE
+
+Service unreachable:
+
+dev → WARN  
+staging/prod → FAIL  
+
+---
+
+## SCORING
+
+Full = evidence + behavior  
+Partial = partial proof  
+None = 0  
+
+Any critical failure:
+→ BLOCKED  
+
+---
+
+## ANTI FALSE PASS
+
+Score 100 requires:
+
+- ≥5 file refs  
+- ≥5 snippets  
+- runtime proof  
+
+Else:
+→ reduce score  
+
+---
+
+## VERDICT
+
+APPROVED ≥85  
+CONDITIONAL 60–84  
+BLOCKED otherwise  
+
+---
+
+## CRITICAL ISSUE
+
+Any:
+
+- missing code  
+- missing risk  
+- no evidence  
+- no behavior proof  
+
+→ BLOCKED  
 
 ---
 
 # ══════════════════════════════════
-# ROLE: BRIEFER
+# ROLE: BRIEFER (FULL — NOT REDUCED)
 # ══════════════════════════════════
 
 Modes:
@@ -327,60 +501,75 @@ Modes:
 - FRONTEND
 - REPORT
 
-Rules:
-- no invented data  
-- only from reports  
-- missing → N/A  
+---
 
-Audience:
-- internal  
-- client  
-- investor  
+## DATA SOURCE RULE
+
+Only use:
+- forge report  
+- sentinel report  
+
+Never invent data  
+
+Missing data:
+→ write N/A  
 
 ---
 
-# CODEX WORKTREE RULE (CRITICAL)
+## TEMPLATE SELECTION
 
-In Codex environment:
-
-- git rev-parse may return "work"
-- HEAD may be detached
-
-This is NORMAL behavior.
-
-DO NOT treat as failure.
+Browser → TPL_INTERACTIVE_REPORT.html  
+PDF → REPORT_TEMPLATE_MASTER.html  
 
 ---
 
-## BRANCH VALIDATION RULE
+## TEMPLATE RULES
 
-Do NOT rely on:
-
-- git rev-parse --abbrev-ref HEAD
-
-Instead verify:
-
-- expected branch from task
-- consistency of changes with task
-- PR branch (if available)
+- NEVER build HTML from scratch  
+- ALWAYS copy template  
+- Replace ALL placeholders  
+- Keep CSS intact  
+- No layout break  
+- No missing placeholders  
 
 ---
 
-## BLOCK CONDITIONS
+## INTERACTIVE TEMPLATE
 
-Only BLOCK if:
-
-- work is based on wrong feature
-- changes mismatch task
-- no branch association exists
+Use:
+- tab structure  
+- KPI cards  
+- progress indicators  
+- status badges  
 
 ---
 
-## SAFE CONDITION
+## PDF TEMPLATE
 
-HEAD = "work"
-→ SAFE
-→ continue validation
+Use:
+- <section class="card">  
+- no overflow  
+- no animation  
+
+---
+
+## RISK TABLE (FIXED)
+
+Must include:
+
+- Kelly 0.25  
+- Max position 10%  
+- Daily loss -2000  
+- Drawdown 8%  
+
+Never change values  
+
+---
+
+## OUTPUT PATH
+
+projects/polymarket/polyquantbot/reports/briefer/
+
 ---
 
 # ══════════════════════════════════
@@ -392,7 +581,7 @@ HEAD = "work"
 - risk violation  
 - drift detected  
 
-→ FAIL / BLOCKED
+→ BLOCKED  
 
 ---
 
