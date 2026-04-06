@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telegram Menu Scope Hardening Handoff 2026-04-07 — Walker AI Trading</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════
+       WALKER AI — MASTER REPORT TEMPLATE
+       Version: 1.0 | Dark Futuristic
+       BRIEFER: do not modify this CSS block.
+       Replace only {{PLACEHOLDER}} values in HTML.
+    ═══════════════════════════════════════════════════ */
+
+    :root {
+      --bg:       #020508;
+      --surface:  #060d14;
+      --surface2: #0a1520;
+      --border:   #0d2235;
+      --border2:  #1a3a55;
+      --accent:   #00d4ff;
+      --accent2:  #0088cc;
+      --accent3:  #00ffb3;
+      --warn:     #f59e0b;
+      --danger:   #ff3355;
+      --muted:    #3a6080;
+      --text:     #8ab8d0;
+      --text2:    #c8e0ee;
+      --white:    #e8f4ff;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Exo 2', sans-serif;
+      background: var(--bg);
+      color: var(--text2);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 3px,
+        rgba(0,212,255,0.012) 3px, rgba(0,212,255,0.012) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }
+
+    .report-header {
+      position: relative;
+      border: 1px solid var(--border2);
+      border-radius: 2px;
+      padding: 36px 36px 28px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(0,212,255,0.04) 0%, transparent 60%);
+    }
+
+    .report-header::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), var(--accent3), transparent);
+    }
+
+    .header-watermark {
+      position: absolute;
+      bottom: 14px; right: 18px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      opacity: 0.6;
+    }
+
+    .header-corner {
+      position: absolute;
+      top: 0; right: 0;
+      width: 70px; height: 70px;
+      border-left: 1px solid var(--accent);
+      border-bottom: 1px solid var(--accent);
+      opacity: 0.25;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,212,255,0.08);
+      border: 1px solid rgba(0,212,255,0.25);
+      border-radius: 2px;
+      padding: 3px 10px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--accent);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .badge-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: blink 2s infinite;
+    }
+
+    @keyframes blink {
+      0%,100% { opacity:1; } 50% { opacity:0.2; }
+    }
+
+    .report-header h1 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+
+    .report-header h1 .hl { color: var(--accent); }
+
+    .report-subtitle {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      border-top: 1px solid var(--border2);
+      padding-top: 16px;
+    }
+
+    .meta-item {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+
+    .meta-item strong { color: var(--accent); margin-right: 5px; }
+
+    .disclaimer {
+      border: 1px solid rgba(245,158,11,0.3);
+      border-left: 2px solid var(--warn);
+      background: rgba(245,158,11,0.04);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #c4880a;
+      margin-bottom: 20px;
+      letter-spacing: 0.3px;
+      line-height: 1.6;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      background: var(--surface);
+      position: relative;
+      animation: fadeUp 0.35s ease both;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, var(--accent2), transparent);
+      opacity: 0.4;
+    }
+
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(10px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    .card-header {
+      background: rgba(0,212,255,0.04);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-num {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--accent);
+      border: 1px solid var(--accent2);
+      width: 22px; height: 22px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .card-header h2 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--white);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .card-body { padding: 18px; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      background: var(--surface2);
+      border-left: 2px solid var(--accent);
+      padding: 10px 12px;
+    }
+
+    .metric .k {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric .v {
+      font-size: 16px;
+      color: var(--white);
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    ul, ol { margin: 0 0 0 20px; }
+    li { margin-bottom: 8px; }
+
+    .pill {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      border: 1px solid transparent;
+      margin-left: 4px;
+    }
+
+    .pill-green { color: var(--accent3); border-color: rgba(0,255,179,.35); background: rgba(0,255,179,.07); }
+    .pill-amber { color: var(--warn); border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.08); }
+
+    .report-footer {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 2px;
+      margin-top: 26px;
+      padding: 16px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    @media print {
+      body { background: #fff; color: #111; }
+      body::before, body::after { display: none !important; }
+      .page-wrapper { max-width: 100%; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+  <header class="report-header">
+    <div class="header-corner"></div>
+    <div class="badge"><span class="badge-dot"></span>BRIEFER HANDOFF</div>
+    <h1><span class="hl">Telegram Menu Scope Hardening</span> — Founder Handoff</h1>
+    <div class="report-subtitle">Decision Support Artifact · PDF-Ready HTML · 2026-04-07 Increment</div>
+    <div class="meta-row">
+      <div class="meta-item"><strong>System:</strong> PolyQuantBot Telegram Interface</div>
+      <div class="meta-item"><strong>Branch:</strong> feature/telegram-menu-scope-hardening-20260407</div>
+      <div class="meta-item"><strong>SENTINEL:</strong> APPROVED · 88/100 · No Critical Issues</div>
+    </div>
+    <div class="header-watermark">WALKER AI · BRIEFER · FOUNDER PACK</div>
+  </header>
+
+  <div class="disclaimer">
+    This handoff summarizes repository-truth state from PROJECT_STATE, FORGE report, and SENTINEL validation for commander-level merge decisions.
+  </div>
+
+  <section class="card">
+    <div class="card-header"><div class="section-num">01</div><h2>Executive Summary</h2></div>
+    <div class="card-body">
+      <p>
+        Telegram menu scope hardening for the 2026-04-07 increment is validated and merge-eligible at repository level.
+        Scope focused on live-path safety and scope integrity: numeric placeholder resilience on <code>/start</code>, Home callback hardening,
+        market-scope persistence, category inference hardening, and preservation of blocked-scope guard behavior.
+      </p>
+      <div class="grid-2" style="margin-top:12px;">
+        <div class="metric"><div class="k">Validation Verdict</div><div class="v">APPROVED <span class="pill pill-green">SENTINEL</span></div></div>
+        <div class="metric"><div class="k">Validation Score</div><div class="v">88 / 100</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><div class="section-num">02</div><h2>What Changed</h2></div>
+    <div class="card-body">
+      <ul>
+        <li><strong>/start numeric placeholder safety hardened:</strong> malformed, missing, and placeholder numeric inputs are normalized to prevent render-time crashes.</li>
+        <li><strong>Home callback live-path hardening:</strong> callback payload hydration and fallback response path were stabilized for degraded payload cases.</li>
+        <li><strong>Market-scope persistence added:</strong> all-markets toggle, enabled categories, and selection type now persist and restore after module/router re-initialization.</li>
+        <li><strong>Category inference hardening:</strong> deterministic inference plus fallback inclusion path for weak metadata / uncategorized market records.</li>
+        <li><strong>Blocked-scope guard preserved:</strong> when All Markets is OFF and no categories are active, downstream scan/trade scope remains blocked by design.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><div class="section-num">03</div><h2>What SENTINEL Validated</h2></div>
+    <div class="card-body">
+      <ul>
+        <li><strong>Verdict:</strong> APPROVED.</li>
+        <li><strong>Score:</strong> 88/100.</li>
+        <li><strong>Critical issues:</strong> none found.</li>
+        <li><strong>Behavior proof confirmed</strong> on target live paths: /start handling, Home callback route behavior, reply/inline root parity, and market-scope state restore + guard outcomes.</li>
+        <li><strong>Scope-block path confirmed:</strong> no-category state under All Markets OFF prevents downstream market processing for trading path.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><div class="section-num">04</div><h2>Remaining External Caveats</h2></div>
+    <div class="card-body">
+      <ul>
+        <li>Railway/live deployment behavior is separate from repo/worktree validation.</li>
+        <li>Final live-device confirmation remains external if still applicable.</li>
+        <li>External market-context endpoint warning may still appear in validation container if relevant.</li>
+      </ul>
+      <p style="margin-top:8px;">These caveats do not reverse the repository-level APPROVED verdict; they define external runtime confirmation boundaries.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><div class="section-num">05</div><h2>Decision Options</h2></div>
+    <div class="card-body">
+      <ol type="A">
+        <li><strong>Proceed to COMMANDER merge decision now.</strong></li>
+        <li><strong>Hold merge until Railway/live confirmation is observed.</strong></li>
+        <li><strong>Proceed with controlled rollout note while watching Railway stability.</strong></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><div class="section-num">06</div><h2>Recommendation</h2></div>
+    <div class="card-body">
+      <p>
+        Recommended option: <strong>C</strong> — proceed with a controlled rollout note while actively monitoring Railway/live stability.
+        This preserves momentum after APPROVED (88/100, no critical issues) while explicitly managing external-environment uncertainty.
+      </p>
+    </div>
+  </section>
+
+  <footer class="report-footer">
+    WALKER AI TRADING TEAM · TELEGRAM MENU SCOPE HARDENING HANDOFF<br/>
+    Generated: 2026-04-06 · Audience: Founder / COMMANDER · Source set: PROJECT_STATE + FORGE + SENTINEL
+  </footer>
+</div>
+</body>
+</html>
