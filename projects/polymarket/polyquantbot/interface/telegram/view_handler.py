@@ -11,16 +11,24 @@ def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def _first_present(payload: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
+    for key in keys:
+        if key in payload and payload.get(key) not in (None, ""):
+            return payload.get(key)
+    return default
+
+
 def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     positions = _as_list(payload.get("positions"))
     return {
         "state": payload.get("status", "waiting"),
         "mode": mode,
         "cycle": payload.get("cycle", "active"),
-        "equity": payload.get("equity", 0),
+        "equity": payload.get("equity", payload.get("balance", 0)),
         "positions": payload.get("positions_count", len(positions)),
         "exposure": payload.get("exposure", 0),
         "pnl": payload.get("pnl", payload.get("unrealized_pnl", 0)),
+        "realized_pnl": payload.get("realized_pnl", 0),
         "drawdown": payload.get("drawdown", 0),
         "risk_level": payload.get("risk_level", "standard"),
         "risk_state": payload.get("risk_state", "within limits"),
@@ -31,6 +39,13 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "confidence": payload.get("confidence", 0),
         "decision": payload.get("decision"),
         "operator_note": payload.get("operator_note"),
+        "market_title": _first_present(payload, "market_title", "market_name", "question"),
+        "market_question": payload.get("question"),
+        "market_id": _first_present(payload, "market_id", "market"),
+        "current": _first_present(payload, "current", "current_price", "last_price"),
+        "opened_at": _first_present(payload, "opened_at", "opened", "opened_time", "created_at"),
+        "strategy_mode": payload.get("strategy_mode"),
+        "signal_state": payload.get("signal_state"),
     }
 
 
@@ -39,16 +54,16 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
     safe_payload: Mapping[str, Any] = payload or {}
 
     if action == "trade":
-        dashboard_payload = _base_payload("trade", safe_payload)
+        dashboard_payload = _base_payload("positions", safe_payload)
         dashboard_payload.update(
             {
-                "market_id": safe_payload.get("market_id", safe_payload.get("market")),
+                "mode": "positions",
                 "side": safe_payload.get("side", safe_payload.get("direction", "flat")),
                 "entry": safe_payload.get("entry", safe_payload.get("entry_price", 0)),
                 "size": safe_payload.get("size", safe_payload.get("allocation", 0)),
-                "decision": safe_payload.get("decision", "deploy setup if risk gate clears"),
-                "operator_note": safe_payload.get("operator_note", "review edge and liquidity before send"),
-                "insight": safe_payload.get("insight", "signal is live and monitored"),
+                "decision": safe_payload.get("decision", "Deploy only if edge + liquidity both qualify"),
+                "operator_note": safe_payload.get("operator_note", "Review slippage and depth before send"),
+                "insight": safe_payload.get("insight", "Position card emphasizes what matters now"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -57,10 +72,35 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
         dashboard_payload = _base_payload("wallet", safe_payload)
         dashboard_payload.update(
             {
-                "decision": safe_payload.get("decision", "capital preserved — no forced deployment"),
-                "operator_note": safe_payload.get("operator_note", "wallet view is informational"),
-                "insight": safe_payload.get("insight", "liquidity and collateral snapshot"),
+                "decision": safe_payload.get("decision", "Capital intact — deployment is optional"),
+                "operator_note": safe_payload.get("operator_note", "Account summary only; no execution implied"),
+                "insight": safe_payload.get("insight", "Balance, exposure, and reserve are aligned"),
                 "positions": safe_payload.get("positions_count", len(_as_list(safe_payload.get("open_positions")))),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action in {"positions", "position"}:
+        dashboard_payload = _base_payload("positions", safe_payload)
+        dashboard_payload.update(
+            {
+                "side": safe_payload.get("side", safe_payload.get("direction", "flat")),
+                "entry": safe_payload.get("entry", safe_payload.get("entry_price", 0)),
+                "size": safe_payload.get("size", safe_payload.get("allocation", 0)),
+                "decision": safe_payload.get("decision", "Monitor active positions; protect downside"),
+                "operator_note": safe_payload.get("operator_note", "Prioritize drawdown and concentration risks"),
+                "insight": safe_payload.get("insight", "Positions sorted for quick read on mobile"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "pnl":
+        dashboard_payload = _base_payload("pnl", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Track realized vs unrealized before scaling"),
+                "operator_note": safe_payload.get("operator_note", "Evaluate losses before new entries"),
+                "insight": safe_payload.get("insight", "Pnl view highlights trend quality"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -69,9 +109,42 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
         dashboard_payload = _base_payload("performance", safe_payload)
         dashboard_payload.update(
             {
-                "decision": safe_payload.get("decision", "optimize based on realized performance"),
-                "operator_note": safe_payload.get("operator_note", "focus on drawdown and hit-rate trend"),
-                "insight": safe_payload.get("insight", "performance metrics refreshed"),
+                "decision": safe_payload.get("decision", "Optimize based on rolling scorecard"),
+                "operator_note": safe_payload.get("operator_note", "Keep drawdown stable while compounding edge"),
+                "insight": safe_payload.get("insight", "Performance consistency drives sizing confidence"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "exposure":
+        dashboard_payload = _base_payload("exposure", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Rebalance if concentration exceeds comfort"),
+                "operator_note": safe_payload.get("operator_note", "Exposure view tracks concentration pressure"),
+                "insight": safe_payload.get("insight", "Allocation split is readable under sparse payloads"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "risk":
+        dashboard_payload = _base_payload("risk", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Risk preset active — respect hard limits"),
+                "operator_note": safe_payload.get("operator_note", "Escalate when drawdown or liquidity warnings fire"),
+                "insight": safe_payload.get("insight", "Risk interpretation is surfaced before action"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "strategy":
+        dashboard_payload = _base_payload("strategy", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Strategy toggles define eligibility for execution"),
+                "operator_note": safe_payload.get("operator_note", "Confirm activation state after each config change"),
+                "insight": safe_payload.get("insight", "Strategy view emphasizes activation and gating"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -80,9 +153,9 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
         dashboard_payload = _base_payload("market", safe_payload)
         dashboard_payload.update(
             {
-                "decision": safe_payload.get("decision", "scan for asymmetric opportunity"),
-                "operator_note": safe_payload.get("operator_note", "rank by edge and confidence"),
-                "insight": safe_payload.get("insight", "market context prioritized for execution"),
+                "decision": safe_payload.get("decision", "Scan for asymmetric opportunity"),
+                "operator_note": safe_payload.get("operator_note", "Use market context before committing capital"),
+                "insight": safe_payload.get("insight", "Human-readable labels prioritized over raw ids"),
             }
         )
         return await render_dashboard(dashboard_payload)
@@ -91,9 +164,9 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
     dashboard_payload.update(
         {
             "state": safe_payload.get("status", "running"),
-            "decision": safe_payload.get("decision", "system healthy — await qualified signal"),
-            "operator_note": safe_payload.get("operator_note", "monitor risk gates and telemetry"),
-            "insight": safe_payload.get("insight", "home dashboard synchronized"),
+            "decision": safe_payload.get("decision", "System healthy — await qualified signal"),
+            "operator_note": safe_payload.get("operator_note", "Command center synced across major views"),
+            "insight": safe_payload.get("insight", "Home view surfaces what matters first"),
         }
     )
     return await render_dashboard(dashboard_payload)
