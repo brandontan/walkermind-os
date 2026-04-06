@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-06 21:44
-- Status        : SENTINEL validation complete for telegram-menu-scope-hardening-20260407 — verdict APPROVED, score 88/100, critical blockers none; BRIEFER handoff completed; awaiting COMMANDER merge decision
+- Last Updated  : 2026-04-06 22:15
+- Status        : FORGE-X telegram-premium-nav-ux-20260407 build pass complete (post-approval UX consolidation); awaiting SENTINEL validation before COMMANDER merge decision
 
 ---
 
@@ -26,15 +26,15 @@
 - Telegram live-path blocker fix (2026-04-06): removed root-menu divergence by aligning reply keyboard with 5-item root contract, forced `/start` to emit authoritative inline main menu payload, and hardened shared portfolio normalization path that could still execute `float(\"N/A\")`.
 - SENTINEL validation complete for `telegram-menu-scope-hardening-20260407` with verdict **APPROVED** (score **88/100**) and **no critical issues**.
 - BRIEFER handoff completed for `telegram-menu-scope-hardening-20260407`.
+- Telegram premium navigation / UX consolidation pass (2026-04-07): enforced two-layer Telegram navigation with persistent 5-item reply-keyboard root and contextual inline section actions; removed duplicated inline root menu; added active-root cue and compact button layout polish while preserving approved scope-control semantics.
 
 ---
 
 ## 🚧 IN PROGRESS
 
-### Phase 10.4 — 24H Live Paper Run
-- Final on-device Telegram visual confirmation in live-network environment.
-- Operational follow-up monitoring for external Railway/live deployment confirmation status.
-- COMMANDER merge-decision preparation based on APPROVED validation result (88/100, no critical issues) and completed BRIEFER handoff.
+### Telegram post-approval UX consolidation handoff
+- SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
+- Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
 
 ---
 
@@ -46,9 +46,9 @@
 
 ## 🎯 NEXT PRIORITY
 
-- COMMANDER merge decision for `telegram-menu-scope-hardening-20260407`.
-- Continue external Railway/live confirmation monitoring as operational follow-up until fully confirmed.
-- Merge to main remains a COMMANDER-only decision.
+- SENTINEL validation required for telegram-premium-nav-ux-20260407 before merge.
+- Source: projects/polymarket/polyquantbot/reports/forge/telegram_premium_nav_ux_20260407.md
+- COMMANDER merge decision after SENTINEL verdict.
 
 ---
 
@@ -56,3 +56,4 @@
 
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
+- External live Telegram device screenshot proof is still unavailable in this container environment.

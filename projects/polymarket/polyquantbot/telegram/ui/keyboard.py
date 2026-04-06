@@ -31,20 +31,12 @@ def _btn(text: str, action: str) -> dict[str, str]:
 
 
 def build_main_menu() -> InlineKeyboard:
-    """Top-level navigation menu.
+    """Legacy compatibility entry-point.
 
-    Layout::
-
-        [📊 Status]    [💰 Wallet  ]
-        [⚙️ Settings]  [▶  Control ]
+    The persistent reply keyboard is now the only root navigation layer, so
+    inline callbacks default to Dashboard contextual actions.
     """
-    return [
-        [_btn("📊 Dashboard", "dashboard")],
-        [_btn("💼 Portfolio", "portfolio")],
-        [_btn("🎯 Markets", "markets")],
-        [_btn("⚙️ Settings", "settings")],
-        [_btn("❓ Help", "help")],
-    ]
+    return build_dashboard_menu()
 
 
 # ── Status sub-menu ────────────────────────────────────────────────────────────
@@ -63,43 +55,36 @@ def build_status_menu() -> InlineKeyboard:
 
 
 def build_dashboard_menu() -> InlineKeyboard:
-    """Dashboard sub-menu."""
+    """Dashboard contextual menu (two-layer model)."""
     return [
-        [_btn("Home", "dashboard_home"), _btn("System", "dashboard_system")],
-        [_btn("Refresh All", "dashboard_refresh_all")],
-        [_btn("🏠 Main Menu", "back_main")],
+        [_btn("🏠 Home", "dashboard_home"), _btn("🧠 System", "dashboard_system")],
+        [_btn("🔄 Refresh All", "dashboard_refresh_all")],
     ]
 
 
 def build_portfolio_menu() -> InlineKeyboard:
-    """Portfolio sub-menu."""
+    """Portfolio contextual menu."""
     return [
-        [_btn("Wallet", "portfolio_wallet"), _btn("Positions", "portfolio_positions")],
-        [_btn("Exposure", "portfolio_exposure"), _btn("PnL", "portfolio_pnl")],
-        [_btn("Performance", "portfolio_performance")],
-        [_btn("🏠 Main Menu", "back_main")],
+        [_btn("💰 Wallet", "portfolio_wallet"), _btn("📈 Positions", "portfolio_positions")],
+        [_btn("📊 Exposure", "portfolio_exposure"), _btn("💹 PnL", "portfolio_pnl")],
+        [_btn("🏁 Performance", "portfolio_performance")],
     ]
 
 
 def build_markets_menu(all_markets_enabled: bool) -> InlineKeyboard:
-    """Markets sub-menu with All Markets scope state."""
+    """Markets contextual menu with compact control grouping."""
     all_markets_label = "🌍 All Markets ✅" if all_markets_enabled else "🌍 All Markets ⬜"
     return [
-        [_btn("Overview", "markets_overview")],
-        [_btn(all_markets_label, "markets_all_toggle")],
-        [_btn("🗂 Categories", "markets_categories")],
-        [_btn("✅ Active Scope", "markets_active_scope")],
+        [_btn("📡 Overview", "markets_overview"), _btn(all_markets_label, "markets_all_toggle")],
+        [_btn("🗂 Categories", "markets_categories"), _btn("✅ Active Scope", "markets_active_scope")],
         [_btn("🔄 Refresh All", "markets_refresh_all")],
-        [_btn("🏠 Main Menu", "back_main")],
     ]
 
 
 def build_help_menu() -> InlineKeyboard:
-    """Help sub-menu."""
+    """Help contextual menu."""
     return [
-        [_btn("Guidance", "help_guidance")],
-        [_btn("Bot Info", "help_bot_info")],
-        [_btn("🏠 Main Menu", "back_main")],
+        [_btn("🧭 Guidance", "help_guidance"), _btn("ℹ️ Bot Info", "help_bot_info")],
     ]
 
 
@@ -150,12 +135,11 @@ def build_paper_wallet_menu() -> InlineKeyboard:
 
 
 def build_settings_menu() -> InlineKeyboard:
-    """Settings sub-menu."""
+    """Settings contextual menu."""
     return [
-        [_btn("Mode", "settings_mode"), _btn("Control", "control")],
-        [_btn("Risk Level", "settings_risk"), _btn("Strategy", "settings_strategy")],
-        [_btn("Notifications", "settings_notify"), _btn("Auto Trade", "settings_auto")],
-        [_btn("🏠 Main Menu", "back_main")],
+        [_btn("🔀 Mode", "settings_mode"), _btn("🎛️ Control", "control")],
+        [_btn("🛡️ Risk Level", "settings_risk"), _btn("🧠 Strategy", "settings_strategy")],
+        [_btn("🔔 Notifications", "settings_notify"), _btn("🤖 Auto Trade", "settings_auto")],
     ]
 
 

@@ -12,7 +12,7 @@ from ..core.system_state import SystemState, SystemStateManager
 from ..interface.telegram.view_handler import render_view, safe_count, safe_number
 from ..execution.engine import export_execution_payload, get_execution_engine
 from ..execution.strategy_trigger import StrategyConfig, StrategyTrigger
-from .ui.keyboard import build_main_menu
+from .ui.keyboard import build_dashboard_menu
 from .handlers.portfolio_service import get_portfolio_service
 from .message_formatter import (
     format_capital_allocation_report,
@@ -451,7 +451,7 @@ class CommandHandler:
             "positions": safe_count(metrics.get("open_positions", metrics.get("positions", 0)), 0),
             "unrealized": safe_number(metrics.get("unrealized_pnl", metrics.get("unreal", 0.0)), 0.0),
             "realized": safe_number(metrics.get("pnl", metrics.get("realized", 0.0)), 0.0),
-            "_keyboard": build_main_menu(),
+            "_keyboard": build_dashboard_menu(),
             "insight": (
                 f"Risk {risk_multiplier:.2f} • Max Pos {max_position:.2f}"
             ),
