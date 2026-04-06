@@ -1,81 +1,82 @@
-"""Refactored Premium UI Formatter (Production-Ready)."""
+"""Premium Telegram UI formatter for operator-grade summaries."""
 
 from __future__ import annotations
 
+from typing import Any, Mapping
+
 from projects.polymarket.polyquantbot.data.market_context import get_market_context
 
-
-# =========================
-# SAFETY HELPERS
-# =========================
-
-def _safe_float(value: object) -> float:
-    try:
-        return float(value)
-    except Exception:
-        return 0.0
-
-
-def _safe_str(value: object) -> str:
-    return str(value) if value is not None else "N/A"
-
-
-# =========================
-# EMOJI SYSTEM
-# =========================
+SECTION_DIVIDER = "────────────────────"
 
 EMOJI = {
-    "equity": "💰",
-    "positions": "📦",
-    "exposure": "📊",
-    "insight": "🧠",
-    "risk": "⚠️",
-    "action": "💡",
-    "system": "⚙️",
+    "system": "🧭",
+    "portfolio": "💼",
+    "risk": "🛡️",
+    "decision": "🎯",
+    "market": "🌐",
+    "trade": "📌",
 }
 
 
-# =========================
-# CORE UI BUILDERS
-# =========================
-
-def _divider(title: str) -> str:
-    return f"━━━━━━━━━━━━━━\n{title}\n━━━━━━━━━━━━━━"
-
-
-def _pnl(pnl: float) -> str:
-    pnl = _safe_float(pnl)
-    if pnl > 0:
-        return f"🟢 +{pnl:.2f}"
-    if pnl < 0:
-        return f"🔴 {pnl:.2f}"
-    return "🟡 0.00"
+def _safe_float(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
-# =========================
-# BLOCKS
-# =========================
-
-def render_system(state: object, mode: object) -> str:
-    return (
-        _divider(f"{EMOJI['system']} SYSTEM")
-        + "\n"
-        + f"State : {_safe_str(state)}\n"
-        + f"Mode  : {_safe_str(mode)}"
-    )
+def _safe_int(value: object, default: int = 0) -> int:
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
 
 
-def render_portfolio(equity: object, positions: object, exposure: object) -> str:
-    equity_value = _safe_float(equity)
-    exposure_value = _safe_float(exposure)
+def _safe_text(value: object, default: str = "N/A") -> str:
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text or default
 
-    return (
-        _divider(f"{EMOJI['equity']} PORTFOLIO")
-        + "\n"
-        + f"Equity    : ${equity_value:,.2f}\n"
-        + f"Positions : {_safe_float(positions):.0f}\n"
-        + f"Exposure  : {exposure_value:.1%}"
-    )
+
+def _fmt_currency(value: object) -> str:
+    return f"${_safe_float(value):,.2f}"
+
+
+def _fmt_percent(value: object, *, already_percent: bool = False) -> str:
+    numeric = _safe_float(value)
+    if already_percent:
+        return f"{numeric:.1f}%"
+    return f"{numeric * 100:.1f}%"
+
+
+def _fmt_signed_percent(value: object, *, already_percent: bool = False) -> str:
+    numeric = _safe_float(value)
+    if not already_percent:
+        numeric *= 100
+    return f"{numeric:+.1f}%"
+
+
+def _fmt_signed_currency(value: object) -> str:
+    numeric = _safe_float(value)
+    return f"{numeric:+,.2f}"
+
+
+def _direction(value: object) -> str:
+    side = _safe_text(value, "FLAT").upper()
+    if side in {"BUY", "LONG", "YES"}:
+        return f"🟢 {side}"
+    if side in {"SELL", "SHORT", "NO"}:
+        return f"🔴 {side}"
+    return f"🟡 {side}"
+
+
+def _line(label: str, value: object) -> str:
+    return f"• {label}: {value}"
+
+
+def _section(title: str, lines: list[str]) -> str:
+    return "\n".join([SECTION_DIVIDER, title, *lines])
 
 
 async def render_position(
@@ -84,68 +85,102 @@ async def render_position(
     entry: object,
     size: object,
     pnl: object,
+    confidence: object,
+    edge: object,
 ) -> str:
-    context = await get_market_context(market_id) or {}
-    name = context.get("name", "Unknown Market")
+    context = await get_market_context(_safe_text(market_id, "")) or {}
+    market_name = _safe_text(context.get("name") or context.get("question") or market_id)
 
-    entry_value = _safe_float(entry)
-    size_value = _safe_float(size)
-    pnl_value = _safe_float(pnl)
-
-    return (
-        _divider(f"{EMOJI['positions']} POSITION")
-        + "\n"
-        + f"Market : {name}\n"
-        + f"Side   : {_safe_str(side)}\n"
-        + f"Entry  : ${entry_value:,.2f}\n"
-        + f"Size   : ${size_value:,.2f}\n"
-        + f"PnL    : {_pnl(pnl_value)}"
-    )
+    lines = [
+        _line("Market", market_name),
+        _line("Direction", _direction(side)),
+        _line("Entry", _fmt_currency(entry)),
+        _line("Sizing", _fmt_currency(size)),
+        _line("Edge", _fmt_signed_percent(edge)),
+        _line("Confidence", _fmt_percent(confidence, already_percent=True)),
+        _line("Open PnL", _fmt_signed_currency(pnl)),
+    ]
+    return _section(f"{EMOJI['trade']} TRADE", lines)
 
 
-def render_risk(drawdown: object) -> str:
-    dd = _safe_float(drawdown)
-    return _divider(f"{EMOJI['risk']} RISK") + "\n" + f"Drawdown : {dd:.1%}"
+def _render_system(payload: Mapping[str, Any]) -> str:
+    lines = [
+        _line("Status", _safe_text(payload.get("state"), "waiting")),
+        _line("View", _safe_text(payload.get("mode"), "home")),
+        _line("Cycle", _safe_text(payload.get("cycle"), "active")),
+    ]
+    return _section(f"{EMOJI['system']} SYSTEM", lines)
 
 
-def render_insight(text: object) -> str:
-    return _divider(f"{EMOJI['insight']} INSIGHT") + "\n" + f"{_safe_str(text)}"
+def _render_portfolio(payload: Mapping[str, Any]) -> str:
+    lines = [
+        _line("Equity", _fmt_currency(payload.get("equity"))),
+        _line("Open Positions", _safe_int(payload.get("positions"))),
+        _line("Exposure", _fmt_percent(payload.get("exposure"))),
+        _line("Unrealized PnL", _fmt_signed_currency(payload.get("pnl"))),
+    ]
+    return _section(f"{EMOJI['portfolio']} PORTFOLIO", lines)
 
 
-def render_decision(text: object) -> str:
-    return _divider(f"{EMOJI['action']} DECISION") + "\n" + f"{_safe_str(text)}"
+def _render_risk(payload: Mapping[str, Any]) -> str:
+    lines = [
+        _line("Drawdown", _fmt_percent(payload.get("drawdown"))),
+        _line("Risk Tier", _safe_text(payload.get("risk_level"), "standard")),
+        _line("Limit State", _safe_text(payload.get("risk_state"), "within limits")),
+    ]
+    return _section(f"{EMOJI['risk']} RISK", lines)
 
 
-# =========================
-# SINGLE ENTRY POINT
-# =========================
+def _render_decision(payload: Mapping[str, Any]) -> str:
+    action = _safe_text(payload.get("decision"), "wait for qualified setup")
+    confidence = _fmt_percent(payload.get("confidence", 0.0), already_percent=True)
+    lines = [
+        _line("Action", action),
+        _line("Confidence", confidence),
+        _line("Operator Note", _safe_text(payload.get("operator_note"), "execution ready")),
+    ]
+    return _section(f"{EMOJI['decision']} DECISION", lines)
 
-async def render_dashboard(payload: dict) -> str:
-    """ONLY ENTRY POINT — do not bypass this."""
 
-    blocks: list[str] = []
+def _render_market_context(payload: Mapping[str, Any]) -> str:
+    lines = [
+        _line("Regime", _safe_text(payload.get("trend"), "neutral")),
+        _line("Signal Edge", _safe_text(payload.get("edge_label"), _fmt_signed_percent(payload.get("edge")))),
+        _line("Narrative", _safe_text(payload.get("insight"), "monitoring flow")),
+    ]
+    return _section(f"{EMOJI['market']} MARKET CONTEXT", lines)
 
-    blocks.append(render_system(payload.get("state"), payload.get("mode")))
 
-    blocks.append(
-        render_portfolio(
-            payload.get("equity"), payload.get("positions"), payload.get("exposure")
-        )
-    )
+async def render_dashboard(payload: Mapping[str, Any]) -> str:
+    """Premium dashboard entry point with safe defaults."""
+    normalized: dict[str, Any] = dict(payload or {})
 
-    if payload.get("market_id"):
+    blocks: list[str] = [
+        _render_system(normalized),
+        _render_portfolio(normalized),
+    ]
+
+    mode = _safe_text(normalized.get("mode"), "home").lower()
+    has_trade = bool(normalized.get("market_id")) or mode == "trade"
+    if has_trade:
         blocks.append(
             await render_position(
-                payload.get("market_id"),
-                payload.get("side"),
-                payload.get("entry"),
-                payload.get("size"),
-                payload.get("pnl"),
+                normalized.get("market_id"),
+                normalized.get("side"),
+                normalized.get("entry"),
+                normalized.get("size"),
+                normalized.get("pnl"),
+                normalized.get("confidence"),
+                normalized.get("edge"),
             )
         )
 
-    blocks.append(render_risk(payload.get("drawdown")))
-    blocks.append(render_insight(payload.get("insight")))
-    blocks.append(render_decision(payload.get("decision")))
+    blocks.extend(
+        [
+            _render_risk(normalized),
+            _render_decision(normalized),
+            _render_market_context(normalized),
+        ]
+    )
 
     return "\n\n".join(blocks)

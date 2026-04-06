@@ -1,15 +1,13 @@
 Last Updated  : 2026-04-06
-Status        : Paper trading active
+Status        : Telegram premium UI pass implemented
 COMPLETED     :
-- Prelaunch infra hardening (2026-04-06): added startup phase state tracking (BOOTING/DEGRADED/RUNNING/BLOCKED), startup env/config validation, PostgreSQL bounded retry with backoff, and explicit BLOCKED startup behavior when DB is unavailable.
-- SENTINEL validation (2026-04-06): validated startup state machine, DB bounded retry/backoff, config fail-fast behavior, DB-required execution gate, failure simulations, alerting behavior, and pipeline integrity.
+- Telegram premium UI pass (2026-04-06): upgraded premium operator-grade formatting for dashboard/trade/wallet/performance/market views with safe payload fallbacks and consistent mobile-first section hierarchy.
 
 IN PROGRESS   :
-- Live simulation monitoring
+- SENTINEL validation preparation for Telegram premium UI pass
 
 NEXT PRIORITY :
-- Final SENTINEL approval after branch fix
+- SENTINEL validation for Telegram premium UI pass
 
 KNOWN ISSUES  :
-- Full runtime startup in this environment remains blocked by unavailable PostgreSQL (`127.0.0.1:5432` connection refused).
-- Telegram alert delivery from this container can fail due to outbound network restrictions, while structured startup failure logging remains available.
+- Market context API lookup may be unreachable from this container; formatter safely falls back to market_id/default labels without crashing.
