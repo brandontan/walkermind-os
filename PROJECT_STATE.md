@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-06 20:20
-- Status        : FORGE-X P0 live-path blocker fix applied for telegram-menu-scope-hardening-20260407 — `/start` + root menu handler divergence corrected and shared payload float('N/A') coercion hardened; awaiting SENTINEL revalidation before merge decision
+- Last Updated  : 2026-04-06 20:45
+- Status        : SENTINEL validation complete for telegram-menu-scope-hardening-20260407 — verdict APPROVED, score 88/100, critical blockers none; pending BRIEFER handoff or COMMANDER merge decision
 
 ---
 
@@ -25,14 +25,16 @@
 - Telegram Home live blocker addendum (2026-04-06): hardened callback Home payload hydration against malformed shared-state payloads, unified Home↔`/start` safe numeric normalization policy, and added callback render fallback so degraded Home payloads do not hard-crash.
 - Telegram live-path blocker fix (2026-04-06): removed root-menu divergence by aligning reply keyboard with 5-item root contract, forced `/start` to emit authoritative inline main menu payload, and hardened shared portfolio normalization path that could still execute `float(\"N/A\")`.
 
+- SENTINEL validation complete for `telegram-menu-scope-hardening-20260407` with verdict **APPROVED** (score **88/100**) and **no critical issues**.
+
 ---
 
 ## 🚧 IN PROGRESS
 
 ### Phase 10.4 — 24H Live Paper Run
 - Final on-device Telegram visual confirmation in live-network environment.
-- Merge decision preparation based on CONDITIONAL validation result.
-- SENTINEL revalidation preparation for `telegram-menu-scope-hardening-20260407`.
+- Merge decision preparation based on APPROVED validation result (88/100, no critical issues).
+- BRIEFER handoff preparation for `telegram-menu-scope-hardening-20260407` (optional if COMMANDER proceeds directly to merge decision).
 
 ---
 
@@ -44,16 +46,13 @@
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL validation required for telegram-menu-scope-hardening-20260407 before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/telegram_menu_scope_hardening_20260407.md
-- SENTINEL must include explicit `/start` + Home placeholder regression validation (`"N/A"`, `None`, empty, malformed numerics, sparse payload, missing portfolio/performance fields, persisted scope restore) and confirm no CRITICAL ERROR card for this class.
-- If validation remains clean, move to BRIEFER or COMMANDER merge decision.
-- Merge to main is not yet automatic; COMMANDER decides after the hardening follow-up or explicit acceptance of current CONDITIONAL verdict.
+- BRIEFER handoff for telegram-menu-scope-hardening-20260407 (if COMMANDER wants downstream communication artifact).
+- If BRIEFER is skipped, proceed to COMMANDER merge decision for telegram-menu-scope-hardening-20260407.
+- Merge to main remains a COMMANDER-only decision.
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
-- Weak-metadata fallback may still include some uncategorized markets that operators may prefer to classify explicitly; monitor category hit quality during live-paper usage.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
