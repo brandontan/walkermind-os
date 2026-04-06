@@ -32,6 +32,14 @@ VIEW_TITLE = {
     "bot_info": "ℹ️ Bot Info",
 }
 
+ROOT_LABELS: dict[str, str] = {
+    "dashboard": "📊 Dashboard",
+    "portfolio": "💼 Portfolio",
+    "markets": "🎯 Markets",
+    "settings": "⚙️ Settings",
+    "help": "❓ Help",
+}
+
 
 def _safe_float(value: object, default: float = 0.0) -> float:
     try:
@@ -174,10 +182,13 @@ def _hero_block(mode: str, payload: Mapping[str, Any]) -> str:
     status = _safe_text(payload.get("state"), "waiting").upper()
     decision = _compact_text(payload.get("decision"), "Await qualified signal", max_len=84)
     risk_state = _compact_text(payload.get("risk_state"), "within limits", max_len=56)
+    active_root = _safe_text(payload.get("active_root"), "dashboard").lower()
+    active_label = ROOT_LABELS.get(active_root, ROOT_LABELS["dashboard"])
     return _section(
         VIEW_TITLE.get(mode, VIEW_TITLE["home"]),
         _tree_group(
             [
+                ("Section", f"● {active_label}"),
                 ("Status", status),
                 ("Now", decision),
                 ("Risk", risk_state),

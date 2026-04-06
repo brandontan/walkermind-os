@@ -27,7 +27,6 @@ from typing import Optional, TYPE_CHECKING
 import structlog
 
 from ..ui.keyboard import (
-    build_main_menu,
     build_dashboard_menu,
     build_portfolio_menu,
     build_markets_menu,
@@ -288,7 +287,7 @@ class CallbackRouter:
                 exc_info=True,
             )
             text = error_screen(context=action, error=str(exc))
-            keyboard = build_main_menu()
+            keyboard = build_dashboard_menu()
 
         # noop — no message update needed
         if not text:
@@ -361,6 +360,19 @@ class CallbackRouter:
                 }
             )
         return normalized
+
+    @staticmethod
+    def _active_root_for_action(action: str) -> str:
+        """Resolve active root section for contextual inline keyboard rendering."""
+        if action.startswith("portfolio_") or action in {"portfolio", "wallet", "positions", "pnl", "performance", "exposure"}:
+            return "portfolio"
+        if action.startswith("markets_") or action in {"markets", "market", "active_scope"}:
+            return "markets"
+        if action.startswith("settings_") or action.startswith("mode_confirm_") or action in {"settings", "risk", "strategy", "control", "notifications", "auto_trade"}:
+            return "settings"
+        if action.startswith("help_") or action in {"help", "guidance", "bot_info"}:
+            return "help"
+        return "dashboard"
 
     def _build_normalized_payload(self, action: str) -> dict[str, object]:
         state_snapshot = self._state.snapshot()
@@ -437,7 +449,6 @@ class CallbackRouter:
         from ..ui.keyboard import (
             build_mode_confirm_menu,
             build_control_menu,
-            build_main_menu,
             build_settings_menu,
             build_risk_level_menu,
         )  # noqa: PLC0415
@@ -457,9 +468,10 @@ class CallbackRouter:
             "markets_overview": "markets",
             "markets_refresh_all": "refresh",
         }
-        base_action = "home" if action in {"back_main", "back", "start", "menu", "home"} else action
+        base_action = "dashboard_home" if action in {"back_main", "back", "start", "menu", "home"} else action
         normalized_action = action_aliases.get(base_action, base_action)
         payload = self._build_normalized_payload(normalized_action)
+        payload["active_root"] = self._active_root_for_action(base_action)
         payload["mode_label"] = self._mode.upper()
         if normalized_action == "settings_mode":
             payload["target_mode"] = "PAPER" if self._mode.upper() == "LIVE" else "LIVE"
@@ -495,7 +507,7 @@ class CallbackRouter:
             return text, build_help_menu()
 
         if normalized_action == "home":
-            return text, build_main_menu()
+            return text, build_dashboard_menu()
         if normalized_action in {"status", "system", "refresh", "positions", "trade", "pnl", "performance", "exposure", "risk"}:
             return text, build_dashboard_menu()
         if normalized_action == "wallet":
@@ -520,7 +532,7 @@ class CallbackRouter:
         if normalized_action == "control":
             current_state = self._state.state.value
             return text, build_control_menu(current_state)
-        return text, build_main_menu()
+        return text, build_dashboard_menu()
 
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
@@ -599,6 +611,7 @@ class CallbackRouter:
         if action == "markets_all_toggle":
             await toggle_all_markets()
             payload = self._build_normalized_payload("markets")
+            payload["active_root"] = "markets"
             if bool(payload.get("scope_warning")):
                 payload["decision"] = "Scope blocked until at least one category is enabled or All Markets is turned ON"
                 payload["operator_note"] = "Use Markets → Categories to enable categories"
@@ -611,6 +624,7 @@ class CallbackRouter:
 
         if action == "markets_categories_save":
             payload = self._build_normalized_payload("active_scope")
+            payload["active_root"] = "markets"
             payload["decision"] = "Category selection saved"
             payload["operator_note"] = "Active scope now controls allowed scan/trade universe"
             text = await render_view("active_scope", payload)
@@ -679,6 +693,7 @@ class CallbackRouter:
             payload = self._build_normalized_payload("control")
             payload.update(
                 {
+                    "active_root": "settings",
                     "mode_label": self._mode.upper(),
                     "control_action": "paused",
                     "decision": "System paused via control menu",
@@ -694,6 +709,7 @@ class CallbackRouter:
             payload = self._build_normalized_payload("control")
             payload.update(
                 {
+                    "active_root": "settings",
                     "mode_label": self._mode.upper(),
                     "control_action": "resumed",
                     "decision": "System resumed via control menu",
@@ -708,6 +724,7 @@ class CallbackRouter:
             payload = self._build_normalized_payload("control")
             payload.update(
                 {
+                    "active_root": "settings",
                     "mode_label": self._mode.upper(),
                     "control_action": "confirm stop",
                     "decision": "Stop requested — confirmation required",
@@ -723,6 +740,7 @@ class CallbackRouter:
             payload = self._build_normalized_payload("control")
             payload.update(
                 {
+                    "active_root": "settings",
                     "mode_label": self._mode.upper(),
                     "control_action": "halted",
                     "decision": "System halted from control menu",
@@ -820,6 +838,7 @@ class CallbackRouter:
             payload["decision"] = f"Category toggled: {category_name}"
             payload["operator_note"] = "Category scope is now active because All Markets is OFF"
             payload["insight"] = "Tap categories to enable/disable; use Active Scope to verify final trading universe"
+            payload["active_root"] = "markets"
             text = await render_view("markets", payload)
             scope_snapshot = get_market_scope_snapshot()
             return text, build_market_categories_menu(
@@ -840,7 +859,7 @@ class CallbackRouter:
                 main_screen(mode=self._mode, state=snap.get("state", "UNKNOWN")),
                 render_insight("Unexpected action — returning to main menu"),
             ]),
-            build_main_menu(),
+            build_dashboard_menu(),
         )
 
     # ── Telegram API helpers ───────────────────────────────────────────────────

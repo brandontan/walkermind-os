@@ -103,6 +103,18 @@ def _derive_position_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _resolve_active_root(mode: str) -> str:
+    if mode in {"wallet", "positions", "pnl", "performance", "exposure", "portfolio"}:
+        return "portfolio"
+    if mode in {"market", "markets", "active_scope"}:
+        return "markets"
+    if mode in {"settings", "notifications", "auto_trade", "mode", "risk", "strategy", "control"}:
+        return "settings"
+    if mode in {"help", "guidance", "bot_info"}:
+        return "help"
+    return "dashboard"
+
+
 def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     metrics = _derive_position_metrics(payload)
     primary = metrics["primary"]
@@ -160,6 +172,7 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "scope_warning": payload.get("scope_warning", ""),
         "scope_fallback_policy": payload.get("scope_fallback_policy", ""),
         "scope_state_file": payload.get("scope_state_file", ""),
+        "active_root": payload.get("active_root", _resolve_active_root(mode)),
     }
 
 
