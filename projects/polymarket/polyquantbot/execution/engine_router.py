@@ -93,20 +93,37 @@ class EngineContainer:
             db: :class:`~infra.db.database.DatabaseClient` connected instance.
         """
         log.info("engine_container_restore_start")
+        failed_components: list[str] = []
         try:
             await self.wallet.restore_from_db(db)  # type: ignore[arg-type]
         except Exception as exc:
             log.warning("engine_container_wallet_restore_error", error=str(exc))
+            failed_components.append("wallet")
 
         try:
             await self.positions.load_from_db(db)  # type: ignore[arg-type]
         except Exception as exc:
             log.warning("engine_container_positions_restore_error", error=str(exc))
+            failed_components.append("positions")
 
         try:
             await self.ledger.load_from_db(db)  # type: ignore[arg-type]
         except Exception as exc:
             log.warning("engine_container_ledger_restore_error", error=str(exc))
+            failed_components.append("ledger")
+
+        if failed_components:
+            log.warning(
+                "engine_container_restore_outcome",
+                outcome="restore_failure",
+                failed_components=failed_components,
+            )
+        else:
+            log.info(
+                "engine_container_restore_outcome",
+                outcome="restore_success",
+                failed_components=[],
+            )
 
         log.info("engine_container_restore_complete")
 
