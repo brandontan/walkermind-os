@@ -135,6 +135,19 @@ class PaperEngine:
 
         log.info("paper_engine_initialized", seeded=random_seed is not None)
 
+    def bind_wallet(self, wallet: WalletEngine) -> None:
+        """Rebind the active wallet used for all future runtime mutations."""
+        self._wallet = wallet
+        log.info("paper_engine_wallet_rebound")
+
+    def hydrate_processed_trade_ids(self, trade_ids: Set[str]) -> None:
+        """Hydrate processed trade ids from durable state (ledger/DB restore)."""
+        self._processed_trade_ids = set(trade_ids)
+        log.info(
+            "paper_engine_processed_trade_ids_hydrated",
+            count=len(self._processed_trade_ids),
+        )
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def execute_order(self, order: dict) -> PaperOrderResult:
@@ -194,6 +207,7 @@ class PaperEngine:
                 "paper_engine_order_duplicate",
                 trade_id=trade_id,
                 market_id=market_id,
+                reason="duplicate_trade_id",
             )
             return PaperOrderResult(
                 trade_id=trade_id,

@@ -108,8 +108,11 @@ class PnLTracker:
                         self._persist_realized(trade_id, pnl_usd)
                     )
             except RuntimeError:
-                # No running event loop (sync context / tests)
-                pass
+                log.warning(
+                    "pnl_persist_skipped_no_event_loop",
+                    trade_id=trade_id,
+                    pnl_usd=round(pnl_usd, 4),
+                )
 
         return rec
 

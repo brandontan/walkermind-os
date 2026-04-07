@@ -82,6 +82,7 @@ from ..market.ingest import ingest_markets
 from ..signal.signal_engine import generate_signals, generate_synthetic_signals
 from ..signal.alpha_model import ProbabilisticAlphaModel
 from ..execution.executor import execute_trade
+from ...risk.risk_guard import RiskGuard
 from ...monitoring.pnl_calculator import PnLCalculator
 from ...monitoring.performance_tracker import PerformanceTracker
 from ...monitoring.metrics_engine import MetricsEngine
@@ -444,6 +445,7 @@ async def run_trading_loop(
     position_manager: Optional[Any] = None,
     pnl_tracker: Optional[Any] = None,
     paper_engine: Optional[Any] = None,
+    risk_guard: Optional[RiskGuard] = None,
     tp_pct: float = _DEFAULT_TP_PCT,
     sl_pct: float = _DEFAULT_SL_PCT,
 ) -> None:
@@ -516,6 +518,9 @@ async def run_trading_loop(
 
     # ── Per-market cooldown tracker: market_id → last trade timestamp ─────────
     _market_last_trade: dict[str, float] = {}
+    _risk_peak_balance: float = _bankroll
+    _risk_current_balance: float = _bankroll
+    _risk_current_pnl: float = 0.0
 
     # ── Force-trade fallback: track last successful trade timestamp ───────────
     # When no trade fires for _NO_TRADE_FALLBACK_S (30 min), we lower edge
@@ -986,6 +991,28 @@ async def run_trading_loop(
                 # ── 4. Execute each signal and update positions ───────────────────
                 _trades_this_tick: int = 0
                 for signal in signals:
+                    if risk_guard is not None:
+                        await risk_guard.check_daily_loss(_risk_current_pnl)
+                        await risk_guard.check_drawdown(
+                            _risk_peak_balance,
+                            _risk_current_balance,
+                        )
+                        if risk_guard.disabled:
+                            log.warning(
+                                "kill_switch_blocked_execution",
+                                market_id=signal.market_id,
+                                trade_id=signal.signal_id,
+                            )
+                            log.warning(
+                                "risk_blocked_execution",
+                                market_id=signal.market_id,
+                                trade_id=signal.signal_id,
+                                current_pnl=round(_risk_current_pnl, 4),
+                                current_balance=round(_risk_current_balance, 4),
+                                peak_balance=round(_risk_peak_balance, 4),
+                            )
+                            continue
+
                     # ── 4a. Force signal mode: max 1 trade per loop ───────────────
                     if _active_force and _trades_this_tick >= 1:
                         log.info(
@@ -1097,6 +1124,12 @@ async def run_trading_loop(
 
                         from ...execution.paper_engine import OrderStatus as _OS  # noqa: PLC0415
                         _pe_success = _paper_order.status in (_OS.FILLED, _OS.PARTIAL)
+                        if _paper_order.reason == "duplicate_trade_id":
+                            log.warning(
+                                "paper_execution_replay_rejected",
+                                trade_id=_paper_order.trade_id,
+                                market_id=_paper_order.market_id,
+                            )
 
                         if not _pe_success:
                             log.info(
@@ -1124,6 +1157,13 @@ async def run_trading_loop(
                             slippage_pct=0.0,
                             partial_fill=_paper_order.status == _OS.PARTIAL,
                             reason=_paper_order.reason,
+                        )
+                        log.info(
+                            "paper_execution_allowed",
+                            trade_id=result.trade_id,
+                            market_id=result.market_id,
+                            side=result.side,
+                            mode=result.mode,
                         )
                         log.info(
                             "execution_success",
@@ -1155,6 +1195,7 @@ async def run_trading_loop(
                             signal,
                             mode=_mode,
                             executor_callback=executor_callback,
+                            kill_switch_active=bool(risk_guard.disabled) if risk_guard is not None else False,
                         )
                         if not result.success:
                             log.info(
@@ -1375,6 +1416,9 @@ async def run_trading_loop(
                     metrics["unrealized_pnl"] = unrealized
                     metrics["realized_pnl"] = realized
                     metrics["total_pnl"] = realized + unrealized
+                    _risk_current_pnl = metrics["total_pnl"]
+                    _risk_current_balance = _bankroll + _risk_current_pnl
+                    _risk_peak_balance = max(_risk_peak_balance, _risk_current_balance)
                     metrics.update(_last_market_intel_payload)
 
                     log.info("pnl_update", pnl=metrics)
@@ -1505,8 +1549,13 @@ async def run_trading_loop(
                                                 f"Entry: {_pos.entry_price:.4f}"
                                             )
                                             await telegram_sender.send(_close_msg)
-                                        except Exception:
-                                            pass
+                                        except Exception as _close_tg_exc:  # noqa: BLE001
+                                            log.warning(
+                                                "close_order_telegram_failed",
+                                                trade_id=_close_trade_id,
+                                                market_id=_pos.market_id,
+                                                error=str(_close_tg_exc),
+                                            )
                                 except Exception as _close_exc:
                                     log.error(
                                         "close_order_failed",
@@ -1592,8 +1641,13 @@ async def run_trading_loop(
                                                 f"Entry: {_lpos.avg_price:.4f}"
                                             )
                                             await telegram_sender.send(_live_close_msg)
-                                        except Exception:
-                                            pass
+                                        except Exception as _live_close_tg_exc:  # noqa: BLE001
+                                            log.warning(
+                                                "live_close_order_telegram_failed",
+                                                trade_id=_live_close_id,
+                                                market_id=_lpos.market_id,
+                                                error=str(_live_close_tg_exc),
+                                            )
                                 except Exception as _live_close_exc:
                                     log.error(
                                         "live_close_order_failed",

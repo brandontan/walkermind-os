@@ -94,7 +94,10 @@ class EngineContainer:
         """
         log.info("engine_container_restore_start")
         try:
-            await self.wallet.restore_from_db(db)  # type: ignore[arg-type]
+            restored_wallet = await WalletEngine.restore_from_db(db)  # type: ignore[arg-type]
+            self.wallet = restored_wallet
+            self.paper_engine.bind_wallet(self.wallet)
+            log.info("engine_container_wallet_restore_success")
         except Exception as exc:
             log.warning("engine_container_wallet_restore_error", error=str(exc))
 
@@ -105,6 +108,10 @@ class EngineContainer:
 
         try:
             await self.ledger.load_from_db(db)  # type: ignore[arg-type]
+            self.paper_engine.hydrate_processed_trade_ids(
+                {entry.trade_id for entry in self.ledger.get_all()}
+            )
+            log.info("engine_container_dedup_hydration_success")
         except Exception as exc:
             log.warning("engine_container_ledger_restore_error", error=str(exc))
 
