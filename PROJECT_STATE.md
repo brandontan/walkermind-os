@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 05:31
-- Status        : FORGE-X Phase 0 blockers cleared for telegram_trade_menu_mvp_20260407; prior validation remained blocked pending missing forge report/test artifacts; SENTINEL revalidation now queued
+- Last Updated  : 2026-04-07 06:10
+- Status        : SENTINEL revalidation executed for telegram_trade_menu_mvp_20260407; Phase 0 blocked due to missing required routing test artifact; contract validation remains blocked pending FORGE-X artifact fix
 
 ---
 
@@ -35,6 +35,7 @@
 ## 🚧 IN PROGRESS
 
 ### Telegram trade menu MVP blocker-clear handoff
+- Phase 0 failed because required target test artifact is missing: `projects/polymarket/polyquantbot/tests/test_telegram_trade_menu_routing_mvp.py`.
 - Previous SENTINEL validation for `telegram_trade_menu_mvp_20260407` was blocked due to missing FORGE report/test artifacts.
 - FORGE-X has now added the missing report + target test and produced pre-SENTINEL proof (py_compile + pytest pass).
 - SENTINEL revalidation is now required for `telegram_trade_menu_mvp_20260407`.
@@ -56,14 +57,15 @@
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL revalidation required for telegram_trade_menu_mvp_20260407 before merge.
-- Source: projects/polymarket/polyquantbot/reports/forge/telegram_trade_menu_mvp_20260407.md
+- FORGE-X artifact fix required: add missing `projects/polymarket/polyquantbot/tests/test_telegram_trade_menu_routing_mvp.py` before SENTINEL can continue telegram_trade_menu_mvp_20260407 validation.
+- Source: projects/polymarket/polyquantbot/reports/sentinel/telegram_trade_menu_mvp_validation_20260407.md
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
 - Previous validation for `telegram_trade_menu_mvp_20260407` was blocked at Phase 0 before this FORGE-X blocker-clear pass; SENTINEL must re-run validation with the new artifacts.
+- SENTINEL revalidation run on 2026-04-07 is BLOCKED at Phase 0 because required target file `projects/polymarket/polyquantbot/tests/test_telegram_trade_menu_routing_mvp.py` is missing.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
