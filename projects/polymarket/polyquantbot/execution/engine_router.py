@@ -94,7 +94,10 @@ class EngineContainer:
         """
         log.info("engine_container_restore_start")
         try:
-            await self.wallet.restore_from_db(db)  # type: ignore[arg-type]
+            restored_wallet = await WalletEngine.restore_from_db(db)  # type: ignore[arg-type]
+            self.wallet = restored_wallet
+            self.paper_engine._wallet = restored_wallet  # type: ignore[attr-defined]
+            log.info("engine_container_wallet_restored")
         except Exception as exc:
             log.warning("engine_container_wallet_restore_error", error=str(exc))
 

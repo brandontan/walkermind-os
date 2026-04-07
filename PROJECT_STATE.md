@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-06 22:40
-- Status        : SENTINEL trade-system truth audit complete (paper-path decision map delivered); premium-nav and trade-hardening merge sequence awaiting COMMANDER direction
+- Last Updated  : 2026-04-07 03:28
+- Status        : Phase-0 blocker-fix pass completed for paper_trade_hardening_p0_20260407; SENTINEL validation remains required before merge/enablement
 
 ---
 
@@ -29,6 +29,7 @@
 - Telegram premium navigation / UX consolidation pass (2026-04-07): enforced two-layer Telegram navigation with persistent 5-item reply-keyboard root and contextual inline section actions; removed duplicated inline root menu; added active-root cue and compact button layout polish while preserving approved scope-control semantics.
 - SENTINEL trade system truth audit complete (2026-04-07) with verdict **PAPER-ACCEPTABLE WITH RISKS** and score **62/100**; identified critical risk-layer bypass on trading-loop execution path, startup wallet-restore mismatch risk, and partial-state reconciliation gaps blocking real-wallet readiness.
 - Trade-system truth audit report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md`.
+- Paper-trade hardening Phase-0 blocker fix pass completed (2026-04-07): required FORGE report artifact, deterministic hardening harness, engine wallet-restore runtime-state sync patch, and PROJECT_STATE honesty sync delivered for SENTINEL revalidation.
 
 ---
 
@@ -40,6 +41,7 @@
 
 ### Trade-system hardening handoff
 - FORGE-X hardening pending for risk-gate unification, reconciliation ownership, restart recovery correctness, and silent-failure removal before any real-wallet enablement.
+- SENTINEL PR #236 Phase-0 blockers were acknowledged and addressed via required FORGE artifact + deterministic harness + state sync update.
 
 ---
 
@@ -51,9 +53,9 @@
 
 ## 🎯 NEXT PRIORITY
 
-- FORGE-X hardening required for trade-system readiness before any real-wallet enablement.
-- Source: projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md
-- SENTINEL re-validation required after hardening pass; COMMANDER merge/enablement decision only after that validation.
+- SENTINEL validation required for paper_trade_hardening_p0_20260407 before merge.
+- Source: projects/polymarket/polyquantbot/reports/forge/paper_trade_hardening_p0_20260407.md
+- Founder priority remains trade-system hardening before any real-wallet enablement.
 
 ---
 
@@ -63,4 +65,5 @@
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
 - Trading-loop execution path currently bypasses formal `RiskGuard` kill-switch/daily-loss/drawdown gating and must be hardened before real-wallet mode.
-- Startup wallet restore path in engine container may not apply persisted wallet state correctly (class-method return value is not assigned), creating restart reconciliation risk.
+- Startup wallet restore synchronization patch has been applied; SENTINEL runtime verification is still required before trust elevation.
+- Phase-0 validation chain was previously BLOCKED in SENTINEL PR #236 due to missing FORGE report + missing deterministic harness + stale state; blocker-fix artifacts are now in place and pending SENTINEL revalidation.
