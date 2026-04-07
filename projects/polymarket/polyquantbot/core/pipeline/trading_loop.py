@@ -1119,7 +1119,7 @@ async def run_trading_loop(
                         max_position_usd=_bankroll * 0.10,
                         min_edge=float(os.getenv("EXECUTION_MIN_EDGE", "0.01")),
                         min_liquidity_usd=float(os.getenv("EXECUTION_MIN_LIQUIDITY_USD", "10000")),
-                        kill_switch_active=False,
+                        kill_switch_active=os.getenv("KILL_SWITCH", "false").lower() == "true",
                     )
                     if not _risk_decision.allowed:
                         await db.mark_execution_intent(
