@@ -34,7 +34,8 @@ from ..core.wallet_engine import WalletEngine
 from ..core.positions import PaperPositionManager
 from ..core.ledger import TradeLedger
 from ..core.exposure import ExposureCalculator
-from .paper_engine import PaperEngine
+from .paper_engine import PaperEngine, PaperOrderResult, OrderStatus
+from .capital_guard import CapitalGuard
 
 log = structlog.get_logger(__name__)
 
@@ -75,11 +76,55 @@ class EngineContainer:
             positions=self.positions,
             ledger=self.ledger,
         )
+        self.capital_guard: CapitalGuard = CapitalGuard(
+            wallet=self.wallet,
+            positions=self.positions,
+            ledger=self.ledger,
+        )
+        self._wire_execution_guardrails()
 
         log.info(
             "engine_container_initialized",
             engines=["wallet", "positions", "ledger", "exposure", "paper_engine"],
         )
+
+    def _wire_execution_guardrails(self) -> None:
+        """Attach mandatory capital guardrails at the execution boundary."""
+        original_execute_order = self.paper_engine.execute_order
+
+        async def _guarded_execute_order(order: dict) -> PaperOrderResult:
+            violation = self.capital_guard.evaluate(order)
+            if violation is not None:
+                trade_id = str(order.get("trade_id", ""))
+                market_id = str(order.get("market_id", ""))
+                side = str(order.get("side", "")).upper()
+                requested_size = float(order.get("size", 0.0))
+                fill_price = float(order.get("price", 0.0))
+                log.warning(
+                    "execution_guardrail_blocked",
+                    outcome=violation.outcome,
+                    reason=violation.reason,
+                    trade_id=trade_id,
+                    market_id=market_id,
+                    side=side,
+                    **violation.details,
+                )
+                return PaperOrderResult(
+                    trade_id=trade_id,
+                    market_id=market_id,
+                    side=side,
+                    requested_size=requested_size,
+                    filled_size=0.0,
+                    fill_price=fill_price,
+                    fee=0.0,
+                    status=OrderStatus.REJECTED,
+                    reason=violation.reason,
+                )
+
+            return await original_execute_order(order)
+
+        self.paper_engine.execute_order = _guarded_execute_order  # type: ignore[method-assign]
+        log.info("execution_guardrails_wired", boundary="paper_engine.execute_order")
 
     # ── Startup persistence restore ───────────────────────────────────────────
 
