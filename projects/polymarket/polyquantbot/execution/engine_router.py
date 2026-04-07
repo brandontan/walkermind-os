@@ -26,7 +26,7 @@ Design:
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Awaitable, Callable, Optional
 
 import structlog
 
@@ -180,3 +180,31 @@ def get_engine_container() -> EngineContainer:
     else:
         log.debug("engine_container_singleton_reused")
     return _container
+
+
+def build_paper_executor_callback() -> Callable[..., Awaitable[dict[str, Any]]]:
+    """Return an executor-compatible PAPER callback backed by EngineContainer.
+
+    This enforces a single execution authority by exposing PaperEngine through
+    the core executor callback contract instead of allowing ad-hoc direct calls.
+    """
+    container = get_engine_container()
+
+    async def _paper_executor_callback(**kwargs: object) -> dict[str, object]:
+        order = {
+            "market_id": kwargs["market_id"],
+            "side": kwargs["side"],
+            "price": kwargs["price"],
+            "size": kwargs["size_usd"],
+            "trade_id": kwargs["trade_id"],
+        }
+        result = await container.paper_engine.execute_order(order)
+        return {
+            "filled_size": result.filled_size,
+            "fill_price": result.fill_price,
+            "partial_fill": bool(getattr(result, "partial_fill", False)),
+            "reason": result.reason,
+            "status": str(result.status),
+        }
+
+    return _paper_executor_callback

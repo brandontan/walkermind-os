@@ -1064,10 +1064,7 @@ async def run_trading_loop(
                                 error=str(meta_exc),
                             )
 
-                    # ── 4d. UNIFIED EXECUTION ────────────────────────────────
-                    # PAPER mode with PaperEngine: PaperEngine is the single
-                    # source of truth.  Bypass execute_trade() fill simulation.
-                    # LIVE mode: use execute_trade() with executor_callback.
+                    # ── 4d. UNIFIED EXECUTION (executor authority) ───────────
                     log.info(
                         "execution_start",
                         trade_id=signal.signal_id,
@@ -1076,103 +1073,69 @@ async def run_trading_loop(
                         mode=_mode,
                     )
 
-                    if _mode == "PAPER" and paper_engine is not None:
-                        # ── PAPER path: PaperEngine is sole authority ─────────
-                        try:
-                            _paper_order = await paper_engine.execute_order({
-                                "market_id": signal.market_id,
-                                "side": signal.side,
-                                "price": signal.p_market,
-                                "size": signal.size_usd,
-                                "trade_id": signal.signal_id,
-                            })
-                        except Exception as _pe_exc:
-                            log.error(
-                                "execution_failed",
-                                trade_id=signal.signal_id,
-                                market_id=signal.market_id,
-                                error=str(_pe_exc),
-                            )
-                            continue
-
+                    async def _paper_executor_callback(**kwargs: Any) -> dict[str, Any]:
+                        if paper_engine is None:
+                            raise RuntimeError("paper_engine_not_available")
+                        _paper_order = await paper_engine.execute_order(
+                            {
+                                "market_id": kwargs["market_id"],
+                                "side": kwargs["side"],
+                                "price": kwargs["price"],
+                                "size": kwargs["size_usd"],
+                                "trade_id": kwargs["trade_id"],
+                            }
+                        )
                         from ...execution.paper_engine import OrderStatus as _OS  # noqa: PLC0415
-                        _pe_success = _paper_order.status in (_OS.FILLED, _OS.PARTIAL)
+                        if _paper_order.status not in (_OS.FILLED, _OS.PARTIAL):
+                            raise RuntimeError(f"paper_engine_blocked:{_paper_order.reason}")
+                        return {
+                            "filled_size": _paper_order.filled_size,
+                            "fill_price": _paper_order.fill_price,
+                            "partial_fill": _paper_order.status == _OS.PARTIAL,
+                            "reason": _paper_order.reason,
+                            "status": str(_paper_order.status),
+                        }
 
-                        if not _pe_success:
-                            log.info(
-                                "execution_failed",
-                                trade_id=signal.signal_id,
-                                market_id=signal.market_id,
-                                reason=_paper_order.reason,
-                                status=_paper_order.status,
-                            )
-                            continue
-
-                        # Build a synthetic TradeResult from PaperOrderResult
-                        from ..execution.executor import TradeResult  # noqa: PLC0415
-                        result = TradeResult(
-                            trade_id=_paper_order.trade_id,
-                            signal_id=signal.signal_id,
-                            market_id=_paper_order.market_id,
-                            side=_paper_order.side,
-                            success=True,
-                            mode="PAPER",
-                            attempted_size=_paper_order.requested_size,
-                            filled_size_usd=_paper_order.filled_size,
-                            fill_price=_paper_order.fill_price,
-                            latency_ms=0.0,
-                            slippage_pct=0.0,
-                            partial_fill=_paper_order.status == _OS.PARTIAL,
-                            reason=_paper_order.reason,
-                        )
+                    result = await execute_trade(
+                        signal,
+                        mode=_mode,
+                        kill_switch_active=bool(stop_event is not None and stop_event.is_set()),
+                        executor_callback=executor_callback,
+                        paper_executor_callback=(
+                            _paper_executor_callback if _mode != "LIVE" and paper_engine is not None else None
+                        ),
+                    )
+                    if not result.success:
                         log.info(
-                            "execution_success",
+                            "execution_failed",
                             trade_id=result.trade_id,
                             market_id=result.market_id,
-                            side=result.side,
-                            filled_size_usd=round(result.filled_size_usd, 4),
-                            fill_price=round(result.fill_price, 6),
-                            mode=result.mode,
+                            reason=result.reason,
+                            execution_id=result.execution_id,
                         )
+                        continue
+                    log.info(
+                        "execution_success",
+                        trade_id=result.trade_id,
+                        market_id=result.market_id,
+                        side=result.side,
+                        filled_size_usd=round(result.filled_size_usd or 0.0, 4),
+                        fill_price=round(result.fill_price or 0.0, 6),
+                        mode=result.mode,
+                        execution_id=result.execution_id,
+                    )
 
-                        # ── Persist ledger entry ──────────────────────────────
-                        if db is not None and paper_engine is not None:
-                            try:
-                                # Persist wallet state after every execution
-                                await paper_engine._wallet.persist(db)  # type: ignore[attr-defined]
-                                # Persist positions
-                                await paper_engine._positions.save_to_db(db)  # type: ignore[attr-defined]
-                            except Exception as _persist_exc:
-                                log.error(
-                                    "persistence_write_failed",
-                                    trade_id=result.trade_id,
-                                    error=str(_persist_exc),
-                                )
-
-                    else:
-                        # ── LIVE path (or PAPER fallback): use execute_trade ──
-                        result = await execute_trade(
-                            signal,
-                            mode=_mode,
-                            executor_callback=executor_callback,
-                        )
-                        if not result.success:
-                            log.info(
-                                "execution_failed",
+                    # ── Persist ledger entry ──────────────────────────────────
+                    if db is not None and paper_engine is not None and result.mode == "PAPER":
+                        try:
+                            await paper_engine._wallet.persist(db)  # type: ignore[attr-defined]
+                            await paper_engine._positions.save_to_db(db)  # type: ignore[attr-defined]
+                        except Exception as _persist_exc:
+                            log.error(
+                                "persistence_write_failed",
                                 trade_id=result.trade_id,
-                                market_id=result.market_id,
-                                reason=result.reason,
+                                error=str(_persist_exc),
                             )
-                            continue
-                        log.info(
-                            "execution_success",
-                            trade_id=result.trade_id,
-                            market_id=result.market_id,
-                            side=result.side,
-                            filled_size_usd=round(result.filled_size_usd or 0.0, 4),
-                            fill_price=round(result.fill_price or 0.0, 6),
-                            mode=result.mode,
-                        )
 
                     if result.success:
                         _trades_this_tick += 1

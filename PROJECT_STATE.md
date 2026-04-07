@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 07:49
-- Status        : FORGE-X final routing-contract fix pass completed for telegram_trade_menu_mvp_20260407; previous block was routing mismatch risk under Portfolio→Trade path; SENTINEL revalidation required before merge
+- Last Updated  : 2026-04-07 09:05
+- Status        : FORGE-X execution safety enforcement phase 1 completed for execution_safety_enforcement_p1_20260407; SENTINEL validation required before merge
 
 ---
 
@@ -23,15 +23,14 @@
 - Category inference hardening applied for weak-metadata and uncategorized markets: deterministic inference order plus fallback inclusion path under category mode to reduce avoidable exclusions while preserving blocked-scope behavior when no categories are active.
 - Telegram /start numeric placeholder blocker patch (2026-04-06): hardened Telegram-facing numeric normalization in view/callback payload paths so `"N/A"`, `None`, empty, missing, and malformed numeric values no longer hard-crash dashboard/menu render.
 - Telegram Home live blocker addendum (2026-04-06): hardened callback Home payload hydration against malformed shared-state payloads, unified Home↔`/start` safe numeric normalization policy, and added callback render fallback so degraded Home payloads do not hard-crash.
-- Telegram live-path blocker fix (2026-04-06): removed root-menu divergence by aligning reply keyboard with 5-item root contract, forced `/start` to emit authoritative inline main menu payload, and hardened shared portfolio normalization path that could still execute `float(\"N/A\")`.
+- Telegram live-path blocker fix (2026-04-06): removed root-menu divergence by aligning reply keyboard with 5-item root contract, forced `/start` to emit authoritative inline main menu payload, and hardened shared portfolio normalization path that could still execute `float("N/A")`.
 - SENTINEL validation complete for `telegram-menu-scope-hardening-20260407` with verdict **APPROVED** (score **88/100**) and **no critical issues**.
 - BRIEFER handoff completed for `telegram-menu-scope-hardening-20260407`.
 - Telegram premium navigation / UX consolidation pass (2026-04-07): enforced two-layer Telegram navigation with persistent 5-item reply-keyboard root and contextual inline section actions; removed duplicated inline root menu; added active-root cue and compact button layout polish while preserving approved scope-control semantics.
 - SENTINEL trade system truth audit complete (2026-04-07) with verdict **PAPER-ACCEPTABLE WITH RISKS** and score **62/100**; identified critical risk-layer bypass on trading-loop execution path, startup wallet-restore mismatch risk, and partial-state reconciliation gaps blocking real-wallet readiness.
 - Trade-system truth audit report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md`.
 - Telegram Trade Menu MVP final fix pass (2026-04-07): added Portfolio `⚡ Trade`, created dedicated 4-action Trade submenu, and corrected callback routing contract so trade actions stay in Trade context without Home fallback.
-
----
+- Execution safety enforcement phase 1 (2026-04-07): centralized execution authority in `executor.py`, added mode/kill-switch hard gates plus execution audit trail, and removed trading-loop direct execution bypass path via executor callback enforcement.
 
 ## 🚧 IN PROGRESS
 
@@ -47,7 +46,8 @@
 ### Trade-system hardening handoff
 - FORGE-X hardening pending for risk-gate unification, reconciliation ownership, restart recovery correctness, and silent-failure removal before any real-wallet enablement.
 
----
+### Execution safety enforcement handoff
+- SENTINEL validation required for `execution_safety_enforcement_p1_20260407` before merge.
 
 ## ❌ NOT STARTED
 
@@ -57,11 +57,9 @@
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL revalidation required for telegram_trade_menu_mvp_20260407 before merge.
-- Source: projects/polymarket/polyquantbot/reports/forge/telegram_trade_menu_mvp_20260407.md
-- Tier: STANDARD
-
----
+- SENTINEL validation required for execution_safety_enforcement_p1_20260407 before merge.
+- Source: projects/polymarket/polyquantbot/reports/forge/execution_safety_enforcement_p1_20260407.md
+- Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
@@ -71,3 +69,4 @@
 - External live Telegram device screenshot proof is still unavailable in this container environment.
 - Trading-loop execution path currently bypasses formal `RiskGuard` kill-switch/daily-loss/drawdown gating and must be hardened before real-wallet mode.
 - Startup wallet restore path in engine container may not apply persisted wallet state correctly (class-method return value is not assigned), creating restart reconciliation risk.
+- Execution safety phase 1 enforces executor authority/mode/kill-switch/audit at path level; broader risk-layer unification remains pending.

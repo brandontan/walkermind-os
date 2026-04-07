@@ -125,6 +125,7 @@ class TradeResult:
     """
 
     trade_id: str
+    execution_id: str
     signal_id: str
     market_id: str
     side: str
@@ -177,6 +178,7 @@ async def execute_trade(
     min_liquidity_usd: float | None = None,
     kill_switch_active: bool = False,
     executor_callback: Optional[Callable[..., Awaitable[dict[str, Any]]]] = None,
+    paper_executor_callback: Optional[Callable[..., Awaitable[dict[str, Any]]]] = None,
     telegram_callback: Optional[Callable[[str], Awaitable[None]]] = None,
 ) -> TradeResult:
     """Validate and execute (or simulate) a single trading signal.
@@ -195,8 +197,9 @@ async def execute_trade(
         kill_switch_active: When True, all trades are blocked immediately.
         executor_callback:  Async callable
                             ``(market_id, side, price, size_usd, trade_id)
-                            -> dict`` invoked in LIVE mode.  When None in LIVE
-                            mode, the call falls back to paper simulation.
+                            -> dict`` invoked in LIVE mode.
+        paper_executor_callback: Optional async callable for PAPER mode
+                            engine execution.
         telegram_callback:  Optional async callable ``(message: str)`` for
                             trade-executed notifications.
 
@@ -220,18 +223,46 @@ async def execute_trade(
     )
 
     trade_id = f"trade-{uuid.uuid4().hex[:12]}"
+    execution_id = f"exec-{uuid.uuid4().hex[:12]}"
+
+    log.info(
+        "execution_audit",
+        execution_id=execution_id,
+        trade_id=trade_id,
+        signal_id=signal.signal_id,
+        market_id=signal.market_id,
+        intent="execute_trade",
+        mode=_mode,
+        result="attempt",
+        reason="received",
+    )
+    def _audit(result: str, reason: str) -> None:
+        log.info(
+            "execution_audit",
+            execution_id=execution_id,
+            trade_id=trade_id,
+            signal_id=signal.signal_id,
+            market_id=signal.market_id,
+            intent="execute_trade",
+            mode=_mode,
+            result=result,
+            reason=reason,
+        )
 
     # ── Duplicate check ───────────────────────────────────────────────────────
     if signal.signal_id in _submitted_ids:
+        _audit("blocked", "duplicate")
         log.info(
             "trade_skipped",
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             reason="duplicate",
         )
         return TradeResult(
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             side=signal.side,
@@ -243,15 +274,18 @@ async def execute_trade(
 
     # ── Kill switch ───────────────────────────────────────────────────────────
     if kill_switch_active:
+        _audit("blocked", "kill_switch_active")
         log.info(
             "trade_skipped",
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             reason="kill_switch_active",
         )
         return TradeResult(
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             side=signal.side,
@@ -263,9 +297,11 @@ async def execute_trade(
 
     # ── Risk re-validation ────────────────────────────────────────────────────
     if signal.edge <= 0 and not signal.force_mode:
+        _audit("blocked", "edge_non_positive")
         log.info(
             "trade_skipped",
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             reason="edge_non_positive",
@@ -273,6 +309,7 @@ async def execute_trade(
         )
         return TradeResult(
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             side=signal.side,
@@ -283,9 +320,11 @@ async def execute_trade(
         )
 
     if signal.edge < _min_e:
+        _audit("blocked", "edge_below_threshold")
         log.info(
             "trade_skipped",
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             reason="edge_below_threshold",
@@ -294,6 +333,7 @@ async def execute_trade(
         )
         return TradeResult(
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             side=signal.side,
@@ -304,9 +344,11 @@ async def execute_trade(
         )
 
     if signal.size_usd > _max_p:
+        _audit("blocked", "size_exceeds_max_position")
         log.info(
             "trade_skipped",
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             reason="size_exceeds_max_position",
@@ -315,6 +357,7 @@ async def execute_trade(
         )
         return TradeResult(
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             side=signal.side,
@@ -327,9 +370,11 @@ async def execute_trade(
     # ── Liquidity check ───────────────────────────────────────────────────────
     liquidity_usd: float = float(getattr(signal, "liquidity_usd", 0.0) or 0.0)
     if _min_liq > 0 and liquidity_usd < _min_liq:
+        _audit("blocked", "insufficient_liquidity")
         log.info(
             "trade_skipped",
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             reason="insufficient_liquidity",
@@ -338,6 +383,7 @@ async def execute_trade(
         )
         return TradeResult(
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             side=signal.side,
@@ -349,9 +395,11 @@ async def execute_trade(
     lock = _get_lock()
     async with lock:
         if _open_trade_count >= _max_c:
+            _audit("blocked", "max_concurrent_reached")
             log.info(
                 "trade_skipped",
                 trade_id=trade_id,
+                execution_id=execution_id,
                 signal_id=signal.signal_id,
                 market_id=signal.market_id,
                 reason="max_concurrent_reached",
@@ -360,6 +408,7 @@ async def execute_trade(
             )
             return TradeResult(
                 trade_id=trade_id,
+                execution_id=execution_id,
                 signal_id=signal.signal_id,
                 market_id=signal.market_id,
                 side=signal.side,
@@ -391,6 +440,8 @@ async def execute_trade(
         trade_id=trade_id,
         mode=_mode,
         executor_callback=executor_callback,
+        paper_executor_callback=paper_executor_callback,
+        execution_id=execution_id,
     )
 
     if not result.success:
@@ -402,9 +453,12 @@ async def execute_trade(
             trade_id=trade_id,
             mode=_mode,
             executor_callback=executor_callback,
+            paper_executor_callback=paper_executor_callback,
+            execution_id=execution_id,
         )
         if not result.success:
             log.info("trade_skipped", trade_id=trade_id, reason=f"retry_failed:{result.reason}")
+            _audit("blocked", f"retry_failed:{result.reason}")
             async with lock:
                 _open_trade_count = max(0, _open_trade_count - 1)
             return result
@@ -472,6 +526,7 @@ async def execute_trade(
                 error=str(tg_exc),
             )
 
+    _audit("executed", result.reason or "executed")
     return result
 
 
@@ -483,6 +538,8 @@ async def _attempt_execution(
     trade_id: str,
     mode: str,
     executor_callback: Optional[Callable[..., Awaitable[dict[str, Any]]]],
+    paper_executor_callback: Optional[Callable[..., Awaitable[dict[str, Any]]]],
+    execution_id: str,
 ) -> TradeResult:
     """Single execution attempt (paper or live).
 
@@ -493,6 +550,7 @@ async def _attempt_execution(
     try:
         log.info(
             "order_sent",
+            execution_id=execution_id,
             trade_id=trade_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
@@ -501,6 +559,27 @@ async def _attempt_execution(
             size_usd=round(signal.size_usd, 4),
             mode=mode,
         )
+
+        if mode == "LIVE" and executor_callback is None:
+            return TradeResult(
+                trade_id=trade_id,
+                execution_id=execution_id,
+                signal_id=signal.signal_id,
+                market_id=signal.market_id,
+                side=signal.side,
+                success=False,
+                mode=mode,
+                attempted_size=signal.size_usd,
+                reason="live_executor_callback_required",
+            )
+
+        if mode != "LIVE" and executor_callback is not None:
+            log.warning(
+                "execution_mode_guard_blocked_live_callback",
+                execution_id=execution_id,
+                trade_id=trade_id,
+                mode=mode,
+            )
 
         if mode == "LIVE" and executor_callback is not None:
             raw = await executor_callback(
@@ -516,6 +595,7 @@ async def _attempt_execution(
             log.info(
                 "order_filled",
                 trade_id=trade_id,
+                execution_id=execution_id,
                 signal_id=signal.signal_id,
                 market_id=signal.market_id,
                 side=signal.side,
@@ -526,6 +606,7 @@ async def _attempt_execution(
             )
             return TradeResult(
                 trade_id=trade_id,
+                execution_id=execution_id,
                 signal_id=signal.signal_id,
                 market_id=signal.market_id,
                 side=signal.side,
@@ -539,7 +620,37 @@ async def _attempt_execution(
                 extra=raw,
             )
         else:
-            # ── Realistic paper simulation ────────────────────────────────
+            # ── PAPER path (authoritative) ───────────────────────────────
+            if paper_executor_callback is not None:
+                raw = await paper_executor_callback(
+                    market_id=signal.market_id,
+                    side=signal.side,
+                    price=signal.p_market,
+                    size_usd=signal.size_usd,
+                    trade_id=trade_id,
+                    execution_id=execution_id,
+                )
+                latency_ms = (time.time() - t_start) * 1_000.0
+                filled = float(raw.get("filled_size", signal.size_usd))
+                fill_price = float(raw.get("fill_price", signal.p_market))
+                partial_fill = bool(raw.get("partial_fill", False))
+                return TradeResult(
+                    trade_id=trade_id,
+                    execution_id=execution_id,
+                    signal_id=signal.signal_id,
+                    market_id=signal.market_id,
+                    side=signal.side,
+                    success=True,
+                    mode="PAPER",
+                    attempted_size=signal.size_usd,
+                    filled_size_usd=round(filled, 4),
+                    fill_price=round(fill_price, 6),
+                    latency_ms=round(latency_ms, 2),
+                    partial_fill=partial_fill,
+                    reason=str(raw.get("reason", "paper_engine_executed")),
+                    extra=raw,
+                )
+
             # 1. Simulated latency: random value in [100 ms, 500 ms]
             sim_latency_s = random.uniform(
                 _PAPER_LATENCY_MIN_MS / 1_000.0,
@@ -585,6 +696,7 @@ async def _attempt_execution(
             log.info(
                 "order_filled",
                 trade_id=trade_id,
+                execution_id=execution_id,
                 signal_id=signal.signal_id,
                 market_id=signal.market_id,
                 side=signal.side,
@@ -598,6 +710,7 @@ async def _attempt_execution(
             reason = "partial_fill" if partial_fill else "paper_simulated"
             return TradeResult(
                 trade_id=trade_id,
+                execution_id=execution_id,
                 signal_id=signal.signal_id,
                 market_id=signal.market_id,
                 side=signal.side,
@@ -622,6 +735,7 @@ async def _attempt_execution(
         )
         return TradeResult(
             trade_id=trade_id,
+            execution_id=execution_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
             side=signal.side,
