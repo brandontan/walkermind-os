@@ -81,7 +81,7 @@ from ..market_scope import apply_market_scope
 from ..market.ingest import ingest_markets
 from ..signal.signal_engine import generate_signals, generate_synthetic_signals
 from ..signal.alpha_model import ProbabilisticAlphaModel
-from ..execution.executor import execute_trade
+from ..execution.executor import execute_trade, classify_trade_result_outcome
 from ...monitoring.pnl_calculator import PnLCalculator
 from ...monitoring.performance_tracker import PerformanceTracker
 from ...monitoring.metrics_engine import MetricsEngine
@@ -1096,47 +1096,53 @@ async def run_trading_loop(
                             continue
 
                         from ...execution.paper_engine import OrderStatus as _OS  # noqa: PLC0415
-                        _pe_success = _paper_order.status in (_OS.FILLED, _OS.PARTIAL)
+                        _is_partial = _paper_order.status == _OS.PARTIAL
+                        _is_filled = _paper_order.status == _OS.FILLED
+                        _is_rejected = _paper_order.status == _OS.REJECTED
 
-                        if not _pe_success:
-                            log.info(
-                                "execution_failed",
-                                trade_id=signal.signal_id,
-                                market_id=signal.market_id,
-                                reason=_paper_order.reason,
-                                status=_paper_order.status,
-                            )
-                            continue
-
-                        # Build a synthetic TradeResult from PaperOrderResult
-                        from ..execution.executor import TradeResult  # noqa: PLC0415
                         result = TradeResult(
                             trade_id=_paper_order.trade_id,
                             signal_id=signal.signal_id,
                             market_id=_paper_order.market_id,
                             side=_paper_order.side,
-                            success=True,
+                            success=_is_filled or _is_partial,
                             mode="PAPER",
                             attempted_size=_paper_order.requested_size,
                             filled_size_usd=_paper_order.filled_size,
                             fill_price=_paper_order.fill_price,
                             latency_ms=0.0,
                             slippage_pct=0.0,
-                            partial_fill=_paper_order.status == _OS.PARTIAL,
-                            reason=_paper_order.reason,
-                        )
-                        log.info(
-                            "execution_success",
-                            trade_id=result.trade_id,
-                            market_id=result.market_id,
-                            side=result.side,
-                            filled_size_usd=round(result.filled_size_usd, 4),
-                            fill_price=round(result.fill_price, 6),
-                            mode=result.mode,
+                            partial_fill=_is_partial,
+                            reason=(
+                                f"paper_engine_rejected:{_paper_order.reason}"
+                                if _is_rejected
+                                else (_paper_order.reason or ("partial_fill" if _is_partial else "paper_filled"))
+                            ),
+                            extra={"paper_status": str(_paper_order.status)},
                         )
 
+                        if not result.success:
+                            log.info(
+                                "execution_failed",
+                                trade_id=result.trade_id,
+                                market_id=result.market_id,
+                                reason=result.reason,
+                                status=str(_paper_order.status),
+                            )
+                        else:
+                            log.info(
+                                "execution_success",
+                                trade_id=result.trade_id,
+                                market_id=result.market_id,
+                                side=result.side,
+                                filled_size_usd=round(result.filled_size_usd, 4),
+                                fill_price=round(result.fill_price, 6),
+                                mode=result.mode,
+                                partial_fill=result.partial_fill,
+                            )
+
                         # ── Persist ledger entry ──────────────────────────────
-                        if db is not None and paper_engine is not None:
+                        if result.success and db is not None and paper_engine is not None:
                             try:
                                 # Persist wallet state after every execution
                                 await paper_engine._wallet.persist(db)  # type: ignore[attr-defined]
@@ -1163,16 +1169,36 @@ async def run_trading_loop(
                                 market_id=result.market_id,
                                 reason=result.reason,
                             )
-                            continue
-                        log.info(
-                            "execution_success",
-                            trade_id=result.trade_id,
-                            market_id=result.market_id,
-                            side=result.side,
-                            filled_size_usd=round(result.filled_size_usd or 0.0, 4),
-                            fill_price=round(result.fill_price or 0.0, 6),
-                            mode=result.mode,
-                        )
+                        else:
+                            log.info(
+                                "execution_success",
+                                trade_id=result.trade_id,
+                                market_id=result.market_id,
+                                side=result.side,
+                                filled_size_usd=round(result.filled_size_usd or 0.0, 4),
+                                fill_price=round(result.fill_price or 0.0, 6),
+                                mode=result.mode,
+                                partial_fill=result.partial_fill,
+                            )
+
+                    _execution_outcome = classify_trade_result_outcome(result)
+                    log.info(
+                        "execution_audit",
+                        trade_id=result.trade_id,
+                        signal_id=signal.signal_id,
+                        market_id=result.market_id,
+                        side=result.side,
+                        mode=result.mode,
+                        outcome=_execution_outcome,
+                        reason=result.reason,
+                        attempted_size=round(result.attempted_size or 0.0, 4),
+                        filled_size=round(result.filled_size_usd or 0.0, 4),
+                        fill_price=round(result.fill_price or 0.0, 6),
+                        partial_fill=result.partial_fill,
+                    )
+
+                    if not result.success:
+                        continue
 
                     if result.success:
                         _trades_this_tick += 1

@@ -140,6 +140,31 @@ class TradeResult:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
+def classify_trade_result_outcome(result: TradeResult) -> str:
+    """Classify a :class:`TradeResult` into an auditable outcome label."""
+    if result.success:
+        return "partial_fill" if result.partial_fill else "executed"
+
+    reason = (result.reason or "").lower()
+    if "rejected" in reason:
+        return "rejected"
+
+    blocked_reasons = {
+        "duplicate",
+        "kill_switch_active",
+        "edge_non_positive",
+        "edge_below_threshold",
+        "size_exceeds_max_position",
+        "insufficient_liquidity",
+        "max_concurrent_reached",
+        "live_mode_not_enabled",
+    }
+    if reason in blocked_reasons:
+        return "blocked"
+
+    return "failed"
+
+
 # ── Module-level dedup set ─────────────────────────────────────────────────────
 # Stores signal_ids that have already been submitted.  Cleared on process restart
 # (intentional — prevents stale dedup state across restarts).
@@ -259,6 +284,26 @@ async def execute_trade(
             mode=_mode,
             attempted_size=signal.size_usd,
             reason="kill_switch_active",
+        )
+
+    # ── LIVE mode guard ───────────────────────────────────────────────────────
+    if _mode == "LIVE" and not _env_bool("ENABLE_LIVE_TRADING", False):
+        log.info(
+            "trade_skipped",
+            trade_id=trade_id,
+            signal_id=signal.signal_id,
+            market_id=signal.market_id,
+            reason="live_mode_not_enabled",
+        )
+        return TradeResult(
+            trade_id=trade_id,
+            signal_id=signal.signal_id,
+            market_id=signal.market_id,
+            side=signal.side,
+            success=False,
+            mode=_mode,
+            attempted_size=signal.size_usd,
+            reason="live_mode_not_enabled",
         )
 
     # ── Risk re-validation ────────────────────────────────────────────────────
@@ -510,9 +555,43 @@ async def _attempt_execution(
                 size_usd=signal.size_usd,
                 trade_id=trade_id,
             )
+            callback_status = str(raw.get("status", "FILLED")).strip().upper()
             latency_ms = (time.time() - t_start) * 1_000.0
             filled = float(raw.get("filled_size", signal.size_usd))
             fill_price = float(raw.get("fill_price", signal.p_market))
+
+            if callback_status in {"REJECTED", "BLOCKED", "FAILED", "ERROR"}:
+                reason = str(raw.get("reason") or callback_status.lower())
+                return TradeResult(
+                    trade_id=trade_id,
+                    signal_id=signal.signal_id,
+                    market_id=signal.market_id,
+                    side=signal.side,
+                    success=False,
+                    mode=mode,
+                    attempted_size=signal.size_usd,
+                    filled_size_usd=0.0,
+                    fill_price=0.0,
+                    latency_ms=round(latency_ms, 2),
+                    reason=f"callback_rejected:{reason}",
+                    extra=raw,
+                )
+
+            partial_fill = callback_status in {"PARTIAL", "PARTIAL_FILL"}
+            if partial_fill and filled <= 0.0:
+                return TradeResult(
+                    trade_id=trade_id,
+                    signal_id=signal.signal_id,
+                    market_id=signal.market_id,
+                    side=signal.side,
+                    success=False,
+                    mode=mode,
+                    attempted_size=signal.size_usd,
+                    latency_ms=round(latency_ms, 2),
+                    reason="callback_partial_fill_invalid",
+                    extra=raw,
+                )
+
             log.info(
                 "order_filled",
                 trade_id=trade_id,
@@ -522,6 +601,7 @@ async def _attempt_execution(
                 filled_size_usd=round(filled, 4),
                 fill_price=round(fill_price, 6),
                 latency_ms=round(latency_ms, 2),
+                partial_fill=partial_fill,
                 mode=mode,
             )
             return TradeResult(
@@ -535,7 +615,8 @@ async def _attempt_execution(
                 filled_size_usd=round(filled, 4),
                 fill_price=round(fill_price, 6),
                 latency_ms=round(latency_ms, 2),
-                reason="live_executed",
+                partial_fill=partial_fill,
+                reason="partial_fill" if partial_fill else "live_executed",
                 extra=raw,
             )
         else:

@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 07:49
-- Status        : FORGE-X final routing-contract fix pass completed for telegram_trade_menu_mvp_20260407; previous block was routing mismatch risk under Portfolio→Trade path; SENTINEL revalidation required before merge
+- Last Updated  : 2026-04-07 08:25
+- Status        : FORGE-X execution safety enforcement p1 review-fix addendum completed; execution outcomes are now explicit/auditable and line is prepared for SENTINEL validation
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Execution safety enforcement p1 review-fix addendum (2026-04-07): hardened callback status handling so rejected/block/failed statuses cannot be interpreted as success, added explicit partial-fill semantics, added execution outcome classifier (`executed`/`blocked`/`rejected`/`partial_fill`/`failed`), added trading-loop `execution_audit` outcome logging, and added focused safety tests in `test_execution_safety_p1_20260407.py`.
 - Telegram live coverage fix pass (2026-04-06) normalized core callback/menu render paths but left remaining utility/control menu correctness gaps.
 - Telegram full menu fix pass (2026-04-06): completed full operator-facing menu correctness coverage across home/system/status, wallet, positions, trade, pnl, performance, exposure, risk, strategy, settings, notifications, auto-trade, mode, control, market/markets, and refresh callback/edit/send paths.
 - Enforced strict view isolation so Position/Market blocks render only in context-relevant menus; removed cross-menu bleed from unrelated utility/system/settings/control menus.
@@ -35,6 +36,10 @@
 
 ## 🚧 IN PROGRESS
 
+### Execution safety enforcement p1 handoff
+- FORGE-X addendum fixes are implemented for rejected-order truth, partial-fill explicit handling, callback status semantics, and execution audit labeling.
+- SENTINEL validation is required before merge due to MAJOR execution/runtime impact.
+
 ### Telegram trade menu MVP blocker-clear handoff
 - Previous validation line for `telegram_trade_menu_mvp_20260407` was blocked due to routing-contract mismatch risk (trade actions could collapse to Home context instead of Trade context).
 - FORGE-X final pass implemented explicit Trade submenu routing and added routing-proof tests (`test_telegram_trade_menu_routing_mvp.py`) with py_compile + pytest evidence.
@@ -57,14 +62,15 @@
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL revalidation required for telegram_trade_menu_mvp_20260407 before merge.
-- Source: projects/polymarket/polyquantbot/reports/forge/telegram_trade_menu_mvp_20260407.md
-- Tier: STANDARD
+- SENTINEL validation required for execution_safety_enforcement_p1_20260407 before merge.
+- Source: projects/polymarket/polyquantbot/reports/forge/execution_safety_enforcement_p1_20260407.md
+- Tier: MAJOR
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- Execution outcomes are now explicitly classified, but integrated SENTINEL verification is still pending before merge approval.
 - Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
