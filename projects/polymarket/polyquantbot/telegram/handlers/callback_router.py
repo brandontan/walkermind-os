@@ -29,6 +29,7 @@ import structlog
 from ..ui.keyboard import (
     build_dashboard_menu,
     build_portfolio_menu,
+    build_trade_menu,
     build_markets_menu,
     build_help_menu,
     build_market_categories_menu,
@@ -364,7 +365,7 @@ class CallbackRouter:
     @staticmethod
     def _active_root_for_action(action: str) -> str:
         """Resolve active root section for contextual inline keyboard rendering."""
-        if action.startswith("portfolio_") or action in {"portfolio", "wallet", "positions", "pnl", "performance", "exposure"}:
+        if action.startswith("portfolio_") or action.startswith("trade_") or action in {"portfolio", "wallet", "positions", "pnl", "performance", "exposure"}:
             return "portfolio"
         if action.startswith("markets_") or action in {"markets", "market", "active_scope"}:
             return "markets"
@@ -465,6 +466,11 @@ class CallbackRouter:
             "portfolio_exposure": "exposure",
             "portfolio_pnl": "pnl",
             "portfolio_performance": "performance",
+            "portfolio_trade": "trade",
+            "trade_signal": "trade",
+            "trade_paper_execute": "trade",
+            "trade_kill_switch": "control",
+            "trade_status": "system",
             "markets_overview": "markets",
             "markets_refresh_all": "refresh",
         }
@@ -478,6 +484,22 @@ class CallbackRouter:
             payload["mode_guard"] = "ENABLE_LIVE_TRADING=true required for LIVE"
         if normalized_action == "control":
             payload["control_action"] = "standby"
+        if base_action == "trade_signal":
+            payload["decision"] = "Signal view is active — safe fallback values render when data is missing"
+            payload["operator_note"] = "No live order placement in this menu path"
+            payload["insight"] = "Signal summary remains informational unless explicitly executed in paper mode"
+        if base_action == "trade_paper_execute":
+            payload["decision"] = "Paper execution only — no live-wallet action is performed"
+            payload["operator_note"] = "Use this route to simulate execution safely"
+            payload["insight"] = "Paper execution keeps wallet isolation intact"
+        if base_action == "trade_kill_switch":
+            payload["decision"] = "Kill switch reflects current control state"
+            payload["operator_note"] = "State is reported honestly from the control manager"
+            payload["insight"] = "Use control menu for full halt/resume actions"
+        if base_action == "trade_status":
+            payload["decision"] = "Trade status view active — safe defaults shown when runtime data is missing"
+            payload["operator_note"] = "Status panel is read-only in this route"
+            payload["insight"] = "No execution side effects in status route"
 
         try:
             text = await render_view(normalized_action, payload)
@@ -495,7 +517,11 @@ class CallbackRouter:
         if base_action == "dashboard" or normalized_action in {"home", "system", "refresh"} and base_action.startswith("dashboard"):
             return text, build_dashboard_menu()
         if base_action == "portfolio" or base_action.startswith("portfolio_"):
+            if base_action == "portfolio_trade":
+                return text, build_trade_menu()
             return text, build_portfolio_menu()
+        if base_action.startswith("trade_"):
+            return text, build_trade_menu()
         if base_action == "markets_categories":
             return text, build_market_categories_menu(
                 categories=list(MARKET_SCOPE_CATEGORIES),
@@ -578,6 +604,11 @@ class CallbackRouter:
             "portfolio_exposure",
             "portfolio_pnl",
             "portfolio_performance",
+            "portfolio_trade",
+            "trade_signal",
+            "trade_paper_execute",
+            "trade_kill_switch",
+            "trade_status",
             "markets_overview",
             "markets_categories",
             "markets_active_scope",
