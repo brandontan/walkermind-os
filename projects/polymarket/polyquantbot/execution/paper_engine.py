@@ -135,6 +135,25 @@ class PaperEngine:
 
         log.info("paper_engine_initialized", seeded=random_seed is not None)
 
+    def seed_processed_trade_ids(self, trade_ids: set[str]) -> int:
+        """Seed idempotency cache from durable storage on restart/re-init.
+
+        Args:
+            trade_ids: Trade IDs that have already been processed.
+
+        Returns:
+            Number of IDs newly added to the in-memory cache.
+        """
+        before = len(self._processed_trade_ids)
+        self._processed_trade_ids.update({tid for tid in trade_ids if tid})
+        added = len(self._processed_trade_ids) - before
+        log.info(
+            "paper_engine_dedup_seeded",
+            added=added,
+            total=len(self._processed_trade_ids),
+        )
+        return added
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def execute_order(self, order: dict) -> PaperOrderResult:

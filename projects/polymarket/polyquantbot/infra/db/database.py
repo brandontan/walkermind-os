@@ -737,6 +737,37 @@ class DatabaseClient:
         sql = "SELECT * FROM trade_ledger ORDER BY inserted_at ASC LIMIT $1"
         return await self._fetch(sql, limit, op_label="load_ledger_entries")
 
+    async def load_processed_trade_ids(self, limit: int = 5000) -> List[str]:
+        """Load durable trade IDs for restart-safe dedup seeding.
+
+        Trade IDs are collected from both ``trades`` and ``trade_ledger`` so
+        paper execution replay can be blocked after process restart.
+
+        Args:
+            limit: Max IDs loaded from each source table.
+
+        Returns:
+            List of unique trade IDs.
+        """
+        trade_rows = await self._fetch(
+            "SELECT trade_id FROM trades ORDER BY inserted_at DESC LIMIT $1",
+            limit,
+            op_label="load_processed_trade_ids_trades",
+        )
+        ledger_rows = await self._fetch(
+            "SELECT trade_id FROM trade_ledger ORDER BY inserted_at DESC LIMIT $1",
+            limit,
+            op_label="load_processed_trade_ids_ledger",
+        )
+        merged: set[str] = set()
+        for row in trade_rows + ledger_rows:
+            trade_id = str(row.get("trade_id", "")).strip()
+            if trade_id:
+                merged.add(trade_id)
+        ids = list(merged)
+        log.info("load_processed_trade_ids_ok", count=len(ids))
+        return ids
+
     # ── Strategy toggle state ─────────────────────────────────────────────────
 
     async def load_strategy_state(self) -> Dict[str, bool]:
