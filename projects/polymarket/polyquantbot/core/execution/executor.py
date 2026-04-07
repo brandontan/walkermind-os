@@ -140,6 +140,40 @@ class TradeResult:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class RiskGateDecision:
+    """Formal pre-execution risk gate decision."""
+
+    allowed: bool
+    reason: str = ""
+
+
+def evaluate_formal_risk_gate(
+    signal: SignalResult,
+    *,
+    mode: str,
+    max_position_usd: float,
+    min_edge: float,
+    min_liquidity_usd: float,
+    kill_switch_active: bool,
+) -> RiskGateDecision:
+    """Evaluate formal risk controls before any execution attempt."""
+    if kill_switch_active:
+        return RiskGateDecision(False, "kill_switch_active")
+    if mode == "LIVE" and not _env_bool("ENABLE_LIVE_TRADING", False):
+        return RiskGateDecision(False, "live_mode_not_enabled")
+    if signal.edge <= 0 and not signal.force_mode:
+        return RiskGateDecision(False, "edge_non_positive")
+    if signal.edge < min_edge:
+        return RiskGateDecision(False, "edge_below_threshold")
+    if signal.size_usd > max_position_usd:
+        return RiskGateDecision(False, "size_exceeds_max_position")
+    liquidity_usd: float = float(getattr(signal, "liquidity_usd", 0.0) or 0.0)
+    if min_liquidity_usd > 0 and liquidity_usd < min_liquidity_usd:
+        return RiskGateDecision(False, "insufficient_liquidity")
+    return RiskGateDecision(True, "")
+
+
 def classify_trade_result_outcome(result: TradeResult) -> str:
     """Classify a :class:`TradeResult` into an auditable outcome label."""
     if result.success:
@@ -266,14 +300,21 @@ async def execute_trade(
             reason="duplicate",
         )
 
-    # ── Kill switch ───────────────────────────────────────────────────────────
-    if kill_switch_active:
+    gate = evaluate_formal_risk_gate(
+        signal,
+        mode=_mode,
+        max_position_usd=_max_p,
+        min_edge=_min_e,
+        min_liquidity_usd=_min_liq,
+        kill_switch_active=kill_switch_active,
+    )
+    if not gate.allowed:
         log.info(
             "trade_skipped",
             trade_id=trade_id,
             signal_id=signal.signal_id,
             market_id=signal.market_id,
-            reason="kill_switch_active",
+            reason=gate.reason,
         )
         return TradeResult(
             trade_id=trade_id,
@@ -283,113 +324,7 @@ async def execute_trade(
             success=False,
             mode=_mode,
             attempted_size=signal.size_usd,
-            reason="kill_switch_active",
-        )
-
-    # ── LIVE mode guard ───────────────────────────────────────────────────────
-    if _mode == "LIVE" and not _env_bool("ENABLE_LIVE_TRADING", False):
-        log.info(
-            "trade_skipped",
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            reason="live_mode_not_enabled",
-        )
-        return TradeResult(
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            side=signal.side,
-            success=False,
-            mode=_mode,
-            attempted_size=signal.size_usd,
-            reason="live_mode_not_enabled",
-        )
-
-    # ── Risk re-validation ────────────────────────────────────────────────────
-    if signal.edge <= 0 and not signal.force_mode:
-        log.info(
-            "trade_skipped",
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            reason="edge_non_positive",
-            edge=signal.edge,
-        )
-        return TradeResult(
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            side=signal.side,
-            success=False,
-            mode=_mode,
-            attempted_size=signal.size_usd,
-            reason="edge_non_positive",
-        )
-
-    if signal.edge < _min_e:
-        log.info(
-            "trade_skipped",
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            reason="edge_below_threshold",
-            edge=round(signal.edge, 4),
-            min_edge=round(_min_e, 4),
-        )
-        return TradeResult(
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            side=signal.side,
-            success=False,
-            mode=_mode,
-            attempted_size=signal.size_usd,
-            reason="edge_below_threshold",
-        )
-
-    if signal.size_usd > _max_p:
-        log.info(
-            "trade_skipped",
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            reason="size_exceeds_max_position",
-            size_usd=signal.size_usd,
-            max_position_usd=_max_p,
-        )
-        return TradeResult(
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            side=signal.side,
-            success=False,
-            mode=_mode,
-            attempted_size=signal.size_usd,
-            reason="size_exceeds_max_position",
-        )
-
-    # ── Liquidity check ───────────────────────────────────────────────────────
-    liquidity_usd: float = float(getattr(signal, "liquidity_usd", 0.0) or 0.0)
-    if _min_liq > 0 and liquidity_usd < _min_liq:
-        log.info(
-            "trade_skipped",
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            reason="insufficient_liquidity",
-            liquidity_usd=liquidity_usd,
-            min_liquidity_usd=_min_liq,
-        )
-        return TradeResult(
-            trade_id=trade_id,
-            signal_id=signal.signal_id,
-            market_id=signal.market_id,
-            side=signal.side,
-            success=False,
-            mode=_mode,
-            attempted_size=signal.size_usd,
-            reason="insufficient_liquidity",
+            reason=gate.reason,
         )
     lock = _get_lock()
     async with lock:

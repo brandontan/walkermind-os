@@ -135,6 +135,30 @@ class PaperEngine:
 
         log.info("paper_engine_initialized", seeded=random_seed is not None)
 
+    def bind_runtime_state(
+        self,
+        *,
+        wallet: WalletEngine,
+        positions: PaperPositionManager,
+        ledger: TradeLedger,
+    ) -> None:
+        """Rebind runtime dependencies after restore/re-init."""
+        self._wallet = wallet
+        self._positions = positions
+        self._ledger = ledger
+        self.rebuild_processed_trade_ids()
+        log.info("paper_engine_runtime_rebound")
+
+    def rebuild_processed_trade_ids(self) -> None:
+        """Rebuild idempotency set from authoritative ledger history."""
+        self._processed_trade_ids = {
+            entry.trade_id for entry in self._ledger.get_all() if entry.trade_id
+        }
+        log.info(
+            "paper_engine_processed_ids_rebuilt",
+            processed_count=len(self._processed_trade_ids),
+        )
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def execute_order(self, order: dict) -> PaperOrderResult:

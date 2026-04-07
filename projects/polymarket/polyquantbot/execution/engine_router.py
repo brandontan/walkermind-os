@@ -94,7 +94,13 @@ class EngineContainer:
         """
         log.info("engine_container_restore_start")
         try:
-            await self.wallet.restore_from_db(db)  # type: ignore[arg-type]
+            restored_wallet = await WalletEngine.restore_from_db(db)  # type: ignore[arg-type]
+            self.wallet = restored_wallet
+            self.paper_engine.bind_runtime_state(
+                wallet=self.wallet,
+                positions=self.positions,
+                ledger=self.ledger,
+            )
         except Exception as exc:
             log.warning("engine_container_wallet_restore_error", error=str(exc))
 
@@ -107,6 +113,10 @@ class EngineContainer:
             await self.ledger.load_from_db(db)  # type: ignore[arg-type]
         except Exception as exc:
             log.warning("engine_container_ledger_restore_error", error=str(exc))
+        try:
+            self.paper_engine.rebuild_processed_trade_ids()
+        except Exception as exc:
+            log.warning("engine_container_reconcile_restore_error", error=str(exc))
 
         log.info("engine_container_restore_complete")
 

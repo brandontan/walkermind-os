@@ -175,6 +175,18 @@ CREATE TABLE IF NOT EXISTS trade_ledger (
 );
 """
 
+_DDL_EXECUTION_INTENTS = """
+CREATE TABLE IF NOT EXISTS execution_intents (
+    signal_id        TEXT        PRIMARY KEY,
+    market_id        TEXT        NOT NULL,
+    status           TEXT        NOT NULL DEFAULT 'reserved',
+    reason           TEXT        NOT NULL DEFAULT '',
+    trade_id         TEXT        NOT NULL DEFAULT '',
+    first_seen_at    DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    updated_at       DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
 
 # ── DatabaseClient ─────────────────────────────────────────────────────────────
 
@@ -322,6 +334,7 @@ class DatabaseClient:
             await conn.execute(_DDL_WALLET_STATE)
             await conn.execute(_DDL_PAPER_POSITIONS)
             await conn.execute(_DDL_TRADE_LEDGER)
+            await conn.execute(_DDL_EXECUTION_INTENTS)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────
@@ -736,6 +749,55 @@ class DatabaseClient:
             return await self._fetch(sql, market_id, limit, op_label="load_ledger_entries_market")
         sql = "SELECT * FROM trade_ledger ORDER BY inserted_at ASC LIMIT $1"
         return await self._fetch(sql, limit, op_label="load_ledger_entries")
+
+    # ── Durable execution intent persistence ─────────────────────────────────
+
+    async def reserve_execution_intent(self, signal_id: str, market_id: str) -> bool:
+        """Reserve a signal execution intent exactly once across restarts.
+
+        Returns:
+            True when the signal intent is newly reserved.
+            False when the signal intent already exists (duplicate/replay).
+        """
+        sql = """
+            INSERT INTO execution_intents (
+                signal_id, market_id, status, reason, trade_id, first_seen_at, updated_at
+            ) VALUES ($1, $2, 'reserved', '', '', $3, $3)
+            ON CONFLICT (signal_id) DO NOTHING
+        """
+        now_ts = time.time()
+        ok = await self._execute(
+            sql,
+            str(signal_id),
+            str(market_id),
+            now_ts,
+            op_label="reserve_execution_intent",
+        )
+        return bool(ok)
+
+    async def mark_execution_intent(
+        self,
+        signal_id: str,
+        *,
+        status: str,
+        reason: str = "",
+        trade_id: str = "",
+    ) -> bool:
+        """Mark durable execution intent status for audit/restart truth."""
+        sql = """
+            UPDATE execution_intents
+            SET status = $2, reason = $3, trade_id = $4, updated_at = $5
+            WHERE signal_id = $1
+        """
+        return await self._execute(
+            sql,
+            str(signal_id),
+            str(status),
+            str(reason),
+            str(trade_id),
+            time.time(),
+            op_label="mark_execution_intent",
+        )
 
     # ── Strategy toggle state ─────────────────────────────────────────────────
 

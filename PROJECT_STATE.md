@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 08:25
-- Status        : FORGE-X execution safety enforcement p1 review-fix addendum completed; execution outcomes are now explicit/auditable and line is prepared for SENTINEL validation
+- Last Updated  : 2026-04-07 11:53
+- Status        : FORGE-X trade-system hardening p2 completed for risk-before-execution, durable replay safety, restore/rebind correctness, and explicit execution outcome auditing; line is prepared for SENTINEL validation
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Trade-system hardening p2 (2026-04-07): enforced formal risk-before-execution in active loop, added durable `execution_intents` dedup/replay persistence across restart, tightened restore/rebind runtime state ownership for engine container + paper engine, eliminated touched-path silent exception swallow, and added focused MAJOR hardening tests in `test_trade_system_hardening_p2_20260407.py`.
 - Execution safety enforcement p1 review-fix addendum (2026-04-07): hardened callback status handling so rejected/block/failed statuses cannot be interpreted as success, added explicit partial-fill semantics, added execution outcome classifier (`executed`/`blocked`/`rejected`/`partial_fill`/`failed`), added trading-loop `execution_audit` outcome logging, and added focused safety tests in `test_execution_safety_p1_20260407.py`.
 - Telegram live coverage fix pass (2026-04-06) normalized core callback/menu render paths but left remaining utility/control menu correctness gaps.
 - Telegram full menu fix pass (2026-04-06): completed full operator-facing menu correctness coverage across home/system/status, wallet, positions, trade, pnl, performance, exposure, risk, strategy, settings, notifications, auto-trade, mode, control, market/markets, and refresh callback/edit/send paths.
@@ -49,8 +50,9 @@
 - SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
 - Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
 
-### Trade-system hardening handoff
-- FORGE-X hardening pending for risk-gate unification, reconciliation ownership, restart recovery correctness, and silent-failure removal before any real-wallet enablement.
+### Trade-system hardening p2 handoff
+- FORGE-X implementation complete for risk-gate unification, durable replay dedup, restore/rebind correctness, reconciliation audit clarity, and critical-path observability hardening.
+- SENTINEL validation is required before merge due to MAJOR execution/runtime impact.
 
 ---
 
@@ -62,9 +64,9 @@
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL validation required for execution_safety_enforcement_p1_20260407 before merge.
-- Source: projects/polymarket/polyquantbot/reports/forge/execution_safety_enforcement_p1_20260407.md
-- Tier: MAJOR
+SENTINEL validation required for trade_system_hardening_p2_20260407 before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/trade_system_hardening_p2_20260407.md
+Tier: MAJOR
 
 ---
 
@@ -75,5 +77,5 @@
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
-- Trading-loop execution path currently bypasses formal `RiskGuard` kill-switch/daily-loss/drawdown gating and must be hardened before real-wallet mode.
-- Startup wallet restore path in engine container may not apply persisted wallet state correctly (class-method return value is not assigned), creating restart reconciliation risk.
+- Trade-system hardening p2 is implemented but still awaits SENTINEL MAJOR validation before merge/promotion.
+- Integrated multi-module regression sweep outside the hardening target scope remains pending SENTINEL confirmation.

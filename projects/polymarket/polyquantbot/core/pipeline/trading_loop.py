@@ -81,7 +81,12 @@ from ..market_scope import apply_market_scope
 from ..market.ingest import ingest_markets
 from ..signal.signal_engine import generate_signals, generate_synthetic_signals
 from ..signal.alpha_model import ProbabilisticAlphaModel
-from ..execution.executor import execute_trade, classify_trade_result_outcome
+from ..execution.executor import (
+    TradeResult,
+    execute_trade,
+    classify_trade_result_outcome,
+    evaluate_formal_risk_gate,
+)
 from ...monitoring.pnl_calculator import PnLCalculator
 from ...monitoring.performance_tracker import PerformanceTracker
 from ...monitoring.metrics_engine import MetricsEngine
@@ -1076,6 +1081,73 @@ async def run_trading_loop(
                         mode=_mode,
                     )
 
+                    _reserved = await db.reserve_execution_intent(
+                        signal_id=signal.signal_id,
+                        market_id=signal.market_id,
+                    )
+                    if not _reserved:
+                        log.info(
+                            "execution_duplicate_blocked",
+                            signal_id=signal.signal_id,
+                            market_id=signal.market_id,
+                            reason="duplicate_blocked",
+                        )
+                        await db.mark_execution_intent(
+                            signal_id=signal.signal_id,
+                            status="duplicate_blocked",
+                            reason="duplicate_blocked",
+                        )
+                        log.info(
+                            "execution_audit",
+                            trade_id="",
+                            signal_id=signal.signal_id,
+                            market_id=signal.market_id,
+                            side=signal.side,
+                            mode=_mode,
+                            outcome="duplicate_blocked",
+                            reason="duplicate_blocked",
+                            attempted_size=round(signal.size_usd or 0.0, 4),
+                            filled_size=0.0,
+                            fill_price=0.0,
+                            partial_fill=False,
+                        )
+                        continue
+
+                    _risk_decision = evaluate_formal_risk_gate(
+                        signal,
+                        mode=_mode,
+                        max_position_usd=_bankroll * 0.10,
+                        min_edge=float(os.getenv("EXECUTION_MIN_EDGE", "0.01")),
+                        min_liquidity_usd=float(os.getenv("EXECUTION_MIN_LIQUIDITY_USD", "10000")),
+                        kill_switch_active=False,
+                    )
+                    if not _risk_decision.allowed:
+                        await db.mark_execution_intent(
+                            signal_id=signal.signal_id,
+                            status="risk_blocked",
+                            reason=_risk_decision.reason,
+                        )
+                        _risk_outcome = (
+                            "kill_switch_blocked"
+                            if _risk_decision.reason == "kill_switch_active"
+                            else "risk_blocked"
+                        )
+                        log.info(
+                            "execution_audit",
+                            trade_id="",
+                            signal_id=signal.signal_id,
+                            market_id=signal.market_id,
+                            side=signal.side,
+                            mode=_mode,
+                            outcome=_risk_outcome,
+                            reason=_risk_decision.reason,
+                            attempted_size=round(signal.size_usd or 0.0, 4),
+                            filled_size=0.0,
+                            fill_price=0.0,
+                            partial_fill=False,
+                        )
+                        continue
+
                     if _mode == "PAPER" and paper_engine is not None:
                         # ── PAPER path: PaperEngine is sole authority ─────────
                         try:
@@ -1092,6 +1164,11 @@ async def run_trading_loop(
                                 trade_id=signal.signal_id,
                                 market_id=signal.market_id,
                                 error=str(_pe_exc),
+                            )
+                            await db.mark_execution_intent(
+                                signal_id=signal.signal_id,
+                                status="failed",
+                                reason=f"paper_engine_failure:{_pe_exc}",
                             )
                             continue
 
@@ -1154,6 +1231,8 @@ async def run_trading_loop(
                                     trade_id=result.trade_id,
                                     error=str(_persist_exc),
                                 )
+                                result.success = False
+                                result.reason = f"downstream_persist_failed:{_persist_exc}"
 
                     else:
                         # ── LIVE path (or PAPER fallback): use execute_trade ──
@@ -1182,6 +1261,8 @@ async def run_trading_loop(
                             )
 
                     _execution_outcome = classify_trade_result_outcome(result)
+                    if _execution_outcome == "blocked" and result.reason == "kill_switch_active":
+                        _execution_outcome = "kill_switch_blocked"
                     log.info(
                         "execution_audit",
                         trade_id=result.trade_id,
@@ -1195,6 +1276,12 @@ async def run_trading_loop(
                         filled_size=round(result.filled_size_usd or 0.0, 4),
                         fill_price=round(result.fill_price or 0.0, 6),
                         partial_fill=result.partial_fill,
+                    )
+                    await db.mark_execution_intent(
+                        signal_id=signal.signal_id,
+                        status=_execution_outcome,
+                        reason=result.reason,
+                        trade_id=result.trade_id,
                     )
 
                     if not result.success:
@@ -1240,32 +1327,46 @@ async def run_trading_loop(
 
                         # ── 4e. Persist position (db is always present) ───────────
                         if result.fill_price > 0.0:
-                            await db.upsert_position({
-                                "user_id": _user_id,
-                                "market_id": result.market_id,
-                                "avg_price": result.fill_price,
-                                "size": result.filled_size_usd,
-                            })
+                            try:
+                                await db.upsert_position({
+                                    "user_id": _user_id,
+                                    "market_id": result.market_id,
+                                    "avg_price": result.fill_price,
+                                    "size": result.filled_size_usd,
+                                })
 
-                            # ── 4f. Record trade in DB and set status ─────────────
-                            await db.insert_trade({
-                                "trade_id": result.trade_id,
-                                "user_id": _user_id,
-                                "strategy_id": signal.extra.get("strategy_id", ""),
-                                "market_id": result.market_id,
-                                "side": result.side,
-                                "size_usd": result.filled_size_usd,
-                                "price": result.fill_price,
-                                "entry_price": result.fill_price,
-                                "expected_ev": signal.ev,
-                                "pnl": 0.0,
-                                "won": False,
-                                "status": "open",
-                                "mode": result.mode,
-                                "executed_at": time.time(),
-                            })
-
-                            await db.update_trade_status(result.trade_id, "open")
+                                # ── 4f. Record trade in DB and set status ─────────────
+                                await db.insert_trade({
+                                    "trade_id": result.trade_id,
+                                    "user_id": _user_id,
+                                    "strategy_id": signal.extra.get("strategy_id", ""),
+                                    "market_id": result.market_id,
+                                    "side": result.side,
+                                    "size_usd": result.filled_size_usd,
+                                    "price": result.fill_price,
+                                    "entry_price": result.fill_price,
+                                    "expected_ev": signal.ev,
+                                    "pnl": 0.0,
+                                    "won": False,
+                                    "status": "open",
+                                    "mode": result.mode,
+                                    "executed_at": time.time(),
+                                })
+                                await db.update_trade_status(result.trade_id, "open")
+                            except Exception as _recon_exc:
+                                log.error(
+                                    "execution_reconciliation_failed",
+                                    trade_id=result.trade_id,
+                                    market_id=result.market_id,
+                                    error=str(_recon_exc),
+                                )
+                                await db.mark_execution_intent(
+                                    signal_id=signal.signal_id,
+                                    status="restore_recovery_failure",
+                                    reason=f"reconciliation_failed:{_recon_exc}",
+                                    trade_id=result.trade_id,
+                                )
+                                continue
 
                         # ── 4g. Update in-memory PositionManager ──────────────────
                         _pos_realized: float = 0.0
@@ -1531,8 +1632,13 @@ async def run_trading_loop(
                                                 f"Entry: {_pos.entry_price:.4f}"
                                             )
                                             await telegram_sender.send(_close_msg)
-                                        except Exception:
-                                            pass
+                                        except Exception as _close_tg_exc:
+                                            log.warning(
+                                                "close_order_telegram_failed",
+                                                trade_id=_close_trade_id,
+                                                market_id=_pos.market_id,
+                                                error=str(_close_tg_exc),
+                                            )
                                 except Exception as _close_exc:
                                     log.error(
                                         "close_order_failed",
@@ -1618,8 +1724,13 @@ async def run_trading_loop(
                                                 f"Entry: {_lpos.avg_price:.4f}"
                                             )
                                             await telegram_sender.send(_live_close_msg)
-                                        except Exception:
-                                            pass
+                                        except Exception as _live_close_tg_exc:
+                                            log.warning(
+                                                "live_close_order_telegram_failed",
+                                                trade_id=_live_close_id,
+                                                market_id=_lpos.market_id,
+                                                error=str(_live_close_tg_exc),
+                                            )
                                 except Exception as _live_close_exc:
                                     log.error(
                                         "live_close_order_failed",

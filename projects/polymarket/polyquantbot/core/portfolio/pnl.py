@@ -109,7 +109,11 @@ class PnLTracker:
                     )
             except RuntimeError:
                 # No running event loop (sync context / tests)
-                pass
+                log.warning(
+                    "pnl_persist_schedule_skipped",
+                    trade_id=trade_id,
+                    reason="no_running_event_loop",
+                )
 
         return rec
 
