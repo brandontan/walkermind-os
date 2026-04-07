@@ -67,7 +67,15 @@ def build_portfolio_menu() -> InlineKeyboard:
     return [
         [_btn("💰 Wallet", "portfolio_wallet"), _btn("📈 Positions", "portfolio_positions")],
         [_btn("📊 Exposure", "portfolio_exposure"), _btn("💹 PnL", "portfolio_pnl")],
-        [_btn("🏁 Performance", "portfolio_performance")],
+        [_btn("🏁 Performance", "portfolio_performance"), _btn("⚡ Trade", "portfolio_trade")],
+    ]
+
+
+def build_trade_menu() -> InlineKeyboard:
+    """Trade contextual submenu for Portfolio -> ⚡ Trade."""
+    return [
+        [_btn("📡 Signal", "trade_signal"), _btn("🧪 Paper Execute", "trade_paper_execute")],
+        [_btn("🛑 Kill Switch", "trade_kill_switch"), _btn("📊 Trade Status", "trade_status")],
     ]
 
 
