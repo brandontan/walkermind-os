@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import structlog
+from ...execution.event_logger import get_event_logger
 
 log = structlog.get_logger()
 
@@ -76,6 +77,7 @@ class PositionManager:
         fill_price: float,
         fill_size: float,
         trade_id: str = "",
+        trace_id: str = "",
     ) -> Position:
         """Record a fill, creating or updating the position for *market_id*.
 
@@ -93,6 +95,13 @@ class PositionManager:
             ValueError: When *side* conflicts with the existing position's side.
         """
         if trade_id and trade_id in self._seen_trades:
+            if trace_id:
+                get_event_logger().emit(
+                    trace_id=trace_id,
+                    event_type="portfolio",
+                    component="position_manager",
+                    payload={"outcome": "duplicate_blocked", "market_id": market_id, "trade_id": trade_id},
+                )
             log.info(
                 "position_open_duplicate",
                 trade_id=trade_id,
@@ -154,6 +163,13 @@ class PositionManager:
             size=pos.size,
             trade_id=trade_id or "n/a",
         )
+        if trace_id:
+            get_event_logger().emit(
+                trace_id=trace_id,
+                event_type="portfolio",
+                component="position_manager",
+                payload={"outcome": "executed", "market_id": market_id, "trade_id": trade_id or "n/a", "size": pos.size},
+            )
         return pos
 
     def close(

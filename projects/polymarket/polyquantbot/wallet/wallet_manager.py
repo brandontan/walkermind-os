@@ -30,6 +30,7 @@ from typing import Optional
 import structlog
 
 from ..infra.db.sqlite_client import SQLiteClient
+from ..execution.event_logger import get_event_logger
 
 log = structlog.get_logger()
 
@@ -149,6 +150,7 @@ class WalletManager:
         fee: float,
         exposure_delta: float = 0.0,
         user_id: Optional[int] = None,
+        trace_id: str = "",
     ) -> None:
         """Record a completed trade and update wallet balance.
 
@@ -186,6 +188,13 @@ class WalletManager:
                 new_balance=round(balance_snapshot, 6),
                 total_trades=record.total_trades,
             )
+            if trace_id:
+                get_event_logger().emit(
+                    trace_id=trace_id,
+                    event_type="portfolio",
+                    component="wallet",
+                    payload={"outcome": "executed", "wallet_id": wallet_id, "balance": round(balance_snapshot, 6)},
+                )
 
         # Persist outside the lock to avoid blocking
         if self._db is not None:

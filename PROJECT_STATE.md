@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 22:38
-- Status        : Trade-System Hardening P3 approved and merged to main; execution-boundary capital/exposure guardrails are now authoritative baseline
+- Last Updated  : 2026-04-07 23:05
+- Status        : Trade-System Reliability & Observability P4 FORGE-X implementation complete; structured traceability/events ready for SENTINEL MAJOR validation
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Trade-system reliability & observability P4 FORGE-X implementation complete (2026-04-07): added per-intent `trace_id` generation/propagation across trading_loop → executor → engine_router → portfolio/wallet, centralized structured event model + replay capability, canonical outcome taxonomy enforcement, and focused observability tests (`test_trade_system_p4_observability_20260407.py`) passing.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
 - SENTINEL validation complete for `trade_system_hardening_p3_20260407` (2026-04-07): verdict **APPROVED**, score **97/100**; execution-boundary capital guardrails verified authoritative with explicit structured block reasons and successful allowed-path execution proof.
 - Telegram/UI text leakage audit pass (2026-04-07): removed `Untitled market (ref ...)` primary-label leakage, hardened user-facing fallback sanitization for placeholder strings (`None`/`N/A`/`null`), and sanitized callback fallback messaging to avoid internal action/error exposure.
@@ -108,14 +109,9 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Next Priority:
-System Reliability & Observability Layer (P4)
-
-Focus:
-- end-to-end execution traceability
-- failure observability completeness
-- monitoring consistency
-- audit replay capability
-- alerting readiness
+SENTINEL validation required for trade_system_reliability_observability_p4_20260407 before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/trade_system_reliability_observability_p4_20260407.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
@@ -124,3 +120,5 @@ Focus:
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
+
+- Pytest warning `Unknown config option: asyncio_mode` still appears in this container environment but does not affect targeted P4 test pass.

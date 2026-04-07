@@ -36,6 +36,7 @@ from ..core.ledger import TradeLedger
 from ..core.exposure import ExposureCalculator
 from .paper_engine import PaperEngine, PaperOrderResult, OrderStatus
 from .capital_guard import CapitalGuard
+from .event_logger import get_event_logger
 
 log = structlog.get_logger(__name__)
 
@@ -93,6 +94,7 @@ class EngineContainer:
         original_execute_order = self.paper_engine.execute_order
 
         async def _guarded_execute_order(order: dict) -> PaperOrderResult:
+            trace_id = str(order.get("trace_id", ""))
             violation = self.capital_guard.evaluate(order)
             if violation is not None:
                 trade_id = str(order.get("trade_id", ""))
@@ -109,6 +111,13 @@ class EngineContainer:
                     side=side,
                     **violation.details,
                 )
+                if trace_id:
+                    get_event_logger().emit(
+                        trace_id=trace_id,
+                        event_type="risk",
+                        component="engine_router",
+                        payload={"outcome": "blocked", "reason": violation.reason, "market_id": market_id},
+                    )
                 return PaperOrderResult(
                     trade_id=trade_id,
                     market_id=market_id,
@@ -163,11 +172,23 @@ class EngineContainer:
                 outcome="restore_failure",
                 failed_components=failed_components,
             )
+            get_event_logger().emit(
+                trace_id="system-restore",
+                event_type="outcome",
+                component="engine_router",
+                payload={"outcome": "restore_failure", "failed_components": failed_components},
+            )
         else:
             log.info(
                 "engine_container_restore_outcome",
                 outcome="restore_success",
                 failed_components=[],
+            )
+            get_event_logger().emit(
+                trace_id="system-restore",
+                event_type="outcome",
+                component="engine_router",
+                payload={"outcome": "restore_success", "failed_components": []},
             )
 
         log.info("engine_container_restore_complete")

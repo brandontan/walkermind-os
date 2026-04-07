@@ -108,6 +108,8 @@ from ..logging.logger import (
     log_loop_throttled,
 )
 from ...telegram.message_formatter import format_trade_alert
+from ...execution.event_logger import get_event_logger
+from ...execution.trace_context import create_trace_id
 
 log = structlog.get_logger()
 
@@ -986,6 +988,14 @@ async def run_trading_loop(
                 # ── 4. Execute each signal and update positions ───────────────────
                 _trades_this_tick: int = 0
                 for signal in signals:
+                    trace_id = create_trace_id()
+                    _event_logger = get_event_logger()
+                    _event_logger.emit(
+                        trace_id=trace_id,
+                        event_type="signal",
+                        component="trading_loop",
+                        payload={"signal_id": signal.signal_id, "market_id": signal.market_id, "side": signal.side},
+                    )
                     # ── 4a. Force signal mode: max 1 trade per loop ───────────────
                     if _active_force and _trades_this_tick >= 1:
                         log.info(
@@ -1074,6 +1084,7 @@ async def run_trading_loop(
                         market_id=signal.market_id,
                         side=signal.side,
                         mode=_mode,
+                        trace_id=trace_id,
                     )
 
                     if _mode == "PAPER" and paper_engine is not None:
@@ -1085,6 +1096,7 @@ async def run_trading_loop(
                                 "price": signal.p_market,
                                 "size": signal.size_usd,
                                 "trade_id": signal.signal_id,
+                                "trace_id": trace_id,
                             })
                         except Exception as _pe_exc:
                             log.error(
@@ -1092,6 +1104,13 @@ async def run_trading_loop(
                                 trade_id=signal.signal_id,
                                 market_id=signal.market_id,
                                 error=str(_pe_exc),
+                                trace_id=trace_id,
+                            )
+                            _event_logger.emit_failure(
+                                trace_id=trace_id,
+                                component="trading_loop",
+                                error=_pe_exc,
+                                context={"stage": "paper_execute_order", "market_id": signal.market_id},
                             )
                             continue
 
@@ -1105,6 +1124,13 @@ async def run_trading_loop(
                                 market_id=signal.market_id,
                                 reason=_paper_order.reason,
                                 status=_paper_order.status,
+                                trace_id=trace_id,
+                            )
+                            _event_logger.emit(
+                                trace_id=trace_id,
+                                event_type="outcome",
+                                component="trading_loop",
+                                payload={"outcome": "rejected", "reason": _paper_order.reason},
                             )
                             continue
 
@@ -1134,6 +1160,12 @@ async def run_trading_loop(
                             fill_price=round(result.fill_price, 6),
                             mode=result.mode,
                         )
+                        _event_logger.emit(
+                            trace_id=trace_id,
+                            event_type="execution",
+                            component="trading_loop",
+                            payload={"outcome": "executed", "trade_id": result.trade_id, "market_id": result.market_id},
+                        )
 
                         # ── Persist ledger entry ──────────────────────────────
                         if db is not None and paper_engine is not None:
@@ -1155,6 +1187,7 @@ async def run_trading_loop(
                             signal,
                             mode=_mode,
                             executor_callback=executor_callback,
+                            trace_id=trace_id,
                         )
                         if not result.success:
                             log.info(
@@ -1162,6 +1195,13 @@ async def run_trading_loop(
                                 trade_id=result.trade_id,
                                 market_id=result.market_id,
                                 reason=result.reason,
+                                trace_id=trace_id,
+                            )
+                            _event_logger.emit(
+                                trace_id=trace_id,
+                                event_type="outcome",
+                                component="trading_loop",
+                                payload={"outcome": "failed", "reason": result.reason},
                             )
                             continue
                         log.info(
@@ -1172,6 +1212,12 @@ async def run_trading_loop(
                             filled_size_usd=round(result.filled_size_usd or 0.0, 4),
                             fill_price=round(result.fill_price or 0.0, 6),
                             mode=result.mode,
+                        )
+                        _event_logger.emit(
+                            trace_id=trace_id,
+                            event_type="execution",
+                            component="trading_loop",
+                            payload={"outcome": "executed", "trade_id": result.trade_id, "market_id": result.market_id},
                         )
 
                     if result.success:
@@ -1240,6 +1286,12 @@ async def run_trading_loop(
                             })
 
                             await db.update_trade_status(result.trade_id, "open")
+                            _event_logger.emit(
+                                trace_id=trace_id,
+                                event_type="outcome",
+                                component="trading_loop",
+                                payload={"outcome": "executed", "trade_id": result.trade_id, "status": "open"},
+                            )
 
                         # ── 4g. Update in-memory PositionManager ──────────────────
                         _pos_realized: float = 0.0
@@ -1252,6 +1304,7 @@ async def run_trading_loop(
                                     fill_price=result.fill_price,
                                     fill_size=result.filled_size_usd,
                                     trade_id=result.trade_id,
+                                    trace_id=trace_id,
                                 )
                                 log_position_updated(
                                     result.market_id,
@@ -1271,6 +1324,13 @@ async def run_trading_loop(
                                     "position_manager_update_failed",
                                     market_id=result.market_id,
                                     error=str(pos_exc),
+                                    trace_id=trace_id,
+                                )
+                                _event_logger.emit_failure(
+                                    trace_id=trace_id,
+                                    component="portfolio",
+                                    error=pos_exc,
+                                    context={"stage": "position_manager.open", "market_id": result.market_id},
                                 )
 
                         # ── 4h. Update PnLTracker ─────────────────────────────────
