@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 10:45
-- Status        : FORGE-X restore_failure observability addendum completed for trade_system_hardening_p2_20260407 after SENTINEL #262 CONDITIONAL caveat; awaiting SENTINEL rerun before merge
+- Last Updated  : 2026-04-07 19:45
+- Status        : Trade-System Hardening P2 approved and merged to main via PR #263; project state synchronized to merged reality
 
 ---
 
@@ -33,7 +33,31 @@
 - Trade-system truth audit report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md`.
 - Telegram Trade Menu MVP final fix pass (2026-04-07): added Portfolio `⚡ Trade`, created dedicated 4-action Trade submenu, and corrected callback routing contract so trade actions stay in Trade context without Home fallback.
 - Trade-system hardening P2 restore_failure observability addendum (2026-04-07): added explicit structured restore outcome emission (`restore_failure`/`restore_success`) in engine restore path and added focused proof test `test_trade_system_hardening_p2_20260407.py`.
-- SENTINEL #262 for trade-system hardening P2 is currently **CONDITIONAL (84/100)** pending explicit restore-failure observability confirmation rerun.
+
+### Trade-System Hardening P2 — COMPLETED (2026-04-07)
+
+Summary:
+- Formal risk-before-execution enforced across active loop
+- Durable execution dedup implemented via execution_intents persistence
+- Restart/restore correctness fixed (wallet + runtime rebind)
+- Silent failure removed in critical execution paths
+- Explicit outcome taxonomy completed:
+  - blocked
+  - duplicate_blocked
+  - rejected
+  - partial_fill
+  - executed
+  - failed
+  - restore_failure
+  - restore_success
+
+Validation:
+- SENTINEL initial: CONDITIONAL (restore observability gap)
+- Addendum fix applied (PR #263)
+- No remaining critical findings
+
+Status:
+- APPROVED AND MERGED TO MAIN
 
 ---
 
@@ -51,9 +75,6 @@
 - SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
 - Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
 
-### Trade-system hardening handoff
-- restore_failure observability addendum is complete; SENTINEL rerun pending for `trade_system_hardening_p2_20260407` before merge.
-
 ---
 
 ## ❌ NOT STARTED
@@ -64,15 +85,12 @@
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL validation required for trade_system_hardening_p2_20260407 before merge. Source: projects/polymarket/polyquantbot/reports/forge/trade_system_hardening_p2_20260407.md. Tier: STANDARD
+- Trade-System Hardening P3 — Execution Safety & Capital Guardrails
 
 ## ⚠️ KNOWN ISSUES
 
-- SENTINEL #262 remains CONDITIONAL (84/100) until rerun confirms explicit `restore_failure` outcome observability in runtime artifacts.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
-- Trading-loop execution path currently bypasses formal `RiskGuard` kill-switch/daily-loss/drawdown gating and must be hardened before real-wallet mode.
-- Startup wallet restore path in engine container may not apply persisted wallet state correctly (class-method return value is not assigned), creating restart reconciliation risk.
