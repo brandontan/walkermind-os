@@ -13,10 +13,10 @@ def _callback_values(keyboard: list[list[dict[str, str]]]) -> set[str]:
 
 
 def test_trade_menu_mvp_contains_expected_trade_actions() -> None:
-    """Phase-0 guard: ensure the paper wallet trade menu contract is present."""
+    """Ensure the Trade submenu contract is present."""
     assert _callback_values(build_paper_wallet_menu()) == {
-        "action:trade",
-        "action:exposure",
-        "action:wallet",
-        "action:back_main",
+        "action:trade_signal",
+        "action:trade_paper_execute",
+        "action:trade_kill_switch",
+        "action:trade_status",
     }

@@ -34,6 +34,7 @@ def test_portfolio_menu_has_only_contextual_actions() -> None:
         "action:portfolio_exposure",
         "action:portfolio_pnl",
         "action:portfolio_performance",
+        "action:portfolio_trade",
     }
 
 

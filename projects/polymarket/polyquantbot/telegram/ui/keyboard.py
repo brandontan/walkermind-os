@@ -67,7 +67,7 @@ def build_portfolio_menu() -> InlineKeyboard:
     return [
         [_btn("💰 Wallet", "portfolio_wallet"), _btn("📈 Positions", "portfolio_positions")],
         [_btn("📊 Exposure", "portfolio_exposure"), _btn("💹 PnL", "portfolio_pnl")],
-        [_btn("🏁 Performance", "portfolio_performance")],
+        [_btn("🏁 Performance", "portfolio_performance"), _btn("⚡ Trade", "portfolio_trade")],
     ]
 
 
@@ -118,16 +118,20 @@ def build_wallet_menu() -> InlineKeyboard:
 
 
 def build_paper_wallet_menu() -> InlineKeyboard:
-    """Paper wallet overview menu — trade and exposure actions.
+    """Paper trade submenu (MVP contract).
 
     Layout::
 
-        [📊 Trade      ] [📉 Exposure ]
-        [🔄 Refresh   ] [🏠 Main Menu]
+        [📡 Signal          ]
+        [🧪 Paper Execute   ]
+        [🛑 Kill Switch     ]
+        [📊 Trade Status    ]
     """
     return [
-        [_btn("📊 Trade",    "trade"),    _btn("📉 Exposure",  "exposure")],
-        [_btn("🔄 Refresh", "wallet"),   _btn("🏠 Main Menu", "back_main")],
+        [_btn("📡 Signal", "trade_signal")],
+        [_btn("🧪 Paper Execute", "trade_paper_execute")],
+        [_btn("🛑 Kill Switch", "trade_kill_switch")],
+        [_btn("📊 Trade Status", "trade_status")],
     ]
 
 

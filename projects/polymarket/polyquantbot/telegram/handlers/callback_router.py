@@ -364,7 +364,15 @@ class CallbackRouter:
     @staticmethod
     def _active_root_for_action(action: str) -> str:
         """Resolve active root section for contextual inline keyboard rendering."""
-        if action.startswith("portfolio_") or action in {"portfolio", "wallet", "positions", "pnl", "performance", "exposure"}:
+        if action.startswith("portfolio_") or action.startswith("trade_") or action in {
+            "portfolio",
+            "wallet",
+            "positions",
+            "pnl",
+            "performance",
+            "exposure",
+            "trade",
+        }:
             return "portfolio"
         if action.startswith("markets_") or action in {"markets", "market", "active_scope"}:
             return "markets"
@@ -465,8 +473,13 @@ class CallbackRouter:
             "portfolio_exposure": "exposure",
             "portfolio_pnl": "pnl",
             "portfolio_performance": "performance",
+            "portfolio_trade": "trade",
             "markets_overview": "markets",
             "markets_refresh_all": "refresh",
+            "trade_signal": "trade_signal",
+            "trade_paper_execute": "trade_paper_execute",
+            "trade_kill_switch": "trade_kill_switch",
+            "trade_status": "trade_status",
         }
         base_action = "dashboard_home" if action in {"back_main", "back", "start", "menu", "home"} else action
         normalized_action = action_aliases.get(base_action, base_action)
@@ -478,6 +491,23 @@ class CallbackRouter:
             payload["mode_guard"] = "ENABLE_LIVE_TRADING=true required for LIVE"
         if normalized_action == "control":
             payload["control_action"] = "standby"
+        if normalized_action == "trade_signal":
+            payload["decision"] = "Signal preview only — no execution triggered"
+            payload["operator_note"] = "No live signal data available; showing safe fallback state"
+            payload["insight"] = "Use this panel to inspect trade intent before paper execution"
+        if normalized_action == "trade_paper_execute":
+            payload["decision"] = "Paper-only execution path armed"
+            payload["operator_note"] = "This action does not place live-wallet orders"
+            payload["insight"] = "Paper Execute remains sandboxed to simulated capital"
+        if normalized_action == "trade_kill_switch":
+            payload["decision"] = "Kill switch control is available in current system state"
+            payload["operator_note"] = "Use Settings → Control for explicit pause/resume/stop operations"
+            payload["insight"] = "No emergency state detected; control routing remains active"
+            payload["control_action"] = "standby"
+        if normalized_action == "trade_status":
+            payload["decision"] = "Trade status uses safe defaults when runtime metrics are unavailable"
+            payload["operator_note"] = "Review open positions and risk posture before sending paper orders"
+            payload["insight"] = "Status panel remains informative even when data sources are partial"
 
         try:
             text = await render_view(normalized_action, payload)
@@ -495,7 +525,13 @@ class CallbackRouter:
         if base_action == "dashboard" or normalized_action in {"home", "system", "refresh"} and base_action.startswith("dashboard"):
             return text, build_dashboard_menu()
         if base_action == "portfolio" or base_action.startswith("portfolio_"):
+            if base_action == "portfolio_trade":
+                from ..ui.keyboard import build_paper_wallet_menu  # noqa: PLC0415
+                return text, build_paper_wallet_menu()
             return text, build_portfolio_menu()
+        if base_action.startswith("trade_"):
+            from ..ui.keyboard import build_paper_wallet_menu  # noqa: PLC0415
+            return text, build_paper_wallet_menu()
         if base_action == "markets_categories":
             return text, build_market_categories_menu(
                 categories=list(MARKET_SCOPE_CATEGORIES),
@@ -511,9 +547,6 @@ class CallbackRouter:
         if normalized_action in {"status", "system", "refresh", "positions", "trade", "pnl", "performance", "exposure", "risk"}:
             return text, build_dashboard_menu()
         if normalized_action == "wallet":
-            if self._mode == "PAPER" and self._paper_wallet_engine is not None:
-                from ..ui.keyboard import build_paper_wallet_menu  # noqa: PLC0415
-                return text, build_paper_wallet_menu()
             from ..ui.keyboard import build_wallet_menu  # noqa: PLC0415
             return text, build_wallet_menu()
         if normalized_action == "strategy":
@@ -578,6 +611,7 @@ class CallbackRouter:
             "portfolio_exposure",
             "portfolio_pnl",
             "portfolio_performance",
+            "portfolio_trade",
             "markets_overview",
             "markets_categories",
             "markets_active_scope",
@@ -604,6 +638,10 @@ class CallbackRouter:
             "settings_notify",
             "settings_auto",
             "control",
+            "trade_signal",
+            "trade_paper_execute",
+            "trade_kill_switch",
+            "trade_status",
         }
         if action in normalized_actions:
             return await self._render_normalized_callback(action)

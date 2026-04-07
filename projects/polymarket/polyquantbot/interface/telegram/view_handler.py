@@ -33,6 +33,11 @@ _ACTION_ALIAS: dict[str, str] = {
     "help": "help",
     "help_guidance": "guidance",
     "help_bot_info": "bot_info",
+    "portfolio_trade": "trade",
+    "trade_signal": "trade_signal",
+    "trade_paper_execute": "trade_paper_execute",
+    "trade_kill_switch": "trade_kill_switch",
+    "trade_status": "trade_status",
 }
 
 
@@ -104,7 +109,7 @@ def _derive_position_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _resolve_active_root(mode: str) -> str:
-    if mode in {"wallet", "positions", "pnl", "performance", "exposure", "portfolio"}:
+    if mode in {"wallet", "positions", "pnl", "performance", "exposure", "portfolio", "trade", "trade_signal", "trade_paper_execute", "trade_kill_switch", "trade_status"}:
         return "portfolio"
     if mode in {"market", "markets", "active_scope"}:
         return "markets"
@@ -192,6 +197,50 @@ async def render_view(name: str, payload: Mapping[str, Any]) -> str:
                 "decision": safe_payload.get("decision", "Deploy only if edge + liquidity both qualify"),
                 "operator_note": safe_payload.get("operator_note", "Review slippage and depth before send"),
                 "insight": safe_payload.get("insight", "One-glance card highlights side, price, and risk posture"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "trade_signal":
+        dashboard_payload = _base_payload("trade_signal", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Signal panel ready — waiting for qualified input"),
+                "operator_note": safe_payload.get("operator_note", "Missing signal data is shown as safe fallback values"),
+                "insight": safe_payload.get("insight", "Signal preview is informational and execution-neutral"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "trade_paper_execute":
+        dashboard_payload = _base_payload("trade_paper_execute", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Paper-only execution pathway selected"),
+                "operator_note": safe_payload.get("operator_note", "No live-wallet execution is performed from this action"),
+                "insight": safe_payload.get("insight", "Paper execution keeps safety guardrails intact"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "trade_kill_switch":
+        dashboard_payload = _base_payload("trade_kill_switch", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Kill switch state is shown from current runtime controls"),
+                "operator_note": safe_payload.get("operator_note", "Use explicit control actions to pause/resume/stop"),
+                "insight": safe_payload.get("insight", "Kill switch panel reports control readiness without side effects"),
+            }
+        )
+        return await render_dashboard(dashboard_payload)
+
+    if action == "trade_status":
+        dashboard_payload = _base_payload("trade_status", safe_payload)
+        dashboard_payload.update(
+            {
+                "decision": safe_payload.get("decision", "Trade status panel uses safe defaults if metrics are missing"),
+                "operator_note": safe_payload.get("operator_note", "Status is informational and does not execute trades"),
+                "insight": safe_payload.get("insight", "Open-position and risk posture remain visible under partial data"),
             }
         )
         return await render_dashboard(dashboard_payload)
