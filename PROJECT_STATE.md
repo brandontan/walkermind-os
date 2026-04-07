@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-06 22:40
-- Status        : SENTINEL trade-system truth audit complete (paper-path decision map delivered); premium-nav and trade-hardening merge sequence awaiting COMMANDER direction
+- Last Updated  : 2026-04-07 05:01
+- Status        : SENTINEL fast validation for paper_trade_hardening_p0_20260407 is BLOCKED at Phase 0 (missing required forge report and deterministic test artifact)
 
 ---
 
@@ -23,12 +23,14 @@
 - Category inference hardening applied for weak-metadata and uncategorized markets: deterministic inference order plus fallback inclusion path under category mode to reduce avoidable exclusions while preserving blocked-scope behavior when no categories are active.
 - Telegram /start numeric placeholder blocker patch (2026-04-06): hardened Telegram-facing numeric normalization in view/callback payload paths so `"N/A"`, `None`, empty, missing, and malformed numeric values no longer hard-crash dashboard/menu render.
 - Telegram Home live blocker addendum (2026-04-06): hardened callback Home payload hydration against malformed shared-state payloads, unified Home↔`/start` safe numeric normalization policy, and added callback render fallback so degraded Home payloads do not hard-crash.
-- Telegram live-path blocker fix (2026-04-06): removed root-menu divergence by aligning reply keyboard with 5-item root contract, forced `/start` to emit authoritative inline main menu payload, and hardened shared portfolio normalization path that could still execute `float(\"N/A\")`.
+- Telegram live-path blocker fix (2026-04-06): removed root-menu divergence by aligning reply keyboard with 5-item root contract, forced `/start` to emit authoritative inline main menu payload, and hardened shared portfolio normalization path that could still execute `float("N/A")`.
 - SENTINEL validation complete for `telegram-menu-scope-hardening-20260407` with verdict **APPROVED** (score **88/100**) and **no critical issues**.
 - BRIEFER handoff completed for `telegram-menu-scope-hardening-20260407`.
 - Telegram premium navigation / UX consolidation pass (2026-04-07): enforced two-layer Telegram navigation with persistent 5-item reply-keyboard root and contextual inline section actions; removed duplicated inline root menu; added active-root cue and compact button layout polish while preserving approved scope-control semantics.
 - SENTINEL trade system truth audit complete (2026-04-07) with verdict **PAPER-ACCEPTABLE WITH RISKS** and score **62/100**; identified critical risk-layer bypass on trading-loop execution path, startup wallet-restore mismatch risk, and partial-state reconciliation gaps blocking real-wallet readiness.
 - Trade-system truth audit report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md`.
+- SENTINEL fast validation attempt for `paper_trade_hardening_p0_20260407` completed with verdict **BLOCKED** at Phase 0 due to missing required forge report and missing required deterministic test artifact.
+- Fast validation report saved at `projects/polymarket/polyquantbot/reports/sentinel/paper_trade_hardening_p0_fast_validation_20260407.md`.
 
 ---
 
@@ -40,6 +42,7 @@
 
 ### Trade-system hardening handoff
 - FORGE-X hardening pending for risk-gate unification, reconciliation ownership, restart recovery correctness, and silent-failure removal before any real-wallet enablement.
+- FORGE-X must add missing artifacts required by fast SENTINEL gate for `paper_trade_hardening_p0_20260407` (forge report + deterministic test).
 
 ---
 
@@ -51,9 +54,11 @@
 
 ## 🎯 NEXT PRIORITY
 
-- FORGE-X hardening required for trade-system readiness before any real-wallet enablement.
-- Source: projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md
-- SENTINEL re-validation required after hardening pass; COMMANDER merge/enablement decision only after that validation.
+- FORGE-X must provide missing artifacts for `paper_trade_hardening_p0_20260407`:
+  - `projects/polymarket/polyquantbot/reports/forge/paper_trade_hardening_p0_20260407.md`
+  - `projects/polymarket/polyquantbot/tests/test_paper_trade_hardening_p0_20260407.py`
+- SENTINEL must re-run fast validation immediately after artifacts exist.
+- Source: projects/polymarket/polyquantbot/reports/sentinel/paper_trade_hardening_p0_fast_validation_20260407.md
 
 ---
 
@@ -64,3 +69,5 @@
 - External live Telegram device screenshot proof is still unavailable in this container environment.
 - Trading-loop execution path currently bypasses formal `RiskGuard` kill-switch/daily-loss/drawdown gating and must be hardened before real-wallet mode.
 - Startup wallet restore path in engine container may not apply persisted wallet state correctly (class-method return value is not assigned), creating restart reconciliation risk.
+- Missing required forge artifact for current fast validation: `projects/polymarket/polyquantbot/reports/forge/paper_trade_hardening_p0_20260407.md`.
+- Missing required deterministic test artifact for current fast validation: `projects/polymarket/polyquantbot/tests/test_paper_trade_hardening_p0_20260407.py`.
