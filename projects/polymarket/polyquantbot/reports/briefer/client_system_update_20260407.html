@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Walker AI Trading System — Client Progress Update — Walker AI Trading</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════
+       WALKER AI — MASTER REPORT TEMPLATE
+       Version: 1.0 | Dark Futuristic
+       BRIEFER: do not modify this CSS block.
+       Replace only {{PLACEHOLDER}} values in HTML.
+    ═══════════════════════════════════════════════════ */
+
+    :root {
+      --bg:       #020508;
+      --surface:  #060d14;
+      --surface2: #0a1520;
+      --border:   #0d2235;
+      --border2:  #1a3a55;
+      --accent:   #00d4ff;
+      --accent2:  #0088cc;
+      --accent3:  #00ffb3;
+      --warn:     #f59e0b;
+      --danger:   #ff3355;
+      --muted:    #3a6080;
+      --text:     #8ab8d0;
+      --text2:    #c8e0ee;
+      --white:    #e8f4ff;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Exo 2', sans-serif;
+      background: var(--bg);
+      color: var(--text2);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* Scanline */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 3px,
+        rgba(0,212,255,0.012) 3px, rgba(0,212,255,0.012) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* Grid bg */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }
+
+    /* ── HEADER ── */
+    .report-header {
+      position: relative;
+      border: 1px solid var(--border2);
+      border-radius: 2px;
+      padding: 36px 36px 28px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(0,212,255,0.04) 0%, transparent 60%);
+    }
+
+    .report-header::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), var(--accent3), transparent);
+    }
+
+    .header-watermark {
+      position: absolute;
+      bottom: 14px; right: 18px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      opacity: 0.6;
+    }
+
+    .header-corner {
+      position: absolute;
+      top: 0; right: 0;
+      width: 70px; height: 70px;
+      border-left: 1px solid var(--accent);
+      border-bottom: 1px solid var(--accent);
+      opacity: 0.25;
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,212,255,0.08);
+      border: 1px solid rgba(0,212,255,0.25);
+      border-radius: 2px;
+      padding: 3px 10px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--accent);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .badge-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: blink 2s infinite;
+    }
+
+    @keyframes blink {
+      0%,100% { opacity:1; } 50% { opacity:0.2; }
+    }
+
+    .report-header h1 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+
+    .report-header h1 .hl { color: var(--accent); }
+
+    .report-subtitle {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      border-top: 1px solid var(--border2);
+      padding-top: 16px;
+    }
+
+    .meta-item {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+
+    .meta-item strong { color: var(--accent); margin-right: 5px; }
+
+    /* ── DISCLAIMER ── */
+    .disclaimer {
+      border: 1px solid rgba(245,158,11,0.3);
+      border-left: 2px solid var(--warn);
+      background: rgba(245,158,11,0.04);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #c4880a;
+      margin-bottom: 20px;
+      letter-spacing: 0.3px;
+      line-height: 1.6;
+    }
+
+    /* ── SECTION CARDS ── */
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      background: var(--surface);
+      position: relative;
+      animation: fadeUp 0.35s ease both;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, var(--accent2), transparent);
+      opacity: 0.4;
+    }
+
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(10px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    .card:nth-child(1){animation-delay:.05s}
+    .card:nth-child(2){animation-delay:.10s}
+    .card:nth-child(3){animation-delay:.15s}
+    .card:nth-child(4){animation-delay:.20s}
+    .card:nth-child(5){animation-delay:.25s}
+    .card:nth-child(6){animation-delay:.30s}
+    .card:nth-child(7){animation-delay:.35s}
+    .card:nth-child(8){animation-delay:.40s}
+
+    .card-header {
+      background: rgba(0,212,255,0.04);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-num {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--accent);
+      border: 1px solid var(--accent2);
+      width: 22px; height: 22px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .card-header h2 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--white);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .card-body { padding: 18px; }
+
+    /* ── PILLS ── */
+    .pill {
+      display: inline-block;
+      border-radius: 2px;
+      padding: 2px 8px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .pill-green  { background:rgba(0,255,179,0.1);  color:var(--accent3); border:1px solid rgba(0,255,179,0.3);  }
+    .pill-orange { background:rgba(245,158,11,0.1); color:var(--warn);    border:1px solid rgba(245,158,11,0.3); }
+    .pill-red    { background:rgba(255,51,85,0.1);  color:var(--danger);  border:1px solid rgba(255,51,85,0.3);  }
+    .pill-blue   { background:rgba(0,212,255,0.1);  color:var(--accent);  border:1px solid rgba(0,212,255,0.3);  }
+
+    /* ── KV METRIC GRID ── */
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .kv-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 12px 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kv-box::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; width: 2px; height: 100%;
+      background: var(--muted);
+    }
+
+    .kv-box.positive::after { background: var(--accent3); }
+    .kv-box.neutral::after  { background: var(--warn); }
+    .kv-box.negative::after { background: var(--danger); }
+    .kv-box.info::after     { background: var(--accent); }
+
+    .kv-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 8px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 5px;
+    }
+
+    .kv-value {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text2);
+      line-height: 1;
+    }
+
+    .kv-box.positive .kv-value { color: var(--accent3); }
+    .kv-box.neutral  .kv-value { color: var(--warn); }
+    .kv-box.negative .kv-value { color: var(--danger); }
+    .kv-box.info     .kv-value { color: var(--accent); }
+
+    .kv-note {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 8px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ── TABLE ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    th {
+      background: rgba(0,212,255,0.06);
+      color: var(--accent);
+      font-family: 'Share Tech Mono', monospace;
+      font-weight: 400;
+      text-align: left;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border2);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text2);
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(0,212,255,0.025); }
+    td.positive { color: var(--accent3); font-weight: 600; }
+    td.negative { color: var(--danger);  font-weight: 600; }
+    td.neutral  { color: var(--warn);    font-weight: 600; }
+
+    /* ── PIPELINE ── */
+    .pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0;
+      margin: 12px 0;
+    }
+
+    .pipeline-step {
+      background: rgba(0,212,255,0.07);
+      border: 1px solid var(--accent2);
+      color: var(--accent);
+      border-radius: 2px;
+      padding: 6px 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      white-space: nowrap;
+    }
+
+    .pipeline-arrow {
+      color: var(--accent2);
+      font-size: 14px;
+      padding: 0 6px;
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    /* ── CHECKLIST ── */
+    .checklist { list-style: none; padding: 0; }
+
+    .checklist li {
+      padding: 5px 0 5px 22px;
+      position: relative;
+      font-size: 12px;
+      color: var(--text2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .checklist li:last-child { border-bottom: none; }
+
+    .checklist li::before {
+      content: "✓";
+      position: absolute; left: 0;
+      color: var(--accent3);
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    .checklist li.warn::before  { content: "!"; color: var(--warn); }
+    .checklist li.info::before  { content: "·"; color: var(--accent); }
+    .checklist li.next::before  { content: "›"; color: var(--accent2); }
+    .checklist li.error::before { content: "✗"; color: var(--danger); }
+
+    /* ── RISK CARDS ── */
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .risk-box {
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--warn);
+      background: rgba(245,158,11,0.03);
+      border-radius: 2px;
+      padding: 10px 12px;
+    }
+
+    .risk-box.red { border-left-color: var(--danger); background: rgba(255,51,85,0.03); }
+    .risk-box.green { border-left-color: var(--accent3); background: rgba(0,255,179,0.03); }
+
+    .risk-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--white);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .risk-desc { font-size: 11px; color: var(--text); line-height: 1.5; }
+
+    /* ── STRENGTH GRID ── */
+    .strength-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .strength-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 12px 14px;
+      transition: border-color 0.2s;
+    }
+
+    .strength-box:hover { border-color: var(--border2); }
+
+    .strength-box .icon { font-size: 18px; margin-bottom: 6px; }
+
+    .s-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent3);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .s-desc { font-size: 11px; color: var(--text); line-height: 1.5; }
+
+    /* ── MILESTONES ── */
+    .milestones { list-style: none; padding: 0; }
+
+    .milestones li {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .milestones li:last-child { border-bottom: none; }
+
+    .milestone-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 5px;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    .dot-done    { background: var(--accent3); color: var(--accent3); }
+    .dot-active  { background: var(--accent);  color: var(--accent); }
+    .dot-pending { background: var(--warn);    color: var(--warn); }
+    .dot-future  { background: var(--muted);   color: var(--muted); box-shadow: none; }
+
+    .milestone-text { font-size: 12px; color: var(--text); line-height: 1.5; }
+
+    .milestone-text strong {
+      display: block;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--white);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    /* ── NOTE / GATE BOXES ── */
+    .note-warn {
+      border: 1px solid rgba(245,158,11,0.25);
+      border-left: 2px solid var(--warn);
+      background: rgba(245,158,11,0.04);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #c4880a;
+      margin-top: 14px;
+      line-height: 1.6;
+    }
+
+    .note-warn strong { color: var(--warn); }
+
+    .note-success {
+      border: 1px solid rgba(0,255,179,0.2);
+      border-left: 2px solid var(--accent3);
+      background: rgba(0,255,179,0.03);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #009966;
+      margin-top: 14px;
+      line-height: 1.6;
+    }
+
+    .note-success strong { color: var(--accent3); }
+
+    .note-info {
+      border: 1px solid rgba(0,212,255,0.2);
+      border-left: 2px solid var(--accent);
+      background: rgba(0,212,255,0.03);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--text);
+      margin-top: 14px;
+      line-height: 1.6;
+    }
+
+    .note-info strong { color: var(--accent); }
+
+    /* ── SECTION LABEL DIVIDER ── */
+    .section-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin: 16px 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── CONTEXT BOX ── */
+    .context-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 8px 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      letter-spacing: 0.3px;
+      line-height: 1.6;
+    }
+
+    /* ── PROGRESS BAR ── */
+    .progress-bar {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      height: 6px;
+      overflow: hidden;
+      margin: 8px 0 4px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent2), var(--accent3));
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .progress-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+
+    /* ── FOOTER ── */
+    .report-footer {
+      margin-top: 48px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: 0.5px;
+      line-height: 1.9;
+      position: relative;
+    }
+
+    .report-footer::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 160px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+    }
+
+    /* ════════════════════════════════════════════
+       RESPONSIVE — MOBILE FIRST
+    ════════════════════════════════════════════ */
+
+    /* Large tablets / small desktop */
+    @media (max-width: 860px) {
+      .kv-grid { grid-template-columns: repeat(3, 1fr); }
+      .strength-grid { grid-template-columns: repeat(2, 1fr); }
+      .risk-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Tablets */
+    @media (max-width: 640px) {
+      .page-wrapper { padding: 20px 14px 60px; }
+      .report-header { padding: 24px 18px 18px; }
+      .report-header h1 { font-size: 24px; }
+      .report-subtitle { font-size: 9px; }
+      .card-body { padding: 14px; }
+      .kv-grid { grid-template-columns: repeat(2, 1fr); }
+      .strength-grid { grid-template-columns: repeat(2, 1fr); }
+      .risk-grid { grid-template-columns: 1fr; }
+      .pipeline { gap: 4px; }
+      .pipeline-arrow { display: none; }
+      .meta-row { gap: 12px; }
+      table { font-size: 11px; }
+      th { font-size: 8px; padding: 6px 10px; }
+      td { padding: 7px 10px; }
+    }
+
+    /* Mobile */
+    @media (max-width: 420px) {
+      .report-header h1 { font-size: 20px; letter-spacing: 1px; }
+      .kv-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .kv-value { font-size: 20px; }
+      .strength-grid { grid-template-columns: 1fr; }
+      .card-header h2 { font-size: 12px; }
+      .meta-row { flex-direction: column; gap: 8px; }
+    }
+
+    /* Print / PDF */
+    @media print {
+      body::before, body::after { display: none; }
+      body { background: #000; font-size: 12px; }
+      .card { animation: none; border: 1px solid #1a3a55; }
+      .page-wrapper { padding: 0; max-width: 100%; }
+      .report-header { padding: 24px; }
+      .card-body { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <header class="report-header">
+    <div class="header-corner"></div>
+    <div class="header-watermark">WALKER.AI // CLIENT SYSTEM UPDATE // 2026-04-07</div>
+
+    <div class="badge"><span class="badge-dot"></span>CLIENT UPDATE</div>
+    <h1>Walker AI <span class="hl">Trading</span></h1>
+    <p class="report-subtitle">PolyQuantBot Telegram Control Layer · Client Progress Update</p>
+
+    <div class="meta-row">
+      <div class="meta-item"><strong>OWNER</strong>Bayue Walker</div>
+      <div class="meta-item"><strong>DATE</strong>2026-04-07</div>
+      <div class="meta-item"><strong>PHASE</strong>Merged Main System Update</div>
+      <div class="meta-item"><strong>MODE</strong><span class="pill pill-green">Validated platform-control update delivered</span></div>
+    </div>
+  </header>
+
+  <div class="disclaimer">
+    ⚠ NOTICE — This update covers the latest validated merged-main platform-control improvements only. System in paper trading mode. No real capital deployed.
+  </div>
+
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">01</div>
+      <h2>Executive Summary</h2>
+    </div>
+    <div class="card-body">
+      <p style="color:var(--text);line-height:1.7;margin-bottom:16px;">
+        The latest merged-main update has been delivered for Telegram operator controls and dashboard reliability. This increment improves control-surface stability, callback safety, and market-scope continuity across restart/re-initialization, with no critical blockers reported by SENTINEL. The current operating context remains paper trading.
+      </p>
+
+      <div class="kv-grid">
+        <div class="kv-box positive">
+          <div class="kv-label">Sentinel Verdict</div>
+          <div class="kv-value">APPROVED</div>
+          <div class="kv-note">Repository/worktree validation</div>
+        </div>
+        <div class="kv-box neutral">
+          <div class="kv-label">Validation Score</div>
+          <div class="kv-value">88/100</div>
+          <div class="kv-note">No critical blockers found</div>
+        </div>
+        <div class="kv-box info">
+          <div class="kv-label">Operating Context</div>
+          <div class="kv-value">Paper</div>
+          <div class="kv-note">No real capital deployed</div>
+        </div>
+        <div class="kv-box negative">
+          <div class="kv-label">Live Runtime Claim</div>
+          <div class="kv-value">N/A</div>
+          <div class="kv-note">External operational layer</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">02</div>
+      <h2>What Was Improved</h2>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li>Telegram home/dashboard hardening for more reliable operator navigation behavior.</li>
+        <li>Malformed numeric payload safety on <code>/start</code> to avoid crash conditions.</li>
+        <li>Home callback hardening with safer payload hydration and callback handling.</li>
+        <li>Root menu parity aligned across reply keyboard and inline menu surfaces.</li>
+        <li>Market-scope persistence retained across restart/re-initialization cycles.</li>
+        <li>Category inference hardening for weak metadata and uncategorized market records.</li>
+        <li>Blocked-scope guard preserved before downstream ingest/signal processing.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">03</div>
+      <h2>Why It Matters</h2>
+    </div>
+    <div class="card-body">
+      <div class="context-box">Client impact: higher reliability and safer operational controls without overstating live-trading readiness.</div>
+      <ul>
+        <li>Higher operator reliability and more consistent control flow in Telegram command/callback paths.</li>
+        <li>Lower crash risk from malformed payload values entering Home and dashboard rendering paths.</li>
+        <li>Clearer control over market selection scope for day-to-day operator use.</li>
+        <li>Safer behavior when scope is invalid, with downstream processing guarded accordingly.</li>
+        <li>Stronger continuity of scope state after restart or router/module re-initialization.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">04</div>
+      <h2>Validation Status</h2>
+    </div>
+    <div class="card-body">
+      <table>
+        <thead>
+          <tr><th>Validation Item</th><th>Result</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Validation scope</td>
+            <td class="positive">Repository/worktree level</td>
+            <td>Validated against FORGE + SENTINEL source reports</td>
+          </tr>
+          <tr>
+            <td>SENTINEL verdict</td>
+            <td class="positive">APPROVED</td>
+            <td>No critical blockers found</td>
+          </tr>
+          <tr>
+            <td>SENTINEL score</td>
+            <td class="neutral">88/100</td>
+            <td>Latency remained unmeasured in this pass</td>
+          </tr>
+          <tr>
+            <td>Railway/live confirmation</td>
+            <td>N/A</td>
+            <td>External operational confirmation remains separately monitored</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">05</div>
+      <h2>Current Operating Mode</h2>
+    </div>
+    <div class="card-body">
+      <div class="note-warn">
+        <strong>System in paper trading mode. No real capital deployed.</strong><br/>
+        This report does not claim paper-trade hardening completion, real-wallet readiness, or live-wallet deployment.
+      </div>
+
+      <div class="risk-grid">
+        <div class="risk-box">
+          <div class="risk-title">Capital Deployment</div>
+          <div class="risk-desc">N/A — data not available for real-capital deployment because live-wallet mode is not claimed in this update.</div>
+        </div>
+        <div class="risk-box red">
+          <div class="risk-title">Live Wallet Status</div>
+          <div class="risk-desc">Not claimed as ready in this client update.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <div class="section-num">06</div>
+      <h2>What Is Next</h2>
+    </div>
+    <div class="card-body">
+      <ul class="milestones">
+        <li>
+          <div class="milestone-dot dot-active"></div>
+          <div class="milestone-text">
+            <strong>Paper-trade hardening stream</strong>
+            Ongoing separately from this validated platform-control update.
+          </div>
+        </li>
+        <li>
+          <div class="milestone-dot dot-pending"></div>
+          <div class="milestone-text">
+            <strong>Trade-system readiness work</strong>
+            Continues under internal hardening workflow before any live-wallet claims.
+          </div>
+        </li>
+        <li>
+          <div class="milestone-dot dot-future"></div>
+          <div class="milestone-text">
+            <strong>Operational runtime confirmation</strong>
+            Railway/live behavior remains an external operational layer and is monitored separately.
+          </div>
+        </li>
+      </ul>
+      <div class="note-success">
+        <strong>✓ Communication guardrail</strong><br/>This client update intentionally reports only the latest validated merged-main system improvement and avoids overstating trading-readiness status.
+      </div>
+    </div>
+  </section>
+
+  <footer class="report-footer">
+    <p>
+      WALKER AI TRADING TEAM · PolyQuantBot Telegram Control Layer · Walker AI Trading System — Client Progress Update<br/>
+      Generated: 2026-04-07 · Owner: Bayue Walker<br/><br/>
+      Validated at repository/worktree level; external runtime confirmation remains operationally monitored.
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>
