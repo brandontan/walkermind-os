@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 10:07
-- Status        : FORGE-X telegram UI text leakage audit fix pass completed for telegram_ui_text_leakage_audit_20260407; user-facing fallback/internal leakage cleaned; COMMANDER review for STANDARD-tier validation decision
+- Last Updated  : 2026-04-07 15:05
+- Status        : SENTINEL quick rerun for trade_system_hardening_p2_20260407 is BLOCKED at Phase 0 because required forge report and target test artifacts are missing in current repository state
 
 ---
 
@@ -37,6 +37,8 @@
 
 ## 🚧 IN PROGRESS
 
+- SENTINEL quick rerun validation for `trade_system_hardening_p2_20260407` (2026-04-07) ended with verdict **BLOCKED** at Phase 0 because required artifacts were missing (`reports/forge/trade_system_hardening_p2_20260407.md` and `tests/test_trade_system_hardening_p2_20260407.py`).
+- SENTINEL report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_hardening_p2_validation_20260407.md`.
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -62,7 +64,7 @@
 
 ## 🎯 NEXT PRIORITY
 
-- Codex code review required. COMMANDER review for validation decision. Source: projects/polymarket/polyquantbot/reports/forge/telegram_ui_text_leakage_audit_20260407.md. Tier: STANDARD
+- FORGE-X must restore required artifacts before SENTINEL rerun: projects/polymarket/polyquantbot/reports/forge/trade_system_hardening_p2_20260407.md and projects/polymarket/polyquantbot/tests/test_trade_system_hardening_p2_20260407.py. Source: projects/polymarket/polyquantbot/reports/sentinel/trade_system_hardening_p2_validation_20260407.md. Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
@@ -73,3 +75,4 @@
 - External live Telegram device screenshot proof is still unavailable in this container environment.
 - Trading-loop execution path currently bypasses formal `RiskGuard` kill-switch/daily-loss/drawdown gating and must be hardened before real-wallet mode.
 - Startup wallet restore path in engine container may not apply persisted wallet state correctly (class-method return value is not assigned), creating restart reconciliation risk.
+- Validation drift: requested rerun target files `projects/polymarket/polyquantbot/reports/forge/trade_system_hardening_p2_20260407.md` and `projects/polymarket/polyquantbot/tests/test_trade_system_hardening_p2_20260407.py` are missing in current repository state, blocking P2 caveat closure verification.
