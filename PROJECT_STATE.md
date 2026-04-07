@@ -1,13 +1,14 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 21:50
-- Status        : Trade-System Hardening P3 implementation completed (MAJOR tier) with execution-boundary capital guardrails; awaiting SENTINEL validation before merge
+- Last Updated  : 2026-04-07 22:31
+- Status        : Trade-System Hardening P3 SENTINEL validation completed with APPROVED verdict; execution-boundary capital guardrails confirmed authoritative
 
 ---
 
 ## ✅ COMPLETED PHASES
 
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
+- SENTINEL validation complete for `trade_system_hardening_p3_20260407` (2026-04-07): verdict **APPROVED**, score **97/100**; execution-boundary capital guardrails verified authoritative with explicit structured block reasons and successful allowed-path execution proof.
 - Telegram/UI text leakage audit pass (2026-04-07): removed `Untitled market (ref ...)` primary-label leakage, hardened user-facing fallback sanitization for placeholder strings (`None`/`N/A`/`null`), and sanitized callback fallback messaging to avoid internal action/error exposure.
 - Added focused UI-only leakage tests in `test_telegram_ui_text_leakage_audit_20260407.py` and verified pass with targeted pytest + py_compile checks.
 - Telegram live coverage fix pass (2026-04-06) normalized core callback/menu render paths but left remaining utility/control menu correctness gaps.
@@ -64,10 +65,6 @@ Status:
 
 ## 🚧 IN PROGRESS
 
-### Trade-System Hardening P3 SENTINEL handoff
-- FORGE-X MAJOR-tier implementation completed for `trade_system_hardening_p3_20260407` (execution boundary guardrails + focused tests).
-- SENTINEL validation required before merge.
-
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -90,11 +87,10 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL validation required for trade_system_hardening_p3_20260407 before merge. Source: projects/polymarket/polyquantbot/reports/forge/trade_system_hardening_p3_20260407.md. Tier: MAJOR
+- SENTINEL validation report delivered for trade_system_hardening_p3_20260407. COMMANDER merge decision + optional BRIEFER handoff next. Source: projects/polymarket/polyquantbot/reports/sentinel/trade_system_hardening_p3_validation_20260407.md. Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
-- SENTINEL validation for `trade_system_hardening_p3_20260407` is pending; merge/promotion is blocked until SENTINEL verdict.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
