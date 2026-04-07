@@ -444,6 +444,7 @@ async def run_trading_loop(
     position_manager: Optional[Any] = None,
     pnl_tracker: Optional[Any] = None,
     paper_engine: Optional[Any] = None,
+    formal_risk_gate: Optional[Callable[[Any], Awaitable[tuple[bool, str]]]] = None,
     tp_pct: float = _DEFAULT_TP_PCT,
     sl_pct: float = _DEFAULT_SL_PCT,
 ) -> None:
@@ -510,6 +511,7 @@ async def run_trading_loop(
     _max_open_positions = _env_int("TRADING_LOOP_MAX_POSITIONS", _DEFAULT_MAX_OPEN_POSITIONS)
     _cooldown_s = _env_float("TRADING_LOOP_COOLDOWN_S", _DEFAULT_COOLDOWN_S)
     _force_signal = _env_bool("FORCE_SIGNAL_MODE", False)
+    _max_position_pct: float = 0.10
 
     # ── Initialise alpha model (stateful, shared across ticks) ────────────────
     alpha_model = ProbabilisticAlphaModel()
@@ -550,6 +552,15 @@ async def run_trading_loop(
         """Return float-safe value for Telegram formatting."""
         if value is None:
             return 0.0
+
+    async def _default_formal_risk_gate(signal: Any) -> tuple[bool, str]:
+        if bool(signal.extra.get("kill_switch_active", False)):
+            return False, "kill_switch_blocked"
+        if signal.size_usd > (_bankroll * _max_position_pct):
+            return False, "risk_blocked"
+        if not bool(signal.extra.get("risk_approved", True)):
+            return False, "risk_blocked"
+        return True, "approved"
         try:
             return float(value)
         except (TypeError, ValueError):
@@ -1064,7 +1075,20 @@ async def run_trading_loop(
                                 error=str(meta_exc),
                             )
 
-                    # ── 4d. UNIFIED EXECUTION ────────────────────────────────
+                    # ── 4e. Formal risk gate (mandatory before execution) ─────
+                    _risk_gate = formal_risk_gate or _default_formal_risk_gate
+                    _risk_ok, _risk_reason = await _risk_gate(signal)
+                    if not _risk_ok:
+                        log.info(
+                            "execution_outcome",
+                            market_id=signal.market_id,
+                            signal_id=signal.signal_id,
+                            outcome=_risk_reason,
+                            stage="risk_gate",
+                        )
+                        continue
+
+                    # ── 4f. UNIFIED EXECUTION ────────────────────────────────
                     # PAPER mode with PaperEngine: PaperEngine is the single
                     # source of truth.  Bypass execute_trade() fill simulation.
                     # LIVE mode: use execute_trade() with executor_callback.
@@ -1093,12 +1117,16 @@ async def run_trading_loop(
                                 market_id=signal.market_id,
                                 error=str(_pe_exc),
                             )
+                            log.info("execution_outcome", market_id=signal.market_id, outcome="failed")
                             continue
 
                         from ...execution.paper_engine import OrderStatus as _OS  # noqa: PLC0415
                         _pe_success = _paper_order.status in (_OS.FILLED, _OS.PARTIAL)
 
                         if not _pe_success:
+                            _outcome = "rejected"
+                            if _paper_order.reason == "duplicate_blocked":
+                                _outcome = "duplicate_blocked"
                             log.info(
                                 "execution_failed",
                                 trade_id=signal.signal_id,
@@ -1106,6 +1134,7 @@ async def run_trading_loop(
                                 reason=_paper_order.reason,
                                 status=_paper_order.status,
                             )
+                            log.info("execution_outcome", market_id=signal.market_id, outcome=_outcome)
                             continue
 
                         # Build a synthetic TradeResult from PaperOrderResult
@@ -1148,6 +1177,8 @@ async def run_trading_loop(
                                     trade_id=result.trade_id,
                                     error=str(_persist_exc),
                                 )
+                                log.info("execution_outcome", market_id=result.market_id, outcome="failed")
+                                continue
 
                     else:
                         # ── LIVE path (or PAPER fallback): use execute_trade ──
@@ -1157,12 +1188,20 @@ async def run_trading_loop(
                             executor_callback=executor_callback,
                         )
                         if not result.success:
+                            _outcome = "failed"
+                            if result.reason == "duplicate":
+                                _outcome = "duplicate_blocked"
+                            elif result.reason == "kill_switch_active":
+                                _outcome = "kill_switch_blocked"
+                            elif result.reason.startswith("edge_") or result.reason.startswith("size_"):
+                                _outcome = "risk_blocked"
                             log.info(
                                 "execution_failed",
                                 trade_id=result.trade_id,
                                 market_id=result.market_id,
                                 reason=result.reason,
                             )
+                            log.info("execution_outcome", market_id=result.market_id, outcome=_outcome)
                             continue
                         log.info(
                             "execution_success",
@@ -1172,6 +1211,11 @@ async def run_trading_loop(
                             filled_size_usd=round(result.filled_size_usd or 0.0, 4),
                             fill_price=round(result.fill_price or 0.0, 6),
                             mode=result.mode,
+                        )
+                        log.info(
+                            "execution_outcome",
+                            market_id=result.market_id,
+                            outcome="partial_fill" if result.partial_fill else "executed",
                         )
 
                     if result.success:
@@ -1505,8 +1549,13 @@ async def run_trading_loop(
                                                 f"Entry: {_pos.entry_price:.4f}"
                                             )
                                             await telegram_sender.send(_close_msg)
-                                        except Exception:
-                                            pass
+                                        except Exception as _tg_close_exc:
+                                            log.warning(
+                                                "close_order_alert_failed",
+                                                trade_id=_close_trade_id,
+                                                market_id=_pos.market_id,
+                                                error=str(_tg_close_exc),
+                                            )
                                 except Exception as _close_exc:
                                     log.error(
                                         "close_order_failed",
@@ -1514,6 +1563,7 @@ async def run_trading_loop(
                                         market_id=_pos.market_id,
                                         error=str(_close_exc),
                                     )
+                                    log.info("execution_outcome", market_id=_pos.market_id, outcome="failed")
                     except Exception as _exit_exc:
                         log.error(
                             "exit_pipeline_error",

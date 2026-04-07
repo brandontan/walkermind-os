@@ -238,7 +238,7 @@ async def execute_trade(
             success=False,
             mode=_mode,
             attempted_size=signal.size_usd,
-            reason="duplicate",
+            reason="duplicate_blocked",
         )
 
     # ── Kill switch ───────────────────────────────────────────────────────────
@@ -258,7 +258,7 @@ async def execute_trade(
             success=False,
             mode=_mode,
             attempted_size=signal.size_usd,
-            reason="kill_switch_active",
+            reason="kill_switch_blocked",
         )
 
     # ── Risk re-validation ────────────────────────────────────────────────────

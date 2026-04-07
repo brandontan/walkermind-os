@@ -43,7 +43,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Set
+from typing import Any, Optional, Set
 
 import structlog
 
@@ -121,12 +121,14 @@ class PaperEngine:
         wallet: WalletEngine,
         positions: PaperPositionManager,
         ledger: TradeLedger,
+        db: Optional[Any] = None,
         pnl_tracker: Optional[object] = None,
         random_seed: Optional[int] = None,
     ) -> None:
         self._wallet = wallet
         self._positions = positions
         self._ledger = ledger
+        self._db = db
         self._pnl_tracker = pnl_tracker
         self._processed_trade_ids: Set[str] = set()
         # Use a private seeded Random so tests can pass random_seed for reproducibility.
@@ -136,6 +138,21 @@ class PaperEngine:
         log.info("paper_engine_initialized", seeded=random_seed is not None)
 
     # ── Public API ────────────────────────────────────────────────────────────
+
+    def rebind_dependencies(
+        self,
+        *,
+        wallet: WalletEngine,
+        positions: PaperPositionManager,
+        ledger: TradeLedger,
+        db: Optional[Any] = None,
+    ) -> None:
+        """Rebind runtime dependencies after restore/re-init."""
+        self._wallet = wallet
+        self._positions = positions
+        self._ledger = ledger
+        self._db = db
+        log.info("paper_engine_rebound")
 
     async def execute_order(self, order: dict) -> PaperOrderResult:
         """Execute a paper buy/open order.
@@ -203,9 +220,28 @@ class PaperEngine:
                 filled_size=0.0,
                 fill_price=price,
                 fee=0.0,
-                status=OrderStatus.FILLED,
-                reason="duplicate_trade_id",
+                status=OrderStatus.REJECTED,
+                reason="duplicate_blocked",
             )
+        if self._db is not None and hasattr(self._db, "claim_execution_intent"):
+            claimed = await self._db.claim_execution_intent(
+                trade_id,
+                status="open_order",
+                metadata={"market_id": market_id, "side": side},
+            )
+            if not claimed:
+                log.info("paper_engine_order_duplicate_durable", trade_id=trade_id, market_id=market_id)
+                return PaperOrderResult(
+                    trade_id=trade_id,
+                    market_id=market_id,
+                    side=side,
+                    requested_size=size,
+                    filled_size=0.0,
+                    fill_price=price,
+                    fee=0.0,
+                    status=OrderStatus.REJECTED,
+                    reason="duplicate_blocked",
+                )
 
         # ── 3. Check balance ─────────────────────────────────────────────────
         wallet_state = self._wallet.get_state()
@@ -397,9 +433,28 @@ class PaperEngine:
                 filled_size=0.0,
                 fill_price=close_price,
                 fee=0.0,
-                status=OrderStatus.FILLED,
-                reason="duplicate_trade_id",
+                status=OrderStatus.REJECTED,
+                reason="duplicate_blocked",
             )
+        if self._db is not None and hasattr(self._db, "claim_execution_intent"):
+            claimed = await self._db.claim_execution_intent(
+                trade_id,
+                status="close_order",
+                metadata={"market_id": market_id},
+            )
+            if not claimed:
+                log.info("paper_engine_close_duplicate_durable", trade_id=trade_id, market_id=market_id)
+                return PaperOrderResult(
+                    trade_id=trade_id,
+                    market_id=market_id,
+                    side="",
+                    requested_size=0.0,
+                    filled_size=0.0,
+                    fill_price=close_price,
+                    fee=0.0,
+                    status=OrderStatus.REJECTED,
+                    reason="duplicate_blocked",
+                )
 
         # ── 1. Close position ────────────────────────────────────────────────
         pos = self._positions.get_position(market_id)

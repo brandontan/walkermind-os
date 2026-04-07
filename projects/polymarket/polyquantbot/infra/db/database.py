@@ -175,6 +175,15 @@ CREATE TABLE IF NOT EXISTS trade_ledger (
 );
 """
 
+_DDL_EXECUTION_INTENTS = """
+CREATE TABLE IF NOT EXISTS execution_intents (
+    intent_id        TEXT        PRIMARY KEY,
+    status           TEXT        NOT NULL DEFAULT 'claimed',
+    metadata         JSONB,
+    claimed_at       DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
 
 # ── DatabaseClient ─────────────────────────────────────────────────────────────
 
@@ -322,6 +331,7 @@ class DatabaseClient:
             await conn.execute(_DDL_WALLET_STATE)
             await conn.execute(_DDL_PAPER_POSITIONS)
             await conn.execute(_DDL_TRADE_LEDGER)
+            await conn.execute(_DDL_EXECUTION_INTENTS)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────
@@ -736,6 +746,55 @@ class DatabaseClient:
             return await self._fetch(sql, market_id, limit, op_label="load_ledger_entries_market")
         sql = "SELECT * FROM trade_ledger ORDER BY inserted_at ASC LIMIT $1"
         return await self._fetch(sql, limit, op_label="load_ledger_entries")
+
+    # ── Durable execution intent dedup ───────────────────────────────────────
+
+    async def claim_execution_intent(
+        self,
+        intent_id: str,
+        *,
+        status: str = "claimed",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Atomically claim an execution intent id.
+
+        Returns:
+            True when newly claimed, False when already present or on error.
+        """
+        sql = """
+            INSERT INTO execution_intents (intent_id, status, metadata, claimed_at)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (intent_id) DO NOTHING
+        """
+        try:
+            if self._pool is None:
+                raise RuntimeError("Database not connected")
+            async with self._pool.acquire() as conn:
+                result = await asyncio.wait_for(
+                    conn.execute(
+                        sql,
+                        intent_id,
+                        status,
+                        json.dumps(metadata or {}),
+                        time.time(),
+                    ),
+                    timeout=self._op_timeout_s,
+                )
+                inserted = str(result).upper().startswith("INSERT 0 1")
+                if inserted:
+                    log.info("execution_intent_claimed", intent_id=intent_id, status=status)
+                else:
+                    log.info("execution_intent_duplicate", intent_id=intent_id, status=status)
+                return inserted
+        except Exception as exc:
+            log.error("execution_intent_claim_failed", intent_id=intent_id, error=str(exc))
+            return False
+
+    async def load_execution_intents(self, limit: int = 5000) -> List[str]:
+        """Load recently claimed execution intent ids for replay protection."""
+        sql = "SELECT intent_id FROM execution_intents ORDER BY claimed_at DESC LIMIT $1"
+        rows = await self._fetch(sql, limit, op_label="load_execution_intents")
+        return [str(row.get("intent_id", "")) for row in rows if row.get("intent_id")]
 
     # ── Strategy toggle state ─────────────────────────────────────────────────
 
