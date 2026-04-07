@@ -178,9 +178,9 @@ NEXUS must enforce system synchronization.
 
 ### System consistency
 - `PROJECT_STATE.md` = current system truth
-- `reports/forge/` = build truth
-- `reports/sentinel/` = validation truth
-- `reports/briefer/` = communication continuity only
+- `projects/polymarket/polyquantbot/reports/forge/` = build truth
+- `projects/polymarket/polyquantbot/reports/sentinel/` = validation truth
+- `projects/polymarket/polyquantbot/reports/briefer/` = communication continuity only
 
 ### Cross-role synchronization
 - FORGE-X output must be testable by SENTINEL
@@ -440,6 +440,19 @@ Always deliver the file.
 
 Use:
 
+| Area | Use For | Example |
+|---|---|---|
+| `ui` | tampilan / layout / hierarchy | feature/ui-dashboard-portfolio |
+| `ux` | readability / flow / humanization | feature/ux-telegram-alerts |
+| `execution` | engine / order / lifecycle | feature/execution-kelly-sizing |
+| `risk` | risk control / exposure | feature/risk-drawdown-circuit |
+| `monitoring` | performance tracking | feature/monitoring-latency-log |
+| `data` | market data / ingestion | feature/data-ws-reconnect |
+| `infra` | deployment / config | feature/infra-env-setup |
+| `forge` | general multi-domain build | feature/forge-signal-activation |
+| `sentinel` | validation tasks | feature/sentinel-24-1-validation |
+| `briefer` | report tasks | feature/briefer-24-1-investor-report |
+
 ```text
 feature/{feature}-{date}
 ```
@@ -693,6 +706,7 @@ FORGE-X must enforce these in actual code:
 - Signal deduplication: required on every order
 - Kill switch: mandatory and testable
 - Arbitrage only if `net_edge > fees + slippage` AND `> 2%`
+- | Arbitrage | Execute only if net_edge > fees + slippage AND > 2% |
 
 ### Latency Targets
 
@@ -2110,7 +2124,7 @@ Right:
 ### Failure Conditions (STOP → ask COMMANDER)
 
 - `PROJECT_STATE.md` not found
-- source report not found in reports/forge/ or reports/sentinel/
+- source report not found in projects/polymarket/polyquantbot/reports/forge/ or reports/sentinel/
 - mode unclear after 1 ask
 - critical data missing (risk numbers, SENTINEL verdict)
 
@@ -2155,7 +2169,7 @@ Any single condition = 🚫 BLOCKED:
 
 | Code | Condition |
 |---|---|
-| B1 | FORGE-X report missing from `reports/forge/` |
+| B1 | FORGE-X report missing from `projects/polymarket/polyquantbot/reports/forge/` |
 | B2 | Report naming format incorrect |
 | B3 | Report missing any mandatory section |
 | B4 | `PROJECT_STATE.md` not updated in PR |
