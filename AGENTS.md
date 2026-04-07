@@ -1430,6 +1430,100 @@ Required behavior:
 3. Update `KNOWN ISSUES` with remaining findings
 4. Update `NEXT PRIORITY` based on verdict
 
+PRE-SENTINEL GATE
+
+Do not tell me “done” yet.
+Do not ask for SENTINEL yet.
+
+You must pass this preflight first.
+
+Required proof:
+
+1. Forge report exists at exact path
+   
+   - [full repo path]
+
+2. Forge report is valid
+   
+   - correct filename
+   - correct folder
+   - all 6 mandatory sections present
+
+3. PROJECT_STATE.md updated
+   
+   - Last Updated
+   - Status
+   - COMPLETED
+   - IN PROGRESS
+   - NOT STARTED
+   - NEXT PRIORITY
+   - KNOWN ISSUES
+   - full timestamp format YYYY-MM-DD HH:MM
+
+4. Final output includes exact lines:
+   
+   - Report: [full forge report path]
+   - State: PROJECT_STATE.md updated
+
+5. Target test artifact exists at exact path
+   
+   - [full repo path]
+
+6. Validation commands already run
+   
+   - python -m py_compile ...
+   - pytest -q ...
+
+7. Post exact results:
+   
+   - py_compile: PASS / FAIL
+   - pytest: PASS / FAIL
+
+Preflight response format:
+
+PRE-SENTINEL PROOF
+
+Report exists:
+[yes/no]
+Path:
+[full path]
+
+Report sections:
+[6/6 or explain missing]
+
+PROJECT_STATE updated:
+[yes/no]
+
+State timestamp:
+[YYYY-MM-DD HH:MM]
+
+Target test exists:
+[yes/no]
+Path:
+[full path]
+
+Commands run:
+
+1. [command]
+2. [command]
+
+Results:
+
+- py_compile: [PASS/FAIL]
+- pytest: [PASS/FAIL]
+
+Final output lines present:
+
+- Report: [yes/no]
+- State: [yes/no]
+
+If any item above is missing or FAIL:
+
+- do not say task complete
+- do not ask for SENTINEL
+- fix it first
+
+
 NEXT PRIORITY rules:
 - If verdict = APPROVED:
   point to BRIEFER or COMMANDER merge decision
