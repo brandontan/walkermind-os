@@ -58,7 +58,7 @@ projects/mt5/indicators/
 
 ## PIPELINE (LOCKED)
 
-`DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING`
+`DATA → STRATEGY → CONFLICT → ALLOCATION → INTELLIGENCE → RISK → EXECUTION → MONITORING`
 
 RISK must precede EXECUTION. No stage skipped. MONITORING receives all events.
 
