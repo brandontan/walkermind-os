@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-06 22:40
-- Status        : SENTINEL trade-system truth audit complete (paper-path decision map delivered); premium-nav and trade-hardening merge sequence awaiting COMMANDER direction
+- Last Updated  : 2026-04-07 05:31
+- Status        : FORGE-X Phase 0 blockers cleared for telegram_trade_menu_mvp_20260407; prior validation remained blocked pending missing forge report/test artifacts; SENTINEL revalidation now queued
 
 ---
 
@@ -34,6 +34,11 @@
 
 ## 🚧 IN PROGRESS
 
+### Telegram trade menu MVP blocker-clear handoff
+- Previous SENTINEL validation for `telegram_trade_menu_mvp_20260407` was blocked due to missing FORGE report/test artifacts.
+- FORGE-X has now added the missing report + target test and produced pre-SENTINEL proof (py_compile + pytest pass).
+- SENTINEL revalidation is now required for `telegram_trade_menu_mvp_20260407`.
+
 ### Telegram post-approval UX consolidation handoff
 - SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
 - Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
@@ -51,14 +56,14 @@
 
 ## 🎯 NEXT PRIORITY
 
-- FORGE-X hardening required for trade-system readiness before any real-wallet enablement.
-- Source: projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md
-- SENTINEL re-validation required after hardening pass; COMMANDER merge/enablement decision only after that validation.
+- SENTINEL revalidation required for telegram_trade_menu_mvp_20260407 before merge.
+- Source: projects/polymarket/polyquantbot/reports/forge/telegram_trade_menu_mvp_20260407.md
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
+- Previous validation for `telegram_trade_menu_mvp_20260407` was blocked at Phase 0 before this FORGE-X blocker-clear pass; SENTINEL must re-run validation with the new artifacts.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
