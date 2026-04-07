@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-06 22:40
-- Status        : SENTINEL trade-system truth audit complete (paper-path decision map delivered); premium-nav and trade-hardening merge sequence awaiting COMMANDER direction
+- Last Updated  : 2026-04-07 05:16
+- Status        : FORGE-X Telegram Trade submenu MVP complete under Portfolio context; root 5-item contract preserved and paper-only controls added pending SENTINEL validation
 
 ---
 
@@ -30,13 +30,15 @@
 - SENTINEL trade system truth audit complete (2026-04-07) with verdict **PAPER-ACCEPTABLE WITH RISKS** and score **62/100**; identified critical risk-layer bypass on trading-loop execution path, startup wallet-restore mismatch risk, and partial-state reconciliation gaps blocking real-wallet readiness.
 - Trade-system truth audit report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md`.
 
+- Telegram Trade submenu MVP pass (2026-04-07): added `⚡ Trade` under Portfolio contextual menu, introduced paper-only Trade submenu (`📡 Signal`, `🧪 Paper Execute`, `🛑 Kill Switch`, `📊 Trade Status`), and kept root reply keyboard contract unchanged at Dashboard/Portfolio/Markets/Settings/Help.
+
 ---
 
 ## 🚧 IN PROGRESS
 
-### Telegram post-approval UX consolidation handoff
-- SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
-- Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
+### Telegram submenu validation handoff
+- SENTINEL validation pending for `telegram_trade_menu_mvp_20260407` (Portfolio submenu Trade entry + paper-only controls).
+- Final on-device Telegram visual confirmation in live-network environment remains pending for this submenu pass.
 
 ### Trade-system hardening handoff
 - FORGE-X hardening pending for risk-gate unification, reconciliation ownership, restart recovery correctness, and silent-failure removal before any real-wallet enablement.
@@ -51,9 +53,8 @@
 
 ## 🎯 NEXT PRIORITY
 
-- FORGE-X hardening required for trade-system readiness before any real-wallet enablement.
-- Source: projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md
-- SENTINEL re-validation required after hardening pass; COMMANDER merge/enablement decision only after that validation.
+- SENTINEL validation required for telegram_trade_menu_mvp_20260407 before merge.
+- Source: projects/polymarket/polyquantbot/reports/forge/telegram_trade_menu_mvp_20260407.md
 
 ---
 
@@ -62,5 +63,6 @@
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
+- Trade submenu MVP currently uses safe fallback states when no actionable signal or paper-trade history is available (expected in cold-start sessions).
 - Trading-loop execution path currently bypasses formal `RiskGuard` kill-switch/daily-loss/drawdown gating and must be hardened before real-wallet mode.
 - Startup wallet restore path in engine container may not apply persisted wallet state correctly (class-method return value is not assigned), creating restart reconciliation risk.

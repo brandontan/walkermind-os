@@ -6,6 +6,7 @@ from projects.polymarket.polyquantbot.telegram.ui.keyboard import (
     build_main_menu,
     build_markets_menu,
     build_portfolio_menu,
+    build_portfolio_trade_menu,
     build_settings_menu,
 )
 from projects.polymarket.polyquantbot.telegram.ui.reply_keyboard import REPLY_MENU_MAP
@@ -34,6 +35,17 @@ def test_portfolio_menu_has_only_contextual_actions() -> None:
         "action:portfolio_exposure",
         "action:portfolio_pnl",
         "action:portfolio_performance",
+        "action:portfolio_trade",
+    }
+
+
+def test_portfolio_trade_menu_mvp_actions_only() -> None:
+    assert _callback_values(build_portfolio_trade_menu()) == {
+        "action:trade_signal",
+        "action:trade_paper_execute",
+        "action:trade_kill_switch",
+        "action:trade_status",
+        "action:portfolio",
     }
 
 

@@ -22,6 +22,7 @@ Design:
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Optional, TYPE_CHECKING
 
 import structlog
@@ -29,6 +30,7 @@ import structlog
 from ..ui.keyboard import (
     build_dashboard_menu,
     build_portfolio_menu,
+    build_portfolio_trade_menu,
     build_markets_menu,
     build_help_menu,
     build_market_categories_menu,
@@ -364,7 +366,9 @@ class CallbackRouter:
     @staticmethod
     def _active_root_for_action(action: str) -> str:
         """Resolve active root section for contextual inline keyboard rendering."""
-        if action.startswith("portfolio_") or action in {"portfolio", "wallet", "positions", "pnl", "performance", "exposure"}:
+        if action.startswith("portfolio_") or action.startswith("trade_") or action in {
+            "portfolio", "wallet", "positions", "pnl", "performance", "exposure", "trade_menu",
+        }:
             return "portfolio"
         if action.startswith("markets_") or action in {"markets", "market", "active_scope"}:
             return "markets"
@@ -445,6 +449,149 @@ class CallbackRouter:
             payload["insight"] = "Strategy toggles remain label-first and tree-normalized"
         return payload
 
+    def _build_signal_summary(self) -> dict[str, str]:
+        payload = self._build_normalized_payload("trade")
+        market = str(payload.get("market_title") or payload.get("market_id") or "N/A")
+        side = str(payload.get("side") or "N/A").upper()
+        confidence_raw = payload.get("confidence")
+        confidence = "N/A"
+        if isinstance(confidence_raw, int | float):
+            confidence = f"{float(confidence_raw):.2f}%"
+        timestamp_raw = payload.get("updated_at")
+        timestamp = "N/A"
+        if isinstance(timestamp_raw, int | float):
+            timestamp = datetime.fromtimestamp(float(timestamp_raw), tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        elif isinstance(timestamp_raw, str) and timestamp_raw.strip():
+            timestamp = timestamp_raw.strip()
+        return {
+            "market": market,
+            "side": side,
+            "confidence": confidence,
+            "timestamp": timestamp,
+            "has_signal": "true" if market != "N/A" else "false",
+        }
+
+    def _latest_paper_trade_status(self) -> dict[str, str]:
+        if self._paper_engine is None:
+            return {
+                "trade_id": "N/A",
+                "status": "unavailable",
+                "market": "N/A",
+                "note": "Paper engine is not wired yet.",
+            }
+        try:
+            ledger = getattr(self._paper_engine, "_ledger", None)
+            if ledger is None or not hasattr(ledger, "get_all"):
+                return {
+                    "trade_id": "N/A",
+                    "status": "unavailable",
+                    "market": "N/A",
+                    "note": "Trade ledger source is unavailable.",
+                }
+            entries = ledger.get_all()
+            if not entries:
+                return {
+                    "trade_id": "N/A",
+                    "status": "idle",
+                    "market": "N/A",
+                    "note": "No paper trades recorded yet.",
+                }
+            latest = entries[-1]
+            return {
+                "trade_id": str(getattr(latest, "trade_id", "N/A")),
+                "status": str(getattr(latest, "action", "executed")),
+                "market": str(getattr(latest, "market_id", "N/A")),
+                "note": "Latest status sourced from paper trade ledger.",
+            }
+        except Exception as exc:  # noqa: BLE001
+            log.warning("trade_menu_status_read_failed", error=str(exc))
+            return {
+                "trade_id": "N/A",
+                "status": "unavailable",
+                "market": "N/A",
+                "note": f"Status read failed: {exc}",
+            }
+
+    async def _execute_paper_trade(self) -> tuple[str, list]:
+        if self._mode.upper() != "PAPER":
+            return (
+                "\n".join(
+                    [
+                        "🧪 *PAPER EXECUTE*",
+                        SEP,
+                        render_kv_line("STATUS", "Blocked"),
+                        render_kv_line("REASON", "Paper-only action"),
+                        render_insight("Switch mode back to PAPER before executing."),
+                    ]
+                ),
+                build_portfolio_trade_menu(),
+            )
+
+        from ...core.execution.executor import execute_trade  # noqa: PLC0415
+        from ...core.signal.signal_engine import SignalResult  # noqa: PLC0415
+
+        payload = self._build_normalized_payload("trade")
+        signal_summary = self._build_signal_summary()
+        market_id = str(payload.get("market_id") or "")
+        side = str(payload.get("side") or "YES").upper()
+        if side not in {"YES", "NO"}:
+            side = "YES"
+        price = safe_number(payload.get("entry"), 0.0)
+        confidence = safe_number(payload.get("confidence"), 0.0)
+        edge = max(safe_number(payload.get("edge"), 0.0), 0.0)
+        size_usd = safe_number(payload.get("size"), 0.0)
+        if size_usd <= 0:
+            size_usd = 25.0
+
+        if not market_id or price <= 0.0:
+            return (
+                "\n".join(
+                    [
+                        "🧪 *PAPER EXECUTE*",
+                        SEP,
+                        render_kv_line("STATUS", "Blocked"),
+                        render_kv_line("REASON", "No actionable signal available"),
+                        render_insight("Use 📡 Signal first; execute only when signal market + price are available."),
+                    ]
+                ),
+                build_portfolio_trade_menu(),
+            )
+
+        trade_signal = SignalResult(
+            signal_id=f"telegram-{market_id[:12]}-{int(datetime.now(tz=timezone.utc).timestamp())}",
+            market_id=market_id,
+            side=side,
+            p_market=price,
+            p_model=min(max(price + max(edge, 0.01), 0.0), 1.0),
+            edge=max(edge, 0.01),
+            ev=max(edge, 0.01),
+            kelly_f=0.25,
+            size_usd=size_usd,
+            liquidity_usd=10_000.0,
+            extra={"source": "telegram_trade_menu", "confidence": confidence},
+        )
+
+        result = await execute_trade(
+            trade_signal,
+            mode="PAPER",
+            kill_switch_active=(self._state.state.value == "HALTED"),
+        )
+        status_label = "Executed" if result.success else "Blocked"
+        return (
+            "\n".join(
+                [
+                    "🧪 *PAPER EXECUTE*",
+                    SEP,
+                    render_kv_line("STATUS", status_label),
+                    render_kv_line("TRADE ID", result.trade_id),
+                    render_kv_line("MARKET", result.market_id),
+                    render_kv_line("REASON", result.reason or "ok"),
+                    render_insight("Execution reused core.execute_trade() in PAPER mode only."),
+                ]
+            ),
+            build_portfolio_trade_menu(),
+        )
+
     async def _render_normalized_callback(self, action: str) -> tuple[str, list]:
         from ..ui.keyboard import (
             build_mode_confirm_menu,
@@ -465,6 +612,7 @@ class CallbackRouter:
             "portfolio_exposure": "exposure",
             "portfolio_pnl": "pnl",
             "portfolio_performance": "performance",
+            "portfolio_trade": "trade_menu",
             "markets_overview": "markets",
             "markets_refresh_all": "refresh",
         }
@@ -495,7 +643,11 @@ class CallbackRouter:
         if base_action == "dashboard" or normalized_action in {"home", "system", "refresh"} and base_action.startswith("dashboard"):
             return text, build_dashboard_menu()
         if base_action == "portfolio" or base_action.startswith("portfolio_"):
+            if base_action == "portfolio_trade":
+                return text, build_portfolio_trade_menu()
             return text, build_portfolio_menu()
+        if base_action == "trade_menu" or base_action.startswith("trade_"):
+            return text, build_portfolio_trade_menu()
         if base_action == "markets_categories":
             return text, build_market_categories_menu(
                 categories=list(MARKET_SCOPE_CATEGORIES),
@@ -629,6 +781,75 @@ class CallbackRouter:
             payload["operator_note"] = "Active scope now controls allowed scan/trade universe"
             text = await render_view("active_scope", payload)
             return text, build_markets_menu(bool(get_market_scope_snapshot().get("all_markets_enabled", True)))
+
+        if action in {"portfolio_trade", "trade_menu"}:
+            signal_summary = self._build_signal_summary()
+            text = "\n".join(
+                [
+                    "⚡ *TRADE MENU* — Portfolio Context",
+                    SEP,
+                    render_kv_line("Mode", self._mode.upper()),
+                    render_kv_line("Latest Market", signal_summary["market"]),
+                    render_kv_line("Latest Side", signal_summary["side"]),
+                    render_insight("Paper-only trade controls: Signal, Paper Execute, Kill Switch, Trade Status."),
+                ]
+            )
+            return text, build_portfolio_trade_menu()
+
+        if action == "trade_signal":
+            summary = self._build_signal_summary()
+            if summary["has_signal"] != "true":
+                text = "\n".join(
+                    [
+                        "📡 *SIGNAL*",
+                        SEP,
+                        render_kv_line("STATUS", "No signal available"),
+                        render_insight("No actionable signal in current telemetry snapshot."),
+                    ]
+                )
+                return text, build_portfolio_trade_menu()
+            text = "\n".join(
+                [
+                    "📡 *SIGNAL*",
+                    SEP,
+                    render_kv_line("MARKET", summary["market"]),
+                    render_kv_line("SIDE", summary["side"]),
+                    render_kv_line("CONFIDENCE", summary["confidence"]),
+                    render_kv_line("TIMESTAMP", summary["timestamp"]),
+                    render_insight("Signal summary uses existing normalized payload fields only."),
+                ]
+            )
+            return text, build_portfolio_trade_menu()
+
+        if action == "trade_paper_execute":
+            return await self._execute_paper_trade()
+
+        if action == "trade_kill_switch":
+            halted = self._state.state.value == "HALTED"
+            text = "\n".join(
+                [
+                    "🛑 *KILL SWITCH*",
+                    SEP,
+                    render_kv_line("STATE", "HALTED" if halted else "RUNNING"),
+                    render_kv_line("CONTROL", "Read-only once HALTED" if halted else "Safe control path available"),
+                    render_insight("Kill switch uses existing control_stop_execute callback path."),
+                ]
+            )
+            return text, build_portfolio_trade_menu()
+
+        if action == "trade_status":
+            latest = self._latest_paper_trade_status()
+            text = "\n".join(
+                [
+                    "📊 *TRADE STATUS*",
+                    SEP,
+                    render_kv_line("TRADE ID", latest["trade_id"]),
+                    render_kv_line("STATUS", latest["status"]),
+                    render_kv_line("MARKET", latest["market"]),
+                    render_insight(latest["note"]),
+                ]
+            )
+            return text, build_portfolio_trade_menu()
 
         if action == "wallet_balance":
             return await handle_wallet_balance(user_id=user_id)
