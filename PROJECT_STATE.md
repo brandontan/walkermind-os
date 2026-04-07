@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 05:31
-- Status        : FORGE-X Phase 0 blockers cleared for telegram_trade_menu_mvp_20260407; prior validation remained blocked pending missing forge report/test artifacts; SENTINEL revalidation now queued
+- Last Updated  : 2026-04-07 07:05
+- Status        : SENTINEL revalidation completed for telegram_trade_menu_mvp_20260407 after #245 merge; artifact gate passed but Telegram trade-menu contract failed (BLOCKED)
 
 ---
 
@@ -23,21 +23,18 @@
 - Category inference hardening applied for weak-metadata and uncategorized markets: deterministic inference order plus fallback inclusion path under category mode to reduce avoidable exclusions while preserving blocked-scope behavior when no categories are active.
 - Telegram /start numeric placeholder blocker patch (2026-04-06): hardened Telegram-facing numeric normalization in view/callback payload paths so `"N/A"`, `None`, empty, missing, and malformed numeric values no longer hard-crash dashboard/menu render.
 - Telegram Home live blocker addendum (2026-04-06): hardened callback Home payload hydration against malformed shared-state payloads, unified Home↔`/start` safe numeric normalization policy, and added callback render fallback so degraded Home payloads do not hard-crash.
-- Telegram live-path blocker fix (2026-04-06): removed root-menu divergence by aligning reply keyboard with 5-item root contract, forced `/start` to emit authoritative inline main menu payload, and hardened shared portfolio normalization path that could still execute `float(\"N/A\")`.
+- Telegram live-path blocker fix (2026-04-06): removed root-menu divergence by aligning reply keyboard with 5-item root contract, forced `/start` to emit authoritative inline main menu payload, and hardened shared portfolio normalization path that could still execute `float("N/A")`.
 - SENTINEL validation complete for `telegram-menu-scope-hardening-20260407` with verdict **APPROVED** (score **88/100**) and **no critical issues**.
 - BRIEFER handoff completed for `telegram-menu-scope-hardening-20260407`.
 - Telegram premium navigation / UX consolidation pass (2026-04-07): enforced two-layer Telegram navigation with persistent 5-item reply-keyboard root and contextual inline section actions; removed duplicated inline root menu; added active-root cue and compact button layout polish while preserving approved scope-control semantics.
 - SENTINEL trade system truth audit complete (2026-04-07) with verdict **PAPER-ACCEPTABLE WITH RISKS** and score **62/100**; identified critical risk-layer bypass on trading-loop execution path, startup wallet-restore mismatch risk, and partial-state reconciliation gaps blocking real-wallet readiness.
 - Trade-system truth audit report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md`.
+- SENTINEL revalidation complete for `telegram_trade_menu_mvp_20260407` after #245 merge with verdict **BLOCKED** (score **60/100**); artifacts restored and tests pass, but required trade-menu contract is not implemented.
+- Sentinel report saved at `projects/polymarket/polyquantbot/reports/sentinel/telegram_trade_menu_mvp_validation_20260407.md`.
 
 ---
 
 ## 🚧 IN PROGRESS
-
-### Telegram trade menu MVP blocker-clear handoff
-- Previous SENTINEL validation for `telegram_trade_menu_mvp_20260407` was blocked due to missing FORGE report/test artifacts.
-- FORGE-X has now added the missing report + target test and produced pre-SENTINEL proof (py_compile + pytest pass).
-- SENTINEL revalidation is now required for `telegram_trade_menu_mvp_20260407`.
 
 ### Telegram post-approval UX consolidation handoff
 - SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
@@ -56,14 +53,21 @@
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL revalidation required for telegram_trade_menu_mvp_20260407 before merge.
-- Source: projects/polymarket/polyquantbot/reports/forge/telegram_trade_menu_mvp_20260407.md
+- FORGE-X fix required for `telegram_trade_menu_mvp_20260407`:
+  - add `⚡ Trade` to portfolio submenu
+  - implement required Trade submenu contract (`📡 Signal`, `🧪 Paper Execute`, `🛑 Kill Switch`, `📊 Trade Status`)
+  - wire dedicated callback routes + tests for these actions
+- Source: projects/polymarket/polyquantbot/reports/sentinel/telegram_trade_menu_mvp_validation_20260407.md
+- Tier: STANDARD
 
 ---
 
 ## ⚠️ KNOWN ISSUES
 
-- Previous validation for `telegram_trade_menu_mvp_20260407` was blocked at Phase 0 before this FORGE-X blocker-clear pass; SENTINEL must re-run validation with the new artifacts.
+- Telegram Trade Menu MVP contract mismatch remains unresolved on current main state:
+  - portfolio submenu does not include `⚡ Trade`
+  - trade submenu does not match required 4-item action set
+  - required action names currently fall back to Home view instead of dedicated trade routes
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
