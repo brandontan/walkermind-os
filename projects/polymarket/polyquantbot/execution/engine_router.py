@@ -94,7 +94,12 @@ class EngineContainer:
         """
         log.info("engine_container_restore_start")
         try:
-            await self.wallet.restore_from_db(db)  # type: ignore[arg-type]
+            self.wallet = await WalletEngine.restore_from_db(db)  # type: ignore[arg-type]
+            self.paper_engine = PaperEngine(
+                wallet=self.wallet,
+                positions=self.positions,
+                ledger=self.ledger,
+            )
         except Exception as exc:
             log.warning("engine_container_wallet_restore_error", error=str(exc))
 
@@ -107,6 +112,11 @@ class EngineContainer:
             await self.ledger.load_from_db(db)  # type: ignore[arg-type]
         except Exception as exc:
             log.warning("engine_container_ledger_restore_error", error=str(exc))
+
+        try:
+            await self.paper_engine.restore_dedup_state(db)  # type: ignore[arg-type]
+        except Exception as exc:
+            log.warning("engine_container_dedup_restore_error", error=str(exc))
 
         log.info("engine_container_restore_complete")
 

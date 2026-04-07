@@ -398,6 +398,22 @@ class DatabaseClient:
         sql = "SELECT * FROM trades ORDER BY executed_at DESC LIMIT $1"
         return await self._fetch(sql, limit, op_label="get_recent_trades")
 
+    async def load_recent_trade_ids(self, limit: int = 5000) -> List[str]:
+        """Load recent trade identifiers for restart-safe dedup rehydration.
+
+        Args:
+            limit: Maximum number of trade IDs to return.
+
+        Returns:
+            List of non-empty trade IDs (newest first).
+        """
+        sql = """
+            SELECT trade_id FROM trades
+            ORDER BY executed_at DESC LIMIT $1
+        """
+        rows = await self._fetch(sql, limit, op_label="load_recent_trade_ids")
+        return [str(row.get("trade_id", "")).strip() for row in rows if row.get("trade_id")]
+
     async def update_trade_status(
         self, trade_id: str, status: str, pnl: Optional[float] = None, won: Optional[bool] = None
     ) -> bool:

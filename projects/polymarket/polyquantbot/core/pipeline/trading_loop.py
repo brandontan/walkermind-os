@@ -99,6 +99,7 @@ from ...interface.ui.views import (
     render_wallet_view,
 )
 from ..validation_state import ValidationStateStore
+from ...risk.risk_guard import RiskGuard
 from ..logging.logger import (
     log_market_metadata_used,
     log_position_updated,
@@ -444,6 +445,7 @@ async def run_trading_loop(
     position_manager: Optional[Any] = None,
     pnl_tracker: Optional[Any] = None,
     paper_engine: Optional[Any] = None,
+    risk_guard: Optional[RiskGuard] = None,
     tp_pct: float = _DEFAULT_TP_PCT,
     sl_pct: float = _DEFAULT_SL_PCT,
 ) -> None:
@@ -521,6 +523,53 @@ async def run_trading_loop(
     # When no trade fires for _NO_TRADE_FALLBACK_S (30 min), we lower edge
     # threshold and activate synthetic signal mode for 1 pass.
     _last_trade_time: float = time.time()
+    _risk_peak_balance: float = _bankroll
+
+    async def _enforce_formal_risk_guard() -> bool:
+        """Enforce RiskGuard checks before any execution attempt."""
+        nonlocal _risk_peak_balance
+        if risk_guard is None:
+            return True
+
+        if risk_guard.disabled:
+            log.warning(
+                "risk_guard_blocked",
+                reason=risk_guard.kill_switch_reason or "kill_switch_active",
+            )
+            return False
+
+        current_balance = _bankroll
+        current_pnl = 0.0
+        try:
+            if paper_engine is not None:
+                wallet_state = paper_engine._wallet.get_state()  # type: ignore[attr-defined]
+                current_balance = float(wallet_state.equity)
+                current_pnl = current_balance - _bankroll
+            else:
+                positions = await db.get_positions(_user_id)
+                trades = await db.get_recent_trades(limit=500)
+                realized = PnLCalculator.calculate_realized_pnl(trades)
+                unrealized = PnLCalculator.calculate_unrealized_pnl(positions, {})
+                current_pnl = float(realized + unrealized)
+                current_balance = float(_bankroll + current_pnl)
+        except Exception as risk_exc:  # noqa: BLE001
+            log.error("risk_guard_snapshot_failed", error=str(risk_exc))
+            return False
+
+        _risk_peak_balance = max(_risk_peak_balance, current_balance)
+        await risk_guard.check_daily_loss(current_pnl)
+        await risk_guard.check_drawdown(_risk_peak_balance, current_balance)
+
+        if risk_guard.disabled:
+            log.warning(
+                "risk_guard_blocked",
+                reason=risk_guard.kill_switch_reason or "risk_guard_triggered",
+                current_pnl=current_pnl,
+                current_balance=current_balance,
+                peak_balance=_risk_peak_balance,
+            )
+            return False
+        return True
 
     # ── Loop state ────────────────────────────────────────────────────────────
     _tick: int = 0
@@ -986,6 +1035,9 @@ async def run_trading_loop(
                 # ── 4. Execute each signal and update positions ───────────────────
                 _trades_this_tick: int = 0
                 for signal in signals:
+                    if not await _enforce_formal_risk_guard():
+                        continue
+
                     # ── 4a. Force signal mode: max 1 trade per loop ───────────────
                     if _active_force and _trades_this_tick >= 1:
                         log.info(
@@ -1154,6 +1206,7 @@ async def run_trading_loop(
                         result = await execute_trade(
                             signal,
                             mode=_mode,
+                            kill_switch_active=bool(risk_guard.disabled) if risk_guard else False,
                             executor_callback=executor_callback,
                         )
                         if not result.success:
@@ -1505,8 +1558,13 @@ async def run_trading_loop(
                                                 f"Entry: {_pos.entry_price:.4f}"
                                             )
                                             await telegram_sender.send(_close_msg)
-                                        except Exception:
-                                            pass
+                                        except Exception as close_tg_exc:  # noqa: BLE001
+                                            log.warning(
+                                                "telegram_close_alert_failed",
+                                                trade_id=_close_trade_id,
+                                                market_id=_pos.market_id,
+                                                error=str(close_tg_exc),
+                                            )
                                 except Exception as _close_exc:
                                     log.error(
                                         "close_order_failed",
@@ -1592,8 +1650,13 @@ async def run_trading_loop(
                                                 f"Entry: {_lpos.avg_price:.4f}"
                                             )
                                             await telegram_sender.send(_live_close_msg)
-                                        except Exception:
-                                            pass
+                                        except Exception as live_close_tg_exc:  # noqa: BLE001
+                                            log.warning(
+                                                "telegram_live_close_alert_failed",
+                                                trade_id=_live_close_id,
+                                                market_id=_lpos.market_id,
+                                                error=str(live_close_tg_exc),
+                                            )
                                 except Exception as _live_close_exc:
                                     log.error(
                                         "live_close_order_failed",

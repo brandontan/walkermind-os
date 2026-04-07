@@ -135,6 +135,38 @@ class PaperEngine:
 
         log.info("paper_engine_initialized", seeded=random_seed is not None)
 
+    async def restore_dedup_state(self, db: object, limit: int = 5000) -> None:
+        """Rehydrate processed trade IDs from durable storage on restart.
+
+        Args:
+            db: Database client exposing ``load_recent_trade_ids``.
+            limit: Maximum number of IDs to hydrate.
+        """
+        try:
+            trade_ids = await db.load_recent_trade_ids(limit=limit)  # type: ignore[attr-defined]
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "paper_engine_dedup_restore_failed",
+                error=str(exc),
+                limit=limit,
+            )
+            return
+
+        restored = 0
+        for trade_id in trade_ids:
+            tid = str(trade_id).strip()
+            if not tid:
+                continue
+            if tid not in self._processed_trade_ids:
+                self._processed_trade_ids.add(tid)
+                restored += 1
+        log.info(
+            "paper_engine_dedup_restored",
+            restored=restored,
+            total_cached=len(self._processed_trade_ids),
+            limit=limit,
+        )
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def execute_order(self, order: dict) -> PaperOrderResult:
