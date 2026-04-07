@@ -1,12 +1,14 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 07:49
-- Status        : FORGE-X final routing-contract fix pass completed for telegram_trade_menu_mvp_20260407; previous block was routing mismatch risk under Portfolio→Trade path; SENTINEL revalidation required before merge
+- Last Updated  : 2026-04-07 10:07
+- Status        : FORGE-X telegram UI text leakage audit fix pass completed for telegram_ui_text_leakage_audit_20260407; user-facing fallback/internal leakage cleaned; COMMANDER review for STANDARD-tier validation decision
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Telegram/UI text leakage audit pass (2026-04-07): removed `Untitled market (ref ...)` primary-label leakage, hardened user-facing fallback sanitization for placeholder strings (`None`/`N/A`/`null`), and sanitized callback fallback messaging to avoid internal action/error exposure.
+- Added focused UI-only leakage tests in `test_telegram_ui_text_leakage_audit_20260407.py` and verified pass with targeted pytest + py_compile checks.
 - Telegram live coverage fix pass (2026-04-06) normalized core callback/menu render paths but left remaining utility/control menu correctness gaps.
 - Telegram full menu fix pass (2026-04-06): completed full operator-facing menu correctness coverage across home/system/status, wallet, positions, trade, pnl, performance, exposure, risk, strategy, settings, notifications, auto-trade, mode, control, market/markets, and refresh callback/edit/send paths.
 - Enforced strict view isolation so Position/Market blocks render only in context-relevant menus; removed cross-menu bleed from unrelated utility/system/settings/control menus.
@@ -35,6 +37,9 @@
 
 ## 🚧 IN PROGRESS
 
+### Telegram UI text leakage audit handoff
+- STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
+
 ### Telegram trade menu MVP blocker-clear handoff
 - Previous validation line for `telegram_trade_menu_mvp_20260407` was blocked due to routing-contract mismatch risk (trade actions could collapse to Home context instead of Trade context).
 - FORGE-X final pass implemented explicit Trade submenu routing and added routing-proof tests (`test_telegram_trade_menu_routing_mvp.py`) with py_compile + pytest evidence.
@@ -57,14 +62,11 @@
 
 ## 🎯 NEXT PRIORITY
 
-- SENTINEL revalidation required for telegram_trade_menu_mvp_20260407 before merge.
-- Source: projects/polymarket/polyquantbot/reports/forge/telegram_trade_menu_mvp_20260407.md
-- Tier: STANDARD
-
----
+- Codex code review required. COMMANDER review for validation decision. Source: projects/polymarket/polyquantbot/reports/forge/telegram_ui_text_leakage_audit_20260407.md. Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.

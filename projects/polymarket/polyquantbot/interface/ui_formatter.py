@@ -55,14 +55,18 @@ def _safe_int(value: object, default: int = 0) -> int:
         return default
 
 
-def _safe_text(value: object, default: str = "N/A") -> str:
+def _safe_text(value: object, default: str = "Unavailable") -> str:
     if value is None:
         return default
     text = str(value).strip()
-    return text or default
+    if not text:
+        return default
+    if text.lower() in {"n/a", "na", "none", "null", "nan", "-"}:
+        return default
+    return text
 
 
-def _compact_text(value: object, default: str = "N/A", max_len: int = 72) -> str:
+def _compact_text(value: object, default: str = "Unavailable", max_len: int = 72) -> str:
     text = _safe_text(value, default)
     return text if len(text) <= max_len else f"{text[: max_len - 1]}…"
 
@@ -158,7 +162,11 @@ def _contains_ref_fragment(label: str, market_id: str) -> bool:
 def _resolve_market_label(payload: Mapping[str, Any], context: Mapping[str, Any]) -> str:
     def _is_generic_label(text: str) -> bool:
         compact = text.strip().lower()
-        return compact in {"market", "market #", "untitled"} or compact.startswith("market #")
+        return compact in {"market", "market #", "untitled", "untitled market", "unknown", "unknown market"} or compact.startswith("market #")
+
+    def _is_internal_fallback_label(text: str) -> bool:
+        lowered = text.lower()
+        return "(ref" in lowered or lowered.startswith("ref ") or "market_id" in lowered
 
     for candidate in (
         payload.get("market_title"),
@@ -169,13 +177,10 @@ def _resolve_market_label(payload: Mapping[str, Any], context: Mapping[str, Any]
         payload.get("market"),
     ):
         text = _compact_text(candidate, "", max_len=86)
-        if text and not _is_generic_label(text):
+        if text and not _is_generic_label(text) and not _is_internal_fallback_label(text):
             return text
 
-    market_id = _safe_text(payload.get("market_id"), "")
-    if market_id:
-        return f"Untitled market (ref {market_id[:12]})"
-    return "Untitled market"
+    return "Untitled Market"
 
 
 def _hero_block(mode: str, payload: Mapping[str, Any]) -> str:
@@ -334,7 +339,7 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
             "🔀 Mode Switch",
             [
                 ("Current", _safe_text(payload.get("mode_label"), "PAPER")),
-                ("Target", _safe_text(payload.get("target_mode"), "N/A")),
+                ("Target", _safe_text(payload.get("target_mode"), "Unavailable")),
                 ("Guard", _safe_text(payload.get("mode_guard"), "Validated before switch")),
             ],
         ),
@@ -351,7 +356,7 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
             [
                 ("Selection Type", _safe_text(payload.get("selection_type"), "All Markets")),
                 ("Active Categories", _safe_int(payload.get("active_categories_count"))),
-                ("Enabled", _compact_text(", ".join(_as_text_list(payload.get("enabled_categories"))) or "None", max_len=86)),
+                ("Enabled", _compact_text(", ".join(_as_text_list(payload.get("enabled_categories"))) or "No categories selected", max_len=86)),
                 ("Summary", _compact_text(payload.get("trading_scope_summary"), "Trading scope: all allowed markets.", max_len=86)),
                 ("Fallback Rule", _compact_text(payload.get("scope_fallback_policy"), "Disabled", max_len=86)),
                 ("Persistence", "Scope restored after restart/re-init"),
