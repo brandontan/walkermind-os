@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 12:41
-- Status        : P4 observability runtime + executor trace hardening is completed (conditional acceptance) and merged; project state synced to current repository truth.
+- Last Updated  : 2026-04-08 17:57
+- Status        : SENTINEL MAJOR architectural validation for execution entry unification (PR #296) is BLOCKED; unified execution entry claim is not proven in current runtime paths.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- SENTINEL validation completed for `execution_entry_unification_20260408` (2026-04-08): verdict **BLOCKED**, score **18/100**; command and callback execution entry paths do not converge to the same runtime execution service and required runtime unification proof failed.
 - P4 completion closure (2026-04-08): marked Completed (Conditional) with runtime observability integrated, trace propagation finalized, and executor trace hardening completed (#283).
 - Trade-system reliability observability P4 runtime remediation pass (2026-04-08): Completed (Conditional) with hard event contract validation, trading-loop trace_id lifecycle wiring, execution-path trace propagation, and runtime `trade_start` / `execution_attempt` / `execution_result` event emission.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
@@ -87,6 +88,11 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### Execution entry unification remediation handoff
+- FORGE-X fix is required for `execution_entry_unification_20260408` to unify `/trade test` and `trade_paper_execute` into one execution entry service.
+- Current command parser flow drops `/trade` subcommand text before command handler execution path, blocking runtime command proof.
+- Revalidation by SENTINEL is required after FORGE-X remediation.
+
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -107,10 +113,12 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-COMMANDER routing next: SENTINEL validation for Telegram Trade Menu MVP.
+SENTINEL BLOCKED handoff: FORGE-X must fix execution entry unification for `execution_entry_unification_20260408` before revalidation. Source: projects/polymarket/polyquantbot/reports/sentinel/26_1_execution_entry_unification_20260408.md. Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
+- Execution entry unification claim (`FULL RUNTIME INTEGRATION`) is contradicted by current runtime behavior: `/trade test` and `trade_paper_execute` do not hit the same execution service path.
+- Telegram `/trade test` command path currently fails through command-router numeric coercion (string subcommand arguments are not preserved).
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Telegram Trade Menu MVP requires SENTINEL validation routing as the next focused workflow step.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
