@@ -18,6 +18,30 @@ class StrategyConfig:
     side: str = "YES"
     threshold: float = 0.45
     target_pnl: float = 25.0
+    social_spike_threshold: float = 0.70
+    min_mention_surge_ratio: float = 1.8
+    min_author_diversity: int = 15
+    min_acceleration: float = 0.5
+    min_market_lag: float = 0.03
+    min_edge: float = 0.02
+    min_liquidity_usd: float = 10_000.0
+
+
+@dataclass(frozen=True)
+class SocialPulseInput:
+    mention_surge_ratio: float
+    author_diversity: int
+    acceleration: float
+    narrative_probability: float
+    liquidity_usd: float
+    risk_constraints_ok: bool = True
+
+
+@dataclass(frozen=True)
+class StrategyDecision:
+    decision: str
+    reason: str
+    edge: float
 
 
 class StrategyTrigger:
@@ -34,6 +58,73 @@ class StrategyTrigger:
         self._last_trigger_time: float | None = None
         self._cooldown_seconds = 30.0  # Anti-loop guard
         self._trace_engine = TradeTraceEngine()
+
+    def evaluate_breaking_news_momentum(
+        self,
+        market_price: float,
+        social_pulse: SocialPulseInput,
+    ) -> StrategyDecision:
+        mention_score = min(
+            1.0,
+            social_pulse.mention_surge_ratio / max(self._config.min_mention_surge_ratio, 1e-6),
+        )
+        author_score = min(
+            1.0,
+            social_pulse.author_diversity / max(float(self._config.min_author_diversity), 1.0),
+        )
+        acceleration_score = min(
+            1.0,
+            social_pulse.acceleration / max(self._config.min_acceleration, 1e-6),
+        )
+
+        spike_score = (0.5 * mention_score) + (0.3 * author_score) + (0.2 * acceleration_score)
+        if spike_score < self._config.social_spike_threshold:
+            return StrategyDecision(
+                decision="SKIP",
+                reason="weak signal: social spike below threshold",
+                edge=0.0,
+            )
+
+        narrative_prob = min(max(social_pulse.narrative_probability, 0.01), 0.99)
+        market_prob = min(max(market_price, 0.01), 0.99)
+        price_lag = abs(narrative_prob - market_prob)
+
+        if price_lag < self._config.min_market_lag:
+            return StrategyDecision(
+                decision="SKIP",
+                reason="already priced in: market lag too small",
+                edge=0.0,
+            )
+
+        implied_odds = (1.0 - market_prob) / market_prob
+        edge = max(0.0, (narrative_prob * implied_odds) - (1.0 - narrative_prob))
+
+        if edge <= self._config.min_edge:
+            return StrategyDecision(
+                decision="SKIP",
+                reason="weak signal: edge below threshold",
+                edge=round(edge, 6),
+            )
+
+        if social_pulse.liquidity_usd < self._config.min_liquidity_usd:
+            return StrategyDecision(
+                decision="SKIP",
+                reason="low liquidity: below minimum depth requirement",
+                edge=round(edge, 6),
+            )
+
+        if not social_pulse.risk_constraints_ok:
+            return StrategyDecision(
+                decision="SKIP",
+                reason="risk constraints blocked entry",
+                edge=round(edge, 6),
+            )
+
+        return StrategyDecision(
+            decision="ENTER",
+            reason="entry conditions met: social spike + market lag + edge",
+            edge=round(edge, 6),
+        )
 
     async def evaluate(self, market_price: float) -> str:
         now = time.time()
