@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 15:48
-- Status        : Telegram callback execution wiring fix for `trade_paper_execute` is implemented with shared bounded execution path + duplicate protection; SENTINEL MAJOR revalidation pending before merge.
+- Last Updated  : 2026-04-08 15:58
+- Status        : SENTINEL MAJOR final validation for `telegram_callback_execution_wiring_20260408` is BLOCKED: callback wiring is present, but real runtime execution fails in shared execution path due to strategy-trigger/execution-snapshot contract mismatch.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- SENTINEL final validation complete for `telegram_callback_execution_wiring_20260408` (2026-04-08): verdict **BLOCKED** (score **70/100**); callback execute route wiring/shared path/duplicate and input protections verified, but real execution trigger failed at runtime with `ExecutionSnapshot` contract mismatch (`implied_prob` missing), preventing merge approval.
 - Telegram callback execution wiring fix pass (2026-04-08): `trade_paper_execute` callback route now uses shared bounded paper execution entry path instead of render-only normalization; callback payload validation, duplicate-execute protection, and visible blocked/failure feedback added with focused execution wiring tests.
 - P4 completion closure (2026-04-08): marked Completed (Conditional) with runtime observability integrated, trace propagation finalized, and executor trace hardening completed (#283).
 - Trade-system reliability observability P4 runtime remediation pass (2026-04-08): Completed (Conditional) with hard event contract validation, trading-loop trace_id lifecycle wiring, execution-path trace propagation, and runtime `trade_start` / `execution_attempt` / `execution_result` event emission.
@@ -89,9 +90,9 @@ Status:
 ## 🚧 IN PROGRESS
 
 ### Telegram callback execution wiring MAJOR handoff
-- FORGE-X fix for `trade_paper_execute` callback execution path is complete.
-- Shared execution path proof added for callback and `/trade test` command flows.
-- SENTINEL revalidation is required before merge for this MAJOR task.
+- SENTINEL final loop returned **BLOCKED** for `telegram_callback_execution_wiring_20260408`.
+- Runtime callback execute proof failed at shared execution path with `ExecutionSnapshot` contract mismatch (`implied_prob`/strategy-trigger dependency).
+- FORGE-X remediation is required before re-validation.
 
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
@@ -113,13 +114,13 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required for telegram callback execution wiring before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_2_telegram_callback_execution_wiring.md
+FORGE-X remediation required for telegram callback execution wiring runtime contract mismatch before re-validation.
+Source: projects/polymarket/polyquantbot/reports/sentinel/24_3_telegram_callback_execution_wiring_final_validation_20260408.md
 Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
-- Callback execute path currently requires valid callback action payload state (`trade_paper_execute|market|side|size`) for execution trigger; empty execute state is now explicitly blocked with visible feedback.
+- Callback execute path has critical runtime contract mismatch: `StrategyTrigger.evaluate(...)` requires fields (`implied_prob`, `volatility`) not present on `ExecutionSnapshot`, causing `trade_paper_execute` real execution attempts to fail.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Telegram Trade Menu MVP requires SENTINEL validation routing as the next focused workflow step.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
