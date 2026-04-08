@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 12:41
-- Status        : P4 observability runtime + executor trace hardening is completed (conditional acceptance) and merged; project state synced to current repository truth.
+- Last Updated  : 2026-04-08 13:35
+- Status        : Telegram paper execution contract mismatch fix is completed in FORGE-X scope; MAJOR-tier handoff is ready for SENTINEL revalidation before merge.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Telegram paper execution contract mismatch fix (2026-04-08): fixed `ExecutionSnapshot`/`StrategyTrigger` contract compatibility (`implied_prob`, `volatility`), hardened Telegram paper-trade failure feedback, and added focused regression evidence for valid path, duplicate update-id suppression, malformed callback blocking, and visible failure-path output.
 - P4 completion closure (2026-04-08): marked Completed (Conditional) with runtime observability integrated, trace propagation finalized, and executor trace hardening completed (#283).
 - Trade-system reliability observability P4 runtime remediation pass (2026-04-08): Completed (Conditional) with hard event contract validation, trading-loop trace_id lifecycle wiring, execution-path trace propagation, and runtime `trade_start` / `execution_attempt` / `execution_result` event emission.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
@@ -90,10 +91,10 @@ Status:
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
-### Telegram trade menu MVP blocker-clear handoff
-- Previous validation line for `telegram_trade_menu_mvp_20260407` was blocked due to routing-contract mismatch risk (trade actions could collapse to Home context instead of Trade context).
-- FORGE-X final pass implemented explicit Trade submenu routing and added routing-proof tests (`test_telegram_trade_menu_routing_mvp.py`) with py_compile + pytest evidence.
-- SENTINEL revalidation is now required for `telegram_trade_menu_mvp_20260407`.
+### Telegram paper execution contract mismatch handoff
+- FORGE-X MAJOR-tier fix is complete for the Telegram-triggered paper execution contract mismatch (`ExecutionSnapshot` missing `implied_prob`).
+- Focused regression tests are added at `projects/polymarket/polyquantbot/tests/test_telegram_paper_execution_contract_mismatch_20260408.py` and passing in local container checks.
+- SENTINEL revalidation is required before merge for this MAJOR task.
 
 ### Telegram post-approval UX consolidation handoff
 - SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
@@ -107,12 +108,14 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-COMMANDER routing next: SENTINEL validation for Telegram Trade Menu MVP.
+SENTINEL validation required for telegram-paper-execution-contract-mismatch-2026-04-08 before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/26_1_telegram_paper_execution_contract_mismatch.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
-- Telegram Trade Menu MVP requires SENTINEL validation routing as the next focused workflow step.
+- Telegram paper execution contract mismatch fix is pending SENTINEL revalidation prior to merge.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.

@@ -370,20 +370,27 @@ class CommandHandler:
                 target_pnl=20.0,
             ),
         )
-        await trigger.evaluate(0.42)
-        await engine.update_mark_to_market({market: 0.46})
-        payload = await export_execution_payload()
-        get_portfolio_service().merge_execution_state(
-            positions=payload.get("positions", []),
-            cash=float(payload.get("cash", 0.0)),
-            equity=float(payload.get("equity", 0.0)),
-            realized_pnl=float(payload.get("realized", 0.0)),
-        )
-        return CommandResult(
-            success=True,
-            message=await render_view("positions", payload),
-            payload=payload,
-        )
+        try:
+            await trigger.evaluate(0.42)
+            await engine.update_mark_to_market({market: 0.46})
+            payload = await export_execution_payload()
+            get_portfolio_service().merge_execution_state(
+                positions=payload.get("positions", []),
+                cash=float(payload.get("cash", 0.0)),
+                equity=float(payload.get("equity", 0.0)),
+                realized_pnl=float(payload.get("realized", 0.0)),
+            )
+            return CommandResult(
+                success=True,
+                message=await render_view("positions", payload),
+                payload=payload,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error("trade_test_execution_failed", market=market, side=side, error=str(exc), exc_info=True)
+            return CommandResult(
+                success=False,
+                message=f"❌ Paper execution failed: {exc}",
+            )
 
     async def _handle_trade_close(self, args: str) -> CommandResult:
         """Parse /trade close [market]."""

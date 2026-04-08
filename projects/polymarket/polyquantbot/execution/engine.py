@@ -20,6 +20,8 @@ class ExecutionSnapshot:
     equity: float
     realized_pnl: float
     unrealized_pnl: float
+    implied_prob: float
+    volatility: float
 
 
 class ExecutionEngine:
@@ -32,6 +34,8 @@ class ExecutionEngine:
         self._equity: float = float(starting_equity)
         self._realized_pnl: float = 0.0
         self._unrealized_pnl: float = 0.0
+        self._implied_prob: float = 0.50
+        self._volatility: float = 0.10
         self.max_position_size_ratio: float = 0.10
         self.max_total_exposure_ratio: float = 0.30
         self._analytics = PerformanceTracker()
@@ -113,6 +117,9 @@ class ExecutionEngine:
     async def update_mark_to_market(self, market_prices: dict[str, float]) -> float:
         """Update all open positions unrealized PnL from market prices."""
         async with self._lock:
+            if market_prices:
+                first_price = next(iter(market_prices.values()))
+                self._implied_prob = float(max(0.01, min(0.99, first_price)))
             for market_id, position in self._positions.items():
                 maybe_price = market_prices.get(market_id)
                 if maybe_price is None:
@@ -130,6 +137,8 @@ class ExecutionEngine:
                 equity=self._equity,
                 realized_pnl=self._realized_pnl,
                 unrealized_pnl=self._unrealized_pnl,
+                implied_prob=self._implied_prob,
+                volatility=self._volatility,
             )
 
     def _current_total_exposure(self) -> float:
