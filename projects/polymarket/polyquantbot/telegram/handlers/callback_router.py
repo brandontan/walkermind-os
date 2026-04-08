@@ -46,6 +46,7 @@ from ..ui.screens import (
     noop_screen,
 )
 from ..ui.components import render_kv_line, render_insight, SEP
+from ..execution_entry_contract import get_telegram_execution_entry_service
 from ...interface.telegram.view_handler import render_view, safe_number, safe_count
 from ...core.market_scope import (
     MARKET_SCOPE_CATEGORIES,
@@ -587,6 +588,48 @@ class CallbackRouter:
         )
         from .settings import handle_settings, handle_settings_strategy, handle_mode_confirm_switch
         from .control import handle_control, handle_pause, handle_resume, handle_kill
+
+        if action == "trade_paper_execute":
+            service = get_telegram_execution_entry_service()
+            normalized = service.callback_default_entry()
+            if not hasattr(normalized, "signature"):
+                payload = self._build_normalized_payload("trade")
+                payload.update(
+                    {
+                        "active_root": "portfolio",
+                        "decision": normalized.message,
+                        "operator_note": "Callback payload rejected safely",
+                        "insight": "ENTRY → RISK → EXECUTION contract blocked invalid input",
+                        "execution_reason": normalized.reason,
+                        "pipeline_path": list(normalized.pipeline_path),
+                    }
+                )
+                text = await render_view("trade", payload)
+                return text, build_trade_menu()
+
+            result = await service.execute(normalized)
+            payload = self._build_normalized_payload("trade")
+            payload.update(
+                {
+                    "active_root": "portfolio",
+                    "execution_reason": result.reason,
+                    "pipeline_path": list(result.pipeline_path),
+                }
+            )
+            if isinstance(result.payload, dict):
+                payload.update(result.payload)
+
+            if result.success:
+                payload["decision"] = result.message
+                payload["operator_note"] = "Callback path entered shared execution service"
+                payload["insight"] = "Unified ENTRY → RISK → EXECUTION contract succeeded"
+            else:
+                payload["decision"] = result.message
+                payload["operator_note"] = "Execution blocked with visible feedback"
+                payload["insight"] = "Unified ENTRY → RISK → EXECUTION contract enforced safeguards"
+
+            text = await render_view("trade", payload)
+            return text, build_trade_menu()
 
         normalized_actions = {
             "back_main",

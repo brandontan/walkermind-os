@@ -109,7 +109,8 @@ class CommandRouter:
     async def _route_structured(self, payload: dict) -> CommandResult:
         """Handle a structured {"command": ..., "value": ...} dict."""
         command = str(payload.get("command", "")).strip()
-        value = payload.get("value")
+        raw_value = payload.get("value")
+        value = raw_value
         user_id = str(payload.get("user_id", "structured"))
 
         if not command:
@@ -118,9 +119,9 @@ class CommandRouter:
                 message="❌ Missing 'command' field in structured payload.",
             )
 
-        if value is not None:
+        if raw_value is not None:
             try:
-                value = float(value)
+                value = float(raw_value)
             except (TypeError, ValueError):
                 return CommandResult(
                     success=False,
@@ -131,6 +132,7 @@ class CommandRouter:
             command=command,
             value=value,
             user_id=user_id,
+            args_text=arg_str if arg_str else None,
         )
 
     async def _route_telegram_update(self, update: dict) -> Optional[CommandResult]:
@@ -183,7 +185,7 @@ class CommandRouter:
             try:
                 value = float(arg_str)
             except ValueError:
-                pass  # value stays None — handler will report the error
+                pass  # value stays None — handler may use raw args_text
 
         log.info(
             "command_router_dispatching",
@@ -198,4 +200,5 @@ class CommandRouter:
             command=raw_cmd,
             value=value,
             user_id=user_id,
+            args_text=arg_str if arg_str else None,
         )

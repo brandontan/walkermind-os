@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 12:41
-- Status        : P4 observability runtime + executor trace hardening is completed (conditional acceptance) and merged; project state synced to current repository truth.
+- Last Updated  : 2026-04-08 19:34
+- Status        : Telegram execution entry contract rebuild is complete (FORGE-X MAJOR pass) with unified command+callback execution entry and SENTINEL revalidation pending before merge.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Telegram execution entry contract rebuild pass (2026-04-08): unified `/trade test ...` command and `trade_paper_execute` callback into one bounded `TelegramExecutionEntryService` enforcing ENTRY → RISK → EXECUTION with focused runtime-proof tests.
 - P4 completion closure (2026-04-08): marked Completed (Conditional) with runtime observability integrated, trace propagation finalized, and executor trace hardening completed (#283).
 - Trade-system reliability observability P4 runtime remediation pass (2026-04-08): Completed (Conditional) with hard event contract validation, trading-loop trace_id lifecycle wiring, execution-path trace propagation, and runtime `trade_start` / `execution_attempt` / `execution_result` event emission.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
@@ -87,6 +88,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### Telegram execution entry contract MAJOR validation handoff
+- FORGE-X rebuild for unified entry contract is complete with focused tests and runtime proof artifacts.
+- SENTINEL revalidation is required before merge per MAJOR tier.
+
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -107,10 +112,13 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-COMMANDER routing next: SENTINEL validation for Telegram Trade Menu MVP.
+SENTINEL validation required for telegram execution entry contract rebuild before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/24_9_telegram_execution_entry_contract_rebuild.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
+- Telegram command/callback unified execution-entry rebuild is pending SENTINEL revalidation before merge (MAJOR tier gate).
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Telegram Trade Menu MVP requires SENTINEL validation routing as the next focused workflow step.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.

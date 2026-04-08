@@ -11,7 +11,7 @@ from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
 from ..interface.telegram.view_handler import render_view, safe_count, safe_number
 from ..execution.engine import export_execution_payload, get_execution_engine
-from ..execution.strategy_trigger import StrategyConfig, StrategyTrigger
+from .execution_entry_contract import get_telegram_execution_entry_service
 from .ui.keyboard import build_dashboard_menu
 from .handlers.portfolio_service import get_portfolio_service
 from .message_formatter import (
@@ -127,6 +127,7 @@ class CommandHandler:
         value: Optional[float] = None,
         user_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
+        args_text: Optional[str] = None,
     ) -> CommandResult:
         """Dispatch a command to the appropriate handler.
 
@@ -146,6 +147,7 @@ class CommandHandler:
             "command_received",
             command=cmd,
             value=value,
+            args_text=args_text,
             user_id=user_id,
             correlation_id=cid,
             timestamp=time.time(),
@@ -153,7 +155,7 @@ class CommandHandler:
 
         async with self._lock:
             try:
-                result = await self._dispatch(cmd, value, cid)
+                result = await self._dispatch(cmd, value, cid, args_text=args_text)
             except Exception as exc:  # noqa: BLE001
                 log.error(
                     "command_handler_error",
@@ -193,7 +195,7 @@ class CommandHandler:
     # ── Handlers (one per command) ─────────────────────────────────────────────
 
     async def _dispatch(
-        self, cmd: str, value: Optional[float], cid: str
+        self, cmd: str, value: Optional[float], cid: str, args_text: Optional[str] = None
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
         if cmd in ("start", "help", "menu", "main_menu"):
@@ -248,7 +250,7 @@ class CommandHandler:
         if cmd == "alpha":
             return await self._handle_alpha()
         if cmd == "trade":
-            return await self._handle_trade(value)
+            return await self._handle_trade(args_text)
 
         # ── New menu callbacks (new Telegram system) ───────────────────────────
         if cmd == "wallet":
@@ -309,14 +311,14 @@ class CommandHandler:
             ),
         )
 
-    async def _handle_trade(self, args: Optional[float] = None) -> CommandResult:
+    async def _handle_trade(self, args: Optional[str] = None) -> CommandResult:
         """Parse /trade [test/close/status] [args]."""
         if args is None:
             return CommandResult(
                 success=False,
                 message="Usage: /trade [test|close|status] [args]",
             )
-        parts = str(args).split()
+        parts = args.split()
         if not parts:
             return CommandResult(
                 success=False,
@@ -335,53 +337,31 @@ class CommandHandler:
         )
 
     async def _handle_trade_test(self, args: str) -> CommandResult:
-        """Parse /trade test [market] [side] [size]."""
-        if not args:
+        """Parse /trade test [market] [side] [size] via unified execution entry."""
+        service = get_telegram_execution_entry_service()
+        normalized = service.parse_command_test_args(args)
+        if not hasattr(normalized, "signature"):
             return CommandResult(
                 success=False,
-                message="Usage: /trade test [market] [side YES/NO] [size]",
+                message=normalized.message,
+                payload={"execution_reason": normalized.reason, "pipeline_path": list(normalized.pipeline_path)},
             )
-        parts = args.split()
-        if len(parts) < 3:
+
+        result = await service.execute(normalized)
+        payload = dict(result.payload) if isinstance(result.payload, dict) else {}
+        payload["execution_reason"] = result.reason
+        payload["pipeline_path"] = list(result.pipeline_path)
+
+        if result.success:
             return CommandResult(
-                success=False,
-                message="Usage: /trade test [market] [side YES/NO] [size]",
+                success=True,
+                message=await render_view("positions", payload),
+                payload=payload,
             )
-        market, side, size_str = parts[0], parts[1].upper(), parts[2]
-        try:
-            size = float(size_str)
-        except ValueError:
-            return CommandResult(
-                success=False,
-                message="Size must be a number.",
-            )
-        if side not in ("YES", "NO"):
-            return CommandResult(
-                success=False,
-                message="Side must be YES or NO.",
-            )
-        engine = get_execution_engine()
-        trigger = StrategyTrigger(
-            engine=engine,
-            config=StrategyConfig(
-                market_id=market,
-                side=side,
-                threshold=0.45,
-                target_pnl=20.0,
-            ),
-        )
-        await trigger.evaluate(0.42)
-        await engine.update_mark_to_market({market: 0.46})
-        payload = await export_execution_payload()
-        get_portfolio_service().merge_execution_state(
-            positions=payload.get("positions", []),
-            cash=float(payload.get("cash", 0.0)),
-            equity=float(payload.get("equity", 0.0)),
-            realized_pnl=float(payload.get("realized", 0.0)),
-        )
+
         return CommandResult(
-            success=True,
-            message=await render_view("positions", payload),
+            success=False,
+            message=f"{result.message}\nPath: ENTRY → RISK → EXECUTION",
             payload=payload,
         )
 
