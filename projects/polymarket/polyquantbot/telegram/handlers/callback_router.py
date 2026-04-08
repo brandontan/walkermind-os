@@ -22,6 +22,7 @@ Design:
 from __future__ import annotations
 
 import asyncio
+import inspect
 from typing import Optional, TYPE_CHECKING
 
 import structlog
@@ -606,7 +607,6 @@ class CallbackRouter:
             "portfolio_performance",
             "portfolio_trade",
             "trade_signal",
-            "trade_paper_execute",
             "trade_kill_switch",
             "trade_status",
             "markets_overview",
@@ -636,6 +636,26 @@ class CallbackRouter:
             "settings_auto",
             "control",
         }
+        if action == "trade_paper_execute":
+            maybe_result = self._cmd.handle(
+                command="trade",
+                value="test PAPER_MARKET YES 10",
+                user_id=str(user_id) if user_id is not None else None,
+            )
+            result = await maybe_result if inspect.isawaitable(maybe_result) else maybe_result
+            if not hasattr(result, "success") or not isinstance(getattr(result, "message", None), str):
+                return await self._render_normalized_callback(action)
+            if result.success:
+                log.info("callback_trade_execution_success", action=action, user_id=user_id)
+            else:
+                log.warning(
+                    "callback_trade_execution_failed",
+                    action=action,
+                    user_id=user_id,
+                    message=result.message[:200],
+                )
+            return result.message, build_trade_menu()
+
         if action in normalized_actions:
             return await self._render_normalized_callback(action)
 

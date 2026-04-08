@@ -118,7 +118,7 @@ class CommandRouter:
                 message="❌ Missing 'command' field in structured payload.",
             )
 
-        if value is not None:
+        if command != "trade" and value is not None:
             try:
                 value = float(value)
             except (TypeError, ValueError):
@@ -178,12 +178,15 @@ class CommandRouter:
         raw_cmd = parts[0].split("@")[0]   # strip @botname suffix (e.g. /help@Bot → /help)
         arg_str = parts[1].strip() if len(parts) > 1 else ""
 
-        value: Optional[float] = None
+        value: Optional[float | str] = None
         if arg_str:
-            try:
-                value = float(arg_str)
-            except ValueError:
-                pass  # value stays None — handler will report the error
+            if raw_cmd.lstrip("/").lower() == "trade":
+                value = arg_str
+            else:
+                try:
+                    value = float(arg_str)
+                except ValueError:
+                    pass  # value stays None — handler will report the error
 
         log.info(
             "command_router_dispatching",
