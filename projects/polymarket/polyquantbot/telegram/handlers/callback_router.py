@@ -54,6 +54,10 @@ from ...core.market_scope import (
     toggle_category,
 )
 from .portfolio_service import get_portfolio_service
+from .shared_execution_entry import (
+    execute_unified_trade_entry,
+    parse_trade_payload,
+)
 
 if TYPE_CHECKING:
     import aiohttp
@@ -446,6 +450,16 @@ class CallbackRouter:
             payload["insight"] = "Strategy toggles remain label-first and tree-normalized"
         return payload
 
+    def _build_trade_callback_payload(self) -> dict[str, object]:
+        """Build callback payload for paper execution route."""
+        payload = self._build_normalized_payload("trade")
+        market = str(payload.get("market_id", "")).strip() or "trade-paper-callback"
+        return {
+            "market": market,
+            "side": "YES",
+            "size": 25.0,
+        }
+
     async def _render_normalized_callback(self, action: str) -> tuple[str, list]:
         from ..ui.keyboard import (
             build_mode_confirm_menu,
@@ -606,7 +620,6 @@ class CallbackRouter:
             "portfolio_performance",
             "portfolio_trade",
             "trade_signal",
-            "trade_paper_execute",
             "trade_kill_switch",
             "trade_status",
             "markets_overview",
@@ -636,6 +649,14 @@ class CallbackRouter:
             "settings_auto",
             "control",
         }
+        if action == "trade_paper_execute":
+            request = parse_trade_payload(self._build_trade_callback_payload())
+            result = await execute_unified_trade_entry(
+                request=request,
+                source="callback:trade_paper_execute",
+            )
+            return await render_view("positions", result.payload), build_trade_menu()
+
         if action in normalized_actions:
             return await self._render_normalized_callback(action)
 

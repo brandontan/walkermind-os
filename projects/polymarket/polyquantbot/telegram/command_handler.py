@@ -11,7 +11,10 @@ from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
 from ..interface.telegram.view_handler import render_view, safe_count, safe_number
 from ..execution.engine import export_execution_payload, get_execution_engine
-from ..execution.strategy_trigger import StrategyConfig, StrategyTrigger
+from .handlers.shared_execution_entry import (
+    execute_unified_trade_entry,
+    parse_trade_test_args,
+)
 from .ui.keyboard import build_dashboard_menu
 from .handlers.portfolio_service import get_portfolio_service
 from .message_formatter import (
@@ -336,53 +339,16 @@ class CommandHandler:
 
     async def _handle_trade_test(self, args: str) -> CommandResult:
         """Parse /trade test [market] [side] [size]."""
-        if not args:
-            return CommandResult(
-                success=False,
-                message="Usage: /trade test [market] [side YES/NO] [size]",
-            )
-        parts = args.split()
-        if len(parts) < 3:
-            return CommandResult(
-                success=False,
-                message="Usage: /trade test [market] [side YES/NO] [size]",
-            )
-        market, side, size_str = parts[0], parts[1].upper(), parts[2]
         try:
-            size = float(size_str)
-        except ValueError:
-            return CommandResult(
-                success=False,
-                message="Size must be a number.",
-            )
-        if side not in ("YES", "NO"):
-            return CommandResult(
-                success=False,
-                message="Side must be YES or NO.",
-            )
-        engine = get_execution_engine()
-        trigger = StrategyTrigger(
-            engine=engine,
-            config=StrategyConfig(
-                market_id=market,
-                side=side,
-                threshold=0.45,
-                target_pnl=20.0,
-            ),
-        )
-        await trigger.evaluate(0.42)
-        await engine.update_mark_to_market({market: 0.46})
-        payload = await export_execution_payload()
-        get_portfolio_service().merge_execution_state(
-            positions=payload.get("positions", []),
-            cash=float(payload.get("cash", 0.0)),
-            equity=float(payload.get("equity", 0.0)),
-            realized_pnl=float(payload.get("realized", 0.0)),
-        )
+            request = parse_trade_test_args(args)
+        except ValueError as exc:
+            return CommandResult(success=False, message=str(exc))
+
+        result = await execute_unified_trade_entry(request=request, source="command:/trade test")
         return CommandResult(
-            success=True,
-            message=await render_view("positions", payload),
-            payload=payload,
+            success=result.success,
+            message=await render_view("positions", result.payload),
+            payload=result.payload,
         )
 
     async def _handle_trade_close(self, args: str) -> CommandResult:
