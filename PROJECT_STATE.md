@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 00:45
-- Status        : P4 observability runtime remediation wired into one real execution lifecycle path; currently In validation (post-merge remediation).
+- Last Updated  : 2026-04-08 12:20
+- Status        : Executor trace hardening remediation for PR #282 applied on narrow executor path; awaiting COMMANDER re-check after Codex code review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Executor trace hardening remediation for PR #282 (2026-04-08): normalized executor `trace_id` with safe string conversion before trim, bound `execution_trace_id` into executor logger context, and added focused non-string trace normalization regression proof test.
 - Trade-system reliability observability P4 runtime remediation pass (2026-04-08): enforced hard event contract validation, wired trace_id creation in trading loop real trade cycle, propagated trace_id into execution path, and emitted runtime `trade_start` / `execution_attempt` / `execution_result` events with lifecycle-focused tests.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
 - SENTINEL validation complete for `trade_system_hardening_p3_20260407` (2026-04-07): verdict **APPROVED**, score **97/100**; execution-boundary capital guardrails verified authoritative with explicit structured block reasons and successful allowed-path execution proof.
@@ -86,9 +87,9 @@ Status:
 
 ## 🚧 IN PROGRESS
 
-### P4 observability runtime remediation
-- In validation (post-merge remediation).
-- Scope: one real execution lifecycle path (`run_trading_loop` → `execute_trade`) with strict event contract enforcement and runtime lifecycle event emission proof tests.
+### PR #282 executor trace hardening handoff
+- STANDARD-tier FORGE-X pass complete for executor-only observability hardening.
+- Awaiting COMMANDER re-check on updated PR #282 after Codex code review artifact.
 
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
@@ -110,13 +111,11 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required for p4_observability_runtime_integration_fix_2026-04-08 before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_2_p4_observability_runtime_integration_fix.md
-Tier: MAJOR
+Codex code review required before merge. COMMANDER review after code review. Source: projects/polymarket/polyquantbot/reports/forge/24_3_executor_trace_propagation_hardening.md. Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
-- P4 observability runtime remediation is currently in validation (post-merge remediation); awaiting SENTINEL final verification for real lifecycle wiring.
+- PR #282 executor trace hardening is scoped and complete, but final merge decision is pending COMMANDER re-check after STANDARD-tier code review artifact.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
