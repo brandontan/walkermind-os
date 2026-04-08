@@ -102,6 +102,9 @@ class CommandHandler:
         self._risk_guard = risk_guard
         self._mode = mode
         self._lock = asyncio.Lock()
+        self._paper_execution_lock = asyncio.Lock()
+        self._paper_execution_dedup: dict[str, float] = {}
+        self._paper_execution_dedup_ttl_s = 4.0
         self._runner: Optional[object] = None  # wired after pipeline starts
 
         log.info(
@@ -360,30 +363,102 @@ class CommandHandler:
                 success=False,
                 message="Side must be YES or NO.",
             )
-        engine = get_execution_engine()
-        trigger = StrategyTrigger(
-            engine=engine,
-            config=StrategyConfig(
-                market_id=market,
-                side=side,
-                threshold=0.45,
-                target_pnl=20.0,
-            ),
+        return await self.execute_bounded_paper_trade(
+            market=market,
+            side=side,
+            size=size,
+            source="telegram_command_trade_test",
+            dedup_key=None,
         )
-        await trigger.evaluate(0.42)
-        await engine.update_mark_to_market({market: 0.46})
-        payload = await export_execution_payload()
-        get_portfolio_service().merge_execution_state(
-            positions=payload.get("positions", []),
-            cash=float(payload.get("cash", 0.0)),
-            equity=float(payload.get("equity", 0.0)),
-            realized_pnl=float(payload.get("realized", 0.0)),
-        )
-        return CommandResult(
-            success=True,
-            message=await render_view("positions", payload),
-            payload=payload,
-        )
+
+    async def execute_bounded_paper_trade(
+        self,
+        market: str,
+        side: str,
+        size: float,
+        source: str,
+        dedup_key: Optional[str],
+    ) -> CommandResult:
+        """Execute bounded paper trade using shared command/callback path."""
+        normalized_market = (market or "").strip()
+        normalized_side = (side or "").strip().upper()
+
+        if not normalized_market:
+            return CommandResult(success=False, message="Trade execution blocked: market is required.")
+        if normalized_side not in ("YES", "NO"):
+            return CommandResult(success=False, message="Trade execution blocked: side must be YES or NO.")
+        if size <= 0:
+            return CommandResult(success=False, message="Trade execution blocked: size must be greater than 0.")
+
+        now = time.monotonic()
+        async with self._paper_execution_lock:
+            self._paper_execution_dedup = {
+                key: ts
+                for key, ts in self._paper_execution_dedup.items()
+                if now - ts < self._paper_execution_dedup_ttl_s
+            }
+            if dedup_key is not None and dedup_key in self._paper_execution_dedup:
+                log.warning(
+                    "paper_trade_duplicate_blocked",
+                    dedup_key=dedup_key,
+                    source=source,
+                    market=normalized_market,
+                    side=normalized_side,
+                    size=size,
+                )
+                return CommandResult(
+                    success=False,
+                    message="Duplicate execute request blocked. Please wait before retrying.",
+                )
+            if dedup_key is not None:
+                self._paper_execution_dedup[dedup_key] = now
+
+        try:
+            engine = get_execution_engine()
+            trigger = StrategyTrigger(
+                engine=engine,
+                config=StrategyConfig(
+                    market_id=normalized_market,
+                    side=normalized_side,
+                    threshold=0.45,
+                    target_pnl=20.0,
+                ),
+            )
+            await trigger.evaluate(0.42)
+            await engine.update_mark_to_market({normalized_market: 0.46})
+            payload = await export_execution_payload()
+            get_portfolio_service().merge_execution_state(
+                positions=payload.get("positions", []),
+                cash=float(payload.get("cash", 0.0)),
+                equity=float(payload.get("equity", 0.0)),
+                realized_pnl=float(payload.get("realized", 0.0)),
+            )
+            log.info(
+                "paper_trade_execute_success",
+                source=source,
+                market=normalized_market,
+                side=normalized_side,
+                size=size,
+            )
+            return CommandResult(
+                success=True,
+                message=await render_view("positions", payload),
+                payload=payload,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "paper_trade_execute_failed",
+                source=source,
+                market=normalized_market,
+                side=normalized_side,
+                size=size,
+                error=str(exc),
+                exc_info=True,
+            )
+            return CommandResult(
+                success=False,
+                message=f"Paper execution failed: {exc}",
+            )
 
     async def _handle_trade_close(self, args: str) -> CommandResult:
         """Parse /trade close [market]."""

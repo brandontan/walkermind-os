@@ -22,6 +22,7 @@ Design:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from typing import Optional, TYPE_CHECKING
 
 import structlog
@@ -277,7 +278,13 @@ class CallbackRouter:
             if any(x in cb_data for x in ("health", "strategies")):
                 log.warning("callback_legacy_blocked", callback_data=cb_data)
                 raise RuntimeError("LEGACY UI DISABLED")
-            text, keyboard = await self._dispatch(action, user_id=user_id)
+            action_name, action_payload = self._split_action(action)
+            text, keyboard = await self._dispatch(
+                action_name,
+                user_id=user_id,
+                action_payload=action_payload,
+                callback_signature=self._callback_signature(chat_id, message_id, action),
+            )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -374,6 +381,36 @@ class CallbackRouter:
         if action.startswith("help_") or action in {"help", "guidance", "bot_info"}:
             return "help"
         return "dashboard"
+
+    @staticmethod
+    def _split_action(action: str) -> tuple[str, str]:
+        if "|" not in action:
+            return action, ""
+        name, payload = action.split("|", 1)
+        return name, payload.strip()
+
+    @staticmethod
+    def _callback_signature(chat_id: Optional[int], message_id: Optional[int], action: str) -> str:
+        raw = f"{chat_id}:{message_id}:{action}".encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()[:20]
+
+    @staticmethod
+    def _parse_trade_execute_payload(payload: str) -> tuple[str, str, float]:
+        fields = [part.strip() for part in payload.split("|")]
+        if len(fields) != 3:
+            raise ValueError("Malformed execute payload. Expected market|side|size.")
+        market, side, size_raw = fields
+        if not market:
+            raise ValueError("Invalid trade selection: market is empty.")
+        if side.upper() not in {"YES", "NO"}:
+            raise ValueError("Invalid trade selection: side must be YES or NO.")
+        try:
+            size = float(size_raw)
+        except ValueError as exc:
+            raise ValueError("Invalid trade selection: size must be numeric.") from exc
+        if size <= 0:
+            raise ValueError("Invalid trade selection: size must be greater than 0.")
+        return market, side.upper(), size
 
     def _build_normalized_payload(self, action: str) -> dict[str, object]:
         state_snapshot = self._state.snapshot()
@@ -562,7 +599,13 @@ class CallbackRouter:
 
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
-    async def _dispatch(self, action: str, user_id: Optional[int] = None) -> tuple[str, list]:
+    async def _dispatch(
+        self,
+        action: str,
+        user_id: Optional[int] = None,
+        action_payload: str = "",
+        callback_signature: Optional[str] = None,
+    ) -> tuple[str, list]:
         """Route ``action`` to the correct handler.
 
         Args:
@@ -606,7 +649,6 @@ class CallbackRouter:
             "portfolio_performance",
             "portfolio_trade",
             "trade_signal",
-            "trade_paper_execute",
             "trade_kill_switch",
             "trade_status",
             "markets_overview",
@@ -638,6 +680,70 @@ class CallbackRouter:
         }
         if action in normalized_actions:
             return await self._render_normalized_callback(action)
+
+        if action == "trade_paper_execute":
+            if not action_payload:
+                return (
+                    "\n".join(
+                        [
+                            "⚠️ *Paper Execute Blocked*",
+                            "",
+                            "_No action state provided. Use a valid trade selection before executing._",
+                        ]
+                    ),
+                    build_trade_menu(),
+                )
+            try:
+                market, side, size = self._parse_trade_execute_payload(action_payload)
+            except ValueError as parse_error:
+                log.warning(
+                    "callback_trade_execute_invalid_payload",
+                    payload=action_payload,
+                    error=str(parse_error),
+                )
+                return (
+                    "\n".join(
+                        [
+                            "⚠️ *Paper Execute Blocked*",
+                            "",
+                            f"_{parse_error}_",
+                        ]
+                    ),
+                    build_trade_menu(),
+                )
+
+            result = await self._cmd.execute_bounded_paper_trade(
+                market=market,
+                side=side,
+                size=size,
+                source="telegram_callback_trade_paper_execute",
+                dedup_key=f"callback:{callback_signature}:{market}:{side}:{size}",
+            )
+            if result.success:
+                log.info(
+                    "callback_trade_execute_success",
+                    market=market,
+                    side=side,
+                    size=size,
+                )
+                return result.message, build_trade_menu()
+            log.warning(
+                "callback_trade_execute_blocked",
+                market=market,
+                side=side,
+                size=size,
+                reason=result.message,
+            )
+            return (
+                "\n".join(
+                    [
+                        "⚠️ *Paper Execute Blocked*",
+                        "",
+                        result.message,
+                    ]
+                ),
+                build_trade_menu(),
+            )
 
         if action == "markets_all_toggle":
             await toggle_all_markets()

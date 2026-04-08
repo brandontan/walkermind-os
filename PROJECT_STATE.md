@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 12:41
-- Status        : P4 observability runtime + executor trace hardening is completed (conditional acceptance) and merged; project state synced to current repository truth.
+- Last Updated  : 2026-04-08 15:48
+- Status        : Telegram callback execution wiring fix for `trade_paper_execute` is implemented with shared bounded execution path + duplicate protection; SENTINEL MAJOR revalidation pending before merge.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Telegram callback execution wiring fix pass (2026-04-08): `trade_paper_execute` callback route now uses shared bounded paper execution entry path instead of render-only normalization; callback payload validation, duplicate-execute protection, and visible blocked/failure feedback added with focused execution wiring tests.
 - P4 completion closure (2026-04-08): marked Completed (Conditional) with runtime observability integrated, trace propagation finalized, and executor trace hardening completed (#283).
 - Trade-system reliability observability P4 runtime remediation pass (2026-04-08): Completed (Conditional) with hard event contract validation, trading-loop trace_id lifecycle wiring, execution-path trace propagation, and runtime `trade_start` / `execution_attempt` / `execution_result` event emission.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
@@ -87,6 +88,11 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### Telegram callback execution wiring MAJOR handoff
+- FORGE-X fix for `trade_paper_execute` callback execution path is complete.
+- Shared execution path proof added for callback and `/trade test` command flows.
+- SENTINEL revalidation is required before merge for this MAJOR task.
+
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -107,10 +113,13 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-COMMANDER routing next: SENTINEL validation for Telegram Trade Menu MVP.
+SENTINEL validation required for telegram callback execution wiring before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/24_2_telegram_callback_execution_wiring.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
+- Callback execute path currently requires valid callback action payload state (`trade_paper_execute|market|side|size`) for execution trigger; empty execute state is now explicitly blocked with visible feedback.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Telegram Trade Menu MVP requires SENTINEL validation routing as the next focused workflow step.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
