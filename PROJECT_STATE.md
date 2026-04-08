@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 20:58
-- Status        : FORGE-X remediation for P5 execution snapshot contract compatibility completed; MAJOR task ready for SENTINEL revalidation.
+- Last Updated  : 2026-04-08 21:25
+- Status        : SENTINEL MAJOR revalidation completed for P5 execution snapshot contract compatibility with CONDITIONAL verdict; runtime path validated with defensive-contract hardening conditions.
 
 ---
 
@@ -39,6 +39,8 @@
 - Trade-system hardening P2 restore_failure observability addendum (2026-04-07): added explicit structured restore outcome emission (`restore_failure`/`restore_success`) in engine restore path and added focused proof test `test_trade_system_hardening_p2_20260407.py`.
 - SENTINEL validation complete for `telegram_command_driven_execution_20260408` (2026-04-08): verdict **BLOCKED**, score **38/100**; required callback→command→parser→execution runtime chain not met and FULL RUNTIME INTEGRATION claim not evidenced for target path.
 - FORGE-X fix pass `p5_execution_snapshot_contract_compatibility_20260408` completed (2026-04-08): added explicit `ExecutionSnapshot.implied_prob`/`ExecutionSnapshot.volatility` contract fields, corrected `StrategyTrigger` intelligence contract usage, routed callback paper execution into authoritative command-trade path, and added duplicate-intent block + focused MAJOR regression tests.
+- SENTINEL validation complete for `p5_execution_snapshot_contract_fix_20260409` (2026-04-08): verdict **CONDITIONAL**; command/callback shared execution path and snapshot contract behavior validated under normal runtime, with follow-up hardening required for malformed/missing internal snapshot corruption cases.
+- SENTINEL report saved at `projects/polymarket/polyquantbot/reports/sentinel/p5_execution_snapshot_contract_final_validation_20260409.md`.
 
 ### Trade-System Hardening P2 — COMPLETED (2026-04-07)
 
@@ -103,7 +105,7 @@ Status:
 
 ### Telegram command-driven execution remediation handoff
 - FORGE-X remediation patch is complete for execution snapshot contract compatibility and callback/command shared trade path integration.
-- SENTINEL MAJOR revalidation is now required before merge decision.
+- SENTINEL MAJOR revalidation completed with CONDITIONAL verdict; defensive snapshot contract hardening follow-up is pending before final merge decision.
 
 ## ❌ NOT STARTED
 
@@ -113,8 +115,8 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required for p5_execution_snapshot_contract_compatibility before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_2_execution_snapshot_contract_compatibility.md
+FORGE-X hardening follow-up required for malformed/missing ExecutionSnapshot defensive handling before merge finalization.
+Source: projects/polymarket/polyquantbot/reports/sentinel/p5_execution_snapshot_contract_final_validation_20260409.md
 Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
@@ -125,4 +127,4 @@ Tier: MAJOR
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
-- MAJOR task `p5_execution_snapshot_contract_compatibility` awaits SENTINEL revalidation for merge eligibility.
+- `p5_execution_snapshot_contract_fix_20260409` remains CONDITIONAL until defensive validation is added for malformed/missing internal `ExecutionSnapshot` values (fail-closed handling instead of raw exceptions).
