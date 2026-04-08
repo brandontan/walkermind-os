@@ -22,6 +22,8 @@ Design:
 from __future__ import annotations
 
 import asyncio
+import time
+import uuid
 from typing import Optional, TYPE_CHECKING
 
 import structlog
@@ -119,6 +121,9 @@ class CallbackRouter:
         self._paper_engine: "Optional[PaperEngine]" = None
         self._paper_pm: "Optional[PaperPositionManager]" = None
         self._exposure_calc: "Optional[ExposureCalculator]" = None
+        self._paper_execute_lock = asyncio.Lock()
+        self._paper_execute_recent: dict[str, float] = {}
+        self._paper_execute_ttl_s: float = 10.0
 
         # ── Propagate mode + state to all handlers at init ────────────────────
         self._propagate_mode_and_state()
@@ -560,6 +565,117 @@ class CallbackRouter:
             return text, build_control_menu(current_state)
         return text, build_dashboard_menu()
 
+    @staticmethod
+    def _parse_trade_execute_action(action: str) -> dict[str, object]:
+        """Parse and validate trade_paper_execute payload.
+
+        Expected action format:
+        ``trade_paper_execute|<market_id>|<side>|<price>|<size_usd>|<trigger_id>``
+        """
+        parts = action.split("|")
+        if len(parts) != 6:
+            raise ValueError("Malformed execute payload")
+        _, market_id, side, price_raw, size_raw, trigger_id = parts
+        market_id = market_id.strip()
+        side = side.strip().upper()
+        trigger_id = trigger_id.strip()
+        if not market_id or not trigger_id:
+            raise ValueError("Invalid trade selection")
+        if side not in {"YES", "NO"}:
+            raise ValueError("Invalid side")
+        price = float(price_raw)
+        size_usd = float(size_raw)
+        if not (0.0 < price <= 1.0):
+            raise ValueError("Invalid price")
+        if size_usd <= 0.0:
+            raise ValueError("Invalid size")
+        return {
+            "market_id": market_id,
+            "side": side,
+            "price": price,
+            "size_usd": size_usd,
+            "trigger_id": trigger_id,
+        }
+
+    async def _handle_trade_paper_execute(self, action: str) -> tuple[str, list]:
+        """Execute bounded paper trade through core execution path."""
+        from ...core.execution.executor import execute_trade
+        from ...core.signal.signal_engine import SignalResult
+
+        try:
+            parsed = self._parse_trade_execute_action(action)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("telegram_trade_execute_rejected_payload", action=action, error=str(exc))
+            return (
+                "⚠️ Paper execution blocked.\nInvalid execute payload. Select a valid trade signal and retry.",
+                build_trade_menu(),
+            )
+
+        trigger_id = str(parsed["trigger_id"])
+        now = time.monotonic()
+        async with self._paper_execute_lock:
+            self._paper_execute_recent = {
+                key: ts for key, ts in self._paper_execute_recent.items()
+                if (now - ts) <= self._paper_execute_ttl_s
+            }
+            if trigger_id in self._paper_execute_recent:
+                log.info("telegram_trade_execute_duplicate_blocked", trigger_id=trigger_id)
+                return (
+                    "⚠️ Duplicate execute ignored.\nThis trade trigger was already processed.",
+                    build_trade_menu(),
+                )
+            self._paper_execute_recent[trigger_id] = now
+
+        signal = SignalResult(
+            signal_id=trigger_id,
+            market_id=str(parsed["market_id"]),
+            side=str(parsed["side"]),
+            p_market=float(parsed["price"]),
+            p_model=float(parsed["price"]) + 0.03,
+            edge=0.03,
+            ev=0.03,
+            kelly_f=0.25,
+            size_usd=min(float(parsed["size_usd"]), 1_000.0),
+            liquidity_usd=10_000.0,
+            force_mode=True,
+            extra={"source": "telegram_trade_execute"},
+        )
+
+        state = str(self._state.snapshot().get("state", "RUNNING")).upper()
+        kill_switch_active = state in {"HALTED", "STOPPED"}
+        result = await execute_trade(
+            signal,
+            mode="PAPER",
+            max_position_usd=1_000.0,
+            min_edge=0.01,
+            min_liquidity_usd=10_000.0,
+            kill_switch_active=kill_switch_active,
+            trace_id=f"tg-exec-{uuid.uuid4().hex[:8]}",
+        )
+        log.info(
+            "telegram_trade_execute_result",
+            trigger_id=trigger_id,
+            success=result.success,
+            reason=result.reason,
+            market_id=result.market_id,
+            side=result.side,
+            attempted_size=result.attempted_size,
+        )
+        if not result.success:
+            return (
+                f"⚠️ Paper execution blocked.\nReason: {result.reason or 'execution_failed'}",
+                build_trade_menu(),
+            )
+        return (
+            (
+                "✅ Paper execution submitted.\n"
+                f"Market: {result.market_id}\n"
+                f"Side: {result.side}\n"
+                f"Filled: ${result.filled_size_usd:.2f}"
+            ),
+            build_trade_menu(),
+        )
+
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
     async def _dispatch(self, action: str, user_id: Optional[int] = None) -> tuple[str, list]:
@@ -606,7 +722,6 @@ class CallbackRouter:
             "portfolio_performance",
             "portfolio_trade",
             "trade_signal",
-            "trade_paper_execute",
             "trade_kill_switch",
             "trade_status",
             "markets_overview",
@@ -636,6 +751,9 @@ class CallbackRouter:
             "settings_auto",
             "control",
         }
+        if action.startswith("trade_paper_execute"):
+            return await self._handle_trade_paper_execute(action)
+
         if action in normalized_actions:
             return await self._render_normalized_callback(action)
 
