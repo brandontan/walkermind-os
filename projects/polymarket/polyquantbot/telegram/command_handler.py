@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from typing import Optional
+from dataclasses import dataclass
+from typing import Awaitable, Callable, Optional
 
 import structlog
 
@@ -32,6 +33,75 @@ log = structlog.get_logger()
 _SEND_TIMEOUT_S: float = 3.0
 _MAX_SEND_RETRIES: int = 3
 _RETRY_BASE_DELAY_S: float = 0.5
+_TRADE_EXEC_TIMEOUT_S: float = 1.5
+_TRADE_POST_RETRY_COUNT: int = 2
+_TRADE_RECENT_TTL_S: float = 5.0
+
+
+@dataclass(slots=True)
+class _TradeExecutionRecord:
+    intent_key: str
+    completed_at: float
+    result: "CommandResult"
+
+
+class _TradeExecutionCoordinator:
+    """Execution-boundary idempotency + timeout + retry safety for /trade test."""
+
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._inflight: set[str] = set()
+        self._recent: dict[str, _TradeExecutionRecord] = {}
+
+    async def guard(
+        self,
+        intent_key: str,
+        execute: Callable[[], Awaitable["CommandResult"]],
+    ) -> "CommandResult":
+        now = time.time()
+        async with self._lock:
+            self._evict_expired(now)
+            if intent_key in self._inflight:
+                log.warning("trade_execution_duplicate_blocked", intent_key=intent_key, reason="inflight")
+                return CommandResult(
+                    success=False,
+                    message="⚠️ Duplicate execution prevented (already in progress).",
+                    payload={"status": "duplicate_blocked", "intent_key": intent_key},
+                )
+            recent = self._recent.get(intent_key)
+            if recent is not None:
+                log.warning("trade_execution_duplicate_blocked", intent_key=intent_key, reason="recent")
+                return CommandResult(
+                    success=False,
+                    message="⚠️ Duplicate execution prevented (recently processed).",
+                    payload={"status": "duplicate_blocked", "intent_key": intent_key},
+                )
+            self._inflight.add(intent_key)
+
+        try:
+            result = await execute()
+            return result
+        finally:
+            async with self._lock:
+                self._inflight.discard(intent_key)
+                self._recent[intent_key] = _TradeExecutionRecord(
+                    intent_key=intent_key,
+                    completed_at=time.time(),
+                    result=result if "result" in locals() else CommandResult(
+                        success=False,
+                        message="❌ Execution failed before completion.",
+                        payload={"status": "failed", "intent_key": intent_key},
+                    ),
+                )
+
+    def _evict_expired(self, now: float) -> None:
+        expired = [
+            key
+            for key, record in self._recent.items()
+            if (now - record.completed_at) > _TRADE_RECENT_TTL_S
+        ]
+        for key in expired:
+            self._recent.pop(key, None)
 
 # ── CommandResult ──────────────────────────────────────────────────────────────
 
@@ -103,6 +173,7 @@ class CommandHandler:
         self._mode = mode
         self._lock = asyncio.Lock()
         self._runner: Optional[object] = None  # wired after pipeline starts
+        self._trade_execution = _TradeExecutionCoordinator()
 
         log.info(
             "command_handler_initialized",
@@ -125,6 +196,7 @@ class CommandHandler:
         self,
         command: str,
         value: Optional[float] = None,
+        raw_args: Optional[str] = None,
         user_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
     ) -> CommandResult:
@@ -153,7 +225,7 @@ class CommandHandler:
 
         async with self._lock:
             try:
-                result = await self._dispatch(cmd, value, cid)
+                result = await self._dispatch(cmd, value, raw_args, cid)
             except Exception as exc:  # noqa: BLE001
                 log.error(
                     "command_handler_error",
@@ -193,7 +265,7 @@ class CommandHandler:
     # ── Handlers (one per command) ─────────────────────────────────────────────
 
     async def _dispatch(
-        self, cmd: str, value: Optional[float], cid: str
+        self, cmd: str, value: Optional[float], raw_args: Optional[str], cid: str
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
         if cmd in ("start", "help", "menu", "main_menu"):
@@ -248,7 +320,7 @@ class CommandHandler:
         if cmd == "alpha":
             return await self._handle_alpha()
         if cmd == "trade":
-            return await self._handle_trade(value)
+            return await self._handle_trade(args=raw_args)
 
         # ── New menu callbacks (new Telegram system) ───────────────────────────
         if cmd == "wallet":
@@ -309,14 +381,14 @@ class CommandHandler:
             ),
         )
 
-    async def _handle_trade(self, args: Optional[float] = None) -> CommandResult:
+    async def _handle_trade(self, args: Optional[str] = None) -> CommandResult:
         """Parse /trade [test/close/status] [args]."""
         if args is None:
             return CommandResult(
                 success=False,
                 message="Usage: /trade [test|close|status] [args]",
             )
-        parts = str(args).split()
+        parts = str(args).strip().split()
         if not parts:
             return CommandResult(
                 success=False,
@@ -360,30 +432,73 @@ class CommandHandler:
                 success=False,
                 message="Side must be YES or NO.",
             )
-        engine = get_execution_engine()
-        trigger = StrategyTrigger(
-            engine=engine,
-            config=StrategyConfig(
-                market_id=market,
-                side=side,
-                threshold=0.45,
-                target_pnl=20.0,
-            ),
-        )
-        await trigger.evaluate(0.42)
-        await engine.update_mark_to_market({market: 0.46})
-        payload = await export_execution_payload()
-        get_portfolio_service().merge_execution_state(
-            positions=payload.get("positions", []),
-            cash=float(payload.get("cash", 0.0)),
-            equity=float(payload.get("equity", 0.0)),
-            realized_pnl=float(payload.get("realized", 0.0)),
-        )
-        return CommandResult(
-            success=True,
-            message=await render_view("positions", payload),
-            payload=payload,
-        )
+        intent_key = f"{market}:{side}:{size:.6f}"
+
+        async def _execute_once() -> CommandResult:
+            engine = get_execution_engine()
+            trigger = StrategyTrigger(
+                engine=engine,
+                config=StrategyConfig(
+                    market_id=market,
+                    side=side,
+                    threshold=0.45,
+                    target_pnl=20.0,
+                ),
+            )
+
+            try:
+                await asyncio.wait_for(trigger.evaluate(0.42), timeout=_TRADE_EXEC_TIMEOUT_S)
+                await asyncio.wait_for(
+                    engine.update_mark_to_market({market: 0.46}),
+                    timeout=_TRADE_EXEC_TIMEOUT_S,
+                )
+            except asyncio.TimeoutError:
+                log.error("trade_execution_timeout", intent_key=intent_key, market=market, side=side)
+                return CommandResult(
+                    success=False,
+                    message="❌ Trade execution timed out safely. No duplicate retry was executed.",
+                    payload={"status": "timeout", "intent_key": intent_key},
+                )
+
+            payload = await export_execution_payload()
+            post_error: Optional[str] = None
+            for attempt in range(1, _TRADE_POST_RETRY_COUNT + 1):
+                try:
+                    get_portfolio_service().merge_execution_state(
+                        positions=payload.get("positions", []),
+                        cash=float(payload.get("cash", 0.0)),
+                        equity=float(payload.get("equity", 0.0)),
+                        realized_pnl=float(payload.get("realized", 0.0)),
+                    )
+                    post_error = None
+                    if attempt > 1:
+                        log.info("trade_execution_post_retry_recovered", attempt=attempt, intent_key=intent_key)
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    post_error = str(exc)
+                    log.error(
+                        "trade_execution_postprocess_failure",
+                        attempt=attempt,
+                        intent_key=intent_key,
+                        error=post_error,
+                        exc_info=True,
+                    )
+                    await asyncio.sleep(_RETRY_BASE_DELAY_S * attempt)
+
+            if post_error is not None:
+                return CommandResult(
+                    success=False,
+                    message="⚠️ Trade executed but post-processing failed. State preserved; retry later.",
+                    payload={"status": "partial_failure", "intent_key": intent_key, "error": post_error},
+                )
+
+            return CommandResult(
+                success=True,
+                message=await render_view("positions", payload),
+                payload={**payload, "status": "executed", "intent_key": intent_key},
+            )
+
+        return await self._trade_execution.guard(intent_key=intent_key, execute=_execute_once)
 
     async def _handle_trade_close(self, args: str) -> CommandResult:
         """Parse /trade close [market]."""

@@ -58,6 +58,7 @@ from .portfolio_service import get_portfolio_service
 if TYPE_CHECKING:
     import aiohttp
     from ..command_handler import CommandHandler
+    from ..command_router import CommandRouter
     from ...core.system_state import SystemStateManager
     from ...config.runtime_config import ConfigManager
     from ...strategy.strategy_manager import StrategyStateManager
@@ -105,9 +106,11 @@ class CallbackRouter:
         mode: str = "PAPER",
         strategy_state: "Optional[StrategyStateManager]" = None,
         db: "Optional[DatabaseClient]" = None,
+        command_router: "Optional[CommandRouter]" = None,
     ) -> None:
         self._api = tg_api
         self._cmd = cmd_handler
+        self._command_router: "Optional[CommandRouter]" = command_router
         self._state = state_manager
         self._config = config_manager
         self._mode = mode
@@ -172,6 +175,11 @@ class CallbackRouter:
         """
         self._db = db
         log.info("callback_router_db_wired")
+
+    def set_command_router(self, router: "CommandRouter") -> None:
+        """Inject CommandRouter for callback→command parser execution routing."""
+        self._command_router = router
+        log.info("callback_router_command_router_injected")
 
     def set_paper_wallet_engine(self, engine: "WalletEngine") -> None:
         """Inject WalletEngine for paper wallet UI.
@@ -560,6 +568,30 @@ class CallbackRouter:
             return text, build_control_menu(current_state)
         return text, build_dashboard_menu()
 
+    async def _execute_trade_paper_from_callback(self) -> tuple[str, list]:
+        """Build command payload and route via CommandRouter for execution."""
+        if self._command_router is None:
+            log.error("callback_trade_execute_router_missing")
+            return error_screen(context="trade_paper_execute", error="Command router unavailable"), build_trade_menu()
+
+        payload = self._build_normalized_payload("trade")
+        market = str(payload.get("market_id") or "DEMO_MARKET")
+        side = str(payload.get("side") or "YES").upper()
+        if side not in {"YES", "NO"}:
+            side = "YES"
+        size = max(1.0, safe_number(payload.get("size", 10.0), 10.0))
+        raw_args = f"test {market} {side} {size:.2f}"
+
+        log.info("callback_trade_execute_command_built", raw_args=raw_args)
+        result = await self._command_router.route_structured(
+            {"command": "trade", "raw_args": raw_args, "user_id": "callback"}
+        )
+        if result.success:
+            log.info("callback_trade_execute_success", raw_args=raw_args)
+        else:
+            log.warning("callback_trade_execute_failed", raw_args=raw_args, message=result.message)
+        return result.message, build_trade_menu()
+
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
     async def _dispatch(self, action: str, user_id: Optional[int] = None) -> tuple[str, list]:
@@ -637,6 +669,8 @@ class CallbackRouter:
             "control",
         }
         if action in normalized_actions:
+            if action == "trade_paper_execute":
+                return await self._execute_trade_paper_from_callback()
             return await self._render_normalized_callback(action)
 
         if action == "markets_all_toggle":

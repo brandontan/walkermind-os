@@ -294,10 +294,13 @@ async def main() -> None:
     _tg_api = f"https://api.telegram.org/bot{_tg_token}"
 
     # ── Centralized callback router (action: prefix → editMessageText) ─────────
+    from projects.polymarket.polyquantbot.telegram.command_router import CommandRouter as _CommandRouter
     from projects.polymarket.polyquantbot.telegram.handlers.callback_router import CallbackRouter as _CallbackRouter
+    command_router = _CommandRouter(handler=cmd_handler)
     _callback_router = _CallbackRouter(
         tg_api=_tg_api,
         cmd_handler=cmd_handler,
+        command_router=command_router,
         state_manager=state_manager,
         config_manager=config_manager,
         mode=mode,
@@ -318,7 +321,6 @@ async def main() -> None:
                 (uses sendMessage — always creates new message)
         """
         import aiohttp as _aio
-        from projects.polymarket.polyquantbot.telegram.command_router import CommandRouter
         from projects.polymarket.polyquantbot.telegram.command_handler import CommandResult as _CR
         from projects.polymarket.polyquantbot.telegram.ui.reply_keyboard import (
             get_main_reply_keyboard,
@@ -327,7 +329,6 @@ async def main() -> None:
         )
         from projects.polymarket.polyquantbot.telegram.handlers.text_handler import schedule_user_message_delete
         CommandResult = _CR
-        router = CommandRouter(handler=cmd_handler)
         offset = 0
         # chat_id → message_id of the active inline message (used for editMessageText
         # when reply keyboard buttons are pressed without an existing callback_query)
@@ -454,7 +455,7 @@ async def main() -> None:
                                             "from": {"id": cb_user},
                                         },
                                     }
-                                    result = await router.route_update(fake)
+                                    result = await command_router.route_update(fake)
                                     await _send_result(
                                         session, cb_chat, result,
                                         callback_query_id=cq["id"],
@@ -484,7 +485,7 @@ async def main() -> None:
                         text = text.split("@")[0]
                         msg["text"] = text
                         cmd_name = text.lstrip("/").split()[0].lower()
-                        result = await router.route_update(update)
+                        result = await command_router.route_update(update)
                         if reply_chat:
                             # ── /start: send reply keyboard first ─────────
                             if cmd_name in ("start", "help", "menu", "main_menu"):

@@ -110,6 +110,7 @@ class CommandRouter:
         """Handle a structured {"command": ..., "value": ...} dict."""
         command = str(payload.get("command", "")).strip()
         value = payload.get("value")
+        raw_args = payload.get("raw_args")
         user_id = str(payload.get("user_id", "structured"))
 
         if not command:
@@ -118,7 +119,11 @@ class CommandRouter:
                 message="❌ Missing 'command' field in structured payload.",
             )
 
-        if value is not None:
+        if command.lower() == "trade":
+            if raw_args is None and value is not None:
+                raw_args = str(value)
+            value = None
+        elif value is not None:
             try:
                 value = float(value)
             except (TypeError, ValueError):
@@ -130,6 +135,7 @@ class CommandRouter:
         return await self._handler.handle(
             command=command,
             value=value,
+            raw_args=str(raw_args).strip() if raw_args is not None else None,
             user_id=user_id,
         )
 
@@ -197,5 +203,6 @@ class CommandRouter:
         return await self._handler.handle(
             command=raw_cmd,
             value=value,
+            raw_args=arg_str if arg_str else None,
             user_id=user_id,
         )
