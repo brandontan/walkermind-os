@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import time
 import structlog
+import uuid
 
 from .engine import ExecutionEngine
 from .intelligence import ExecutionIntelligence, MarketSnapshot
@@ -48,7 +49,9 @@ class StrategyTrigger:
             implied_prob=snapshot.implied_prob,
             volatility=snapshot.volatility
         )
-        entry_score = self._intelligence.evaluate_entry(market_snapshot)
+        entry_eval = self._intelligence.evaluate_entry(market_snapshot)
+        entry_score = float(entry_eval.get("score", 0.0))
+        entry_reasons = entry_eval.get("reasons", [])
 
         log.info(
             "intelligence_decision",
@@ -64,6 +67,7 @@ class StrategyTrigger:
                 side=self._config.side,
                 price=market_price,
                 size=size,
+                position_id=str(uuid.uuid4()),
             )
             if created:
                 self._trace_engine.record_trace(
@@ -74,7 +78,7 @@ class StrategyTrigger:
                     size=size,
                     pnl=0.0,
                     intelligence_score=entry_score,
-                    intelligence_reasons=self._intelligence.get_reasons(),
+                    intelligence_reasons=entry_reasons,
                     decision_threshold=0.5,
                     action="OPEN",
                 )
@@ -94,7 +98,7 @@ class StrategyTrigger:
                     size=tracked.size,
                     pnl=tracked.pnl,
                     intelligence_score=entry_score,
-                    intelligence_reasons=self._intelligence.get_reasons(),
+                    intelligence_reasons=entry_reasons,
                     decision_threshold=0.5,
                     action="CLOSE",
                 )

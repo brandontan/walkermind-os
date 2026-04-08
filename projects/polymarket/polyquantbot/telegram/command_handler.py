@@ -103,6 +103,8 @@ class CommandHandler:
         self._mode = mode
         self._lock = asyncio.Lock()
         self._runner: Optional[object] = None  # wired after pipeline starts
+        self._trade_intents: dict[str, float] = {}
+        self._trade_intent_ttl_s: float = 30.0
 
         log.info(
             "command_handler_initialized",
@@ -124,7 +126,7 @@ class CommandHandler:
     async def handle(
         self,
         command: str,
-        value: Optional[float] = None,
+        value: Optional[float | str] = None,
         user_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
     ) -> CommandResult:
@@ -193,7 +195,7 @@ class CommandHandler:
     # ── Handlers (one per command) ─────────────────────────────────────────────
 
     async def _dispatch(
-        self, cmd: str, value: Optional[float], cid: str
+        self, cmd: str, value: Optional[float | str], cid: str
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
         if cmd in ("start", "help", "menu", "main_menu"):
@@ -309,7 +311,7 @@ class CommandHandler:
             ),
         )
 
-    async def _handle_trade(self, args: Optional[float] = None) -> CommandResult:
+    async def _handle_trade(self, args: Optional[float | str] = None) -> CommandResult:
         """Parse /trade [test/close/status] [args]."""
         if args is None:
             return CommandResult(
@@ -360,6 +362,17 @@ class CommandHandler:
                 success=False,
                 message="Side must be YES or NO.",
             )
+        now = time.time()
+        intent = f"{market}:{side}:{size:.4f}"
+        for key, ts in list(self._trade_intents.items()):
+            if now - ts > self._trade_intent_ttl_s:
+                del self._trade_intents[key]
+        if intent in self._trade_intents:
+            return CommandResult(
+                success=False,
+                message="duplicate_blocked: trade intent already executed recently.",
+            )
+        self._trade_intents[intent] = now
         engine = get_execution_engine()
         trigger = StrategyTrigger(
             engine=engine,

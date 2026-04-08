@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import statistics
 from typing import Any
+import uuid
 
 import structlog
 
@@ -20,6 +22,8 @@ class ExecutionSnapshot:
     equity: float
     realized_pnl: float
     unrealized_pnl: float
+    implied_prob: float
+    volatility: float
 
 
 class ExecutionEngine:
@@ -32,12 +36,21 @@ class ExecutionEngine:
         self._equity: float = float(starting_equity)
         self._realized_pnl: float = 0.0
         self._unrealized_pnl: float = 0.0
+        self._implied_prob: float = 0.50
+        self._volatility: float = 0.10
         self.max_position_size_ratio: float = 0.10
         self.max_total_exposure_ratio: float = 0.30
         self._analytics = PerformanceTracker()
         self._trace_engine = TradeTraceEngine()
 
-    async def open_position(self, market: str, side: str, price: float, size: float, position_id: str) -> Position | None:
+    async def open_position(
+        self,
+        market: str,
+        side: str,
+        price: float,
+        size: float,
+        position_id: str | None = None,
+    ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
             size = float(size)
@@ -45,8 +58,7 @@ class ExecutionEngine:
                 log.warning("execution_engine_open_rejected", reason="size_non_positive", size=size)
                 return None
             if not position_id:
-                log.warning("execution_engine_open_rejected", reason="missing_position_id")
-                return None
+                position_id = str(uuid.uuid4())
             equity_base = max(self._equity, 0.0)
             max_position_size = equity_base * self.max_position_size_ratio
             if size > max_position_size:
@@ -87,6 +99,7 @@ class ExecutionEngine:
             )
             self._positions[market] = position
             self._cash -= size
+            self._implied_prob = max(0.01, min(0.99, float(price)))
             self._recalculate_unrealized()
             self._refresh_equity()
             log.info("execution_engine_position_opened", market=market, side=side, price=price, size=size)
@@ -113,11 +126,17 @@ class ExecutionEngine:
     async def update_mark_to_market(self, market_prices: dict[str, float]) -> float:
         """Update all open positions unrealized PnL from market prices."""
         async with self._lock:
+            normalized_prices: list[float] = []
             for market_id, position in self._positions.items():
                 maybe_price = market_prices.get(market_id)
                 if maybe_price is None:
                     continue
-                position.update_price(float(maybe_price))
+                normalized = max(0.01, min(0.99, float(maybe_price)))
+                normalized_prices.append(normalized)
+                position.update_price(normalized)
+            if normalized_prices:
+                self._implied_prob = max(0.01, min(0.99, float(sum(normalized_prices) / len(normalized_prices))))
+                self._volatility = max(0.01, float(statistics.pstdev(normalized_prices)) if len(normalized_prices) > 1 else 0.10)
             self._recalculate_unrealized()
             self._refresh_equity()
             return self._unrealized_pnl
@@ -130,6 +149,8 @@ class ExecutionEngine:
                 equity=self._equity,
                 realized_pnl=self._realized_pnl,
                 unrealized_pnl=self._unrealized_pnl,
+                implied_prob=self._implied_prob,
+                volatility=self._volatility,
             )
 
     def _current_total_exposure(self) -> float:
