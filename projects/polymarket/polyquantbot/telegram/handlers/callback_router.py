@@ -446,6 +446,65 @@ class CallbackRouter:
             payload["insight"] = "Strategy toggles remain label-first and tree-normalized"
         return payload
 
+    @staticmethod
+    def _build_trade_test_command(action: str) -> str:
+        """Build ``/trade test`` command from callback action payload.
+
+        Supported callback forms:
+        - ``trade_paper_execute`` (uses safe defaults)
+        - ``trade_paper_execute|<market>|<side>|<size>`` (validated)
+        """
+        if action == "trade_paper_execute":
+            return "/trade test market1 YES 10"
+
+        if not action.startswith("trade_paper_execute|"):
+            raise ValueError("Invalid trade callback payload.")
+
+        parts = action.split("|")
+        if len(parts) != 4:
+            raise ValueError("Invalid trade callback payload.")
+
+        _, market, side, size = parts
+        market_id = market.strip()
+        side_normalized = side.strip().upper()
+        size_token = size.strip()
+        if not market_id:
+            raise ValueError("Invalid market id.")
+        if side_normalized not in {"YES", "NO"}:
+            raise ValueError("Invalid side.")
+        try:
+            float(size_token)
+        except ValueError as exc:
+            raise ValueError("Invalid size.") from exc
+        return f"/trade test {market_id} {side_normalized} {size_token}"
+
+    async def _route_trade_callback_via_command(
+        self,
+        action: str,
+        user_id: Optional[int],
+    ) -> tuple[str, list]:
+        """Execute trade callback through command handler only."""
+        try:
+            command_text = self._build_trade_test_command(action)
+        except ValueError as exc:
+            log.warning("callback_trade_command_invalid", action=action, error=str(exc))
+            return f"❌ {exc}", build_trade_menu()
+
+        log.info("callback_trade_command_built", action=action, command=command_text)
+        cmd_name, _, cmd_value = command_text.partition(" ")
+        result = await self._cmd.handle(
+            command=cmd_name,
+            value=cmd_value.strip(),
+            user_id=str(user_id) if user_id is not None else None,
+        )
+        log.info(
+            "callback_trade_command_dispatched",
+            action=action,
+            command=command_text,
+            success=result.success,
+        )
+        return result.message, build_trade_menu()
+
     async def _render_normalized_callback(self, action: str) -> tuple[str, list]:
         from ..ui.keyboard import (
             build_mode_confirm_menu,
@@ -488,10 +547,6 @@ class CallbackRouter:
             payload["decision"] = "Signal view is active — safe fallback values render when data is missing"
             payload["operator_note"] = "No live order placement in this menu path"
             payload["insight"] = "Signal summary remains informational unless explicitly executed in paper mode"
-        if base_action == "trade_paper_execute":
-            payload["decision"] = "Paper execution only — no live-wallet action is performed"
-            payload["operator_note"] = "Use this route to simulate execution safely"
-            payload["insight"] = "Paper execution keeps wallet isolation intact"
         if base_action == "trade_kill_switch":
             payload["decision"] = "Kill switch reflects current control state"
             payload["operator_note"] = "State is reported honestly from the control manager"
@@ -636,6 +691,9 @@ class CallbackRouter:
             "settings_auto",
             "control",
         }
+        if action.startswith("trade_paper_execute"):
+            return await self._route_trade_callback_via_command(action=action, user_id=user_id)
+
         if action in normalized_actions:
             return await self._render_normalized_callback(action)
 

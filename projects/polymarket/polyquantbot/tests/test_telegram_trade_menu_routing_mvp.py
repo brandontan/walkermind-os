@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from projects.polymarket.polyquantbot.config.runtime_config import ConfigManager
 from projects.polymarket.polyquantbot.core.system_state import SystemStateManager
@@ -13,9 +13,11 @@ def _callback_values(keyboard: list[list[dict[str, str]]]) -> set[str]:
 
 
 def _make_router() -> CallbackRouter:
+    cmd_handler = MagicMock()
+    cmd_handler.handle = AsyncMock(return_value=MagicMock(success=True, message="🎯 Trade Detail"))
     return CallbackRouter(
         tg_api="https://api.telegram.org/botTEST",
-        cmd_handler=MagicMock(),
+        cmd_handler=cmd_handler,
         state_manager=SystemStateManager(),
         config_manager=ConfigManager(),
         mode="PAPER",
