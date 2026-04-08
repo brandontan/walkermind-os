@@ -119,6 +119,8 @@ class CallbackRouter:
         self._paper_engine: "Optional[PaperEngine]" = None
         self._paper_pm: "Optional[PaperPositionManager]" = None
         self._exposure_calc: "Optional[ExposureCalculator]" = None
+        self._active_execution_keys: set[str] = set()
+        self._execution_guard_lock = asyncio.Lock()
 
         # ── Propagate mode + state to all handlers at init ────────────────────
         self._propagate_mode_and_state()
@@ -263,6 +265,20 @@ class CallbackRouter:
 
         if not cb_data.startswith(ACTION_PREFIX):
             log.warning("callback_invalid_format", callback_data=cb_data)
+            text = "\n".join([
+                "⚠️ *SYSTEM NOTICE*",
+                SEP,
+                render_kv_line("STATUS", "Invalid callback payload"),
+                "_This button payload is malformed or unsupported._",
+                SEP,
+                render_insight("Please reopen menu and try again"),
+            ])
+            if chat_id and message_id:
+                edited = await self._edit_message(session, chat_id, message_id, text, build_dashboard_menu())
+                if not edited:
+                    await self._send_message(session, chat_id, text, build_dashboard_menu())
+            elif chat_id:
+                await self._send_message(session, chat_id, text, build_dashboard_menu())
             return
 
         action = cb_data[len(ACTION_PREFIX):]
@@ -588,6 +604,9 @@ class CallbackRouter:
         from .settings import handle_settings, handle_settings_strategy, handle_mode_confirm_switch
         from .control import handle_control, handle_pause, handle_resume, handle_kill
 
+        if action.startswith("trade_paper_execute"):
+            return await self._dispatch_trade_paper_execute(action=action, user_id=user_id)
+
         normalized_actions = {
             "back_main",
             "back",
@@ -606,7 +625,6 @@ class CallbackRouter:
             "portfolio_performance",
             "portfolio_trade",
             "trade_signal",
-            "trade_paper_execute",
             "trade_kill_switch",
             "trade_status",
             "markets_overview",
@@ -892,6 +910,103 @@ class CallbackRouter:
             ]),
             build_dashboard_menu(),
         )
+
+    async def _dispatch_trade_paper_execute(self, action: str, user_id: Optional[int]) -> tuple[str, list]:
+        parts = action.split(":")
+        if len(parts) == 1:
+            market, side, size = "paper-test-market", "YES", 1.0
+        elif len(parts) == 4:
+            _, market, side_raw, size_raw = parts
+            side = side_raw.upper()
+            market = market.strip()
+            try:
+                size = float(size_raw)
+            except ValueError:
+                size = -1.0
+        else:
+            market, side, size = "", "", -1.0
+
+        if not market or side not in {"YES", "NO"} or size <= 0:
+            log.warning("callback_trade_paper_execute_invalid_payload", action=action, user_id=user_id)
+            return (
+                "\n".join([
+                    "⚠️ *SYSTEM NOTICE*",
+                    SEP,
+                    render_kv_line("STATUS", "Invalid trade payload"),
+                    "_Expected format: action:trade_paper_execute[:market:side:size]_",
+                    SEP,
+                    render_insight("Execution was blocked; no trade was placed"),
+                ]),
+                build_trade_menu(),
+            )
+
+        execution_key = f"{user_id or 'anon'}:{market}:{side}:{size:.8f}"
+        async with self._execution_guard_lock:
+            if execution_key in self._active_execution_keys:
+                log.info("callback_trade_paper_execute_duplicate_blocked", key=execution_key)
+                return (
+                    "\n".join([
+                        "⚠️ *SYSTEM NOTICE*",
+                        SEP,
+                        render_kv_line("STATUS", "Execution already in progress"),
+                        "_Duplicate callback blocked to prevent repeated execution._",
+                        SEP,
+                        render_insight("Wait for the current execution to finish before retrying"),
+                    ]),
+                    build_trade_menu(),
+                )
+            self._active_execution_keys.add(execution_key)
+
+        log.info(
+            "callback_trade_paper_execute_trigger",
+            user_id=user_id,
+            market=market,
+            side=side,
+            size=size,
+        )
+        try:
+            result = await self._cmd.execute_trade_test_contract(
+                market=market,
+                side=side,
+                size=size,
+            )
+            if result.success:
+                return result.message, build_trade_menu()
+            return (
+                "\n".join([
+                    "⚠️ *SYSTEM NOTICE*",
+                    SEP,
+                    render_kv_line("STATUS", "Paper execution blocked"),
+                    f"_{result.message}_",
+                    SEP,
+                    render_insight("No execution was applied; review payload and retry"),
+                ]),
+                build_trade_menu(),
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "callback_trade_paper_execute_failed",
+                user_id=user_id,
+                market=market,
+                side=side,
+                size=size,
+                error=str(exc),
+                exc_info=True,
+            )
+            return (
+                "\n".join([
+                    "⚠️ *SYSTEM NOTICE*",
+                    SEP,
+                    render_kv_line("STATUS", "Paper execution failed"),
+                    "_Execution path raised an error. No silent failure occurred._",
+                    SEP,
+                    render_insight("Retry after verifying system and risk state"),
+                ]),
+                build_trade_menu(),
+            )
+        finally:
+            async with self._execution_guard_lock:
+                self._active_execution_keys.discard(execution_key)
 
     # ── Telegram API helpers ───────────────────────────────────────────────────
 

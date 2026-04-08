@@ -360,6 +360,38 @@ class CommandHandler:
                 success=False,
                 message="Side must be YES or NO.",
             )
+        return await self.execute_trade_test_contract(
+            market=market,
+            side=side,
+            size=size,
+        )
+
+    async def execute_trade_test_contract(
+        self,
+        market: str,
+        side: str,
+        size: float,
+    ) -> CommandResult:
+        """Shared bounded execution contract for paper test trades.
+
+        This contract is intentionally shared across:
+        - `/trade test`
+        - Telegram callback `action:trade_paper_execute`
+        """
+        if not market or not market.strip():
+            return CommandResult(success=False, message="Market is required.")
+        if side not in ("YES", "NO"):
+            return CommandResult(success=False, message="Side must be YES or NO.")
+        if size <= 0:
+            return CommandResult(success=False, message="Size must be greater than zero.")
+
+        log.info(
+            "shared_trade_execution_contract_start",
+            source="telegram",
+            market=market,
+            side=side,
+            size=size,
+        )
         engine = get_execution_engine()
         trigger = StrategyTrigger(
             engine=engine,
@@ -370,7 +402,9 @@ class CommandHandler:
                 target_pnl=20.0,
             ),
         )
+        log.info("shared_trade_execution_contract_risk_stage", market=market, side=side, size=size)
         await trigger.evaluate(0.42)
+        log.info("shared_trade_execution_contract_execution_stage", market=market, side=side, size=size)
         await engine.update_mark_to_market({market: 0.46})
         payload = await export_execution_payload()
         get_portfolio_service().merge_execution_state(

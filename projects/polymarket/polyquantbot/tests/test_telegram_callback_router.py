@@ -31,7 +31,7 @@ Scenarios:
   CB-25  CallbackRouter._dispatch control → control_screen + control_menu
   CB-26  CallbackRouter._dispatch unknown → fallback + main_menu
   CB-27  CallbackRouter._dispatch noop → empty string (no edit)
-  CB-28  CallbackRouter.route ignores non-action: callback_data
+  CB-28  CallbackRouter.route rejects non-action callback_data with visible feedback
   CB-29  error_screen → formatted error string
   CB-30  main_screen → mode and state in output
 """
@@ -672,14 +672,15 @@ class TestCB27DispatchNoop:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CB-28  CallbackRouter.route ignores non-action: data
+# CB-28  CallbackRouter.route rejects non-action: data
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestCB28RouteIgnoresLegacyFormat:
-    async def test_non_action_prefix_no_dispatch(self) -> None:
+class TestCB28RouteRejectsLegacyFormat:
+    def test_non_action_prefix_no_dispatch_and_visible_feedback(self) -> None:
         """callback_data not starting with action: must not trigger dispatch."""
         router = _make_router()
         session = AsyncMock()
+        router._edit_message = AsyncMock(return_value=True)
 
         cq = {
             "id": "cq123",
@@ -689,11 +690,14 @@ class TestCB28RouteIgnoresLegacyFormat:
         }
 
         # _answer_callback is called, but _dispatch should NOT be invoked
-        with patch.object(router, "_dispatch", new=AsyncMock()) as mock_dispatch, \
-             patch.object(router, "_answer_callback", new=AsyncMock()):
-            await router.route(session, cq)
+        async def _run() -> None:
+            with patch.object(router, "_dispatch", new=AsyncMock()) as mock_dispatch, \
+                 patch.object(router, "_answer_callback", new=AsyncMock()):
+                await router.route(session, cq)
+                mock_dispatch.assert_not_called()
 
-        mock_dispatch.assert_not_called()
+        asyncio.run(_run())
+        router._edit_message.assert_awaited_once()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
