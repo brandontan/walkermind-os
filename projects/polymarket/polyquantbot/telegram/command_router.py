@@ -38,6 +38,13 @@ from typing import Optional
 
 import structlog
 
+from ..execution.observability import (
+    STAGE_ENTRY,
+    STAGE_VALIDATION,
+    emit_error,
+    emit_stage,
+)
+from ..execution.trace_context import generate_trace_id
 from .command_handler import CommandHandler, CommandResult
 
 log = structlog.get_logger()
@@ -108,6 +115,13 @@ class CommandRouter:
 
     async def _route_structured(self, payload: dict) -> CommandResult:
         """Handle a structured {"command": ..., "value": ...} dict."""
+        trace_id = generate_trace_id()
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_ENTRY,
+            component="command_parser",
+            payload={"input_type": "structured"},
+        )
         command = str(payload.get("command", "")).strip()
         value = payload.get("value")
         user_id = str(payload.get("user_id", "structured"))
@@ -126,15 +140,29 @@ class CommandRouter:
                     success=False,
                     message=f"❌ Invalid 'value': expected numeric, got {value!r}",
                 )
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_VALIDATION,
+            component="command_parser",
+            payload={"command": command, "user_id": user_id},
+        )
 
         return await self._handler.handle(
             command=command,
             value=value,
             user_id=user_id,
+            correlation_id=trace_id,
         )
 
     async def _route_telegram_update(self, update: dict) -> Optional[CommandResult]:
         """Handle a Telegram Bot API update dict."""
+        trace_id = generate_trace_id()
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_ENTRY,
+            component="command_parser",
+            payload={"input_type": "telegram_update"},
+        )
         update_id = update.get("update_id")
 
         # Dedup by update_id
@@ -186,6 +214,13 @@ class CommandRouter:
                 try:
                     value = float(arg_str)
                 except ValueError:
+                    emit_error(
+                        trace_id=trace_id,
+                        execution_stage=STAGE_VALIDATION,
+                        component="command_parser",
+                        error=ValueError(f"Invalid numeric argument: {arg_str!r}"),
+                        payload={"command": raw_cmd, "user_id": user_id},
+                    )
                     pass  # value stays None — handler will report the error
 
         log.info(
@@ -196,9 +231,16 @@ class CommandRouter:
             update_id=update_id,
             timestamp=time.time(),
         )
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_VALIDATION,
+            component="command_parser",
+            payload={"command": raw_cmd, "user_id": user_id},
+        )
 
         return await self._handler.handle(
             command=raw_cmd,
             value=value,
             user_id=user_id,
+            correlation_id=trace_id,
         )

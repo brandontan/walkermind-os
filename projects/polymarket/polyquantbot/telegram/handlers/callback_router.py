@@ -48,6 +48,8 @@ from ..ui.screens import (
 )
 from ..ui.components import render_kv_line, render_insight, SEP
 from ...interface.telegram.view_handler import render_view, safe_number, safe_count
+from ...execution.observability import STAGE_ENTRY, STAGE_RESULT, emit_error, emit_stage
+from ...execution.trace_context import generate_trace_id
 from ...core.market_scope import (
     MARKET_SCOPE_CATEGORIES,
     get_market_scope_snapshot,
@@ -245,6 +247,7 @@ class CallbackRouter:
             cq: Telegram ``callback_query`` dict from ``getUpdates``.
         """
         cb_data: str = (cq.get("data") or "").strip()
+        trace_id = generate_trace_id()
         chat_id: Optional[int] = cq.get("message", {}).get("chat", {}).get("id")
         message_id: Optional[int] = cq.get("message", {}).get("message_id")
         cq_id: str = cq.get("id", "")
@@ -256,6 +259,12 @@ class CallbackRouter:
             chat_id=chat_id,
             message_id=message_id,
             user_id=user_id,
+        )
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_ENTRY,
+            component="callback_entry",
+            payload={"callback_data": cb_data, "user_id": user_id},
         )
         log.info("telegram_handler", handler="NEW_SYSTEM")
 
@@ -278,7 +287,7 @@ class CallbackRouter:
             if any(x in cb_data for x in ("health", "strategies")):
                 log.warning("callback_legacy_blocked", callback_data=cb_data)
                 raise RuntimeError("LEGACY UI DISABLED")
-            text, keyboard = await self._dispatch(action, user_id=user_id)
+            text, keyboard = await self._dispatch(action, user_id=user_id, trace_id=trace_id)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -287,6 +296,13 @@ class CallbackRouter:
                 action=action,
                 error=str(exc),
                 exc_info=True,
+            )
+            emit_error(
+                trace_id=trace_id,
+                execution_stage="EXECUTION",
+                component="callback_entry",
+                error=exc,
+                payload={"action": action, "user_id": user_id},
             )
             text = error_screen(context=action, error=str(exc))
             keyboard = build_dashboard_menu()
@@ -563,7 +579,12 @@ class CallbackRouter:
 
     # ── Dispatch table ─────────────────────────────────────────────────────────
 
-    async def _dispatch(self, action: str, user_id: Optional[int] = None) -> tuple[str, list]:
+    async def _dispatch(
+        self,
+        action: str,
+        user_id: Optional[int] = None,
+        trace_id: Optional[str] = None,
+    ) -> tuple[str, list]:
         """Route ``action`` to the correct handler.
 
         Args:
@@ -641,6 +662,7 @@ class CallbackRouter:
                 command="trade",
                 value="test PAPER_MARKET YES 10",
                 user_id=str(user_id) if user_id is not None else None,
+                correlation_id=trace_id,
             )
             result = await maybe_result if inspect.isawaitable(maybe_result) else maybe_result
             if not hasattr(result, "success") or not isinstance(getattr(result, "message", None), str):
@@ -653,6 +675,13 @@ class CallbackRouter:
                     action=action,
                     user_id=user_id,
                     message=result.message[:200],
+                )
+            if trace_id is not None:
+                emit_stage(
+                    trace_id=trace_id,
+                    stage=STAGE_RESULT,
+                    component="callback_entry",
+                    payload={"action": action, "success": result.success},
                 )
             return result.message, build_trade_menu()
 

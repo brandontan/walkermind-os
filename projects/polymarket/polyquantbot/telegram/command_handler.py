@@ -11,6 +11,20 @@ from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
 from ..interface.telegram.view_handler import render_view, safe_count, safe_number
 from ..execution.engine import export_execution_payload, get_execution_engine
+from ..execution.observability import (
+    OUTCOME_BLOCKED,
+    OUTCOME_FAILED,
+    OUTCOME_TIMEOUT,
+    STAGE_ENTRY,
+    STAGE_EXECUTION,
+    STAGE_RESULT,
+    STAGE_RISK,
+    STAGE_VALIDATION,
+    classify_result,
+    emit_error,
+    emit_outcome,
+    emit_stage,
+)
 from ..execution.strategy_trigger import StrategyConfig, StrategyTrigger
 from .ui.keyboard import build_dashboard_menu
 from .handlers.portfolio_service import get_portfolio_service
@@ -152,11 +166,24 @@ class CommandHandler:
             correlation_id=cid,
             timestamp=time.time(),
         )
+        emit_stage(
+            trace_id=cid,
+            stage=STAGE_ENTRY,
+            component="execution_coordinator",
+            payload={"command": cmd, "user_id": user_id},
+        )
 
         async with self._lock:
             try:
                 result = await self._dispatch(cmd, value, cid)
             except Exception as exc:  # noqa: BLE001
+                emit_error(
+                    trace_id=cid,
+                    execution_stage=STAGE_EXECUTION,
+                    component="execution_coordinator",
+                    error=exc,
+                    payload={"command": cmd, "user_id": user_id},
+                )
                 log.error(
                     "command_handler_error",
                     command=cmd,
@@ -185,6 +212,20 @@ class CommandHandler:
             success=result.success,
             timestamp=time.time(),
         )
+        if cmd == "trade":
+            classification = classify_result(success=result.success, message=result.message)
+            emit_stage(
+                trace_id=cid,
+                stage=STAGE_RESULT,
+                component="execution_result_handler",
+                payload={"command": cmd},
+            )
+            emit_outcome(
+                trace_id=cid,
+                outcome=classification,
+                component="execution_result_handler",
+                payload={"command": cmd, "success": result.success},
+            )
 
         # Send response back via Telegram only if not called from polling loop
         # (polling loop handles its own reply to preserve correct chat_id)
@@ -250,7 +291,7 @@ class CommandHandler:
         if cmd == "alpha":
             return await self._handle_alpha()
         if cmd == "trade":
-            return await self._handle_trade(value)
+            return await self._handle_trade(value, cid)
 
         # ── New menu callbacks (new Telegram system) ───────────────────────────
         if cmd == "wallet":
@@ -311,8 +352,20 @@ class CommandHandler:
             ),
         )
 
-    async def _handle_trade(self, args: Optional[float | str] = None) -> CommandResult:
+    async def _handle_trade(
+        self,
+        args: Optional[float | str] = None,
+        trace_id: Optional[str] = None,
+    ) -> CommandResult:
         """Parse /trade [test/close/status] [args]."""
+        if trace_id is None:
+            trace_id = str(uuid.uuid4())
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_VALIDATION,
+            component="execution_coordinator",
+            payload={"route": "trade"},
+        )
         if args is None:
             return CommandResult(
                 success=False,
@@ -326,7 +379,7 @@ class CommandHandler:
             )
         action = parts[0].lower()
         if action == "test":
-            return await self._handle_trade_test(" ".join(parts[1:]))
+            return await self._handle_trade_test(" ".join(parts[1:]), trace_id=trace_id)
         if action == "close":
             return await self._handle_trade_close(" ".join(parts[1:]))
         if action == "status":
@@ -336,7 +389,7 @@ class CommandHandler:
             message="Usage: /trade [test|close|status] [args]",
         )
 
-    async def _handle_trade_test(self, args: str) -> CommandResult:
+    async def _handle_trade_test(self, args: str, *, trace_id: str) -> CommandResult:
         """Parse /trade test [market] [side] [size]."""
         if not args:
             return CommandResult(
@@ -350,6 +403,12 @@ class CommandHandler:
                 message="Usage: /trade test [market] [side YES/NO] [size]",
             )
         market, side, size_str = parts[0], parts[1].upper(), parts[2]
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_VALIDATION,
+            component="execution_coordinator",
+            payload={"market": market, "side": side},
+        )
         try:
             size = float(size_str)
         except ValueError:
@@ -368,6 +427,18 @@ class CommandHandler:
             if now - ts > self._trade_intent_ttl_s:
                 del self._trade_intents[key]
         if intent in self._trade_intents:
+            emit_stage(
+                trace_id=trace_id,
+                stage=STAGE_RESULT,
+                component="execution_result_handler",
+                payload={"reason": "duplicate_intent"},
+            )
+            emit_outcome(
+                trace_id=trace_id,
+                outcome="DUPLICATE_PREVENTED",
+                component="execution_result_handler",
+                payload={"market": market, "side": side, "size": size},
+            )
             return CommandResult(
                 success=False,
                 message="duplicate_blocked: trade intent already executed recently.",
@@ -383,7 +454,72 @@ class CommandHandler:
                 target_pnl=20.0,
             ),
         )
-        await trigger.evaluate(0.42)
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_RISK,
+            component="risk_layer",
+            payload={"market": market, "size": size},
+        )
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_EXECUTION,
+            component="execution_coordinator",
+            payload={"market": market, "side": side, "size": size},
+        )
+        try:
+            trigger_result = await asyncio.wait_for(
+                trigger.evaluate(0.42, trace_id=trace_id),
+                timeout=5.0,
+            )
+        except asyncio.TimeoutError as exc:
+            emit_error(
+                trace_id=trace_id,
+                execution_stage=STAGE_EXECUTION,
+                component="execution_coordinator",
+                error=exc,
+                payload={"market": market, "side": side},
+            )
+            emit_stage(
+                trace_id=trace_id,
+                stage=STAGE_RESULT,
+                component="execution_result_handler",
+                payload={"result": "timeout"},
+            )
+            emit_outcome(
+                trace_id=trace_id,
+                outcome=OUTCOME_TIMEOUT,
+                component="execution_result_handler",
+                payload={"market": market, "side": side},
+            )
+            return CommandResult(success=False, message="execution timeout during trade test.")
+        if trigger_result == "BLOCKED":
+            emit_stage(
+                trace_id=trace_id,
+                stage=STAGE_RESULT,
+                component="execution_result_handler",
+                payload={"result": trigger_result},
+            )
+            emit_outcome(
+                trace_id=trace_id,
+                outcome=OUTCOME_BLOCKED,
+                component="execution_result_handler",
+                payload={"market": market, "side": side, "size": size},
+            )
+            return CommandResult(success=False, message="trade execution blocked by risk constraints.")
+        if trigger_result not in {"OPENED", "CLOSED", "HOLD", "COOLDOWN"}:
+            emit_stage(
+                trace_id=trace_id,
+                stage=STAGE_RESULT,
+                component="execution_result_handler",
+                payload={"result": trigger_result},
+            )
+            emit_outcome(
+                trace_id=trace_id,
+                outcome=OUTCOME_FAILED,
+                component="execution_result_handler",
+                payload={"market": market, "side": side, "size": size},
+            )
+            return CommandResult(success=False, message=f"trade execution failed: {trigger_result}.")
         await engine.update_mark_to_market({market: 0.46})
         payload = await export_execution_payload()
         get_portfolio_service().merge_execution_state(
@@ -391,6 +527,18 @@ class CommandHandler:
             cash=float(payload.get("cash", 0.0)),
             equity=float(payload.get("equity", 0.0)),
             realized_pnl=float(payload.get("realized", 0.0)),
+        )
+        emit_stage(
+            trace_id=trace_id,
+            stage=STAGE_RESULT,
+            component="execution_result_handler",
+            payload={"result": trigger_result},
+        )
+        emit_outcome(
+            trace_id=trace_id,
+            outcome="SUCCESS",
+            component="execution_result_handler",
+            payload={"market": market, "side": side, "size": size, "result": trigger_result},
         )
         return CommandResult(
             success=True,

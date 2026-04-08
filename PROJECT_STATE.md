@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 20:58
-- Status        : FORGE-X remediation for P5 execution snapshot contract compatibility completed; MAJOR task ready for SENTINEL revalidation.
+- Last Updated  : 2026-04-08 21:36
+- Status        : FORGE-X P6 observability deepening completed; MAJOR task ready for SENTINEL validation.
 
 ---
 
@@ -39,6 +39,7 @@
 - Trade-system hardening P2 restore_failure observability addendum (2026-04-07): added explicit structured restore outcome emission (`restore_failure`/`restore_success`) in engine restore path and added focused proof test `test_trade_system_hardening_p2_20260407.py`.
 - SENTINEL validation complete for `telegram_command_driven_execution_20260408` (2026-04-08): verdict **BLOCKED**, score **38/100**; required callback→command→parser→execution runtime chain not met and FULL RUNTIME INTEGRATION claim not evidenced for target path.
 - FORGE-X fix pass `p5_execution_snapshot_contract_compatibility_20260408` completed (2026-04-08): added explicit `ExecutionSnapshot.implied_prob`/`ExecutionSnapshot.volatility` contract fields, corrected `StrategyTrigger` intelligence contract usage, routed callback paper execution into authoritative command-trade path, and added duplicate-intent block + focused MAJOR regression tests.
+- P6 observability deepening pass `p6-observability-deepening-2026-04-09` completed (2026-04-08): added full execution lifecycle stage tracing (`ENTRY→VALIDATION→RISK→EXECUTION→RESULT`), structured failure diagnostics (`error_type`, `error_message`, `execution_stage`, `trace_id`), required outcome classification (`SUCCESS`/`FAILED`/`BLOCKED`/`TIMEOUT`/`DUPLICATE_PREVENTED`/`INVALID_INPUT`), anomaly signal emission, and focused MAJOR runtime tests.
 
 ### Trade-System Hardening P2 — COMPLETED (2026-04-07)
 
@@ -105,6 +106,10 @@ Status:
 - FORGE-X remediation patch is complete for execution snapshot contract compatibility and callback/command shared trade path integration.
 - SENTINEL MAJOR revalidation is now required before merge decision.
 
+### P6 observability deepening handoff
+- FORGE-X observability deepening implementation is complete with full runtime-stage tracing, structured failure diagnostics, and outcome classification coverage across command parser, callback entry, risk layer, execution coordinator, and execution result handling.
+- SENTINEL MAJOR validation is required for observability correctness before merge.
+
 ## ❌ NOT STARTED
 
 - None.
@@ -113,8 +118,8 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required for p5_execution_snapshot_contract_compatibility before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_2_execution_snapshot_contract_compatibility.md
+SENTINEL validation required for p6-observability-deepening-2026-04-09 before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/24_3_observability_deepening.md
 Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
@@ -126,3 +131,4 @@ Tier: MAJOR
 - External live Telegram device screenshot proof is still unavailable in this container environment.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
 - MAJOR task `p5_execution_snapshot_contract_compatibility` awaits SENTINEL revalidation for merge eligibility.
+- MAJOR task `p6-observability-deepening-2026-04-09` awaits SENTINEL validation for merge eligibility.

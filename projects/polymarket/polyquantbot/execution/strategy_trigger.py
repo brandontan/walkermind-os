@@ -35,7 +35,7 @@ class StrategyTrigger:
         self._cooldown_seconds = 30.0  # Anti-loop guard
         self._trace_engine = TradeTraceEngine()
 
-    async def evaluate(self, market_price: float) -> str:
+    async def evaluate(self, market_price: float, trace_id: str | None = None) -> str:
         now = time.time()
         if self._last_trigger_time and (now - self._last_trigger_time) < self._cooldown_seconds:
             return "COOLDOWN"
@@ -68,6 +68,7 @@ class StrategyTrigger:
                 price=market_price,
                 size=size,
                 position_id=str(uuid.uuid4()),
+                trace_id=trace_id,
             )
             if created:
                 self._trace_engine.record_trace(

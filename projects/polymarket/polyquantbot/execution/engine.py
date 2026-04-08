@@ -8,6 +8,7 @@ import uuid
 
 import structlog
 
+from .observability import OUTCOME_BLOCKED, STAGE_RISK, emit_outcome, emit_stage
 from .models import Position
 from .analytics import PerformanceTracker
 from .trade_trace import TradeTraceEngine
@@ -50,12 +51,27 @@ class ExecutionEngine:
         price: float,
         size: float,
         position_id: str | None = None,
+        trace_id: str | None = None,
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
+            if trace_id:
+                emit_stage(
+                    trace_id=trace_id,
+                    stage=STAGE_RISK,
+                    component="risk_layer",
+                    payload={"market": market, "size": size},
+                )
             size = float(size)
             if size <= 0:
                 log.warning("execution_engine_open_rejected", reason="size_non_positive", size=size)
+                if trace_id:
+                    emit_outcome(
+                        trace_id=trace_id,
+                        outcome=OUTCOME_BLOCKED,
+                        component="risk_layer",
+                        payload={"reason": "size_non_positive", "market": market, "size": size},
+                    )
                 return None
             if not position_id:
                 position_id = str(uuid.uuid4())
@@ -69,6 +85,13 @@ class ExecutionEngine:
                     limit=max_position_size,
                     equity=equity_base,
                 )
+                if trace_id:
+                    emit_outcome(
+                        trace_id=trace_id,
+                        outcome=OUTCOME_BLOCKED,
+                        component="risk_layer",
+                        payload={"reason": "max_position_size_exceeded", "market": market, "size": size},
+                    )
                 return None
             if self._current_total_exposure() + size > equity_base * self.max_total_exposure_ratio:
                 log.warning(
@@ -78,6 +101,13 @@ class ExecutionEngine:
                     current_exposure=self._current_total_exposure(),
                     limit=equity_base * self.max_total_exposure_ratio,
                 )
+                if trace_id:
+                    emit_outcome(
+                        trace_id=trace_id,
+                        outcome=OUTCOME_BLOCKED,
+                        component="risk_layer",
+                        payload={"reason": "max_total_exposure_exceeded", "market": market, "size": size},
+                    )
                 return None
             if self._cash < size:
                 log.warning(
@@ -86,6 +116,13 @@ class ExecutionEngine:
                     requested=size,
                     cash=self._cash,
                 )
+                if trace_id:
+                    emit_outcome(
+                        trace_id=trace_id,
+                        outcome=OUTCOME_BLOCKED,
+                        component="risk_layer",
+                        payload={"reason": "insufficient_cash", "market": market, "size": size},
+                    )
                 return None
 
             position = Position(
