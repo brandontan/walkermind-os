@@ -108,6 +108,11 @@ from ..logging.logger import (
     log_loop_throttled,
 )
 from ...telegram.message_formatter import format_trade_alert
+from ...telegram.message_formatter import (
+    format_market_scan_heartbeat,
+    format_no_trade_explanation,
+    format_top_candidate_preview,
+)
 from ...execution.trace_context import generate_trace_id
 from ...execution.event_logger import emit_event
 
@@ -137,6 +142,119 @@ _FAST_LOOP_GUARD_S: float = 0.5         # if a tick finishes in < 0.5 s, force a
 _MAX_MARKETS_PER_TICK: int = 50         # expanded from 20 → 50 for broader market coverage
 _NO_TRADE_FALLBACK_S: float = 1800.0    # 30 minutes — activate force mode when no trade in this window
 _FORCE_TRADE_COOLDOWN_S: float = 300.0  # 5 minutes per-market guard when in force-trade fallback
+_SCAN_HEARTBEAT_EVERY_TICKS: int = 8
+_SCAN_HEARTBEAT_MIN_INTERVAL_S: float = 600.0
+_TOP_CANDIDATE_MIN_INTERVAL_S: float = 300.0
+_NO_TRADE_MIN_INTERVAL_S: float = 300.0
+_TOP_CANDIDATE_MIN_EDGE_PCT: float = 2.0
+
+
+class MarketScanPresenceNotifier:
+    """Low-noise Telegram notifier for market scanning presence."""
+
+    def __init__(self) -> None:
+        self._last_heartbeat_at: float = 0.0
+        self._last_top_candidate_at: float = 0.0
+        self._last_no_trade_at: float = 0.0
+        self._last_no_trade_reason: str = ""
+        self._last_candidate_signature: str = ""
+
+    @staticmethod
+    def _resolve_status(active_candidates: int, reason: str) -> str:
+        if active_candidates <= 0:
+            return "No strong edge found"
+        if reason == "insufficient edge":
+            return "Waiting for confirmation"
+        if reason == "liquidity too low":
+            return "Monitoring high volatility markets"
+        return "Monitoring active candidates"
+
+    @staticmethod
+    def _to_edge_pct(signal: Any) -> float:
+        raw_edge = getattr(signal, "edge", None)
+        if raw_edge is None:
+            raw_edge = getattr(signal, "ev", 0.0)
+        try:
+            return float(raw_edge) * 100.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    def build_messages(
+        self,
+        *,
+        now_ts: float,
+        tick: int,
+        markets_scanned: int,
+        signals: list[Any],
+        trades_executed: int,
+        no_trade_reason: str,
+    ) -> list[str]:
+        """Build throttled scan-presence Telegram messages."""
+        messages: list[str] = []
+        active_candidates = len(signals)
+        status = self._resolve_status(active_candidates, no_trade_reason)
+
+        should_send_heartbeat = (
+            tick % _SCAN_HEARTBEAT_EVERY_TICKS == 0
+            and now_ts - self._last_heartbeat_at >= _SCAN_HEARTBEAT_MIN_INTERVAL_S
+        )
+        if should_send_heartbeat:
+            self._last_heartbeat_at = now_ts
+            messages.append(
+                format_market_scan_heartbeat(
+                    markets_scanned=markets_scanned,
+                    active_candidates=active_candidates,
+                    status=status,
+                )
+            )
+
+        if trades_executed > 0:
+            return messages
+
+        if (
+            no_trade_reason != self._last_no_trade_reason
+            or now_ts - self._last_no_trade_at >= _NO_TRADE_MIN_INTERVAL_S
+        ):
+            self._last_no_trade_reason = no_trade_reason
+            self._last_no_trade_at = now_ts
+            messages.append(format_no_trade_explanation(reason=no_trade_reason))
+
+        if active_candidates <= 0:
+            return messages
+
+        top_candidate = max(signals, key=self._to_edge_pct)
+        top_edge_pct = self._to_edge_pct(top_candidate)
+        if top_edge_pct < _TOP_CANDIDATE_MIN_EDGE_PCT:
+            return messages
+
+        candidate_market = str(getattr(top_candidate, "market_id", "N/A"))
+        candidate_side = str(getattr(top_candidate, "side", "YES")).upper()
+        candidate_status = "borderline" if no_trade_reason == "insufficient edge" else "waiting"
+        candidate_reason = (
+            "edge below execution threshold"
+            if no_trade_reason == "insufficient edge"
+            else "awaiting next confirmation"
+        )
+        candidate_signature = (
+            f"{candidate_market}:{candidate_side}:{candidate_status}:{candidate_reason}:{top_edge_pct:.2f}"
+        )
+        if candidate_signature == self._last_candidate_signature:
+            return messages
+        if now_ts - self._last_top_candidate_at < _TOP_CANDIDATE_MIN_INTERVAL_S:
+            return messages
+
+        self._last_top_candidate_at = now_ts
+        self._last_candidate_signature = candidate_signature
+        messages.append(
+            format_top_candidate_preview(
+                market=candidate_market,
+                side=candidate_side,
+                edge_pct=top_edge_pct,
+                status=candidate_status,
+                reason=candidate_reason,
+            )
+        )
+        return messages
 
 
 def build_ui_view(command: str, data: dict[str, Any]) -> str:
@@ -547,6 +665,7 @@ async def run_trading_loop(
     _last_market_intel_payload: dict[str, Any] = {}
     _trade_type_distribution: dict[str, int] = {}
     _market_type_by_id: dict[str, str] = {}
+    _scan_presence_notifier = MarketScanPresenceNotifier()
 
     def _to_float(value: Any) -> float:
         """Return float-safe value for Telegram formatting."""
@@ -987,6 +1106,11 @@ async def run_trading_loop(
 
                 # ── 4. Execute each signal and update positions ───────────────────
                 _trades_this_tick: int = 0
+                _skip_reasons: dict[str, int] = {
+                    "insufficient edge": 0,
+                    "liquidity too low": 0,
+                    "risk limit reached": 0,
+                }
                 for signal in signals:
                     trade_context: dict[str, Any] = {
                         "trace_id": generate_trace_id(),
@@ -1020,6 +1144,7 @@ async def run_trading_loop(
                     except Exception:  # noqa: BLE001
                         open_count = 0
                     if open_count >= _max_open_positions:
+                        _skip_reasons["risk limit reached"] += 1
                         log.info(
                             "signal_skipped_max_positions",
                             market_id=signal.market_id,
@@ -1036,6 +1161,7 @@ async def run_trading_loop(
                     _now = time.time()
                     _last = _market_last_trade.get(signal.market_id, 0.0)
                     if _now - _last < _effective_cooldown:
+                        _skip_reasons["risk limit reached"] += 1
                         log.info(
                             "signal_skipped_cooldown",
                             market_id=signal.market_id,
@@ -1117,6 +1243,10 @@ async def run_trading_loop(
                         _pe_success = _paper_order.status in (_OS.FILLED, _OS.PARTIAL)
 
                         if not _pe_success:
+                            if str(_paper_order.reason).lower().find("liquid") >= 0:
+                                _skip_reasons["liquidity too low"] += 1
+                            else:
+                                _skip_reasons["risk limit reached"] += 1
                             log.info(
                                 "execution_failed",
                                 trade_id=signal.signal_id,
@@ -1176,6 +1306,10 @@ async def run_trading_loop(
                             trace_id=trade_context["trace_id"],
                         )
                         if not result.success:
+                            if str(result.reason).lower().find("liquid") >= 0:
+                                _skip_reasons["liquidity too low"] += 1
+                            else:
+                                _skip_reasons["risk limit reached"] += 1
                             log.info(
                                 "execution_failed",
                                 trade_id=result.trade_id,
@@ -1379,6 +1513,30 @@ async def run_trading_loop(
                             }
                             asyncio.create_task(
                                 _run_validation_hook(_val_trade, telegram_callback)
+                            )
+
+                _no_trade_reason = "insufficient edge"
+                if _trades_this_tick == 0 and signals:
+                    _no_trade_reason = max(
+                        _skip_reasons.items(),
+                        key=lambda item: item[1],
+                    )[0]
+                if _trades_this_tick == 0 and telegram_callback is not None:
+                    _scan_messages = _scan_presence_notifier.build_messages(
+                        now_ts=time.time(),
+                        tick=_tick,
+                        markets_scanned=len(normalised_markets),
+                        signals=signals,
+                        trades_executed=_trades_this_tick,
+                        no_trade_reason=_no_trade_reason,
+                    )
+                    for _scan_message in _scan_messages:
+                        try:
+                            await telegram_callback(_scan_message)
+                        except Exception as _scan_exc:  # noqa: BLE001
+                            log.warning(
+                                "scan_presence_telegram_failed",
+                                error=str(_scan_exc),
                             )
 
                 # ── 5. Compute and log PnL metrics (db always present) ───────────
