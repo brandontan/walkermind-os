@@ -1043,6 +1043,54 @@ def format_trade_skipped(*, market: str, reason: str) -> str:
     )
 
 
+def format_market_scan_heartbeat(
+    *,
+    markets_scanned: int,
+    active_candidates: int,
+    status: str,
+) -> str:
+    """Format throttled market scan heartbeat for premium Telegram UX."""
+    return "\n".join(
+        [
+            "🔎 MARKET SCAN",
+            f"|- Markets scanned: {markets_scanned}",
+            f"|- Active candidates: {active_candidates}",
+            f"|- Status: {status}",
+        ]
+    )
+
+
+def format_top_candidate_preview(
+    *,
+    market: str,
+    side: str,
+    edge_pct: float,
+    status: str,
+    reason: str,
+) -> str:
+    """Format top candidate preview when a strong edge exists but is not executed."""
+    return "\n".join(
+        [
+            "🧠 TOP CANDIDATE",
+            f"|- Market: {market}",
+            f"|- Side: {side}",
+            f"|- Edge: {edge_pct:.2f}%",
+            f"|- Status: {status}",
+            f"|- Reason: {reason}",
+        ]
+    )
+
+
+def format_no_trade_explanation(*, reason: str) -> str:
+    """Format no-trade explanation with strict hierarchy lines."""
+    return "\n".join(
+        [
+            "⚠️ NO TRADE",
+            f"|- Reason: {reason}",
+        ]
+    )
+
+
 def format_heartbeat(
     ws_connected: bool,
     event_count: int,

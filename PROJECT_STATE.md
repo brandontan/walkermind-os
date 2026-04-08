@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 23:01
-- Status        : FORGE-X Telegram trade lifecycle alerts premium hierarchy pass completed (STANDARD, narrow integration); pending Codex auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-08 23:10
+- Status        : FORGE-X Telegram market scanning presence premium UX pass completed (STANDARD, narrow integration); pending Codex auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Telegram market scanning presence premium UX pass (2026-04-08): added throttled `🔎 MARKET SCAN` heartbeat, optional `🧠 TOP CANDIDATE` preview, and `⚠️ NO TRADE` explanation with strict hierarchical formatting and duplicate/noise suppression in strategy loop integration.
 - Telegram trade lifecycle alerts premium hierarchy pass (2026-04-08): added strict execution-boundary lifecycle alerts for entry/exit/skipped events with fixed `|-` field order, no duplicate command/callback trigger coverage, and focused format validation tests.
 - P4 completion closure (2026-04-08): marked Completed (Conditional) with runtime observability integrated, trace propagation finalized, and executor trace hardening completed (#283).
 - Trade-system reliability observability P4 runtime remediation pass (2026-04-08): Completed (Conditional) with hard event contract validation, trading-loop trace_id lifecycle wiring, execution-path trace propagation, and runtime `trade_start` / `execution_attempt` / `execution_result` event emission.
@@ -97,6 +98,10 @@ Status:
 - STANDARD-tier narrow integration implementation is complete for execution-boundary lifecycle alerts and focused tests.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
+### Telegram market scanning presence handoff
+- STANDARD-tier narrow integration implementation is complete for strategy-loop scan-presence visibility and focused tests.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -134,7 +139,7 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_7_trade_lifecycle_alerts.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_8_market_scanning_presence.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
