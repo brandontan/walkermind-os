@@ -985,6 +985,64 @@ def format_trade_alert(
     return "\n".join(line for line in lines if line is not None)
 
 
+def format_trade_entry_executed(
+    *,
+    market: str,
+    side: str,
+    price: float,
+    size_usd: float,
+    edge_pct: float,
+    reason: str,
+) -> str:
+    """Format strict premium entry lifecycle alert."""
+    return "\n".join(
+        [
+            "🚀 ENTRY EXECUTED",
+            f"|- Market: {market}",
+            f"|- Side: {side}",
+            f"|- Price: {price:.4f}",
+            f"|- Size: ${size_usd:.2f}",
+            f"|- Edge: {edge_pct:.2f}%",
+            f"|- Reason: {reason}",
+        ]
+    )
+
+
+def format_trade_exit_executed(
+    *,
+    market: str,
+    side: str,
+    entry_price: float,
+    exit_price: float,
+    pnl: float,
+) -> str:
+    """Format strict premium exit lifecycle alert."""
+    result = "WIN" if pnl >= 0 else "LOSS"
+    pnl_value = f"+${abs(pnl):.2f}" if pnl >= 0 else f"-${abs(pnl):.2f}"
+    return "\n".join(
+        [
+            "🏁 EXIT EXECUTED",
+            f"|- Market: {market}",
+            f"|- Side: {side}",
+            f"|- Entry: {entry_price:.4f}",
+            f"|- Exit: {exit_price:.4f}",
+            f"|- PnL: {pnl_value}",
+            f"|- Result: {result}",
+        ]
+    )
+
+
+def format_trade_skipped(*, market: str, reason: str) -> str:
+    """Format strict premium trade skipped alert."""
+    return "\n".join(
+        [
+            "⛔ TRADE SKIPPED",
+            f"|- Market: {market}",
+            f"|- Reason: {reason}",
+        ]
+    )
+
+
 def format_heartbeat(
     ws_connected: bool,
     event_count: int,

@@ -30,6 +30,9 @@ from .message_formatter import (
     format_kill_alert,
     format_metrics,
     format_prelive_check,
+    format_trade_entry_executed,
+    format_trade_exit_executed,
+    format_trade_skipped,
     format_state_change,
 )
 
@@ -125,6 +128,15 @@ class CommandHandler:
             has_allocator=allocator is not None,
             has_multi_metrics=multi_metrics is not None,
         )
+
+    @staticmethod
+    def _normalize_skip_reason(result: str) -> str:
+        mapping = {
+            "BLOCKED": "risk limit hit",
+            "HOLD": "insufficient edge",
+            "COOLDOWN": "invalid conditions",
+        }
+        return mapping.get(result.upper(), "invalid conditions")
 
     # ── Primary dispatch ───────────────────────────────────────────────────────
 
@@ -447,7 +459,7 @@ class CommandHandler:
                 target_pnl=20.0,
             ),
         )
-        await trigger.evaluate(0.42)
+        result = await trigger.evaluate(0.42)
         await engine.update_mark_to_market({market: 0.46})
         payload = await export_execution_payload()
         get_portfolio_service().merge_execution_state(
@@ -456,11 +468,32 @@ class CommandHandler:
             equity=float(payload.get("equity", 0.0)),
             realized_pnl=float(payload.get("realized", 0.0)),
         )
-        return CommandResult(
-            success=True,
-            message=await render_view("positions", payload),
-            payload=payload,
-        )
+        if result == "OPENED":
+            reason = "signal threshold met"
+            return CommandResult(
+                success=True,
+                message=format_trade_entry_executed(
+                    market=market,
+                    side=side,
+                    price=0.42,
+                    size_usd=size,
+                    edge_pct=50.00,
+                    reason=reason,
+                ),
+                payload=payload,
+            )
+
+        if result in {"BLOCKED", "HOLD", "COOLDOWN"}:
+            return CommandResult(
+                success=False,
+                message=format_trade_skipped(
+                    market=market,
+                    reason=self._normalize_skip_reason(result),
+                ),
+                payload=payload,
+            )
+
+        return CommandResult(success=True, message=await render_view("positions", payload), payload=payload)
 
     async def _handle_trade_close(self, args: str) -> CommandResult:
         """Parse /trade close [market]."""
@@ -478,7 +511,7 @@ class CommandHandler:
                 success=False,
                 message=f"No open position for {market}.",
             )
-        await engine.close_position(position, 0.50)
+        realized_pnl = await engine.close_position(position, 0.50)
         payload = await export_execution_payload()
         get_portfolio_service().merge_execution_state(
             positions=payload.get("positions", []),
@@ -488,7 +521,13 @@ class CommandHandler:
         )
         return CommandResult(
             success=True,
-            message=f"Closed position for {market}.",
+            message=format_trade_exit_executed(
+                market=market,
+                side=position.side,
+                entry_price=position.entry_price,
+                exit_price=0.50,
+                pnl=realized_pnl,
+            ),
             payload=payload,
         )
 
