@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from projects.polymarket.polyquantbot.core.execution import executor
 from projects.polymarket.polyquantbot.core.execution.executor import reset_state
 from projects.polymarket.polyquantbot.core.pipeline import trading_loop
 from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
@@ -133,3 +134,101 @@ def test_emit_event_contract_raises_value_error(trace_id, event_type, component,
             component=component,
             outcome=outcome,
         )
+
+
+def _make_signal(signal_id: str = "s1") -> SignalResult:
+    return SignalResult(
+        signal_id=signal_id,
+        market_id="m1",
+        side="YES",
+        p_market=0.55,
+        p_model=0.60,
+        edge=0.05,
+        ev=0.10,
+        kelly_f=0.10,
+        size_usd=50.0,
+        liquidity_usd=20_000.0,
+        force_mode=False,
+        extra={},
+    )
+
+
+def test_execute_trade_autogenerates_trace_when_missing(monkeypatch):
+    reset_state()
+    captured_events: list[dict[str, object]] = []
+    original_emit = emit_event
+
+    def _capture_emit(*, trace_id, event_type, component, outcome, payload=None):
+        event = original_emit(
+            trace_id=trace_id,
+            event_type=event_type,
+            component=component,
+            outcome=outcome,
+            payload=payload,
+        )
+        captured_events.append(event)
+        return event
+
+    monkeypatch.setattr(
+        "projects.polymarket.polyquantbot.core.execution.executor.emit_event",
+        _capture_emit,
+    )
+
+    signal = _make_signal(signal_id="trace-none-case")
+    expected_trace_id = executor._resolve_trace_id(None, signal)
+    result = asyncio.run(executor.execute_trade(signal, mode="PAPER", trace_id=None))
+
+    assert result.success is True
+    assert [e["event_type"] for e in captured_events] == [
+        "execution_attempt",
+        "execution_result",
+    ]
+    assert captured_events[0]["trace_id"] == expected_trace_id
+    assert captured_events[1]["trace_id"] == expected_trace_id
+    assert captured_events[1]["outcome"] == "executed"
+
+
+def test_execute_trade_failure_path_emits_failed_execution_result(monkeypatch):
+    reset_state()
+    captured_events: list[dict[str, object]] = []
+    original_emit = emit_event
+
+    def _capture_emit(*, trace_id, event_type, component, outcome, payload=None):
+        event = original_emit(
+            trace_id=trace_id,
+            event_type=event_type,
+            component=component,
+            outcome=outcome,
+            payload=payload,
+        )
+        captured_events.append(event)
+        return event
+
+    async def _always_fail_callback(**_kwargs):
+        raise RuntimeError("simulated executor failure")
+
+    monkeypatch.setattr(
+        "projects.polymarket.polyquantbot.core.execution.executor.emit_event",
+        _capture_emit,
+    )
+
+    signal = _make_signal(signal_id="trace-failure-case")
+    expected_trace_id = executor._resolve_trace_id(None, signal)
+    result = asyncio.run(
+        executor.execute_trade(
+            signal,
+            mode="LIVE",
+            trace_id=None,
+            executor_callback=_always_fail_callback,
+        )
+    )
+
+    assert result.success is False
+    assert result.reason.startswith("execution_exception:")
+    assert [e["event_type"] for e in captured_events] == [
+        "execution_attempt",
+        "execution_result",
+    ]
+    assert captured_events[1]["outcome"] == "failed"
+    assert captured_events[0]["trace_id"] == expected_trace_id
+    assert captured_events[1]["trace_id"] == expected_trace_id

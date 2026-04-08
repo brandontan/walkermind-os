@@ -165,6 +165,20 @@ def reset_state() -> None:
     _open_trade_lock = None
 
 
+def _resolve_trace_id(trace_id: Optional[str], signal: SignalResult) -> str:
+    """Return a non-empty trace identifier for execution lifecycle events.
+
+    If a valid trace_id is provided, it is used as-is (after trimming). Otherwise
+    a deterministic fallback id is generated from stable signal identity fields.
+    """
+    if trace_id is not None:
+        normalized_trace_id = trace_id.strip()
+        if normalized_trace_id:
+            return normalized_trace_id
+    deterministic_seed = f"{signal.signal_id}:{signal.market_id}:{signal.side}"
+    return f"trace-{uuid.uuid5(uuid.NAMESPACE_URL, deterministic_seed).hex}"
+
+
 # ── execute_trade ──────────────────────────────────────────────────────────────
 
 
@@ -222,6 +236,7 @@ async def execute_trade(
     )
 
     trade_id = f"trade-{uuid.uuid4().hex[:12]}"
+    execution_trace_id = _resolve_trace_id(trace_id, signal)
 
     # ── Duplicate check ───────────────────────────────────────────────────────
     if signal.signal_id in _submitted_ids:
@@ -388,14 +403,13 @@ async def execute_trade(
     )
 
     # ── Execution (with single retry) ─────────────────────────────────────────
-    if trace_id is not None:
-        emit_event(
-            trace_id=trace_id,
-            event_type="execution_attempt",
-            component="executor",
-            outcome="started",
-            payload={"trade_id": trade_id, "signal_id": signal.signal_id},
-        )
+    emit_event(
+        trace_id=execution_trace_id,
+        event_type="execution_attempt",
+        component="executor",
+        outcome="started",
+        payload={"trade_id": trade_id, "signal_id": signal.signal_id},
+    )
     result = await _attempt_execution(
         signal=signal,
         trade_id=trade_id,
@@ -417,14 +431,13 @@ async def execute_trade(
             log.info("trade_skipped", trade_id=trade_id, reason=f"retry_failed:{result.reason}")
             async with lock:
                 _open_trade_count = max(0, _open_trade_count - 1)
-            if trace_id is not None:
-                emit_event(
-                    trace_id=trace_id,
-                    event_type="execution_result",
-                    component="executor",
-                    outcome="failed",
-                    payload={"trade_id": trade_id, "reason": result.reason},
-                )
+            emit_event(
+                trace_id=execution_trace_id,
+                event_type="execution_result",
+                component="executor",
+                outcome="failed",
+                payload={"trade_id": trade_id, "reason": result.reason},
+            )
             return result
 
     async with lock:
@@ -458,14 +471,13 @@ async def execute_trade(
         force_mode=signal.force_mode,
     )
 
-    if trace_id is not None:
-        emit_event(
-            trace_id=trace_id,
-            event_type="execution_result",
-            component="executor",
-            outcome="executed",
-            payload={"trade_id": trade_id, "mode": _mode},
-        )
+    emit_event(
+        trace_id=execution_trace_id,
+        event_type="execution_result",
+        component="executor",
+        outcome="executed",
+        payload={"trade_id": trade_id, "mode": _mode},
+    )
 
     if signal.force_mode:
         log.info(
