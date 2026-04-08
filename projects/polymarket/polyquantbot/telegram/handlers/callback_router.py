@@ -869,7 +869,11 @@ class CallbackRouter:
         if action.startswith(_STRATEGY_TOGGLE_PREFIX):
             strategy_name = action.removeprefix(_STRATEGY_TOGGLE_PREFIX)
             from .strategy import handle_strategy_toggle  # noqa: PLC0415
-            # Persist toggle state to DB (non-blocking on failure)
+
+            await handle_strategy_toggle(strategy_name)
+
+            # Persist toggle state to DB after in-memory state mutation.
+            # Non-fatal by design: UI remains responsive if persistence fails.
             if self._strategy_state is not None:
                 try:
                     await self._strategy_state.save(db=self._db)
@@ -879,7 +883,7 @@ class CallbackRouter:
                         strategy=strategy_name,
                         error=str(save_exc),
                     )
-            await handle_strategy_toggle(strategy_name)
+
             return await self._render_normalized_callback("strategy")
 
         if action.startswith(_MARKET_CATEGORY_TOGGLE_PREFIX):

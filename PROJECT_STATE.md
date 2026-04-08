@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 21:50
-- Status        : FORGE-X P6 observability review findings remediation completed (STANDARD, narrow integration); pending Codex auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-08 22:20
+- Status        : FORGE-X Telegram EV Momentum toggle persistence fix completed (STANDARD, narrow integration); pending Codex auto PR review + COMMANDER review.
 
 ---
 
@@ -40,6 +40,7 @@
 - SENTINEL validation complete for `telegram_command_driven_execution_20260408` (2026-04-08): verdict **BLOCKED**, score **38/100**; required callback→command→parser→execution runtime chain not met and FULL RUNTIME INTEGRATION claim not evidenced for target path.
 - FORGE-X fix pass `p5_execution_snapshot_contract_compatibility_20260408` completed (2026-04-08): added explicit `ExecutionSnapshot.implied_prob`/`ExecutionSnapshot.volatility` contract fields, corrected `StrategyTrigger` intelligence contract usage, routed callback paper execution into authoritative command-trade path, and added duplicate-intent block + focused MAJOR regression tests.
 - FORGE-X fix pass `p6_observability_review_findings_20260409` completed (2026-04-08): added canonical trade observability constants + explicit blocked outcome classification, enforced single terminal outcome emission per `/trade` attempt, and removed redundant risk-stage telemetry emission from command-handler scope with focused tests.
+- FORGE-X fix pass `telegram_ev_momentum_toggle_persistence_20260409` completed (2026-04-08): fixed strategy toggle persistence ordering so callback toggle mutates state before DB save, and added focused persistence/readback/non-regression tests for `ev_momentum` in Telegram strategy settings flow.
 
 ### Trade-System Hardening P2 — COMPLETED (2026-04-07)
 
@@ -110,6 +111,10 @@ Status:
 - STANDARD-tier observability correctness fix is complete with focused event-hygiene tests.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
+### Telegram EV Momentum toggle persistence handoff
+- STANDARD-tier toggle persistence fix is complete with focused callback/persistence/render-path evidence.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ## ❌ NOT STARTED
 
 - None.
@@ -119,7 +124,7 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_4_p6_observability_review_findings.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_5_telegram_ev_momentum_toggle_persistence.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
