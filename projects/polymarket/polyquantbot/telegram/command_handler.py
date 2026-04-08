@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from typing import Optional
+from typing import Any, Callable, Optional
 
 import structlog
 
@@ -11,6 +11,14 @@ from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
 from ..interface.telegram.view_handler import render_view, safe_count, safe_number
 from ..execution.engine import export_execution_payload, get_execution_engine
+from ..execution.observability import (
+    EVENT_OUTCOME,
+    EVENT_STAGE,
+    OUTCOME_STARTED,
+    STAGE_COMMAND,
+    STAGE_EXECUTION,
+    classify_result,
+)
 from ..execution.strategy_trigger import StrategyConfig, StrategyTrigger
 from .ui.keyboard import build_dashboard_menu
 from .handlers.portfolio_service import get_portfolio_service
@@ -90,6 +98,7 @@ class CommandHandler:
         multi_metrics: Optional[object] = None,
         risk_guard: Optional[object] = None,
         mode: str = "PAPER",
+        observability_sink: Optional[Callable[[dict[str, Any]], None]] = None,
     ) -> None:
         self._state = state_manager
         self._config = config_manager
@@ -101,6 +110,7 @@ class CommandHandler:
         self._multi_metrics = multi_metrics
         self._risk_guard = risk_guard
         self._mode = mode
+        self._observability_sink = observability_sink
         self._lock = asyncio.Lock()
         self._runner: Optional[object] = None  # wired after pipeline starts
         self._trade_intents: dict[str, float] = {}
@@ -250,7 +260,7 @@ class CommandHandler:
         if cmd == "alpha":
             return await self._handle_alpha()
         if cmd == "trade":
-            return await self._handle_trade(value)
+            return await self._handle_trade_with_observability(value=value, cid=cid)
 
         # ── New menu callbacks (new Telegram system) ───────────────────────────
         if cmd == "wallet":
@@ -335,6 +345,60 @@ class CommandHandler:
             success=False,
             message="Usage: /trade [test|close|status] [args]",
         )
+
+    async def _handle_trade_with_observability(
+        self,
+        *,
+        value: Optional[float | str],
+        cid: str,
+    ) -> CommandResult:
+        """Wrap `/trade` handling with deterministic observability emissions."""
+
+        self._emit_observability_event(
+            trace_id=cid,
+            event_type=EVENT_STAGE,
+            stage=STAGE_COMMAND,
+            outcome=OUTCOME_STARTED,
+            payload={},
+        )
+        self._emit_observability_event(
+            trace_id=cid,
+            event_type=EVENT_STAGE,
+            stage=STAGE_EXECUTION,
+            outcome=OUTCOME_STARTED,
+            payload={},
+        )
+
+        result = await self._handle_trade(args=value)
+        classified = classify_result(success=result.success, message=result.message)
+        self._emit_observability_event(
+            trace_id=cid,
+            event_type=EVENT_OUTCOME,
+            stage=STAGE_EXECUTION,
+            outcome=classified.outcome,
+            payload={"reason": classified.reason},
+        )
+        return result
+
+    def _emit_observability_event(
+        self,
+        *,
+        trace_id: str,
+        event_type: str,
+        stage: str,
+        outcome: str,
+        payload: dict[str, Any],
+    ) -> None:
+        event_payload: dict[str, Any] = {
+            "trace_id": trace_id,
+            "event_type": event_type,
+            "stage": stage,
+            "outcome": outcome,
+            "payload": payload,
+        }
+        log.info("telegram_trade_observability_event", **event_payload)
+        if self._observability_sink is not None:
+            self._observability_sink(event_payload)
 
     async def _handle_trade_test(self, args: str) -> CommandResult:
         """Parse /trade test [market] [side] [size]."""
