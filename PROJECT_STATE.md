@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 22:38
-- Status        : Trade-System Hardening P3 approved and merged to main; execution-boundary capital/exposure guardrails are now authoritative baseline
+- Last Updated  : 2026-04-08 04:35
+- Status        : P4 observability minimal integration + event contract enforcement implemented after SENTINEL BLOCK; pending SENTINEL re-validation
 
 ---
 
@@ -83,19 +83,12 @@ Status:
 
 ---
 
+- Trade-system reliability observability P4 fix (2026-04-08): integrated runtime trace propagation in trading loop, enforced strict emit_event contract validation, and added execution lifecycle event emission proof tests; implementation complete pending final SENTINEL re-validation.
 ## 🚧 IN PROGRESS
 
-### Telegram UI text leakage audit handoff
-- STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
-
-### Telegram trade menu MVP blocker-clear handoff
-- Previous validation line for `telegram_trade_menu_mvp_20260407` was blocked due to routing-contract mismatch risk (trade actions could collapse to Home context instead of Trade context).
-- FORGE-X final pass implemented explicit Trade submenu routing and added routing-proof tests (`test_telegram_trade_menu_routing_mvp.py`) with py_compile + pytest evidence.
-- SENTINEL revalidation is now required for `telegram_trade_menu_mvp_20260407`.
-
-### Telegram post-approval UX consolidation handoff
-- SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
-- Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
+### P4 observability post-BLOCK validation handoff
+- FORGE-X remediation for `trade_system_reliability_observability_p4_20260407` is implemented with runtime integration and strict event contract enforcement.
+- SENTINEL re-validation is required before merge decision.
 
 ---
 
@@ -107,20 +100,9 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-Next Priority:
-System Reliability & Observability Layer (P4)
-
-Focus:
-- end-to-end execution traceability
-- failure observability completeness
-- monitoring consistency
-- audit replay capability
-- alerting readiness
+SENTINEL validation requested for trade_system_reliability_observability_p4_20260407. Source: projects/polymarket/polyquantbot/reports/forge/trade_system_reliability_observability_p4_20260407.md. Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
-- External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
-- Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
-- `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
-- Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
-- External live Telegram device screenshot proof is still unavailable in this container environment.
+- Full observability authority/reconstructability still depends on downstream monitoring storage/replay pipeline readiness beyond this minimal integration fix.
+- External live Telegram screenshot proof remains unavailable in this container environment.

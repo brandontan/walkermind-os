@@ -108,6 +108,8 @@ from ..logging.logger import (
     log_loop_throttled,
 )
 from ...telegram.message_formatter import format_trade_alert
+from ...execution.event_logger import emit_event
+from ...execution.trace_context import generate_trace_id
 
 log = structlog.get_logger()
 
@@ -789,7 +791,15 @@ async def run_trading_loop(
             break
 
         _tick_start: float = time.monotonic()
-        log.info("trading_loop_tick", tick=_tick, mode=_mode, bankroll=_bankroll)
+        _tick_trace_id: str = generate_trace_id()
+        emit_event(
+            _tick_trace_id,
+            "trade_start",
+            "core.pipeline.trading_loop",
+            "started",
+            payload={"tick": _tick, "mode": _mode},
+        )
+        log.info("trading_loop_tick", tick=_tick, mode=_mode, bankroll=_bankroll, trace_id=_tick_trace_id)
 
         # ── Heartbeat (every HEARTBEAT_INTERVAL_S) ────────────────────────────
         _now_hb = time.time()
@@ -1068,12 +1078,25 @@ async def run_trading_loop(
                     # PAPER mode with PaperEngine: PaperEngine is the single
                     # source of truth.  Bypass execute_trade() fill simulation.
                     # LIVE mode: use execute_trade() with executor_callback.
+                    emit_event(
+                        _tick_trace_id,
+                        "execution_attempt",
+                        "core.pipeline.trading_loop",
+                        "attempted",
+                        payload={
+                            "signal_id": signal.signal_id,
+                            "market_id": signal.market_id,
+                            "side": signal.side,
+                            "mode": _mode,
+                        },
+                    )
                     log.info(
                         "execution_start",
                         trade_id=signal.signal_id,
                         market_id=signal.market_id,
                         side=signal.side,
                         mode=_mode,
+                        trace_id=_tick_trace_id,
                     )
 
                     if _mode == "PAPER" and paper_engine is not None:
@@ -1092,6 +1115,18 @@ async def run_trading_loop(
                                 trade_id=signal.signal_id,
                                 market_id=signal.market_id,
                                 error=str(_pe_exc),
+                                trace_id=_tick_trace_id,
+                            )
+                            emit_event(
+                                _tick_trace_id,
+                                "execution_result",
+                                "core.pipeline.trading_loop",
+                                "failure",
+                                payload={
+                                    "signal_id": signal.signal_id,
+                                    "market_id": signal.market_id,
+                                    "reason": str(_pe_exc),
+                                },
                             )
                             continue
 
@@ -1105,6 +1140,18 @@ async def run_trading_loop(
                                 market_id=signal.market_id,
                                 reason=_paper_order.reason,
                                 status=_paper_order.status,
+                                trace_id=_tick_trace_id,
+                            )
+                            emit_event(
+                                _tick_trace_id,
+                                "execution_result",
+                                "core.pipeline.trading_loop",
+                                "failure",
+                                payload={
+                                    "signal_id": signal.signal_id,
+                                    "market_id": signal.market_id,
+                                    "reason": str(_paper_order.reason),
+                                },
                             )
                             continue
 
@@ -1133,6 +1180,21 @@ async def run_trading_loop(
                             filled_size_usd=round(result.filled_size_usd, 4),
                             fill_price=round(result.fill_price, 6),
                             mode=result.mode,
+                            trace_id=_tick_trace_id,
+                        )
+                        emit_event(
+                            _tick_trace_id,
+                            "execution_result",
+                            "core.pipeline.trading_loop",
+                            "success",
+                            payload={
+                                "trade_id": result.trade_id,
+                                "signal_id": signal.signal_id,
+                                "market_id": result.market_id,
+                                "filled_size_usd": result.filled_size_usd,
+                                "fill_price": result.fill_price,
+                                "mode": result.mode,
+                            },
                         )
 
                         # ── Persist ledger entry ──────────────────────────────
@@ -1155,6 +1217,7 @@ async def run_trading_loop(
                             signal,
                             mode=_mode,
                             executor_callback=executor_callback,
+                            trace_id=_tick_trace_id,
                         )
                         if not result.success:
                             log.info(
@@ -1162,6 +1225,19 @@ async def run_trading_loop(
                                 trade_id=result.trade_id,
                                 market_id=result.market_id,
                                 reason=result.reason,
+                                trace_id=_tick_trace_id,
+                            )
+                            emit_event(
+                                _tick_trace_id,
+                                "execution_result",
+                                "core.pipeline.trading_loop",
+                                "failure",
+                                payload={
+                                    "trade_id": result.trade_id,
+                                    "signal_id": signal.signal_id,
+                                    "market_id": result.market_id,
+                                    "reason": result.reason,
+                                },
                             )
                             continue
                         log.info(
@@ -1172,6 +1248,7 @@ async def run_trading_loop(
                             filled_size_usd=round(result.filled_size_usd or 0.0, 4),
                             fill_price=round(result.fill_price or 0.0, 6),
                             mode=result.mode,
+                            trace_id=_tick_trace_id,
                         )
 
                     if result.success:

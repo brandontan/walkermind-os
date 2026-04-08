@@ -59,6 +59,8 @@ from typing import Any, Callable, Awaitable, Optional, Set
 import structlog
 
 from ..signal.signal_engine import SignalResult
+from ...execution.event_logger import emit_event
+from ...execution.trace_context import generate_trace_id
 
 log = structlog.get_logger()
 
@@ -178,6 +180,7 @@ async def execute_trade(
     kill_switch_active: bool = False,
     executor_callback: Optional[Callable[..., Awaitable[dict[str, Any]]]] = None,
     telegram_callback: Optional[Callable[[str], Awaitable[None]]] = None,
+    trace_id: str | None = None,
 ) -> TradeResult:
     """Validate and execute (or simulate) a single trading signal.
 
@@ -220,6 +223,7 @@ async def execute_trade(
     )
 
     trade_id = f"trade-{uuid.uuid4().hex[:12]}"
+    execution_trace_id = trace_id.strip() if isinstance(trace_id, str) and trace_id.strip() else generate_trace_id()
 
     # ── Duplicate check ───────────────────────────────────────────────────────
     if signal.signal_id in _submitted_ids:
@@ -385,6 +389,19 @@ async def execute_trade(
         mode=_mode,
     )
 
+    emit_event(
+        execution_trace_id,
+        "execution_attempt",
+        "core.execution.executor",
+        "attempted",
+        payload={
+            "trade_id": trade_id,
+            "signal_id": signal.signal_id,
+            "market_id": signal.market_id,
+            "mode": _mode,
+        },
+    )
+
     # ── Execution (with single retry) ─────────────────────────────────────────
     result = await _attempt_execution(
         signal=signal,
@@ -407,6 +424,18 @@ async def execute_trade(
             log.info("trade_skipped", trade_id=trade_id, reason=f"retry_failed:{result.reason}")
             async with lock:
                 _open_trade_count = max(0, _open_trade_count - 1)
+            emit_event(
+                execution_trace_id,
+                "execution_result",
+                "core.execution.executor",
+                "failure",
+                payload={
+                    "trade_id": trade_id,
+                    "signal_id": signal.signal_id,
+                    "market_id": signal.market_id,
+                    "reason": result.reason,
+                },
+            )
             return result
 
     async with lock:
@@ -450,6 +479,21 @@ async def execute_trade(
             size_usd=round(result.filled_size_usd, 4),
             fill_price=round(result.fill_price, 6),
         )
+
+    emit_event(
+        execution_trace_id,
+        "execution_result",
+        "core.execution.executor",
+        "success",
+        payload={
+            "trade_id": trade_id,
+            "signal_id": signal.signal_id,
+            "market_id": signal.market_id,
+            "filled_size_usd": result.filled_size_usd,
+            "fill_price": result.fill_price,
+            "mode": result.mode,
+        },
+    )
 
     if telegram_callback is not None:
         try:
