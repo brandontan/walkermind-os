@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 22:38
-- Status        : Trade-System Hardening P3 approved and merged to main; execution-boundary capital/exposure guardrails are now authoritative baseline
+- Last Updated  : 2026-04-08 00:45
+- Status        : P4 observability runtime remediation wired into one real execution lifecycle path; currently In validation (post-merge remediation).
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Trade-system reliability observability P4 runtime remediation pass (2026-04-08): enforced hard event contract validation, wired trace_id creation in trading loop real trade cycle, propagated trace_id into execution path, and emitted runtime `trade_start` / `execution_attempt` / `execution_result` events with lifecycle-focused tests.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
 - SENTINEL validation complete for `trade_system_hardening_p3_20260407` (2026-04-07): verdict **APPROVED**, score **97/100**; execution-boundary capital guardrails verified authoritative with explicit structured block reasons and successful allowed-path execution proof.
 - Telegram/UI text leakage audit pass (2026-04-07): removed `Untitled market (ref ...)` primary-label leakage, hardened user-facing fallback sanitization for placeholder strings (`None`/`N/A`/`null`), and sanitized callback fallback messaging to avoid internal action/error exposure.
@@ -85,6 +86,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### P4 observability runtime remediation
+- In validation (post-merge remediation).
+- Scope: one real execution lifecycle path (`run_trading_loop` → `execute_trade`) with strict event contract enforcement and runtime lifecycle event emission proof tests.
+
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -97,8 +102,6 @@ Status:
 - SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
 - Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
 
----
-
 ## ❌ NOT STARTED
 
 - None.
@@ -107,18 +110,13 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-Next Priority:
-System Reliability & Observability Layer (P4)
-
-Focus:
-- end-to-end execution traceability
-- failure observability completeness
-- monitoring consistency
-- audit replay capability
-- alerting readiness
+SENTINEL validation required for p4_observability_runtime_integration_fix_2026-04-08 before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/24_2_p4_observability_runtime_integration_fix.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
+- P4 observability runtime remediation is currently in validation (post-merge remediation); awaiting SENTINEL final verification for real lifecycle wiring.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.

@@ -108,6 +108,8 @@ from ..logging.logger import (
     log_loop_throttled,
 )
 from ...telegram.message_formatter import format_trade_alert
+from ...execution.trace_context import generate_trace_id
+from ...execution.event_logger import emit_event
 
 log = structlog.get_logger()
 
@@ -986,6 +988,22 @@ async def run_trading_loop(
                 # ── 4. Execute each signal and update positions ───────────────────
                 _trades_this_tick: int = 0
                 for signal in signals:
+                    trade_context: dict[str, Any] = {
+                        "trace_id": generate_trace_id(),
+                        "signal_id": signal.signal_id,
+                        "market_id": signal.market_id,
+                    }
+                    emit_event(
+                        trace_id=trade_context["trace_id"],
+                        event_type="trade_start",
+                        component="trading_loop",
+                        outcome="started",
+                        payload={
+                            "signal_id": signal.signal_id,
+                            "market_id": signal.market_id,
+                        },
+                    )
+
                     # ── 4a. Force signal mode: max 1 trade per loop ───────────────
                     if _active_force and _trades_this_tick >= 1:
                         log.info(
@@ -1155,6 +1173,7 @@ async def run_trading_loop(
                             signal,
                             mode=_mode,
                             executor_callback=executor_callback,
+                            trace_id=trade_context["trace_id"],
                         )
                         if not result.success:
                             log.info(

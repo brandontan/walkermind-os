@@ -59,6 +59,7 @@ from typing import Any, Callable, Awaitable, Optional, Set
 import structlog
 
 from ..signal.signal_engine import SignalResult
+from ...execution.event_logger import emit_event
 
 log = structlog.get_logger()
 
@@ -178,6 +179,7 @@ async def execute_trade(
     kill_switch_active: bool = False,
     executor_callback: Optional[Callable[..., Awaitable[dict[str, Any]]]] = None,
     telegram_callback: Optional[Callable[[str], Awaitable[None]]] = None,
+    trace_id: Optional[str] = None,
 ) -> TradeResult:
     """Validate and execute (or simulate) a single trading signal.
 
@@ -386,6 +388,14 @@ async def execute_trade(
     )
 
     # ── Execution (with single retry) ─────────────────────────────────────────
+    if trace_id is not None:
+        emit_event(
+            trace_id=trace_id,
+            event_type="execution_attempt",
+            component="executor",
+            outcome="started",
+            payload={"trade_id": trade_id, "signal_id": signal.signal_id},
+        )
     result = await _attempt_execution(
         signal=signal,
         trade_id=trade_id,
@@ -407,6 +417,14 @@ async def execute_trade(
             log.info("trade_skipped", trade_id=trade_id, reason=f"retry_failed:{result.reason}")
             async with lock:
                 _open_trade_count = max(0, _open_trade_count - 1)
+            if trace_id is not None:
+                emit_event(
+                    trace_id=trace_id,
+                    event_type="execution_result",
+                    component="executor",
+                    outcome="failed",
+                    payload={"trade_id": trade_id, "reason": result.reason},
+                )
             return result
 
     async with lock:
@@ -439,6 +457,15 @@ async def execute_trade(
         latency_ms=round(result.latency_ms, 2),
         force_mode=signal.force_mode,
     )
+
+    if trace_id is not None:
+        emit_event(
+            trace_id=trace_id,
+            event_type="execution_result",
+            component="executor",
+            outcome="executed",
+            payload={"trade_id": trade_id, "mode": _mode},
+        )
 
     if signal.force_mode:
         log.info(
