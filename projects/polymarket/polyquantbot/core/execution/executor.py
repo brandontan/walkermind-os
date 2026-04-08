@@ -207,6 +207,13 @@ async def execute_trade(
     """
     global _submitted_ids, _open_trade_count
 
+    execution_trace_id: Optional[str] = None
+    if trace_id is not None:
+        normalized_trace_id = str(trace_id).strip()
+        if normalized_trace_id != "":
+            execution_trace_id = normalized_trace_id
+    executor_log = log.bind(execution_trace_id=execution_trace_id)
+
     _mode = (mode or os.getenv("TRADING_MODE", _DEFAULT_MODE)).upper()
     _max_c = max_concurrent if max_concurrent is not None else _env_int(
         "EXECUTION_MAX_CONCURRENT", _MAX_CONCURRENT_TRADES
@@ -225,7 +232,7 @@ async def execute_trade(
 
     # ── Duplicate check ───────────────────────────────────────────────────────
     if signal.signal_id in _submitted_ids:
-        log.info(
+        executor_log.info(
             "trade_skipped",
             trade_id=trade_id,
             signal_id=signal.signal_id,
@@ -351,7 +358,7 @@ async def execute_trade(
     lock = _get_lock()
     async with lock:
         if _open_trade_count >= _max_c:
-            log.info(
+            executor_log.info(
                 "trade_skipped",
                 trade_id=trade_id,
                 signal_id=signal.signal_id,
@@ -375,7 +382,7 @@ async def execute_trade(
     # Mark as submitted (dedup)
     _submitted_ids.add(signal.signal_id)
 
-    log.info(
+    executor_log.info(
         "signal_generated",
         trade_id=trade_id,
         signal_id=signal.signal_id,
@@ -388,9 +395,9 @@ async def execute_trade(
     )
 
     # ── Execution (with single retry) ─────────────────────────────────────────
-    if trace_id is not None:
+    if execution_trace_id is not None:
         emit_event(
-            trace_id=trace_id,
+            trace_id=execution_trace_id,
             event_type="execution_attempt",
             component="executor",
             outcome="started",
@@ -404,9 +411,9 @@ async def execute_trade(
     )
 
     if not result.success:
-        log.info("trade_skipped", trade_id=trade_id, reason=result.reason)
+        executor_log.info("trade_skipped", trade_id=trade_id, reason=result.reason)
         # Retry once
-        log.info("execution_retry", trade_id=trade_id, signal_id=signal.signal_id)
+        executor_log.info("execution_retry", trade_id=trade_id, signal_id=signal.signal_id)
         result = await _attempt_execution(
             signal=signal,
             trade_id=trade_id,
@@ -414,12 +421,12 @@ async def execute_trade(
             executor_callback=executor_callback,
         )
         if not result.success:
-            log.info("trade_skipped", trade_id=trade_id, reason=f"retry_failed:{result.reason}")
+            executor_log.info("trade_skipped", trade_id=trade_id, reason=f"retry_failed:{result.reason}")
             async with lock:
                 _open_trade_count = max(0, _open_trade_count - 1)
-            if trace_id is not None:
+            if execution_trace_id is not None:
                 emit_event(
-                    trace_id=trace_id,
+                    trace_id=execution_trace_id,
                     event_type="execution_result",
                     component="executor",
                     outcome="failed",
@@ -430,7 +437,7 @@ async def execute_trade(
     async with lock:
         _open_trade_count = max(0, _open_trade_count - 1)
 
-    log.info(
+    executor_log.info(
         "trade_executed_realistic",
         trade_id=trade_id,
         signal_id=signal.signal_id,
@@ -445,7 +452,7 @@ async def execute_trade(
         force_mode=signal.force_mode,
     )
     # Keep legacy event name for backwards-compatibility with existing monitors
-    log.info(
+    executor_log.info(
         "trade_executed",
         trade_id=trade_id,
         signal_id=signal.signal_id,
@@ -458,9 +465,9 @@ async def execute_trade(
         force_mode=signal.force_mode,
     )
 
-    if trace_id is not None:
+    if execution_trace_id is not None:
         emit_event(
-            trace_id=trace_id,
+            trace_id=execution_trace_id,
             event_type="execution_result",
             component="executor",
             outcome="executed",
@@ -468,7 +475,7 @@ async def execute_trade(
         )
 
     if signal.force_mode:
-        log.info(
+        executor_log.info(
             "force_trade_executed",
             trade_id=trade_id,
             market_id=signal.market_id,
@@ -486,13 +493,13 @@ async def execute_trade(
                 size=result.filled_size_usd,
                 market_id=signal.market_id,
             )
-            log.info(
+            executor_log.info(
                 "telegram_sent",
                 trade_id=trade_id,
                 market_id=signal.market_id,
             )
         except Exception as tg_exc:  # noqa: BLE001
-            log.warning(
+            executor_log.warning(
                 "telegram_failed",
                 trade_id=trade_id,
                 market_id=signal.market_id,

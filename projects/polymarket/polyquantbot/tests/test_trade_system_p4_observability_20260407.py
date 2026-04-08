@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from projects.polymarket.polyquantbot.core.execution.executor import reset_state
+from projects.polymarket.polyquantbot.core.execution.executor import execute_trade, reset_state
 from projects.polymarket.polyquantbot.core.pipeline import trading_loop
 from projects.polymarket.polyquantbot.core.signal.signal_engine import SignalResult
 from projects.polymarket.polyquantbot.execution.event_logger import emit_event
@@ -133,3 +133,53 @@ def test_emit_event_contract_raises_value_error(trace_id, event_type, component,
             component=component,
             outcome=outcome,
         )
+
+
+def test_execute_trade_normalizes_non_string_trace_id(monkeypatch):
+    reset_state()
+    captured_events = []
+
+    def _capture_emit(*, trace_id, event_type, component, outcome, payload=None):
+        captured_events.append(
+            {
+                "trace_id": trace_id,
+                "event_type": event_type,
+                "component": component,
+                "outcome": outcome,
+                "payload": payload,
+            }
+        )
+        return {
+            "trace_id": trace_id,
+            "event_type": event_type,
+            "component": component,
+            "outcome": outcome,
+            "payload": payload or {},
+        }
+
+    monkeypatch.setattr(
+        "projects.polymarket.polyquantbot.core.execution.executor.emit_event",
+        _capture_emit,
+    )
+
+    signal = SignalResult(
+        signal_id="s-trace-int",
+        market_id="m-trace-int",
+        side="YES",
+        p_market=0.40,
+        p_model=0.55,
+        edge=0.15,
+        ev=0.10,
+        kelly_f=0.10,
+        size_usd=25.0,
+        liquidity_usd=20_000.0,
+        force_mode=False,
+        extra={},
+    )
+
+    result = asyncio.run(execute_trade(signal, mode="PAPER", trace_id=12345))
+
+    assert result.success is True
+    assert captured_events
+    assert captured_events[0]["event_type"] == "execution_attempt"
+    assert captured_events[0]["trace_id"] == "12345"
