@@ -33,7 +33,7 @@ def test_trade_menu_routing_contract_routes_without_home_fallback() -> None:
     routes = {
         "portfolio_trade": "🎯 Trade Detail",
         "trade_signal": "🎯 Trade Detail",
-        "trade_paper_execute": "🎯 Trade Detail",
+        "trade_paper_execute": "Trade Detail",
         "trade_kill_switch": "🎛️ Control",
         "trade_status": "🧠 System Status",
     }

@@ -22,6 +22,10 @@ Design:
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
+import hashlib
+import time
 from typing import Optional, TYPE_CHECKING
 
 import structlog
@@ -82,6 +86,24 @@ _RETRY_BASE_DELAY_S: float = 0.5
 ACTION_PREFIX = "action:"
 
 
+@dataclass(frozen=True)
+class TradeExecutePayload:
+    market_id: str
+    side: str
+    price: float
+    size: float
+    signal_id: str
+    edge: float
+    liquidity_usd: float
+
+    def dedup_key(self) -> str:
+        basis = (
+            f"{self.market_id}|{self.side}|{self.price:.8f}|{self.size:.8f}|"
+            f"{self.signal_id}|{self.edge:.8f}|{self.liquidity_usd:.8f}"
+        )
+        return hashlib.sha256(basis.encode("utf-8")).hexdigest()
+
+
 class CallbackRouter:
     """Routes Telegram callback_query ``action:<name>`` events to handlers.
 
@@ -119,6 +141,11 @@ class CallbackRouter:
         self._paper_engine: "Optional[PaperEngine]" = None
         self._paper_pm: "Optional[PaperPositionManager]" = None
         self._exposure_calc: "Optional[ExposureCalculator]" = None
+        self._trade_exec_lock = asyncio.Lock()
+        self._trade_exec_inflight: set[str] = set()
+        self._trade_exec_done: set[str] = set()
+        self._trade_exec_done_ts: dict[str, float] = {}
+        self._trade_exec_dedup_ttl_s: float = 60.0
 
         # ── Propagate mode + state to all handlers at init ────────────────────
         self._propagate_mode_and_state()
@@ -636,6 +663,9 @@ class CallbackRouter:
             "settings_auto",
             "control",
         }
+        if action.startswith("trade_paper_execute"):
+            return await self._handle_trade_paper_execute(action)
+
         if action in normalized_actions:
             return await self._render_normalized_callback(action)
 
@@ -892,6 +922,225 @@ class CallbackRouter:
             ]),
             build_dashboard_menu(),
         )
+
+    @staticmethod
+    def _parse_decimal(raw: str, *, min_value: Decimal | None = None) -> float:
+        value = Decimal(raw.strip())
+        if min_value is not None and value <= min_value:
+            raise ValueError("value_must_be_positive")
+        return float(value)
+
+    def _extract_trade_payload_from_action(self, action: str) -> TradeExecutePayload:
+        chunks = action.split("|")
+        if len(chunks) < 5:
+            raise ValueError("invalid_payload_format")
+        if chunks[0] != "trade_paper_execute":
+            raise ValueError("invalid_trade_action")
+
+        market_id = chunks[1].strip()
+        side = chunks[2].strip().upper()
+        if market_id == "":
+            raise ValueError("missing_market_id")
+        if side not in {"YES", "NO"}:
+            raise ValueError("invalid_side")
+
+        price = self._parse_decimal(chunks[3], min_value=Decimal("0"))
+        size = self._parse_decimal(chunks[4], min_value=Decimal("0"))
+
+        signal_id = chunks[5].strip() if len(chunks) >= 6 and chunks[5].strip() != "" else f"tg-{market_id}-{side}"
+        edge = 0.05
+        if len(chunks) >= 7 and chunks[6].strip() != "":
+            edge = self._parse_decimal(chunks[6], min_value=Decimal("0"))
+        liquidity_usd = 10_000.0
+        if len(chunks) >= 8 and chunks[7].strip() != "":
+            liquidity_usd = self._parse_decimal(chunks[7], min_value=Decimal("0"))
+
+        return TradeExecutePayload(
+            market_id=market_id,
+            side=side,
+            price=price,
+            size=size,
+            signal_id=signal_id,
+            edge=edge,
+            liquidity_usd=liquidity_usd,
+        )
+
+    def _fallback_trade_payload(self) -> TradeExecutePayload:
+        payload = self._build_normalized_payload("trade")
+        market_id = str(payload.get("market_id", "") or "").strip()
+        side = str(payload.get("side", "") or "").strip().upper()
+        price = payload.get("entry", 0.0)
+        size = payload.get("size", 0.0)
+        if market_id == "" or side not in {"YES", "NO"}:
+            raise ValueError("invalid_trade_selection")
+        try:
+            parsed_price = float(price)
+            parsed_size = float(size)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid_trade_selection") from exc
+        if parsed_price <= 0 or parsed_size <= 0:
+            raise ValueError("invalid_trade_selection")
+        return TradeExecutePayload(
+            market_id=market_id,
+            side=side,
+            price=parsed_price,
+            size=parsed_size,
+            signal_id=f"tg-fallback-{market_id}-{side}",
+            edge=0.05,
+            liquidity_usd=10_000.0,
+        )
+
+    async def _risk_validate_trade_payload(self, payload: TradeExecutePayload) -> str | None:
+        if not self._state.is_execution_allowed():
+            return "system_not_running"
+
+        if self._mode.upper() != "PAPER":
+            return "paper_only_route"
+
+        if self._paper_engine is None:
+            return "paper_engine_unavailable"
+
+        if payload.liquidity_usd < 10_000.0:
+            return "liquidity_below_minimum"
+
+        equity = 0.0
+        portfolio = get_portfolio_service().get_state()
+        if portfolio is not None:
+            equity = safe_number(self._extract_field(portfolio, "equity", 0.0))
+        if equity <= 0 and self._paper_wallet_engine is not None:
+            try:
+                wallet_state = self._paper_wallet_engine.get_state()
+                equity = safe_number(getattr(wallet_state, "equity", 0.0))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("trade_execute_wallet_equity_read_failed", error=str(exc))
+
+        if equity > 0:
+            max_allowed_size = equity * 0.10
+            if payload.size > max_allowed_size:
+                return "size_exceeds_telegram_risk_cap"
+        return None
+
+    def _build_trade_execute_message(self, *, status: str, detail: str) -> str:
+        return "\n".join(
+            [
+                "🎯 *Trade Detail*",
+                SEP,
+                render_kv_line("ACTION", "Paper Execute"),
+                render_kv_line("STATUS", status),
+                f"_{detail}_",
+                SEP,
+                render_insight("Telegram execution path is risk-gated and idempotent"),
+            ]
+        )
+
+    def _prune_trade_exec_cache(self, now: float) -> None:
+        stale_keys = [
+            key
+            for key, done_ts in self._trade_exec_done_ts.items()
+            if (now - done_ts) > self._trade_exec_dedup_ttl_s
+        ]
+        for key in stale_keys:
+            self._trade_exec_done_ts.pop(key, None)
+            self._trade_exec_done.discard(key)
+
+    async def _handle_trade_paper_execute(self, action: str) -> tuple[str, list]:
+        try:
+            payload = (
+                self._extract_trade_payload_from_action(action)
+                if "|" in action
+                else self._fallback_trade_payload()
+            )
+        except (InvalidOperation, ValueError) as exc:
+            log.warning("trade_execute_payload_invalid", action=action, error=str(exc))
+            return (
+                self._build_trade_execute_message(
+                    status="Rejected",
+                    detail="Invalid trade payload or selection. Execution was blocked.",
+                ),
+                build_trade_menu(),
+            )
+
+        dedup_key = payload.dedup_key()
+        now = time.monotonic()
+        async with self._trade_exec_lock:
+            self._prune_trade_exec_cache(now)
+            if dedup_key in self._trade_exec_inflight:
+                return (
+                    self._build_trade_execute_message(
+                        status="Duplicate Blocked",
+                        detail="Execution is already in progress for this trade request.",
+                    ),
+                    build_trade_menu(),
+                )
+            if dedup_key in self._trade_exec_done:
+                return (
+                    self._build_trade_execute_message(
+                        status="Duplicate Blocked",
+                        detail="Duplicate click blocked. Trade already executed for this request.",
+                    ),
+                    build_trade_menu(),
+                )
+            self._trade_exec_inflight.add(dedup_key)
+
+        try:
+            risk_block_reason = await self._risk_validate_trade_payload(payload)
+            if risk_block_reason is not None:
+                log.warning(
+                    "trade_execute_risk_blocked",
+                    market_id=payload.market_id,
+                    side=payload.side,
+                    reason=risk_block_reason,
+                )
+                return (
+                    self._build_trade_execute_message(
+                        status="Blocked by Risk",
+                        detail=f"Execution blocked before order placement: `{risk_block_reason}`.",
+                    ),
+                    build_trade_menu(),
+                )
+
+            order = {
+                "market_id": payload.market_id,
+                "side": payload.side,
+                "price": payload.price,
+                "size": payload.size,
+                "trade_id": payload.signal_id,
+            }
+            result = await self._paper_engine.execute_order(order)  # type: ignore[union-attr]
+            async with self._trade_exec_lock:
+                self._trade_exec_done.add(dedup_key)
+                self._trade_exec_done_ts[dedup_key] = time.monotonic()
+
+            log.info(
+                "trade_execute_triggered",
+                market_id=payload.market_id,
+                side=payload.side,
+                trade_id=result.trade_id,
+                status=result.status.value,
+                reason=result.reason,
+            )
+            return (
+                self._build_trade_execute_message(
+                    status=f"{result.status.value}",
+                    detail=(
+                        f"Triggered via execution entry. trade_id={result.trade_id}, "
+                        f"filled={result.filled_size:.4f}, reason={result.reason or 'none'}"
+                    ),
+                ),
+                build_trade_menu(),
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error("trade_execute_failed", action=action, error=str(exc), exc_info=True)
+            return (
+                self._build_trade_execute_message(
+                    status="Failed",
+                    detail=f"Execution error surfaced: {exc}",
+                ),
+                build_trade_menu(),
+            )
+        finally:
+            async with self._trade_exec_lock:
+                self._trade_exec_inflight.discard(dedup_key)
 
     # ── Telegram API helpers ───────────────────────────────────────────────────
 
