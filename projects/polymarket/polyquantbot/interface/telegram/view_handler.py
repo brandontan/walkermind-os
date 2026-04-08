@@ -92,10 +92,12 @@ def _derive_position_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
     total_pnl = _first_present(payload, "pnl", default=None)
     if total_pnl is None:
         total_pnl = safe_number(realized, 0.0) + unrealized_total
+    derived_count = len(rows)
+    fallback_count = safe_count(payload.get("positions_count"), derived_count)
     return {
         "rows": rows,
         "primary": primary,
-        "positions_count": safe_count(payload.get("positions_count"), len(rows)),
+        "positions_count": derived_count if derived_count > 0 else fallback_count,
         "unrealized_total": unrealized_total,
         "largest_position_size": largest_position_size,
         "realized_pnl": safe_number(realized, 0.0),
@@ -173,6 +175,7 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "scope_fallback_policy": payload.get("scope_fallback_policy", ""),
         "scope_state_file": payload.get("scope_state_file", ""),
         "active_root": payload.get("active_root", _resolve_active_root(mode)),
+        "position_rows": metrics["rows"],
     }
 
 
