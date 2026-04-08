@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 12:41
-- Status        : P4 observability runtime + executor trace hardening is completed (conditional acceptance) and merged; project state synced to current repository truth.
+- Last Updated  : 2026-04-08 13:00
+- Status        : SENTINEL revalidation for telegram_trade_menu_mvp_20260407 is completed with BLOCKED verdict; routing contract is stable but execution-trigger integration remains missing on the Telegram trade action path.
 
 ---
 
@@ -36,6 +36,7 @@
 - SENTINEL trade system truth audit complete (2026-04-07) with verdict **PAPER-ACCEPTABLE WITH RISKS** and score **62/100**; identified critical risk-layer bypass on trading-loop execution path, startup wallet-restore mismatch risk, and partial-state reconciliation gaps blocking real-wallet readiness.
 - Trade-system truth audit report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md`.
 - Telegram Trade Menu MVP final fix pass (2026-04-07): added Portfolio `⚡ Trade`, created dedicated 4-action Trade submenu, and corrected callback routing contract so trade actions stay in Trade context without Home fallback.
+- SENTINEL revalidation complete for `telegram_trade_menu_mvp_20260407` (2026-04-08): verdict **BLOCKED**, score **75/100**; Telegram trade menu callback routing is stable and safe, but `trade_paper_execute` remains render-only without execution-trigger integration for the commanded MAJOR validation target.
 - Trade-system hardening P2 restore_failure observability addendum (2026-04-07): added explicit structured restore outcome emission (`restore_failure`/`restore_success`) in engine restore path and added focused proof test `test_trade_system_hardening_p2_20260407.py`.
 
 ### Trade-System Hardening P2 — COMPLETED (2026-04-07)
@@ -91,9 +92,9 @@ Status:
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
 ### Telegram trade menu MVP blocker-clear handoff
-- Previous validation line for `telegram_trade_menu_mvp_20260407` was blocked due to routing-contract mismatch risk (trade actions could collapse to Home context instead of Trade context).
-- FORGE-X final pass implemented explicit Trade submenu routing and added routing-proof tests (`test_telegram_trade_menu_routing_mvp.py`) with py_compile + pytest evidence.
-- SENTINEL revalidation is now required for `telegram_trade_menu_mvp_20260407`.
+- Previous routing-contract blocker is resolved (trade actions remain in Trade context without Home fallback).
+- Current blocker after revalidation: `trade_paper_execute` still does not trigger execution pipeline integration under commanded MAJOR validation target.
+- FORGE-X follow-up implementation is required before SENTINEL revalidation retry.
 
 ### Telegram post-approval UX consolidation handoff
 - SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
@@ -107,12 +108,15 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-COMMANDER routing next: SENTINEL validation for Telegram Trade Menu MVP.
+FORGE-X fix required for telegram_trade_menu_mvp_20260407 before merge.
+Source: projects/polymarket/polyquantbot/reports/sentinel/telegram_trade_menu_mvp_revalidation_20260408.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Telegram Trade Menu MVP requires SENTINEL validation routing as the next focused workflow step.
+- Telegram Trade Menu MVP remains BLOCKED for MAJOR revalidation scope until `trade_paper_execute` is wired to an execution trigger path that preserves risk-before-execution safeguards.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
