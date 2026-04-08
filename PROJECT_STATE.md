@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 12:41
-- Status        : P4 observability runtime + executor trace hardening is completed (conditional acceptance) and merged; project state synced to current repository truth.
+- Last Updated  : 2026-04-08 16:55
+- Status        : SENTINEL validation for telegram_execution_contract_fix_20260408 is BLOCKED (PR #292 context not verifiable in current repo state; callback execution contract mismatch remains on current code).
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- SENTINEL validation complete for `telegram_execution_contract_fix_20260408` (2026-04-08): **BLOCKED** (score **34/100**) due missing source FORGE report for PR #292 in current repo and execution-path contract mismatch where `trade_paper_execute` callback does not invoke execution pipeline.
 - P4 completion closure (2026-04-08): marked Completed (Conditional) with runtime observability integrated, trace propagation finalized, and executor trace hardening completed (#283).
 - Trade-system reliability observability P4 runtime remediation pass (2026-04-08): Completed (Conditional) with hard event contract validation, trading-loop trace_id lifecycle wiring, execution-path trace propagation, and runtime `trade_start` / `execution_attempt` / `execution_result` event emission.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
@@ -87,6 +88,8 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### Telegram execution contract fix follow-up (PR #292)
+- FORGE-X must provide/source the matching forge report in `projects/polymarket/polyquantbot/reports/forge/` and patch callback execution path so `trade_paper_execute` uses the same risk-gated execution path as command execution.
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -107,10 +110,11 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-COMMANDER routing next: SENTINEL validation for Telegram Trade Menu MVP.
-
+FORGE-X fix required: restore report traceability for `telegram_execution_contract_fix_20260408` and implement shared callback→risk→execution contract before revalidation.
 ## ⚠️ KNOWN ISSUES
 
+- Current callback route for `action:trade_paper_execute` is UI-only and does not call command/engine execution path, so shared execution-path requirement is not satisfied.
+- PR #292 source forge report for `telegram_execution_contract_fix_20260408` is not present in `projects/polymarket/polyquantbot/reports/forge/`, preventing Phase 0 report validation.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Telegram Trade Menu MVP requires SENTINEL validation routing as the next focused workflow step.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
