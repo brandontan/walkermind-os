@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 00:45
-- Status        : P4 observability runtime remediation wired into one real execution lifecycle path; currently In validation (post-merge remediation).
+- Last Updated  : 2026-04-08 07:18
+- Status        : P4 observability runtime remediation validated as CONDITIONAL (narrow lifecycle path passes; broader trace propagation follow-up required).
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- SENTINEL validation complete for `trade_system_reliability_observability_p4_validation_20260407` (2026-04-08): verdict **CONDITIONAL**, score **85/100**; strict event-contract enforcement and real runtime lifecycle wiring verified for the declared narrow path, with follow-up required for trace-less direct executor invocation.
 - Trade-system reliability observability P4 runtime remediation pass (2026-04-08): enforced hard event contract validation, wired trace_id creation in trading loop real trade cycle, propagated trace_id into execution path, and emitted runtime `trade_start` / `execution_attempt` / `execution_result` events with lifecycle-focused tests.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
 - SENTINEL validation complete for `trade_system_hardening_p3_20260407` (2026-04-07): verdict **APPROVED**, score **97/100**; execution-boundary capital guardrails verified authoritative with explicit structured block reasons and successful allowed-path execution proof.
@@ -86,9 +87,9 @@ Status:
 
 ## 🚧 IN PROGRESS
 
-### P4 observability runtime remediation
-- In validation (post-merge remediation).
-- Scope: one real execution lifecycle path (`run_trading_loop` → `execute_trade`) with strict event contract enforcement and runtime lifecycle event emission proof tests.
+### P4 observability runtime observability follow-up
+- SENTINEL re-validation completed with CONDITIONAL verdict: declared narrow path validated; universal trace propagation hardening still pending.
+- Follow-up scope: enforce trace propagation contract for direct `execute_trade` callers and extend lifecycle observability coverage where trace can still be dropped.
 
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
@@ -110,13 +111,11 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required for p4_observability_runtime_integration_fix_2026-04-08 before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_2_p4_observability_runtime_integration_fix.md
-Tier: MAJOR
+FORGE-X remediation required: enforce universal trace propagation for direct executor paths, then re-run SENTINEL P4 observability validation. Source: projects/polymarket/polyquantbot/reports/sentinel/trade_system_reliability_observability_p4_validation_20260407.md. Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
-- P4 observability runtime remediation is currently in validation (post-merge remediation); awaiting SENTINEL final verification for real lifecycle wiring.
+- P4 observability remains CONDITIONAL: direct `execute_trade` calls with missing `trace_id` still degrade to logs-only (no structured event emission).
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
