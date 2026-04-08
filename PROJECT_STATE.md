@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 12:41
-- Status        : P4 observability runtime + executor trace hardening is completed (conditional acceptance) and merged; project state synced to current repository truth.
+- Last Updated  : 2026-04-08 20:03
+- Status        : SENTINEL MAJOR validation for telegram_command_driven_execution_20260408 completed with BLOCKED verdict; callback→command→parser→execution architecture proof failed.
 
 ---
 
@@ -37,6 +37,7 @@
 - Trade-system truth audit report saved at `projects/polymarket/polyquantbot/reports/sentinel/trade_system_truth_audit_20260407.md`.
 - Telegram Trade Menu MVP final fix pass (2026-04-07): added Portfolio `⚡ Trade`, created dedicated 4-action Trade submenu, and corrected callback routing contract so trade actions stay in Trade context without Home fallback.
 - Trade-system hardening P2 restore_failure observability addendum (2026-04-07): added explicit structured restore outcome emission (`restore_failure`/`restore_success`) in engine restore path and added focused proof test `test_trade_system_hardening_p2_20260407.py`.
+- SENTINEL validation complete for `telegram_command_driven_execution_20260408` (2026-04-08): verdict **BLOCKED**, score **38/100**; required callback→command→parser→execution runtime chain not met and FULL RUNTIME INTEGRATION claim not evidenced for target path.
 
 ### Trade-System Hardening P2 — COMPLETED (2026-04-07)
 
@@ -99,6 +100,10 @@ Status:
 - SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
 - Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
 
+### Telegram command-driven execution remediation handoff
+- MAJOR validation for `telegram_command_driven_execution_20260408` is BLOCKED.
+- FORGE-X must implement and prove command-driven execution chain: callback command build → parser route → execution service with risk-before-execution enforcement and duplicate-intent protection.
+
 ## ❌ NOT STARTED
 
 - None.
@@ -107,7 +112,9 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-COMMANDER routing next: SENTINEL validation for Telegram Trade Menu MVP.
+FORGE-X remediation required for telegram_command_driven_execution_20260408 before re-validation.
+Source: projects/polymarket/polyquantbot/reports/sentinel/telegram_command_driven_execution_20260408.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
@@ -116,3 +123,5 @@ COMMANDER routing next: SENTINEL validation for Telegram Trade Menu MVP.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
+- Callback execution path currently renders UI but does not provide required callback→command parser handoff proof for `telegram_command_driven_execution_20260408`.
+- `/trade test ...` parser path currently returns usage failure in validated harness path, preventing required execution-success proof from parser route.
