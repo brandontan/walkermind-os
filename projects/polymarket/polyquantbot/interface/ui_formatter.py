@@ -412,6 +412,46 @@ def _render_position_card(payload: Mapping[str, Any], market_label: str) -> str:
     return _section("🎯 Position", _tree_group(lines))
 
 
+def _normalize_position_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    rows = payload.get("position_rows")
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, Mapping)]
+
+
+async def _render_position_cards(payload: Mapping[str, Any]) -> list[str]:
+    rows = _normalize_position_rows(payload)
+    if not rows:
+        market_context = await get_market_context(_safe_text(payload.get("market_id"), "")) or {}
+        market_label = _resolve_market_label(payload, market_context)
+        single_card = _render_position_card(payload, market_label)
+        return [single_card] if single_card else []
+
+    cards: list[str] = []
+    for row in rows:
+        row_payload: dict[str, Any] = dict(payload)
+        row_payload.update(
+            {
+                "market_id": row.get("market_id"),
+                "market_title": row.get("market_title", row.get("market_question")),
+                "market_question": row.get("market_question"),
+                "side": row.get("side"),
+                "entry": row.get("entry_price", row.get("avg_price")),
+                "current": row.get("current_price", row.get("entry_price", row.get("avg_price"))),
+                "size": row.get("size"),
+                "unrealized_pnl": row.get("unrealized_pnl", row.get("pnl", 0.0)),
+                "opened_at": row.get("opened_at"),
+                "position_status": row.get("position_status", payload.get("position_status")),
+            }
+        )
+        row_context = await get_market_context(_safe_text(row_payload.get("market_id"), "")) or {}
+        row_label = _resolve_market_label(row_payload, row_context)
+        card = _render_position_card(row_payload, row_label)
+        if card:
+            cards.append(card)
+    return cards
+
+
 def _render_market_card(payload: Mapping[str, Any], market_label: str) -> str:
     lines: list[tuple[str, object]] = [
         ("Title", market_label),
@@ -577,7 +617,9 @@ async def render_dashboard(payload: Mapping[str, Any]) -> str:
 
     blocks: list[str] = [_hero_block(mode, normalized), _primary_block(mode, normalized)]
 
-    if mode in {"positions", "trade"}:
+    if mode == "positions":
+        blocks.extend(await _render_position_cards(normalized))
+    elif mode == "trade":
         position_card = _render_position_card(normalized, market_label)
         if position_card:
             blocks.append(position_card)

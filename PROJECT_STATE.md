@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 22:20
-- Status        : FORGE-X Telegram EV Momentum toggle persistence fix completed (STANDARD, narrow integration); pending Codex auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-08 22:21
+- Status        : FORGE-X portfolio position render mismatch fix completed (STANDARD, narrow integration); pending Codex auto PR review + COMMANDER review.
 
 ---
 
@@ -41,6 +41,7 @@
 - FORGE-X fix pass `p5_execution_snapshot_contract_compatibility_20260408` completed (2026-04-08): added explicit `ExecutionSnapshot.implied_prob`/`ExecutionSnapshot.volatility` contract fields, corrected `StrategyTrigger` intelligence contract usage, routed callback paper execution into authoritative command-trade path, and added duplicate-intent block + focused MAJOR regression tests.
 - FORGE-X fix pass `p6_observability_review_findings_20260409` completed (2026-04-08): added canonical trade observability constants + explicit blocked outcome classification, enforced single terminal outcome emission per `/trade` attempt, and removed redundant risk-stage telemetry emission from command-handler scope with focused tests.
 - FORGE-X fix pass `telegram_ev_momentum_toggle_persistence_20260409` completed (2026-04-08): fixed strategy toggle persistence ordering so callback toggle mutates state before DB save, and added focused persistence/readback/non-regression tests for `ev_momentum` in Telegram strategy settings flow.
+- FORGE-X fix pass `portfolio_position_render_mismatch_20260409` completed (2026-04-08): unified positions summary/render dataset in Telegram view adapter, rendered all active position rows in premium positions view (including same-market/same-side entries), and added focused mismatch regression tests.
 
 ### Trade-System Hardening P2 — COMPLETED (2026-04-07)
 
@@ -115,6 +116,10 @@ Status:
 - STANDARD-tier toggle persistence fix is complete with focused callback/persistence/render-path evidence.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
+### Portfolio position render mismatch handoff
+- STANDARD-tier narrow integration fix is complete for Telegram positions rendering consistency.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ## ❌ NOT STARTED
 
 - None.
@@ -124,7 +129,7 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_5_telegram_ev_momentum_toggle_persistence.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_6_portfolio_position_render_mismatch.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
@@ -137,3 +142,4 @@ Tier: STANDARD
 - External live Telegram device screenshot proof is still unavailable in this container environment.
 - MAJOR task `p5_execution_snapshot_contract_compatibility` awaits SENTINEL revalidation for merge eligibility.
 - Pytest environment still reports unknown `asyncio_mode` config warning; focused observability tests pass under synchronous `asyncio.run(...)` invocation.
+- Pytest environment still reports unknown `asyncio_mode` config warning on focused portfolio-render tests; tests pass despite the warning.
