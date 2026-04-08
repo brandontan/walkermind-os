@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 22:38
-- Status        : Trade-System Hardening P3 approved and merged to main; execution-boundary capital/exposure guardrails are now authoritative baseline
+- Last Updated  : 2026-04-08 01:08
+- Status        : Trade-system reliability observability P4 clean rebuild implemented; validation-ready observability artifacts and tests are now in place pending SENTINEL validation
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Trade-system reliability observability P4 clean rebuild (2026-04-08): implemented trace-context propagation, structured lifecycle event emission with canonical outcomes, failure observability, and focused reconstruction tests for validation readiness.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
 - SENTINEL validation complete for `trade_system_hardening_p3_20260407` (2026-04-07): verdict **APPROVED**, score **97/100**; execution-boundary capital guardrails verified authoritative with explicit structured block reasons and successful allowed-path execution proof.
 - Telegram/UI text leakage audit pass (2026-04-07): removed `Untitled market (ref ...)` primary-label leakage, hardened user-facing fallback sanitization for placeholder strings (`None`/`N/A`/`null`), and sanitized callback fallback messaging to avoid internal action/error exposure.
@@ -85,17 +86,9 @@ Status:
 
 ## 🚧 IN PROGRESS
 
-### Telegram UI text leakage audit handoff
-- STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
-
-### Telegram trade menu MVP blocker-clear handoff
-- Previous validation line for `telegram_trade_menu_mvp_20260407` was blocked due to routing-contract mismatch risk (trade actions could collapse to Home context instead of Trade context).
-- FORGE-X final pass implemented explicit Trade submenu routing and added routing-proof tests (`test_telegram_trade_menu_routing_mvp.py`) with py_compile + pytest evidence.
-- SENTINEL revalidation is now required for `telegram_trade_menu_mvp_20260407`.
-
-### Telegram post-approval UX consolidation handoff
-- SENTINEL validation pending for `telegram-premium-nav-ux-20260407` (two-layer nav + premium UX consolidation).
-- Final on-device Telegram visual confirmation in live-network environment remains pending for this UX pass.
+### Trade-system reliability observability P4 clean rebuild handoff
+- FORGE-X implementation and targeted tests are complete for `trade_system_reliability_observability_p4_20260407`.
+- SENTINEL validation is required before merge due to MAJOR tier runtime observability impact.
 
 ---
 
@@ -107,20 +100,11 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-Next Priority:
-System Reliability & Observability Layer (P4)
-
-Focus:
-- end-to-end execution traceability
-- failure observability completeness
-- monitoring consistency
-- audit replay capability
-- alerting readiness
+SENTINEL validation required for trade_system_reliability_observability_p4_20260407 before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/trade_system_reliability_observability_p4_20260407.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
-- External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
-- Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
-- `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
-- Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
-- External live Telegram device screenshot proof is still unavailable in this container environment.
+- External live Telegram device screenshot proof remains unavailable in this container environment.
+- Global pytest config warning `Unknown config option: asyncio_mode` persists in this container; targeted P4 tests still pass.

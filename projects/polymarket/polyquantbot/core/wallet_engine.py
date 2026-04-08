@@ -26,6 +26,8 @@ from typing import Any, Set
 
 import structlog
 
+from ..execution.event_logger import event_logger
+
 log = structlog.get_logger(__name__)
 
 # ── Exceptions ────────────────────────────────────────────────────────────────
@@ -98,7 +100,7 @@ class WalletEngine:
 
     # ── Writes ────────────────────────────────────────────────────────────────
 
-    async def lock_funds(self, amount: float, trade_id: str) -> WalletState:
+    async def lock_funds(self, amount: float, trade_id: str, trace_id: str | None = None) -> WalletState:
         """Reserve *amount* USD for an open position.
 
         Args:
@@ -117,6 +119,13 @@ class WalletEngine:
 
         async with self._lock:
             if trade_id in self._locked_trade_ids:
+                event_logger.emit(
+                    event_type="wallet_update",
+                    component="wallet_engine",
+                    outcome="skipped",
+                    trace_id=trace_id,
+                    payload={"trade_id": trade_id, "reason": "duplicate_lock"},
+                )
                 log.info(
                     "wallet_lock_duplicate",
                     trade_id=trade_id,
@@ -125,6 +134,13 @@ class WalletEngine:
                 return self.get_state()
 
             if self._cash < amount:
+                event_logger.emit(
+                    event_type="wallet_update",
+                    component="wallet_engine",
+                    outcome="blocked",
+                    trace_id=trace_id,
+                    payload={"trade_id": trade_id, "reason": "insufficient_funds"},
+                )
                 log.warning(
                     "wallet_insufficient_funds",
                     trade_id=trade_id,
@@ -149,9 +165,16 @@ class WalletEngine:
                 locked=state.locked,
                 equity=state.equity,
             )
+            event_logger.emit(
+                event_type="wallet_update",
+                component="wallet_engine",
+                outcome="updated",
+                trace_id=trace_id,
+                payload={"trade_id": trade_id, "cash": state.cash, "locked": state.locked},
+            )
             return state
 
-    async def unlock_funds(self, amount: float, trade_id: str) -> WalletState:
+    async def unlock_funds(self, amount: float, trade_id: str, trace_id: str | None = None) -> WalletState:
         """Release *amount* USD back to available cash.
 
         Idempotent by *trade_id*.  Does not raise on over-unlock — it clamps
@@ -169,6 +192,13 @@ class WalletEngine:
 
         async with self._lock:
             if trade_id in self._unlocked_trade_ids:
+                event_logger.emit(
+                    event_type="wallet_update",
+                    component="wallet_engine",
+                    outcome="skipped",
+                    trace_id=trace_id,
+                    payload={"trade_id": trade_id, "reason": "duplicate_unlock"},
+                )
                 log.info(
                     "wallet_unlock_duplicate",
                     trade_id=trade_id,
@@ -199,9 +229,16 @@ class WalletEngine:
                 locked=state.locked,
                 equity=state.equity,
             )
+            event_logger.emit(
+                event_type="wallet_update",
+                component="wallet_engine",
+                outcome="updated",
+                trace_id=trace_id,
+                payload={"trade_id": trade_id, "cash": state.cash, "locked": state.locked},
+            )
             return state
 
-    async def settle_trade(self, pnl: float, trade_id: str) -> WalletState:
+    async def settle_trade(self, pnl: float, trade_id: str, trace_id: str | None = None) -> WalletState:
         """Apply realized PnL to cash after a position closes.
 
         This is called *after* :meth:`unlock_funds` returns principal.
@@ -218,6 +255,13 @@ class WalletEngine:
         """
         async with self._lock:
             if trade_id in self._settled_trade_ids:
+                event_logger.emit(
+                    event_type="wallet_update",
+                    component="wallet_engine",
+                    outcome="skipped",
+                    trace_id=trace_id,
+                    payload={"trade_id": trade_id, "reason": "duplicate_settle"},
+                )
                 log.info(
                     "wallet_settle_duplicate",
                     trade_id=trade_id,
@@ -247,6 +291,13 @@ class WalletEngine:
                 cash=state.cash,
                 locked=state.locked,
                 equity=state.equity,
+            )
+            event_logger.emit(
+                event_type="wallet_update",
+                component="wallet_engine",
+                outcome="updated",
+                trace_id=trace_id,
+                payload={"trade_id": trade_id, "cash": state.cash, "locked": state.locked},
             )
             return state
 

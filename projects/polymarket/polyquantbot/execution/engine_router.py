@@ -36,6 +36,8 @@ from ..core.ledger import TradeLedger
 from ..core.exposure import ExposureCalculator
 from .paper_engine import PaperEngine, PaperOrderResult, OrderStatus
 from .capital_guard import CapitalGuard
+from .event_logger import event_logger
+from .trace_context import ensure_trace_id
 
 log = structlog.get_logger(__name__)
 
@@ -93,6 +95,7 @@ class EngineContainer:
         original_execute_order = self.paper_engine.execute_order
 
         async def _guarded_execute_order(order: dict) -> PaperOrderResult:
+            trace_id = ensure_trace_id(str(order.get("trace_id", "")) or None)
             violation = self.capital_guard.evaluate(order)
             if violation is not None:
                 trade_id = str(order.get("trade_id", ""))
@@ -109,6 +112,17 @@ class EngineContainer:
                     side=side,
                     **violation.details,
                 )
+                event_logger.emit(
+                    event_type="risk_decision",
+                    component="engine_router",
+                    outcome="blocked",
+                    trace_id=trace_id,
+                    payload={
+                        "trade_id": trade_id,
+                        "reason": violation.reason,
+                        "market_id": market_id,
+                    },
+                )
                 return PaperOrderResult(
                     trade_id=trade_id,
                     market_id=market_id,
@@ -121,6 +135,13 @@ class EngineContainer:
                     reason=violation.reason,
                 )
 
+            event_logger.emit(
+                event_type="risk_decision",
+                component="engine_router",
+                outcome="allowed",
+                trace_id=trace_id,
+                payload={"trade_id": str(order.get("trade_id", "")), "market_id": str(order.get("market_id", ""))},
+            )
             return await original_execute_order(order)
 
         self.paper_engine.execute_order = _guarded_execute_order  # type: ignore[method-assign]
@@ -158,12 +179,24 @@ class EngineContainer:
             failed_components.append("ledger")
 
         if failed_components:
+            event_logger.emit(
+                event_type="recovery_event",
+                component="engine_router",
+                outcome="restore_failure",
+                payload={"failed_components": failed_components},
+            )
             log.warning(
                 "engine_container_restore_outcome",
                 outcome="restore_failure",
                 failed_components=failed_components,
             )
         else:
+            event_logger.emit(
+                event_type="recovery_event",
+                component="engine_router",
+                outcome="restore_success",
+                payload={"failed_components": []},
+            )
             log.info(
                 "engine_container_restore_outcome",
                 outcome="restore_success",

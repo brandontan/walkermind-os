@@ -24,6 +24,8 @@ from typing import Dict, List, Optional, Tuple
 
 import structlog
 
+from ...execution.event_logger import event_logger
+
 log = structlog.get_logger()
 
 
@@ -76,6 +78,7 @@ class PositionManager:
         fill_price: float,
         fill_size: float,
         trade_id: str = "",
+        trace_id: str | None = None,
     ) -> Position:
         """Record a fill, creating or updating the position for *market_id*.
 
@@ -93,6 +96,13 @@ class PositionManager:
             ValueError: When *side* conflicts with the existing position's side.
         """
         if trade_id and trade_id in self._seen_trades:
+            event_logger.emit(
+                event_type="portfolio_update",
+                component="position_manager",
+                outcome="skipped",
+                trace_id=trace_id,
+                payload={"trade_id": trade_id, "reason": "duplicate"},
+            )
             log.info(
                 "position_open_duplicate",
                 trade_id=trade_id,
@@ -101,6 +111,13 @@ class PositionManager:
             return self._positions[market_id]
 
         if fill_size <= 0:
+            event_logger.emit(
+                event_type="portfolio_update",
+                component="position_manager",
+                outcome="rejected",
+                trace_id=trace_id,
+                payload={"market_id": market_id, "reason": "zero_or_negative_fill_size"},
+            )
             log.warning(
                 "position_open_zero_size",
                 market_id=market_id,
@@ -153,6 +170,13 @@ class PositionManager:
             avg_price=pos.avg_price,
             size=pos.size,
             trade_id=trade_id or "n/a",
+        )
+        event_logger.emit(
+            event_type="portfolio_update",
+            component="position_manager",
+            outcome="updated",
+            trace_id=trace_id,
+            payload={"market_id": market_id, "trade_id": trade_id, "size": pos.size},
         )
         return pos
 

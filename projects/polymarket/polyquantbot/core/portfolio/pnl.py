@@ -25,6 +25,8 @@ from typing import Any, Dict, Optional
 
 import structlog
 
+from ...execution.event_logger import event_logger
+
 log = structlog.get_logger()
 
 
@@ -74,6 +76,7 @@ class PnLTracker:
         market_id: str,
         pnl_usd: float,
         trade_id: str = "",
+        trace_id: str | None = None,
     ) -> PnLRecord:
         """Record realized PnL for a closed position.
 
@@ -99,6 +102,13 @@ class PnLTracker:
             pnl_usd=round(pnl_usd, 4),
             cumulative_realized=rec.realized,
         )
+        event_logger.emit(
+            event_type="portfolio_update",
+            component="pnl_tracker",
+            outcome="updated",
+            trace_id=trace_id,
+            payload={"market_id": market_id, "trade_id": trade_id, "realized": rec.realized},
+        )
 
         if self._db is not None and trade_id:
             try:
@@ -117,6 +127,7 @@ class PnLTracker:
         self,
         market_id: str,
         pnl_usd: float,
+        trace_id: str | None = None,
     ) -> PnLRecord:
         """Update unrealized (mark-to-market) PnL for an open position.
 
@@ -135,6 +146,13 @@ class PnLTracker:
             "pnl_unrealized",
             market_id=market_id,
             unrealized_pnl_usd=round(pnl_usd, 4),
+        )
+        event_logger.emit(
+            event_type="portfolio_update",
+            component="pnl_tracker",
+            outcome="updated",
+            trace_id=trace_id,
+            payload={"market_id": market_id, "unrealized": rec.unrealized},
         )
         return rec
 

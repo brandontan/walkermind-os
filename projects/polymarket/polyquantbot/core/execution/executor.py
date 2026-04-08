@@ -59,6 +59,8 @@ from typing import Any, Callable, Awaitable, Optional, Set
 import structlog
 
 from ..signal.signal_engine import SignalResult
+from ...execution.event_logger import event_logger
+from ...execution.trace_context import ensure_trace_id
 
 log = structlog.get_logger()
 
@@ -178,6 +180,7 @@ async def execute_trade(
     kill_switch_active: bool = False,
     executor_callback: Optional[Callable[..., Awaitable[dict[str, Any]]]] = None,
     telegram_callback: Optional[Callable[[str], Awaitable[None]]] = None,
+    trace_id: str | None = None,
 ) -> TradeResult:
     """Validate and execute (or simulate) a single trading signal.
 
@@ -219,10 +222,29 @@ async def execute_trade(
         "EXECUTION_MIN_LIQUIDITY_USD", _MIN_LIQUIDITY_USD
     )
 
+    active_trace_id = ensure_trace_id(trace_id)
     trade_id = f"trade-{uuid.uuid4().hex[:12]}"
+    event_logger.emit(
+        event_type="risk_decision",
+        component="executor",
+        outcome="attempted",
+        trace_id=active_trace_id,
+        payload={
+            "signal_id": signal.signal_id,
+            "market_id": signal.market_id,
+            "mode": _mode,
+        },
+    )
 
     # ── Duplicate check ───────────────────────────────────────────────────────
     if signal.signal_id in _submitted_ids:
+        event_logger.emit(
+            event_type="risk_decision",
+            component="executor",
+            outcome="skipped",
+            trace_id=active_trace_id,
+            payload={"reason": "duplicate", "signal_id": signal.signal_id},
+        )
         log.info(
             "trade_skipped",
             trade_id=trade_id,
@@ -243,6 +265,13 @@ async def execute_trade(
 
     # ── Kill switch ───────────────────────────────────────────────────────────
     if kill_switch_active:
+        event_logger.emit(
+            event_type="risk_decision",
+            component="executor",
+            outcome="blocked",
+            trace_id=active_trace_id,
+            payload={"reason": "kill_switch_active", "signal_id": signal.signal_id},
+        )
         log.info(
             "trade_skipped",
             trade_id=trade_id,
@@ -263,6 +292,13 @@ async def execute_trade(
 
     # ── Risk re-validation ────────────────────────────────────────────────────
     if signal.edge <= 0 and not signal.force_mode:
+        event_logger.emit(
+            event_type="risk_decision",
+            component="executor",
+            outcome="blocked",
+            trace_id=active_trace_id,
+            payload={"reason": "edge_non_positive", "edge": signal.edge},
+        )
         log.info(
             "trade_skipped",
             trade_id=trade_id,
@@ -283,6 +319,13 @@ async def execute_trade(
         )
 
     if signal.edge < _min_e:
+        event_logger.emit(
+            event_type="risk_decision",
+            component="executor",
+            outcome="blocked",
+            trace_id=active_trace_id,
+            payload={"reason": "edge_below_threshold", "edge": round(signal.edge, 4)},
+        )
         log.info(
             "trade_skipped",
             trade_id=trade_id,
@@ -304,6 +347,13 @@ async def execute_trade(
         )
 
     if signal.size_usd > _max_p:
+        event_logger.emit(
+            event_type="risk_decision",
+            component="executor",
+            outcome="blocked",
+            trace_id=active_trace_id,
+            payload={"reason": "size_exceeds_max_position", "size_usd": signal.size_usd},
+        )
         log.info(
             "trade_skipped",
             trade_id=trade_id,
@@ -327,6 +377,17 @@ async def execute_trade(
     # ── Liquidity check ───────────────────────────────────────────────────────
     liquidity_usd: float = float(getattr(signal, "liquidity_usd", 0.0) or 0.0)
     if _min_liq > 0 and liquidity_usd < _min_liq:
+        event_logger.emit(
+            event_type="risk_decision",
+            component="executor",
+            outcome="blocked",
+            trace_id=active_trace_id,
+            payload={
+                "reason": "insufficient_liquidity",
+                "liquidity_usd": liquidity_usd,
+                "minimum": _min_liq,
+            },
+        )
         log.info(
             "trade_skipped",
             trade_id=trade_id,
@@ -349,6 +410,13 @@ async def execute_trade(
     lock = _get_lock()
     async with lock:
         if _open_trade_count >= _max_c:
+            event_logger.emit(
+                event_type="risk_decision",
+                component="executor",
+                outcome="blocked",
+                trace_id=active_trace_id,
+                payload={"reason": "max_concurrent_reached", "open_trades": _open_trade_count},
+            )
             log.info(
                 "trade_skipped",
                 trade_id=trade_id,
@@ -391,6 +459,7 @@ async def execute_trade(
         trade_id=trade_id,
         mode=_mode,
         executor_callback=executor_callback,
+        trace_id=active_trace_id,
     )
 
     if not result.success:
@@ -402,8 +471,16 @@ async def execute_trade(
             trade_id=trade_id,
             mode=_mode,
             executor_callback=executor_callback,
+            trace_id=active_trace_id,
         )
         if not result.success:
+            event_logger.emit(
+                event_type="execution_outcome",
+                component="executor",
+                outcome="failed",
+                trace_id=active_trace_id,
+                payload={"reason": f"retry_failed:{result.reason}", "trade_id": trade_id},
+            )
             log.info("trade_skipped", trade_id=trade_id, reason=f"retry_failed:{result.reason}")
             async with lock:
                 _open_trade_count = max(0, _open_trade_count - 1)
@@ -425,6 +502,17 @@ async def execute_trade(
         slippage_pct=round(result.slippage_pct, 6),
         partial_fill=result.partial_fill,
         force_mode=signal.force_mode,
+    )
+    event_logger.emit(
+        event_type="execution_outcome",
+        component="executor",
+        outcome="executed",
+        trace_id=active_trace_id,
+        payload={
+            "trade_id": trade_id,
+            "market_id": signal.market_id,
+            "filled_size_usd": round(result.filled_size_usd, 4),
+        },
     )
     # Keep legacy event name for backwards-compatibility with existing monitors
     log.info(
@@ -483,6 +571,7 @@ async def _attempt_execution(
     trade_id: str,
     mode: str,
     executor_callback: Optional[Callable[..., Awaitable[dict[str, Any]]]],
+    trace_id: str | None = None,
 ) -> TradeResult:
     """Single execution attempt (paper or live).
 
@@ -491,6 +580,14 @@ async def _attempt_execution(
     t_start = time.time()
 
     try:
+        active_trace_id = ensure_trace_id(trace_id)
+        event_logger.emit(
+            event_type="execution_attempt",
+            component="executor",
+            outcome="attempted",
+            trace_id=active_trace_id,
+            payload={"trade_id": trade_id, "mode": mode, "market_id": signal.market_id},
+        )
         log.info(
             "order_sent",
             trade_id=trade_id,
@@ -523,6 +620,13 @@ async def _attempt_execution(
                 fill_price=round(fill_price, 6),
                 latency_ms=round(latency_ms, 2),
                 mode=mode,
+            )
+            event_logger.emit(
+                event_type="execution_outcome",
+                component="executor",
+                outcome="executed",
+                trace_id=active_trace_id,
+                payload={"trade_id": trade_id, "mode": mode, "fill_price": round(fill_price, 6)},
             )
             return TradeResult(
                 trade_id=trade_id,
@@ -596,6 +700,13 @@ async def _attempt_execution(
                 mode="PAPER",
             )
             reason = "partial_fill" if partial_fill else "paper_simulated"
+            event_logger.emit(
+                event_type="execution_outcome",
+                component="executor",
+                outcome="partial_fill" if partial_fill else "executed",
+                trace_id=active_trace_id,
+                payload={"trade_id": trade_id, "fill_price": round(fill_price, 6)},
+            )
             return TradeResult(
                 trade_id=trade_id,
                 signal_id=signal.signal_id,
@@ -613,6 +724,14 @@ async def _attempt_execution(
             )
     except Exception as exc:  # noqa: BLE001
         latency_ms = (time.time() - t_start) * 1_000.0
+        active_trace_id = ensure_trace_id(trace_id)
+        event_logger.emit(
+            event_type="execution_outcome",
+            component="executor",
+            outcome="failed",
+            trace_id=active_trace_id,
+            payload={"trade_id": trade_id, "error": str(exc)},
+        )
         log.error(
             "execution_error",
             trade_id=trade_id,
