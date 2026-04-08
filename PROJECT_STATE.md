@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-07 22:38
-- Status        : Trade-System Hardening P3 approved and merged to main; execution-boundary capital/exposure guardrails are now authoritative baseline
+- Last Updated  : 2026-04-08 03:00
+- Status        : P4 observability artifact repair completed on feature branch; required trace/event/test/report artifacts restored for SENTINEL revalidation
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P4 artifact repair complete for `trade_system_reliability_observability_p4_20260407` (2026-04-08): restored missing required artifacts at exact paths (`execution/trace_context.py`, `execution/event_logger.py`, `tests/test_trade_system_p4_observability_20260407.py`, and forge report) with targeted compile/test proof.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
 - SENTINEL validation complete for `trade_system_hardening_p3_20260407` (2026-04-07): verdict **APPROVED**, score **97/100**; execution-boundary capital guardrails verified authoritative with explicit structured block reasons and successful allowed-path execution proof.
 - Telegram/UI text leakage audit pass (2026-04-07): removed `Untitled market (ref ...)` primary-label leakage, hardened user-facing fallback sanitization for placeholder strings (`None`/`N/A`/`null`), and sanitized callback fallback messaging to avoid internal action/error exposure.
@@ -85,6 +86,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### P4 observability artifact repair handoff
+- FORGE-X artifact restoration completed with required files created and targeted proof checks passing.
+- Awaiting SENTINEL revalidation for `trade_system_reliability_observability_p4_20260407`.
+
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -107,18 +112,11 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-Next Priority:
-System Reliability & Observability Layer (P4)
-
-Focus:
-- end-to-end execution traceability
-- failure observability completeness
-- monitoring consistency
-- audit replay capability
-- alerting readiness
+Codex code review required. COMMANDER review for validation decision. Source: projects/polymarket/polyquantbot/reports/forge/trade_system_reliability_observability_p4_20260407.md. Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- SENTINEL #275 previously BLOCKED due to missing P4 artifacts; revalidation is still pending until COMMANDER triggers SENTINEL on the repaired branch artifacts.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
