@@ -1,14 +1,14 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-08 12:20
-- Status        : Executor trace hardening remediation for PR #282 applied on narrow executor path; awaiting COMMANDER re-check after Codex code review.
+- Last Updated  : 2026-04-08 12:41
+- Status        : P4 observability runtime + executor trace hardening is completed (conditional acceptance) and merged; project state synced to current repository truth.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
-- Executor trace hardening remediation for PR #282 (2026-04-08): normalized executor `trace_id` with safe string conversion before trim, bound `execution_trace_id` into executor logger context, and added focused non-string trace normalization regression proof test.
-- Trade-system reliability observability P4 runtime remediation pass (2026-04-08): enforced hard event contract validation, wired trace_id creation in trading loop real trade cycle, propagated trace_id into execution path, and emitted runtime `trade_start` / `execution_attempt` / `execution_result` events with lifecycle-focused tests.
+- P4 completion closure (2026-04-08): marked Completed (Conditional) with runtime observability integrated, trace propagation finalized, and executor trace hardening completed (#283).
+- Trade-system reliability observability P4 runtime remediation pass (2026-04-08): Completed (Conditional) with hard event contract validation, trading-loop trace_id lifecycle wiring, execution-path trace propagation, and runtime `trade_start` / `execution_attempt` / `execution_result` event emission.
 - Trade-system hardening P3 execution safety pass (2026-04-07): added authoritative execution-boundary capital/exposure guardrails (capital sufficiency, per-trade cap, exposure cap, max open positions, drawdown/daily-loss hard stop) and structured blocked outcomes at engine level with focused tests.
 - SENTINEL validation complete for `trade_system_hardening_p3_20260407` (2026-04-07): verdict **APPROVED**, score **97/100**; execution-boundary capital guardrails verified authoritative with explicit structured block reasons and successful allowed-path execution proof.
 - Telegram/UI text leakage audit pass (2026-04-07): removed `Untitled market (ref ...)` primary-label leakage, hardened user-facing fallback sanitization for placeholder strings (`None`/`N/A`/`null`), and sanitized callback fallback messaging to avoid internal action/error exposure.
@@ -87,10 +87,6 @@ Status:
 
 ## 🚧 IN PROGRESS
 
-### PR #282 executor trace hardening handoff
-- STANDARD-tier FORGE-X pass complete for executor-only observability hardening.
-- Awaiting COMMANDER re-check on updated PR #282 after Codex code review artifact.
-
 ### Telegram UI text leakage audit handoff
 - STANDARD-tier FORGE-X pass is complete; Codex code review baseline complete and COMMANDER validation-path decision is pending.
 
@@ -111,13 +107,12 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-Codex code review required before merge. COMMANDER review after code review. Source: projects/polymarket/polyquantbot/reports/forge/24_3_executor_trace_propagation_hardening.md. Tier: STANDARD
+COMMANDER routing next: SENTINEL validation for Telegram Trade Menu MVP.
 
 ## ⚠️ KNOWN ISSUES
 
-- PR #282 executor trace hardening is scoped and complete, but final merge decision is pending COMMANDER re-check after STANDARD-tier code review artifact.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
-- Previous `telegram_trade_menu_mvp_20260407` validation remained blocked until this final routing-contract fix pass; SENTINEL must confirm routing behavior against the new artifacts before merge.
+- Telegram Trade Menu MVP requires SENTINEL validation routing as the next focused workflow step.
 - `clob.polymarket.com` / external market-context endpoint was unreachable from this validation container, producing warning logs during local checks.
 - Final on-device Telegram visual confirmation still requires external live-network validation because this container cannot provide full real Telegram screenshot verification.
 - External live Telegram device screenshot proof is still unavailable in this container environment.
