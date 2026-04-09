@@ -31,7 +31,9 @@ class FalconSignalContext:
     smart_money_signal: SmartMoneySignal
     momentum_signal: MomentumSignal
     liquidity_score: float
-    falcon_signal: FalconSignal
+    falcon_signal: FalconSignal | None
+    data_sufficient: bool
+    insufficiency_reason: str | None
 
 
 def detect_smart_money_signal(
@@ -112,12 +114,21 @@ def aggregate_falcon_signal(
     smart_money_signal: SmartMoneySignal,
     momentum_signal: MomentumSignal,
     liquidity_score: float,
+    min_signal_score: float = 0.12,
 ) -> FalconSignal:
     bounded_liquidity = _clamp(liquidity_score, 0.0, 1.0)
 
     smart_score = smart_money_signal.strength * smart_money_signal.confidence
     momentum_confidence = 0.6 if momentum_signal.direction == "NEUTRAL" else 0.75
     momentum_score = momentum_signal.strength * momentum_confidence
+    if max(smart_score, momentum_score) < min_signal_score:
+        return FalconSignal(
+            signal_type="MOMENTUM",
+            strength=0.0,
+            confidence=0.0,
+            liquidity_score=round(bounded_liquidity, 6),
+            external_signal_weight=1.0,
+        )
 
     if smart_score >= momentum_score:
         signal_type = "SMART_MONEY"
@@ -132,7 +143,7 @@ def aggregate_falcon_signal(
     confidence = _clamp((0.70 * base_confidence) + (0.30 * bounded_liquidity), 0.0, 1.0)
 
     # Bounded external influence, cannot override core S1/S2/S3 strategy scores.
-    external_signal_weight = round(_clamp(0.90 + (0.20 * confidence) + (0.05 * strength), 0.90, 1.15), 6)
+    external_signal_weight = round(_clamp(1.00 + (0.12 * (confidence - 0.5)) + (0.08 * (strength - 0.5)), 0.90, 1.15), 6)
 
     return FalconSignal(
         signal_type=signal_type,
@@ -152,14 +163,23 @@ def build_falcon_signal_context(
     safe_trades = trades or []
     safe_candles = candles or []
     safe_orderbook = orderbook or []
+    data_sufficient, insufficiency_reason = _has_sufficient_falcon_data(
+        trades=safe_trades,
+        candles=safe_candles,
+        orderbook=safe_orderbook,
+    )
 
     smart_money = detect_smart_money_signal(safe_trades)
     momentum = detect_momentum_signal(safe_candles)
     liquidity = compute_liquidity_score(safe_orderbook)
-    falcon_signal = aggregate_falcon_signal(
-        smart_money_signal=smart_money,
-        momentum_signal=momentum,
-        liquidity_score=liquidity,
+    falcon_signal = (
+        aggregate_falcon_signal(
+            smart_money_signal=smart_money,
+            momentum_signal=momentum,
+            liquidity_score=liquidity,
+        )
+        if data_sufficient
+        else None
     )
 
     return FalconSignalContext(
@@ -167,6 +187,8 @@ def build_falcon_signal_context(
         momentum_signal=momentum,
         liquidity_score=liquidity,
         falcon_signal=falcon_signal,
+        data_sufficient=data_sufficient,
+        insufficiency_reason=insufficiency_reason,
     )
 
 
@@ -179,3 +201,21 @@ def _to_float(value: Any, *, default: float) -> float:
 
 def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
+
+
+def _has_sufficient_falcon_data(
+    *,
+    trades: list[dict[str, Any]],
+    candles: list[dict[str, Any]],
+    orderbook: list[dict[str, Any]],
+) -> tuple[bool, str | None]:
+    has_trade_signal = len(trades) >= 2
+    close_count = sum(1 for item in candles if item.get("close") is not None)
+    has_momentum_signal = close_count >= 3
+    bid_count = sum(1 for item in orderbook if str(item.get("side", "")).lower() == "bid")
+    ask_count = sum(1 for item in orderbook if str(item.get("side", "")).lower() == "ask")
+    has_liquidity_signal = bid_count > 0 and ask_count > 0
+    sufficient = has_trade_signal or has_momentum_signal or has_liquidity_signal
+    if sufficient:
+        return True, None
+    return False, "insufficient_falcon_data"

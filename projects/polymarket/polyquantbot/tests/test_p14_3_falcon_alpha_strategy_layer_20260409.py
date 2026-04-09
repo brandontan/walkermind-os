@@ -100,6 +100,38 @@ def test_falcon_signals_are_deterministic() -> None:
     assert result_a == result_b
 
 
+def test_falcon_fallback_when_data_is_insufficient() -> None:
+    context = build_falcon_signal_context(
+        trades=[],
+        candles=[{"open": 0.48}, {"high": 0.51}],  # no close values
+        orderbook=[],
+    )
+
+    assert context.data_sufficient is False
+    assert context.insufficiency_reason == "insufficient_falcon_data"
+    assert context.falcon_signal is None
+
+
+def test_noisy_inputs_do_not_produce_external_weight_drift() -> None:
+    context = build_falcon_signal_context(
+        trades=[
+            {"wallet": "0xnoise-a", "size": 20},
+            {"wallet": "0xnoise-b", "size": 18},
+        ],
+        candles=[{"close": 0.500}, {"close": 0.501}, {"close": 0.5005}],
+        orderbook=[
+            {"side": "bid", "price": 0.49, "depth": 100},
+            {"side": "ask", "price": 0.53, "depth": 120},
+        ],
+    )
+
+    assert context.data_sufficient is True
+    assert context.falcon_signal is not None
+    assert context.falcon_signal.external_signal_weight == 1.0
+    assert context.falcon_signal.strength == 0.0
+    assert context.falcon_signal.confidence == 0.0
+
+
 def test_integration_with_s4_uses_external_signal_weight_without_override() -> None:
     trigger = _make_trigger()
     falcon_context = build_falcon_signal_context(
@@ -114,6 +146,7 @@ def test_integration_with_s4_uses_external_signal_weight_without_override() -> N
             {"side": "ask", "price": 0.56, "depth": 18000},
         ],
     )
+    assert falcon_context.falcon_signal is not None
 
     baseline = trigger.aggregate_strategy_decisions(
         s1_decision=StrategyDecision(decision="ENTER", reason="news", edge=0.040),
@@ -158,3 +191,23 @@ def test_integration_with_s4_uses_external_signal_weight_without_override() -> N
     assert falcon_context.smart_money_signal.strength > 0.0
     assert falcon_context.momentum_signal.direction == "UP"
     assert integrated.falcon_signal["liquidity_score"] > 0.0
+
+
+def test_runtime_proof_examples() -> None:
+    context = build_falcon_signal_context(
+        trades=[
+            {"wallet": "0xproof-1", "size": 3200},
+            {"wallet": "0xproof-1", "size": 2900},
+            {"wallet": "0xproof-2", "size": 2700},
+        ],
+        candles=[{"close": 0.45}, {"close": 0.47}, {"close": 0.50}, {"close": 0.54}],
+        orderbook=[
+            {"side": "bid", "price": 0.53, "depth": 17000},
+            {"side": "ask", "price": 0.54, "depth": 18000},
+        ],
+    )
+    assert context.falcon_signal is not None
+    assert context.smart_money_signal.strength > 0.60
+    assert context.momentum_signal.direction == "UP"
+    assert context.falcon_signal.signal_type in {"SMART_MONEY", "MOMENTUM"}
+    assert 0.90 <= context.falcon_signal.external_signal_weight <= 1.15
