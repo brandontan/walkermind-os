@@ -1250,9 +1250,9 @@ class StrategyTrigger:
     def _resolve_candidate_market_context(
         self,
         selected_candidate: StrategyCandidateScore | None,
-    ) -> tuple[str, str | None]:
+    ) -> tuple[str, str | None, str]:
         if selected_candidate is None:
-            return self._config.market_id, None
+            return self._config.market_id, None, ""
         metadata = selected_candidate.market_metadata or {}
         raw_market_id = (
             metadata.get("market_id")
@@ -1266,8 +1266,15 @@ class StrategyTrigger:
             or metadata.get("event")
             or metadata.get("category")
         )
+        raw_market_title = (
+            metadata.get("market_title")
+            or metadata.get("question")
+            or metadata.get("title")
+            or metadata.get("name")
+        )
         theme = str(raw_theme).strip() if raw_theme is not None else None
-        return market_id, theme
+        market_title = str(raw_market_title).strip() if raw_market_title is not None else ""
+        return market_id, theme, market_title
 
     @staticmethod
     def _infer_position_theme(position: object) -> str:
@@ -1553,7 +1560,7 @@ class StrategyTrigger:
                     normalized_score=1.0,
                 )
             )
-            target_market_id, target_theme = self._resolve_candidate_market_context(selected_candidate)
+            target_market_id, target_theme, target_market_title = self._resolve_candidate_market_context(selected_candidate)
             portfolio_guard = self.evaluate_portfolio_exposure_and_correlation(
                 target_market_id=target_market_id,
                 target_theme=target_theme,
@@ -1583,6 +1590,7 @@ class StrategyTrigger:
             size = execution_quality.adjusted_size
             created = await self._engine.open_position(
                 market=target_market_id,
+                market_title=target_market_title,
                 side=self._config.side,
                 price=execution_quality.expected_fill_price,
                 size=size,
