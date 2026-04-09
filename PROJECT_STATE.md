@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 03:41
-- Status        : FORGE-X S4 strategy aggregation & prioritization refined (STANDARD, narrow integration) with required output contract + seven-case tests; awaiting Codex auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 03:58
+- Status        : FORGE-X P7 capital allocation & position sizing implemented (STANDARD, narrow integration) with dynamic edge/confidence sizing + S4 bridge; awaiting Codex auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P7 capital allocation & position sizing (2026-04-09): implemented dynamic edge/confidence-driven position sizing in strategy trigger, added conservative fallback for missing confidence/borderline edge, enforced min-size + exposure constraints, integrated S4 selected-trade sizing before execution, and added focused six-case behavior tests.
 - S4 strategy aggregation & prioritization (2026-04-09): aggregated S1/S2/S3 outputs with preserved metadata, enforced deterministic normalized scoring and tie-break ranking, implemented single-winner ENTER/SKIP output contract (`selected_trade`/`ranked_candidates`/`selection_reason`/`top_score`/`decision`), and added focused seven-case behavior tests.
 - S3 smart-money / copy-trading strategy (2026-04-09): added strategy-trigger wallet-signal input contract, basic wallet quality filters, signal-strength scoring (size/early/repetition), explicit ENTER/SKIP decision path with confidence + wallet info payload, and focused five-case behavior tests.
 - S2 cross-exchange arbitrage actionable-spread follow-up (2026-04-09): added explicit spread-actionability gate before fee/slippage net-edge evaluation and added focused skip-case test for non-actionable spread while preserving ENTER/SKIP output contract.
@@ -99,6 +100,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### P7 capital allocation & position sizing handoff
+- STANDARD-tier narrow integration implementation is complete for execution input sizing, strategy output→sizing bridge, and capital allocation constraints in strategy trigger scope.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ### S4 strategy aggregation & prioritization handoff
 - STANDARD-tier narrow integration implementation is complete for strategy-trigger aggregation, ranking, and single-trade selection behavior with required contract fields and deterministic tie-break handling.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
@@ -156,11 +161,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_14_s4_strategy_aggregation_prioritization.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_15_p7_capital_allocation_position_sizing.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- P7 position sizing is currently narrow integration in strategy-trigger execution input path only and is not yet generalized across full runtime orchestration.
 - S4 aggregation is currently narrow integration in strategy trigger only and is not yet wired into runtime execution orchestration; conflict-hold gate currently relies on explicit `CONFLICT_HOLD` marker semantics.
 - S3 smart-money strategy is currently narrow integration in strategy trigger only; execution-orchestration wiring remains out of scope for this task.
 - S2 cross-exchange arbitrage path is currently narrow integration in strategy trigger only and is not yet wired to runtime execution orchestration.
