@@ -5,12 +5,20 @@ import asyncio
 from projects.polymarket.polyquantbot.execution.engine import ExecutionEngine
 
 
-def _gateway_validation_proof(engine: ExecutionEngine, validation_id: str) -> object:
+def _gateway_validation_proof(
+    engine: ExecutionEngine,
+    *,
+    market: str,
+    side: str,
+    price: float,
+    size: float,
+) -> object:
     return engine.build_validation_proof(
-        validation_id=validation_id,
-        validation_decision="ALLOW",
-        validation_reason="passed",
-        validation_checks={"ev_positive": True, "edge_positive": True},
+        condition_id=market,
+        side=side,
+        price_snapshot=price,
+        size=size,
+        market_type="normal",
     )
 
 
@@ -33,7 +41,7 @@ async def _build_closed_trades() -> tuple[list[dict[str, object]], dict[str, obj
             "slippage_impact": 0.01,
             "timing_effectiveness": 0.90,
         },
-        validation_proof=_gateway_validation_proof(engine, "p14-1"),
+        validation_proof=_gateway_validation_proof(engine, market="mkt-s1-news", side="YES", price=0.50, size=100.0),
     )
     assert first is not None
     await engine.close_position(
@@ -58,7 +66,7 @@ async def _build_closed_trades() -> tuple[list[dict[str, object]], dict[str, obj
             "slippage_impact": 0.03,
             "timing_effectiveness": 0.50,
         },
-        validation_proof=_gateway_validation_proof(engine, "p14-2"),
+        validation_proof=_gateway_validation_proof(engine, market="mkt-s2-arb", side="YES", price=0.60, size=100.0),
     )
     assert second is not None
     await engine.close_position(
@@ -91,7 +99,7 @@ async def _build_edge_safety_trades() -> dict[str, object]:
             "slippage_impact": 0.01,
             "timing_effectiveness": 0.6,
         },
-        validation_proof=_gateway_validation_proof(engine, "p14-safety-1"),
+        validation_proof=_gateway_validation_proof(engine, market="mkt-falcon-chaotic", side="YES", price=0.50, size=100.0),
     )
     assert position is not None
     await engine.close_position(
@@ -114,7 +122,7 @@ async def _build_edge_safety_trades() -> dict[str, object]:
             "entry_timing": "timing_enter",
             "theoretical_edge": 0.0,
         },
-        validation_proof=_gateway_validation_proof(engine, "p14-safety-2"),
+        validation_proof=_gateway_validation_proof(engine, market="mkt-safety-zero-edge", side="YES", price=0.50, size=100.0),
     )
     assert ignored is not None
     await engine.close_position(ignored, 0.60, close_context={"exit_reason": "take_profit", "exit_efficiency": 0.8})

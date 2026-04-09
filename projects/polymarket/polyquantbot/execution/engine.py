@@ -3,12 +3,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import hashlib
-import hmac
-import json
-import secrets
+import os
 import statistics
-import time
 from typing import Any
 import uuid
 
@@ -17,6 +13,13 @@ import structlog
 from .models import Position
 from .analytics import PerformanceTracker
 from .trade_trace import TradeTraceEngine
+from .proof_lifecycle import (
+    ProofVerifier,
+    TTLResolver,
+    ValidationProof,
+    ValidationProofRegistry,
+    new_validation_proof,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -32,20 +35,18 @@ class ExecutionSnapshot:
     volatility: float
 
 
-@dataclass(frozen=True)
-class ExecutionValidationProof:
-    validation_id: str
-    validation_decision: str
-    validation_reason: str
-    validation_checks_hash: str
-    issued_at_unix: float
-    signature: str
+ExecutionValidationProof = ValidationProof
 
 
 class ExecutionEngine:
     """Paper-only execution engine with sizing, PnL tracking, and performance analytics."""
 
-    def __init__(self, starting_equity: float = 10_000.0) -> None:
+    def __init__(
+        self,
+        starting_equity: float = 10_000.0,
+        proof_registry_path: str | None = None,
+        ttl_resolver: TTLResolver | None = None,
+    ) -> None:
         self._lock = asyncio.Lock()
         self._positions: dict[str, Position] = {}
         self._cash: float = float(starting_equity)
@@ -60,35 +61,50 @@ class ExecutionEngine:
         self._trace_engine = TradeTraceEngine()
         self._closed_trades: list[dict[str, Any]] = []
         self._position_context: dict[str, dict[str, Any]] = {}
-        self._validation_secret: str = secrets.token_hex(32)
+        resolved_registry_path = proof_registry_path or os.environ.get(
+            "VALIDATION_PROOF_DB_PATH",
+            "/tmp/polyquantbot_validation_proofs.db",
+        )
+        self._proof_registry = ValidationProofRegistry(db_path=resolved_registry_path)
+        self._proof_registry.initialize()
+        self._proof_verifier = ProofVerifier(self._proof_registry)
+        self._ttl_resolver = ttl_resolver or TTLResolver()
         self._last_open_rejection: dict[str, Any] | None = None
 
     def build_validation_proof(
         self,
         *,
-        validation_id: str,
-        validation_decision: str,
-        validation_reason: str,
-        validation_checks: dict[str, bool] | None,
-    ) -> ExecutionValidationProof:
-        """Create a signed execution validation proof for trusted gateway paths."""
-        checks_hash = self._hash_validation_checks(validation_checks or {})
-        issued_at_unix = time.time()
-        signature = self._sign_validation_fields(
-            validation_id=validation_id,
-            validation_decision=validation_decision,
-            validation_reason=validation_reason,
-            validation_checks_hash=checks_hash,
-            issued_at_unix=issued_at_unix,
+        condition_id: str,
+        side: str,
+        price_snapshot: float,
+        size: float,
+        market_type: str = "normal",
+        volatility_proxy: float | None = None,
+        created_at: float | None = None,
+    ) -> ValidationProof:
+        """Create and persist an immutable execution validation proof."""
+        ttl_seconds = self._ttl_resolver.resolve(
+            market_type=market_type,
+            volatility_proxy=volatility_proxy,
         )
-        return ExecutionValidationProof(
-            validation_id=validation_id,
-            validation_decision=validation_decision,
-            validation_reason=validation_reason,
-            validation_checks_hash=checks_hash,
-            issued_at_unix=issued_at_unix,
-            signature=signature,
+        proof = new_validation_proof(
+            condition_id=condition_id,
+            side=side,
+            price_snapshot=price_snapshot,
+            size=size,
+            ttl_seconds=ttl_seconds,
+            created_at=created_at,
         )
+        self._proof_registry.store(proof)
+        log.info(
+            "execution_validation_proof_created",
+            proof_id=proof.proof_id,
+            condition_id=proof.condition_id,
+            side=proof.side,
+            ttl_seconds=proof.ttl_seconds,
+            expires_at=proof.expires_at,
+        )
+        return proof
 
     async def open_position(
         self,
@@ -99,16 +115,31 @@ class ExecutionEngine:
         size: float,
         position_id: str | None = None,
         position_context: dict[str, Any] | None = None,
-        validation_proof: ExecutionValidationProof | None = None,
+        validation_proof: ValidationProof | None = None,
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
             self._last_open_rejection = None
-            if not self._is_validation_proof_allowed(validation_proof):
+            if not isinstance(validation_proof, ValidationProof):
                 self._record_open_rejection(
                     reason="validation_proof_required_or_invalid",
                     market=market,
                     position_id=position_id,
+                )
+                return None
+            proof_ok, proof_reason = self._proof_verifier.verify_and_consume(
+                proof_id=validation_proof.proof_id,
+                condition_id=str(market),
+                side=str(side),
+                price_snapshot=float(price),
+                size=float(size),
+            )
+            if not proof_ok:
+                self._record_open_rejection(
+                    reason=f"validation_proof_{proof_reason}",
+                    market=market,
+                    position_id=position_id,
+                    proof_id=validation_proof.proof_id,
                 )
                 return None
             size = float(size)
@@ -189,55 +220,6 @@ class ExecutionEngine:
         rejection_payload = {"reason": reason, **details}
         self._last_open_rejection = rejection_payload
         log.warning("execution_engine_open_rejected", **rejection_payload)
-
-    def _is_validation_proof_allowed(self, proof: ExecutionValidationProof | None) -> bool:
-        if not isinstance(proof, ExecutionValidationProof):
-            return False
-        if not proof.validation_id.strip():
-            return False
-        if proof.validation_decision != "ALLOW":
-            return False
-        if not proof.validation_checks_hash.strip() or len(proof.validation_checks_hash) != 64:
-            return False
-        if not isinstance(proof.issued_at_unix, float):
-            return False
-        expected_signature = self._sign_validation_fields(
-            validation_id=proof.validation_id,
-            validation_decision=proof.validation_decision,
-            validation_reason=proof.validation_reason,
-            validation_checks_hash=proof.validation_checks_hash,
-            issued_at_unix=proof.issued_at_unix,
-        )
-        return hmac.compare_digest(expected_signature, proof.signature)
-
-    def _sign_validation_fields(
-        self,
-        *,
-        validation_id: str,
-        validation_decision: str,
-        validation_reason: str,
-        validation_checks_hash: str,
-        issued_at_unix: float,
-    ) -> str:
-        payload = "|".join(
-            [
-                validation_id.strip(),
-                validation_decision.strip().upper(),
-                validation_reason.strip(),
-                validation_checks_hash.strip(),
-                f"{issued_at_unix:.6f}",
-            ]
-        )
-        return hmac.new(
-            self._validation_secret.encode("utf-8"),
-            payload.encode("utf-8"),
-            digestmod=hashlib.sha256,
-        ).hexdigest()
-
-    @staticmethod
-    def _hash_validation_checks(validation_checks: dict[str, bool]) -> str:
-        normalized = json.dumps(validation_checks, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
     async def close_position(
         self,

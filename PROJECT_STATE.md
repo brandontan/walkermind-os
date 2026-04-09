@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-10 00:10
-- Status        : FORGE-X completed STANDARD-tier execution-boundary position-sizing enforcement in StrategyTrigger→ExecutionEngine path (fail-closed boundary rejection for non-compliant requested size).
+- Last Updated  : 2026-04-09 23:28
+- Status        : FORGE-X completed MAJOR-tier execution proof lifecycle (dynamic TTL + replay-safe single-use + persistent DB registry + fail-closed execution-boundary verification) in StrategyTrigger→ExecutionEngine path.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P17 execution proof lifecycle (2026-04-09): implemented immutable validation proofs with dynamic TTL policy, DB-backed proof registry (`validation_proofs`), authoritative execution-boundary proof verification (existence/status/TTL/context/atomic consume), StrategyTrigger integration, and focused replay/expiry/context/restart/race/no-bypass tests; report `projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md`.
 - P16 execution-boundary position-sizing enforcement (2026-04-10): enforced authoritative boundary sizing checks in `ExecutionEngine.open_position(...)` for non-positive/per-trade-cap/capital-risk-allowed size violations before mutation, preserved signed validation-proof enforcement, propagated structured rejection reason into StrategyTrigger blocked terminal trace, and added focused tests; report `projects/polymarket/polyquantbot/reports/forge/24_39_execution_position_sizing_boundary_enforcement.md`.
 - P16 execution-boundary validation-proof enforcement (2026-04-09): replaced trust-only execution entry assumption with signed `ExecutionValidationProof` contract at engine boundary, wired StrategyTrigger ALLOW path to pass proof payload, and added focused no-proof/fake-proof/pass-proof runtime tests; report `projects/polymarket/polyquantbot/reports/forge/24_38_execution_validation_proof_boundary_enforcement.md`.
 - P16 post-merge smoke-check cleanup (2026-04-09): verified touched runtime path remains stable after PR #350/#354 merge (restart-safe block persistence survives lifecycle, blocked terminal outcomes emit exactly one terminal trace each, successful path preserves `expected_price`/`actual_fill_price`/`slippage` execution-truth envelope fields), and retired stale P16 await-merge/await-SENTINEL state wording; report `projects/polymarket/polyquantbot/reports/forge/24_37_p16_post_merge_smoke_check_cleanup.md`.
@@ -127,6 +128,10 @@ Status:
 ---
 
 ## 🚧 IN PROGRESS
+
+### P17 execution proof lifecycle handoff
+- MAJOR-tier FULL RUNTIME INTEGRATION implementation is complete for StrategyTrigger→ExecutionEngine proof lifecycle enforcement (dynamic TTL, replay safety, persistence, fail-closed verifier, atomic consume).
+- Awaiting SENTINEL validation before merge per MAJOR policy.
 
 ### P16 execution-boundary position-sizing enforcement handoff
 - STANDARD-tier NARROW INTEGRATION implementation is complete for StrategyTrigger→ExecutionEngine boundary sizing enforcement + explicit rejection traceability in touched path.
@@ -270,12 +275,14 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-Auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_38_execution_validation_proof_boundary_enforcement.md
-Tier: STANDARD
+SENTINEL validation required before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
+- P17 proof lifecycle currently uses lazy expiration enforcement at execution boundary; background cleanup of expired rows is deferred.
+- P17 TTL policy currently uses configurable baseline market-type ranges with optional volatility proxy scaling; advanced volatility-driven calibration remains out of scope for this phase.
 - P16 execution-boundary validation-proof enforcement is currently narrow integration in StrategyTrigger→ExecutionEngine path only; any future alternate execution entry surfaces must explicitly adopt the same proof contract.
 - P16 control layer is currently integrated in strategy-trigger runtime path only; additional non-trigger execution entry surfaces (if introduced later) require separate wiring to inherit identical enforcement guarantees.
 - P15 strategy weighting is currently narrow integration in S4 path only and is not yet wired into broader non-S4 runtime orchestration/telemetry surfaces.

@@ -117,10 +117,11 @@ def test_execution_to_payload_preserves_market_title() -> None:
     async def _run() -> dict[str, object]:
         engine = ExecutionEngine(starting_equity=1_000.0)
         proof = engine.build_validation_proof(
-            validation_id="pos-1",
-            validation_decision="ALLOW",
-            validation_reason="passed",
-            validation_checks={"ev_positive": True, "edge_positive": True},
+            condition_id="mkt-exec-1",
+            side="YES",
+            price_snapshot=0.49,
+            size=50.0,
+            market_type="normal",
         )
         await engine.open_position(
             market="mkt-exec-1",

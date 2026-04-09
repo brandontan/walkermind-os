@@ -2299,11 +2299,17 @@ class StrategyTrigger:
                 )
                 log.info("pre_trade_blocked", reason=validation_result.reason, trade_id=trade_id)
                 return "BLOCKED"
+            market_type = str((market_context or {}).get("market_type", "normal")).strip().lower()
+            if market_type not in {"fast", "normal"}:
+                market_type = "fast" if float((market_context or {}).get("spread", 0.0)) >= 0.03 else "normal"
+            volatility_proxy = (market_context or {}).get("volatility")
             validation_proof = self._engine.build_validation_proof(
-                validation_id=trade_id,
-                validation_decision=validation_result.decision,
-                validation_reason=validation_result.reason,
-                validation_checks=validation_result.checks,
+                condition_id=target_market_id,
+                side=self._config.side,
+                price_snapshot=readiness.expected_fill_price,
+                size=size,
+                market_type=market_type,
+                volatility_proxy=float(volatility_proxy) if volatility_proxy is not None else None,
             )
             self._execution_tracker.record_order_submission(
                 trade_id=trade_id,
