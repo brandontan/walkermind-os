@@ -17,6 +17,7 @@ def _make_trigger() -> StrategyTrigger:
         market_id="m-arb-1",
         min_liquidity_usd=10_000.0,
         cross_exchange_min_net_edge=0.02,
+        cross_exchange_min_actionable_spread=0.005,
         cross_exchange_min_mapping_confidence=0.55,
         cross_exchange_min_overlap_tokens=2,
     )
@@ -107,6 +108,18 @@ def test_fees_eliminate_edge_is_skipped() -> None:
 
     assert decision.decision == "SKIP"
     assert "below threshold" in decision.reason
+
+
+def test_non_actionable_spread_is_skipped() -> None:
+    trigger = _make_trigger()
+
+    decision = trigger.evaluate_cross_exchange_arbitrage(
+        polymarket=_poly_market(probability=0.6200),
+        kalshi_markets=[_kalshi_market(probability=0.6210, fee_bps=0.0, slippage_bps=0.0)],
+    )
+
+    assert decision.decision == "SKIP"
+    assert "spread not actionable" in decision.reason
 
 
 def test_valid_arbitrage_is_enter() -> None:

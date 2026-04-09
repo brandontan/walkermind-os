@@ -27,6 +27,7 @@ class StrategyConfig:
     min_edge: float = 0.02
     min_liquidity_usd: float = 10_000.0
     cross_exchange_min_net_edge: float = 0.02
+    cross_exchange_min_actionable_spread: float = 0.005
     cross_exchange_min_mapping_confidence: float = 0.55
     cross_exchange_min_overlap_tokens: int = 2
 
@@ -184,6 +185,20 @@ class StrategyTrigger:
         poly_prob = self._normalize_probability(polymarket.probability)
         kalshi_prob = self._normalize_probability(best_match.probability)
         raw_edge = abs(poly_prob - kalshi_prob)
+        if raw_edge < self._config.cross_exchange_min_actionable_spread:
+            return CrossExchangeArbitrageDecision(
+                decision="SKIP",
+                reason="spread not actionable",
+                edge=0.0,
+                matched_markets_info={
+                    "polymarket": polymarket.market_id,
+                    "kalshi": best_match.market_id,
+                    "mapping_confidence": round(confidence, 6),
+                    "raw_edge": round(raw_edge, 6),
+                    "net_edge": 0.0,
+                },
+            )
+
         fees_slippage = (
             self._bps_to_probability(polymarket.fee_bps + polymarket.slippage_bps)
             + self._bps_to_probability(best_match.fee_bps + best_match.slippage_bps)
