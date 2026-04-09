@@ -38,6 +38,13 @@ class StrategyConfig:
     max_theme_exposure_ratio: float = 0.20
     correlation_size_reduction_factor: float = 0.50
     high_similarity_overlap_ratio: float = 0.60
+    max_execution_spread: float = 0.04
+    borderline_execution_spread: float = 0.025
+    min_execution_depth_usd: float = 10_000.0
+    borderline_execution_depth_usd: float = 20_000.0
+    max_slippage_edge_consumption_ratio: float = 0.60
+    borderline_slippage_edge_consumption_ratio: float = 0.35
+    execution_reduction_factor: float = 0.50
 
 
 @dataclass(frozen=True)
@@ -170,6 +177,15 @@ class PortfolioExposureDecision:
     adjusted_size: float
     reason: str
     flags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ExecutionQualityDecision:
+    final_decision: str
+    adjusted_size: float
+    expected_fill_price: float
+    expected_slippage: float
+    execution_quality_reason: str
 
 
 @dataclass(frozen=True)
@@ -1181,6 +1197,127 @@ class StrategyTrigger:
                 return True
         return False
 
+    def evaluate_execution_quality(
+        self,
+        *,
+        market_price: float,
+        proposed_size: float,
+        signal_edge: float,
+        market_context: dict[str, float] | None = None,
+    ) -> ExecutionQualityDecision:
+        context = market_context or {}
+        size = max(0.0, proposed_size)
+        if size <= 0.0:
+            return ExecutionQualityDecision(
+                final_decision="SKIP",
+                adjusted_size=0.0,
+                expected_fill_price=round(max(market_price, 0.0), 6),
+                expected_slippage=0.0,
+                execution_quality_reason="insufficient_depth",
+            )
+
+        spread_val = float(context.get("spread", 0.0))
+        if spread_val < 0.0:
+            spread_val = 0.0
+        bid = float(context.get("best_bid", max(0.0, market_price - (spread_val / 2.0))))
+        ask = float(context.get("best_ask", min(1.0, market_price + (spread_val / 2.0))))
+        observed_spread = max(0.0, ask - bid, spread_val)
+
+        if observed_spread >= self._config.max_execution_spread:
+            expected_fill_price = round(max(market_price, ask), 6)
+            expected_slippage = round(max(expected_fill_price - market_price, 0.0), 6)
+            return ExecutionQualityDecision(
+                final_decision="SKIP",
+                adjusted_size=0.0,
+                expected_fill_price=expected_fill_price,
+                expected_slippage=expected_slippage,
+                execution_quality_reason="spread_too_wide",
+            )
+
+        reduced = False
+        if observed_spread >= self._config.borderline_execution_spread:
+            size *= self._config.execution_reduction_factor
+            reduced = True
+
+        depth_key_present = any(
+            key in context for key in ("orderbook_depth_usd", "depth_usd", "liquidity_usd")
+        )
+        depth_usd = float(
+            context.get(
+                "orderbook_depth_usd",
+                context.get("depth_usd", context.get("liquidity_usd", 0.0)),
+            )
+        )
+        if depth_usd < 0.0:
+            depth_usd = 0.0
+
+        if depth_key_present:
+            if depth_usd < self._config.min_execution_depth_usd:
+                return ExecutionQualityDecision(
+                    final_decision="SKIP",
+                    adjusted_size=0.0,
+                    expected_fill_price=round(max(market_price, ask), 6),
+                    expected_slippage=round(max(ask - market_price, 0.0), 6),
+                    execution_quality_reason="insufficient_depth",
+                )
+            if depth_usd < self._config.borderline_execution_depth_usd:
+                size *= self._config.execution_reduction_factor
+                reduced = True
+            if size > depth_usd * self._config.max_position_size_ratio:
+                size = depth_usd * self._config.max_position_size_ratio
+                reduced = True
+
+        if 0.0 < size < self._config.min_position_size_usd:
+            return ExecutionQualityDecision(
+                final_decision="SKIP",
+                adjusted_size=0.0,
+                expected_fill_price=round(max(market_price, ask), 6),
+                expected_slippage=round(max(ask - market_price, 0.0), 6),
+                execution_quality_reason="insufficient_depth",
+            )
+
+        depth_denominator = max(depth_usd, 1.0) if depth_key_present else max(size, 1.0)
+        market_impact = (size / depth_denominator) * 0.01
+        half_spread = observed_spread / 2.0
+        expected_slippage = max(0.0, half_spread + market_impact)
+        expected_fill_price = min(1.0, max(market_price, ask) + expected_slippage)
+        safe_signal_edge = max(signal_edge, 0.0)
+
+        if (
+            safe_signal_edge <= 0.0
+            or expected_slippage >= safe_signal_edge
+            or expected_slippage >= (safe_signal_edge * self._config.max_slippage_edge_consumption_ratio)
+        ):
+            return ExecutionQualityDecision(
+                final_decision="SKIP",
+                adjusted_size=0.0,
+                expected_fill_price=round(expected_fill_price, 6),
+                expected_slippage=round(expected_slippage, 6),
+                execution_quality_reason="slippage_too_high",
+            )
+
+        if (
+            not reduced
+            and expected_slippage
+            >= (safe_signal_edge * self._config.borderline_slippage_edge_consumption_ratio)
+        ):
+            size *= self._config.execution_reduction_factor
+            reduced = True
+            depth_denominator = max(depth_usd, 1.0) if depth_key_present else max(size, 1.0)
+            market_impact = (size / depth_denominator) * 0.01
+            expected_slippage = max(0.0, half_spread + market_impact)
+            expected_fill_price = min(1.0, max(market_price, ask) + expected_slippage)
+
+        decision = "REDUCE" if reduced and size < proposed_size else "ENTER"
+        reason = "size_reduced_for_liquidity" if decision == "REDUCE" else "fill_quality_ok"
+        return ExecutionQualityDecision(
+            final_decision=decision,
+            adjusted_size=round(max(size, 0.0), 2),
+            expected_fill_price=round(expected_fill_price, 6),
+            expected_slippage=round(expected_slippage, 6),
+            execution_quality_reason=reason,
+        )
+
     def _select_best_cross_exchange_match(
         self,
         polymarket: CrossExchangeMarket,
@@ -1262,6 +1399,7 @@ class StrategyTrigger:
         self,
         market_price: float,
         aggregation_decision: StrategyAggregationDecision | None = None,
+        market_context: dict[str, float] | None = None,
     ) -> str:
         now = time.time()
         if self._last_trigger_time and (now - self._last_trigger_time) < self._cooldown_seconds:
@@ -1323,11 +1461,28 @@ class StrategyTrigger:
             )
             if portfolio_guard.final_decision == "SKIP":
                 return "BLOCKED"
-            size = portfolio_guard.adjusted_size
+            signal_edge = max(self._config.min_edge, 0.0)
+            if selected_candidate is not None:
+                signal_edge = max(selected_candidate.edge, 0.0)
+            execution_quality = self.evaluate_execution_quality(
+                market_price=market_price,
+                proposed_size=portfolio_guard.adjusted_size,
+                signal_edge=signal_edge,
+                market_context=market_context,
+            )
+            if execution_quality.final_decision == "SKIP":
+                log.info(
+                    "execution_quality_blocked",
+                    reason=execution_quality.execution_quality_reason,
+                    expected_fill_price=execution_quality.expected_fill_price,
+                    expected_slippage=execution_quality.expected_slippage,
+                )
+                return "BLOCKED"
+            size = execution_quality.adjusted_size
             created = await self._engine.open_position(
                 market=target_market_id,
                 side=self._config.side,
-                price=market_price,
+                price=execution_quality.expected_fill_price,
                 size=size,
                 position_id=str(uuid.uuid4()),
             )
