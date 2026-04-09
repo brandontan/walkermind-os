@@ -178,6 +178,7 @@ class StrategyAggregationDecision:
     current_regime: str = "LOW_ACTIVITY_CHAOTIC"
     regime_confidence: float = 0.0
     strategy_weight_modifiers: dict[str, float] | None = None
+    strategy_weights: dict[str, float] | None = None
     external_signal_weight: float = 1.0
     falcon_signal: dict[str, object] | None = None
 
@@ -323,10 +324,98 @@ class StrategyTrigger:
             },
             "fallback_to_neutral": True,
         }
+        self._last_dynamic_strategy_weights: dict[str, float] = self._default_dynamic_strategy_weights()
 
     @staticmethod
     def _clamp(value: float, lower: float, upper: float) -> float:
         return min(max(value, lower), upper)
+
+    @staticmethod
+    def _default_dynamic_strategy_weights() -> dict[str, float]:
+        return {"S1": 1.0, "S2": 1.0, "S3": 1.0, "S5": 1.0, "FALCON": 1.0}
+
+    def _regime_strategy_modifiers(self, regime: MarketRegimeClassification) -> dict[str, float]:
+        modifiers: dict[str, float] = {
+            "S1": self._clamp(float(regime.strategy_weight_modifiers.get("S1", 1.0)), 0.85, 1.20),
+            "S2": self._clamp(float(regime.strategy_weight_modifiers.get("S2", 1.0)), 0.85, 1.20),
+            "S3": self._clamp(float(regime.strategy_weight_modifiers.get("S3", 1.0)), 0.85, 1.20),
+            "S5": 1.0,
+            "FALCON": 1.0,
+        }
+        if regime.confidence_score < 0.60:
+            return {key: 1.0 for key in modifiers}
+        if regime.regime_type == "NEWS_DRIVEN":
+            modifiers["S5"] = 1.05
+            modifiers["FALCON"] = 1.02
+        elif regime.regime_type == "ARBITRAGE_DOMINANT":
+            modifiers["S5"] = 1.10
+            modifiers["FALCON"] = 0.98
+        elif regime.regime_type == "SMART_MONEY_DOMINANT":
+            modifiers["S5"] = 1.00
+            modifiers["FALCON"] = 1.12
+        elif regime.regime_type == "LOW_ACTIVITY_CHAOTIC":
+            modifiers["S5"] = 0.95
+            modifiers["FALCON"] = 0.95
+        return {
+            key: round(self._clamp(value, 0.90, 1.20), 6)
+            for key, value in modifiers.items()
+        }
+
+    def _compute_dynamic_strategy_weights(self, regime: MarketRegimeClassification) -> dict[str, float]:
+        analytics_provider = getattr(self._engine, "get_analytics", None)
+        if not callable(analytics_provider):
+            return dict(self._last_dynamic_strategy_weights)
+        summary = analytics_provider().summary()
+        trades = int(summary.get("trades", 0))
+        if trades < 3:
+            self._last_dynamic_strategy_weights = self._default_dynamic_strategy_weights()
+            return dict(self._last_dynamic_strategy_weights)
+
+        strategy_breakdown = summary.get("strategy_breakdown", {}) or {}
+        strategy_keys = ("S1", "S2", "S3", "S5", "FALCON")
+        pnl_by_strategy = {
+            key: float((strategy_breakdown.get(key, {}) or {}).get("pnl", 0.0))
+            for key in strategy_keys
+        }
+        min_pnl = min(pnl_by_strategy.values(), default=0.0)
+        max_pnl = max(pnl_by_strategy.values(), default=0.0)
+        pnl_span = max(max_pnl - min_pnl, 1e-6)
+        expectancy_norm = self._clamp(float(summary.get("expectancy", 0.0)) / 20.0, -1.0, 1.0)
+        edge_norm = self._clamp(float(summary.get("edge_captured", 0.0)) / 2.0, -1.0, 1.0)
+
+        raw_scores: dict[str, float] = {}
+        for key in strategy_keys:
+            row = strategy_breakdown.get(key, {}) or {}
+            pnl_norm = self._clamp((pnl_by_strategy[key] - min_pnl) / pnl_span, 0.0, 1.0)
+            win_rate = self._clamp(float(row.get("win_rate", 0.5)), 0.0, 1.0)
+            raw_scores[key] = self._clamp(
+                (0.40 * pnl_norm)
+                + (0.30 * win_rate)
+                + (0.20 * ((expectancy_norm + 1.0) / 2.0))
+                + (0.10 * ((edge_norm + 1.0) / 2.0)),
+                0.0,
+                1.0,
+            )
+
+        low = min(raw_scores.values(), default=0.5)
+        high = max(raw_scores.values(), default=0.5)
+        span = max(high - low, 1e-6)
+        regime_modifiers = self._regime_strategy_modifiers(regime)
+        next_weights: dict[str, float] = {}
+        for key in strategy_keys:
+            normalized_score = (raw_scores[key] - low) / span if high > low else 0.5
+            base_weight = 0.5 + normalized_score
+            previous_weight = self._last_dynamic_strategy_weights.get(key, 1.0)
+            smooth_base = previous_weight + self._clamp(base_weight - previous_weight, -0.12, 0.12)
+            regime_modifier = regime_modifiers.get(key, 1.0)
+            adjusted_weight = self._clamp(smooth_base * regime_modifier, 0.5, 1.5)
+            if smooth_base < 1.0 and regime_modifier > 1.0:
+                adjusted_weight = min(adjusted_weight, 1.0)
+            smooth_final = previous_weight + self._clamp(adjusted_weight - previous_weight, -0.149, 0.149)
+            next_weights[key] = round(self._clamp(smooth_final, 0.5, 1.5), 6)
+
+        self._last_dynamic_strategy_weights = dict(next_weights)
+        return next_weights
 
     def record_trade_result(
         self,
@@ -947,6 +1036,7 @@ class StrategyTrigger:
                 strategy_weight_modifiers={"S1": 1.0, "S2": 1.0, "S3": 1.0},
             )
         )
+        dynamic_strategy_weights = self._compute_dynamic_strategy_weights(regime)
         candidates = [
             self._build_strategy_candidate_score(
                 strategy_name="S1",
@@ -956,6 +1046,7 @@ class StrategyTrigger:
                 confidence=None,
                 market_metadata={},
                 regime_weight_modifier=regime.strategy_weight_modifiers.get("S1", 1.0),
+                strategy_weight=dynamic_strategy_weights.get("S1", 1.0),
             ),
             self._build_strategy_candidate_score(
                 strategy_name="S2",
@@ -965,6 +1056,7 @@ class StrategyTrigger:
                 confidence=None,
                 market_metadata=s2_decision.matched_markets_info,
                 regime_weight_modifier=regime.strategy_weight_modifiers.get("S2", 1.0),
+                strategy_weight=dynamic_strategy_weights.get("S2", 1.0),
             ),
             self._build_strategy_candidate_score(
                 strategy_name="S3",
@@ -974,6 +1066,7 @@ class StrategyTrigger:
                 confidence=s3_decision.confidence,
                 market_metadata=s3_decision.wallet_info,
                 regime_weight_modifier=regime.strategy_weight_modifiers.get("S3", 1.0),
+                strategy_weight=dynamic_strategy_weights.get("S3", 1.0),
             ),
         ]
         regime_output_key = self._regime_output_key(regime.regime_type)
@@ -1034,6 +1127,7 @@ class StrategyTrigger:
                 current_regime=regime.regime_type,
                 regime_confidence=regime.confidence_score,
                 strategy_weight_modifiers=regime.strategy_weight_modifiers,
+                strategy_weights=dynamic_strategy_weights,
                 external_signal_weight=external_signal_weight,
                 falcon_signal=falcon_signal_payload,
             )
@@ -1048,6 +1142,7 @@ class StrategyTrigger:
                 current_regime=regime.regime_type,
                 regime_confidence=regime.confidence_score,
                 strategy_weight_modifiers=regime.strategy_weight_modifiers,
+                strategy_weights=dynamic_strategy_weights,
                 external_signal_weight=external_signal_weight,
                 falcon_signal=falcon_signal_payload,
             )
@@ -1063,6 +1158,7 @@ class StrategyTrigger:
                 current_regime=regime.regime_type,
                 regime_confidence=regime.confidence_score,
                 strategy_weight_modifiers=regime.strategy_weight_modifiers,
+                strategy_weights=dynamic_strategy_weights,
                 external_signal_weight=external_signal_weight,
                 falcon_signal=falcon_signal_payload,
             )
@@ -1076,6 +1172,7 @@ class StrategyTrigger:
             current_regime=regime.regime_type,
             regime_confidence=regime.confidence_score,
             strategy_weight_modifiers=regime.strategy_weight_modifiers,
+            strategy_weights=dynamic_strategy_weights,
             external_signal_weight=external_signal_weight,
             falcon_signal=falcon_signal_payload,
         )
@@ -1145,6 +1242,7 @@ class StrategyTrigger:
         confidence: float | None,
         market_metadata: dict[str, object],
         regime_weight_modifier: float = 1.0,
+        strategy_weight: float = 1.0,
     ) -> StrategyCandidateScore:
         normalized_edge = min(max(edge, 0.0) / 0.10, 1.0)
         normalized_confidence = (
@@ -1159,7 +1257,8 @@ class StrategyTrigger:
         )
         optimization_weight = self._clamp(optimization_weight, 0.75, 1.15)
         bounded_regime_modifier = self._clamp(regime_weight_modifier, 0.85, 1.20)
-        weighted_score = round(score * adaptive_weight * bounded_regime_modifier * optimization_weight, 6)
+        bounded_strategy_weight = self._clamp(strategy_weight, 0.5, 1.5)
+        weighted_score = round(score * adaptive_weight * bounded_regime_modifier * optimization_weight * bounded_strategy_weight, 6)
         return StrategyCandidateScore(
             strategy_name=strategy_name,
             decision=decision,
