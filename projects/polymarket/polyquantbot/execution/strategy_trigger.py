@@ -93,19 +93,22 @@ class SmartMoneyCopyTradingDecision:
 
 @dataclass(frozen=True)
 class StrategyCandidateScore:
-    strategy_id: str
+    strategy_name: str
     decision: str
     reason: str
     edge: float
     confidence: float
     score: float
+    market_metadata: dict[str, object]
 
 
 @dataclass(frozen=True)
 class StrategyAggregationDecision:
     selected_trade: str | None
-    ranking: list[StrategyCandidateScore]
-    reason: str
+    ranked_candidates: list[StrategyCandidateScore]
+    selection_reason: str
+    top_score: float
+    decision: str
 
 
 class StrategyTrigger:
@@ -401,83 +404,98 @@ class StrategyTrigger:
         """
         candidates = [
             self._build_strategy_candidate_score(
-                strategy_id="S1",
+                strategy_name="S1",
                 decision=s1_decision.decision,
                 reason=s1_decision.reason,
                 edge=s1_decision.edge,
                 confidence=None,
+                market_metadata={},
             ),
             self._build_strategy_candidate_score(
-                strategy_id="S2",
+                strategy_name="S2",
                 decision=s2_decision.decision,
                 reason=s2_decision.reason,
                 edge=s2_decision.edge,
                 confidence=None,
+                market_metadata=s2_decision.matched_markets_info,
             ),
             self._build_strategy_candidate_score(
-                strategy_id="S3",
+                strategy_name="S3",
                 decision=s3_decision.decision,
                 reason=s3_decision.reason,
                 edge=max(0.0, s3_decision.confidence * self._config.min_edge),
                 confidence=s3_decision.confidence,
+                market_metadata=s3_decision.wallet_info,
             ),
         ]
-        ranking = sorted(candidates, key=lambda item: (-item.score, item.strategy_id))
-        enter_candidates = [candidate for candidate in ranking if candidate.decision == "ENTER"]
+        ranked_candidates = sorted(candidates, key=lambda item: (-item.score, item.strategy_name))
+        enter_candidates = [candidate for candidate in ranked_candidates if candidate.decision == "ENTER"]
+        top_score = ranked_candidates[0].score if ranked_candidates else 0.0
         min_score_threshold = 0.40
+        has_global_conflict_hold = any(
+            candidate.reason.upper().startswith("CONFLICT_HOLD")
+            for candidate in enter_candidates
+        )
         if not enter_candidates:
             return StrategyAggregationDecision(
                 selected_trade=None,
-                ranking=ranking,
-                reason="no candidate qualified for entry",
+                ranked_candidates=ranked_candidates,
+                selection_reason="all candidates are SKIP",
+                top_score=top_score,
+                decision="SKIP",
+            )
+
+        if has_global_conflict_hold:
+            return StrategyAggregationDecision(
+                selected_trade=None,
+                ranked_candidates=ranked_candidates,
+                selection_reason="conflict rules require holding",
+                top_score=top_score,
+                decision="SKIP",
             )
 
         top_candidate = enter_candidates[0]
         if top_candidate.score < min_score_threshold:
             return StrategyAggregationDecision(
                 selected_trade=None,
-                ranking=ranking,
-                reason="all candidates below threshold",
+                ranked_candidates=ranked_candidates,
+                selection_reason="all candidates are weak",
+                top_score=top_score,
+                decision="SKIP",
             )
 
-        if len(enter_candidates) > 1:
-            runner_up = enter_candidates[1]
-            score_gap = abs(top_candidate.score - runner_up.score)
-            if score_gap <= 0.02:
-                return StrategyAggregationDecision(
-                    selected_trade=None,
-                    ranking=ranking,
-                    reason="conflicting signals too strong",
-                )
-
         return StrategyAggregationDecision(
-            selected_trade=top_candidate.strategy_id,
-            ranking=ranking,
-            reason=f"selected highest-ranked candidate: {top_candidate.strategy_id}",
+            selected_trade=top_candidate.strategy_name,
+            ranked_candidates=ranked_candidates,
+            selection_reason=f"selected highest-ranked candidate: {top_candidate.strategy_name}",
+            top_score=top_candidate.score,
+            decision="ENTER",
         )
 
     def _build_strategy_candidate_score(
         self,
-        strategy_id: str,
+        strategy_name: str,
         decision: str,
         reason: str,
         edge: float,
         confidence: float | None,
+        market_metadata: dict[str, object],
     ) -> StrategyCandidateScore:
         normalized_edge = min(max(edge, 0.0) / 0.10, 1.0)
         normalized_confidence = (
             min(max(confidence, 0.0), 1.0)
             if confidence is not None
-            else min(normalized_edge + 0.15, 1.0)
+            else 0.5
         )
         score = round((0.7 * normalized_edge) + (0.3 * normalized_confidence), 6)
         return StrategyCandidateScore(
-            strategy_id=strategy_id,
+            strategy_name=strategy_name,
             decision=decision,
             reason=reason,
             edge=round(max(edge, 0.0), 6),
             confidence=round(normalized_confidence, 6),
             score=score,
+            market_metadata=market_metadata,
         )
 
     def _select_best_cross_exchange_match(
