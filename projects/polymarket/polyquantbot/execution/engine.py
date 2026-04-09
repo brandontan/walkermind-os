@@ -61,6 +61,7 @@ class ExecutionEngine:
         self._closed_trades: list[dict[str, Any]] = []
         self._position_context: dict[str, dict[str, Any]] = {}
         self._validation_secret: str = secrets.token_hex(32)
+        self._last_open_rejection: dict[str, Any] | None = None
 
     def build_validation_proof(
         self,
@@ -102,9 +103,9 @@ class ExecutionEngine:
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
+            self._last_open_rejection = None
             if not self._is_validation_proof_allowed(validation_proof):
-                log.warning(
-                    "execution_engine_open_rejected",
+                self._record_open_rejection(
                     reason="validation_proof_required_or_invalid",
                     market=market,
                     position_id=position_id,
@@ -112,36 +113,51 @@ class ExecutionEngine:
                 return None
             size = float(size)
             if size <= 0:
-                log.warning("execution_engine_open_rejected", reason="size_non_positive", size=size)
+                self._record_open_rejection(
+                    reason="size_non_positive",
+                    market=market,
+                    position_id=position_id,
+                    requested_size=size,
+                )
                 return None
             if not position_id:
                 position_id = str(uuid.uuid4())
             equity_base = max(self._equity, 0.0)
             max_position_size = equity_base * self.max_position_size_ratio
             if size > max_position_size:
-                log.warning(
-                    "execution_engine_open_rejected",
+                self._record_open_rejection(
                     reason="max_position_size_exceeded",
-                    requested=size,
+                    market=market,
+                    position_id=position_id,
+                    requested_size=size,
                     limit=max_position_size,
                     equity=equity_base,
                 )
                 return None
-            if self._current_total_exposure() + size > equity_base * self.max_total_exposure_ratio:
-                log.warning(
-                    "execution_engine_open_rejected",
-                    reason="max_total_exposure_exceeded",
-                    requested=size,
-                    current_exposure=self._current_total_exposure(),
-                    limit=equity_base * self.max_total_exposure_ratio,
-                )
-                return None
-            if self._cash < size:
-                log.warning(
-                    "execution_engine_open_rejected",
-                    reason="insufficient_cash",
-                    requested=size,
-                    cash=self._cash,
+            current_exposure = self._current_total_exposure()
+            total_exposure_limit = equity_base * self.max_total_exposure_ratio
+            remaining_total_exposure = max(0.0, total_exposure_limit - current_exposure)
+            capital_risk_allowed_size = max(
+                0.0,
+                min(max_position_size, remaining_total_exposure, self._cash),
+            )
+            if size > capital_risk_allowed_size:
+                binding_constraint = "cash_available"
+                if remaining_total_exposure <= self._cash:
+                    binding_constraint = "remaining_total_exposure"
+                self._record_open_rejection(
+                    reason="capital_risk_allowed_size_exceeded",
+                    market=market,
+                    position_id=position_id,
+                    requested_size=size,
+                    capital_risk_allowed_size=capital_risk_allowed_size,
+                    binding_constraint=binding_constraint,
+                    cash_available=self._cash,
+                    current_exposure=current_exposure,
+                    remaining_total_exposure=remaining_total_exposure,
+                    total_exposure_limit=total_exposure_limit,
+                    max_position_size=max_position_size,
+                    equity=equity_base,
                 )
                 return None
 
@@ -163,6 +179,16 @@ class ExecutionEngine:
             self._refresh_equity()
             log.info("execution_engine_position_opened", market=market, side=side, price=price, size=size)
             return position
+
+    def get_last_open_rejection(self) -> dict[str, Any] | None:
+        if self._last_open_rejection is None:
+            return None
+        return dict(self._last_open_rejection)
+
+    def _record_open_rejection(self, *, reason: str, **details: Any) -> None:
+        rejection_payload = {"reason": reason, **details}
+        self._last_open_rejection = rejection_payload
+        log.warning("execution_engine_open_rejected", **rejection_payload)
 
     def _is_validation_proof_allowed(self, proof: ExecutionValidationProof | None) -> bool:
         if not isinstance(proof, ExecutionValidationProof):
