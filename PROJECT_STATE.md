@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 00:02
-- Status        : FORGE-X S1 breaking-news narrative momentum strategy completed (STANDARD, narrow integration); completed and merged into main.
+- Last Updated  : 2026-04-09 00:53
+- Status        : FORGE-X S2 cross-exchange arbitrage strategy completed (STANDARD, narrow integration); awaiting Codex auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- S2 cross-exchange arbitrage strategy (2026-04-09): added strategy-trigger Polymarket↔Kalshi market matching confidence logic, normalized probability comparison, fee/slippage-adjusted net edge gating, structured ENTER/SKIP output with matched markets info, and focused five-case tests.
 - S1 breaking-news / narrative momentum strategy (2026-04-08): added social-spike + market-lag decision path in strategy trigger, EV edge gating, enter/skip reasoning contract (`decision`/`reason`/`edge`), and focused five-case behavior tests; completed and merged into main.
 - Telegram market scanning presence premium UX pass (2026-04-08): added throttled `🔎 MARKET SCAN` heartbeat, optional `🧠 TOP CANDIDATE` preview, and `⚠️ NO TRADE` explanation with strict hierarchical formatting and duplicate/noise suppression in strategy loop integration.
 - Telegram trade lifecycle alerts premium hierarchy pass (2026-04-08): added strict execution-boundary lifecycle alerts for entry/exit/skipped events with fixed `|-` field order, no duplicate command/callback trigger coverage, and focused format validation tests.
@@ -95,6 +96,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### S2 cross-exchange arbitrage handoff
+- STANDARD-tier narrow integration implementation is complete for strategy-trigger matching, normalization, and net-edge arbitration decisions.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ### Telegram trade lifecycle alerts handoff
 - STANDARD-tier narrow integration implementation is complete for execution-boundary lifecycle alerts and focused tests.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
@@ -140,11 +145,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_10_sync_project_state_after_s1_completion.md
-Tier: MINOR
+Source: projects/polymarket/polyquantbot/reports/forge/24_11_s2_cross_exchange_arbitrage.md
+Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- S2 cross-exchange arbitrage path is currently narrow integration in strategy trigger only and is not yet wired to runtime execution orchestration.
 - Pytest environment still reports unknown `asyncio_mode` config warning on focused lifecycle-alert tests; tests pass despite the warning.
 - External live Telegram device screenshot proof remains unavailable in this container environment for this UI-text audit pass.
 - Telegram Trade Menu MVP requires SENTINEL validation routing as the next focused workflow step.
