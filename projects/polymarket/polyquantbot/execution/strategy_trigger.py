@@ -133,6 +133,28 @@ class PortfolioExposureDecision:
     flags: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class StrategyPerformanceStats:
+    strategy_name: str
+    total_trades: int
+    wins: int
+    losses: int
+    average_edge: float
+    average_pnl: float
+    average_return: float
+    win_rate: float
+    consistency_score: float
+
+
+@dataclass(frozen=True)
+class AdaptiveAdjustmentState:
+    strategy_weights: dict[str, float]
+    sizing_modifier: float
+    min_edge_threshold: float
+    confidence_threshold: float
+    explanation: str
+
+
 class StrategyTrigger:
     """Strategy trigger with execution intelligence.
     
@@ -147,6 +169,174 @@ class StrategyTrigger:
         self._last_trigger_time: float | None = None
         self._cooldown_seconds = 30.0  # Anti-loop guard
         self._trace_engine = TradeTraceEngine()
+        self._strategy_results: dict[str, list[dict[str, float]]] = {}
+        self._adaptive_weights: dict[str, float] = {"S1": 1.0, "S2": 1.0, "S3": 1.0}
+        self._adaptive_sizing_modifier: float = 1.0
+        self._adaptive_edge_threshold: float = self._config.min_edge
+        self._adaptive_confidence_threshold: float = 0.65
+        self._adaptive_min_trades: int = 5
+        self._adaptive_step_limit: float = 0.03
+        self._adaptive_weight_bounds: tuple[float, float] = (0.80, 1.20)
+        self._adaptive_sizing_bounds: tuple[float, float] = (0.85, 1.15)
+        self._adaptive_edge_bounds: tuple[float, float] = (
+            max(0.005, self._config.min_edge * 0.80),
+            self._config.min_edge * 1.20,
+        )
+        self._adaptive_confidence_bounds: tuple[float, float] = (0.55, 0.80)
+        self._last_adjustment_explanation: str = "adaptive defaults active"
+
+    @staticmethod
+    def _clamp(value: float, lower: float, upper: float) -> float:
+        return min(max(value, lower), upper)
+
+    def record_trade_result(
+        self,
+        *,
+        strategy_name: str,
+        pnl: float,
+        edge: float,
+        position_size: float,
+    ) -> None:
+        normalized_strategy = strategy_name.strip().upper()
+        if normalized_strategy not in self._adaptive_weights:
+            return
+        safe_size = max(position_size, 1e-6)
+        trade_return = pnl / safe_size
+        bucket = self._strategy_results.setdefault(normalized_strategy, [])
+        bucket.append(
+            {
+                "pnl": pnl,
+                "edge": max(edge, 0.0),
+                "return": trade_return,
+            }
+        )
+        if len(bucket) > 50:
+            del bucket[0]
+        self._refresh_adaptive_state()
+
+    def _compute_strategy_performance(self, strategy_name: str) -> StrategyPerformanceStats:
+        results = self._strategy_results.get(strategy_name, [])
+        if not results:
+            return StrategyPerformanceStats(
+                strategy_name=strategy_name,
+                total_trades=0,
+                wins=0,
+                losses=0,
+                average_edge=0.0,
+                average_pnl=0.0,
+                average_return=0.0,
+                win_rate=0.0,
+                consistency_score=0.0,
+            )
+        total = len(results)
+        wins = sum(1 for item in results if item["pnl"] > 0.0)
+        losses = total - wins
+        avg_edge = sum(item["edge"] for item in results) / total
+        avg_pnl = sum(item["pnl"] for item in results) / total
+        avg_return = sum(item["return"] for item in results) / total
+        mean_abs_return = sum(abs(item["return"]) for item in results) / total
+        consistency = avg_return / max(mean_abs_return, 1e-6)
+        return StrategyPerformanceStats(
+            strategy_name=strategy_name,
+            total_trades=total,
+            wins=wins,
+            losses=losses,
+            average_edge=round(avg_edge, 6),
+            average_pnl=round(avg_pnl, 6),
+            average_return=round(avg_return, 6),
+            win_rate=round(wins / total, 6),
+            consistency_score=round(self._clamp(consistency, -1.0, 1.0), 6),
+        )
+
+    def _refresh_adaptive_state(self) -> None:
+        metrics = {
+            name: self._compute_strategy_performance(name)
+            for name in self._adaptive_weights
+        }
+        mature_metrics = [
+            item
+            for item in metrics.values()
+            if item.total_trades >= self._adaptive_min_trades
+        ]
+        if not mature_metrics:
+            self._adaptive_weights = {"S1": 1.0, "S2": 1.0, "S3": 1.0}
+            self._adaptive_sizing_modifier = 1.0
+            self._adaptive_edge_threshold = self._config.min_edge
+            self._adaptive_confidence_threshold = 0.65
+            self._last_adjustment_explanation = "insufficient data; fallback to defaults"
+            return
+
+        target_weights: dict[str, float] = {}
+        for strategy_name, snapshot in metrics.items():
+            if snapshot.total_trades < self._adaptive_min_trades:
+                target_weights[strategy_name] = 1.0
+                continue
+            score_signal = (
+                (snapshot.win_rate - 0.5) * 0.60
+                + snapshot.consistency_score * 0.25
+                + self._clamp(snapshot.average_return, -0.10, 0.10) * 1.50
+            )
+            raw_weight = 1.0 + score_signal
+            target_weights[strategy_name] = self._clamp(
+                raw_weight,
+                self._adaptive_weight_bounds[0],
+                self._adaptive_weight_bounds[1],
+            )
+        self._adaptive_weights = {
+            name: round(
+                current + self._clamp(target_weights[name] - current, -self._adaptive_step_limit, self._adaptive_step_limit),
+                6,
+            )
+            for name, current in self._adaptive_weights.items()
+        }
+
+        aggregate_return = sum(item.average_return for item in mature_metrics) / len(mature_metrics)
+        aggregate_consistency = sum(item.consistency_score for item in mature_metrics) / len(mature_metrics)
+        sizing_target = self._clamp(
+            1.0 + (aggregate_return * 1.2) + (aggregate_consistency * 0.08),
+            self._adaptive_sizing_bounds[0],
+            self._adaptive_sizing_bounds[1],
+        )
+        self._adaptive_sizing_modifier = round(
+            self._adaptive_sizing_modifier
+            + self._clamp(sizing_target - self._adaptive_sizing_modifier, -self._adaptive_step_limit, self._adaptive_step_limit),
+            6,
+        )
+
+        edge_target = self._clamp(
+            self._config.min_edge - (aggregate_return * 0.01),
+            self._adaptive_edge_bounds[0],
+            self._adaptive_edge_bounds[1],
+        )
+        self._adaptive_edge_threshold = round(
+            self._adaptive_edge_threshold
+            + self._clamp(edge_target - self._adaptive_edge_threshold, -0.002, 0.002),
+            6,
+        )
+
+        confidence_target = self._clamp(
+            0.65 - (aggregate_return * 0.30),
+            self._adaptive_confidence_bounds[0],
+            self._adaptive_confidence_bounds[1],
+        )
+        self._adaptive_confidence_threshold = round(
+            self._adaptive_confidence_threshold
+            + self._clamp(confidence_target - self._adaptive_confidence_threshold, -0.015, 0.015),
+            6,
+        )
+        self._last_adjustment_explanation = (
+            f"adaptive update from {len(mature_metrics)} mature strategy histories; "
+            f"aggregate_return={aggregate_return:.5f}, aggregate_consistency={aggregate_consistency:.5f}"
+        )
+
+    def get_adaptive_adjustment_state(self) -> AdaptiveAdjustmentState:
+        return AdaptiveAdjustmentState(
+            strategy_weights=dict(self._adaptive_weights),
+            sizing_modifier=round(self._adaptive_sizing_modifier, 6),
+            min_edge_threshold=round(self._adaptive_edge_threshold, 6),
+            confidence_threshold=round(self._adaptive_confidence_threshold, 6),
+            explanation=self._last_adjustment_explanation,
+        )
 
     def evaluate_breaking_news_momentum(
         self,
@@ -188,7 +378,8 @@ class StrategyTrigger:
         implied_odds = (1.0 - market_prob) / market_prob
         edge = max(0.0, (narrative_prob * implied_odds) - (1.0 - narrative_prob))
 
-        if edge <= self._config.min_edge:
+        adaptive_min_edge = self.get_adaptive_adjustment_state().min_edge_threshold
+        if edge <= adaptive_min_edge:
             return StrategyDecision(
                 decision="SKIP",
                 reason="weak signal: edge below threshold",
@@ -320,7 +511,7 @@ class StrategyTrigger:
         large_position_usd = 10_000.0
         early_entry_max_move_pct = 0.02
         repeated_wallet_min_count = 2
-        min_confidence_threshold = 0.65
+        min_confidence_threshold = self.get_adaptive_adjustment_state().confidence_threshold
 
         if signal.wallet_success_rate < min_success_rate or signal.wallet_activity_count < min_activity_count:
             return SmartMoneyCopyTradingDecision(
@@ -510,13 +701,15 @@ class StrategyTrigger:
             else 0.5
         )
         score = round((0.7 * normalized_edge) + (0.3 * normalized_confidence), 6)
+        adaptive_weight = self._adaptive_weights.get(strategy_name, 1.0)
+        weighted_score = round(score * adaptive_weight, 6)
         return StrategyCandidateScore(
             strategy_name=strategy_name,
             decision=decision,
             reason=reason,
             edge=round(max(edge, 0.0), 6),
             confidence=round(normalized_confidence, 6),
-            score=score,
+            score=weighted_score,
             market_metadata=market_metadata,
         )
 
@@ -593,6 +786,7 @@ class StrategyTrigger:
         normalized_score = min(max(base_score * conservative_multiplier, 0.0), 1.0)
         scaled_score = normalized_score ** 2
         raw_position_size = safe_capital * self._config.max_position_size_ratio * scaled_score
+        raw_position_size *= self._adaptive_sizing_modifier
         position_size = raw_position_size
 
         if position_size > max_position_size:

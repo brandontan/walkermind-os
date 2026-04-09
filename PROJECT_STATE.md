@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 04:29
-- Status        : FORGE-X P8 portfolio exposure balancing & correlation guard implemented (STANDARD, narrow integration) in post-S4 pre-execution path; awaiting Codex auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 05:05
+- Status        : FORGE-X P9 performance feedback loop implemented (STANDARD, narrow integration) in strategy-trigger adaptive layer; awaiting Codex auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P9 performance feedback loop (2026-04-09): added per-strategy post-trade performance tracking (trades/win-loss/avg edge/avg pnl), computed win-rate + average-return + consistency metrics, introduced bounded adaptive strategy weighting/sizing/threshold adjustments with fallback defaults, and added focused deterministic stability tests.
 - P8 portfolio exposure balancing & correlation guard (2026-04-09): added post-S4 pre-execution portfolio-fit guard in strategy trigger with same-market block, theme/similarity-aware correlation handling, exposure-cap-based size reduction/skip decisions, deterministic ENTER/SKIP/REDUCE output contract, and focused runtime-proof tests.
 - P7 capital allocation & position sizing (2026-04-09): implemented dynamic edge/confidence-driven position sizing in strategy trigger, added conservative fallback for missing confidence/borderline edge, enforced min-size + exposure constraints, integrated S4 selected-trade sizing before execution, and added focused six-case behavior tests.
 - S4 strategy aggregation & prioritization (2026-04-09): aggregated S1/S2/S3 outputs with preserved metadata, enforced deterministic normalized scoring and tie-break ranking, implemented single-winner ENTER/SKIP output contract (`selected_trade`/`ranked_candidates`/`selection_reason`/`top_score`/`decision`), and added focused seven-case behavior tests.
@@ -101,6 +102,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### P9 performance feedback loop handoff
+- STANDARD-tier narrow integration implementation is complete for post-trade strategy performance tracking and bounded adaptive scoring/sizing/threshold adjustment in strategy-trigger scope.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ### P8 portfolio exposure balancing & correlation guard handoff
 - STANDARD-tier narrow integration implementation is complete for post-S4 pre-execution portfolio validation, correlation-aware trade gating, and exposure-based size adjustment behavior.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
@@ -166,11 +171,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_16_p8_portfolio_exposure_balancing_correlation_guard.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_17_p9_performance_feedback_loop.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- P9 feedback loop is currently narrow integration in strategy-trigger scope only and is not yet wired to persistent trade-result storage across full runtime orchestration.
 - P8 portfolio exposure balancing is currently narrow integration in strategy-trigger pre-execution path only and is not yet generalized to broader runtime orchestration layers.
 - P7 position sizing is currently narrow integration in strategy-trigger execution input path only and is not yet generalized across full runtime orchestration.
 - S4 aggregation is currently narrow integration in strategy trigger only and is not yet wired into runtime execution orchestration; conflict-hold gate currently relies on explicit `CONFLICT_HOLD` marker semantics.
