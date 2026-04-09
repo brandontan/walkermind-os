@@ -273,6 +273,23 @@ class MarketRegimeClassification:
     strategy_weight_modifiers: dict[str, float]
 
 
+@dataclass(frozen=True)
+class AnalyticsPerformanceSnapshot:
+    pnl: float
+    win_rate: float
+    expectancy: float
+    drawdown: float
+    trades: int
+
+
+@dataclass(frozen=True)
+class OptimizationOutput:
+    strategy_weights: dict[str, float]
+    regime_weights: dict[str, float]
+    execution_adjustments: dict[str, float]
+    risk_adjustments: dict[str, float]
+
+
 class StrategyTrigger:
     """Strategy trigger with execution intelligence.
     
@@ -303,6 +320,24 @@ class StrategyTrigger:
         self._adaptive_confidence_bounds: tuple[float, float] = (0.55, 0.80)
         self._last_adjustment_explanation: str = "adaptive defaults active"
         self._position_peak_pnl: dict[str, float] = {}
+        self._optimization_strategy_modifiers: dict[str, float] = {"S1": 1.0, "S2": 1.0, "S3": 1.0}
+        self._optimization_regime_modifiers: dict[str, float] = {
+            "NEWS_DRIVEN": 1.0,
+            "ARBITRAGE_DOMINANT": 1.0,
+            "SMART_MONEY_DOMINANT": 1.0,
+            "LOW_ACTIVITY_CHAOTIC": 1.0,
+        }
+        self._optimization_execution_adjustments: dict[str, float] = {
+            "p10_spread_tightening": 1.0,
+            "p12_wait_window_factor": 1.0,
+            "p13_exit_sensitivity_factor": 1.0,
+        }
+        self._optimization_risk_adjustments: dict[str, float] = {
+            "aggression_modifier": 1.0,
+            "size_modifier": 1.0,
+        }
+        self._optimization_step_limit: float = 0.04
+        self._optimization_adjustment_explanation: str = "optimization defaults active"
 
     @staticmethod
     def _clamp(value: float, lower: float, upper: float) -> float:
@@ -455,6 +490,182 @@ class StrategyTrigger:
             min_edge_threshold=round(self._adaptive_edge_threshold, 6),
             confidence_threshold=round(self._adaptive_confidence_threshold, 6),
             explanation=self._last_adjustment_explanation,
+        )
+
+    @staticmethod
+    def _safe_min_max_normalize(values: dict[str, float]) -> dict[str, float]:
+        if not values:
+            return {}
+        low = min(values.values())
+        high = max(values.values())
+        if high - low <= 1e-9:
+            return {key: 0.5 for key in values}
+        return {key: (value - low) / (high - low) for key, value in values.items()}
+
+    def _smooth_adjustment(
+        self,
+        *,
+        current: float,
+        target: float,
+        lower: float,
+        upper: float,
+    ) -> float:
+        bounded_target = self._clamp(target, lower, upper)
+        delta = self._clamp(
+            bounded_target - current,
+            -self._optimization_step_limit,
+            self._optimization_step_limit,
+        )
+        return round(self._clamp(current + delta, lower, upper), 6)
+
+    def apply_analytics_optimization(
+        self,
+        *,
+        strategy_analytics: dict[str, AnalyticsPerformanceSnapshot],
+        regime_analytics: dict[str, AnalyticsPerformanceSnapshot],
+        execution_analytics: dict[str, float],
+        risk_analytics: dict[str, float],
+    ) -> OptimizationOutput:
+        if not strategy_analytics or sum(item.trades for item in strategy_analytics.values()) < 6:
+            self._optimization_strategy_modifiers = {"S1": 1.0, "S2": 1.0, "S3": 1.0}
+            self._optimization_regime_modifiers = {
+                "NEWS_DRIVEN": 1.0,
+                "ARBITRAGE_DOMINANT": 1.0,
+                "SMART_MONEY_DOMINANT": 1.0,
+                "LOW_ACTIVITY_CHAOTIC": 1.0,
+            }
+            self._optimization_execution_adjustments = {
+                "p10_spread_tightening": 1.0,
+                "p12_wait_window_factor": 1.0,
+                "p13_exit_sensitivity_factor": 1.0,
+            }
+            self._optimization_risk_adjustments = {
+                "aggression_modifier": 1.0,
+                "size_modifier": 1.0,
+            }
+            self._optimization_adjustment_explanation = "insufficient analytics; fallback to neutral modifiers"
+            return self.get_optimization_output()
+
+        pnl_values = {name: item.pnl for name, item in strategy_analytics.items()}
+        win_rate_values = {name: self._clamp(item.win_rate, 0.0, 1.0) for name, item in strategy_analytics.items()}
+        expectancy_values = {name: item.expectancy for name, item in strategy_analytics.items()}
+        inv_drawdown_values = {name: 1.0 - self._clamp(item.drawdown, 0.0, 1.0) for name, item in strategy_analytics.items()}
+
+        pnl_norm = self._safe_min_max_normalize(pnl_values)
+        win_rate_norm = self._safe_min_max_normalize(win_rate_values)
+        expectancy_norm = self._safe_min_max_normalize(expectancy_values)
+        drawdown_norm = self._safe_min_max_normalize(inv_drawdown_values)
+
+        for strategy_name, snapshot in strategy_analytics.items():
+            current = self._optimization_strategy_modifiers.get(strategy_name, 1.0)
+            score = (
+                (pnl_norm.get(strategy_name, 0.5) * 0.35)
+                + (win_rate_norm.get(strategy_name, 0.5) * 0.25)
+                + (expectancy_norm.get(strategy_name, 0.5) * 0.25)
+                + (drawdown_norm.get(strategy_name, 0.5) * 0.15)
+            )
+            target = 1.0
+            if score >= 0.67:
+                target = 1.08
+            elif score <= 0.30 and snapshot.pnl < 0.0 and snapshot.drawdown >= 0.18:
+                target = 0.88
+            elif score < 0.45:
+                target = 0.94
+            self._optimization_strategy_modifiers[strategy_name] = self._smooth_adjustment(
+                current=current,
+                target=target,
+                lower=0.85,
+                upper=1.15,
+            )
+
+        if regime_analytics:
+            regime_scores: dict[str, float] = {}
+            regime_pnl_norm = self._safe_min_max_normalize({name: item.pnl for name, item in regime_analytics.items()})
+            regime_win_norm = self._safe_min_max_normalize({name: item.win_rate for name, item in regime_analytics.items()})
+            regime_expectancy_norm = self._safe_min_max_normalize({name: item.expectancy for name, item in regime_analytics.items()})
+            regime_drawdown_norm = self._safe_min_max_normalize(
+                {name: 1.0 - self._clamp(item.drawdown, 0.0, 1.0) for name, item in regime_analytics.items()}
+            )
+            for regime_name in self._optimization_regime_modifiers:
+                if regime_name not in regime_analytics:
+                    continue
+                regime_scores[regime_name] = (
+                    (regime_pnl_norm.get(regime_name, 0.5) * 0.35)
+                    + (regime_win_norm.get(regime_name, 0.5) * 0.25)
+                    + (regime_expectancy_norm.get(regime_name, 0.5) * 0.25)
+                    + (regime_drawdown_norm.get(regime_name, 0.5) * 0.15)
+                )
+            if regime_scores:
+                best_regime = max(regime_scores, key=regime_scores.get)
+                worst_regime = min(regime_scores, key=regime_scores.get)
+                for regime_name, current in self._optimization_regime_modifiers.items():
+                    target = 1.0
+                    if regime_name == best_regime:
+                        target = 1.08
+                    elif regime_name == worst_regime and len(regime_scores) > 1:
+                        target = 0.92
+                    self._optimization_regime_modifiers[regime_name] = self._smooth_adjustment(
+                        current=current,
+                        target=target,
+                        lower=0.88,
+                        upper=1.12,
+                    )
+
+        slippage_ratio = self._clamp(float(execution_analytics.get("high_slippage_ratio", 0.0)), 0.0, 1.0)
+        poor_timing_ratio = self._clamp(float(execution_analytics.get("timing_wait_ratio", 0.0)), 0.0, 1.0)
+        poor_exit_ratio = self._clamp(float(execution_analytics.get("poor_exit_ratio", 0.0)), 0.0, 1.0)
+        self._optimization_execution_adjustments["p10_spread_tightening"] = self._smooth_adjustment(
+            current=self._optimization_execution_adjustments["p10_spread_tightening"],
+            target=0.94 if slippage_ratio >= 0.30 else 1.0,
+            lower=0.85,
+            upper=1.05,
+        )
+        self._optimization_execution_adjustments["p12_wait_window_factor"] = self._smooth_adjustment(
+            current=self._optimization_execution_adjustments["p12_wait_window_factor"],
+            target=0.92 if poor_timing_ratio >= 0.35 else 1.0,
+            lower=0.85,
+            upper=1.10,
+        )
+        self._optimization_execution_adjustments["p13_exit_sensitivity_factor"] = self._smooth_adjustment(
+            current=self._optimization_execution_adjustments["p13_exit_sensitivity_factor"],
+            target=0.92 if poor_exit_ratio >= 0.35 else 1.0,
+            lower=0.85,
+            upper=1.10,
+        )
+
+        current_drawdown = self._clamp(float(risk_analytics.get("current_drawdown", 0.0)), 0.0, 1.0)
+        drawdown_trend = float(risk_analytics.get("drawdown_trend", 0.0))
+        loss_streak = max(int(risk_analytics.get("loss_streak", 0.0)), 0)
+        risk_target_aggression = 1.0
+        if current_drawdown >= 0.05 and drawdown_trend > 0.0:
+            risk_target_aggression = 0.90
+        risk_target_size = 1.0
+        if loss_streak >= 3:
+            risk_target_size = 0.88
+
+        self._optimization_risk_adjustments["aggression_modifier"] = self._smooth_adjustment(
+            current=self._optimization_risk_adjustments["aggression_modifier"],
+            target=risk_target_aggression,
+            lower=0.80,
+            upper=1.05,
+        )
+        self._optimization_risk_adjustments["size_modifier"] = self._smooth_adjustment(
+            current=self._optimization_risk_adjustments["size_modifier"],
+            target=risk_target_size,
+            lower=0.80,
+            upper=1.05,
+        )
+        self._optimization_adjustment_explanation = (
+            "optimization update applied from analytics for strategy/regime/execution/risk layers"
+        )
+        return self.get_optimization_output()
+
+    def get_optimization_output(self) -> OptimizationOutput:
+        return OptimizationOutput(
+            strategy_weights=dict(self._optimization_strategy_modifiers),
+            regime_weights=dict(self._optimization_regime_modifiers),
+            execution_adjustments=dict(self._optimization_execution_adjustments),
+            risk_adjustments=dict(self._optimization_risk_adjustments),
         )
 
     def evaluate_breaking_news_momentum(
@@ -910,6 +1121,7 @@ class StrategyTrigger:
                 strategy_weight_modifiers={"S1": 1.0, "S2": 1.0, "S3": 1.0},
             )
         )
+        regime_performance_modifier = self._optimization_regime_modifiers.get(regime.regime_type, 1.0)
         candidates = [
             self._build_strategy_candidate_score(
                 strategy_name="S1",
@@ -918,7 +1130,7 @@ class StrategyTrigger:
                 edge=s1_decision.edge,
                 confidence=None,
                 market_metadata={},
-                regime_weight_modifier=regime.strategy_weight_modifiers.get("S1", 1.0),
+                regime_weight_modifier=regime.strategy_weight_modifiers.get("S1", 1.0) * regime_performance_modifier,
             ),
             self._build_strategy_candidate_score(
                 strategy_name="S2",
@@ -927,7 +1139,7 @@ class StrategyTrigger:
                 edge=s2_decision.edge,
                 confidence=None,
                 market_metadata=s2_decision.matched_markets_info,
-                regime_weight_modifier=regime.strategy_weight_modifiers.get("S2", 1.0),
+                regime_weight_modifier=regime.strategy_weight_modifiers.get("S2", 1.0) * regime_performance_modifier,
             ),
             self._build_strategy_candidate_score(
                 strategy_name="S3",
@@ -936,7 +1148,7 @@ class StrategyTrigger:
                 edge=max(0.0, s3_decision.confidence * self._config.min_edge),
                 confidence=s3_decision.confidence,
                 market_metadata=s3_decision.wallet_info,
-                regime_weight_modifier=regime.strategy_weight_modifiers.get("S3", 1.0),
+                regime_weight_modifier=regime.strategy_weight_modifiers.get("S3", 1.0) * regime_performance_modifier,
             ),
         ]
         ranked_candidates = sorted(candidates, key=lambda item: (-item.score, item.strategy_name))
@@ -1069,8 +1281,9 @@ class StrategyTrigger:
         )
         score = round((0.7 * normalized_edge) + (0.3 * normalized_confidence), 6)
         adaptive_weight = self._adaptive_weights.get(strategy_name, 1.0)
+        optimization_weight = self._optimization_strategy_modifiers.get(strategy_name, 1.0)
         bounded_regime_modifier = self._clamp(regime_weight_modifier, 0.85, 1.20)
-        weighted_score = round(score * adaptive_weight * bounded_regime_modifier, 6)
+        weighted_score = round(score * adaptive_weight * optimization_weight * bounded_regime_modifier, 6)
         return StrategyCandidateScore(
             strategy_name=strategy_name,
             decision=decision,
@@ -1154,7 +1367,9 @@ class StrategyTrigger:
         normalized_score = min(max(base_score * conservative_multiplier, 0.0), 1.0)
         scaled_score = normalized_score ** 2
         raw_position_size = safe_capital * self._config.max_position_size_ratio * scaled_score
-        raw_position_size *= self._adaptive_sizing_modifier
+        aggression_modifier = self._optimization_risk_adjustments["aggression_modifier"]
+        size_modifier = self._optimization_risk_adjustments["size_modifier"]
+        raw_position_size *= self._adaptive_sizing_modifier * aggression_modifier * size_modifier
         position_size = raw_position_size
 
         if position_size > max_position_size:
@@ -1354,6 +1569,9 @@ class StrategyTrigger:
     ) -> ExecutionQualityDecision:
         context = market_context or {}
         size = max(0.0, proposed_size)
+        spread_tightening = self._optimization_execution_adjustments["p10_spread_tightening"]
+        max_execution_spread = self._config.max_execution_spread * spread_tightening
+        borderline_execution_spread = self._config.borderline_execution_spread * spread_tightening
         if size <= 0.0:
             return ExecutionQualityDecision(
                 final_decision="SKIP",
@@ -1370,7 +1588,7 @@ class StrategyTrigger:
         ask = float(context.get("best_ask", min(1.0, market_price + (spread_val / 2.0))))
         observed_spread = max(0.0, ask - bid, spread_val)
 
-        if observed_spread >= self._config.max_execution_spread:
+        if observed_spread >= max_execution_spread:
             expected_fill_price = round(max(market_price, ask), 6)
             expected_slippage = round(max(expected_fill_price - market_price, 0.0), 6)
             return ExecutionQualityDecision(
@@ -1382,7 +1600,7 @@ class StrategyTrigger:
             )
 
         reduced = False
-        if observed_spread >= self._config.borderline_execution_spread:
+        if observed_spread >= borderline_execution_spread:
             size *= self._config.execution_reduction_factor
             reduced = True
 
@@ -1478,7 +1696,12 @@ class StrategyTrigger:
         normalized_wait_cycles = max(wait_cycles, 0)
         reference_price = signal_reference_price if signal_reference_price > 0.0 else market_price
         reference_price = max(reference_price, 0.0)
-        reevaluation_window = max(self._config.timing_reevaluation_window_seconds, 1)
+        wait_window_factor = self._optimization_execution_adjustments["p12_wait_window_factor"]
+        reevaluation_window = max(int(self._config.timing_reevaluation_window_seconds * wait_window_factor), 1)
+        max_wait_cycles = max(
+            int(round(self._config.timing_max_wait_cycles * wait_window_factor)),
+            1,
+        )
 
         bid = float(context.get("best_bid", market_price))
         ask = float(context.get("best_ask", market_price))
@@ -1503,7 +1726,7 @@ class StrategyTrigger:
             and spread_ratio >= self._config.anti_chase_spread_ratio
         )
         if chase_detected:
-            if normalized_wait_cycles >= self._config.timing_max_wait_cycles:
+            if normalized_wait_cycles >= max_wait_cycles:
                 return EntryTimingDecision(
                     timing_decision="SKIP",
                     timing_reason="anti_chase_timeout_skip",
@@ -1528,7 +1751,7 @@ class StrategyTrigger:
                     reevaluation_window=0,
                     final_execution_readiness=True,
                 )
-            if normalized_wait_cycles >= self._config.timing_max_wait_cycles:
+            if normalized_wait_cycles >= max_wait_cycles:
                 return EntryTimingDecision(
                     timing_decision="SKIP",
                     timing_reason="micro_pullback_timeout_skip",
@@ -1657,6 +1880,8 @@ class StrategyTrigger:
             regime_factor *= 1.1
 
         bounded_factor = self._clamp(regime_factor, 0.65, 1.35)
+        exit_sensitivity_factor = self._optimization_execution_adjustments["p13_exit_sensitivity_factor"]
+        bounded_factor = self._clamp(bounded_factor * exit_sensitivity_factor, 0.60, 1.40)
         stop_loss_limit = position_size * self._config.stop_loss_ratio * bounded_factor
         favorable_threshold = max(
             self._config.target_pnl * bounded_factor,
@@ -1704,7 +1929,7 @@ class StrategyTrigger:
 
         if peak_pnl >= favorable_threshold:
             pullback_from_peak = peak_pnl - current_pnl
-            weakening_threshold = peak_pnl * self._config.momentum_weakening_ratio
+            weakening_threshold = peak_pnl * self._config.momentum_weakening_ratio * exit_sensitivity_factor
             if pullback_from_peak >= weakening_threshold:
                 return ExitDecision(
                     exit_decision="EXIT_FULL",
