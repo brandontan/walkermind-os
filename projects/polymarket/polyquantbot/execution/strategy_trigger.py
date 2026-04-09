@@ -2028,6 +2028,32 @@ class StrategyTrigger:
     def _tokenize(value: str) -> list[str]:
         return [token for token in re.split(r"[^a-z0-9]+", value.lower()) if len(token) >= 3]
 
+    def _record_terminal_trace(
+        self,
+        *,
+        trade_id: str,
+        signal_data: dict[str, object],
+        decision_data: dict[str, object],
+        validation_result: dict[str, object],
+        execution_data: dict[str, object],
+        outcome_data: dict[str, object],
+        terminal_status: str,
+        terminal_reason: str,
+    ) -> None:
+        self._trade_traceability[trade_id] = {
+            "trade_id": trade_id,
+            "signal_data": dict(signal_data),
+            "decision_data": dict(decision_data),
+            "validation_result": dict(validation_result),
+            "execution_data": dict(execution_data),
+            "outcome_data": {
+                **dict(outcome_data),
+                "terminal_status": terminal_status,
+                "terminal_reason": terminal_reason,
+            },
+            "risk_state": self._risk_engine.as_dict(),
+        }
+
     async def evaluate(
         self,
         market_price: float,
@@ -2067,6 +2093,7 @@ class StrategyTrigger:
 
         if open_pos is None and market_price < self._config.threshold and entry_score >= 0.5:
             current_total_exposure = sum(position.exposure() for position in snapshot.positions)
+            trade_id = str(uuid.uuid4())
             selected_candidate = None
             if aggregation_decision is not None and aggregation_decision.selected_trade:
                 selected_candidate = next(
@@ -2099,11 +2126,33 @@ class StrategyTrigger:
                 open_positions=list(snapshot.positions),
                 total_capital=snapshot.equity,
             )
-            if portfolio_guard.final_decision == "SKIP":
-                return "BLOCKED"
+            selected_metadata = selected_candidate.market_metadata if selected_candidate is not None else {}
             signal_edge = max(self._config.min_edge, 0.0)
             if selected_candidate is not None:
                 signal_edge = max(selected_candidate.edge, 0.0)
+            signal_data = {
+                "expected_value": float((market_context or {}).get("expected_value", signal_edge)),
+                "edge": signal_edge,
+                "liquidity_usd": float((market_context or {}).get("liquidity_usd", 0.0)),
+                "spread": float((market_context or {}).get("spread", 0.0)),
+            }
+            decision_data = {
+                "position_size": portfolio_guard.adjusted_size,
+                "target_market_id": target_market_id,
+                "strategy_source": selected_candidate.strategy_name if selected_candidate is not None else "UNKNOWN",
+            }
+            if portfolio_guard.final_decision == "SKIP":
+                self._record_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data,
+                    validation_result={"decision": "NOT_EVALUATED", "reason": "portfolio_guard_blocked", "checks": {}},
+                    execution_data={},
+                    outcome_data={"guard_reason": portfolio_guard.reason, "guard_flags": list(portfolio_guard.flags)},
+                    terminal_status="BLOCKED",
+                    terminal_reason="portfolio_guard",
+                )
+                return "BLOCKED"
             timing_wait_cycles = int((market_context or {}).get("timing_wait_cycles", 0.0))
             signal_reference_price = float((market_context or {}).get("signal_reference_price", market_price))
             readiness = self.evaluate_entry_execution_readiness(
@@ -2121,12 +2170,40 @@ class StrategyTrigger:
                     reference_price=readiness.reference_price,
                     reevaluation_window=readiness.reevaluation_window,
                 )
+                self._record_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data | {"position_size": readiness.adjusted_size},
+                    validation_result={"decision": "NOT_EVALUATED", "reason": "timing_gate_wait", "checks": {}},
+                    execution_data={},
+                    outcome_data={
+                        "timing_decision": readiness.timing_decision,
+                        "timing_reason": readiness.timing_reason,
+                        "reevaluation_window": readiness.reevaluation_window,
+                    },
+                    terminal_status="HOLD",
+                    terminal_reason="timing_gate",
+                )
                 return "HOLD"
             if readiness.timing_decision == "SKIP":
                 log.info(
                     "entry_timing_skip",
                     timing_reason=readiness.timing_reason,
                     reference_price=readiness.reference_price,
+                )
+                self._record_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data | {"position_size": readiness.adjusted_size},
+                    validation_result={"decision": "NOT_EVALUATED", "reason": "timing_gate_skip", "checks": {}},
+                    execution_data={},
+                    outcome_data={
+                        "timing_decision": readiness.timing_decision,
+                        "timing_reason": readiness.timing_reason,
+                        "reference_price": readiness.reference_price,
+                    },
+                    terminal_status="BLOCKED",
+                    terminal_reason="timing_gate",
                 )
                 return "BLOCKED"
             if not readiness.final_execution_readiness:
@@ -2136,10 +2213,23 @@ class StrategyTrigger:
                     expected_fill_price=readiness.expected_fill_price,
                     expected_slippage=readiness.expected_slippage,
                 )
+                self._record_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data | {"position_size": readiness.adjusted_size},
+                    validation_result={"decision": "NOT_EVALUATED", "reason": "execution_quality_blocked", "checks": {}},
+                    execution_data={},
+                    outcome_data={
+                        "execution_quality_decision": readiness.execution_quality_decision,
+                        "execution_quality_reason": readiness.execution_quality_reason,
+                        "expected_fill_price": readiness.expected_fill_price,
+                        "expected_slippage": readiness.expected_slippage,
+                    },
+                    terminal_status="BLOCKED",
+                    terminal_reason="execution_quality_gate",
+                )
                 return "BLOCKED"
             size = readiness.adjusted_size
-            trade_id = str(uuid.uuid4())
-            selected_metadata = selected_candidate.market_metadata if selected_candidate is not None else {}
             candidate_title = (
                 str(selected_metadata.get("title") or selected_metadata.get("market_title", ""))
                 if selected_candidate is not None
@@ -2147,36 +2237,27 @@ class StrategyTrigger:
                 and (selected_metadata.get("title") or selected_metadata.get("market_title"))
                 else target_market_id
             )
-            signal_data = {
-                "expected_value": float((market_context or {}).get("expected_value", signal_edge)),
-                "edge": signal_edge,
-                "liquidity_usd": float((market_context or {}).get("liquidity_usd", 0.0)),
-                "spread": float((market_context or {}).get("spread", 0.0)),
-            }
-            decision_data = {
-                "position_size": size,
-                "target_market_id": target_market_id,
-                "strategy_source": selected_candidate.strategy_name if selected_candidate is not None else "UNKNOWN",
-            }
+            decision_data = decision_data | {"position_size": size}
             validation_result = self._pre_trade_validator.validate(
                 signal_data=signal_data,
                 decision_data=decision_data,
                 risk_state=self._risk_engine.as_dict(),
             )
             if validation_result.decision != "ALLOW":
-                self._trade_traceability[trade_id] = {
-                    "trade_id": trade_id,
-                    "signal_data": signal_data,
-                    "decision_data": decision_data,
-                    "validation_result": {
+                self._record_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data,
+                    validation_result={
                         "decision": validation_result.decision,
                         "reason": validation_result.reason,
                         "checks": validation_result.checks,
                     },
-                    "execution_data": {},
-                    "outcome_data": {},
-                    "risk_state": self._risk_engine.as_dict(),
-                }
+                    execution_data={},
+                    outcome_data={},
+                    terminal_status="BLOCKED",
+                    terminal_reason="pre_trade_validator",
+                )
                 log.info("pre_trade_blocked", reason=validation_result.reason, trade_id=trade_id)
                 return "BLOCKED"
             self._execution_tracker.record_order_submission(
@@ -2258,6 +2339,21 @@ class StrategyTrigger:
                     intelligence_reasons=entry_reasons,
                     decision_threshold=0.5,
                     action="OPEN",
+                )
+            if created is None:
+                self._record_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data,
+                    validation_result={
+                        "decision": validation_result.decision,
+                        "reason": validation_result.reason,
+                        "checks": validation_result.checks,
+                    },
+                    execution_data=self._execution_tracker.get_execution_data(trade_id),
+                    outcome_data={"engine_result": "open_position_returned_none"},
+                    terminal_status="BLOCKED",
+                    terminal_reason="execution_engine_rejection",
                 )
             return "OPENED" if created is not None else "BLOCKED"
 

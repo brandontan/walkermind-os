@@ -1,14 +1,15 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 16:58
-- Status        : SENTINEL validated P16 execution validation & risk enforcement control-layer implementation as APPROVED (MAJOR gate satisfied).
+- Last Updated  : 2026-04-09 19:27
+- Status        : FORGE-X remediation complete for P16 restart-safe global risk block + terminal trace coverage; pending SENTINEL MAJOR revalidation before merge.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
-- SENTINEL validation complete for P16 execution validation & risk enforcement layer (2026-04-09): verdict **APPROVED** after runtime verification of pre-trade blocking, execution truth capture, edge validation, risk global-block enforcement, interception chain, and end-to-end traceability in declared scope.
+- SENTINEL validation complete for P16 execution validation & risk enforcement layer (2026-04-09): verdict **APPROVED** for initial pass, now explicitly superseded by PR #348 blocked revalidation and remediation flow for restart-safe risk-block persistence + terminal trace authority.
 - P16 execution validation & risk enforcement layer (2026-04-09): implemented runtime pre-trade hard-block validation, execution truth capture, closed-trade edge validation, and global risk kill-switch enforcement in strategy-trigger execution path with focused MAJOR runtime-proof tests.
+- P16 restart-safe risk block + terminal trace remediation (2026-04-09): added persisted sticky global trade-block authority with restart rehydration and fail-safe load behavior in touched strategy-trigger runtime path; added authoritative terminal trace records for portfolio guard, timing gate, execution-quality gate, and execution-engine rejection outcomes with deterministic proof tests.
 - Market title resolution test hardening follow-up (2026-04-09): removed private cache mutation from Falcon title regression tests, seeded fallback cache through public normalization behavior, and preserved partial-failure/no-placeholder assertions.
 - Market title resolution follow-up hardening (2026-04-09): fixed partial Falcon failure path so successful markets title resolution is cached before downstream fetches, preventing fallback to numeric placeholder when later Falcon calls fail, and added focused regression coverage.
 - Market title resolution fix from market_id (2026-04-09): resolved real `market_title` via Falcon market metadata/cache in touched data-layer path, enforced strict placeholder fallback only when API unavailable with no cached title, and added focused regression tests for single/multi-market and fallback behavior.
@@ -123,9 +124,9 @@ Status:
 
 ## 🚧 IN PROGRESS
 
-### P16 execution validation & risk enforcement handoff
-- MAJOR-tier FULL RUNTIME INTEGRATION implementation is complete for strategy-trigger execution interception, execution-truth capture, edge validation, and global risk block enforcement in touched runtime path.
-- SENTINEL validation completed with verdict APPROVED; ready for COMMANDER merge decision.
+### P16 restart-safe risk block + terminal trace remediation handoff
+- MAJOR-tier NARROW INTEGRATION remediation is complete for touched strategy-trigger runtime path (`core/risk/risk_engine.py` + `execution/strategy_trigger.py`) with restart-safe persisted hard-block enforcement and authoritative terminal trace records on blocked/hold terminal outcomes.
+- SENTINEL MAJOR revalidation is required before merge for this remediation pass; prior approval history is superseded for this layer until revalidation verdict is issued.
 
 ### Market title test-hardening handoff
 - STANDARD-tier NARROW INTEGRATION follow-up is complete for Falcon title-resolution regression test integrity in touched test scope.
@@ -262,7 +263,7 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 SENTINEL validation required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_33_p16_execution_validation_risk_enforcement_layer.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_35_risk_restart_trace_remediation.md
 Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
