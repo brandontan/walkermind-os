@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from .engine import ExecutionEngine
+from .drift_guard import build_orderbook_snapshot_from_context
 from .intelligence import ExecutionIntelligence, MarketSnapshot
 from .trade_trace import TradeTraceEngine
 from ..strategy.falcon_alpha_strategy import FalconSignal
@@ -2311,6 +2312,15 @@ class StrategyTrigger:
                 market_type=market_type,
                 volatility_proxy=float(volatility_proxy) if volatility_proxy is not None else None,
             )
+            current_orderbook = build_orderbook_snapshot_from_context(
+                context=market_context,
+                market_price=readiness.expected_fill_price,
+            )
+            model_probability = self._clamp(
+                readiness.expected_fill_price + signal_edge,
+                0.01,
+                0.99,
+            )
             self._execution_tracker.record_order_submission(
                 trade_id=trade_id,
                 expected_price=readiness.expected_fill_price,
@@ -2341,8 +2351,12 @@ class StrategyTrigger:
                     "slippage_impact": readiness.expected_slippage,
                     "timing_effectiveness": 1.0 if readiness.timing_decision == "ENTER_NOW" else 0.0,
                     "trade_id": trade_id,
+                    "model_probability": model_probability,
+                    "current_orderbook": current_orderbook,
                 },
                 validation_proof=validation_proof,
+                current_orderbook=current_orderbook,
+                model_probability=model_probability,
             )
             if created:
                 execution_data = self._execution_tracker.record_fill(

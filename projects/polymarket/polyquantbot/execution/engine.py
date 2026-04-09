@@ -20,6 +20,7 @@ from .proof_lifecycle import (
     ValidationProofRegistry,
     new_validation_proof,
 )
+from .drift_guard import ExecutionDriftGuard
 
 log = structlog.get_logger(__name__)
 
@@ -69,6 +70,7 @@ class ExecutionEngine:
         self._proof_registry.initialize()
         self._proof_verifier = ProofVerifier(self._proof_registry)
         self._ttl_resolver = ttl_resolver or TTLResolver()
+        self._drift_guard = ExecutionDriftGuard()
         self._last_open_rejection: dict[str, Any] | None = None
 
     def build_validation_proof(
@@ -116,6 +118,8 @@ class ExecutionEngine:
         position_id: str | None = None,
         position_context: dict[str, Any] | None = None,
         validation_proof: ValidationProof | None = None,
+        current_orderbook: dict[str, Any] | None = None,
+        model_probability: float | None = None,
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
@@ -140,6 +144,32 @@ class ExecutionEngine:
                     market=market,
                     position_id=position_id,
                     proof_id=validation_proof.proof_id,
+                )
+                return None
+            resolved_context = dict(position_context or {})
+            drift_check_model_probability = (
+                float(model_probability)
+                if model_probability is not None
+                else float(resolved_context.get("model_probability", 0.0))
+            )
+            drift_check_orderbook = (
+                dict(current_orderbook)
+                if current_orderbook is not None
+                else dict(resolved_context.get("current_orderbook", {}))
+            )
+            drift_result = self._drift_guard.validate(
+                validated_price=float(price),
+                current_orderbook=drift_check_orderbook,
+                model_probability=drift_check_model_probability,
+                order_size=float(size),
+                side=str(side),
+            )
+            if not drift_result.approved:
+                self._record_open_rejection(
+                    reason=str(drift_result.reason or "liquidity_insufficient"),
+                    drift_guard=drift_result.to_dict(),
+                    market=market,
+                    position_id=position_id,
                 )
                 return None
             size = float(size)
@@ -203,7 +233,7 @@ class ExecutionEngine:
                 position_id=position_id
             )
             self._positions[market] = position
-            self._position_context[position.position_id] = dict(position_context or {})
+            self._position_context[position.position_id] = resolved_context
             self._cash -= size
             self._implied_prob = max(0.01, min(0.99, float(price)))
             self._recalculate_unrealized()
