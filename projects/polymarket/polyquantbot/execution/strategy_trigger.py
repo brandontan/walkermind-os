@@ -303,6 +303,7 @@ class StrategyTrigger:
         self._adaptive_confidence_bounds: tuple[float, float] = (0.55, 0.80)
         self._last_adjustment_explanation: str = "adaptive defaults active"
         self._position_peak_pnl: dict[str, float] = {}
+        self._position_entry_context: dict[str, dict[str, object]] = {}
 
     @staticmethod
     def _clamp(value: float, lower: float, upper: float) -> float:
@@ -1918,8 +1919,42 @@ class StrategyTrigger:
                 price=readiness.expected_fill_price,
                 size=size,
                 position_id=str(uuid.uuid4()),
+                position_context={
+                    "strategy_source": (
+                        selected_candidate.strategy_name
+                        if selected_candidate is not None
+                        else "UNKNOWN"
+                    ),
+                    "regime_at_entry": (
+                        aggregation_decision.current_regime
+                        if aggregation_decision is not None
+                        else str((market_context or {}).get("current_regime", "LOW_ACTIVITY_CHAOTIC"))
+                    ),
+                    "entry_quality": readiness.execution_quality_reason,
+                    "entry_timing": readiness.timing_reason,
+                    "theoretical_edge": signal_edge,
+                    "slippage_impact": readiness.expected_slippage,
+                    "timing_effectiveness": 1.0 if readiness.timing_decision == "ENTER_NOW" else 0.0,
+                },
             )
             if created:
+                self._position_entry_context[created.position_id] = {
+                    "strategy_source": (
+                        selected_candidate.strategy_name
+                        if selected_candidate is not None
+                        else "UNKNOWN"
+                    ),
+                    "regime_at_entry": (
+                        aggregation_decision.current_regime
+                        if aggregation_decision is not None
+                        else str((market_context or {}).get("current_regime", "LOW_ACTIVITY_CHAOTIC"))
+                    ),
+                    "entry_quality": readiness.execution_quality_reason,
+                    "entry_timing": readiness.timing_reason,
+                    "theoretical_edge": signal_edge,
+                    "slippage_impact": readiness.expected_slippage,
+                    "timing_effectiveness": 1.0 if readiness.timing_decision == "ENTER_NOW" else 0.0,
+                }
                 self._trace_engine.record_trace(
                     position_id=created.position_id,
                     market_id=self._config.market_id,
@@ -1946,7 +1981,21 @@ class StrategyTrigger:
                 )
                 if exit_decision.exit_decision == "HOLD":
                     return "HOLD"
-                await self._engine.close_position(tracked, market_price)
+                entry_context = self._position_entry_context.pop(tracked.position_id, {})
+                exit_efficiency = 0.5
+                if exit_decision.exit_reason == "momentum_weakened_after_favorable_move":
+                    exit_efficiency = 1.0
+                elif exit_decision.exit_reason in {"stop_loss_threshold_breached", "signal_invalidation"}:
+                    exit_efficiency = 0.3
+                await self._engine.close_position(
+                    tracked,
+                    market_price,
+                    close_context={
+                        **entry_context,
+                        "exit_reason": exit_decision.exit_reason,
+                        "exit_efficiency": exit_efficiency,
+                    },
+                )
                 self._position_peak_pnl.pop(str(getattr(tracked, "position_id", "")), None)
                 self._trace_engine.record_trace(
                     position_id=tracked.position_id,

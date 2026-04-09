@@ -44,6 +44,7 @@ class ExecutionEngine:
         self._analytics = PerformanceTracker()
         self._trace_engine = TradeTraceEngine()
         self._closed_trades: list[dict[str, Any]] = []
+        self._position_context: dict[str, dict[str, Any]] = {}
 
     async def open_position(
         self,
@@ -53,6 +54,7 @@ class ExecutionEngine:
         price: float,
         size: float,
         position_id: str | None = None,
+        position_context: dict[str, Any] | None = None,
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
@@ -102,6 +104,7 @@ class ExecutionEngine:
                 position_id=position_id
             )
             self._positions[market] = position
+            self._position_context[position.position_id] = dict(position_context or {})
             self._cash -= size
             self._implied_prob = max(0.01, min(0.99, float(price)))
             self._recalculate_unrealized()
@@ -109,7 +112,12 @@ class ExecutionEngine:
             log.info("execution_engine_position_opened", market=market, side=side, price=price, size=size)
             return position
 
-    async def close_position(self, position: Position, price: float) -> float:
+    async def close_position(
+        self,
+        position: Position,
+        price: float,
+        close_context: dict[str, Any] | None = None,
+    ) -> float:
         """Close position, realize PnL, and update portfolio."""
         async with self._lock:
             live_position = self._positions.get(position.market_id)
@@ -120,7 +128,20 @@ class ExecutionEngine:
             realized_pnl = live_position.update_price(float(price))
             self._realized_pnl += realized_pnl
             self._cash += live_position.size + realized_pnl
-            self._analytics.record_trade(live_position)
+            entry_context = self._position_context.pop(live_position.position_id, {})
+            final_context = dict(entry_context)
+            final_context.update(dict(close_context or {}))
+            duration = max(0.0, (datetime.now(timezone.utc).timestamp() - live_position.created_at))
+            theoretical_edge = max(0.0, float(final_context.get("theoretical_edge", 0.0)))
+            actual_return = float(final_context.get("actual_return", realized_pnl / max(live_position.size, 1e-9)))
+            strategy_source = str(final_context.get("strategy_source", "UNKNOWN")).strip().upper() or "UNKNOWN"
+            regime_at_entry = str(final_context.get("regime_at_entry", "CHAOTIC")).strip().upper() or "CHAOTIC"
+            entry_quality = str(final_context.get("entry_quality", "not_provided"))
+            entry_timing = str(final_context.get("entry_timing", "not_provided"))
+            exit_reason = str(final_context.get("exit_reason", "not_provided"))
+            slippage_impact = float(final_context.get("slippage_impact", 0.0))
+            timing_effectiveness = float(final_context.get("timing_effectiveness", 0.0))
+            exit_efficiency = float(final_context.get("exit_efficiency", 0.0))
             closed_trade = {
                 "market_id": live_position.market_id,
                 "market_title": live_position.market_title,
@@ -131,7 +152,20 @@ class ExecutionEngine:
                 "result": "WIN" if realized_pnl >= 0 else "LOSS",
                 "closed_at": datetime.now(timezone.utc).isoformat(),
                 "position_id": live_position.position_id,
+                "size": live_position.size,
+                "duration": round(duration, 6),
+                "strategy_source": strategy_source,
+                "regime_at_entry": regime_at_entry,
+                "entry_quality": entry_quality,
+                "entry_timing": entry_timing,
+                "exit_reason": exit_reason,
+                "theoretical_edge": theoretical_edge,
+                "actual_return": actual_return,
+                "slippage_impact": slippage_impact,
+                "timing_effectiveness": timing_effectiveness,
+                "exit_efficiency": exit_efficiency,
             }
+            self._analytics.record_trade(closed_trade)
             self._closed_trades.append(closed_trade)
             del self._positions[live_position.market_id]
             self._recalculate_unrealized()

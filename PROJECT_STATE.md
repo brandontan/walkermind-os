@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 11:52
-- Status        : FORGE-X P13 exit timing & trade management implementation complete (STANDARD, narrow integration) in strategy-trigger position monitoring + exit-decision path; awaiting Codex auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 11:21
+- Status        : FORGE-X P14 post-trade analytics & attribution implementation complete (STANDARD, narrow integration) across closed-trade storage + analytics computation layer; awaiting Codex auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P14 post-trade analytics & attribution (2026-04-09): implemented closed-trade attribution persistence (`strategy_source`/`regime_at_entry`/`entry_quality`/`entry_timing`/`exit_reason`/`duration`), added analytics summary computation for profitability/expectancy/edge-captured/strategy+regime attribution/execution-quality/risk metrics, integrated strategy-trigger entry/exit context handoff into execution close path, and added deterministic runtime-proof tests.
 - P13 exit timing & trade management (2026-04-09): replaced static exit threshold behavior with adaptive deterministic exit decisioning (`EXIT_FULL`/`HOLD` + `exit_reason`/`pnl_snapshot`/`trade_duration`), added favorable-move momentum-weakening take-profit logic, bounded stop-loss + signal-invalidation exits, stale-trade timeout/hard-duration guards, and light adaptation using P9 performance feedback + P11 regime context with focused runtime-proof tests.
 - TG-2 + TG-3 open positions visibility & trade history (2026-04-09): implemented full open-position card rendering without truncation, added separate-card handling for same-market multi-position entries with per-position refs, added closed-trade history rendering with newest-first ordering and capped history display, integrated execution payload closed-trade persistence into portfolio state and Telegram callback payload path, and added focused formatter/view tests (including strict format and empty-state coverage).
 - P12 execution timing & entry optimization (2026-04-09): added pre-execution timing-aware gate with deterministic `ENTER_NOW`/`WAIT`/`SKIP` output contract, anti-chase spike delay/timeout skip handling, micro-pullback wait/re-evaluate/enter flow, bounded reevaluation windows, and timing-first coordination with existing P10 execution-quality gate plus focused deterministic tests.
@@ -110,6 +111,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### P14 post-trade analytics & attribution handoff
+- STANDARD-tier narrow integration implementation is complete for trade lifecycle attribution, closed-trade storage enrichment, and in-memory analytics summary computation.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ### P13 exit timing & trade management handoff
 - STANDARD-tier narrow integration implementation is complete for strategy-trigger position monitoring and adaptive exit decisions with P9/P11 context shaping.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
@@ -211,11 +216,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_25_p13_exit_timing_trade_management.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_26_p14_post_trade_analytics_attribution.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- P14 analytics attribution is currently narrow integration in strategy-trigger to execution closed-trade path only and is not yet wired to external persistence or dashboard surfaces.
 - P13 exit management is currently narrow integration in strategy-trigger monitoring path only and is not yet propagated into broader runtime orchestration surfaces.
 - TG-2 + TG-3 trade history is currently narrow integration in Telegram portfolio rendering path only and is not yet surfaced in other non-portfolio historical analytics views.
 - P12 entry timing layer is currently narrow integration in strategy-trigger pre-execution path only and is not yet wired into broader runtime execution orchestration layers.
