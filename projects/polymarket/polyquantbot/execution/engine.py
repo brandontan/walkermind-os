@@ -46,6 +46,7 @@ class ExecutionEngine:
     async def open_position(
         self,
         market: str,
+        market_title: str,
         side: str,
         price: float,
         size: float,
@@ -90,6 +91,7 @@ class ExecutionEngine:
 
             position = Position(
                 market_id=market,
+                market_title=market_title,
                 side=side.upper(),
                 entry_price=float(price),
                 current_price=float(price),
@@ -184,6 +186,7 @@ async def export_execution_payload() -> dict[str, Any]:
         "positions": [
             {
                 "market_id": pos.market_id,
+                "market_title": pos.market_title,
                 "side": pos.side,
                 "entry_price": pos.entry_price,
                 "current_price": pos.current_price,

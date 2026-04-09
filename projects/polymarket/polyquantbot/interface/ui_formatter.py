@@ -170,16 +170,14 @@ def _resolve_market_label(payload: Mapping[str, Any], context: Mapping[str, Any]
 
     for candidate in (
         payload.get("market_title"),
-        payload.get("market_question"),
-        payload.get("market_name"),
         context.get("question"),
-        context.get("name"),
-        payload.get("market"),
     ):
         text = _compact_text(candidate, "", max_len=86)
         if text and not _is_generic_label(text) and not _is_internal_fallback_label(text):
             return text
-
+    fallback_market_id = _safe_text(payload.get("market_id"), "")
+    if fallback_market_id:
+        return f"Market {fallback_market_id[:12]}"
     return "Untitled Market"
 
 
@@ -433,8 +431,7 @@ async def _render_position_cards(payload: Mapping[str, Any]) -> list[str]:
         row_payload.update(
             {
                 "market_id": row.get("market_id"),
-                "market_title": row.get("market_title", row.get("market_question")),
-                "market_question": row.get("market_question"),
+                "market_title": row.get("market_title"),
                 "side": row.get("side"),
                 "entry": row.get("entry_price", row.get("avg_price")),
                 "current": row.get("current_price", row.get("entry_price", row.get("avg_price"))),

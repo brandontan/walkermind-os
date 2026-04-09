@@ -1775,8 +1775,14 @@ class StrategyTrigger:
                 )
                 return "BLOCKED"
             size = readiness.adjusted_size
+            candidate_title = (
+                selected_candidate.title
+                if selected_candidate is not None and selected_candidate.title
+                else target_market_id
+            )
             created = await self._engine.open_position(
                 market=target_market_id,
+                market_title=str(candidate_title),
                 side=self._config.side,
                 price=readiness.expected_fill_price,
                 size=size,
