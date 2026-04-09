@@ -4,11 +4,16 @@ from typing import Any
 
 import structlog
 
-from .ingestion.falcon_alpha import FalconAPIClient, fetch_external_alpha_with_fallback
+from .ingestion.falcon_alpha import (
+    FalconAPIClient,
+    fetch_external_alpha_with_fallback,
+    get_cached_market_title,
+)
 from .polymarket_api import fetch_market_details
 
 log = structlog.get_logger(__name__)
 market_cache: dict[str, dict[str, Any]] = {}
+market_title_cache: dict[str, str] = {}
 
 
 async def get_market_context(market_id: str) -> dict[str, Any]:
@@ -28,10 +33,11 @@ async def get_market_context(market_id: str) -> dict[str, Any]:
 
     try:
         raw = await fetch_market_details(market_id) or {}
-        q = raw.get("question", "")
-        name = q if isinstance(q, str) and q else f"Market #{market_id}"
+        resolved_title = _resolve_market_title(raw) or market_title_cache.get(market_id, "")
+        if resolved_title:
+            market_title_cache[market_id] = resolved_title
         context = {
-            "name": name,
+            "name": resolved_title,
             "category": raw.get("category") or "unknown",
             "resolution": raw.get("end_date_iso", raw.get("end_date", "N/A")),
         }
@@ -39,8 +45,9 @@ async def get_market_context(market_id: str) -> dict[str, Any]:
         return context
     except Exception as exc:
         log.warning("market_context_api_failed", market_id=market_id, error=str(exc))
+        cached_title = market_title_cache.get(market_id) or get_cached_market_title(market_id)
         return {
-            "name": f"Market #{market_id}",
+            "name": cached_title or f"Market {market_id}",
             "category": "unknown",
             "resolution": "N/A",
         }
@@ -64,7 +71,7 @@ async def get_market_context_with_external_alpha(
     return {
         **internal,
         "market_id": market_id,
-        "market_title": external.get("market_title") or internal.get("name", ""),
+        "market_title": external.get("market_title") or internal.get("name", "") or market_title_cache.get(market_id, ""),
         "price": float(external.get("price", 0.0)),
         "volume": float(external.get("volume", 0.0)),
         "momentum": float(external.get("momentum", 0.0)),
@@ -73,3 +80,11 @@ async def get_market_context_with_external_alpha(
         "smart_money_score": float(external.get("smart_money_indicator", 0.0)),
         "volatility": float(external.get("volatility_snapshot", 0.0)),
     }
+
+
+def _resolve_market_title(raw_market: dict[str, Any]) -> str:
+    for key in ("question", "market_title", "title", "name"):
+        value = raw_market.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
