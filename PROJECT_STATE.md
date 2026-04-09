@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 15:16
-- Status        : FORGE-X completed P14.3 Falcon alpha strategy layer safety refinement pass (insufficient-data fallback + noisy-trigger suppression + deterministic bounded external weighting) and is pending auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 15:28
+- Status        : FORGE-X completed P15 strategy selection auto-weighting (analytics + regime-aware dynamic weighting in S4) and is pending auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P15 strategy selection & auto-weighting (2026-04-09): implemented deterministic analytics-driven strategy scoring (`pnl`/`win_rate`/`expectancy`/`edge_captured`), bounded and smoothed dynamic weights (`0.5..1.5`), regime-aware final weight adjustment in S4, and focused runtime-proof tests.
 - P14.3 Falcon alpha strategy layer safety refinement (2026-04-09): added explicit insufficient-data fallback (`falcon_signal=None`), noisy-input neutralization (`external_signal_weight=1.0`), deterministic bounded aggregation behavior, and expanded focused tests for fallback/noise/runtime-proof examples.
 - P14 post-trade analytics & attribution enhancement pass (2026-04-09): added FALCON attribution normalization, deterministic strategy/regime baseline buckets, bounded edge-capture safety clamp with division-safe handling, and expanded focused tests for expectancy + edge safety + deterministic attribution outputs.
 - P14.3 Falcon alpha strategy layer (2026-04-09): implemented deterministic smart-money and momentum signal generation from Falcon datasets, liquidity scoring from orderbook spread/depth, bounded combined Falcon signal output, and narrow S4 integration via `external_signal_weight` with fallback-safe behavior and focused tests.
@@ -116,6 +117,10 @@ Status:
 ---
 
 ## 🚧 IN PROGRESS
+
+### P15 strategy selection & auto-weighting handoff
+- STANDARD-tier narrow integration implementation is complete for S4 dynamic weighting logic with P14 analytics + P11 regime context.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
 ### P14.3 Falcon alpha strategy layer handoff
 - STANDARD-tier narrow integration implementation is complete for Falcon-derived smart-money/momentum/liquidity signal generation and bounded S4 external weighting input path.
@@ -236,11 +241,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_31_p14_3_falcon_alpha_strategy_layer_signal_safety.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_32_p15_strategy_selection_auto_weighting.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- P15 strategy weighting is currently narrow integration in S4 path only and is not yet wired into broader non-S4 runtime orchestration/telemetry surfaces.
 - P14.3 Falcon strategy layer is currently narrow integration in S4 scoring path only and is not yet wired into broader non-S4 runtime orchestration surfaces; insufficient-data fallback now prevents external weighting when Falcon evidence is unavailable.
 - P14.2 Falcon ingestion is FOUNDATION claim-level only (data ingestion + normalization + adapter); broader runtime orchestration wiring remains out of scope.
 - P14.1 optimization output is currently narrow integration in strategy-trigger runtime path and is not yet propagated to external persistence/dashboard surfaces.
