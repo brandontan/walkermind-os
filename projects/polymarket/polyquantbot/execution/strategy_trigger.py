@@ -87,6 +87,11 @@ class WalletTradeSignal:
     market_move_pct: float
     wallet_success_rate: float
     wallet_activity_count: int
+    h_score: float
+    consistency_score: float
+    discipline_score: float
+    trade_frequency_score: float
+    market_diversity_score: float
 
 
 @dataclass(frozen=True)
@@ -501,27 +506,110 @@ class StrategyTrigger:
             },
         )
 
+    def _compute_wallet_quality_score(self, signal: WalletTradeSignal) -> float:
+        h_component = self._clamp(signal.h_score / 100.0, 0.0, 1.0)
+        consistency_component = self._clamp(signal.consistency_score, 0.0, 1.0)
+        discipline_component = self._clamp(signal.discipline_score, 0.0, 1.0)
+        diversity_component = self._clamp(signal.market_diversity_score, 0.0, 1.0)
+        return round(
+            (0.40 * h_component)
+            + (0.25 * consistency_component)
+            + (0.20 * discipline_component)
+            + (0.15 * diversity_component),
+            6,
+        )
+
     def evaluate_smart_money_copy_trading(
         self,
         signal: WalletTradeSignal,
         related_wallet_signals: list[WalletTradeSignal],
     ) -> SmartMoneyCopyTradingDecision:
+        min_h_score = 65.0
         min_success_rate = 0.60
         min_activity_count = 15
+        min_consistency_score = 0.55
+        min_wallet_quality_score = 0.68
+        bot_like_frequency_threshold = 0.95
+        erratic_frequency_threshold = 0.10
         large_position_usd = 10_000.0
         early_entry_max_move_pct = 0.02
         repeated_wallet_min_count = 2
         min_confidence_threshold = self.get_adaptive_adjustment_state().confidence_threshold
+        wallet_quality_score = self._compute_wallet_quality_score(signal)
+
+        if signal.h_score < min_h_score:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="wallet quality skip: h-score below threshold",
+                confidence=0.0,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "h_score": round(signal.h_score, 4),
+                    "wallet_quality_score": wallet_quality_score,
+                },
+            )
 
         if signal.wallet_success_rate < min_success_rate or signal.wallet_activity_count < min_activity_count:
             return SmartMoneyCopyTradingDecision(
                 decision="SKIP",
-                reason="low-quality wallet",
+                reason="wallet quality skip: low-quality wallet profile",
                 confidence=0.0,
                 wallet_info={
                     "wallet_address": signal.wallet_address,
                     "success_rate": round(signal.wallet_success_rate, 4),
                     "activity_count": signal.wallet_activity_count,
+                    "wallet_quality_score": wallet_quality_score,
+                },
+            )
+
+        if signal.consistency_score < min_consistency_score:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="wallet quality skip: poor consistency",
+                confidence=0.0,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "consistency": round(signal.consistency_score, 6),
+                    "wallet_quality_score": wallet_quality_score,
+                },
+            )
+
+        if signal.trade_frequency_score >= bot_like_frequency_threshold:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="wallet quality skip: bot-like activity",
+                confidence=0.0,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "trade_frequency": round(signal.trade_frequency_score, 6),
+                    "wallet_quality_score": wallet_quality_score,
+                },
+            )
+
+        if signal.trade_frequency_score <= erratic_frequency_threshold:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="wallet quality skip: erratic behavior",
+                confidence=0.0,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "trade_frequency": round(signal.trade_frequency_score, 6),
+                    "wallet_quality_score": wallet_quality_score,
+                },
+            )
+
+        if wallet_quality_score <= min_wallet_quality_score:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="wallet quality skip: score below threshold",
+                confidence=0.0,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "wallet_quality_score": wallet_quality_score,
+                    "h_score": round(signal.h_score, 4),
+                    "consistency": round(signal.consistency_score, 6),
+                    "discipline": round(signal.discipline_score, 6),
+                    "diversity": round(signal.market_diversity_score, 6),
                 },
             )
 
@@ -533,6 +621,7 @@ class StrategyTrigger:
                 wallet_info={
                     "wallet_address": signal.wallet_address,
                     "market_move_pct": round(signal.market_move_pct, 6),
+                    "wallet_quality_score": wallet_quality_score,
                 },
             )
 
@@ -541,7 +630,10 @@ class StrategyTrigger:
                 decision="SKIP",
                 reason="conflicting signals",
                 confidence=0.0,
-                wallet_info={"wallet_address": signal.wallet_address},
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "wallet_quality_score": wallet_quality_score,
+                },
             )
 
         same_market_signals = [
@@ -561,6 +653,7 @@ class StrategyTrigger:
                     "wallet_address": signal.wallet_address,
                     "buy_votes": buy_votes,
                     "sell_votes": sell_votes,
+                    "wallet_quality_score": wallet_quality_score,
                 },
             )
 
@@ -572,6 +665,7 @@ class StrategyTrigger:
                 wallet_info={
                     "wallet_address": signal.wallet_address,
                     "liquidity_usd": round(signal.liquidity_usd, 2),
+                    "wallet_quality_score": wallet_quality_score,
                 },
             )
 
@@ -579,22 +673,23 @@ class StrategyTrigger:
         early_score = max(0.0, 1.0 - (signal.market_move_pct / early_entry_max_move_pct))
         aligned_wallets = sum(1 for item in same_market_signals if item.action.lower() == signal.action.lower())
         repeated_score = min(1.0, aligned_wallets / max(float(repeated_wallet_min_count), 1.0))
-        confidence = round((0.4 * size_score) + (0.3 * early_score) + (0.3 * repeated_score), 6)
+        confidence = round((0.35 * size_score) + (0.20 * early_score) + (0.20 * repeated_score) + (0.25 * wallet_quality_score), 6)
 
         if confidence <= min_confidence_threshold:
             return SmartMoneyCopyTradingDecision(
                 decision="SKIP",
-                reason="signal strength below threshold",
+                reason="signal strength below threshold with wallet quality context",
                 confidence=confidence,
                 wallet_info={
                     "wallet_address": signal.wallet_address,
                     "aligned_wallets": aligned_wallets,
+                    "wallet_quality_score": wallet_quality_score,
                 },
             )
 
         return SmartMoneyCopyTradingDecision(
             decision="ENTER",
-            reason="high-quality early smart-money signal",
+            reason="high-quality wallet signal accepted",
             confidence=confidence,
             wallet_info={
                 "wallet_address": signal.wallet_address,
@@ -603,6 +698,12 @@ class StrategyTrigger:
                 "activity_count": signal.wallet_activity_count,
                 "size_usd": round(signal.size_usd, 2),
                 "aligned_wallets": aligned_wallets,
+                "h_score": round(signal.h_score, 4),
+                "consistency": round(signal.consistency_score, 6),
+                "discipline": round(signal.discipline_score, 6),
+                "trade_frequency": round(signal.trade_frequency_score, 6),
+                "diversity": round(signal.market_diversity_score, 6),
+                "wallet_quality_score": wallet_quality_score,
             },
         )
 

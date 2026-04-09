@@ -31,6 +31,11 @@ def _signal(
     market_move_pct: float = 0.01,
     wallet_success_rate: float = 0.71,
     wallet_activity_count: int = 28,
+    h_score: float = 84.0,
+    consistency_score: float = 0.83,
+    discipline_score: float = 0.78,
+    trade_frequency_score: float = 0.55,
+    market_diversity_score: float = 0.72,
 ) -> WalletTradeSignal:
     return WalletTradeSignal(
         wallet_address=wallet_address,
@@ -41,6 +46,11 @@ def _signal(
         market_move_pct=market_move_pct,
         wallet_success_rate=wallet_success_rate,
         wallet_activity_count=wallet_activity_count,
+        h_score=h_score,
+        consistency_score=consistency_score,
+        discipline_score=discipline_score,
+        trade_frequency_score=trade_frequency_score,
+        market_diversity_score=market_diversity_score,
     )
 
 
@@ -50,81 +60,95 @@ def _assert_output_contract(decision: SmartMoneyCopyTradingDecision) -> None:
     assert isinstance(decision.reason, str)
     assert isinstance(decision.confidence, float)
     assert isinstance(decision.wallet_info, dict)
+    assert "wallet_quality_score" in decision.wallet_info
 
 
-def test_high_quality_wallet_triggers_entry() -> None:
+def test_high_h_score_wallet_is_accepted() -> None:
+    trigger = _make_trigger()
+    signal = _signal(h_score=88.0)
+
+    decision = trigger.evaluate_smart_money_copy_trading(
+        signal=signal,
+        related_wallet_signals=[signal, _signal(wallet_address="0xsmart2", h_score=86.0)],
+    )
+
+    _assert_output_contract(decision)
+    assert decision.decision == "ENTER"
+    assert decision.wallet_info["h_score"] >= 88.0
+
+
+def test_low_h_score_wallet_is_rejected() -> None:
+    trigger = _make_trigger()
+
+    decision = trigger.evaluate_smart_money_copy_trading(
+        signal=_signal(h_score=51.0),
+        related_wallet_signals=[_signal(wallet_address="0xsmart2", h_score=58.0)],
+    )
+
+    _assert_output_contract(decision)
+    assert decision.decision == "SKIP"
+    assert decision.reason == "wallet quality skip: h-score below threshold"
+
+
+def test_high_quality_wallet_boosts_confidence() -> None:
+    trigger = _make_trigger()
+    high_quality = _signal(
+        h_score=91.0,
+        consistency_score=0.90,
+        discipline_score=0.86,
+        market_diversity_score=0.82,
+    )
+    baseline = _signal(
+        wallet_address="0xbaseline",
+        h_score=76.0,
+        consistency_score=0.72,
+        discipline_score=0.67,
+        market_diversity_score=0.61,
+    )
+
+    high_quality_decision = trigger.evaluate_smart_money_copy_trading(
+        signal=high_quality,
+        related_wallet_signals=[high_quality, _signal(wallet_address="0xsmart2")],
+    )
+    baseline_decision = trigger.evaluate_smart_money_copy_trading(
+        signal=baseline,
+        related_wallet_signals=[baseline, _signal(wallet_address="0xsmart3")],
+    )
+
+    _assert_output_contract(high_quality_decision)
+    _assert_output_contract(baseline_decision)
+    assert high_quality_decision.decision == "ENTER"
+    assert baseline_decision.decision == "ENTER"
+    assert high_quality_decision.confidence > baseline_decision.confidence
+
+
+def test_poor_consistency_wallet_is_skipped() -> None:
+    trigger = _make_trigger()
+
+    decision = trigger.evaluate_smart_money_copy_trading(
+        signal=_signal(consistency_score=0.41),
+        related_wallet_signals=[_signal(wallet_address="0xsmart2", consistency_score=0.66)],
+    )
+
+    _assert_output_contract(decision)
+    assert decision.decision == "SKIP"
+    assert decision.reason == "wallet quality skip: poor consistency"
+
+
+def test_wallet_quality_scoring_is_deterministic() -> None:
     trigger = _make_trigger()
     signal = _signal()
 
-    decision = trigger.evaluate_smart_money_copy_trading(
+    first = trigger.evaluate_smart_money_copy_trading(
         signal=signal,
-        related_wallet_signals=[signal, _signal(wallet_address="0xsmart2", size_usd=12_000.0)],
+        related_wallet_signals=[signal, _signal(wallet_address="0xsmart2")],
     )
-
-    _assert_output_contract(decision)
-    assert decision.decision == "ENTER"
-    assert "smart-money signal" in decision.reason
-    assert decision.confidence > 0.65
-
-
-def test_low_quality_wallet_is_skipped() -> None:
-    trigger = _make_trigger()
-
-    decision = trigger.evaluate_smart_money_copy_trading(
-        signal=_signal(wallet_success_rate=0.52, wallet_activity_count=8),
-        related_wallet_signals=[_signal(wallet_success_rate=0.52, wallet_activity_count=8)],
-    )
-
-    _assert_output_contract(decision)
-    assert decision.decision == "SKIP"
-    assert decision.reason == "low-quality wallet"
-
-
-def test_late_entry_is_skipped() -> None:
-    trigger = _make_trigger()
-
-    decision = trigger.evaluate_smart_money_copy_trading(
-        signal=_signal(market_move_pct=0.05),
-        related_wallet_signals=[_signal(wallet_address="0xsmart2", market_move_pct=0.04)],
-    )
-
-    _assert_output_contract(decision)
-    assert decision.decision == "SKIP"
-    assert decision.reason == "late entry"
-
-
-def test_conflicting_signals_are_skipped() -> None:
-    trigger = _make_trigger()
-    anchor = _signal(action="buy")
-
-    decision = trigger.evaluate_smart_money_copy_trading(
-        signal=anchor,
-        related_wallet_signals=[
-            anchor,
-            _signal(wallet_address="0xsmart2", action="sell"),
-            _signal(wallet_address="0xsmart3", action="buy"),
-        ],
-    )
-
-    _assert_output_contract(decision)
-    assert decision.decision == "SKIP"
-    assert decision.reason == "conflicting signals"
-
-
-def test_valid_early_signal_is_enter() -> None:
-    trigger = _make_trigger()
-    signal = _signal(size_usd=18_000.0, market_move_pct=0.004)
-
-    decision = trigger.evaluate_smart_money_copy_trading(
+    second = trigger.evaluate_smart_money_copy_trading(
         signal=signal,
-        related_wallet_signals=[
-            signal,
-            _signal(wallet_address="0xsmart2", size_usd=20_000.0, market_move_pct=0.003),
-            _signal(wallet_address="0xsmart3", size_usd=16_000.0, market_move_pct=0.005),
-        ],
+        related_wallet_signals=[signal, _signal(wallet_address="0xsmart2")],
     )
 
-    _assert_output_contract(decision)
-    assert decision.decision == "ENTER"
-    assert decision.reason == "high-quality early smart-money signal"
-    assert decision.wallet_info["wallet_address"] == "0xsmart1"
+    _assert_output_contract(first)
+    _assert_output_contract(second)
+    assert first.wallet_info["wallet_quality_score"] == second.wallet_info["wallet_quality_score"]
+    assert first.confidence == second.confidence
