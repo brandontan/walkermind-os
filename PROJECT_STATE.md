@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 14:30
-- Status        : FORGE-X completed P14.3 Falcon alpha strategy layer (smart-money + momentum + liquidity + S4 external weighting narrow integration); pending auto PR review and COMMANDER review.
+- Last Updated  : 2026-04-09 14:58
+- Status        : FORGE-X completed P14 post-trade analytics & attribution enhancement pass (FALCON attribution + deterministic buckets + bounded edge capture safety + expanded validation); pending auto PR review and COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P14 post-trade analytics & attribution enhancement pass (2026-04-09): added FALCON attribution normalization, deterministic strategy/regime baseline buckets, bounded edge-capture safety clamp with division-safe handling, and expanded focused tests for expectancy + edge safety + deterministic attribution outputs.
 - P14.3 Falcon alpha strategy layer (2026-04-09): implemented deterministic smart-money and momentum signal generation from Falcon datasets, liquidity scoring from orderbook spread/depth, bounded combined Falcon signal output, and narrow S4 integration via `external_signal_weight` with fallback-safe behavior and focused tests.
 - P14.2 external alpha ingestion (Falcon API) (2026-04-09): added bounded Falcon client for markets/trades/candles/orderbook retrieval (agent IDs 574/556/568/572), pagination-safe fetchers, deterministic normalization pipeline, basic smart-money/price/liquidity context extraction, and data-layer integration adapter with failure fallback plus focused runtime-proof tests.
 - SENTINEL validation complete for PR #336 — P14.1 optimization engine (2026-04-09): MAJOR hard-mode verification passed for bounded weighting/sizing/execution adjustments, negative-case resilience (noisy analytics, losing streak, false-positive strategy), feedback-loop safety (P9↔P14.1), break-test stress attempt, and execution-cap safety; verdict APPROVED with advisory smoothing recommendation.
@@ -129,7 +130,7 @@ Status:
 - COMMANDER final merge decision pending.
 
 ### P14 post-trade analytics & attribution handoff
-- STANDARD-tier narrow integration implementation is complete for trade lifecycle attribution, closed-trade storage enrichment, and in-memory analytics summary computation.
+- STANDARD-tier narrow integration enhancement is complete for FALCON attribution support, deterministic strategy/regime attribution buckets, bounded edge-capture safety, and focused runtime-proof tests.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
 ### P13 exit timing & trade management handoff
@@ -233,7 +234,7 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_29_p14_3_falcon_alpha_strategy_layer.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_30_p14_post_trade_analytics_attribution_enhancements.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
@@ -241,7 +242,7 @@ Tier: STANDARD
 - P14.3 Falcon strategy layer is currently narrow integration in S4 scoring path only and is not yet wired into broader non-S4 runtime orchestration surfaces.
 - P14.2 Falcon ingestion is FOUNDATION claim-level only (data ingestion + normalization + adapter); broader runtime orchestration wiring remains out of scope.
 - P14.1 optimization output is currently narrow integration in strategy-trigger runtime path and is not yet propagated to external persistence/dashboard surfaces.
-- P14 analytics attribution is currently narrow integration in strategy-trigger to execution closed-trade path only and is not yet wired to external persistence or dashboard surfaces.
+- P14 analytics attribution (including FALCON attribution + bounded edge capture) is currently narrow integration in strategy-trigger to execution closed-trade path only and is not yet wired to external persistence or dashboard surfaces.
 - P13 exit management is currently narrow integration in strategy-trigger monitoring path only and is not yet propagated into broader runtime orchestration surfaces.
 - TG-2 + TG-3 trade history is currently narrow integration in Telegram portfolio rendering path only and is not yet surfaced in other non-portfolio historical analytics views.
 - P12 entry timing layer is currently narrow integration in strategy-trigger pre-execution path only and is not yet wired into broader runtime execution orchestration layers.
