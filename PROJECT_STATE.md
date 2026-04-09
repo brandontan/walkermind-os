@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 19:09
-- Status        : SENTINEL revalidation for PR #347 found critical P16 contradictions (restart-safe enforcement + blocked-path traceability) and set MAJOR verdict to BLOCKED.
+- Last Updated  : 2026-04-09 20:32
+- Status        : SENTINEL preflight revalidation for PR #350 is BLOCKED due to missing required forge source artifact path, preventing MAJOR runtime validation entry.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- SENTINEL preflight revalidation for PR #350 P16 restart-safe risk traceability (2026-04-09): verdict **BLOCKED** (score **12/100**) at Phase 0 because required source forge report path `projects/polymarket/polyquantbot/reports/forge/[NEW_P16_REPORT_FROM_PR350].md` does not exist; report saved at `projects/polymarket/polyquantbot/reports/sentinel/24_36_p16_restart_safe_risk_traceability_revalidation_pr350.md`.
 - SENTINEL revalidation for PR #347 P16 remediation (2026-04-09): verdict **BLOCKED** (score **49/100**) after runtime challenge confirmed restart can clear hard-block state in touched path and multiple blocked terminal outcomes are not trace-recorded; report saved at `projects/polymarket/polyquantbot/reports/sentinel/24_35_p16_remediation_revalidation_pr347.md`.
 - SENTINEL validation complete for P16 execution validation & risk enforcement layer (2026-04-09): verdict **APPROVED** after runtime verification of pre-trade blocking, execution truth capture, edge validation, risk global-block enforcement, interception chain, and end-to-end traceability in declared scope.
 - P16 execution validation & risk enforcement layer (2026-04-09): implemented runtime pre-trade hard-block validation, execution truth capture, closed-trade edge validation, and global risk kill-switch enforcement in strategy-trigger execution path with focused MAJOR runtime-proof tests.
@@ -125,8 +126,9 @@ Status:
 ## 🚧 IN PROGRESS
 
 ### P16 execution validation & risk enforcement handoff
-- MAJOR-tier revalidation for PR #347 is BLOCKED: restart-safe enforcement and blocked-path terminal traceability remain contradictory to FULL RUNTIME INTEGRATION claim in touched strategy-trigger scope.
-- Targeted FORGE-X remediation required before merge decision; source: `projects/polymarket/polyquantbot/reports/sentinel/24_35_p16_remediation_revalidation_pr347.md`.
+- MAJOR-tier revalidation for PR #347 remains BLOCKED: restart-safe enforcement and blocked-path terminal traceability remain contradictory to FULL RUNTIME INTEGRATION claim in touched strategy-trigger scope.
+- SENTINEL preflight revalidation request for PR #350 is also BLOCKED at Phase 0 due to missing required source forge artifact path (`projects/polymarket/polyquantbot/reports/forge/[NEW_P16_REPORT_FROM_PR350].md`).
+- Required next action: FORGE-X must publish/link the concrete PR #350 forge report and re-request MAJOR revalidation; sources: `projects/polymarket/polyquantbot/reports/sentinel/24_35_p16_remediation_revalidation_pr347.md`, `projects/polymarket/polyquantbot/reports/sentinel/24_36_p16_restart_safe_risk_traceability_revalidation_pr350.md`.
 
 ### Market title test-hardening handoff
 - STANDARD-tier NARROW INTEGRATION follow-up is complete for Falcon title-resolution regression test integrity in touched test scope.
