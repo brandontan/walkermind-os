@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 15:16
-- Status        : FORGE-X completed P14.3 Falcon alpha strategy layer safety refinement pass (insufficient-data fallback + noisy-trigger suppression + deterministic bounded external weighting) and is pending auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 15:37
+- Status        : FORGE-X completed market title resolution fix (market_id -> real market_title with strict fallback + cache) and is pending auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Market title resolution fix from market_id (2026-04-09): resolved real `market_title` via Falcon market metadata/cache in touched data-layer path, enforced strict placeholder fallback only when API unavailable with no cached title, and added focused regression tests for single/multi-market and fallback behavior.
 - P14.3 Falcon alpha strategy layer safety refinement (2026-04-09): added explicit insufficient-data fallback (`falcon_signal=None`), noisy-input neutralization (`external_signal_weight=1.0`), deterministic bounded aggregation behavior, and expanded focused tests for fallback/noise/runtime-proof examples.
 - P14 post-trade analytics & attribution enhancement pass (2026-04-09): added FALCON attribution normalization, deterministic strategy/regime baseline buckets, bounded edge-capture safety clamp with division-safe handling, and expanded focused tests for expectancy + edge safety + deterministic attribution outputs.
 - P14.3 Falcon alpha strategy layer (2026-04-09): implemented deterministic smart-money and momentum signal generation from Falcon datasets, liquidity scoring from orderbook spread/depth, bounded combined Falcon signal output, and narrow S4 integration via `external_signal_weight` with fallback-safe behavior and focused tests.
@@ -116,6 +117,10 @@ Status:
 ---
 
 ## 🚧 IN PROGRESS
+
+### Market title resolution handoff
+- STANDARD-tier NARROW INTEGRATION implementation is complete for market context builder + Falcon normalization + portfolio title payload source path.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
 ### P14.3 Falcon alpha strategy layer handoff
 - STANDARD-tier narrow integration implementation is complete for Falcon-derived smart-money/momentum/liquidity signal generation and bounded S4 external weighting input path.

@@ -20,6 +20,8 @@ import structlog
 
 log = structlog.get_logger(__name__)
 
+_market_title_cache: dict[str, str] = {}
+
 _FALCON_BASE_URL = "https://narrative.agent.heisenberg.so"
 _FALCON_ENDPOINT = "/api/v2/semantic/retrieve/parameterized"
 _FALCON_AGENT_MARKETS = 574
@@ -191,6 +193,11 @@ def normalize_external_signal(
     orderbook: list[dict[str, Any]],
 ) -> dict[str, float | str]:
     """Convert Falcon raw rows into deterministic internal alpha payload."""
+    market_id = str(market.get("market_id") or market.get("id") or "")
+    market_title = _resolve_market_title(market)
+    if market_id and market_title:
+        _cache_market_title(market_id, market_title)
+
     price = _to_float(market.get("price"), default=0.0)
     volume = _to_float(market.get("volume"), default=0.0)
     momentum, volatility = _compute_price_context(candles)
@@ -198,8 +205,8 @@ def normalize_external_signal(
     smart_money_score = _compute_smart_money_score(trades)
 
     return {
-        "market_id": str(market.get("market_id") or market.get("id") or ""),
-        "market_title": str(market.get("market_title") or market.get("title") or ""),
+        "market_id": market_id,
+        "market_title": market_title,
         "price": round(price, 6),
         "volume": round(volume, 2),
         "momentum": round(momentum, 6),
@@ -241,9 +248,10 @@ async def fetch_external_alpha_with_fallback(
 
     Returns deterministic fallback payload when Falcon is unavailable.
     """
+    fallback_title = get_cached_market_title(market_id) or f"Market {market_id}"
     fallback = {
         "market_id": market_id,
-        "market_title": "",
+        "market_title": fallback_title,
         "price": 0.0,
         "volume": 0.0,
         "momentum": 0.0,
@@ -266,6 +274,25 @@ async def fetch_external_alpha_with_fallback(
     except Exception as exc:
         log.warning("falcon_external_alpha_fallback", market_id=market_id, error=str(exc))
         return fallback
+
+def get_cached_market_title(market_id: str) -> str:
+    """Return cached market title for market_id, if available."""
+    return _market_title_cache.get(str(market_id), "")
+
+
+def _cache_market_title(market_id: str, market_title: str) -> None:
+    safe_market_id = str(market_id).strip()
+    safe_title = str(market_title).strip()
+    if safe_market_id and safe_title:
+        _market_title_cache[safe_market_id] = safe_title
+
+
+def _resolve_market_title(market: dict[str, Any]) -> str:
+    for key in ("market_title", "title", "question", "name"):
+        value = market.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
 
 
 def _extract_rows(response: dict[str, Any]) -> list[dict[str, Any]]:
