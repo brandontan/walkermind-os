@@ -236,3 +236,26 @@ def test_no_regression_positions_summary_and_render_count() -> None:
 
     assert "Open Positions: 2" in output
     assert output.count("🎯 Position") == 2
+
+
+def test_positions_rendering_is_deterministic_with_fixed_timestamp() -> None:
+    payload = {
+        "positions": [
+            {
+                "market_id": "mkt-det-1",
+                "market_title": "Will deterministic formatting hold?",
+                "side": "YES",
+                "entry_price": 0.33,
+                "size": 60.0,
+                "unrealized_pnl": 1.2,
+            }
+        ],
+        "positions_count": 1,
+        "updated_at": "2026-04-09T10:20:00+00:00",
+    }
+
+    first = _render_positions(payload)
+    second = _render_positions(payload)
+
+    assert first == second
+    assert "Will deterministic formatting hold?" in first
