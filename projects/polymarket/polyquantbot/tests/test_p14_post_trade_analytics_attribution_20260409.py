@@ -62,6 +62,52 @@ async def _build_closed_trades() -> tuple[list[dict[str, object]], dict[str, obj
     return list(engine._closed_trades), engine.get_analytics().summary()
 
 
+async def _build_edge_safety_trades() -> dict[str, object]:
+    engine = ExecutionEngine(starting_equity=10_000.0)
+    position = await engine.open_position(
+        market="mkt-falcon-chaotic",
+        market_title="FALCON CHAOTIC",
+        side="YES",
+        price=0.50,
+        size=100.0,
+        position_id="p14-safety-1",
+        position_context={
+            "strategy_source": "FALCON",
+            "regime_at_entry": "LOW_ACTIVITY_CHAOTIC",
+            "entry_quality": "quality_enter",
+            "entry_timing": "timing_enter",
+            "theoretical_edge": 0.0001,
+            "slippage_impact": 0.01,
+            "timing_effectiveness": 0.6,
+        },
+    )
+    assert position is not None
+    await engine.close_position(
+        position,
+        0.90,
+        close_context={"exit_reason": "take_profit", "exit_efficiency": 0.8},
+    )
+
+    ignored = await engine.open_position(
+        market="mkt-safety-zero-edge",
+        market_title="ZERO EDGE",
+        side="YES",
+        price=0.50,
+        size=100.0,
+        position_id="p14-safety-2",
+        position_context={
+            "strategy_source": "S3",
+            "regime_at_entry": "SMART_MONEY_DOMINANT",
+            "entry_quality": "quality_enter",
+            "entry_timing": "timing_enter",
+            "theoretical_edge": 0.0,
+        },
+    )
+    assert ignored is not None
+    await engine.close_position(ignored, 0.60, close_context={"exit_reason": "take_profit", "exit_efficiency": 0.8})
+    return engine.get_analytics().summary()
+
+
 def test_correct_pnl_aggregation() -> None:
     _, summary = asyncio.run(_build_closed_trades())
 
@@ -93,6 +139,18 @@ def test_edge_captured_calculation_correct() -> None:
 
     # trade1: 0.10/0.05=2.0 ; trade2: -0.05/0.08=-0.625 ; avg=0.6875
     assert summary["edge_captured"] == 0.6875
+
+
+def test_expectancy_calculation_correct() -> None:
+    _, summary = asyncio.run(_build_closed_trades())
+    assert summary["expectancy"] == 2.5
+
+
+def test_edge_capture_safe_computation_bounded_and_division_safe() -> None:
+    summary = asyncio.run(_build_edge_safety_trades())
+    assert summary["edge_captured"] == 3.0
+    assert summary["strategy_breakdown"]["FALCON"]["pnl"] == 40.0
+    assert summary["regime_breakdown"]["CHAOTIC"]["pnl"] == 40.0
 
 
 def test_deterministic_output() -> None:

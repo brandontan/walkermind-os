@@ -36,7 +36,7 @@ class PerformanceTracker:
     @staticmethod
     def _normalize_strategy(raw: object) -> str:
         candidate = str(raw or "UNKNOWN").strip().upper()
-        return candidate if candidate in {"S1", "S2", "S3", "S5"} else "UNKNOWN"
+        return candidate if candidate in {"S1", "S2", "S3", "S5", "FALCON"} else "UNKNOWN"
 
     @staticmethod
     def _normalize_regime(raw: object) -> str:
@@ -122,8 +122,18 @@ class PerformanceTracker:
     def _group_label_value() -> dict[str, float]:
         return {"total_pnl": 0.0, "trades": 0.0, "wins": 0.0, "total_return": 0.0}
 
+    @staticmethod
+    def _default_group_labels(group_field: str) -> list[str]:
+        if group_field == "strategy_source":
+            return ["S1", "S2", "S3", "S5", "FALCON", "UNKNOWN"]
+        if group_field == "regime_at_entry":
+            return ["NEWS", "ARBITRAGE", "SMART_MONEY", "CHAOTIC"]
+        return []
+
     def _build_group_breakdown(self, group_field: str) -> dict[str, dict[str, float]]:
-        grouped: dict[str, dict[str, float]] = {}
+        grouped: dict[str, dict[str, float]] = {
+            label: self._group_label_value() for label in self._default_group_labels(group_field)
+        }
         for trade in self._trades:
             label = getattr(trade, group_field)
             row = grouped.setdefault(label, self._group_label_value())
@@ -174,7 +184,11 @@ class PerformanceTracker:
         gross_loss_abs = abs(sum(t.pnl for t in losses))
         profit_factor = gross_profit / gross_loss_abs if gross_loss_abs > 0 else (float("inf") if gross_profit > 0 else 0.0)
         expectancy = (win_rate * avg_win) - ((1.0 - win_rate) * avg_loss_abs)
-        edge_samples = [t.actual_return / t.theoretical_edge for t in self._trades if t.theoretical_edge > 1e-9]
+        edge_samples = [
+            self._clamp(t.actual_return / t.theoretical_edge, -3.0, 3.0)
+            for t in self._trades
+            if t.theoretical_edge > 1e-9
+        ]
         execution_quality_metrics = {
             "avg_slippage_impact": round(sum(t.slippage_impact for t in self._trades) / total_trades, 6),
             "avg_timing_effectiveness": round(sum(t.timing_effectiveness for t in self._trades) / total_trades, 6),
