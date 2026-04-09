@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import time
 import structlog
 import uuid
+import re
 
 from .engine import ExecutionEngine
 from .intelligence import ExecutionIntelligence, MarketSnapshot
@@ -25,6 +26,8 @@ class StrategyConfig:
     min_market_lag: float = 0.03
     min_edge: float = 0.02
     min_liquidity_usd: float = 10_000.0
+    cross_exchange_min_mapping_confidence: float = 0.60
+    cross_exchange_min_net_edge: float = 0.02
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,27 @@ class StrategyDecision:
     decision: str
     reason: str
     edge: float
+
+
+@dataclass(frozen=True)
+class CrossExchangeMarketInput:
+    exchange: str
+    market_id: str
+    title: str
+    timeframe: str
+    resolution_criteria: str
+    yes_probability: float
+    liquidity_usd: float
+    fee_rate: float
+    slippage_rate: float
+
+
+@dataclass(frozen=True)
+class CrossExchangeDecision:
+    decision: str
+    edge: float
+    reason: str
+    matched_markets: dict[str, str]
 
 
 class StrategyTrigger:
@@ -125,6 +149,109 @@ class StrategyTrigger:
             reason="entry conditions met: social spike + market lag + edge",
             edge=round(edge, 6),
         )
+
+    def evaluate_cross_exchange_arbitrage(
+        self,
+        polymarket: CrossExchangeMarketInput,
+        kalshi: CrossExchangeMarketInput,
+    ) -> CrossExchangeDecision:
+        mapping_confidence = self._mapping_confidence(polymarket=polymarket, kalshi=kalshi)
+        if mapping_confidence < self._config.cross_exchange_min_mapping_confidence:
+            return CrossExchangeDecision(
+                decision="SKIP",
+                edge=0.0,
+                reason="mapping confidence too low for equivalent-market assertion",
+                matched_markets={
+                    "polymarket_id": polymarket.market_id,
+                    "kalshi_id": kalshi.market_id,
+                    "mapping_confidence": f"{mapping_confidence:.3f}",
+                },
+            )
+
+        if (
+            polymarket.liquidity_usd < self._config.min_liquidity_usd
+            or kalshi.liquidity_usd < self._config.min_liquidity_usd
+        ):
+            return CrossExchangeDecision(
+                decision="SKIP",
+                edge=0.0,
+                reason="insufficient liquidity on one or both exchanges",
+                matched_markets={
+                    "polymarket_id": polymarket.market_id,
+                    "kalshi_id": kalshi.market_id,
+                    "mapping_confidence": f"{mapping_confidence:.3f}",
+                },
+            )
+
+        poly_prob = min(max(polymarket.yes_probability, 0.01), 0.99)
+        kalshi_prob = min(max(kalshi.yes_probability, 0.01), 0.99)
+        gross_edge = abs(poly_prob - kalshi_prob)
+        total_cost = (
+            polymarket.fee_rate
+            + kalshi.fee_rate
+            + polymarket.slippage_rate
+            + kalshi.slippage_rate
+        )
+        net_edge = max(0.0, gross_edge - total_cost)
+
+        if net_edge <= self._config.cross_exchange_min_net_edge:
+            return CrossExchangeDecision(
+                decision="SKIP",
+                edge=round(net_edge, 6),
+                reason="net edge below actionable threshold after fees/slippage",
+                matched_markets={
+                    "polymarket_id": polymarket.market_id,
+                    "kalshi_id": kalshi.market_id,
+                    "mapping_confidence": f"{mapping_confidence:.3f}",
+                    "gross_edge": f"{gross_edge:.6f}",
+                },
+            )
+
+        return CrossExchangeDecision(
+            decision="ENTER",
+            edge=round(net_edge, 6),
+            reason="cross-exchange arbitrage opportunity detected",
+            matched_markets={
+                "polymarket_id": polymarket.market_id,
+                "kalshi_id": kalshi.market_id,
+                "mapping_confidence": f"{mapping_confidence:.3f}",
+                "polymarket_probability": f"{poly_prob:.6f}",
+                "kalshi_probability": f"{kalshi_prob:.6f}",
+                "gross_edge": f"{gross_edge:.6f}",
+            },
+        )
+
+    def _mapping_confidence(
+        self,
+        polymarket: CrossExchangeMarketInput,
+        kalshi: CrossExchangeMarketInput,
+    ) -> float:
+        poly_tokens = self._normalized_tokens(polymarket.title)
+        kalshi_tokens = self._normalized_tokens(kalshi.title)
+        if not poly_tokens or not kalshi_tokens:
+            return 0.0
+
+        overlap = len(poly_tokens.intersection(kalshi_tokens))
+        union = len(poly_tokens.union(kalshi_tokens))
+        text_similarity = overlap / max(union, 1)
+
+        timeframe_match = (
+            polymarket.timeframe.strip().lower() == kalshi.timeframe.strip().lower()
+        )
+        resolution_match = (
+            polymarket.resolution_criteria.strip().lower()
+            == kalshi.resolution_criteria.strip().lower()
+        )
+        confidence = text_similarity * 0.6
+        confidence += 0.2 if timeframe_match else 0.0
+        confidence += 0.2 if resolution_match else 0.0
+        return min(max(confidence, 0.0), 1.0)
+
+    def _normalized_tokens(self, text: str) -> set[str]:
+        cleaned = re.sub(r"[^a-z0-9 ]+", " ", text.strip().lower())
+        tokens = {token for token in cleaned.split() if len(token) > 2}
+        stopwords = {"will", "that", "with", "from", "into", "than", "over", "under"}
+        return {token for token in tokens if token not in stopwords}
 
     async def evaluate(self, market_price: float) -> str:
         now = time.time()
