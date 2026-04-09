@@ -39,9 +39,9 @@ Priority order:
 
 1. `AGENTS.md` (this file) → system behavior and role behavior
 2. `PROJECT_STATE.md` → current system truth
-3. `projects/polymarket/polyquantbot/reports/forge/` → build truth
-4. `projects/polymarket/polyquantbot/reports/sentinel/` → validation truth
-5. `projects/polymarket/polyquantbot/reports/briefer/` → communication continuity
+3. `reports/forge/` → build truth
+4. `reports/sentinel/` → validation truth
+5. `reports/briefer/` → communication continuity
 
 If conflict exists:
 → follow `AGENTS.md`
@@ -58,9 +58,9 @@ If code and report disagree:
 Single source of truth:
 
 - `PROJECT_STATE.md` → current system state
-- `projects/polymarket/polyquantbot/reports/forge/` → build truth
-- `projects/polymarket/polyquantbot/reports/sentinel/` → validation truth
-- `projects/polymarket/polyquantbot/reports/briefer/` → communication layer
+- `reports/forge/` → build truth
+- `reports/sentinel/` → validation truth
+- `reports/briefer/` → communication layer
 
 Important:
 
@@ -79,22 +79,72 @@ https://github.com/bayuewalker/walker-ai-team
 ## KEY FILE LOCATIONS (FULL PATHS)
 
 ```text
-PROJECT_STATE.md
-docs/CLAUDE.md
-docs/KNOWLEDGE_BASE.md
+AGENTS.md                        ← master rules (repo root)
+CLAUDE.md                        ← agent rules for Claude Code (repo root)
+PROJECT_STATE.md                 ← current system truth (repo root)
+
+docs/KNOWLEDGE_BASE.md           ← system knowledge and API conventions
 docs/templates/TPL_INTERACTIVE_REPORT.html
 docs/templates/REPORT_TEMPLATE_MASTER.html
 
-projects/polymarket/polyquantbot/
-projects/polymarket/polyquantbot/reports/forge/
-projects/polymarket/polyquantbot/reports/sentinel/
-projects/polymarket/polyquantbot/reports/briefer/
+lib/                             ← shared libraries, utilities, reusable modules
+
+{PROJECT_ROOT}/                  ← active project root
+reports/forge/                   ← FORGE-X build reports
+reports/sentinel/                ← SENTINEL validation reports
+reports/briefer/                 ← BRIEFER HTML reports
+reports/archive/                 ← reports older than 7 days (moved automatically)
 
 projects/tradingview/indicators/
 projects/tradingview/strategies/
 projects/mt5/ea/
 projects/mt5/indicators/
+
+Current PROJECT_ROOT = projects/polymarket/polyquantbot
 ```
+
+
+## PROJECT CONTEXT
+
+### Active Project
+
+```text
+PROJECT_ROOT = projects/polymarket/polyquantbot
+```
+
+This variable represents the active project root.
+All report paths below use `{PROJECT_ROOT}` as prefix.
+
+When switching to a new project, update `PROJECT_ROOT` only.
+All path rules in this file resolve automatically.
+
+### Current project registry
+
+| Platform | Project | PROJECT_ROOT |
+|---|---|---|
+| Polymarket | polyquantbot | `projects/polymarket/polyquantbot` |
+| TradingView | indicators | `projects/tradingview/indicators` |
+| TradingView | strategies | `projects/tradingview/strategies` |
+| MT5 | expert advisors | `projects/mt5/ea` |
+| MT5 | indicators | `projects/mt5/indicators` |
+
+### Report paths (project-relative — always under PROJECT_ROOT)
+
+```text
+{PROJECT_ROOT}/reports/forge/      ← FORGE-X build reports
+{PROJECT_ROOT}/reports/sentinel/   ← SENTINEL validation reports
+{PROJECT_ROOT}/reports/briefer/    ← BRIEFER HTML reports
+```
+
+Short form used throughout this file:
+```text
+reports/forge/
+reports/sentinel/
+reports/briefer/
+```
+
+These are always relative to `{PROJECT_ROOT}`.
+Full path = `{PROJECT_ROOT}/reports/[type]/`.
 
 ## PROJECT_STATE TIMESTAMP RULE
 
@@ -165,7 +215,7 @@ Before any task, read only what is necessary.
 
 ### Read if needed
 - `docs/KNOWLEDGE_BASE.md` → when task touches architecture, infra, API, execution, Polymarket, risk, or conventions not already clear
-- `docs/CLAUDE.md` → when task needs repo-specific workflow or conventions
+- `CLAUDE.md` → when task needs repo-specific workflow or conventions
 - `docs/templates/TPL_INTERACTIVE_REPORT.html` → BRIEFER report mode, browser/device output
 - `docs/templates/REPORT_TEMPLATE_MASTER.html` → BRIEFER report mode, PDF/print/formal output
 - Other reports → only if needed for continuity, comparison, or validation evidence
@@ -183,9 +233,9 @@ NEXUS must enforce system synchronization.
 
 ### System consistency
 - `PROJECT_STATE.md` = current system truth
-- `projects/polymarket/polyquantbot/reports/forge/` = build truth
-- `projects/polymarket/polyquantbot/reports/sentinel/` = validation truth
-- `projects/polymarket/polyquantbot/reports/briefer/` = communication continuity only
+- `reports/forge/` = build truth
+- `reports/sentinel/` = validation truth
+- `reports/briefer/` = communication continuity only
 
 ### Cross-role synchronization
 - FORGE-X output must be testable by SENTINEL
@@ -328,7 +378,7 @@ Rule:
 - Codex auto PR review = REQUIRED
 - COMMANDER review = REQUIRED
 - COMMANDER decides merge / hold / rework after reading Codex review findings
-- STANDARD tasks do not go to SENTINEL
+- STANDARD tasks do not go to SENTINEL unless COMMANDER explicitly escalates
 - FORGE-X must still leave validation-ready handoff
 
 ### TIER 3 — MAJOR
@@ -485,13 +535,14 @@ These rules apply to every role.
 - Do not self-initiate tasks
 - Do not expand scope without approval
 - Never merge PR without the required validation tier being satisfied
-- MINOR tasks require Codex auto PR review coverage + COMMANDER review before merge
-- STANDARD tasks require Codex auto PR review coverage + COMMANDER review before merge
+- MINOR tasks require auto PR review (Codex/Gemini/Copilot) + COMMANDER review before merge
+- STANDARD tasks require auto PR review (Codex/Gemini/Copilot) + COMMANDER review before merge
 - MAJOR tasks require SENTINEL validation before merge
 - If GitHub write fails, still deliver full file content in chat
 
 ## RISK CONSTANTS (FIXED)
 
+Full reference in `docs/KNOWLEDGE_BASE.md`.
 These constants are fixed and must not drift across roles:
 
 | Rule | Value |
@@ -511,6 +562,8 @@ If code, report, or output conflicts with these values:
 
 ## QUANT FORMULAS
 
+Full reference in `docs/KNOWLEDGE_BASE.md`.
+
 ```text
 EV       = p·b − (1−p)
 edge     = p_model − p_market
@@ -521,6 +574,8 @@ VaR      = μ − 1.645σ  (CVaR monitored)
 ```
 
 ## ENGINEERING STANDARDS
+
+Full details in `docs/KNOWLEDGE_BASE.md`.
 
 | Standard | Requirement |
 |---|---|
@@ -560,39 +615,53 @@ Always deliver the file.
 
 ## BRANCH NAMING (FINAL)
 
-Use:
+### Prefix — choose by intent
 
-| Area | Use For | Example |
+| Prefix | When to Use | Format |
 |---|---|---|
-| `ui` | tampilan / layout / hierarchy | feature/ui-dashboard-portfolio |
-| `ux` | readability / flow / humanization | feature/ux-telegram-alerts |
-| `execution` | engine / order / lifecycle | feature/execution-kelly-sizing |
-| `risk` | risk control / exposure | feature/risk-drawdown-circuit |
-| `monitoring` | performance tracking | feature/monitoring-latency-log |
-| `data` | market data / ingestion | feature/data-ws-reconnect |
-| `infra` | deployment / config | feature/infra-env-setup |
-| `forge` | general multi-domain build | feature/forge-signal-activation |
-| `sentinel` | validation tasks | feature/sentinel-24-1-validation |
-| `briefer` | report tasks | feature/briefer-24-1-investor-report |
+| `feature/` | new capability, new module, new integration | `feature/{area}-{purpose}-{date}` |
+| `fix/` | bug fix, logic correction, wrong behavior | `fix/{area}-{purpose}-{date}` |
+| `update/` | update existing behavior, config, dependency | `update/{area}-{purpose}-{date}` |
+| `hotfix/` | critical production fix, urgent patch | `hotfix/{area}-{purpose}-{date}` |
+| `refactor/` | code restructure with no behavior change | `refactor/{area}-{purpose}-{date}` |
+| `chore/` | maintenance, cleanup, docs, state sync | `chore/{area}-{purpose}-{date}` |
 
+### Area — choose by domain
+
+| Area | Use For | Example (feature/) |
+|---|---|---|
+| `ui` | tampilan / layout / hierarchy | `feature/ui-dashboard-portfolio-20260406` |
+| `ux` | readability / flow / humanization | `feature/ux-telegram-alerts-20260406` |
+| `execution` | engine / order / lifecycle | `feature/execution-kelly-sizing-20260406` |
+| `risk` | risk control / exposure | `fix/risk-drawdown-circuit-20260406` |
+| `monitoring` | performance tracking | `feature/monitoring-latency-log-20260406` |
+| `data` | market data / ingestion | `fix/data-ws-reconnect-20260406` |
+| `infra` | deployment / config | `update/infra-env-setup-20260406` |
+| `core` | shared utilities, base classes | `refactor/core-base-handler-20260406` |
+| `strategy` | signal logic, market analysis | `feature/strategy-ev-signal-20260406` |
+| `sentinel` | validation / audit tasks | `chore/sentinel-phase9-audit-20260406` |
+| `briefer` | report / dashboard tasks | `chore/briefer-investor-report-20260406` |
+
+### Format
 ```text
-feature/{feature}-{date}
+{prefix}/{area}-{purpose}-{date}
 ```
 
 Examples:
 - `feature/execution-order-engine-20260406`
-- `feature/risk-drawdown-circuit-20260406`
-- `feature/report-investor-update-20260406`
-- `feature/validation-phase9-audit-20260406`
+- `fix/risk-drawdown-circuit-20260406`
+- `update/infra-redis-config-20260406`
+- `hotfix/execution-kill-switch-20260406`
+- `refactor/core-base-handler-20260406`
+- `chore/briefer-investor-report-20260406`
 
 Rules:
 - lowercase only
-- hyphen-separated
-- no spaces
+- hyphen-separated, no spaces
 - do not use `[` or `]`
-- do not use old formats like `feature/forge/[task-name]`
-- `{feature}` should resolve to concise `area-purpose`
-- `{date}` is required for uniqueness
+- do not use old format `feature/forge/[task-name]`
+- `{date}` is required for uniqueness (YYYYMMDD)
+- pick the most specific area — default to `feature/` only for genuinely new capabilities
 
 ## CODEX WORKTREE RULE (CRITICAL)
 
@@ -644,7 +713,7 @@ FORGE-X executes build tasks only from COMMANDER.
 ### Task Process (DO NOT SKIP ANY STEP)
 
 1. Read `PROJECT_STATE.md`
-2. Read latest report from `projects/polymarket/polyquantbot/reports/forge/`
+2. Read latest report from `reports/forge/`
 3. Read additional repo knowledge if needed
 4. Clarify with COMMANDER if anything is materially unclear
 5. Design architecture — document before writing any code
@@ -709,8 +778,11 @@ BUILD → VALIDATE STRUCTURE → REPORT → UPDATE PROJECT_STATE → COMMIT
 #### Report Location (Mandatory)
 
 ```text
-projects/polymarket/polyquantbot/reports/forge/
+reports/forge/
 ```
+
+Full path: `{PROJECT_ROOT}/reports/forge/`
+Current: `projects/polymarket/polyquantbot/reports/forge/`
 
 #### Report Naming (Mandatory)
 
@@ -763,6 +835,23 @@ Forbidden locations:
 - `report/` folder (singular)
 - repo root
 - any path outside `reports/forge/`
+
+#### Report Archive Rule
+
+Reports older than 7 days are moved to the archive folder:
+
+```text
+reports/archive/forge/      ← archived FORGE-X reports
+reports/archive/sentinel/   ← archived SENTINEL reports
+reports/archive/briefer/    ← archived BRIEFER reports
+```
+
+Rules:
+- FORGE-X must check reports/archive/ when looking for older context reports
+- Moving to archive is a `chore/` branch task
+- Archive folder is NOT included in active path validation checks
+- Naming format preserved as-is when archiving
+- Archive does NOT count toward B1 blocking condition
 
 #### Report Failure Condition
 
@@ -858,7 +947,7 @@ Before marking task complete, verify:
 - Zero `phase*/` folders in entire repo
 - Zero imports referencing `phase*/` paths
 - Zero duplicate logic across domain modules unless explicitly justified
-- No reports outside `projects/.../reports/forge/`
+- No reports outside `reports/forge/`
 - All migrated files deleted from original path
 - No shims or re-export files
 - All code in locked domain structure
@@ -910,24 +999,37 @@ Before implementing any Polymarket feature:
 
 ### PROJECT_STATE Update (MANDATORY)
 
-FORGE-X updates ONLY these 7 sections. Never rewrite entire file.
+FORGE-X and SENTINEL update ONLY these 7 sections. Never rewrite entire file.
+
+Required format — preserve exactly:
 
 ```text
-Last Updated
-Status
-COMPLETED
-IN PROGRESS
-NOT STARTED
-NEXT PRIORITY
-KNOWN ISSUES
+📅 Last Updated : YYYY-MM-DD HH:MM
+🔄 Status       : [current phase description]
+
+✅ COMPLETED
+- [item]
+
+🔧 IN PROGRESS
+- [item]
+
+📋 NOT STARTED
+- [item]
+
+🎯 NEXT PRIORITY
+- [immediate next step for COMMANDER]
+
+⚠️ KNOWN ISSUES
+- [issue — or "None" if clean]
 ```
 
 Rules:
-- `Last Updated` must use full timestamp: `YYYY-MM-DD HH:MM`
-- Never rewrite other sections
+- Emoji and field labels are FIXED — never change or remove them
+- `📅 Last Updated` must use full timestamp: `YYYY-MM-DD HH:MM`
+- Never rewrite sections outside these 7
 - Never replace entire file if only these 7 fields change
-- Commit message:
-  `update: project state after [task name]`
+- Format must render cleanly on mobile and desktop
+- Commit message: `chore/core-project-state-YYYYMMDD`
 
 ### PROJECT_STATE ENFORCEMENT (STRICT)
 
@@ -939,7 +1041,7 @@ Mandatory sequence:
 1. Finish code changes
 2. Generate forge report
 3. Update `PROJECT_STATE.md`
-4. Commit code + report + PROJECT_STATE in the SAME commit
+4. Commit code + report + PROJECT_STATE in the SAME commit (commit message: `{prefix}/{area}-{purpose}-{date}`)
 5. Include explicit `Report:` path in final output
 6. Include explicit `State:` confirmation in final output
 
@@ -977,7 +1079,7 @@ write in `NEXT PRIORITY` exactly:
 
 ```text
 SENTINEL validation required for [task name] before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/[report filename]
+Source: reports/forge/[report filename]
 Tier: MAJOR
 ```
 
@@ -1088,9 +1190,9 @@ If any item above is missing or FAIL:
 - do not ask for SENTINEL
 - fix it first
 
-### CODEX AUTO PR REVIEW (MINOR / STANDARD)
+### AUTO PR REVIEW (MINOR / STANDARD)
 
-Codex auto PR review is the default review layer for MINOR tasks and the baseline review layer for STANDARD tasks.
+Auto PR review (Codex / Gemini / Copilot — whichever is available) is the default review layer for MINOR tasks and the baseline review layer for STANDARD tasks.
 
 Purpose:
 - catch simple regressions early
@@ -1142,7 +1244,7 @@ Codex auto PR review must not:
 - behave like full SENTINEL
 - block on unrelated non-critical observations
 
-### CODEX MANUAL RE-REVIEW COMMAND (OPTIONAL)
+### MANUAL RE-REVIEW COMMAND (OPTIONAL)
 
 Use this only if:
 - Codex auto PR review did not run
@@ -1150,7 +1252,7 @@ Use this only if:
 - COMMANDER explicitly requests a manual re-review
 
 ```text
-@codex review this PR for:
+@codex (or @gemini / @copilot) review this PR for:
 - changed files only
 - direct dependencies only
 - report/state/output completeness
@@ -1178,7 +1280,7 @@ Final output MUST end with:
 ```text
 Done ✅ — [task name] complete.
 PR: feature/{feature}-{date}
-Report: projects/polymarket/polyquantbot/reports/forge/[filename].md
+Report: reports/forge/[filename].md
 State: PROJECT_STATE.md updated
 Validation Tier: [MINOR / STANDARD / MAJOR]
 Claim Level: [FOUNDATION / NARROW INTEGRATION / FULL RUNTIME INTEGRATION]
@@ -1274,7 +1376,7 @@ Do NOT assume environment.
 Before any validation:
 
 1. Read `PROJECT_STATE.md`
-2. Read source FORGE-X report from `projects/polymarket/polyquantbot/reports/forge/`
+2. Read source FORGE-X report from `reports/forge/`
 3. Read actual code under validation
 4. Read additional repo knowledge if needed
 5. Read the declared Validation Tier, Claim Level, Validation Target, and Not in Scope from the forge report
@@ -1354,6 +1456,7 @@ Rules:
 - If Validation Tier = MINOR and COMMANDER did not request validation, SENTINEL should not run
 - If Validation Tier = STANDARD, SENTINEL runs only when explicitly requested or escalated
 - If Validation Tier = MAJOR, SENTINEL must run
+- CORE AUDIT mode runs only when COMMANDER explicitly requests it (independent of Validation Tier)
 
 ### Evidence Rule (CRITICAL)
 
@@ -1754,7 +1857,7 @@ Rules:
 
 Path:
 ```text
-projects/polymarket/polyquantbot/reports/sentinel/[phase]_[increment]_[name].md
+reports/sentinel/[phase]_[increment]_[name].md
 ```
 
 Branch:
@@ -1920,7 +2023,7 @@ Done:
 Done ✅ — GO-LIVE: [verdict]. Score: [X]/100. Critical: [N].
 Branch: feature/{feature}-{date}
 PR target: main
-Report: projects/polymarket/polyquantbot/reports/sentinel/[filename].md
+Report: reports/sentinel/[filename].md
 State: PROJECT_STATE.md updated
 ```
 
@@ -2015,9 +2118,9 @@ BRIEFER MUST NOT:
 BRIEFER may ONLY use data from:
 
 ```text
-projects/polymarket/polyquantbot/reports/forge/*
-projects/polymarket/polyquantbot/reports/sentinel/*
-projects/polymarket/polyquantbot/reports/briefer/*
+reports/forge/*
+reports/sentinel/*
+reports/briefer/*
 ```
 
 STRICTLY FORBIDDEN:
@@ -2221,7 +2324,7 @@ Hard failure conditions:
 - file extension is not `.html`
 - template was not used
 - HTML was built from scratch
-- output saved outside `projects/polymarket/polyquantbot/reports/briefer/`
+- output saved outside `reports/briefer/`
 
 If any hard failure occurs:
 → TASK = FAILED
@@ -2233,7 +2336,7 @@ Required final output for REPORT MODE:
 
 ```text
 Done ✅ — report generated in template format.
-Output: projects/polymarket/polyquantbot/reports/briefer/[phase]_[increment]_[name].html
+Output: reports/briefer/[phase]_[increment]_[name].html
 ```
 
 Missing `.html` output path:
@@ -2280,7 +2383,7 @@ docs/templates/REPORT_TEMPLATE_MASTER.html
 #### Save path
 
 ```text
-projects/polymarket/polyquantbot/reports/briefer/[phase]_[increment]_[name].html
+reports/briefer/[phase]_[increment]_[name].html
 ```
 
 #### Branch
@@ -2498,7 +2601,7 @@ Right:
 ### Failure Conditions (STOP → ask COMMANDER)
 
 - `PROJECT_STATE.md` not found
-- source report not found in `projects/polymarket/polyquantbot/reports/forge/` or `projects/polymarket/polyquantbot/reports/sentinel/`
+- source report not found in `reports/forge/` or `reports/sentinel/`
 - mode unclear after 1 ask
 - critical data missing (risk numbers, SENTINEL verdict)
 
@@ -2519,6 +2622,8 @@ Do NOT stop for:
 Done:
 ```text
 Done ✅ — [task name] complete. [1-line summary of what was produced].
+PR: feature/{feature}-{date}
+Output: reports/briefer/[filename].html
 ```
 
 Fallback:
@@ -2537,13 +2642,71 @@ Done ⚠️ — output complete but GitHub write failed. File delivered in chat 
 - Use PHASE folders or singular `report/`
 - Omit disclaimer when paper-trading context requires it
 
+
+## SENTINEL — CORE AUDIT MODE
+
+This mode runs ONLY when explicitly requested by COMMANDER.
+
+```text
+Trigger: "SENTINEL audit core" or "SENTINEL run core audit"
+```
+
+### Purpose
+
+Full project health check — not tied to a specific FORGE-X task.
+
+### Scope
+
+- Scan all files in `{PROJECT_ROOT}` domain folders
+- Identify unused files (imported nowhere, not referenced)
+- Identify dead code (functions/classes defined but never called)
+- Identify stale logic (bypassed, commented-out, or shadowed code)
+- Identify risk drift (risk constants changed from fixed values)
+- Identify structural violations (files outside domain, phase* remnants)
+- Identify dependency issues (circular imports, unused imports)
+- Propose deletions with justification
+
+### Rules
+
+- COMMANDER must explicitly trigger this mode — SENTINEL must NOT self-initiate
+- Output a prioritized action list for FORGE-X
+- Do NOT auto-delete — output recommendations only
+- Findings that are critical safety issues = BLOCKED regardless of scope
+- Non-critical cleanup findings = FOLLOW-UP REQUIRED (not blockers)
+
+### Output
+
+```text
+🔍 CORE AUDIT REPORT — {PROJECT_ROOT}
+📅 Date: YYYY-MM-DD HH:MM
+
+🗑️ FILES TO DELETE
+- [full path] — reason: [not imported / unreferenced / superseded by X]
+
+🔧 CODE TO FIX
+- [file:line] — reason: [dead code / stale logic / wrong constant]
+
+⚠️ RISK DRIFT
+- [file:line] — expected: [value] — actual: [value]
+
+🏗️ STRUCTURAL VIOLATIONS
+- [issue]
+
+📦 DEPENDENCY ISSUES
+- [issue]
+
+✅ VERDICT
+- Critical: [N] → [BLOCKED / CLEAN]
+- Follow-up: [N] tasks recommended for FORGE-X
+```
+
 ## COPILOT / PR BLOCKING CONDITIONS
 
 Any single condition = 🚫 BLOCKED:
 
 | Code | Condition |
 |---|---|
-| B1 | FORGE-X report missing from `projects/polymarket/polyquantbot/reports/forge/` |
+| B1 | FORGE-X report missing from `reports/forge/` |
 | B2 | Report naming format incorrect |
 | B3 | Report missing any mandatory section |
 | B4 | `PROJECT_STATE.md` not updated in PR |
@@ -2563,18 +2726,19 @@ COMMANDER → generates task
     ↓
 FORGE-X → builds → commits → opens PR
     ↓
-Codex auto-reviews PR
+Auto PR review (conditional — if available):
+    Codex / Gemini / Copilot → reviews PR changes
     ↓
 COMMANDER → decides validation path by tier
     ↓
 if MINOR:
-    Codex auto PR review → COMMANDER review → merge decision
+    Auto PR review (Codex/Gemini/Copilot) + COMMANDER review → merge decision
     ↓
 if STANDARD:
-    Codex auto PR review → COMMANDER review → merge / hold / rework decision
+    Auto PR review (Codex/Gemini/Copilot) + COMMANDER review → merge / hold / rework
     ↓
-if MAJOR:
-    SENTINEL → validates → issues verdict → updates PROJECT_STATE.md → saves report → opens PR to `main`
+if MAJOR or explicitly requested by COMMANDER:
+    SENTINEL → validates → issues verdict → updates PROJECT_STATE.md → saves report → opens PR
     ↓
 if communication artifact is needed:
     BRIEFER → transforms reports → saves HTML → opens PR
@@ -2583,11 +2747,12 @@ COMMANDER → reviews all PRs → decides merge
 ```
 
 Rules:
-- none of the three agents merge PRs directly
-- COMMANDER decides
-- MINOR tasks use Codex auto PR review by default
-- STANDARD tasks use Codex auto PR review by default
-- SENTINEL is mandatory for MAJOR tasks only
+- None of the three agents merge PRs directly — COMMANDER decides
+- Auto PR review tools: Codex, Gemini, or Copilot (use whichever is available)
+- MINOR tasks: auto PR review + COMMANDER review is sufficient
+- STANDARD tasks: auto PR review + COMMANDER review, COMMANDER may escalate to SENTINEL
+- MAJOR tasks: SENTINEL validation is mandatory — auto PR review is optional support only
+- SENTINEL runs ONLY when Validation Tier = MAJOR or COMMANDER explicitly requests it
 - BRIEFER must not outrun required validation
 
 ## FAILURE CONDITIONS (GLOBAL)
@@ -2615,8 +2780,8 @@ Immediate FAIL / BLOCKED if:
 - FORGE-X did not declare Claim Level
 - SENTINEL ran without checking declared Validation Tier, Claim Level, and Validation Target first
 - SENTINEL used post-merge audit findings to retroactively broaden an older PR scope without explicit claim contradiction
-- MINOR task merged without Codex auto PR review coverage
-- STANDARD task merged without Codex auto PR review coverage
+- MINOR task merged without auto PR review coverage (Codex/Gemini/Copilot)
+- STANDARD task merged without auto PR review coverage (Codex/Gemini/Copilot)
 
 ## FINAL IDENTITY
 
