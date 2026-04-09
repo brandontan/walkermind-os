@@ -70,17 +70,20 @@ def _build_trigger(
     return trigger
 
 
-def _build_gateway_validation_proof(engine: ExecutionEngine, validation_id: str = "test-trade") -> ExecutionValidationProof:
+def _build_gateway_validation_proof(
+    engine: ExecutionEngine,
+    *,
+    market: str,
+    side: str,
+    price: float,
+    size: float,
+) -> ExecutionValidationProof:
     return engine.build_validation_proof(
-        validation_id=validation_id,
-        validation_decision="ALLOW",
-        validation_reason="passed",
-        validation_checks={
-            "ev_positive": True,
-            "edge_positive": True,
-            "liquidity_ok": True,
-            "spread_ok": True,
-        },
+        condition_id=market,
+        side=side,
+        price_snapshot=price,
+        size=size,
+        market_type="normal",
     )
 
 
@@ -214,7 +217,10 @@ def test_p16_blocked_terminal_traceability_has_single_terminal_trace_per_path() 
             size=100.0,
             validation_proof=_build_gateway_validation_proof(
                 portfolio_trigger._engine,  # noqa: SLF001
-                validation_id="seed-position",
+                market="MARKET-ALT",
+                side="YES",
+                price=0.5,
+                size=100.0,
             ),
         )
         decision = await portfolio_trigger.evaluate(
@@ -383,12 +389,16 @@ def test_p16_direct_engine_call_with_fake_validation_proof_fails() -> None:
     async def _run() -> None:
         engine = ExecutionEngine(starting_equity=10_000.0)
         fake = ExecutionValidationProof(
-            validation_id="fake-trade",
-            validation_decision="ALLOW",
-            validation_reason="passed",
-            validation_checks_hash="0" * 64,
-            issued_at_unix=1.0,
-            signature="fake-signature",
+            proof_id="fake-trade",
+            condition_id="MARKET-1",
+            side="YES",
+            price_snapshot=0.45,
+            size=100.0,
+            created_at=1.0,
+            ttl_seconds=20,
+            expires_at=21.0,
+            context_hash="0" * 64,
+            status="CREATED",
         )
         created = await engine.open_position(
             market="MARKET-1",
@@ -412,7 +422,7 @@ def test_p16_direct_engine_call_with_gateway_validation_proof_passes() -> None:
             side="YES",
             price=0.45,
             size=100.0,
-            validation_proof=_build_gateway_validation_proof(engine),
+            validation_proof=_build_gateway_validation_proof(engine, market="MARKET-1", side="YES", price=0.45, size=100.0),
         )
         assert created is not None
 
@@ -428,7 +438,7 @@ def test_p16_direct_engine_open_rejects_non_positive_size() -> None:
             side="YES",
             price=0.45,
             size=0.0,
-            validation_proof=_build_gateway_validation_proof(engine, validation_id="zero-size"),
+            validation_proof=_build_gateway_validation_proof(engine, market="MARKET-1", side="YES", price=0.45, size=0.0),
         )
         assert created is None
         rejection = engine.get_last_open_rejection()
@@ -447,7 +457,7 @@ def test_p16_direct_engine_open_rejects_size_above_per_trade_cap() -> None:
             side="YES",
             price=0.45,
             size=1_500.0,
-            validation_proof=_build_gateway_validation_proof(engine, validation_id="over-cap"),
+            validation_proof=_build_gateway_validation_proof(engine, market="MARKET-1", side="YES", price=0.45, size=1_500.0),
         )
         assert created is None
         rejection = engine.get_last_open_rejection()
@@ -468,7 +478,7 @@ def test_p16_direct_engine_open_rejects_capital_risk_allowed_size_boundary() -> 
             side="YES",
             price=0.40,
             size=1_000.0,
-            validation_proof=_build_gateway_validation_proof(engine, validation_id="seed-position"),
+            validation_proof=_build_gateway_validation_proof(engine, market="MARKET-SEED", side="YES", price=0.40, size=1_000.0),
         )
         assert seed_created is not None
         created = await engine.open_position(
@@ -477,7 +487,7 @@ def test_p16_direct_engine_open_rejects_capital_risk_allowed_size_boundary() -> 
             side="YES",
             price=0.45,
             size=750.0,
-            validation_proof=_build_gateway_validation_proof(engine, validation_id="over-risk-cap"),
+            validation_proof=_build_gateway_validation_proof(engine, market="MARKET-2", side="YES", price=0.45, size=750.0),
         )
         assert created is None
         rejection = engine.get_last_open_rejection()
