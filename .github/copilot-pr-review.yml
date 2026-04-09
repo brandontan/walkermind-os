@@ -1,0 +1,346 @@
+# .github/workflows/copilot-pr-review.yml
+# Pre-merge gate for all PRs to main
+# Walker AI Team — NEXUS Guard
+#
+# PHILOSOPHY: Block only what is objectively dangerous or structurally wrong.
+# Everything else is a warning or deferred to SENTINEL.
+#
+# HARD BLOCKERS (exit 1): B1 B2 B4 B5 B6 B7 B8 B10 B11 B12
+# WARNINGS (non-blocking): B3 B9 batch-size timestamp
+# DEFERRED: minor bugs, style, relative paths, non-atomic writes → SENTINEL backlog
+
+name: NEXUS PR Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+jobs:
+  pre-merge-gate:
+    name: Pre-Merge Gate
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Pre-Merge Gate
+        id: gate
+        run: |
+          echo "========================================"
+          echo "  NEXUS PRE-MERGE GATE"
+          echo "  PR: ${{ github.event.pull_request.title }}"
+          echo "========================================"
+          FAILED=0
+          WARNINGS=""
+
+          CHANGED=$(git diff --name-only origin/main...HEAD || true)
+
+          # ── B5: No phase* folders (BLOCKER) ─────────────────────────────
+          if find . -type d -name "phase*" ! -path "./.git/*" | grep -q .; then
+            echo "❌ B5: phase* folder found — must be deleted"
+            find . -type d -name "phase*" ! -path "./.git/*"
+            FAILED=1
+          else
+            echo "✅ B5: No phase* folders"
+          fi
+
+          # ── B6: No files outside domain structure (BLOCKER) ─────────────
+          OUTSIDE=$(echo "$CHANGED" \
+            | grep -v "^\.github/" \
+            | grep -v "^docs/" \
+            | grep -v "^projects/" \
+            | grep -v "^lib/" \
+            | grep -v "^\.claude/" \
+            | grep -v "^PROJECT_STATE\.md$" \
+            | grep -v "^AGENTS\.md$" \
+            | grep -v "^CLAUDE\.md$" \
+            | grep -v "^NEXUS_KNOWLEDGE\.md$" \
+            | grep -v "^README\.md$" \
+            | grep -v "^\.env\.example$" \
+            | grep -v "^\.gitignore$" \
+            | grep -v "^pyproject\.toml$" \
+            | grep -v "^setup\.py$" \
+            | grep -v "^setup\.cfg$" \
+            | grep -v "^requirements.*\.txt$" \
+            | grep -Ev "^(core|data|strategy|intelligence|risk|execution|monitoring|api|infra|backtest|reports|lib)/" \
+            || true)
+          if [ -n "$OUTSIDE" ]; then
+            echo "❌ B6: Files outside domain structure:"
+            echo "$OUTSIDE"
+            FAILED=1
+          else
+            echo "✅ B6: All files within domain structure"
+          fi
+
+          # ── Determine PR type ────────────────────────────────────────────
+          # Skip code-related checks for report-only PRs (SENTINEL/BRIEFER)
+          CODE_CHANGED=$(echo "$CHANGED" \
+            | grep -Ev "reports/sentinel/|reports/briefer/" \
+            | grep -v "^PROJECT_STATE\.md$" \
+            | grep -v "^\.github/" \
+            | wc -l || true)
+
+          FORGE_REPORTS=$(echo "$CHANGED" \
+            | grep -E "reports/forge/[^/]+\.md$" \
+            || true)
+          FORGE_COUNT=$(echo "$FORGE_REPORTS" | grep -c . || true)
+
+          # ── B4: PROJECT_STATE.md updated (BLOCKER for code PRs) ─────────
+          if [ "$CODE_CHANGED" -gt 0 ]; then
+            if ! echo "$CHANGED" | grep -q "PROJECT_STATE\.md"; then
+              echo "❌ B4: PROJECT_STATE.md not updated"
+              FAILED=1
+            else
+              echo "✅ B4: PROJECT_STATE.md updated"
+              # Timestamp format — WARNING only (emoji encoding varies by env)
+              if ! grep -E "Last Updated.*[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}" PROJECT_STATE.md > /dev/null 2>&1; then
+                echo "⚠️  B4 WARN: Last Updated timestamp format may be incorrect (expected YYYY-MM-DD HH:MM)"
+                WARNINGS="${WARNINGS}timestamp "
+              else
+                echo "✅ B4: Timestamp format OK"
+              fi
+            fi
+          else
+            echo "ℹ️  B4: Report-only PR — skipped"
+          fi
+
+          # ── B1: FORGE-X report exists (BLOCKER for code PRs) ────────────
+          if [ "$CODE_CHANGED" -gt 0 ] && [ "$FORGE_COUNT" -eq 0 ]; then
+            echo "❌ B1: No FORGE-X report found in reports/forge/"
+            FAILED=1
+          elif [ "$FORGE_COUNT" -gt 0 ]; then
+            echo "✅ B1: FORGE-X report found ($FORGE_COUNT file(s))"
+          else
+            echo "ℹ️  B1: No code changes — skipped"
+          fi
+
+          # ── B2: Report naming format (BLOCKER) ──────────────────────────
+          for REPORT in $FORGE_REPORTS; do
+            BASENAME=$(basename "$REPORT")
+            if ! echo "$BASENAME" | grep -qE "^[0-9]+_[0-9]+_[a-z0-9_]+\.md$"; then
+              echo "❌ B2: Invalid report name: $BASENAME"
+              echo "   Expected: [phase]_[increment]_[name].md"
+              FAILED=1
+            else
+              echo "✅ B2: Report naming valid: $BASENAME"
+            fi
+          done
+
+          # ── B3: Report completeness (WARNING only — defer to SENTINEL) ───
+          for REPORT in $FORGE_REPORTS; do
+            if [ -f "$REPORT" ]; then
+              MISSING=0
+              for SECTION in "What was built" "What is working" "Known issues" "What is next"; do
+                if ! grep -qi "$SECTION" "$REPORT"; then
+                  MISSING=1
+                fi
+              done
+              if [ "$MISSING" -eq 1 ]; then
+                echo "⚠️  B3 WARN: Report may be missing sections — SENTINEL will verify"
+                WARNINGS="${WARNINGS}report_sections "
+              else
+                echo "✅ B3: Core report sections present"
+              fi
+              # Tier/Claim — warning only
+              if ! grep -qiE "Validation Tier|Claim Level" "$REPORT"; then
+                echo "⚠️  B3 WARN: Validation Tier or Claim Level not declared in report"
+                WARNINGS="${WARNINGS}tier_claim "
+              else
+                echo "✅ B3: Validation Tier and Claim Level declared"
+              fi
+            fi
+          done
+
+          # ── B7: No hardcoded secrets (BLOCKER) ──────────────────────────
+          # Conservative pattern — only clear explicit assignments, skip comments/docs
+          if git diff origin/main...HEAD -- "*.py" \
+            | grep -v "^+#" \
+            | grep -v '^\+\s*"""' \
+            | grep -v "^\+\s*'''" \
+            | grep -qE "^\+[^#]*(password|api_key|token|secret)\s*=\s*['\"][a-zA-Z0-9]{8,}"; then
+            echo "❌ B7: Potential hardcoded secret in Python code"
+            FAILED=1
+          elif git diff origin/main...HEAD -- "*.env" \
+            | grep -v "^+#" \
+            | grep -v "example\|sample\|template" \
+            | grep -qE "^\+[A-Z_]+=(sk-|[a-zA-Z0-9]{32,})"; then
+            echo "❌ B7: Potential hardcoded secret in .env file"
+            FAILED=1
+          else
+            echo "✅ B7: No hardcoded secrets detected"
+          fi
+
+          # ── B8: No full Kelly (BLOCKER) ──────────────────────────────────
+          # Precise: only assignment lines, not comments
+          if git diff origin/main...HEAD -- "*.py" \
+            | grep -v "^+#" \
+            | grep -qE "^\+[^#]*(KELLY_FRACTION|kelly_fraction|kelly_alpha)\s*=\s*1\.0"; then
+            echo "❌ B8: Full Kelly (α=1.0) assignment detected — use 0.25"
+            FAILED=1
+          else
+            echo "✅ B8: No full Kelly assignment"
+          fi
+
+          # ── B9: RISK bypass (WARNING only) ──────────────────────────────
+          # Too many false positives to block — warn and let SENTINEL verify
+          NEW_EXEC=$(git diff origin/main...HEAD -- "*.py" \
+            | grep -E "^\+[^#]*def (execute|place_order|submit_order)" \
+            | wc -l || true)
+          if [ "$NEW_EXEC" -gt 0 ]; then
+            echo "⚠️  B9 WARN: New execution function(s) detected — SENTINEL must verify RISK layer"
+            WARNINGS="${WARNINGS}new_execution_fn "
+          else
+            echo "✅ B9: No new execution functions added"
+          fi
+
+          # ── B10: No silent exceptions (BLOCKER) ─────────────────────────
+          if git diff origin/main...HEAD -- "*.py" \
+            | grep -v "^+#" \
+            | grep -qE "^\+\s*except(\s*:|\s+Exception\s*:|\s+\w+\s*:)\s*pass\s*$"; then
+            echo "❌ B10: Silent exception detected (except: pass)"
+            FAILED=1
+          else
+            echo "✅ B10: No silent exceptions"
+          fi
+
+          # ── B11: No threading (BLOCKER) ──────────────────────────────────
+          if git diff origin/main...HEAD -- "*.py" \
+            | grep -qE "^\+\s*(import threading|from threading import)"; then
+            echo "❌ B11: threading import detected — use asyncio only"
+            FAILED=1
+          else
+            echo "✅ B11: No threading imports"
+          fi
+
+          # ── B12: ENABLE_LIVE_TRADING guard (BLOCKER) ────────────────────
+          # Only block if hardcoded True/1 without any env/config guard
+          if git diff origin/main...HEAD -- "*.py" \
+            | grep -v "^+#" \
+            | grep -qE "^\+[^#]*ENABLE_LIVE_TRADING\s*=\s*(True|1)\b"; then
+            # Check if there's a getenv/os.environ guard anywhere in the same file
+            GUARD=$(git diff origin/main...HEAD -- "*.py" \
+              | grep -E "getenv|os\.environ|config\." \
+              | grep -c "ENABLE_LIVE_TRADING" || true)
+            if [ "$GUARD" -eq 0 ]; then
+              echo "❌ B12: ENABLE_LIVE_TRADING hardcoded True without env guard"
+              FAILED=1
+            else
+              echo "✅ B12: ENABLE_LIVE_TRADING has env guard"
+            fi
+          else
+            echo "✅ B12: No live trading guard changes"
+          fi
+
+          # ── Final result ─────────────────────────────────────────────────
+          echo ""
+          echo "========================================"
+          if [ "$FAILED" -eq 1 ]; then
+            echo "  RESULT: 🚫 BLOCKED"
+            echo "GATE_RESULT=BLOCKED" >> $GITHUB_OUTPUT
+            echo "WARNINGS=${WARNINGS}" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "  RESULT: ✅ PASS"
+            [ -n "$WARNINGS" ] && echo "  WARNINGS: $WARNINGS"
+            echo "GATE_RESULT=PASS" >> $GITHUB_OUTPUT
+            echo "WARNINGS=${WARNINGS}" >> $GITHUB_OUTPUT
+          fi
+          echo "========================================"
+
+      # ── PR comment: BLOCKED ───────────────────────────────────────────────
+      - name: Comment — BLOCKED
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🚫 NEXUS PRE-GATE — BLOCKED
+
+**DO NOT MERGE — fix blocker(s) first, then push again.**
+
+📋 [View gate log](${runUrl})
+
+**Hard blockers (must fix):**
+
+| Code | Condition |
+|---|---|
+| B1 | FORGE-X report missing from \`reports/forge/\` |
+| B2 | Report naming format invalid |
+| B4 | \`PROJECT_STATE.md\` not updated |
+| B5 | \`phase*/\` folder present |
+| B6 | File outside domain structure |
+| B7 | Hardcoded secret detected |
+| B8 | Full Kelly (α=1.0) used |
+| B10 | Silent exception (\`except: pass\`) |
+| B11 | \`import threading\` found |
+| B12 | \`ENABLE_LIVE_TRADING\` hardcoded without env guard |
+
+**Non-blockers (warn only → defer to SENTINEL):** B3 B9 style issues minor bugs
+
+---
+*NEXUS PR Gate — Walker AI Team*`
+            });
+
+      # ── PR comment: PASS ──────────────────────────────────────────────────
+      - name: Comment — PASS
+        if: success()
+        uses: actions/github-script@v7
+        env:
+          WARNINGS: ${{ steps.gate.outputs.WARNINGS }}
+        with:
+          script: |
+            const warnings = process.env.WARNINGS || '';
+            const warnList = warnings.trim() ? warnings.trim().split(' ').filter(Boolean) : [];
+            const warnNote = warnList.length > 0
+              ? `\n\n⚠️ **Warnings (non-blocking, defer to SENTINEL):** ${warnList.join(' · ')}`
+              : '';
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ✅ NEXUS PRE-GATE — PASSED${warnNote}
+
+| Check | Result |
+|---|---|
+| B5: No \`phase*/\` folders | ✅ |
+| B6: Domain structure | ✅ |
+| B4: \`PROJECT_STATE.md\` updated | ✅ |
+| B1: FORGE-X report present | ✅ |
+| B2: Report naming format | ✅ |
+| B7: No hardcoded secrets | ✅ |
+| B8: No full Kelly | ✅ |
+| B10: No silent exceptions | ✅ |
+| B11: No threading | ✅ |
+| B12: Live trading guard | ✅ |
+
+**Next step — based on Validation Tier in forge report:**
+
+| Tier | Next |
+|---|---|
+| MINOR | COMMANDER review → merge |
+| STANDARD | COMMANDER review → merge / hold / rework |
+| MAJOR | SENTINEL validation required before merge |
+
+> Minor bugs, style issues, relative paths, non-atomic writes → deferred.
+> Logged as \`[DEFERRED]\` in \`PROJECT_STATE.md ⚠️ KNOWN ISSUES\`.
+> Fixed in one batch during next FORGE-X task after SENTINEL MAJOR.
+
+---
+*NEXUS PR Gate — Walker AI Team*`
+            });
