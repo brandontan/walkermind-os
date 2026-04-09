@@ -9,6 +9,7 @@ import re
 from .engine import ExecutionEngine
 from .intelligence import ExecutionIntelligence, MarketSnapshot
 from .trade_trace import TradeTraceEngine
+from ..strategy.falcon_alpha_strategy import FalconSignal
 
 log = structlog.get_logger(__name__)
 
@@ -177,6 +178,8 @@ class StrategyAggregationDecision:
     current_regime: str = "LOW_ACTIVITY_CHAOTIC"
     regime_confidence: float = 0.0
     strategy_weight_modifiers: dict[str, float] | None = None
+    external_signal_weight: float = 1.0
+    falcon_signal: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -930,6 +933,7 @@ class StrategyTrigger:
         s2_decision: CrossExchangeArbitrageDecision,
         s3_decision: SmartMoneyCopyTradingDecision,
         market_regime_inputs: MarketRegimeInputs | None = None,
+        falcon_signal: FalconSignal | None = None,
     ) -> StrategyAggregationDecision:
         """
         Aggregate S1/S2/S3 strategy outputs and select one best trade candidate.
@@ -990,6 +994,28 @@ class StrategyTrigger:
                 )
                 for item in candidates
             ]
+        external_signal_weight = 1.0
+        falcon_signal_payload: dict[str, object] | None = None
+        if falcon_signal is not None:
+            external_signal_weight = self._clamp(float(falcon_signal.external_signal_weight), 0.90, 1.15)
+            falcon_signal_payload = {
+                "type": falcon_signal.signal_type,
+                "strength": round(self._clamp(falcon_signal.strength, 0.0, 1.0), 6),
+                "confidence": round(self._clamp(falcon_signal.confidence, 0.0, 1.0), 6),
+                "liquidity_score": round(self._clamp(falcon_signal.liquidity_score, 0.0, 1.0), 6),
+            }
+            candidates = [
+                StrategyCandidateScore(
+                    strategy_name=item.strategy_name,
+                    decision=item.decision,
+                    reason=item.reason,
+                    edge=item.edge,
+                    confidence=item.confidence,
+                    score=round(item.score * external_signal_weight, 6),
+                    market_metadata=item.market_metadata,
+                )
+                for item in candidates
+            ]
         ranked_candidates = sorted(candidates, key=lambda item: (-item.score, item.strategy_name))
         enter_candidates = [candidate for candidate in ranked_candidates if candidate.decision == "ENTER"]
         top_score = ranked_candidates[0].score if ranked_candidates else 0.0
@@ -1008,6 +1034,8 @@ class StrategyTrigger:
                 current_regime=regime.regime_type,
                 regime_confidence=regime.confidence_score,
                 strategy_weight_modifiers=regime.strategy_weight_modifiers,
+                external_signal_weight=external_signal_weight,
+                falcon_signal=falcon_signal_payload,
             )
 
         if has_global_conflict_hold:
@@ -1020,6 +1048,8 @@ class StrategyTrigger:
                 current_regime=regime.regime_type,
                 regime_confidence=regime.confidence_score,
                 strategy_weight_modifiers=regime.strategy_weight_modifiers,
+                external_signal_weight=external_signal_weight,
+                falcon_signal=falcon_signal_payload,
             )
 
         top_candidate = enter_candidates[0]
@@ -1033,6 +1063,8 @@ class StrategyTrigger:
                 current_regime=regime.regime_type,
                 regime_confidence=regime.confidence_score,
                 strategy_weight_modifiers=regime.strategy_weight_modifiers,
+                external_signal_weight=external_signal_weight,
+                falcon_signal=falcon_signal_payload,
             )
 
         return StrategyAggregationDecision(
@@ -1044,6 +1076,8 @@ class StrategyTrigger:
             current_regime=regime.regime_type,
             regime_confidence=regime.confidence_score,
             strategy_weight_modifiers=regime.strategy_weight_modifiers,
+            external_signal_weight=external_signal_weight,
+            falcon_signal=falcon_signal_payload,
         )
 
     def detect_market_regime(
