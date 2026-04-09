@@ -32,6 +32,10 @@ class StrategyConfig:
     cross_exchange_min_overlap_tokens: int = 2
     min_position_size_usd: float = 25.0
     max_position_size_ratio: float = 0.10
+    max_market_exposure_ratio: float = 0.15
+    max_theme_exposure_ratio: float = 0.20
+    correlation_size_reduction_factor: float = 0.50
+    high_similarity_overlap_ratio: float = 0.60
 
 
 @dataclass(frozen=True)
@@ -119,6 +123,14 @@ class PositionSizingDecision:
     size_reason: str
     applied_constraints: tuple[str, ...]
     normalized_score: float
+
+
+@dataclass(frozen=True)
+class PortfolioExposureDecision:
+    final_decision: str
+    adjusted_size: float
+    reason: str
+    flags: tuple[str, ...]
 
 
 class StrategyTrigger:
@@ -607,6 +619,169 @@ class StrategyTrigger:
             normalized_score=round(normalized_score, 6),
         )
 
+    def evaluate_portfolio_exposure_and_correlation(
+        self,
+        *,
+        target_market_id: str,
+        target_theme: str | None,
+        proposed_size: float,
+        open_positions: list[object],
+        total_capital: float,
+    ) -> PortfolioExposureDecision:
+        safe_capital = max(total_capital, 0.0)
+        if proposed_size <= 0.0 or safe_capital <= 0.0:
+            return PortfolioExposureDecision(
+                final_decision="SKIP",
+                adjusted_size=0.0,
+                reason="invalid proposed size or capital",
+                flags=("invalid_input",),
+            )
+
+        current_total_exposure = sum(max(float(position.exposure()), 0.0) for position in open_positions)
+        total_exposure_cap = safe_capital * self._engine.max_total_exposure_ratio
+        available_total_exposure = max(0.0, total_exposure_cap - current_total_exposure)
+        if available_total_exposure <= 0.0:
+            return PortfolioExposureDecision(
+                final_decision="SKIP",
+                adjusted_size=0.0,
+                reason="total exposure cap reached",
+                flags=("total_exposure_cap",),
+            )
+
+        same_market_exposure = sum(
+            max(float(position.exposure()), 0.0)
+            for position in open_positions
+            if getattr(position, "market_id", "") == target_market_id
+        )
+        if same_market_exposure > 0.0:
+            return PortfolioExposureDecision(
+                final_decision="SKIP",
+                adjusted_size=0.0,
+                reason="correlated exposure: same market already open",
+                flags=("same_market_block",),
+            )
+
+        normalized_target_theme = (target_theme or "").strip().lower()
+        theme_exposure = 0.0
+        if normalized_target_theme:
+            theme_exposure = sum(
+                max(float(position.exposure()), 0.0)
+                for position in open_positions
+                if self._infer_position_theme(position) == normalized_target_theme
+            )
+            theme_cap = safe_capital * self._config.max_theme_exposure_ratio
+            if theme_exposure >= theme_cap:
+                return PortfolioExposureDecision(
+                    final_decision="SKIP",
+                    adjusted_size=0.0,
+                    reason="theme exposure cap reached",
+                    flags=("theme_exposure_cap",),
+                )
+
+        max_market_exposure = safe_capital * self._config.max_market_exposure_ratio
+        market_headroom = max(0.0, max_market_exposure - same_market_exposure)
+        final_size = min(proposed_size, available_total_exposure, market_headroom)
+        flags: list[str] = []
+        reason = "portfolio fit validated"
+
+        if normalized_target_theme:
+            theme_cap = safe_capital * self._config.max_theme_exposure_ratio
+            theme_headroom = max(0.0, theme_cap - theme_exposure)
+            if final_size > theme_headroom:
+                final_size = theme_headroom
+                flags.append("theme_exposure_cap")
+
+        if self._has_high_similarity_overlap(target_market_id=target_market_id, open_positions=open_positions):
+            reduced_size = final_size * self._config.correlation_size_reduction_factor
+            final_size = min(final_size, reduced_size)
+            flags.append("high_similarity_reduce")
+            reason = "correlated exposure: highly similar condition"
+
+        if final_size <= 0.0:
+            return PortfolioExposureDecision(
+                final_decision="SKIP",
+                adjusted_size=0.0,
+                reason=reason if flags else "portfolio exposure constraint",
+                flags=tuple(flags or ["no_available_exposure"]),
+            )
+
+        if 0.0 < final_size < self._config.min_position_size_usd:
+            return PortfolioExposureDecision(
+                final_decision="SKIP",
+                adjusted_size=0.0,
+                reason="adjusted size below minimum threshold",
+                flags=tuple(flags + ["min_position_size_floor"]),
+            )
+
+        if final_size < proposed_size:
+            if not reason.startswith("correlated exposure"):
+                reason = "exposure cap adjustment"
+            return PortfolioExposureDecision(
+                final_decision="REDUCE",
+                adjusted_size=round(final_size, 2),
+                reason=reason,
+                flags=tuple(flags or ["exposure_reduce"]),
+            )
+
+        return PortfolioExposureDecision(
+            final_decision="ENTER",
+            adjusted_size=round(final_size, 2),
+            reason=reason,
+            flags=tuple(flags),
+        )
+
+    def _resolve_candidate_market_context(
+        self,
+        selected_candidate: StrategyCandidateScore | None,
+    ) -> tuple[str, str | None]:
+        if selected_candidate is None:
+            return self._config.market_id, None
+        metadata = selected_candidate.market_metadata or {}
+        raw_market_id = (
+            metadata.get("market_id")
+            or metadata.get("polymarket")
+            or self._config.market_id
+        )
+        market_id = str(raw_market_id)
+        raw_theme = (
+            metadata.get("theme")
+            or metadata.get("event_key")
+            or metadata.get("event")
+            or metadata.get("category")
+        )
+        theme = str(raw_theme).strip() if raw_theme is not None else None
+        return market_id, theme
+
+    @staticmethod
+    def _infer_position_theme(position: object) -> str:
+        for attr in ("theme", "event_key", "category"):
+            value = getattr(position, attr, None)
+            if isinstance(value, str) and value.strip():
+                return value.strip().lower()
+        return ""
+
+    def _has_high_similarity_overlap(
+        self,
+        *,
+        target_market_id: str,
+        open_positions: list[object],
+    ) -> bool:
+        target_tokens = set(self._tokenize(target_market_id))
+        if not target_tokens:
+            return False
+        for position in open_positions:
+            market_id = str(getattr(position, "market_id", ""))
+            if not market_id or market_id == target_market_id:
+                continue
+            position_tokens = set(self._tokenize(market_id))
+            if not position_tokens:
+                continue
+            overlap = len(target_tokens & position_tokens)
+            overlap_ratio = overlap / max(len(target_tokens), len(position_tokens))
+            if overlap_ratio >= self._config.high_similarity_overlap_ratio:
+                return True
+        return False
+
     def _select_best_cross_exchange_match(
         self,
         polymarket: CrossExchangeMarket,
@@ -685,6 +860,16 @@ class StrategyTrigger:
 
         if open_pos is None and market_price < self._config.threshold and entry_score >= 0.5:
             current_total_exposure = sum(position.exposure() for position in snapshot.positions)
+            selected_candidate = None
+            if aggregation_decision is not None and aggregation_decision.selected_trade:
+                selected_candidate = next(
+                    (
+                        item
+                        for item in aggregation_decision.ranked_candidates
+                        if item.strategy_name == aggregation_decision.selected_trade
+                    ),
+                    None,
+                )
             sizing = (
                 self.compute_position_size_from_s4_selection(
                     aggregation=aggregation_decision,
@@ -699,9 +884,19 @@ class StrategyTrigger:
                     normalized_score=1.0,
                 )
             )
-            size = sizing.position_size
+            target_market_id, target_theme = self._resolve_candidate_market_context(selected_candidate)
+            portfolio_guard = self.evaluate_portfolio_exposure_and_correlation(
+                target_market_id=target_market_id,
+                target_theme=target_theme,
+                proposed_size=sizing.position_size,
+                open_positions=list(snapshot.positions),
+                total_capital=snapshot.equity,
+            )
+            if portfolio_guard.final_decision == "SKIP":
+                return "BLOCKED"
+            size = portfolio_guard.adjusted_size
             created = await self._engine.open_position(
-                market=self._config.market_id,
+                market=target_market_id,
                 side=self._config.side,
                 price=market_price,
                 size=size,

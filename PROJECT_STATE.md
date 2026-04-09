@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 03:58
-- Status        : FORGE-X P7 capital allocation & position sizing implemented (STANDARD, narrow integration) with dynamic edge/confidence sizing + S4 bridge; awaiting Codex auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 04:29
+- Status        : FORGE-X P8 portfolio exposure balancing & correlation guard implemented (STANDARD, narrow integration) in post-S4 pre-execution path; awaiting Codex auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P8 portfolio exposure balancing & correlation guard (2026-04-09): added post-S4 pre-execution portfolio-fit guard in strategy trigger with same-market block, theme/similarity-aware correlation handling, exposure-cap-based size reduction/skip decisions, deterministic ENTER/SKIP/REDUCE output contract, and focused runtime-proof tests.
 - P7 capital allocation & position sizing (2026-04-09): implemented dynamic edge/confidence-driven position sizing in strategy trigger, added conservative fallback for missing confidence/borderline edge, enforced min-size + exposure constraints, integrated S4 selected-trade sizing before execution, and added focused six-case behavior tests.
 - S4 strategy aggregation & prioritization (2026-04-09): aggregated S1/S2/S3 outputs with preserved metadata, enforced deterministic normalized scoring and tie-break ranking, implemented single-winner ENTER/SKIP output contract (`selected_trade`/`ranked_candidates`/`selection_reason`/`top_score`/`decision`), and added focused seven-case behavior tests.
 - S3 smart-money / copy-trading strategy (2026-04-09): added strategy-trigger wallet-signal input contract, basic wallet quality filters, signal-strength scoring (size/early/repetition), explicit ENTER/SKIP decision path with confidence + wallet info payload, and focused five-case behavior tests.
@@ -100,6 +101,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### P8 portfolio exposure balancing & correlation guard handoff
+- STANDARD-tier narrow integration implementation is complete for post-S4 pre-execution portfolio validation, correlation-aware trade gating, and exposure-based size adjustment behavior.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ### P7 capital allocation & position sizing handoff
 - STANDARD-tier narrow integration implementation is complete for execution input sizing, strategy output→sizing bridge, and capital allocation constraints in strategy trigger scope.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
@@ -161,11 +166,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_15_p7_capital_allocation_position_sizing.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_16_p8_portfolio_exposure_balancing_correlation_guard.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- P8 portfolio exposure balancing is currently narrow integration in strategy-trigger pre-execution path only and is not yet generalized to broader runtime orchestration layers.
 - P7 position sizing is currently narrow integration in strategy-trigger execution input path only and is not yet generalized across full runtime orchestration.
 - S4 aggregation is currently narrow integration in strategy trigger only and is not yet wired into runtime execution orchestration; conflict-hold gate currently relies on explicit `CONFLICT_HOLD` marker semantics.
 - S3 smart-money strategy is currently narrow integration in strategy trigger only; execution-orchestration wiring remains out of scope for this task.
