@@ -91,6 +91,23 @@ class SmartMoneyCopyTradingDecision:
     wallet_info: dict[str, object]
 
 
+@dataclass(frozen=True)
+class StrategyCandidateScore:
+    strategy_id: str
+    decision: str
+    reason: str
+    edge: float
+    confidence: float
+    score: float
+
+
+@dataclass(frozen=True)
+class StrategyAggregationDecision:
+    selected_trade: str | None
+    ranking: list[StrategyCandidateScore]
+    reason: str
+
+
 class StrategyTrigger:
     """Strategy trigger with execution intelligence.
     
@@ -371,6 +388,96 @@ class StrategyTrigger:
                 "size_usd": round(signal.size_usd, 2),
                 "aligned_wallets": aligned_wallets,
             },
+        )
+
+    def aggregate_strategy_decisions(
+        self,
+        s1_decision: StrategyDecision,
+        s2_decision: CrossExchangeArbitrageDecision,
+        s3_decision: SmartMoneyCopyTradingDecision,
+    ) -> StrategyAggregationDecision:
+        """
+        Aggregate S1/S2/S3 strategy outputs and select one best trade candidate.
+        """
+        candidates = [
+            self._build_strategy_candidate_score(
+                strategy_id="S1",
+                decision=s1_decision.decision,
+                reason=s1_decision.reason,
+                edge=s1_decision.edge,
+                confidence=None,
+            ),
+            self._build_strategy_candidate_score(
+                strategy_id="S2",
+                decision=s2_decision.decision,
+                reason=s2_decision.reason,
+                edge=s2_decision.edge,
+                confidence=None,
+            ),
+            self._build_strategy_candidate_score(
+                strategy_id="S3",
+                decision=s3_decision.decision,
+                reason=s3_decision.reason,
+                edge=max(0.0, s3_decision.confidence * self._config.min_edge),
+                confidence=s3_decision.confidence,
+            ),
+        ]
+        ranking = sorted(candidates, key=lambda item: (-item.score, item.strategy_id))
+        enter_candidates = [candidate for candidate in ranking if candidate.decision == "ENTER"]
+        min_score_threshold = 0.40
+        if not enter_candidates:
+            return StrategyAggregationDecision(
+                selected_trade=None,
+                ranking=ranking,
+                reason="no candidate qualified for entry",
+            )
+
+        top_candidate = enter_candidates[0]
+        if top_candidate.score < min_score_threshold:
+            return StrategyAggregationDecision(
+                selected_trade=None,
+                ranking=ranking,
+                reason="all candidates below threshold",
+            )
+
+        if len(enter_candidates) > 1:
+            runner_up = enter_candidates[1]
+            score_gap = abs(top_candidate.score - runner_up.score)
+            if score_gap <= 0.02:
+                return StrategyAggregationDecision(
+                    selected_trade=None,
+                    ranking=ranking,
+                    reason="conflicting signals too strong",
+                )
+
+        return StrategyAggregationDecision(
+            selected_trade=top_candidate.strategy_id,
+            ranking=ranking,
+            reason=f"selected highest-ranked candidate: {top_candidate.strategy_id}",
+        )
+
+    def _build_strategy_candidate_score(
+        self,
+        strategy_id: str,
+        decision: str,
+        reason: str,
+        edge: float,
+        confidence: float | None,
+    ) -> StrategyCandidateScore:
+        normalized_edge = min(max(edge, 0.0) / 0.10, 1.0)
+        normalized_confidence = (
+            min(max(confidence, 0.0), 1.0)
+            if confidence is not None
+            else min(normalized_edge + 0.15, 1.0)
+        )
+        score = round((0.7 * normalized_edge) + (0.3 * normalized_confidence), 6)
+        return StrategyCandidateScore(
+            strategy_id=strategy_id,
+            decision=decision,
+            reason=reason,
+            edge=round(max(edge, 0.0), 6),
+            confidence=round(normalized_confidence, 6),
+            score=score,
         )
 
     def _select_best_cross_exchange_match(
