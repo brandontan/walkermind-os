@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 14:58
-- Status        : FORGE-X completed P14 post-trade analytics & attribution enhancement pass (FALCON attribution + deterministic buckets + bounded edge capture safety + expanded validation); pending auto PR review and COMMANDER review.
+- Last Updated  : 2026-04-09 15:16
+- Status        : FORGE-X completed P14.3 Falcon alpha strategy layer safety refinement pass (insufficient-data fallback + noisy-trigger suppression + deterministic bounded external weighting) and is pending auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P14.3 Falcon alpha strategy layer safety refinement (2026-04-09): added explicit insufficient-data fallback (`falcon_signal=None`), noisy-input neutralization (`external_signal_weight=1.0`), deterministic bounded aggregation behavior, and expanded focused tests for fallback/noise/runtime-proof examples.
 - P14 post-trade analytics & attribution enhancement pass (2026-04-09): added FALCON attribution normalization, deterministic strategy/regime baseline buckets, bounded edge-capture safety clamp with division-safe handling, and expanded focused tests for expectancy + edge safety + deterministic attribution outputs.
 - P14.3 Falcon alpha strategy layer (2026-04-09): implemented deterministic smart-money and momentum signal generation from Falcon datasets, liquidity scoring from orderbook spread/depth, bounded combined Falcon signal output, and narrow S4 integration via `external_signal_weight` with fallback-safe behavior and focused tests.
 - P14.2 external alpha ingestion (Falcon API) (2026-04-09): added bounded Falcon client for markets/trades/candles/orderbook retrieval (agent IDs 574/556/568/572), pagination-safe fetchers, deterministic normalization pipeline, basic smart-money/price/liquidity context extraction, and data-layer integration adapter with failure fallback plus focused runtime-proof tests.
@@ -118,6 +119,7 @@ Status:
 
 ### P14.3 Falcon alpha strategy layer handoff
 - STANDARD-tier narrow integration implementation is complete for Falcon-derived smart-money/momentum/liquidity signal generation and bounded S4 external weighting input path.
+- Safety refinement completed: explicit insufficient-data fallback and noisy-trigger neutralization keep S4 external weighting neutral when Falcon evidence is weak.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
 ### P14.2 external alpha ingestion handoff
@@ -234,12 +236,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_30_p14_post_trade_analytics_attribution_enhancements.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_31_p14_3_falcon_alpha_strategy_layer_signal_safety.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
-- P14.3 Falcon strategy layer is currently narrow integration in S4 scoring path only and is not yet wired into broader non-S4 runtime orchestration surfaces.
+- P14.3 Falcon strategy layer is currently narrow integration in S4 scoring path only and is not yet wired into broader non-S4 runtime orchestration surfaces; insufficient-data fallback now prevents external weighting when Falcon evidence is unavailable.
 - P14.2 Falcon ingestion is FOUNDATION claim-level only (data ingestion + normalization + adapter); broader runtime orchestration wiring remains out of scope.
 - P14.1 optimization output is currently narrow integration in strategy-trigger runtime path and is not yet propagated to external persistence/dashboard surfaces.
 - P14 analytics attribution (including FALCON attribution + bounded edge capture) is currently narrow integration in strategy-trigger to execution closed-trade path only and is not yet wired to external persistence or dashboard surfaces.
