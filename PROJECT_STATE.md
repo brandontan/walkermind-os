@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 21:15
-- Status        : FORGE-X completed focused post-merge P16 smoke verification (restart-safe persistence, blocked terminal traceability, execution-truth success envelope) and cleaned stale validation-chain state references.
+- Last Updated  : 2026-04-09 23:05
+- Status        : FORGE-X completed STANDARD-tier execution-boundary validation-proof enforcement in StrategyTrigger→ExecutionEngine path (signed proof required for every open_position call).
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P16 execution-boundary validation-proof enforcement (2026-04-09): replaced trust-only execution entry assumption with signed `ExecutionValidationProof` contract at engine boundary, wired StrategyTrigger ALLOW path to pass proof payload, and added focused no-proof/fake-proof/pass-proof runtime tests; report `projects/polymarket/polyquantbot/reports/forge/24_38_execution_validation_proof_boundary_enforcement.md`.
 - P16 post-merge smoke-check cleanup (2026-04-09): verified touched runtime path remains stable after PR #350/#354 merge (restart-safe block persistence survives lifecycle, blocked terminal outcomes emit exactly one terminal trace each, successful path preserves `expected_price`/`actual_fill_price`/`slippage` execution-truth envelope fields), and retired stale P16 await-merge/await-SENTINEL state wording; report `projects/polymarket/polyquantbot/reports/forge/24_37_p16_post_merge_smoke_check_cleanup.md`.
 - FORGE-X P16 restart-safe risk traceability remediation (2026-04-09): implemented authoritative risk-state persistence/restore with fail-closed startup gating, added touched blocked-terminal trace writes, added focused restart/fail-safe/traceability tests, and generated report `projects/polymarket/polyquantbot/reports/forge/24_36_p16_restart_safe_risk_traceability_remediation.md`.
 - SENTINEL revalidation for PR #347 P16 remediation (2026-04-09): verdict **BLOCKED** (score **49/100**) after runtime challenge confirmed restart can clear hard-block state in touched path and multiple blocked terminal outcomes are not trace-recorded; report saved at `projects/polymarket/polyquantbot/reports/sentinel/24_35_p16_remediation_revalidation_pr347.md`.
@@ -125,6 +126,10 @@ Status:
 ---
 
 ## 🚧 IN PROGRESS
+
+### P16 execution-boundary validation-proof enforcement handoff
+- STANDARD-tier NARROW INTEGRATION implementation is complete for StrategyTrigger→ExecutionEngine proof contract enforcement.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
 ### Market title test-hardening handoff
 - STANDARD-tier NARROW INTEGRATION follow-up is complete for Falcon title-resolution regression test integrity in touched test scope.
@@ -261,11 +266,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_37_p16_post_merge_smoke_check_cleanup.md
-Tier: MINOR
+Source: projects/polymarket/polyquantbot/reports/forge/24_38_execution_validation_proof_boundary_enforcement.md
+Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- P16 execution-boundary validation-proof enforcement is currently narrow integration in StrategyTrigger→ExecutionEngine path only; any future alternate execution entry surfaces must explicitly adopt the same proof contract.
 - P16 control layer is currently integrated in strategy-trigger runtime path only; additional non-trigger execution entry surfaces (if introduced later) require separate wiring to inherit identical enforcement guarantees.
 - P15 strategy weighting is currently narrow integration in S4 path only and is not yet wired into broader non-S4 runtime orchestration/telemetry surfaces.
 - P14.3 Falcon strategy layer is currently narrow integration in S4 scoring path only and is not yet wired into broader non-S4 runtime orchestration surfaces; insufficient-data fallback now prevents external weighting when Falcon evidence is unavailable.

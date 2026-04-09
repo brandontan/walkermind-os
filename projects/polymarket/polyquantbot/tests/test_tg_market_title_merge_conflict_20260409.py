@@ -116,6 +116,12 @@ def test_rendering_is_deterministic_for_same_payload() -> None:
 def test_execution_to_payload_preserves_market_title() -> None:
     async def _run() -> dict[str, object]:
         engine = ExecutionEngine(starting_equity=1_000.0)
+        proof = engine.build_validation_proof(
+            validation_id="pos-1",
+            validation_decision="ALLOW",
+            validation_reason="passed",
+            validation_checks={"ev_positive": True, "edge_positive": True},
+        )
         await engine.open_position(
             market="mkt-exec-1",
             market_title="Will unemployment stay below 4% in Q3?",
@@ -123,6 +129,7 @@ def test_execution_to_payload_preserves_market_title() -> None:
             price=0.49,
             size=50.0,
             position_id="pos-1",
+            validation_proof=proof,
         )
         from projects.polymarket.polyquantbot.execution import engine as engine_module
 

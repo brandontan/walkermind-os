@@ -4,7 +4,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from projects.polymarket.polyquantbot.execution.engine import ExecutionEngine
+from projects.polymarket.polyquantbot.execution.engine import ExecutionEngine, ExecutionValidationProof
 from projects.polymarket.polyquantbot.execution.strategy_trigger import (
     StrategyAggregationDecision,
     StrategyCandidateScore,
@@ -68,6 +68,20 @@ def _build_trigger(
     trigger._cooldown_seconds = 0.0  # noqa: SLF001
     trigger._intelligence.evaluate_entry = lambda _snapshot: {"score": 1.0, "reasons": ["test"]}  # type: ignore[assignment] # noqa: SLF001
     return trigger
+
+
+def _build_gateway_validation_proof(engine: ExecutionEngine, validation_id: str = "test-trade") -> ExecutionValidationProof:
+    return engine.build_validation_proof(
+        validation_id=validation_id,
+        validation_decision="ALLOW",
+        validation_reason="passed",
+        validation_checks={
+            "ev_positive": True,
+            "edge_positive": True,
+            "liquidity_ok": True,
+            "spread_ok": True,
+        },
+    )
 
 
 def test_p16_pre_trade_block_when_ev_non_positive() -> None:
@@ -198,6 +212,10 @@ def test_p16_blocked_terminal_traceability_has_single_terminal_trace_per_path() 
             side="YES",
             price=0.5,
             size=100.0,
+            validation_proof=_build_gateway_validation_proof(
+                portfolio_trigger._engine,  # noqa: SLF001
+                validation_id="seed-position",
+            ),
         )
         decision = await portfolio_trigger.evaluate(
             market_price=0.45,
@@ -342,5 +360,60 @@ def test_p16_risk_breach_triggers_global_block() -> None:
         assert decision == "BLOCKED"
         assert trigger._risk_engine.get_state().global_trade_block is True  # noqa: SLF001
         assert len(snapshot.positions) == 0
+
+    asyncio.run(_run())
+
+
+def test_p16_direct_engine_call_without_validation_proof_fails() -> None:
+    async def _run() -> None:
+        engine = ExecutionEngine(starting_equity=10_000.0)
+        created = await engine.open_position(
+            market="MARKET-1",
+            market_title="Test Market",
+            side="YES",
+            price=0.45,
+            size=100.0,
+        )
+        assert created is None
+
+    asyncio.run(_run())
+
+
+def test_p16_direct_engine_call_with_fake_validation_proof_fails() -> None:
+    async def _run() -> None:
+        engine = ExecutionEngine(starting_equity=10_000.0)
+        fake = ExecutionValidationProof(
+            validation_id="fake-trade",
+            validation_decision="ALLOW",
+            validation_reason="passed",
+            validation_checks_hash="0" * 64,
+            issued_at_unix=1.0,
+            signature="fake-signature",
+        )
+        created = await engine.open_position(
+            market="MARKET-1",
+            market_title="Test Market",
+            side="YES",
+            price=0.45,
+            size=100.0,
+            validation_proof=fake,
+        )
+        assert created is None
+
+    asyncio.run(_run())
+
+
+def test_p16_direct_engine_call_with_gateway_validation_proof_passes() -> None:
+    async def _run() -> None:
+        engine = ExecutionEngine(starting_equity=10_000.0)
+        created = await engine.open_position(
+            market="MARKET-1",
+            market_title="Test Market",
+            side="YES",
+            price=0.45,
+            size=100.0,
+            validation_proof=_build_gateway_validation_proof(engine),
+        )
+        assert created is not None
 
     asyncio.run(_run())
