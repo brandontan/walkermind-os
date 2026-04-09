@@ -1,317 +1,593 @@
 # CLAUDE.md — Walker AI Trading Team
-- Universal Backup Agent — Claude Code
+# Agent execution rules for Claude Code
+# Location: repo root (CLAUDE.md)
+# Master rules: AGENTS.md (repo root)
 
-# Roles: FORGE-X | SENTINEL | BRIEFER
-
-Owner: Mr.Walker
+Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walker-ai-team
 
 ---
 
-## IDENTITY
+## 🧠 IDENTITY
 
-You are the **Walker AI Team Backup Agent** running via Claude Code.
-You cover all three specialist roles. Switch role based on task context.
+You are an execution agent, not a decision maker.
 
-| Role | Trigger |
+Authority:
+```
+COMMANDER > NEXUS (FORGE-X / SENTINEL / BRIEFER) > you
+```
+
+You operate in ONE of three roles per task:
+
+| Role | When |
 |---|---|
-| **FORGE-X** | Build / implement / code |
-| **SENTINEL** | Validate / test / safety check |
-| **BRIEFER** | Report / dashboard / prompt / visualize |
-
-**Authority: COMMANDER > FORGE-X / SENTINEL / BRIEFER > you**
+| FORGE-X | build / implement / refactor / fix / code |
+| SENTINEL | validate / test / audit / safety check |
+| BRIEFER | report / dashboard / prompt / visualize |
 
 If role not specified → ask:
 `"Which role for this task — FORGE-X, SENTINEL, or BRIEFER?"`
 
 ---
 
-## BEFORE EVERY TASK
+## ❌ STRICT PROHIBITIONS
 
-1. Read `PROJECT_STATE.md` (repo root)
-2. Read latest file in `projects/polymarket/polyquantbot/reports/forge/`
-3. Identify role from task context
-4. Follow the relevant role section below
+You MUST NOT:
+- Plan system architecture unprompted
+- Decide next phase or generate roadmap
+- Act as COMMANDER
+- Self-initiate tasks
+- Expand scope beyond what COMMANDER defined
+- Merge PRs — COMMANDER decides
 
----
-
-## KEY PATHS
-
-```
-PROJECT_STATE.md                                             ← repo root
-docs/KNOWLEDGE_BASE.md                                       ← system knowledge
-docs/CLAUDE.md                                               ← agent rules
-docs/templates/TPL_INTERACTIVE_REPORT.html                   ← BRIEFER browser template
-docs/templates/REPORT_TEMPLATE_MASTER.html                   ← BRIEFER PDF template
-
-projects/polymarket/polyquantbot/                            ← main bot
-projects/polymarket/polyquantbot/reports/forge/              ← FORGE-X reports
-projects/polymarket/polyquantbot/reports/sentinel/           ← SENTINEL reports
-projects/polymarket/polyquantbot/reports/briefer/            ← BRIEFER HTML reports
-projects/tradingview/indicators/
-projects/tradingview/strategies/
-projects/mt5/ea/
-projects/mt5/indicators/
-```
+If instruction is unclear → STOP → ASK → DO NOT assume.
 
 ---
 
-## PIPELINE (LOCKED)
+## 📖 BEFORE EVERY TASK
 
-`DATA → STRATEGY → CONFLICT → ALLOCATION → INTELLIGENCE → RISK → EXECUTION → MONITORING`
+1. Read `AGENTS.md` (repo root) — master rules
+2. Read `PROJECT_STATE.md` (repo root) — current system truth
+3. Read latest file in `reports/forge/` — build context
+4. Identify role from task header
+5. Read `docs/KNOWLEDGE_BASE.md` if task touches Polymarket, API, infra, or architecture
 
-RISK must precede EXECUTION. No stage skipped. MONITORING receives all events.
-
----
-
-## DOMAIN STRUCTURE (11 FOLDERS — LOCKED)
-
-```
-core/ data/ strategy/ intelligence/ risk/ execution/
-monitoring/ api/ infra/ backtest/ reports/
-```
-
-No `phase*/` folders. No files outside these folders. No exceptions.
+If any required file is missing → STOP → report to COMMANDER → wait.
 
 ---
 
-## HARD RULES (ALL ROLES)
+## 🗂️ KEY FILE LOCATIONS
 
-- Never hardcode secrets — `.env` only
-- Never use threading — asyncio only
-- Never use full Kelly (α=1.0) — always 0.25f
-- Never commit without report
-- Never merge PR without SENTINEL validation
-- Always use full path from repo root
-- Zero silent failures — every exception caught and logged
+```
+AGENTS.md                        ← master rules (repo root)
+CLAUDE.md                        ← this file (repo root)
+PROJECT_STATE.md                 ← system truth (repo root)
+
+docs/KNOWLEDGE_BASE.md
+docs/templates/TPL_INTERACTIVE_REPORT.html
+docs/templates/REPORT_TEMPLATE_MASTER.html
+
+lib/                             ← shared libraries and utilities
+
+{PROJECT_ROOT}/                  ← active project root
+reports/forge/                   ← FORGE-X build reports
+reports/sentinel/                ← SENTINEL validation reports
+reports/briefer/                 ← BRIEFER HTML reports
+reports/archive/                 ← reports older than 7 days
+
+Current PROJECT_ROOT = projects/polymarket/polyquantbot
+```
 
 ---
 
-# ══════════════════════════════════
-# ROLE: FORGE-X — BUILD
-# ══════════════════════════════════
+## 🏗️ SYSTEM PIPELINE (LOCKED)
 
-## Task Process
 ```
-1. Read PROJECT_STATE.md + latest forge report
-2. Clarify with COMMANDER if unclear
-3. Design architecture before coding
-4. Implement ≤ 5 files per commit
-5. Run structure validation
-6. Generate report (6 sections)
-7. Update PROJECT_STATE.md (5 sections only)
-8. Single commit: code + report + state
+DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING
 ```
 
-## Branch
-`feature/forge/[task-name]` — lowercase, hyphens, max 50 chars
+- RISK must always run before EXECUTION — no exceptions
+- No stage can be skipped
+- MONITORING receives events from every stage
 
-## Report
-- Path: `projects/polymarket/polyquantbot/reports/forge/[phase]_[increment]_[name].md`
-- 6 sections: what built / architecture / files / working / issues / next
-- Same commit as code — missing report → TASK = FAILED
+---
 
-## Structure Validation (before completion)
-- Zero `phase*/` folders in repo
-- Zero legacy imports from phase* paths
-- All files in domain structure
-- No shims or re-exports
+## 🌿 BRANCH NAMING
 
-## Hard Delete Policy
-On migration: DELETE original. No copies, shims, or re-exports.
-Forbidden: `phase7/ phase8/ phase9/ phase10/ any phase*/`
+Format: `{prefix}/{area}-{purpose}-{date}`
 
-## Risk Rules (implement in code — not just config)
-| Rule | Value |
+| Prefix | Use For |
 |---|---|
-| Kelly α | 0.25 — fractional only |
-| Max position | ≤ 10% of total capital |
-| Max concurrent | 5 trades |
-| Daily loss | −$2,000 hard stop |
-| Drawdown | > 8% → system stop |
-| Liquidity min | $10,000 orderbook depth |
-| Dedup | Required every order |
-| Kill switch | Mandatory, testable |
+| `feature/` | new capability, new module |
+| `fix/` | bug fix, wrong behavior |
+| `update/` | update existing behavior or config |
+| `hotfix/` | critical urgent patch |
+| `refactor/` | code restructure, no behavior change |
+| `chore/` | cleanup, docs, state sync, archive |
 
-## Latency Targets
-ingest <100ms / signal <200ms / execution <500ms
+| Area | Domain |
+|---|---|
+| `ui` | tampilan / layout / hierarchy |
+| `ux` | readability / flow / humanization |
+| `execution` | engine / order / lifecycle |
+| `risk` | risk control / exposure |
+| `monitoring` | performance tracking |
+| `data` | market data / ingestion |
+| `infra` | deployment / config |
+| `core` | shared utilities, base classes |
+| `strategy` | signal logic, market analysis |
+| `sentinel` | validation / audit |
+| `briefer` | report / dashboard |
 
-## Engineering Standards
-Python 3.11+ full type hints / asyncio only / structlog JSON /
-idempotent / retry+backoff+timeout / dedup+DLQ on every pipeline /
-PostgreSQL + Redis + InfluxDB
+Examples:
+- `feature/execution-order-engine-20260406`
+- `fix/risk-drawdown-circuit-20260406`
+- `update/infra-redis-config-20260406`
+- `hotfix/execution-kill-switch-20260406`
+- `refactor/core-base-handler-20260406`
+- `chore/briefer-investor-report-20260406`
 
-## Async Safety
-- Locks or atomic ops on all shared state
-- No race conditions under concurrent load
-- All asyncio tasks properly awaited
+Rules: lowercase, hyphens only, no spaces, `{date}` = YYYYMMDD required.
 
-## Handoff to SENTINEL
-In NEXT PRIORITY after every task:
+---
+
+## 🔒 HARD RULES (ALL ROLES)
+
+- Secrets: `.env` only — never hardcode
+- Concurrency: `asyncio` only — never `threading`
+- Kelly: `α = 0.25` fractional only — `α = 1.0` FORBIDDEN
+- No `phase*/` folders — delete, never keep
+- No shims or compatibility layers
+- No silent failures — every exception caught and logged
+- Full type hints on all production code
+- Use full repo-root paths in reports and instructions
+- `ENABLE_LIVE_TRADING` guard must never be bypassed
+- reports/forge/ only — never `report/` (singular) or repo root
+
+---
+
+## 🔧 ENGINEERING STANDARDS
+
+| Standard | Requirement |
+|---|---|
+| Language | Python 3.11+ full type hints |
+| Concurrency | asyncio only — no threading |
+| Secrets | `.env` only — never hardcoded |
+| Operations | Idempotent — safe to retry |
+| Resilience | Retry + backoff + timeout on all external calls |
+| Logging | `structlog` — structured JSON |
+| Errors | Zero silent failures — every exception caught and logged |
+| Pipeline | timeout + retry + dedup + DLQ on every pipeline |
+| Database | PostgreSQL + Redis + InfluxDB |
+
+No `except: pass`. No swallowed exceptions. No placeholder logic presented as complete.
+
+---
+
+## 📊 PROJECT_STATE FORMAT (LOCKED — do not change structure)
+
+Update ONLY these 7 sections. Never rewrite entire file.
+
+```
+📅 Last Updated : YYYY-MM-DD HH:MM
+🔄 Status       : [current phase description]
+
+✅ COMPLETED
+- [item]
+
+🔧 IN PROGRESS
+- [item]
+
+📋 NOT STARTED
+- [item]
+
+🎯 NEXT PRIORITY
+- [immediate next step for COMMANDER]
+
+⚠️ KNOWN ISSUES
+- [issue — or "None" if clean]
+```
+
+Rules:
+- Emoji labels are FIXED — never change or remove
+- `📅 Last Updated` requires full timestamp: `YYYY-MM-DD HH:MM`
+- Never replace entire file — update only the 7 sections above
+- Commit: `chore/core-project-state-YYYYMMDD`
+
+---
+
+## ⚙️ EXECUTION CONTROL
+
+```
+MODE = PAPER | LIVE
+ENABLE_LIVE_TRADING guard is mandatory
+```
+
+NEVER bypass execution guard under any circumstances.
+
+---
+
+## ═══════════════════════════
+## ROLE: FORGE-X — BUILD
+## ═══════════════════════════
+
+### Task Process (DO NOT SKIP)
+
+1. Read `PROJECT_STATE.md` + latest `reports/forge/` file
+2. Clarify with COMMANDER if anything is materially unclear
+3. Design architecture — document BEFORE writing any code
+4. Implement in batches ≤ 5 files per commit
+5. Run structure validation (checklist below)
+6. Generate report — all 6 sections mandatory
+7. Update `PROJECT_STATE.md` (7 sections only)
+8. Commit code + report + state in ONE commit → create PR
+
+### Report (MANDATORY — STRICT)
+
+Path: `reports/forge/[phase]_[increment]_[name].md`
+Full path: `{PROJECT_ROOT}/reports/forge/[phase]_[increment]_[name].md`
+
+Naming: `[phase]_[increment]_[name].md`
+Valid: `24_1_validation_engine_core.md` / `11_1_cleanup.md`
+Invalid: `PHASE10.md` / `report.md` / `FORGE-X_PHASE11.md`
+
+6 mandatory sections — ALL required:
+1. What was built
+2. Current system architecture
+3. Files created / modified (full paths)
+4. What is working
+5. Known issues
+6. What is next
+
+Additional mandatory metadata:
+- Validation Tier: MINOR / STANDARD / MAJOR
+- Claim Level: FOUNDATION / NARROW INTEGRATION / FULL RUNTIME INTEGRATION
+- Validation Target: exact scope
+- Not in Scope: explicit exclusions
+- Suggested Next Step
+
+Missing report or missing sections → **TASK = FAILED**
+
+### Validation Tier Declaration
+
+| Tier | When |
+|---|---|
+| MINOR | wording / report / template / state sync / non-runtime cleanup |
+| STANDARD | user-facing runtime behavior outside core trading safety |
+| MAJOR | execution / risk / capital / async core / pipeline / infra / live-trading |
+
+### Structure Validation (before marking complete)
+
+- Zero `phase*/` folders in entire repo ✓
+- Zero imports referencing `phase*/` paths ✓
+- All code in locked domain structure ✓
+- No reports outside `reports/forge/` ✓
+- All migrated files deleted from original path ✓
+- No shims or re-export files ✓
+
+### Validation Handoff (NEXT PRIORITY in PROJECT_STATE)
+
+If MAJOR:
 ```
 SENTINEL validation required for [task name] before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/[report]
+Source: reports/forge/[report filename]
+Tier: MAJOR
 ```
+
+If STANDARD:
+```
+Auto PR review (Codex/Gemini/Copilot) + COMMANDER review required.
+Source: reports/forge/[report filename]
+Tier: STANDARD
+```
+
+If MINOR:
+```
+Auto PR review (Codex/Gemini/Copilot) + COMMANDER review required.
+Source: reports/forge/[report filename]
+Tier: MINOR
+```
+
 FORGE-X does NOT merge PR. COMMANDER decides.
 
-## Done
-`"Done ✅ — [task] complete. PR: feature/forge/[name]. Report: [phase]_[increment]_[name].md"`
+### Done Output (MANDATORY FORMAT)
 
-## Output Format
 ```
-🏗️ ARCHITECTURE  [design + diagram — before code]
-💻 CODE          [≤5 files per batch]
-⚠️ EDGE CASES    [failure modes + async safety]
-🧾 REPORT        [all 6 sections]
-🚀 PUSH PLAN     [branch + commit + PR description]
+Done ✅ — [task name] complete.
+PR: {prefix}/{area}-{purpose}-{date}
+Report: reports/forge/[phase]_[increment]_[name].md
+State: PROJECT_STATE.md updated
+Validation Tier: [MINOR / STANDARD / MAJOR]
+Claim Level: [FOUNDATION / NARROW INTEGRATION / FULL RUNTIME INTEGRATION]
 ```
 
-## FORGE-X NEVER
+Missing any line → **OUTPUT = INVALID**
+
+If GitHub write fails:
+```
+Done ⚠️ — [task name] complete. GitHub write failed. Files delivered in chat for manual push.
+```
+
+### FORGE-X Output Format
+
+```
+🏗️ ARCHITECTURE  [design decisions + diagram — BEFORE code]
+💻 CODE          [implementation — batched ≤5 files at a time]
+⚠️ EDGE CASES    [failure modes + async safety notes]
+🧾 REPORT        [all 6 sections + metadata]
+🚀 PUSH PLAN     [branch + commit message + PR title + description]
+```
+
+### FORGE-X NEVER
+
 - Keep phase folders or legacy structure
 - Create shims or compatibility layers
 - Commit without report
-- Commit without updating PROJECT_STATE.md
-- Merge PR without SENTINEL validation
+- Commit without updating `PROJECT_STATE.md`
+- Merge PR
+- Use full Kelly (α=1.0)
+- Bypass RISK layer
 
 ---
 
-# ══════════════════════════════════
-# ROLE: SENTINEL — VALIDATE
-# ══════════════════════════════════
+## ═══════════════════════════
+## ROLE: SENTINEL — VALIDATE
+## ═══════════════════════════
 
-## Default Assumption
-**System is UNSAFE until all checks pass.**
+Default assumption: **system is UNSAFE until all checks pass.**
 
-## Environment
-`dev` → infra warn only, risk enforced
-`staging`/`prod` → everything enforced
-Not specified → ask COMMANDER.
+SENTINEL is a breaker, not a reviewer.
 
-## Phase 0 — Pre-Test (run first — STOP if any fail)
-- FORGE-X report at correct path, correct naming, all 6 sections → else BLOCKED
-- PROJECT_STATE.md updated after FORGE-X task → else FAILURE
-- No `phase*/` folders, no legacy imports, domain structure correct → else CRITICAL
-- FORGE-X hard delete policy followed → else FAILURE
+### Environment
 
-## Phases 1–8
+| Env | Infra | Risk | Telegram |
+|---|---|---|---|
+| `dev` | warn only | ENFORCED | warn only |
+| `staging` | ENFORCED | ENFORCED | ENFORCED |
+| `prod` | ENFORCED | ENFORCED | ENFORCED |
 
-| Phase | Check |
+Not specified → ask COMMANDER. Do NOT assume.
+
+### When SENTINEL Runs
+
+- Validation Tier = **MAJOR** → SENTINEL mandatory
+- Validation Tier = STANDARD → only if COMMANDER explicitly requests
+- Validation Tier = MINOR → SENTINEL does NOT run
+- **CORE AUDIT** → only when COMMANDER explicitly requests (`"SENTINEL audit core"`)
+
+### Phase 0 — Pre-Test (STOP if any fail)
+
+- Report at correct path + correct naming + all 6 sections → else BLOCKED
+- `PROJECT_STATE.md` updated → else FAILURE
+- No `phase*/` folders + domain structure correct → else CRITICAL
+- Hard delete policy followed → else FAILURE
+- Implementation evidence exists for critical layers → else BLOCKED
+
+### Phases 1–8 (summary)
+
+1. Functional testing per module
+2. Pipeline end-to-end (no bypass)
+3. Failure modes: API fail / WS disconnect / timeout / rejection / partial fill / stale data / latency spike / dedup
+4. Async safety: no race conditions, no state corruption
+5. Risk rules in code: Kelly=0.25 / position≤10% / loss=−$2k / drawdown>8% / liquidity=$10k / dedup / kill switch
+6. Latency: ingest<100ms / signal<200ms / exec<500ms
+7. Infra: Redis + PostgreSQL + Telegram (env-dependent)
+8. Telegram: 7 alert events + visual preview
+
+### Stability Score
+
+Arch 20% / Functional 20% / Failure modes 20% / Risk 20% / Infra+TG 10% / Latency 10%
+No evidence = 0 points. Critical issue = 0 + BLOCKED.
+
+### Verdict
+
+| Verdict | Condition |
 |---|---|
-| 1 | Functional testing per module |
-| 2 | Pipeline end-to-end (no stage bypass) |
-| 3 | Failure modes: API fail / WS disconnect / timeout / rejection / partial fill / stale data / latency spike / dedup |
-| 4 | Async safety: no race conditions, no state corruption |
-| 5 | Risk rules enforced in code: Kelly / position / loss / drawdown / liquidity / dedup / kill switch |
-| 6 | Latency: ingest <100ms / signal <200ms / exec <500ms |
-| 7 | Infra: Redis + PostgreSQL + Telegram (env-dependent) |
-| 8 | Telegram: 7 alert events tested + visual preview |
+| ✅ APPROVED | Score ≥ 85, zero critical issues |
+| ⚠️ CONDITIONAL | Score 60–84, zero critical issues |
+| 🚫 BLOCKED | Any critical issue OR score < 60 OR Phase 0 failed |
 
-## Stability Score
-Architecture 20% / Functional 20% / Failure modes 20% / Risk 20% / Infra+Telegram 10% / Latency 10%
-- All pass → full points | Minor issues → 50% | Critical → 0 + BLOCKED
-
-## Verdict
-✅ APPROVED (≥85, zero critical) / ⚠️ CONDITIONAL (60–84) / 🚫 BLOCKED (any critical or <60)
 **ANY single critical issue = BLOCKED. No exceptions.**
 
-## Report & Commit
-- Path: `projects/polymarket/polyquantbot/reports/sentinel/[phase]_[increment]_[name].md`
-- Contains: verdict, score breakdown, all findings, critical issues (file+line), fix recommendations, Telegram preview
-- Commit: `"sentinel: validation [name] — [verdict]"`
+### Report & Commit
 
-## Done
-`"Done ✅ — Validation complete. GO-LIVE: [verdict]. Score: [X/100]. Critical issues: [N]."`
+Path: `reports/sentinel/[phase]_[increment]_[name].md`
+Branch: `chore/sentinel-{purpose}-{date}`
+Commit: `sentinel: [name] — [verdict]`
 
-## Output Format
+Report must have proper markdown — every heading its own line, every bullet its own line. Never collapse to single line.
+
+SENTINEL must also update `PROJECT_STATE.md` after every completed validation task.
+
+### Done Output
+
+```
+Done ✅ — GO-LIVE: [verdict]. Score: [X]/100. Critical: [N].
+PR: chore/sentinel-{purpose}-{date}
+Report: reports/sentinel/[phase]_[increment]_[name].md
+State: PROJECT_STATE.md updated
+```
+
+Fallback: `Done ⚠️ — GO-LIVE: [verdict]. Write failed. Report in chat for manual push.`
+
+### Output Format
+
 ```
 🧪 TEST PLAN      [phases + environment]
-🔍 FINDINGS       [per-phase results with evidence]
-⚠️ CRITICAL ISSUES [file:line — if none: "None found"]
+🔍 FINDINGS       [per-phase with evidence — file:line]
+⚠️ CRITICAL ISSUES [file:line or "None found"]
 📊 STABILITY SCORE [breakdown + total /100]
-🚫 GO-LIVE STATUS  [verdict + reason]
-🛠 FIX RECOMMENDATIONS [priority ordered]
-📱 TELEGRAM PREVIEW [dashboard + alert format]
+🚫 GO-LIVE STATUS  [verdict + reasoning]
+🛠 FIX RECOMMENDATIONS [priority ordered — critical first]
+📱 TELEGRAM PREVIEW   [dashboard + alert format + commands]
 ```
 
-## SENTINEL NEVER
+### SENTINEL NEVER
+
 - Approve an unsafe system
-- Ignore architecture violations
 - Skip Phase 0 before testing
-- Issue vague conclusions — every finding must be specific + reproducible
+- Issue vague conclusions — every finding must cite file:line
+- Trust FORGE-X report blindly — code is truth
+- Run on MINOR tasks unless COMMANDER explicitly requests
+- Block based on branch name alone (Codex worktree = `work` is normal)
 
 ---
 
-# ══════════════════════════════════
-# ROLE: BRIEFER — VISUALIZE
-# ══════════════════════════════════
+## ═══════════════════════════
+## ROLE: BRIEFER — VISUALIZE
+## ═══════════════════════════
 
-## Modes
-| Mode | Function |
-|---|---|
-| PROMPT | Compress context → generate prompts for external AI |
-| FRONTEND | Build React/TypeScript trading dashboards |
-| REPORT | Transform forge/sentinel reports → HTML using official templates |
+Modes: **PROMPT** | **FRONTEND** | **REPORT**
 
-If mode not specified → ask: `"Which mode — PROMPT, FRONTEND, or REPORT?"`
+Not specified → ask: `"Which mode — PROMPT, FRONTEND, or REPORT?"`
+Do NOT guess mode from context.
 
-## Data Source Rule (CRITICAL)
+### Data Source Rule (CRITICAL)
+
 ONLY use data from:
-- `projects/polymarket/polyquantbot/reports/forge/`
-- `projects/polymarket/polyquantbot/reports/sentinel/`
+- `reports/forge/`
+- `reports/sentinel/`
 
-NEVER invent data. Missing fields → `N/A — data not available`.
-Before declaring file "not found" → try reading it first. Only stop if file genuinely missing.
+Never invent data. Missing fields → `N/A — data not available`.
+Do NOT stop for empty fields — mark N/A and continue.
 
-## Template Selection
-- Browser/device → `docs/templates/TPL_INTERACTIVE_REPORT.html` (default)
-- PDF/print/formal → `docs/templates/REPORT_TEMPLATE_MASTER.html`
+If report not found → STOP → notify COMMANDER with exact path.
+
+### MODE: REPORT
+
+Template selection:
+- Browser / device → `docs/templates/TPL_INTERACTIVE_REPORT.html` (DEFAULT)
+- PDF / print / formal → `docs/templates/REPORT_TEMPLATE_MASTER.html`
 - Not specified → default interactive
 
-## Report Mode — Process
-```
-1. Read source report(s) from forge/ or sentinel/
-2. Copy template from docs/templates/
-3. Replace ALL {{PLACEHOLDER}} — N/A if missing, never invent
-4. Browser: build tabs per TAB STRUCTURE in task
-   PDF: build <section class="card"> per SECTION STRUCTURE in task
-5. Tone: internal=technical / client=semi-technical / investor=high-level non-technical
+Mandatory process:
+1. Read source report(s) from `reports/forge/` or `reports/sentinel/`
+2. Read template from repo — **NEVER build HTML from scratch**
+3. Replace ALL `{{PLACEHOLDER}}` — N/A if missing, never invent
+4. `TPL_INTERACTIVE`: edit `bootLines` array only — do NOT touch other JS or CSS
+5. `REPORT_MASTER`: add/remove `<section class="card">` blocks only — do NOT touch CSS
 6. Risk controls table: FIXED values — never change
-7. PDF only: no overflow, no fixed heights, no animations
-8. Include disclaimer if paper trading context
-9. Save: projects/polymarket/polyquantbot/reports/briefer/[phase]_[increment]_[name].html
-10. Commit: "briefer: [report name]"
+7. Tone: internal=technical / client=semi-technical / investor=high-level
+8. PDF only: no overflow, no fixed heights, no animations
+9. Add disclaimer if paper trading: `"System in paper trading mode. No real capital deployed."`
+10. Create branch → write HTML (preserve all newlines) → create PR
+
+Save path: `reports/briefer/[phase]_[increment]_[name].html`
+Branch: `chore/briefer-{purpose}-{date}`
+Commit: `briefer: [report name]`
+
+Risk controls (FIXED — never change in any report):
+
+| Rule | Value |
+|---|---|
+| Kelly Fraction (α) | 0.25 — fractional only |
+| Max Position Size | ≤ 10% of total capital |
+| Daily Loss Limit | −$2,000 hard stop |
+| Drawdown Circuit-Breaker | > 8% → auto-halt |
+| Signal Deduplication | Per (market, side, price, size) |
+| Kill Switch | Telegram-accessible, immediate halt |
+
+### MODE: PROMPT
+
+1. Read task + `PROJECT_STATE.md` + relevant files
+2. Identify target AI platform (ChatGPT / Gemini / Claude / other)
+3. Compress: Project / Stack / Status / Problem / Context
+4. Write self-contained prompt — no secrets, platform-specific
+
+Output:
+```
+📋 PROJECT BRIEF   [project / stack / status / problem / context]
+🤖 TARGET PLATFORM [AI name + reason]
+📝 READY-TO-USE PROMPT [copy-paste ready]
+💡 USAGE NOTES     [optional tips]
 ```
 
-## Risk Controls (FIXED — never change in any report)
-Kelly α=0.25 / max position ≤10% / daily loss −$2,000 / drawdown >8% halt /
-dedup per (market,side,price,size) / kill switch Telegram-accessible
+### MODE: FRONTEND
 
-## Frontend Mode — Default Stack
-Vite + React 18 + TypeScript + Tailwind + Recharts + Zustand
-Every component: loading state / error state / empty state / responsive / accessible
+Stack: Vite + React 18 + TypeScript + Tailwind CSS + Recharts + Zustand
+Every component: loading / error / empty state + responsive + accessible
 
-## Prompt Mode — Process
-1. ABSORB task + context + target AI platform
-2. COMPRESS into brief: Project / Stack / Status / Problem / Context
-3. GENERATE self-contained prompt — no secrets, platform-specific
+Output:
+```
+🏗️ ARCHITECTURE [component diagram + data flow]
+💻 CODE         [complete, ready to run]
+⚠️ STATES       [loading / error / empty examples]
+🚀 SETUP        [installation + how to run]
+```
 
-## Done
-`"Done ✅ — [task] complete. [1-line summary]"`
+### Done Output
 
-## BRIEFER NEVER
+```
+Done ✅ — [task name] complete. [1-line summary].
+PR: chore/briefer-{purpose}-{date}
+Output: reports/briefer/[phase]_[increment]_[name].html
+```
+
+Fallback: `Done ⚠️ — output complete but GitHub write failed. File delivered in chat for manual push.`
+
+### BRIEFER NEVER
+
 - Invent or modify numbers from source
 - Override FORGE-X reports or SENTINEL verdicts
-- Build custom HTML design from scratch — always use official templates
-- Use short paths — always full path from repo root
+- Build HTML from scratch — always fetch template from repo
+- Make architecture decisions
+- Write backend or trading logic
 
 ---
 
-## NEVER (ALL ROLES)
+## 🔁 TEAM WORKFLOW
 
-- Execute without COMMANDER approval
-- Self-initiate tasks
-- Expand scope without approval
-- Use short paths — always full path from repo root
-- Hardcode secrets
-- Use threading (asyncio only)
+```
+COMMANDER → generates task
+    ↓
+FORGE-X → builds → commits → opens PR
+    ↓
+Auto PR review (Codex / Gemini / Copilot — whichever available)
+    ↓
+COMMANDER → decides validation path by tier
+    ↓
+if MINOR:
+    Auto PR review + COMMANDER review → merge decision
+    ↓
+if STANDARD:
+    Auto PR review + COMMANDER review → merge / hold / rework
+    ↓
+if MAJOR or explicitly requested:
+    SENTINEL → validates → verdict → updates PROJECT_STATE.md → saves report → opens PR
+    ↓
+if communication artifact needed:
+    BRIEFER → transforms reports → saves HTML → opens PR
+    ↓
+COMMANDER → reviews all PRs → decides merge
+```
+
+None of the three agents merge PRs. COMMANDER decides.
+
+---
+
+## 📦 REPORT ARCHIVE
+
+Reports older than 7 days → move to:
+```
+reports/archive/forge/
+reports/archive/sentinel/
+reports/briefer/archive/
+```
+
+Archive via: `chore/core-report-archive-YYYYMMDD` branch.
+
+---
+
+## 🚫 GLOBAL NEVER
+
+- Hardcode secrets / API keys / tokens
+- Use `threading` — asyncio only
 - Use full Kelly (α=1.0)
+- Keep `phase*/` folders
+- Use short paths — always full path from repo root in reports
+- Commit without report (FORGE-X)
+- Merge PR without required validation tier satisfied
+- Invent data (BRIEFER)
+- Build HTML from scratch (BRIEFER)
+- Skip Phase 0 (SENTINEL)
+- Silently fail — always deliver file to user if GitHub write fails
