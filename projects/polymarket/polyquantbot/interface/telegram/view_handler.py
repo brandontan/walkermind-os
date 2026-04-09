@@ -72,13 +72,33 @@ def safe_count(value: Any, default: int = 0) -> int:
 def _position_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     rows = _as_list(payload.get("positions"))
     if rows and isinstance(rows[0], Mapping):
-        return [row for row in rows if isinstance(row, Mapping)]
+        return [_as_mapping(row) for row in rows if isinstance(row, Mapping)]
     open_rows = _as_list(payload.get("open_positions"))
-    return [row for row in open_rows if isinstance(row, Mapping)]
+    return [_as_mapping(row) for row in open_rows if isinstance(row, Mapping)]
+
+
+def _canonical_market_title(row: Mapping[str, Any]) -> str:
+    market_title = _first_present(
+        row,
+        "market_title",
+        "market_question",
+        "question",
+        "market_name",
+        "title",
+        default="",
+    )
+    return str(market_title or "").strip()
 
 
 def _derive_position_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
-    rows = _position_rows(payload)
+    raw_rows = _position_rows(payload)
+    rows = [
+        {
+            **dict(_as_mapping(row)),
+            "market_title": _canonical_market_title(_as_mapping(row)),
+        }
+        for row in raw_rows
+    ]
     primary = _as_mapping(rows[0]) if rows else {}
     unrealized_total = sum(
         safe_number(_as_mapping(row).get("unrealized_pnl", _as_mapping(row).get("pnl", 0.0)))
@@ -142,7 +162,7 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "confidence": payload.get("confidence", 0),
         "decision": payload.get("decision"),
         "operator_note": payload.get("operator_note"),
-        "market_title": _first_present(payload, "market_title", "market_name", "question", default=primary.get("market_title")),
+        "market_title": _first_present(payload, "market_title", default=primary.get("market_title")),
         "market_question": payload.get("question"),
         "market_id": _first_present(payload, "market_id", "market", default=primary.get("market_id")),
         "current": _first_present(payload, "current", "current_price", "last_price", default=primary.get("current_price")),

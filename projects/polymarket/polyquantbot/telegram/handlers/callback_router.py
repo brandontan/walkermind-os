@@ -347,6 +347,7 @@ class CallbackRouter:
             normalized.append(
                 {
                     "market_id": str(self._extract_field(pos, "market_id", "") or ""),
+                    "market_title": str(self._extract_field(pos, "market_title", "") or ""),
                     "side": str(self._extract_field(pos, "side", "flat") or "flat"),
                     "entry_price": safe_number(
                         self._extract_field(
@@ -424,7 +425,7 @@ class CallbackRouter:
             "unrealized_pnl": unrealized_total,
             "exposure": exposure,
             "market_id": (primary or {}).get("market_id", ""),
-            "market_title": "",
+            "market_title": (primary or {}).get("market_title", ""),
             "side": (primary or {}).get("side", "flat"),
             "entry": safe_number((primary or {}).get("entry_price", 0.0)),
             "size": safe_number((primary or {}).get("size", 0.0)),
