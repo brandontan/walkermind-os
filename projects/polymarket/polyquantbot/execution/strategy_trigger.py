@@ -5,11 +5,16 @@ import time
 import structlog
 import uuid
 import re
+from typing import Any
 
 from .engine import ExecutionEngine
 from .intelligence import ExecutionIntelligence, MarketSnapshot
 from .trade_trace import TradeTraceEngine
 from ..strategy.falcon_alpha_strategy import FalconSignal
+from ..core.analytics.trade_validator import TradeValidator
+from ..core.execution.execution_tracker import ExecutionTracker
+from ..core.risk.pre_trade_validator import PreTradeValidator
+from ..core.risk.risk_engine import RiskEngine
 
 log = structlog.get_logger(__name__)
 
@@ -308,6 +313,11 @@ class StrategyTrigger:
         self._last_adjustment_explanation: str = "adaptive defaults active"
         self._position_peak_pnl: dict[str, float] = {}
         self._position_entry_context: dict[str, dict[str, object]] = {}
+        self._pre_trade_validator = PreTradeValidator()
+        self._execution_tracker = ExecutionTracker()
+        self._trade_validator = TradeValidator()
+        self._risk_engine = RiskEngine()
+        self._trade_traceability: dict[str, dict[str, Any]] = {}
         self._optimization_output: dict[str, object] = {
             "strategy_weights": {"S1": 1.0, "S2": 1.0, "S3": 1.0, "S5": 1.0},
             "regime_weights": {"NEWS": 1.0, "ARBITRAGE": 1.0, "SMART_MONEY": 1.0, "CHAOTIC": 1.0},
@@ -2031,6 +2041,12 @@ class StrategyTrigger:
         self.refresh_optimization_output()
 
         snapshot = await self._engine.snapshot()
+        self._risk_engine.update_from_snapshot(
+            equity=snapshot.equity,
+            realized_pnl=snapshot.realized_pnl,
+            open_trades=len(snapshot.positions),
+            correlated_exposure_ratio=float((market_context or {}).get("correlated_exposure_ratio", 0.0)),
+        )
         open_pos = next((p for p in snapshot.positions if p.market_id == self._config.market_id), None)
 
         market_snapshot = MarketSnapshot(
@@ -2122,6 +2138,7 @@ class StrategyTrigger:
                 )
                 return "BLOCKED"
             size = readiness.adjusted_size
+            trade_id = str(uuid.uuid4())
             selected_metadata = selected_candidate.market_metadata if selected_candidate is not None else {}
             candidate_title = (
                 str(selected_metadata.get("title") or selected_metadata.get("market_title", ""))
@@ -2130,13 +2147,51 @@ class StrategyTrigger:
                 and (selected_metadata.get("title") or selected_metadata.get("market_title"))
                 else target_market_id
             )
+            signal_data = {
+                "expected_value": float((market_context or {}).get("expected_value", signal_edge)),
+                "edge": signal_edge,
+                "liquidity_usd": float((market_context or {}).get("liquidity_usd", 0.0)),
+                "spread": float((market_context or {}).get("spread", 0.0)),
+            }
+            decision_data = {
+                "position_size": size,
+                "target_market_id": target_market_id,
+                "strategy_source": selected_candidate.strategy_name if selected_candidate is not None else "UNKNOWN",
+            }
+            validation_result = self._pre_trade_validator.validate(
+                signal_data=signal_data,
+                decision_data=decision_data,
+                risk_state=self._risk_engine.as_dict(),
+            )
+            if validation_result.decision != "ALLOW":
+                self._trade_traceability[trade_id] = {
+                    "trade_id": trade_id,
+                    "signal_data": signal_data,
+                    "decision_data": decision_data,
+                    "validation_result": {
+                        "decision": validation_result.decision,
+                        "reason": validation_result.reason,
+                        "checks": validation_result.checks,
+                    },
+                    "execution_data": {},
+                    "outcome_data": {},
+                    "risk_state": self._risk_engine.as_dict(),
+                }
+                log.info("pre_trade_blocked", reason=validation_result.reason, trade_id=trade_id)
+                return "BLOCKED"
+            self._execution_tracker.record_order_submission(
+                trade_id=trade_id,
+                expected_price=readiness.expected_fill_price,
+                signal_data=signal_data,
+                decision_data=decision_data,
+            )
             created = await self._engine.open_position(
                 market=target_market_id,
                 market_title=str(candidate_title),
                 side=self._config.side,
                 price=readiness.expected_fill_price,
                 size=size,
-                position_id=str(uuid.uuid4()),
+                position_id=trade_id,
                 position_context={
                     "strategy_source": (
                         selected_candidate.strategy_name
@@ -2153,9 +2208,14 @@ class StrategyTrigger:
                     "theoretical_edge": signal_edge,
                     "slippage_impact": readiness.expected_slippage,
                     "timing_effectiveness": 1.0 if readiness.timing_decision == "ENTER_NOW" else 0.0,
+                    "trade_id": trade_id,
                 },
             )
             if created:
+                execution_data = self._execution_tracker.record_fill(
+                    trade_id=trade_id,
+                    actual_fill_price=created.entry_price,
+                )
                 self._position_entry_context[created.position_id] = {
                     "strategy_source": (
                         selected_candidate.strategy_name
@@ -2172,6 +2232,20 @@ class StrategyTrigger:
                     "theoretical_edge": signal_edge,
                     "slippage_impact": readiness.expected_slippage,
                     "timing_effectiveness": 1.0 if readiness.timing_decision == "ENTER_NOW" else 0.0,
+                    "trade_id": trade_id,
+                }
+                self._trade_traceability[trade_id] = {
+                    "trade_id": trade_id,
+                    "signal_data": signal_data,
+                    "decision_data": decision_data,
+                    "validation_result": {
+                        "decision": validation_result.decision,
+                        "reason": validation_result.reason,
+                        "checks": validation_result.checks,
+                    },
+                    "execution_data": execution_data,
+                    "outcome_data": {},
+                    "risk_state": self._risk_engine.as_dict(),
                 }
                 self._trace_engine.record_trace(
                     position_id=created.position_id,
@@ -2200,6 +2274,7 @@ class StrategyTrigger:
                 if exit_decision.exit_decision == "HOLD":
                     return "HOLD"
                 entry_context = self._position_entry_context.pop(tracked.position_id, {})
+                trade_id = str(entry_context.get("trade_id", tracked.position_id))
                 exit_efficiency = 0.5
                 if exit_decision.exit_reason == "momentum_weakened_after_favorable_move":
                     exit_efficiency = 1.0
@@ -2214,6 +2289,24 @@ class StrategyTrigger:
                         "exit_efficiency": exit_efficiency,
                     },
                 )
+                validation_data = self._trade_validator.validate_closed_trade(
+                    trade_id=trade_id,
+                    expected_edge=float(entry_context.get("theoretical_edge", 0.0)),
+                    entry_price=tracked.entry_price,
+                    exit_price=market_price,
+                    side=tracked.side,
+                    execution_data=self._execution_tracker.get_execution_data(trade_id),
+                )
+                updated_risk_state = self._risk_engine.record_trade_pnl(tracked.pnl)
+                self._trade_traceability[trade_id] = {
+                    "trade_id": trade_id,
+                    "signal_data": self._trade_traceability.get(trade_id, {}).get("signal_data", {}),
+                    "decision_data": self._trade_traceability.get(trade_id, {}).get("decision_data", {}),
+                    "validation_result": self._trade_traceability.get(trade_id, {}).get("validation_result", {}),
+                    "execution_data": self._execution_tracker.get_execution_data(trade_id),
+                    "outcome_data": validation_data,
+                    "risk_state": self._risk_engine.as_dict() | {"global_trade_block": updated_risk_state.global_trade_block},
+                }
                 self._position_peak_pnl.pop(str(getattr(tracked, "position_id", "")), None)
                 self._trace_engine.record_trace(
                     position_id=tracked.position_id,
@@ -2230,3 +2323,9 @@ class StrategyTrigger:
                 return "CLOSED"
 
         return "HOLD"
+
+    def get_trade_trace(self, trade_id: str) -> dict[str, Any]:
+        trace = self._trade_traceability.get(trade_id)
+        if trace is None:
+            return {}
+        return dict(trace)

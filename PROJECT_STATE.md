@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 16:03
-- Status        : FORGE-X completed market title resolution test hardening follow-up (private-cache-free regression coverage) and is pending auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 16:45
+- Status        : FORGE-X completed P16 execution validation & risk enforcement control-layer implementation and is pending SENTINEL validation before merge.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P16 execution validation & risk enforcement layer (2026-04-09): implemented runtime pre-trade hard-block validation, execution truth capture, closed-trade edge validation, and global risk kill-switch enforcement in strategy-trigger execution path with focused MAJOR runtime-proof tests.
 - Market title resolution test hardening follow-up (2026-04-09): removed private cache mutation from Falcon title regression tests, seeded fallback cache through public normalization behavior, and preserved partial-failure/no-placeholder assertions.
 - Market title resolution follow-up hardening (2026-04-09): fixed partial Falcon failure path so successful markets title resolution is cached before downstream fetches, preventing fallback to numeric placeholder when later Falcon calls fail, and added focused regression coverage.
 - Market title resolution fix from market_id (2026-04-09): resolved real `market_title` via Falcon market metadata/cache in touched data-layer path, enforced strict placeholder fallback only when API unavailable with no cached title, and added focused regression tests for single/multi-market and fallback behavior.
@@ -120,6 +121,10 @@ Status:
 ---
 
 ## 🚧 IN PROGRESS
+
+### P16 execution validation & risk enforcement handoff
+- MAJOR-tier FULL RUNTIME INTEGRATION implementation is complete for strategy-trigger execution interception, execution-truth capture, edge validation, and global risk block enforcement in touched runtime path.
+- SENTINEL validation is required before merge.
 
 ### Market title test-hardening handoff
 - STANDARD-tier NARROW INTEGRATION follow-up is complete for Falcon title-resolution regression test integrity in touched test scope.
@@ -255,12 +260,13 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-Auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_32_p15_strategy_selection_auto_weighting.md
-Tier: STANDARD
+SENTINEL validation required before merge.
+Source: projects/polymarket/polyquantbot/reports/forge/24_33_p16_execution_validation_risk_enforcement_layer.md
+Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
+- P16 control layer is currently integrated in strategy-trigger runtime path only; additional non-trigger execution entry surfaces (if introduced later) require separate wiring to inherit identical enforcement guarantees.
 - P15 strategy weighting is currently narrow integration in S4 path only and is not yet wired into broader non-S4 runtime orchestration/telemetry surfaces.
 - P14.3 Falcon strategy layer is currently narrow integration in S4 scoring path only and is not yet wired into broader non-S4 runtime orchestration surfaces; insufficient-data fallback now prevents external weighting when Falcon evidence is unavailable.
 - P14.2 Falcon ingestion is FOUNDATION claim-level only (data ingestion + normalization + adapter); broader runtime orchestration wiring remains out of scope.
