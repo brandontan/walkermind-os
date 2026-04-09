@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 15:52
-- Status        : FORGE-X completed market title resolution follow-up hardening for partial Falcon failure path and is pending auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 16:03
+- Status        : FORGE-X completed market title resolution test hardening follow-up (private-cache-free regression coverage) and is pending auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Market title resolution test hardening follow-up (2026-04-09): removed private cache mutation from Falcon title regression tests, seeded fallback cache through public normalization behavior, and preserved partial-failure/no-placeholder assertions.
 - Market title resolution follow-up hardening (2026-04-09): fixed partial Falcon failure path so successful markets title resolution is cached before downstream fetches, preventing fallback to numeric placeholder when later Falcon calls fail, and added focused regression coverage.
 - Market title resolution fix from market_id (2026-04-09): resolved real `market_title` via Falcon market metadata/cache in touched data-layer path, enforced strict placeholder fallback only when API unavailable with no cached title, and added focused regression tests for single/multi-market and fallback behavior.
 - P14.3 Falcon alpha strategy layer safety refinement (2026-04-09): added explicit insufficient-data fallback (`falcon_signal=None`), noisy-input neutralization (`external_signal_weight=1.0`), deterministic bounded aggregation behavior, and expanded focused tests for fallback/noise/runtime-proof examples.
@@ -118,6 +119,10 @@ Status:
 ---
 
 ## 🚧 IN PROGRESS
+
+### Market title test-hardening handoff
+- STANDARD-tier NARROW INTEGRATION follow-up is complete for Falcon title-resolution regression test integrity in touched test scope.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
 ### Market title resolution follow-up handoff
 - STANDARD-tier NARROW INTEGRATION follow-up implementation is complete for Falcon partial-failure title fallback resilience in touched path.

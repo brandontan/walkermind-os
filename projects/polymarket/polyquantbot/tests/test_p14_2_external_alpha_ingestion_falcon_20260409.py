@@ -3,8 +3,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from projects.polymarket.polyquantbot.data import market_context
-from projects.polymarket.polyquantbot.data.ingestion import falcon_alpha
 from projects.polymarket.polyquantbot.data.ingestion.falcon_alpha import (
     FalconAPIClient,
     FalconPagination,
@@ -155,10 +153,6 @@ def test_runtime_proof_samples_market_trade_and_normalized_output() -> None:
 
 def test_market_id_only_resolves_real_title_and_portfolio_context() -> None:
     async def _run() -> None:
-        falcon_alpha._market_title_cache.clear()
-        market_context.market_cache.clear()
-        market_context.market_title_cache.clear()
-
         transport = _CaptureTransport(
             responses=[
                 {"data": [{"market_id": "540816", "question": "Will BTC close above $120k in 2026?", "price": 0.61, "volume": 90000}]},
@@ -183,10 +177,6 @@ def test_market_id_only_resolves_real_title_and_portfolio_context() -> None:
 
 def test_multiple_market_ids_resolve_all_titles() -> None:
     async def _run() -> None:
-        falcon_alpha._market_title_cache.clear()
-        market_context.market_cache.clear()
-        market_context.market_title_cache.clear()
-
         m1 = normalize_external_signal(
             market={"market_id": "m100", "question": "Will ETH close above $6k?", "price": 0.44, "volume": 120000},
             trades=[{"wallet": "0xaaa", "size": 1500}],
@@ -208,8 +198,12 @@ def test_multiple_market_ids_resolve_all_titles() -> None:
 
 def test_fallback_uses_cached_title_when_api_unavailable() -> None:
     async def _run() -> None:
-        falcon_alpha._market_title_cache.clear()
-        falcon_alpha._market_title_cache["m500"] = "Will CPI print under 2.5%?"
+        normalize_external_signal(
+            market={"market_id": "m500", "question": "Will CPI print under 2.5%?"},
+            trades=[],
+            candles=[],
+            orderbook=[],
+        )
 
         async def failing_transport(_: dict[str, Any]) -> dict[str, Any]:
             raise RuntimeError("falcon_down")
@@ -225,8 +219,6 @@ def test_fallback_uses_cached_title_when_api_unavailable() -> None:
 
 def test_partial_falcon_failure_uses_resolved_market_title_not_numeric_placeholder() -> None:
     async def _run() -> None:
-        falcon_alpha._market_title_cache.clear()
-
         transport = _CaptureTransport(
             responses=[
                 {"data": [{"market_id": "m900", "question": "Will Fed cut rates in June?", "price": 0.52, "volume": 88000}]},
