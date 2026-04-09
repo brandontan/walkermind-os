@@ -17,6 +17,7 @@ log = structlog.get_logger(__name__)
 @dataclass(frozen=True)
 class PortfolioPosition:
     market_id: str
+    market_title: str
     side: str
     avg_price: float
     size: float
@@ -85,6 +86,12 @@ class PortfolioService:
             normalized.append(
                 PortfolioPosition(
                     market_id=str(pos.get("market_id", "")),
+                    market_title=str(
+                        pos.get("market_title")
+                        or pos.get("market_question")
+                        or pos.get("question")
+                        or ""
+                    ).strip(),
                     side=str(pos.get("side", "")),
                     avg_price=self._safe_float(pos.get("entry_price", pos.get("avg_price", 0.0)), 0.0),
                     size=self._safe_float(pos.get("size", 0.0), 0.0),
@@ -173,6 +180,12 @@ class PortfolioService:
                 positions.append(
                     PortfolioPosition(
                         market_id=market_id,
+                        market_title=str(
+                            getattr(pos, "market_title", "")
+                            or getattr(pos, "market_question", "")
+                            or getattr(pos, "question", "")
+                            or ""
+                        ).strip(),
                         side=side,
                         avg_price=avg_price,
                         size=size,

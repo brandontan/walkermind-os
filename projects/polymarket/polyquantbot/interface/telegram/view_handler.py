@@ -70,11 +70,29 @@ def safe_count(value: Any, default: int = 0) -> int:
 
 
 def _position_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    def _normalize_rows(raw_rows: list[Any]) -> list[Mapping[str, Any]]:
+        normalized: list[Mapping[str, Any]] = []
+        for row in raw_rows:
+            if not isinstance(row, Mapping):
+                continue
+            row_dict = dict(row)
+            row_dict["market_title"] = _first_present(
+                row,
+                "market_title",
+                "market_question",
+                "question",
+                "title",
+                "name",
+                default="",
+            )
+            normalized.append(row_dict)
+        return normalized
+
     rows = _as_list(payload.get("positions"))
     if rows and isinstance(rows[0], Mapping):
-        return [row for row in rows if isinstance(row, Mapping)]
+        return _normalize_rows(rows)
     open_rows = _as_list(payload.get("open_positions"))
-    return [row for row in open_rows if isinstance(row, Mapping)]
+    return _normalize_rows(open_rows)
 
 
 def _derive_position_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -142,7 +160,7 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "confidence": payload.get("confidence", 0),
         "decision": payload.get("decision"),
         "operator_note": payload.get("operator_note"),
-        "market_title": _first_present(payload, "market_title", "market_name", "question", default=primary.get("market_title")),
+        "market_title": _first_present(payload, "market_title", default=primary.get("market_title")),
         "market_question": payload.get("question"),
         "market_id": _first_present(payload, "market_id", "market", default=primary.get("market_id")),
         "current": _first_present(payload, "current", "current_price", "last_price", default=primary.get("current_price")),

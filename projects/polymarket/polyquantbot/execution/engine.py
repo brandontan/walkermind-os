@@ -50,6 +50,7 @@ class ExecutionEngine:
         price: float,
         size: float,
         position_id: str | None = None,
+        market_title: str = "",
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
@@ -90,6 +91,7 @@ class ExecutionEngine:
 
             position = Position(
                 market_id=market,
+                market_title=str(market_title or "").strip(),
                 side=side.upper(),
                 entry_price=float(price),
                 current_price=float(price),
@@ -184,6 +186,7 @@ async def export_execution_payload() -> dict[str, Any]:
         "positions": [
             {
                 "market_id": pos.market_id,
+                "market_title": pos.market_title,
                 "side": pos.side,
                 "entry_price": pos.entry_price,
                 "current_price": pos.current_price,

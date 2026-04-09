@@ -5,7 +5,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+import structlog
+
 from projects.polymarket.polyquantbot.data.market_context import get_market_context
+
+log = structlog.get_logger(__name__)
 
 VIEW_TITLE = {
     "home": "🏠 Home Command",
@@ -170,16 +174,18 @@ def _resolve_market_label(payload: Mapping[str, Any], context: Mapping[str, Any]
 
     for candidate in (
         payload.get("market_title"),
-        payload.get("market_question"),
-        payload.get("market_name"),
         context.get("question"),
         context.get("name"),
-        payload.get("market"),
     ):
         text = _compact_text(candidate, "", max_len=86)
         if text and not _is_generic_label(text) and not _is_internal_fallback_label(text):
             return text
 
+    log.warning(
+        "telegram_market_title_missing_fallback",
+        market_id=_safe_text(payload.get("market_id"), ""),
+        fallback="Untitled Market",
+    )
     return "Untitled Market"
 
 
@@ -433,7 +439,7 @@ async def _render_position_cards(payload: Mapping[str, Any]) -> list[str]:
         row_payload.update(
             {
                 "market_id": row.get("market_id"),
-                "market_title": row.get("market_title", row.get("market_question")),
+                "market_title": row.get("market_title"),
                 "market_question": row.get("market_question"),
                 "side": row.get("side"),
                 "entry": row.get("entry_price", row.get("avg_price")),

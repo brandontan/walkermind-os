@@ -10,6 +10,7 @@ class Position:
     """Paper trading position state for execution engine."""
 
     market_id: str
+    market_title: str
     side: str
     entry_price: float
     current_price: float
