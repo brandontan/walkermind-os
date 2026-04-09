@@ -199,6 +199,145 @@ class PerformanceTracker:
             "risk_metrics": self._compute_risk_metrics(),
         }
 
+    def optimization_output(self) -> dict[str, Any]:
+        """Convert analytics summary into bounded optimization signals."""
+        summary = self.summary()
+        strategy_keys = ("S1", "S2", "S3", "S5")
+        neutral_output = {
+            "strategy_weights": {key: 1.0 for key in strategy_keys},
+            "regime_weights": {"NEWS": 1.0, "ARBITRAGE": 1.0, "SMART_MONEY": 1.0, "CHAOTIC": 1.0},
+            "execution_adjustments": {
+                "p10_max_spread_multiplier": 1.0,
+                "p10_slippage_guard_multiplier": 1.0,
+                "p12_wait_cycle_bias": 0,
+                "p12_reevaluation_window_multiplier": 1.0,
+                "p13_exit_sensitivity_multiplier": 1.0,
+            },
+            "risk_adjustments": {
+                "aggression_multiplier": 1.0,
+                "size_multiplier": 1.0,
+            },
+            "fallback_to_neutral": False,
+        }
+        trades = int(summary.get("trades", 0))
+        if trades < 3:
+            neutral_output["fallback_to_neutral"] = True
+            return neutral_output
+
+        strategy_breakdown = summary.get("strategy_breakdown", {})
+        risk_metrics = summary.get("risk_metrics", {})
+        expectancy = float(summary.get("expectancy", 0.0))
+        strategy_weights: dict[str, float] = {key: 1.0 for key in strategy_keys}
+
+        scores: dict[str, float] = {}
+        max_abs_pnl = max(
+            (abs(float(row.get("pnl", 0.0))) for row in strategy_breakdown.values()),
+            default=1.0,
+        )
+        expectancy_norm = self._clamp(expectancy / 20.0, -1.0, 1.0)
+        global_drawdown = self._clamp(float(risk_metrics.get("max_drawdown", 0.0)), 0.0, 1.0)
+        drawdown_component = 1.0 - global_drawdown
+        for strategy_name in strategy_keys:
+            row = strategy_breakdown.get(strategy_name, {})
+            if not row:
+                continue
+            pnl = float(row.get("pnl", 0.0))
+            win_rate = self._clamp(float(row.get("win_rate", 0.0)), 0.0, 1.0)
+            avg_return = self._clamp(float(row.get("avg_return", 0.0)) / 0.10, -1.0, 1.0)
+            pnl_component = self._clamp((pnl / max(max_abs_pnl, 1e-6)), -1.0, 1.0)
+            score = (
+                (0.30 * ((pnl_component + 1.0) / 2.0))
+                + (0.30 * win_rate)
+                + (0.20 * ((avg_return + 1.0) / 2.0))
+                + (0.10 * ((expectancy_norm + 1.0) / 2.0))
+                + (0.10 * drawdown_component)
+            )
+            scores[strategy_name] = self._clamp(score, 0.0, 1.0)
+
+        if scores:
+            low = min(scores.values())
+            high = max(scores.values())
+            span = max(high - low, 1e-6)
+            for strategy_name, score in scores.items():
+                normalized = (score - low) / span if high > low else 0.5
+                if normalized >= 0.75:
+                    modifier = 1.08
+                elif normalized <= 0.15:
+                    modifier = 0.75
+                elif normalized <= 0.35:
+                    modifier = 0.90
+                else:
+                    modifier = 0.95 + (normalized - 0.35) * 0.20
+                strategy_weights[strategy_name] = round(self._clamp(modifier, 0.75, 1.15), 6)
+
+        regime_breakdown = summary.get("regime_breakdown", {})
+        regime_weights = {"NEWS": 1.0, "ARBITRAGE": 1.0, "SMART_MONEY": 1.0, "CHAOTIC": 1.0}
+        regime_scores: dict[str, float] = {}
+        max_abs_regime_pnl = max(
+            (abs(float(row.get("pnl", 0.0))) for row in regime_breakdown.values()),
+            default=1.0,
+        )
+        for regime_name, row in regime_breakdown.items():
+            pnl = float(row.get("pnl", 0.0))
+            win_rate = self._clamp(float(row.get("win_rate", 0.0)), 0.0, 1.0)
+            avg_return = self._clamp(float(row.get("avg_return", 0.0)) / 0.10, -1.0, 1.0)
+            pnl_component = self._clamp((pnl / max(max_abs_regime_pnl, 1e-6)), -1.0, 1.0)
+            regime_scores[regime_name] = self._clamp(
+                (0.45 * ((pnl_component + 1.0) / 2.0))
+                + (0.35 * win_rate)
+                + (0.20 * ((avg_return + 1.0) / 2.0)),
+                0.0,
+                1.0,
+            )
+        if regime_scores:
+            low = min(regime_scores.values())
+            high = max(regime_scores.values())
+            span = max(high - low, 1e-6)
+            for regime_name, score in regime_scores.items():
+                normalized = (score - low) / span if high > low else 0.5
+                regime_weights[regime_name] = round(self._clamp(0.85 + (normalized * 0.30), 0.85, 1.15), 6)
+
+        execution_metrics = summary.get("execution_quality_metrics", {})
+        avg_slippage_impact = self._clamp(float(execution_metrics.get("avg_slippage_impact", 0.0)), 0.0, 1.0)
+        avg_timing_effectiveness = self._clamp(float(execution_metrics.get("avg_timing_effectiveness", 0.0)), 0.0, 1.0)
+        avg_exit_efficiency = self._clamp(float(execution_metrics.get("avg_exit_efficiency", 0.0)), 0.0, 1.0)
+        p10_tighten = self._clamp((avg_slippage_impact - 0.02) / 0.06, 0.0, 1.0)
+        p12_timing_penalty = self._clamp((0.60 - avg_timing_effectiveness) / 0.40, 0.0, 1.0)
+        p13_exit_penalty = self._clamp((0.60 - avg_exit_efficiency) / 0.40, 0.0, 1.0)
+        execution_adjustments = {
+            "p10_max_spread_multiplier": round(self._clamp(1.0 - (0.15 * p10_tighten), 0.85, 1.0), 6),
+            "p10_slippage_guard_multiplier": round(self._clamp(1.0 - (0.20 * p10_tighten), 0.80, 1.0), 6),
+            "p12_wait_cycle_bias": int(round(self._clamp(p12_timing_penalty * 2.0, 0.0, 2.0))),
+            "p12_reevaluation_window_multiplier": round(self._clamp(1.0 + (0.20 * p12_timing_penalty), 1.0, 1.2), 6),
+            "p13_exit_sensitivity_multiplier": round(self._clamp(1.0 - (0.20 * p13_exit_penalty), 0.80, 1.0), 6),
+        }
+
+        loss_streak = int(risk_metrics.get("loss_streak", 0))
+        max_drawdown = self._clamp(float(risk_metrics.get("max_drawdown", 0.0)), 0.0, 1.0)
+        avg_drawdown = self._clamp(float(risk_metrics.get("avg_drawdown", 0.0)), 0.0, 1.0)
+        drawdown_pressure = self._clamp((max_drawdown - 0.04) / 0.20, 0.0, 1.0)
+        avg_drawdown_pressure = self._clamp((avg_drawdown - 0.02) / 0.10, 0.0, 1.0)
+        streak_pressure = self._clamp((loss_streak - 1) / 4.0, 0.0, 1.0)
+        risk_adjustments = {
+            "aggression_multiplier": round(
+                self._clamp(1.0 - (0.15 * max(drawdown_pressure, avg_drawdown_pressure)), 0.85, 1.0),
+                6,
+            ),
+            "size_multiplier": round(self._clamp(1.0 - (0.15 * streak_pressure), 0.85, 1.0), 6),
+        }
+
+        return {
+            "strategy_weights": strategy_weights,
+            "regime_weights": regime_weights,
+            "execution_adjustments": execution_adjustments,
+            "risk_adjustments": risk_adjustments,
+            "fallback_to_neutral": False,
+        }
+
+    @staticmethod
+    def _clamp(value: float, lower: float, upper: float) -> float:
+        return min(max(value, lower), upper)
+
     def _calculate_sharpe(self) -> float:
         """Placeholder for Sharpe ratio."""
         return 0.0
