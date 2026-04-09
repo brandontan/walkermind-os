@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import time
 import structlog
 import uuid
+import re
 
 from .engine import ExecutionEngine
 from .intelligence import ExecutionIntelligence, MarketSnapshot
@@ -25,6 +26,9 @@ class StrategyConfig:
     min_market_lag: float = 0.03
     min_edge: float = 0.02
     min_liquidity_usd: float = 10_000.0
+    cross_exchange_min_net_edge: float = 0.02
+    cross_exchange_min_mapping_confidence: float = 0.55
+    cross_exchange_min_overlap_tokens: int = 2
 
 
 @dataclass(frozen=True)
@@ -42,6 +46,28 @@ class StrategyDecision:
     decision: str
     reason: str
     edge: float
+
+
+@dataclass(frozen=True)
+class CrossExchangeMarket:
+    exchange: str
+    market_id: str
+    title: str
+    probability: float
+    liquidity_usd: float
+    fee_bps: float = 0.0
+    slippage_bps: float = 0.0
+    timeframe: str = ""
+    resolution_criteria: str = ""
+    event_key: str = ""
+
+
+@dataclass(frozen=True)
+class CrossExchangeArbitrageDecision:
+    decision: str
+    reason: str
+    edge: float
+    matched_markets_info: dict[str, object]
 
 
 class StrategyTrigger:
@@ -125,6 +151,134 @@ class StrategyTrigger:
             reason="entry conditions met: social spike + market lag + edge",
             edge=round(edge, 6),
         )
+
+    def evaluate_cross_exchange_arbitrage(
+        self,
+        polymarket: CrossExchangeMarket,
+        kalshi_markets: list[CrossExchangeMarket],
+    ) -> CrossExchangeArbitrageDecision:
+        best_match, confidence = self._select_best_cross_exchange_match(
+            polymarket=polymarket,
+            kalshi_markets=kalshi_markets,
+        )
+        if best_match is None:
+            return CrossExchangeArbitrageDecision(
+                decision="SKIP",
+                reason="no equivalent market match found",
+                edge=0.0,
+                matched_markets_info={"polymarket": polymarket.market_id, "match": None},
+            )
+
+        if confidence < self._config.cross_exchange_min_mapping_confidence:
+            return CrossExchangeArbitrageDecision(
+                decision="SKIP",
+                reason="mapping confidence too low",
+                edge=0.0,
+                matched_markets_info={
+                    "polymarket": polymarket.market_id,
+                    "kalshi": best_match.market_id,
+                    "mapping_confidence": round(confidence, 6),
+                },
+            )
+
+        poly_prob = self._normalize_probability(polymarket.probability)
+        kalshi_prob = self._normalize_probability(best_match.probability)
+        raw_edge = abs(poly_prob - kalshi_prob)
+        fees_slippage = (
+            self._bps_to_probability(polymarket.fee_bps + polymarket.slippage_bps)
+            + self._bps_to_probability(best_match.fee_bps + best_match.slippage_bps)
+        )
+        net_edge = max(0.0, raw_edge - fees_slippage)
+
+        if polymarket.liquidity_usd < self._config.min_liquidity_usd or best_match.liquidity_usd < self._config.min_liquidity_usd:
+            return CrossExchangeArbitrageDecision(
+                decision="SKIP",
+                reason="liquidity insufficient for actionable arbitrage",
+                edge=round(net_edge, 6),
+                matched_markets_info={
+                    "polymarket": polymarket.market_id,
+                    "kalshi": best_match.market_id,
+                    "mapping_confidence": round(confidence, 6),
+                    "raw_edge": round(raw_edge, 6),
+                    "net_edge": round(net_edge, 6),
+                },
+            )
+
+        if net_edge <= self._config.cross_exchange_min_net_edge:
+            return CrossExchangeArbitrageDecision(
+                decision="SKIP",
+                reason="fees/slippage adjusted edge below threshold",
+                edge=round(net_edge, 6),
+                matched_markets_info={
+                    "polymarket": polymarket.market_id,
+                    "kalshi": best_match.market_id,
+                    "mapping_confidence": round(confidence, 6),
+                    "raw_edge": round(raw_edge, 6),
+                    "net_edge": round(net_edge, 6),
+                },
+            )
+
+        return CrossExchangeArbitrageDecision(
+            decision="ENTER",
+            reason="cross-exchange arbitrage opportunity detected",
+            edge=round(net_edge, 6),
+            matched_markets_info={
+                "polymarket": polymarket.market_id,
+                "kalshi": best_match.market_id,
+                "mapping_confidence": round(confidence, 6),
+                "probability_polymarket": round(poly_prob, 6),
+                "probability_kalshi": round(kalshi_prob, 6),
+                "raw_edge": round(raw_edge, 6),
+                "net_edge": round(net_edge, 6),
+            },
+        )
+
+    def _select_best_cross_exchange_match(
+        self,
+        polymarket: CrossExchangeMarket,
+        kalshi_markets: list[CrossExchangeMarket],
+    ) -> tuple[CrossExchangeMarket | None, float]:
+        best_market: CrossExchangeMarket | None = None
+        best_score = 0.0
+        poly_tokens = set(self._tokenize(polymarket.title))
+
+        for candidate in kalshi_markets:
+            candidate_tokens = set(self._tokenize(candidate.title))
+            overlap = len(poly_tokens & candidate_tokens)
+            overlap_score = min(
+                1.0,
+                overlap / max(float(self._config.cross_exchange_min_overlap_tokens), 1.0),
+            )
+            event_match = 1.0 if polymarket.event_key and polymarket.event_key == candidate.event_key else 0.0
+            timeframe_match = 1.0 if polymarket.timeframe and polymarket.timeframe == candidate.timeframe else 0.0
+            resolution_match = (
+                1.0
+                if polymarket.resolution_criteria
+                and polymarket.resolution_criteria == candidate.resolution_criteria
+                else 0.0
+            )
+            score = (0.4 * event_match) + (0.2 * timeframe_match) + (0.2 * resolution_match) + (0.2 * overlap_score)
+            if score > best_score:
+                best_score = score
+                best_market = candidate
+
+        return best_market, best_score
+
+    @staticmethod
+    def _normalize_probability(raw_probability: float) -> float:
+        if raw_probability <= 1.0:
+            return min(max(raw_probability, 0.0), 1.0)
+        if raw_probability <= 100.0:
+            return min(max(raw_probability / 100.0, 0.0), 1.0)
+        return 1.0
+
+    @staticmethod
+    def _bps_to_probability(value_bps: float) -> float:
+        return max(value_bps, 0.0) / 10_000.0
+
+    @staticmethod
+    def _tokenize(value: str) -> list[str]:
+        return [token for token in re.split(r"[^a-z0-9]+", value.lower()) if len(token) >= 3]
 
     async def evaluate(self, market_price: float) -> str:
         now = time.time()
