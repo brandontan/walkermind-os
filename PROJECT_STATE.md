@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 05:45
-- Status        : FORGE-X S3.1 smart-money quality upgrade implemented (STANDARD, narrow integration) in strategy-trigger S3 layer; awaiting Codex auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 05:21
+- Status        : FORGE-X S5 settlement-gap scanner implemented (STANDARD, narrow integration) in strategy-trigger layer; awaiting Codex auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- S5 settlement-gap scanner (2026-04-09): implemented Kalshi resolution detection + Polymarket equivalent-market matching + resolved-outcome underpricing check (`< 0.95`) with liquidity/open-market skip guards and deterministic ENTER/SKIP output contract (`decision`/`edge`/`reason`/`source="settlement_gap"`).
 - S3.1 smart-money quality upgrade (2026-04-09): upgraded S3 wallet-quality scoring with H-Score + Wallet 360 features (consistency/discipline/frequency/diversity), added deterministic quality-score gating and skip conditions (low quality, poor consistency, erratic/bot-like activity), and updated confidence shaping with focused deterministic tests.
 - P9 performance feedback loop (2026-04-09): added per-strategy post-trade performance tracking (trades/win-loss/avg edge/avg pnl), computed win-rate + average-return + consistency metrics, introduced bounded adaptive strategy weighting/sizing/threshold adjustments with fallback defaults, and added focused deterministic stability tests.
 - P8 portfolio exposure balancing & correlation guard (2026-04-09): added post-S4 pre-execution portfolio-fit guard in strategy trigger with same-market block, theme/similarity-aware correlation handling, exposure-cap-based size reduction/skip decisions, deterministic ENTER/SKIP/REDUCE output contract, and focused runtime-proof tests.
@@ -103,6 +104,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### S5 settlement-gap scanner handoff
+- STANDARD-tier narrow integration implementation is complete for strategy-trigger settlement detection, cross-market equivalence matching, and resolved-outcome price-gap entry/skip decisions.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ### S3.1 smart-money quality upgrade handoff
 - STANDARD-tier narrow integration implementation is complete for S3 wallet quality filtering/scoring and confidence adjustment behavior.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
@@ -176,11 +181,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_18_s3_1_smart_money_quality_upgrade.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_19_s5_settlement_gap_scanner.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- S5 settlement-gap scanner is currently narrow integration in strategy-trigger scope only and is not yet wired into full runtime execution orchestration.
 - S3.1 wallet quality upgrade is currently narrow integration in strategy-trigger S3 path only and is not yet wired into full runtime execution orchestration.
 - P9 feedback loop is currently narrow integration in strategy-trigger scope only and is not yet wired to persistent trade-result storage across full runtime orchestration.
 - P8 portfolio exposure balancing is currently narrow integration in strategy-trigger pre-execution path only and is not yet generalized to broader runtime orchestration layers.

@@ -30,6 +30,8 @@ class StrategyConfig:
     cross_exchange_min_actionable_spread: float = 0.005
     cross_exchange_min_mapping_confidence: float = 0.55
     cross_exchange_min_overlap_tokens: int = 2
+    settlement_gap_underpriced_threshold: float = 0.95
+    settlement_gap_min_mapping_confidence: float = 0.60
     min_position_size_usd: float = 25.0
     max_position_size_ratio: float = 0.10
     max_market_exposure_ratio: float = 0.15
@@ -75,6 +77,38 @@ class CrossExchangeArbitrageDecision:
     reason: str
     edge: float
     matched_markets_info: dict[str, object]
+
+
+@dataclass(frozen=True)
+class KalshiResolvedMarket:
+    market_id: str
+    title: str
+    resolved: bool
+    resolved_outcome: str
+    event_key: str = ""
+    timeframe: str = ""
+    resolution_criteria: str = ""
+
+
+@dataclass(frozen=True)
+class PolymarketSettlementMarket:
+    market_id: str
+    title: str
+    yes_price: float
+    liquidity_usd: float
+    orderbook_depth_usd: float
+    is_open: bool = True
+    event_key: str = ""
+    timeframe: str = ""
+    resolution_criteria: str = ""
+
+
+@dataclass(frozen=True)
+class SettlementGapDecision:
+    decision: str
+    reason: str
+    edge: float
+    source: str
 
 
 @dataclass(frozen=True)
@@ -504,6 +538,76 @@ class StrategyTrigger:
                 "raw_edge": round(raw_edge, 6),
                 "net_edge": round(net_edge, 6),
             },
+        )
+
+    def evaluate_settlement_gap_scanner(
+        self,
+        kalshi_market: KalshiResolvedMarket,
+        polymarket_markets: list[PolymarketSettlementMarket],
+    ) -> SettlementGapDecision:
+        source = "settlement_gap"
+        if not kalshi_market.resolved:
+            return SettlementGapDecision(
+                decision="SKIP",
+                reason="clear resolution signal missing",
+                edge=0.0,
+                source=source,
+            )
+
+        normalized_outcome = kalshi_market.resolved_outcome.strip().upper()
+        if normalized_outcome not in {"YES", "NO"}:
+            return SettlementGapDecision(
+                decision="SKIP",
+                reason="clear resolution signal missing",
+                edge=0.0,
+                source=source,
+            )
+
+        best_match, confidence = self._select_best_settlement_gap_match(
+            kalshi_market=kalshi_market,
+            polymarket_markets=polymarket_markets,
+        )
+        if best_match is None or confidence < self._config.settlement_gap_min_mapping_confidence:
+            return SettlementGapDecision(
+                decision="SKIP",
+                reason="mapping uncertain",
+                edge=0.0,
+                source=source,
+            )
+
+        if not best_match.is_open:
+            return SettlementGapDecision(
+                decision="SKIP",
+                reason="market closed / illiquid",
+                edge=0.0,
+                source=source,
+            )
+
+        available_depth = min(best_match.liquidity_usd, best_match.orderbook_depth_usd)
+        if available_depth < self._config.min_liquidity_usd:
+            return SettlementGapDecision(
+                decision="SKIP",
+                reason="liquidity insufficient",
+                edge=0.0,
+                source=source,
+            )
+
+        yes_price = self._normalize_probability(best_match.yes_price)
+        resolved_outcome_price = yes_price if normalized_outcome == "YES" else (1.0 - yes_price)
+        edge = max(0.0, 1.0 - resolved_outcome_price)
+        if resolved_outcome_price >= self._config.settlement_gap_underpriced_threshold:
+            return SettlementGapDecision(
+                decision="SKIP",
+                reason="already converged",
+                edge=round(edge, 6),
+                source=source,
+            )
+
+        return SettlementGapDecision(
+            decision="ENTER",
+            reason="settlement gap opportunity detected",
+            edge=round(edge, 6),
+            source=source,
         )
 
     def _compute_wallet_quality_score(self, signal: WalletTradeSignal) -> float:
@@ -1106,6 +1210,36 @@ class StrategyTrigger:
                 best_score = score
                 best_market = candidate
 
+        return best_market, best_score
+
+    def _select_best_settlement_gap_match(
+        self,
+        kalshi_market: KalshiResolvedMarket,
+        polymarket_markets: list[PolymarketSettlementMarket],
+    ) -> tuple[PolymarketSettlementMarket | None, float]:
+        best_market: PolymarketSettlementMarket | None = None
+        best_score = 0.0
+        kalshi_tokens = set(self._tokenize(kalshi_market.title))
+
+        for candidate in polymarket_markets:
+            candidate_tokens = set(self._tokenize(candidate.title))
+            overlap = len(kalshi_tokens & candidate_tokens)
+            overlap_score = min(
+                1.0,
+                overlap / max(float(self._config.cross_exchange_min_overlap_tokens), 1.0),
+            )
+            event_match = 1.0 if kalshi_market.event_key and kalshi_market.event_key == candidate.event_key else 0.0
+            timeframe_match = 1.0 if kalshi_market.timeframe and kalshi_market.timeframe == candidate.timeframe else 0.0
+            resolution_match = (
+                1.0
+                if kalshi_market.resolution_criteria
+                and kalshi_market.resolution_criteria == candidate.resolution_criteria
+                else 0.0
+            )
+            score = (0.4 * event_match) + (0.2 * timeframe_match) + (0.2 * resolution_match) + (0.2 * overlap_score)
+            if score > best_score:
+                best_score = score
+                best_market = candidate
         return best_market, best_score
 
     @staticmethod
