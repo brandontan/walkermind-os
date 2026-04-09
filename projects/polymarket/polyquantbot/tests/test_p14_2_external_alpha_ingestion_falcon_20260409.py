@@ -221,3 +221,21 @@ def test_fallback_uses_cached_title_when_api_unavailable() -> None:
         assert alpha["market_title"] != "Market m500"
 
     asyncio.run(_run())
+
+
+def test_partial_falcon_failure_uses_resolved_market_title_not_numeric_placeholder() -> None:
+    async def _run() -> None:
+        falcon_alpha._market_title_cache.clear()
+
+        transport = _CaptureTransport(
+            responses=[
+                {"data": [{"market_id": "m900", "question": "Will Fed cut rates in June?", "price": 0.52, "volume": 88000}]},
+            ]
+        )
+        client = FalconAPIClient(transport=transport)
+        alpha = await fetch_external_alpha_with_fallback(client, market_id="m900", token_id="t900")
+
+        assert alpha["market_title"] == "Will Fed cut rates in June?"
+        assert alpha["market_title"] != "Market m900"
+
+    asyncio.run(_run())

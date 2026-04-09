@@ -248,19 +248,14 @@ async def fetch_external_alpha_with_fallback(
 
     Returns deterministic fallback payload when Falcon is unavailable.
     """
-    fallback_title = get_cached_market_title(market_id) or f"Market {market_id}"
-    fallback = {
-        "market_id": market_id,
-        "market_title": fallback_title,
-        "price": 0.0,
-        "volume": 0.0,
-        "momentum": 0.0,
-        "liquidity": 0.0,
-        "smart_money_indicator": 0.0,
-        "volatility_snapshot": 0.0,
-    }
+    cached_title = get_cached_market_title(market_id)
     try:
         markets = await fetch_markets(client, params={"market_id": market_id})
+        if markets:
+            resolved_title = _resolve_market_title(markets[0])
+            if resolved_title:
+                _cache_market_title(market_id, resolved_title)
+                cached_title = resolved_title
         trades = await fetch_trades(client, params={"market_id": market_id})
         candles = await fetch_candles(client, params={"token_id": token_id})
         orderbook = await fetch_orderbook(client, params={"token_id": token_id})
@@ -273,7 +268,16 @@ async def fetch_external_alpha_with_fallback(
         )
     except Exception as exc:
         log.warning("falcon_external_alpha_fallback", market_id=market_id, error=str(exc))
-        return fallback
+        return {
+            "market_id": market_id,
+            "market_title": cached_title or f"Market {market_id}",
+            "price": 0.0,
+            "volume": 0.0,
+            "momentum": 0.0,
+            "liquidity": 0.0,
+            "smart_money_indicator": 0.0,
+            "volatility_snapshot": 0.0,
+        }
 
 def get_cached_market_title(market_id: str) -> str:
     """Return cached market title for market_id, if available."""
