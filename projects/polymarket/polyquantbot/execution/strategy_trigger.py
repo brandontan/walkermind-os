@@ -45,6 +45,11 @@ class StrategyConfig:
     max_slippage_edge_consumption_ratio: float = 0.60
     borderline_slippage_edge_consumption_ratio: float = 0.35
     execution_reduction_factor: float = 0.50
+    anti_chase_extension_ratio: float = 0.025
+    anti_chase_spread_ratio: float = 0.030
+    micro_pullback_improvement_ratio: float = 0.008
+    timing_reevaluation_window_seconds: int = 15
+    timing_max_wait_cycles: int = 2
 
 
 @dataclass(frozen=True)
@@ -189,6 +194,29 @@ class ExecutionQualityDecision:
     expected_fill_price: float
     expected_slippage: float
     execution_quality_reason: str
+
+
+@dataclass(frozen=True)
+class EntryTimingDecision:
+    timing_decision: str
+    timing_reason: str
+    reference_price: float
+    reevaluation_window: int
+    final_execution_readiness: bool
+
+
+@dataclass(frozen=True)
+class EntryExecutionReadiness:
+    timing_decision: str
+    timing_reason: str
+    reference_price: float
+    reevaluation_window: int
+    final_execution_readiness: bool
+    execution_quality_decision: str
+    execution_quality_reason: str
+    adjusted_size: float
+    expected_fill_price: float
+    expected_slippage: float
 
 
 @dataclass(frozen=True)
@@ -1420,6 +1448,153 @@ class StrategyTrigger:
             execution_quality_reason=reason,
         )
 
+    def evaluate_entry_timing(
+        self,
+        *,
+        market_price: float,
+        signal_reference_price: float,
+        signal_edge: float,
+        market_context: dict[str, float] | None = None,
+        wait_cycles: int = 0,
+    ) -> EntryTimingDecision:
+        context = market_context or {}
+        normalized_wait_cycles = max(wait_cycles, 0)
+        reference_price = signal_reference_price if signal_reference_price > 0.0 else market_price
+        reference_price = max(reference_price, 0.0)
+        reevaluation_window = max(self._config.timing_reevaluation_window_seconds, 1)
+
+        bid = float(context.get("best_bid", market_price))
+        ask = float(context.get("best_ask", market_price))
+        spread = max(0.0, ask - bid)
+
+        if reference_price <= 0.0:
+            return EntryTimingDecision(
+                timing_decision="SKIP",
+                timing_reason="invalid_reference_price",
+                reference_price=0.0,
+                reevaluation_window=reevaluation_window,
+                final_execution_readiness=False,
+            )
+
+        extension_ratio = max((market_price - reference_price) / reference_price, 0.0)
+        spread_ratio = spread / max(reference_price, 1e-6)
+        post_signal_peak = max(float(context.get("post_signal_peak_price", market_price)), market_price)
+        pullback_from_peak = max((post_signal_peak - market_price) / max(post_signal_peak, 1e-6), 0.0)
+
+        chase_detected = (
+            extension_ratio >= self._config.anti_chase_extension_ratio
+            and spread_ratio >= self._config.anti_chase_spread_ratio
+        )
+        if chase_detected:
+            if normalized_wait_cycles >= self._config.timing_max_wait_cycles:
+                return EntryTimingDecision(
+                    timing_decision="SKIP",
+                    timing_reason="anti_chase_timeout_skip",
+                    reference_price=round(reference_price, 6),
+                    reevaluation_window=0,
+                    final_execution_readiness=False,
+                )
+            return EntryTimingDecision(
+                timing_decision="WAIT",
+                timing_reason="anti_chase_spike_detected",
+                reference_price=round(reference_price, 6),
+                reevaluation_window=reevaluation_window,
+                final_execution_readiness=False,
+            )
+
+        if post_signal_peak > reference_price * (1.0 + (self._config.anti_chase_extension_ratio / 2.0)):
+            if pullback_from_peak >= self._config.micro_pullback_improvement_ratio:
+                return EntryTimingDecision(
+                    timing_decision="ENTER_NOW",
+                    timing_reason="micro_pullback_improved_entry",
+                    reference_price=round(reference_price, 6),
+                    reevaluation_window=0,
+                    final_execution_readiness=True,
+                )
+            if normalized_wait_cycles >= self._config.timing_max_wait_cycles:
+                return EntryTimingDecision(
+                    timing_decision="SKIP",
+                    timing_reason="micro_pullback_timeout_skip",
+                    reference_price=round(reference_price, 6),
+                    reevaluation_window=0,
+                    final_execution_readiness=False,
+                )
+            return EntryTimingDecision(
+                timing_decision="WAIT",
+                timing_reason="awaiting_micro_pullback",
+                reference_price=round(reference_price, 6),
+                reevaluation_window=reevaluation_window,
+                final_execution_readiness=False,
+            )
+
+        if signal_edge <= 0.0:
+            return EntryTimingDecision(
+                timing_decision="ENTER_NOW",
+                timing_reason="timing_unclear_fallback_to_quality_gate",
+                reference_price=round(reference_price, 6),
+                reevaluation_window=0,
+                final_execution_readiness=True,
+            )
+
+        return EntryTimingDecision(
+            timing_decision="ENTER_NOW",
+            timing_reason="stable_entry_window",
+            reference_price=round(reference_price, 6),
+            reevaluation_window=0,
+            final_execution_readiness=True,
+        )
+
+    def evaluate_entry_execution_readiness(
+        self,
+        *,
+        market_price: float,
+        signal_reference_price: float,
+        proposed_size: float,
+        signal_edge: float,
+        market_context: dict[str, float] | None = None,
+        wait_cycles: int = 0,
+    ) -> EntryExecutionReadiness:
+        timing = self.evaluate_entry_timing(
+            market_price=market_price,
+            signal_reference_price=signal_reference_price,
+            signal_edge=signal_edge,
+            market_context=market_context,
+            wait_cycles=wait_cycles,
+        )
+        if timing.timing_decision != "ENTER_NOW":
+            return EntryExecutionReadiness(
+                timing_decision=timing.timing_decision,
+                timing_reason=timing.timing_reason,
+                reference_price=timing.reference_price,
+                reevaluation_window=timing.reevaluation_window,
+                final_execution_readiness=False,
+                execution_quality_decision="NOT_EVALUATED",
+                execution_quality_reason="timing_gate_blocked",
+                adjusted_size=0.0,
+                expected_fill_price=round(max(market_price, 0.0), 6),
+                expected_slippage=0.0,
+            )
+
+        execution_quality = self.evaluate_execution_quality(
+            market_price=market_price,
+            proposed_size=proposed_size,
+            signal_edge=signal_edge,
+            market_context=market_context,
+        )
+        execution_ready = execution_quality.final_decision in {"ENTER", "REDUCE"}
+        return EntryExecutionReadiness(
+            timing_decision=timing.timing_decision,
+            timing_reason=timing.timing_reason,
+            reference_price=timing.reference_price,
+            reevaluation_window=timing.reevaluation_window,
+            final_execution_readiness=execution_ready,
+            execution_quality_decision=execution_quality.final_decision,
+            execution_quality_reason=execution_quality.execution_quality_reason,
+            adjusted_size=execution_quality.adjusted_size,
+            expected_fill_price=execution_quality.expected_fill_price,
+            expected_slippage=execution_quality.expected_slippage,
+        )
+
     def _select_best_cross_exchange_match(
         self,
         polymarket: CrossExchangeMarket,
@@ -1566,25 +1741,44 @@ class StrategyTrigger:
             signal_edge = max(self._config.min_edge, 0.0)
             if selected_candidate is not None:
                 signal_edge = max(selected_candidate.edge, 0.0)
-            execution_quality = self.evaluate_execution_quality(
+            timing_wait_cycles = int((market_context or {}).get("timing_wait_cycles", 0.0))
+            signal_reference_price = float((market_context or {}).get("signal_reference_price", market_price))
+            readiness = self.evaluate_entry_execution_readiness(
                 market_price=market_price,
+                signal_reference_price=signal_reference_price,
                 proposed_size=portfolio_guard.adjusted_size,
                 signal_edge=signal_edge,
                 market_context=market_context,
+                wait_cycles=timing_wait_cycles,
             )
-            if execution_quality.final_decision == "SKIP":
+            if readiness.timing_decision == "WAIT":
                 log.info(
-                    "execution_quality_blocked",
-                    reason=execution_quality.execution_quality_reason,
-                    expected_fill_price=execution_quality.expected_fill_price,
-                    expected_slippage=execution_quality.expected_slippage,
+                    "entry_timing_wait",
+                    timing_reason=readiness.timing_reason,
+                    reference_price=readiness.reference_price,
+                    reevaluation_window=readiness.reevaluation_window,
+                )
+                return "HOLD"
+            if readiness.timing_decision == "SKIP":
+                log.info(
+                    "entry_timing_skip",
+                    timing_reason=readiness.timing_reason,
+                    reference_price=readiness.reference_price,
                 )
                 return "BLOCKED"
-            size = execution_quality.adjusted_size
+            if not readiness.final_execution_readiness:
+                log.info(
+                    "execution_quality_blocked",
+                    reason=readiness.execution_quality_reason,
+                    expected_fill_price=readiness.expected_fill_price,
+                    expected_slippage=readiness.expected_slippage,
+                )
+                return "BLOCKED"
+            size = readiness.adjusted_size
             created = await self._engine.open_position(
                 market=target_market_id,
                 side=self._config.side,
-                price=execution_quality.expected_fill_price,
+                price=readiness.expected_fill_price,
                 size=size,
                 position_id=str(uuid.uuid4()),
             )
