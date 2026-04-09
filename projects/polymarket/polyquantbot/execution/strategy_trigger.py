@@ -30,6 +30,8 @@ class StrategyConfig:
     cross_exchange_min_actionable_spread: float = 0.005
     cross_exchange_min_mapping_confidence: float = 0.55
     cross_exchange_min_overlap_tokens: int = 2
+    min_position_size_usd: float = 25.0
+    max_position_size_ratio: float = 0.10
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,14 @@ class StrategyAggregationDecision:
     selection_reason: str
     top_score: float
     decision: str
+
+
+@dataclass(frozen=True)
+class PositionSizingDecision:
+    position_size: float
+    size_reason: str
+    applied_constraints: tuple[str, ...]
+    normalized_score: float
 
 
 class StrategyTrigger:
@@ -498,6 +508,105 @@ class StrategyTrigger:
             market_metadata=market_metadata,
         )
 
+    def compute_position_size_from_s4_selection(
+        self,
+        aggregation: StrategyAggregationDecision,
+        total_capital: float,
+        current_total_exposure: float,
+    ) -> PositionSizingDecision:
+        if aggregation.decision != "ENTER" or not aggregation.selected_trade:
+            return PositionSizingDecision(
+                position_size=0.0,
+                size_reason="no selected S4 trade",
+                applied_constraints=("selection_skip",),
+                normalized_score=0.0,
+            )
+
+        selected_candidate = next(
+            (item for item in aggregation.ranked_candidates if item.strategy_name == aggregation.selected_trade),
+            None,
+        )
+        if selected_candidate is None:
+            return PositionSizingDecision(
+                position_size=0.0,
+                size_reason="selected trade missing from ranked candidates",
+                applied_constraints=("selection_mismatch",),
+                normalized_score=0.0,
+            )
+
+        return self._compute_position_size(
+            strategy_name=selected_candidate.strategy_name,
+            edge=selected_candidate.edge,
+            confidence=(
+                None
+                if selected_candidate.strategy_name in {"S1", "S2"}
+                else selected_candidate.confidence
+            ),
+            total_capital=total_capital,
+            current_total_exposure=current_total_exposure,
+        )
+
+    def _compute_position_size(
+        self,
+        strategy_name: str,
+        edge: float,
+        confidence: float | None,
+        total_capital: float,
+        current_total_exposure: float,
+    ) -> PositionSizingDecision:
+        safe_capital = max(total_capital, 0.0)
+        max_position_size = safe_capital * self._config.max_position_size_ratio
+        max_total_exposure = safe_capital * self._engine.max_total_exposure_ratio
+        available_exposure = max(0.0, max_total_exposure - max(current_total_exposure, 0.0))
+        applied_constraints: list[str] = []
+
+        confidence_missing = confidence is None
+        confidence_val = (
+            0.35
+            if confidence_missing
+            else min(max(confidence, 0.0), 1.0)
+        )
+        edge_val = max(edge, 0.0)
+        edge_norm = min(edge_val / 0.10, 1.0)
+        base_score = (0.7 * edge_norm) + (0.3 * confidence_val)
+
+        conservative_multiplier = 1.0
+        if confidence_missing:
+            conservative_multiplier *= 0.7
+            applied_constraints.append("confidence_missing_conservative")
+        if edge_val <= (self._config.min_edge * 1.2):
+            conservative_multiplier *= 0.5
+            applied_constraints.append("borderline_edge_conservative")
+
+        normalized_score = min(max(base_score * conservative_multiplier, 0.0), 1.0)
+        scaled_score = normalized_score ** 2
+        raw_position_size = safe_capital * self._config.max_position_size_ratio * scaled_score
+        position_size = raw_position_size
+
+        if position_size > max_position_size:
+            position_size = max_position_size
+            applied_constraints.append("max_position_size_cap")
+
+        if position_size > available_exposure:
+            position_size = available_exposure
+            applied_constraints.append("total_exposure_cap")
+
+        if 0.0 < position_size < self._config.min_position_size_usd:
+            position_size = 0.0
+            applied_constraints.append("min_position_size_floor")
+
+        reason_suffix = ", ".join(applied_constraints) if applied_constraints else "no constraints applied"
+        size_reason = (
+            f"{strategy_name} sizing from edge/confidence score={normalized_score:.4f}; "
+            f"{reason_suffix}"
+        )
+        return PositionSizingDecision(
+            position_size=round(max(position_size, 0.0), 2),
+            size_reason=size_reason,
+            applied_constraints=tuple(applied_constraints),
+            normalized_score=round(normalized_score, 6),
+        )
+
     def _select_best_cross_exchange_match(
         self,
         polymarket: CrossExchangeMarket,
@@ -545,7 +654,11 @@ class StrategyTrigger:
     def _tokenize(value: str) -> list[str]:
         return [token for token in re.split(r"[^a-z0-9]+", value.lower()) if len(token) >= 3]
 
-    async def evaluate(self, market_price: float) -> str:
+    async def evaluate(
+        self,
+        market_price: float,
+        aggregation_decision: StrategyAggregationDecision | None = None,
+    ) -> str:
         now = time.time()
         if self._last_trigger_time and (now - self._last_trigger_time) < self._cooldown_seconds:
             return "COOLDOWN"
@@ -571,7 +684,22 @@ class StrategyTrigger:
         )
 
         if open_pos is None and market_price < self._config.threshold and entry_score >= 0.5:
-            size = snapshot.equity * self._engine.max_position_size_ratio
+            current_total_exposure = sum(position.exposure() for position in snapshot.positions)
+            sizing = (
+                self.compute_position_size_from_s4_selection(
+                    aggregation=aggregation_decision,
+                    total_capital=snapshot.equity,
+                    current_total_exposure=current_total_exposure,
+                )
+                if aggregation_decision is not None
+                else PositionSizingDecision(
+                    position_size=round(snapshot.equity * self._engine.max_position_size_ratio, 2),
+                    size_reason="fallback fixed sizing (no S4 aggregation decision provided)",
+                    applied_constraints=("fallback_fixed_sizing",),
+                    normalized_score=1.0,
+                )
+            )
+            size = sizing.position_size
             created = await self._engine.open_position(
                 market=self._config.market_id,
                 side=self._config.side,
