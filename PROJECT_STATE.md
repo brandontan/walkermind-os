@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 23:05
-- Status        : FORGE-X completed STANDARD-tier execution-boundary validation-proof enforcement in StrategyTrigger→ExecutionEngine path (signed proof required for every open_position call).
+- Last Updated  : 2026-04-10 00:10
+- Status        : FORGE-X completed STANDARD-tier execution-boundary position-sizing enforcement in StrategyTrigger→ExecutionEngine path (fail-closed boundary rejection for non-compliant requested size).
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P16 execution-boundary position-sizing enforcement (2026-04-10): enforced authoritative boundary sizing checks in `ExecutionEngine.open_position(...)` for non-positive/per-trade-cap/capital-risk-allowed size violations before mutation, preserved signed validation-proof enforcement, propagated structured rejection reason into StrategyTrigger blocked terminal trace, and added focused tests; report `projects/polymarket/polyquantbot/reports/forge/24_39_execution_position_sizing_boundary_enforcement.md`.
 - P16 execution-boundary validation-proof enforcement (2026-04-09): replaced trust-only execution entry assumption with signed `ExecutionValidationProof` contract at engine boundary, wired StrategyTrigger ALLOW path to pass proof payload, and added focused no-proof/fake-proof/pass-proof runtime tests; report `projects/polymarket/polyquantbot/reports/forge/24_38_execution_validation_proof_boundary_enforcement.md`.
 - P16 post-merge smoke-check cleanup (2026-04-09): verified touched runtime path remains stable after PR #350/#354 merge (restart-safe block persistence survives lifecycle, blocked terminal outcomes emit exactly one terminal trace each, successful path preserves `expected_price`/`actual_fill_price`/`slippage` execution-truth envelope fields), and retired stale P16 await-merge/await-SENTINEL state wording; report `projects/polymarket/polyquantbot/reports/forge/24_37_p16_post_merge_smoke_check_cleanup.md`.
 - FORGE-X P16 restart-safe risk traceability remediation (2026-04-09): implemented authoritative risk-state persistence/restore with fail-closed startup gating, added touched blocked-terminal trace writes, added focused restart/fail-safe/traceability tests, and generated report `projects/polymarket/polyquantbot/reports/forge/24_36_p16_restart_safe_risk_traceability_remediation.md`.
@@ -126,6 +127,10 @@ Status:
 ---
 
 ## 🚧 IN PROGRESS
+
+### P16 execution-boundary position-sizing enforcement handoff
+- STANDARD-tier NARROW INTEGRATION implementation is complete for StrategyTrigger→ExecutionEngine boundary sizing enforcement + explicit rejection traceability in touched path.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
 
 ### P16 execution-boundary validation-proof enforcement handoff
 - STANDARD-tier NARROW INTEGRATION implementation is complete for StrategyTrigger→ExecutionEngine proof contract enforcement.

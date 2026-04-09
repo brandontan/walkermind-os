@@ -417,3 +417,104 @@ def test_p16_direct_engine_call_with_gateway_validation_proof_passes() -> None:
         assert created is not None
 
     asyncio.run(_run())
+
+
+def test_p16_direct_engine_open_rejects_non_positive_size() -> None:
+    async def _run() -> None:
+        engine = ExecutionEngine(starting_equity=10_000.0)
+        created = await engine.open_position(
+            market="MARKET-1",
+            market_title="Test Market",
+            side="YES",
+            price=0.45,
+            size=0.0,
+            validation_proof=_build_gateway_validation_proof(engine, validation_id="zero-size"),
+        )
+        assert created is None
+        rejection = engine.get_last_open_rejection()
+        assert rejection is not None
+        assert rejection["reason"] == "size_non_positive"
+
+    asyncio.run(_run())
+
+
+def test_p16_direct_engine_open_rejects_size_above_per_trade_cap() -> None:
+    async def _run() -> None:
+        engine = ExecutionEngine(starting_equity=10_000.0)
+        created = await engine.open_position(
+            market="MARKET-1",
+            market_title="Test Market",
+            side="YES",
+            price=0.45,
+            size=1_500.0,
+            validation_proof=_build_gateway_validation_proof(engine, validation_id="over-cap"),
+        )
+        assert created is None
+        rejection = engine.get_last_open_rejection()
+        assert rejection is not None
+        assert rejection["reason"] == "max_position_size_exceeded"
+        assert rejection["limit"] == 1_000.0
+
+    asyncio.run(_run())
+
+
+def test_p16_direct_engine_open_rejects_capital_risk_allowed_size_boundary() -> None:
+    async def _run() -> None:
+        engine = ExecutionEngine(starting_equity=10_000.0)
+        engine.max_total_exposure_ratio = 0.15
+        seed_created = await engine.open_position(
+            market="MARKET-SEED",
+            market_title="Seed Position",
+            side="YES",
+            price=0.40,
+            size=1_000.0,
+            validation_proof=_build_gateway_validation_proof(engine, validation_id="seed-position"),
+        )
+        assert seed_created is not None
+        created = await engine.open_position(
+            market="MARKET-2",
+            market_title="Test Market 2",
+            side="YES",
+            price=0.45,
+            size=750.0,
+            validation_proof=_build_gateway_validation_proof(engine, validation_id="over-risk-cap"),
+        )
+        assert created is None
+        rejection = engine.get_last_open_rejection()
+        assert rejection is not None
+        assert rejection["reason"] == "capital_risk_allowed_size_exceeded"
+        assert rejection["capital_risk_allowed_size"] == 500.0
+        assert rejection["binding_constraint"] == "remaining_total_exposure"
+
+    asyncio.run(_run())
+
+
+def test_p16_strategy_trigger_records_execution_rejection_reason_for_sizing_block() -> None:
+    async def _run() -> None:
+        trigger = _build_trigger()
+        trigger._engine.max_position_size_ratio = 0.01  # noqa: SLF001
+        decision = await trigger.evaluate(
+            market_price=0.45,
+            aggregation_decision=_build_aggregation(edge=0.06),
+            market_context={
+                "expected_value": 0.10,
+                "liquidity_usd": 50_000.0,
+                "spread": 0.01,
+                "best_bid": 0.445,
+                "best_ask": 0.455,
+            },
+        )
+        assert decision == "BLOCKED"
+        trace = next(
+            (
+                record
+                for record in trigger._trade_traceability.values()  # noqa: SLF001
+                if record.get("outcome_data", {}).get("terminal_stage") == "execution_engine_rejected_open"
+            ),
+            None,
+        )
+        assert trace is not None
+        assert trace["outcome_data"]["reason"] == "max_position_size_exceeded"
+        assert trace["outcome_data"]["execution_rejection"]["reason"] == "max_position_size_exceeded"
+
+    asyncio.run(_run())

@@ -368,6 +368,7 @@ class StrategyTrigger:
         terminal_stage: str,
         reason: str,
         terminal_outcome: str,
+        extra_details: dict[str, Any] | None = None,
     ) -> None:
         existing = self._trade_traceability.get(trade_id, {})
         if existing.get("outcome_data", {}).get("terminal_stage"):
@@ -383,6 +384,7 @@ class StrategyTrigger:
                 "reason": reason,
                 "terminal_outcome": terminal_outcome,
                 "trace_count": 1,
+                **(extra_details or {}),
             },
             "risk_state": self._risk_engine.as_dict(),
         }
@@ -2385,6 +2387,8 @@ class StrategyTrigger:
                     action="OPEN",
                 )
             if created is None:
+                rejection_payload = self._engine.get_last_open_rejection() or {}
+                rejection_reason = str(rejection_payload.get("reason", "execution_open_position_rejected"))
                 self._record_blocked_terminal_trace(
                     trade_id=trade_id,
                     signal_data=signal_data,
@@ -2395,7 +2399,8 @@ class StrategyTrigger:
                         "checks": validation_result.checks,
                     },
                     terminal_stage="execution_engine_rejected_open",
-                    reason="execution_open_position_rejected",
+                    reason=rejection_reason,
+                    extra_details={"execution_rejection": rejection_payload},
                     terminal_outcome="BLOCKED",
                 )
                 return "BLOCKED"
