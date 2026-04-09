@@ -304,6 +304,22 @@ class StrategyTrigger:
         self._last_adjustment_explanation: str = "adaptive defaults active"
         self._position_peak_pnl: dict[str, float] = {}
         self._position_entry_context: dict[str, dict[str, object]] = {}
+        self._optimization_output: dict[str, object] = {
+            "strategy_weights": {"S1": 1.0, "S2": 1.0, "S3": 1.0, "S5": 1.0},
+            "regime_weights": {"NEWS": 1.0, "ARBITRAGE": 1.0, "SMART_MONEY": 1.0, "CHAOTIC": 1.0},
+            "execution_adjustments": {
+                "p10_max_spread_multiplier": 1.0,
+                "p10_slippage_guard_multiplier": 1.0,
+                "p12_wait_cycle_bias": 0,
+                "p12_reevaluation_window_multiplier": 1.0,
+                "p13_exit_sensitivity_multiplier": 1.0,
+            },
+            "risk_adjustments": {
+                "aggression_multiplier": 1.0,
+                "size_multiplier": 1.0,
+            },
+            "fallback_to_neutral": True,
+        }
 
     @staticmethod
     def _clamp(value: float, lower: float, upper: float) -> float:
@@ -457,6 +473,22 @@ class StrategyTrigger:
             confidence_threshold=round(self._adaptive_confidence_threshold, 6),
             explanation=self._last_adjustment_explanation,
         )
+
+    def refresh_optimization_output(self) -> dict[str, object]:
+        analytics_provider = getattr(self._engine, "get_analytics", None)
+        if callable(analytics_provider):
+            self._optimization_output = analytics_provider().optimization_output()
+        return dict(self._optimization_output)
+
+    @staticmethod
+    def _regime_output_key(regime_type: str) -> str:
+        mapping = {
+            "NEWS_DRIVEN": "NEWS",
+            "ARBITRAGE_DOMINANT": "ARBITRAGE",
+            "SMART_MONEY_DOMINANT": "SMART_MONEY",
+            "LOW_ACTIVITY_CHAOTIC": "CHAOTIC",
+        }
+        return mapping.get(regime_type, "CHAOTIC")
 
     def evaluate_breaking_news_momentum(
         self,
@@ -940,6 +972,24 @@ class StrategyTrigger:
                 regime_weight_modifier=regime.strategy_weight_modifiers.get("S3", 1.0),
             ),
         ]
+        regime_output_key = self._regime_output_key(regime.regime_type)
+        regime_perf_modifier = float(
+            (self._optimization_output.get("regime_weights", {}) or {}).get(regime_output_key, 1.0)
+        )
+        regime_perf_modifier = self._clamp(regime_perf_modifier, 0.85, 1.15)
+        if regime_perf_modifier != 1.0:
+            candidates = [
+                StrategyCandidateScore(
+                    strategy_name=item.strategy_name,
+                    decision=item.decision,
+                    reason=item.reason,
+                    edge=item.edge,
+                    confidence=item.confidence,
+                    score=round(item.score * regime_perf_modifier, 6),
+                    market_metadata=item.market_metadata,
+                )
+                for item in candidates
+            ]
         ranked_candidates = sorted(candidates, key=lambda item: (-item.score, item.strategy_name))
         enter_candidates = [candidate for candidate in ranked_candidates if candidate.decision == "ENTER"]
         top_score = ranked_candidates[0].score if ranked_candidates else 0.0
@@ -1070,8 +1120,12 @@ class StrategyTrigger:
         )
         score = round((0.7 * normalized_edge) + (0.3 * normalized_confidence), 6)
         adaptive_weight = self._adaptive_weights.get(strategy_name, 1.0)
+        optimization_weight = float(
+            (self._optimization_output.get("strategy_weights", {}) or {}).get(strategy_name, 1.0)
+        )
+        optimization_weight = self._clamp(optimization_weight, 0.75, 1.15)
         bounded_regime_modifier = self._clamp(regime_weight_modifier, 0.85, 1.20)
-        weighted_score = round(score * adaptive_weight * bounded_regime_modifier, 6)
+        weighted_score = round(score * adaptive_weight * bounded_regime_modifier * optimization_weight, 6)
         return StrategyCandidateScore(
             strategy_name=strategy_name,
             decision=decision,
@@ -1156,6 +1210,10 @@ class StrategyTrigger:
         scaled_score = normalized_score ** 2
         raw_position_size = safe_capital * self._config.max_position_size_ratio * scaled_score
         raw_position_size *= self._adaptive_sizing_modifier
+        risk_adjustments = self._optimization_output.get("risk_adjustments", {}) or {}
+        aggression_multiplier = self._clamp(float(risk_adjustments.get("aggression_multiplier", 1.0)), 0.85, 1.0)
+        size_multiplier = self._clamp(float(risk_adjustments.get("size_multiplier", 1.0)), 0.85, 1.0)
+        raw_position_size *= aggression_multiplier * size_multiplier
         position_size = raw_position_size
 
         if position_size > max_position_size:
@@ -1370,8 +1428,17 @@ class StrategyTrigger:
         bid = float(context.get("best_bid", max(0.0, market_price - (spread_val / 2.0))))
         ask = float(context.get("best_ask", min(1.0, market_price + (spread_val / 2.0))))
         observed_spread = max(0.0, ask - bid, spread_val)
+        execution_adjustments = self._optimization_output.get("execution_adjustments", {}) or {}
+        max_spread_multiplier = self._clamp(float(execution_adjustments.get("p10_max_spread_multiplier", 1.0)), 0.85, 1.0)
+        slippage_guard_multiplier = self._clamp(
+            float(execution_adjustments.get("p10_slippage_guard_multiplier", 1.0)),
+            0.80,
+            1.0,
+        )
+        adjusted_max_execution_spread = self._config.max_execution_spread * max_spread_multiplier
+        adjusted_borderline_execution_spread = self._config.borderline_execution_spread * max_spread_multiplier
 
-        if observed_spread >= self._config.max_execution_spread:
+        if observed_spread >= adjusted_max_execution_spread:
             expected_fill_price = round(max(market_price, ask), 6)
             expected_slippage = round(max(expected_fill_price - market_price, 0.0), 6)
             return ExecutionQualityDecision(
@@ -1383,7 +1450,7 @@ class StrategyTrigger:
             )
 
         reduced = False
-        if observed_spread >= self._config.borderline_execution_spread:
+        if observed_spread >= adjusted_borderline_execution_spread:
             size *= self._config.execution_reduction_factor
             reduced = True
 
@@ -1434,7 +1501,7 @@ class StrategyTrigger:
         if (
             safe_signal_edge <= 0.0
             or expected_slippage >= safe_signal_edge
-            or expected_slippage >= (safe_signal_edge * self._config.max_slippage_edge_consumption_ratio)
+            or expected_slippage >= (safe_signal_edge * self._config.max_slippage_edge_consumption_ratio * slippage_guard_multiplier)
         ):
             return ExecutionQualityDecision(
                 final_decision="SKIP",
@@ -1447,7 +1514,7 @@ class StrategyTrigger:
         if (
             not reduced
             and expected_slippage
-            >= (safe_signal_edge * self._config.borderline_slippage_edge_consumption_ratio)
+            >= (safe_signal_edge * self._config.borderline_slippage_edge_consumption_ratio * slippage_guard_multiplier)
         ):
             size *= self._config.execution_reduction_factor
             reduced = True
@@ -1479,7 +1546,15 @@ class StrategyTrigger:
         normalized_wait_cycles = max(wait_cycles, 0)
         reference_price = signal_reference_price if signal_reference_price > 0.0 else market_price
         reference_price = max(reference_price, 0.0)
-        reevaluation_window = max(self._config.timing_reevaluation_window_seconds, 1)
+        execution_adjustments = self._optimization_output.get("execution_adjustments", {}) or {}
+        wait_cycle_bias = int(self._clamp(float(execution_adjustments.get("p12_wait_cycle_bias", 0)), 0.0, 2.0))
+        reevaluation_multiplier = self._clamp(
+            float(execution_adjustments.get("p12_reevaluation_window_multiplier", 1.0)),
+            1.0,
+            1.2,
+        )
+        adjusted_max_wait_cycles = self._config.timing_max_wait_cycles + wait_cycle_bias
+        reevaluation_window = max(int(round(self._config.timing_reevaluation_window_seconds * reevaluation_multiplier)), 1)
 
         bid = float(context.get("best_bid", market_price))
         ask = float(context.get("best_ask", market_price))
@@ -1504,7 +1579,7 @@ class StrategyTrigger:
             and spread_ratio >= self._config.anti_chase_spread_ratio
         )
         if chase_detected:
-            if normalized_wait_cycles >= self._config.timing_max_wait_cycles:
+            if normalized_wait_cycles >= adjusted_max_wait_cycles:
                 return EntryTimingDecision(
                     timing_decision="SKIP",
                     timing_reason="anti_chase_timeout_skip",
@@ -1529,7 +1604,7 @@ class StrategyTrigger:
                     reevaluation_window=0,
                     final_execution_readiness=True,
                 )
-            if normalized_wait_cycles >= self._config.timing_max_wait_cycles:
+            if normalized_wait_cycles >= adjusted_max_wait_cycles:
                 return EntryTimingDecision(
                     timing_decision="SKIP",
                     timing_reason="micro_pullback_timeout_skip",
@@ -1705,7 +1780,13 @@ class StrategyTrigger:
 
         if peak_pnl >= favorable_threshold:
             pullback_from_peak = peak_pnl - current_pnl
-            weakening_threshold = peak_pnl * self._config.momentum_weakening_ratio
+            execution_adjustments = self._optimization_output.get("execution_adjustments", {}) or {}
+            exit_sensitivity_multiplier = self._clamp(
+                float(execution_adjustments.get("p13_exit_sensitivity_multiplier", 1.0)),
+                0.80,
+                1.0,
+            )
+            weakening_threshold = peak_pnl * self._config.momentum_weakening_ratio * exit_sensitivity_multiplier
             if pullback_from_peak >= weakening_threshold:
                 return ExitDecision(
                     exit_decision="EXIT_FULL",
@@ -1814,6 +1895,7 @@ class StrategyTrigger:
         if self._last_trigger_time and (now - self._last_trigger_time) < self._cooldown_seconds:
             return "COOLDOWN"
         self._last_trigger_time = now
+        self.refresh_optimization_output()
 
         snapshot = await self._engine.snapshot()
         open_pos = next((p for p in snapshot.positions if p.market_id == self._config.market_id), None)
@@ -1907,9 +1989,12 @@ class StrategyTrigger:
                 )
                 return "BLOCKED"
             size = readiness.adjusted_size
+            selected_metadata = selected_candidate.market_metadata if selected_candidate is not None else {}
             candidate_title = (
-                selected_candidate.title
-                if selected_candidate is not None and selected_candidate.title
+                str(selected_metadata.get("title") or selected_metadata.get("market_title", ""))
+                if selected_candidate is not None
+                and isinstance(selected_metadata, dict)
+                and (selected_metadata.get("title") or selected_metadata.get("market_title"))
                 else target_market_id
             )
             created = await self._engine.open_position(
