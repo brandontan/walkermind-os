@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import statistics
@@ -14,6 +16,16 @@ from .analytics import PerformanceTracker
 from .trade_trace import TradeTraceEngine
 
 log = structlog.get_logger(__name__)
+_EXECUTION_GATEWAY_ACTIVE: ContextVar[bool] = ContextVar("_execution_gateway_active", default=False)
+
+
+@contextmanager
+def execution_gateway_context():
+    token = _EXECUTION_GATEWAY_ACTIVE.set(True)
+    try:
+        yield
+    finally:
+        _EXECUTION_GATEWAY_ACTIVE.reset(token)
 
 
 @dataclass(frozen=True)
@@ -57,6 +69,8 @@ class ExecutionEngine:
         position_context: dict[str, Any] | None = None,
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
+        if not _EXECUTION_GATEWAY_ACTIVE.get():
+            raise RuntimeError("execution_gateway_required_for_open_position")
         async with self._lock:
             size = float(size)
             if size <= 0:

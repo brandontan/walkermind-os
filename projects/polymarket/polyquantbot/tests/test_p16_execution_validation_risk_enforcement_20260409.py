@@ -192,13 +192,16 @@ def test_p16_blocked_terminal_traceability_has_single_terminal_trace_per_path() 
         assert len(pre_trade_traces) == 1
 
         portfolio_trigger = _build_trigger()
-        await portfolio_trigger._engine.open_position(  # noqa: SLF001
+        opened = await portfolio_trigger._execution_gateway.open_validated_position(  # noqa: SLF001
             market="MARKET-ALT",
             market_title="Alt",
             side="YES",
             price=0.5,
             size=100.0,
+            signal_data={"expected_value": 0.10, "edge": 0.05, "liquidity_usd": 20_000.0},
+            decision_data={"position_size": 100.0, "target_market_id": "MARKET-ALT", "strategy_source": "S1"},
         )
+        assert opened.position is not None
         decision = await portfolio_trigger.evaluate(
             market_price=0.45,
             aggregation_decision=StrategyAggregationDecision(
@@ -268,18 +271,25 @@ def test_p16_blocked_terminal_traceability_has_single_terminal_trace_per_path() 
         assert len(quality_traces) == 1
 
         engine_reject_trigger = _build_trigger()
-        original_open_position = engine_reject_trigger._engine.open_position  # noqa: SLF001
+        original_gateway_open = engine_reject_trigger._execution_gateway.open_validated_position  # noqa: SLF001
 
-        async def _reject_open(**_kwargs: object) -> None:
-            return None
+        async def _reject_open(**_kwargs: object):  # type: ignore[no-untyped-def]
+            from projects.polymarket.polyquantbot.execution.gateway import GatewayExecutionResult
 
-        engine_reject_trigger._engine.open_position = _reject_open  # type: ignore[assignment] # noqa: SLF001
+            return GatewayExecutionResult(
+                position=None,
+                validation_decision="ALLOW",
+                validation_reason="allowed",
+                validation_checks={"ev_positive": True},
+            )
+
+        engine_reject_trigger._execution_gateway.open_validated_position = _reject_open  # type: ignore[assignment] # noqa: SLF001
         decision = await engine_reject_trigger.evaluate(
             market_price=0.45,
             aggregation_decision=_build_aggregation(edge=0.06),
             market_context={"expected_value": 0.10, "liquidity_usd": 50_000.0, "spread": 0.01, "best_bid": 0.445, "best_ask": 0.455},
         )
-        engine_reject_trigger._engine.open_position = original_open_position  # type: ignore[assignment] # noqa: SLF001
+        engine_reject_trigger._execution_gateway.open_validated_position = original_gateway_open  # type: ignore[assignment] # noqa: SLF001
         assert decision == "BLOCKED"
         engine_traces = [
             trace for trace in engine_reject_trigger._trade_traceability.values()  # noqa: SLF001

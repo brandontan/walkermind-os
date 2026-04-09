@@ -3,8 +3,11 @@ from __future__ import annotations
 import asyncio
 
 from projects.polymarket.polyquantbot.execution.engine import ExecutionEngine, export_execution_payload
+from projects.polymarket.polyquantbot.execution.gateway import ExecutionGateway
 from projects.polymarket.polyquantbot.interface import ui_formatter
 from projects.polymarket.polyquantbot.interface.telegram.view_handler import render_view
+from projects.polymarket.polyquantbot.core.risk.pre_trade_validator import PreTradeValidator
+from projects.polymarket.polyquantbot.core.risk.risk_engine import RiskEngine
 
 
 async def _empty_context(_: str) -> dict[str, str]:
@@ -116,12 +119,19 @@ def test_rendering_is_deterministic_for_same_payload() -> None:
 def test_execution_to_payload_preserves_market_title() -> None:
     async def _run() -> dict[str, object]:
         engine = ExecutionEngine(starting_equity=1_000.0)
-        await engine.open_position(
+        gateway = ExecutionGateway(
+            engine=engine,
+            pre_trade_validator=PreTradeValidator(),
+            risk_engine=RiskEngine(),
+        )
+        await gateway.open_validated_position(
             market="mkt-exec-1",
             market_title="Will unemployment stay below 4% in Q3?",
             side="YES",
             price=0.49,
             size=50.0,
+            signal_data={"expected_value": 0.10, "edge": 0.04, "liquidity_usd": 20_000.0},
+            decision_data={"position_size": 50.0, "target_market_id": "mkt-exec-1", "strategy_source": "S1"},
             position_id="pos-1",
         )
         from projects.polymarket.polyquantbot.execution import engine as engine_module

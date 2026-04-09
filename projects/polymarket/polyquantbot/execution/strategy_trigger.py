@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from .engine import ExecutionEngine
+from .gateway import ExecutionGateway
 from .intelligence import ExecutionIntelligence, MarketSnapshot
 from .trade_trace import TradeTraceEngine
 from ..strategy.falcon_alpha_strategy import FalconSignal
@@ -318,6 +319,11 @@ class StrategyTrigger:
         self._execution_tracker = ExecutionTracker()
         self._trade_validator = TradeValidator()
         self._risk_engine = RiskEngine(persistence_path=self._config.risk_state_persistence_path)
+        self._execution_gateway = ExecutionGateway(
+            engine=self._engine,
+            pre_trade_validator=self._pre_trade_validator,
+            risk_engine=self._risk_engine,
+        )
         self._risk_restore_ready = False
         self._risk_restore_reason = "uninitialized"
         restored, restore_reason = self._risk_engine.restore_state()
@@ -2276,39 +2282,14 @@ class StrategyTrigger:
                 "target_market_id": target_market_id,
                 "strategy_source": selected_candidate.strategy_name if selected_candidate is not None else "UNKNOWN",
             }
-            validation_result = self._pre_trade_validator.validate(
-                signal_data=signal_data,
-                decision_data=decision_data,
-                risk_state=self._risk_engine.as_dict(),
-            )
-            if validation_result.decision != "ALLOW":
-                self._record_blocked_terminal_trace(
-                    trade_id=trade_id,
-                    signal_data=signal_data,
-                    decision_data=decision_data,
-                    validation_result={
-                        "decision": validation_result.decision,
-                        "reason": validation_result.reason,
-                        "checks": validation_result.checks,
-                    },
-                    terminal_stage="pre_trade_validator_block",
-                    reason=validation_result.reason,
-                    terminal_outcome="BLOCKED",
-                )
-                log.info("pre_trade_blocked", reason=validation_result.reason, trade_id=trade_id)
-                return "BLOCKED"
-            self._execution_tracker.record_order_submission(
-                trade_id=trade_id,
-                expected_price=readiness.expected_fill_price,
-                signal_data=signal_data,
-                decision_data=decision_data,
-            )
-            created = await self._engine.open_position(
+            gateway_result = await self._execution_gateway.open_validated_position(
                 market=target_market_id,
                 market_title=str(candidate_title),
                 side=self._config.side,
                 price=readiness.expected_fill_price,
                 size=size,
+                signal_data=signal_data,
+                decision_data=decision_data,
                 position_id=trade_id,
                 position_context={
                     "strategy_source": (
@@ -2329,6 +2310,32 @@ class StrategyTrigger:
                     "trade_id": trade_id,
                 },
             )
+            validation_decision = gateway_result.validation_decision
+            validation_reason = gateway_result.validation_reason
+            validation_checks = gateway_result.validation_checks
+            if validation_decision != "ALLOW":
+                self._record_blocked_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data,
+                    validation_result={
+                        "decision": validation_decision,
+                        "reason": validation_reason,
+                        "checks": validation_checks,
+                    },
+                    terminal_stage="pre_trade_validator_block",
+                    reason=validation_reason,
+                    terminal_outcome="BLOCKED",
+                )
+                log.info("pre_trade_blocked", reason=validation_reason, trade_id=trade_id)
+                return "BLOCKED"
+            self._execution_tracker.record_order_submission(
+                trade_id=trade_id,
+                expected_price=readiness.expected_fill_price,
+                signal_data=signal_data,
+                decision_data=decision_data,
+            )
+            created = gateway_result.position
             if created:
                 execution_data = self._execution_tracker.record_fill(
                     trade_id=trade_id,
@@ -2357,9 +2364,9 @@ class StrategyTrigger:
                     "signal_data": signal_data,
                     "decision_data": decision_data,
                     "validation_result": {
-                        "decision": validation_result.decision,
-                        "reason": validation_result.reason,
-                        "checks": validation_result.checks,
+                        "decision": validation_decision,
+                        "reason": validation_reason,
+                        "checks": validation_checks,
                     },
                     "execution_data": execution_data,
                     "outcome_data": {},
@@ -2383,9 +2390,9 @@ class StrategyTrigger:
                     signal_data=signal_data,
                     decision_data=decision_data,
                     validation_result={
-                        "decision": validation_result.decision,
-                        "reason": validation_result.reason,
-                        "checks": validation_result.checks,
+                        "decision": validation_decision,
+                        "reason": validation_reason,
+                        "checks": validation_checks,
                     },
                     terminal_stage="execution_engine_rejected_open",
                     reason="execution_open_position_rejected",

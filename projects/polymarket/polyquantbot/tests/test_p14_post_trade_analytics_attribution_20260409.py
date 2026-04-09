@@ -3,17 +3,31 @@ from __future__ import annotations
 import asyncio
 
 from projects.polymarket.polyquantbot.execution.engine import ExecutionEngine
+from projects.polymarket.polyquantbot.execution.gateway import ExecutionGateway
+from projects.polymarket.polyquantbot.core.risk.pre_trade_validator import PreTradeValidator
+from projects.polymarket.polyquantbot.core.risk.risk_engine import RiskEngine
+
+
+def _gateway_for(engine: ExecutionEngine) -> ExecutionGateway:
+    return ExecutionGateway(
+        engine=engine,
+        pre_trade_validator=PreTradeValidator(),
+        risk_engine=RiskEngine(),
+    )
 
 
 async def _build_closed_trades() -> tuple[list[dict[str, object]], dict[str, object]]:
     engine = ExecutionEngine(starting_equity=10_000.0)
+    gateway = _gateway_for(engine)
 
-    first = await engine.open_position(
+    first = (await gateway.open_validated_position(
         market="mkt-s1-news",
         market_title="S1 NEWS",
         side="YES",
         price=0.50,
         size=100.0,
+        signal_data={"expected_value": 0.10, "edge": 0.05, "liquidity_usd": 20_000.0},
+        decision_data={"position_size": 100.0, "target_market_id": "mkt-s1-news", "strategy_source": "S1"},
         position_id="p14-1",
         position_context={
             "strategy_source": "S1",
@@ -24,7 +38,7 @@ async def _build_closed_trades() -> tuple[list[dict[str, object]], dict[str, obj
             "slippage_impact": 0.01,
             "timing_effectiveness": 0.90,
         },
-    )
+    )).position
     assert first is not None
     await engine.close_position(
         first,
@@ -32,12 +46,14 @@ async def _build_closed_trades() -> tuple[list[dict[str, object]], dict[str, obj
         close_context={"exit_reason": "momentum_weakened_after_favorable_move", "exit_efficiency": 0.95},
     )
 
-    second = await engine.open_position(
+    second = (await gateway.open_validated_position(
         market="mkt-s2-arb",
         market_title="S2 ARB",
         side="YES",
         price=0.60,
         size=100.0,
+        signal_data={"expected_value": 0.10, "edge": 0.08, "liquidity_usd": 20_000.0},
+        decision_data={"position_size": 100.0, "target_market_id": "mkt-s2-arb", "strategy_source": "S2"},
         position_id="p14-2",
         position_context={
             "strategy_source": "S2",
@@ -48,7 +64,7 @@ async def _build_closed_trades() -> tuple[list[dict[str, object]], dict[str, obj
             "slippage_impact": 0.03,
             "timing_effectiveness": 0.50,
         },
-    )
+    )).position
     assert second is not None
     await engine.close_position(
         second,
@@ -64,12 +80,15 @@ async def _build_closed_trades() -> tuple[list[dict[str, object]], dict[str, obj
 
 async def _build_edge_safety_trades() -> dict[str, object]:
     engine = ExecutionEngine(starting_equity=10_000.0)
-    position = await engine.open_position(
+    gateway = _gateway_for(engine)
+    position = (await gateway.open_validated_position(
         market="mkt-falcon-chaotic",
         market_title="FALCON CHAOTIC",
         side="YES",
         price=0.50,
         size=100.0,
+        signal_data={"expected_value": 0.10, "edge": 0.08, "liquidity_usd": 20_000.0},
+        decision_data={"position_size": 100.0, "target_market_id": "mkt-falcon-chaotic", "strategy_source": "FALCON"},
         position_id="p14-safety-1",
         position_context={
             "strategy_source": "FALCON",
@@ -80,7 +99,7 @@ async def _build_edge_safety_trades() -> dict[str, object]:
             "slippage_impact": 0.01,
             "timing_effectiveness": 0.6,
         },
-    )
+    )).position
     assert position is not None
     await engine.close_position(
         position,
@@ -88,12 +107,14 @@ async def _build_edge_safety_trades() -> dict[str, object]:
         close_context={"exit_reason": "take_profit", "exit_efficiency": 0.8},
     )
 
-    ignored = await engine.open_position(
+    ignored = (await gateway.open_validated_position(
         market="mkt-safety-zero-edge",
         market_title="ZERO EDGE",
         side="YES",
         price=0.50,
         size=100.0,
+        signal_data={"expected_value": 0.10, "edge": 0.08, "liquidity_usd": 20_000.0},
+        decision_data={"position_size": 100.0, "target_market_id": "mkt-safety-zero-edge", "strategy_source": "S3"},
         position_id="p14-safety-2",
         position_context={
             "strategy_source": "S3",
@@ -102,7 +123,7 @@ async def _build_edge_safety_trades() -> dict[str, object]:
             "entry_timing": "timing_enter",
             "theoretical_edge": 0.0,
         },
-    )
+    )).position
     assert ignored is not None
     await engine.close_position(ignored, 0.60, close_context={"exit_reason": "take_profit", "exit_efficiency": 0.8})
     return engine.get_analytics().summary()
