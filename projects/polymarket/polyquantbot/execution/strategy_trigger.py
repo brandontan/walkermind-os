@@ -161,6 +161,9 @@ class StrategyAggregationDecision:
     selection_reason: str
     top_score: float
     decision: str
+    current_regime: str = "LOW_ACTIVITY_CHAOTIC"
+    regime_confidence: float = 0.0
+    strategy_weight_modifiers: dict[str, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -208,6 +211,22 @@ class AdaptiveAdjustmentState:
     min_edge_threshold: float
     confidence_threshold: float
     explanation: str
+
+
+@dataclass(frozen=True)
+class MarketRegimeInputs:
+    social_spike_intensity: float
+    price_dispersion: float
+    wallet_activity_strength: float
+    trade_frequency: float
+    volatility: float
+
+
+@dataclass(frozen=True)
+class MarketRegimeClassification:
+    regime_type: str
+    confidence_score: float
+    strategy_weight_modifiers: dict[str, float]
 
 
 class StrategyTrigger:
@@ -832,10 +851,20 @@ class StrategyTrigger:
         s1_decision: StrategyDecision,
         s2_decision: CrossExchangeArbitrageDecision,
         s3_decision: SmartMoneyCopyTradingDecision,
+        market_regime_inputs: MarketRegimeInputs | None = None,
     ) -> StrategyAggregationDecision:
         """
         Aggregate S1/S2/S3 strategy outputs and select one best trade candidate.
         """
+        regime = (
+            self.detect_market_regime(market_regime_inputs)
+            if market_regime_inputs is not None
+            else MarketRegimeClassification(
+                regime_type="LOW_ACTIVITY_CHAOTIC",
+                confidence_score=0.0,
+                strategy_weight_modifiers={"S1": 1.0, "S2": 1.0, "S3": 1.0},
+            )
+        )
         candidates = [
             self._build_strategy_candidate_score(
                 strategy_name="S1",
@@ -844,6 +873,7 @@ class StrategyTrigger:
                 edge=s1_decision.edge,
                 confidence=None,
                 market_metadata={},
+                regime_weight_modifier=regime.strategy_weight_modifiers.get("S1", 1.0),
             ),
             self._build_strategy_candidate_score(
                 strategy_name="S2",
@@ -852,6 +882,7 @@ class StrategyTrigger:
                 edge=s2_decision.edge,
                 confidence=None,
                 market_metadata=s2_decision.matched_markets_info,
+                regime_weight_modifier=regime.strategy_weight_modifiers.get("S2", 1.0),
             ),
             self._build_strategy_candidate_score(
                 strategy_name="S3",
@@ -860,6 +891,7 @@ class StrategyTrigger:
                 edge=max(0.0, s3_decision.confidence * self._config.min_edge),
                 confidence=s3_decision.confidence,
                 market_metadata=s3_decision.wallet_info,
+                regime_weight_modifier=regime.strategy_weight_modifiers.get("S3", 1.0),
             ),
         ]
         ranked_candidates = sorted(candidates, key=lambda item: (-item.score, item.strategy_name))
@@ -877,6 +909,9 @@ class StrategyTrigger:
                 selection_reason="all candidates are SKIP",
                 top_score=top_score,
                 decision="SKIP",
+                current_regime=regime.regime_type,
+                regime_confidence=regime.confidence_score,
+                strategy_weight_modifiers=regime.strategy_weight_modifiers,
             )
 
         if has_global_conflict_hold:
@@ -886,6 +921,9 @@ class StrategyTrigger:
                 selection_reason="conflict rules require holding",
                 top_score=top_score,
                 decision="SKIP",
+                current_regime=regime.regime_type,
+                regime_confidence=regime.confidence_score,
+                strategy_weight_modifiers=regime.strategy_weight_modifiers,
             )
 
         top_candidate = enter_candidates[0]
@@ -896,6 +934,9 @@ class StrategyTrigger:
                 selection_reason="all candidates are weak",
                 top_score=top_score,
                 decision="SKIP",
+                current_regime=regime.regime_type,
+                regime_confidence=regime.confidence_score,
+                strategy_weight_modifiers=regime.strategy_weight_modifiers,
             )
 
         return StrategyAggregationDecision(
@@ -904,7 +945,66 @@ class StrategyTrigger:
             selection_reason=f"selected highest-ranked candidate: {top_candidate.strategy_name}",
             top_score=top_candidate.score,
             decision="ENTER",
+            current_regime=regime.regime_type,
+            regime_confidence=regime.confidence_score,
+            strategy_weight_modifiers=regime.strategy_weight_modifiers,
         )
+
+    def detect_market_regime(
+        self,
+        inputs: MarketRegimeInputs,
+    ) -> MarketRegimeClassification:
+        social_score = self._clamp(inputs.social_spike_intensity, 0.0, 1.0)
+        dispersion_score = self._clamp(inputs.price_dispersion, 0.0, 1.0)
+        wallet_score = self._clamp(inputs.wallet_activity_strength, 0.0, 1.0)
+        activity_score = self._clamp((inputs.trade_frequency * 0.50) + (inputs.volatility * 0.50), 0.0, 1.0)
+        dominant_signal = max(social_score, dispersion_score, wallet_score)
+
+        regime_type = "LOW_ACTIVITY_CHAOTIC"
+        confidence = round(self._clamp(0.50 + (activity_score * 0.20), 0.0, 1.0), 6)
+        if social_score >= 0.70 and social_score >= (dispersion_score + 0.10) and social_score >= (wallet_score + 0.10):
+            regime_type = "NEWS_DRIVEN"
+            confidence = round(self._clamp(0.55 + (social_score * 0.45), 0.0, 1.0), 6)
+        elif dispersion_score >= 0.65 and dispersion_score >= (wallet_score + 0.05):
+            regime_type = "ARBITRAGE_DOMINANT"
+            confidence = round(self._clamp(0.55 + (dispersion_score * 0.45), 0.0, 1.0), 6)
+        elif wallet_score >= 0.65:
+            regime_type = "SMART_MONEY_DOMINANT"
+            confidence = round(self._clamp(0.55 + (wallet_score * 0.45), 0.0, 1.0), 6)
+        elif dominant_signal < 0.45 or activity_score >= 0.75:
+            regime_type = "LOW_ACTIVITY_CHAOTIC"
+            confidence = round(self._clamp(0.50 + ((1.0 - dominant_signal) * 0.30), 0.0, 1.0), 6)
+
+        weight_modifiers = self._build_regime_weight_modifiers(
+            regime_type=regime_type,
+            confidence_score=confidence,
+        )
+        return MarketRegimeClassification(
+            regime_type=regime_type,
+            confidence_score=confidence,
+            strategy_weight_modifiers=weight_modifiers,
+        )
+
+    def _build_regime_weight_modifiers(
+        self,
+        *,
+        regime_type: str,
+        confidence_score: float,
+    ) -> dict[str, float]:
+        neutral = {"S1": 1.0, "S2": 1.0, "S3": 1.0}
+        bounded_regime_modifiers = {
+            "NEWS_DRIVEN": {"S1": 1.18, "S2": 0.94, "S3": 0.94},
+            "ARBITRAGE_DOMINANT": {"S1": 0.94, "S2": 1.18, "S3": 0.94},
+            "SMART_MONEY_DOMINANT": {"S1": 0.94, "S2": 0.94, "S3": 1.18},
+            "LOW_ACTIVITY_CHAOTIC": {"S1": 0.90, "S2": 0.90, "S3": 0.90},
+        }
+        selected = bounded_regime_modifiers.get(regime_type, neutral)
+        if confidence_score < 0.60:
+            selected = neutral
+        return {
+            strategy: round(self._clamp(modifier, 0.85, 1.20), 6)
+            for strategy, modifier in selected.items()
+        }
 
     def _build_strategy_candidate_score(
         self,
@@ -914,6 +1014,7 @@ class StrategyTrigger:
         edge: float,
         confidence: float | None,
         market_metadata: dict[str, object],
+        regime_weight_modifier: float = 1.0,
     ) -> StrategyCandidateScore:
         normalized_edge = min(max(edge, 0.0) / 0.10, 1.0)
         normalized_confidence = (
@@ -923,7 +1024,8 @@ class StrategyTrigger:
         )
         score = round((0.7 * normalized_edge) + (0.3 * normalized_confidence), 6)
         adaptive_weight = self._adaptive_weights.get(strategy_name, 1.0)
-        weighted_score = round(score * adaptive_weight, 6)
+        bounded_regime_modifier = self._clamp(regime_weight_modifier, 0.85, 1.20)
+        weighted_score = round(score * adaptive_weight * bounded_regime_modifier, 6)
         return StrategyCandidateScore(
             strategy_name=strategy_name,
             decision=decision,
