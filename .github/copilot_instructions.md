@@ -226,7 +226,26 @@ Next: COMMANDER review
 ### Decision Values
 - **PASS** — all checks pass, ready for COMMANDER review
 - **PASS WITH NOTES** — passes with minor observations, COMMANDER decides
-- **FIX REQUIRED** — one or more checks fail, return to FORGE-X
+- **FIX REQUIRED** — one or more B1–B12 checks fail, return to FORGE-X
+
+### Minor Findings — Defer, Do Not Block
+
+Non-critical findings (relative paths, non-atomic writes, style, minor logging gaps)
+do NOT require immediate fix and do NOT block merge.
+
+Instead:
+- List them under `Deferred Minor Findings` in the review comment
+- COMMANDER logs them to `PROJECT_STATE.md` → `⚠️ KNOWN ISSUES` as `[DEFERRED] ...`
+- They will be addressed in ONE batch during next FORGE-X fix task after SENTINEL MAJOR
+
+Format for deferred note:
+```
+Deferred Minor Findings (non-blocking):
+- [DEFERRED] relative path in persistence layer — fix/{area}-deferred-minor-{date}
+- [DEFERRED] non-atomic write in risk state — same batch
+```
+
+Only B1–B12 violations and critical safety issues require immediate fix.
 
 ### What Copilot Review is NOT
 - Not a replacement for SENTINEL
