@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import statistics
 from typing import Any
 import uuid
@@ -42,6 +43,7 @@ class ExecutionEngine:
         self.max_total_exposure_ratio: float = 0.30
         self._analytics = PerformanceTracker()
         self._trace_engine = TradeTraceEngine()
+        self._closed_trades: list[dict[str, Any]] = []
 
     async def open_position(
         self,
@@ -119,6 +121,18 @@ class ExecutionEngine:
             self._realized_pnl += realized_pnl
             self._cash += live_position.size + realized_pnl
             self._analytics.record_trade(live_position)
+            closed_trade = {
+                "market_id": live_position.market_id,
+                "market_title": live_position.market_title,
+                "side": live_position.side,
+                "entry_price": live_position.entry_price,
+                "exit_price": float(price),
+                "pnl": realized_pnl,
+                "result": "WIN" if realized_pnl >= 0 else "LOSS",
+                "closed_at": datetime.now(timezone.utc).isoformat(),
+                "position_id": live_position.position_id,
+            }
+            self._closed_trades.append(closed_trade)
             del self._positions[live_position.market_id]
             self._recalculate_unrealized()
             self._refresh_equity()
@@ -181,7 +195,8 @@ def get_execution_engine() -> ExecutionEngine:
 
 
 async def export_execution_payload() -> dict[str, Any]:
-    snapshot = await get_execution_engine().snapshot()
+    engine = get_execution_engine()
+    snapshot = await engine.snapshot()
     return {
         "positions": [
             {
@@ -193,6 +208,8 @@ async def export_execution_payload() -> dict[str, Any]:
                 "size": pos.size,
                 "pnl": pos.pnl,
                 "unrealized_pnl": pos.pnl,
+                "position_id": pos.position_id,
+                "opened_at": datetime.fromtimestamp(pos.created_at, tz=timezone.utc).isoformat(),
             }
             for pos in snapshot.positions
         ],
@@ -200,4 +217,5 @@ async def export_execution_payload() -> dict[str, Any]:
         "equity": snapshot.equity,
         "realized": snapshot.realized_pnl,
         "unrealized": snapshot.unrealized_pnl,
+        "closed_trades": list(reversed(engine._closed_trades)),
     }
