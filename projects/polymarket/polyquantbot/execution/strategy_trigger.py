@@ -2297,6 +2297,12 @@ class StrategyTrigger:
                 )
                 log.info("pre_trade_blocked", reason=validation_result.reason, trade_id=trade_id)
                 return "BLOCKED"
+            validation_proof = self._engine.build_validation_proof(
+                validation_id=trade_id,
+                validation_decision=validation_result.decision,
+                validation_reason=validation_result.reason,
+                validation_checks=validation_result.checks,
+            )
             self._execution_tracker.record_order_submission(
                 trade_id=trade_id,
                 expected_price=readiness.expected_fill_price,
@@ -2328,6 +2334,7 @@ class StrategyTrigger:
                     "timing_effectiveness": 1.0 if readiness.timing_decision == "ENTER_NOW" else 0.0,
                     "trade_id": trade_id,
                 },
+                validation_proof=validation_proof,
             )
             if created:
                 execution_data = self._execution_tracker.record_fill(

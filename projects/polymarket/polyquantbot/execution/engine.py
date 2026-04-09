@@ -3,7 +3,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
+import hmac
+import json
+import secrets
 import statistics
+import time
 from typing import Any
 import uuid
 
@@ -27,6 +32,16 @@ class ExecutionSnapshot:
     volatility: float
 
 
+@dataclass(frozen=True)
+class ExecutionValidationProof:
+    validation_id: str
+    validation_decision: str
+    validation_reason: str
+    validation_checks_hash: str
+    issued_at_unix: float
+    signature: str
+
+
 class ExecutionEngine:
     """Paper-only execution engine with sizing, PnL tracking, and performance analytics."""
 
@@ -45,6 +60,34 @@ class ExecutionEngine:
         self._trace_engine = TradeTraceEngine()
         self._closed_trades: list[dict[str, Any]] = []
         self._position_context: dict[str, dict[str, Any]] = {}
+        self._validation_secret: str = secrets.token_hex(32)
+
+    def build_validation_proof(
+        self,
+        *,
+        validation_id: str,
+        validation_decision: str,
+        validation_reason: str,
+        validation_checks: dict[str, bool] | None,
+    ) -> ExecutionValidationProof:
+        """Create a signed execution validation proof for trusted gateway paths."""
+        checks_hash = self._hash_validation_checks(validation_checks or {})
+        issued_at_unix = time.time()
+        signature = self._sign_validation_fields(
+            validation_id=validation_id,
+            validation_decision=validation_decision,
+            validation_reason=validation_reason,
+            validation_checks_hash=checks_hash,
+            issued_at_unix=issued_at_unix,
+        )
+        return ExecutionValidationProof(
+            validation_id=validation_id,
+            validation_decision=validation_decision,
+            validation_reason=validation_reason,
+            validation_checks_hash=checks_hash,
+            issued_at_unix=issued_at_unix,
+            signature=signature,
+        )
 
     async def open_position(
         self,
@@ -55,9 +98,18 @@ class ExecutionEngine:
         size: float,
         position_id: str | None = None,
         position_context: dict[str, Any] | None = None,
+        validation_proof: ExecutionValidationProof | None = None,
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
+            if not self._is_validation_proof_allowed(validation_proof):
+                log.warning(
+                    "execution_engine_open_rejected",
+                    reason="validation_proof_required_or_invalid",
+                    market=market,
+                    position_id=position_id,
+                )
+                return None
             size = float(size)
             if size <= 0:
                 log.warning("execution_engine_open_rejected", reason="size_non_positive", size=size)
@@ -111,6 +163,55 @@ class ExecutionEngine:
             self._refresh_equity()
             log.info("execution_engine_position_opened", market=market, side=side, price=price, size=size)
             return position
+
+    def _is_validation_proof_allowed(self, proof: ExecutionValidationProof | None) -> bool:
+        if not isinstance(proof, ExecutionValidationProof):
+            return False
+        if not proof.validation_id.strip():
+            return False
+        if proof.validation_decision != "ALLOW":
+            return False
+        if not proof.validation_checks_hash.strip() or len(proof.validation_checks_hash) != 64:
+            return False
+        if not isinstance(proof.issued_at_unix, float):
+            return False
+        expected_signature = self._sign_validation_fields(
+            validation_id=proof.validation_id,
+            validation_decision=proof.validation_decision,
+            validation_reason=proof.validation_reason,
+            validation_checks_hash=proof.validation_checks_hash,
+            issued_at_unix=proof.issued_at_unix,
+        )
+        return hmac.compare_digest(expected_signature, proof.signature)
+
+    def _sign_validation_fields(
+        self,
+        *,
+        validation_id: str,
+        validation_decision: str,
+        validation_reason: str,
+        validation_checks_hash: str,
+        issued_at_unix: float,
+    ) -> str:
+        payload = "|".join(
+            [
+                validation_id.strip(),
+                validation_decision.strip().upper(),
+                validation_reason.strip(),
+                validation_checks_hash.strip(),
+                f"{issued_at_unix:.6f}",
+            ]
+        )
+        return hmac.new(
+            self._validation_secret.encode("utf-8"),
+            payload.encode("utf-8"),
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+
+    @staticmethod
+    def _hash_validation_checks(validation_checks: dict[str, bool]) -> str:
+        normalized = json.dumps(validation_checks, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
     async def close_position(
         self,
