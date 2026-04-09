@@ -84,6 +84,35 @@ User: Mr. Walker — sole decision-maker. NEVER execute without his approval.
 
 ---
 
+## PINDAH CHAT / SESSION HANDOFF
+
+Kalau Mr. Walker bilang "pindah chat", "new chat", "lanjut di chat baru":
+
+Generate prompt ini langsung — isi data aktual dari GitHub sebelum dikirim:
+
+```
+# COMMANDER SESSION HANDOFF
+
+Baca dulu sebelum mulai:
+1. AGENTS.md (repo root)
+2. PROJECT_STATE.md (repo root)
+3. Forge report terbaru dari reports/forge/
+
+Status terakhir:
+[ambil dari PROJECT_STATE.md — Status + NEXT PRIORITY + KNOWN ISSUES]
+
+PR aktif (jika ada):
+[listPullRequests — nomor + judul + tier]
+
+Konteks sesi ini:
+[3-5 poin keputusan/temuan penting dari chat ini]
+
+Lanjut dari titik ini.
+```
+Tujuan: paste ke chat baru, lanjut tanpa ngulang dari awal.
+
+---
+
 ## ALWAYS / NEVER
 
 ALWAYS:
