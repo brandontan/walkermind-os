@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 16:58
-- Status        : SENTINEL validated P16 execution validation & risk enforcement control-layer implementation as APPROVED (MAJOR gate satisfied).
+- Last Updated  : 2026-04-09 18:32
+- Status        : FORGE-X completed P16 Sentinel remediation for restart-safe hard-block enforcement and full blocked-path traceability in touched strategy-trigger runtime path; awaiting SENTINEL MAJOR revalidation.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P16 Sentinel remediation restart-safe risk enforcement + blocked-path traceability (2026-04-09): persisted and restored P16 hard-block state (`peak_equity`, daily PnL map, global block derivation), added fail-safe block on missing/corrupt persistence input after initialization, expanded terminal blocked trace outcomes across portfolio/timing/execution-quality/pre-trade/execution-engine failure exits, and added focused runtime-proof tests.
 - SENTINEL validation complete for P16 execution validation & risk enforcement layer (2026-04-09): verdict **APPROVED** after runtime verification of pre-trade blocking, execution truth capture, edge validation, risk global-block enforcement, interception chain, and end-to-end traceability in declared scope.
 - P16 execution validation & risk enforcement layer (2026-04-09): implemented runtime pre-trade hard-block validation, execution truth capture, closed-trade edge validation, and global risk kill-switch enforcement in strategy-trigger execution path with focused MAJOR runtime-proof tests.
 - Market title resolution test hardening follow-up (2026-04-09): removed private cache mutation from Falcon title regression tests, seeded fallback cache through public normalization behavior, and preserved partial-failure/no-placeholder assertions.
@@ -123,9 +124,9 @@ Status:
 
 ## 🚧 IN PROGRESS
 
-### P16 execution validation & risk enforcement handoff
-- MAJOR-tier FULL RUNTIME INTEGRATION implementation is complete for strategy-trigger execution interception, execution-truth capture, edge validation, and global risk block enforcement in touched runtime path.
-- SENTINEL validation completed with verdict APPROVED; ready for COMMANDER merge decision.
+### P16 sentinel remediation handoff
+- MAJOR-tier FULL RUNTIME INTEGRATION remediation implementation is complete for restart-safe hard-block persistence and full blocked-path traceability in touched strategy-trigger runtime path.
+- Fresh SENTINEL revalidation is required before merge decision for PR #346.
 
 ### Market title test-hardening handoff
 - STANDARD-tier NARROW INTEGRATION follow-up is complete for Falcon title-resolution regression test integrity in touched test scope.
@@ -262,12 +263,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 SENTINEL validation required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_33_p16_execution_validation_risk_enforcement_layer.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_34_p16_sentinel_remediation_restart_safe_traceability.md
 Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
-- P16 control layer is currently integrated in strategy-trigger runtime path only; additional non-trigger execution entry surfaces (if introduced later) require separate wiring to inherit identical enforcement guarantees.
+- P16 control layer remains intentionally integrated in strategy-trigger runtime path only; additional non-trigger execution entry surfaces (if introduced later) still require separate wiring to inherit identical enforcement guarantees.
 - P15 strategy weighting is currently narrow integration in S4 path only and is not yet wired into broader non-S4 runtime orchestration/telemetry surfaces.
 - P14.3 Falcon strategy layer is currently narrow integration in S4 scoring path only and is not yet wired into broader non-S4 runtime orchestration surfaces; insufficient-data fallback now prevents external weighting when Falcon evidence is unavailable.
 - P14.2 Falcon ingestion is FOUNDATION claim-level only (data ingestion + normalization + adapter); broader runtime orchestration wiring remains out of scope.
