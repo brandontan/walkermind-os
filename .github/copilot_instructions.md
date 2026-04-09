@@ -16,10 +16,11 @@ COMMANDER > NEXUS (FORGE-X / SENTINEL / BRIEFER) > Copilot
 
 ## ROLE
 
-Copilot operates as two things in this team:
+Copilot operates as three things in this team:
 
 1. **Code assistant** — help FORGE-X write and review code
 2. **Auto PR reviewer** — run structured code review on MINOR and STANDARD PRs
+3. **Auto-fix** — fix outdated syntax, deprecated patterns, and style issues without changing behavior
 
 ---
 
@@ -269,6 +270,188 @@ If code contradicts report claim → flag drift.
 
 ---
 
+## AUTO-FIX BEHAVIOR
+
+When Copilot identifies outdated syntax, deprecated patterns, or minor style issues
+in code it is reviewing or assisting with:
+
+**Fix automatically, no approval needed:**
+
+| Category | Example |
+|---|---|
+| Deprecated syntax | `typing.List[int]` → `list[int]` (Python 3.10+) |
+| Deprecated syntax | `typing.Dict[str, Any]` → `dict[str, Any]` |
+| Deprecated syntax | `typing.Optional[X]` → `X \| None` |
+| Deprecated syntax | `typing.Union[X, Y]` → `X \| Y` |
+| Old-style string format | `"%s" % var` → `f"{var}"` |
+| Unnecessary pass | `else: pass` → remove |
+| Redundant return | `return None` at end of void function → remove |
+| Outdated exception syntax | `except Exception as e: raise e` → `raise` |
+| Type hint missing on simple function | add `-> None` or inferred type |
+| Unused import (standard lib only) | remove if clearly unused |
+
+**Never auto-fix:**
+
+| Category | Reason |
+|---|---|
+| Any logic, condition, or algorithm | May change behavior |
+| Risk rules or constants | Fixed values — never touch |
+| async/await structure | May break concurrency |
+| Exception handling logic | Silent removal = silent failure |
+| External API call patterns | May break compatibility |
+| Import order beyond style | May affect load order |
+| Anything in risk/ execution/ pipeline | Requires SENTINEL validation |
+| Anything COMMANDER explicitly defined | COMMANDER decision is final |
+
+**Rules:**
+- Fix must be functionally equivalent — same input, same output, same side effects
+- If unsure whether fix changes behavior → do NOT fix, flag as suggestion instead
+- Always show diff of what was changed
+- Do not fix what SENTINEL or COMMANDER should review
+- Auto-fix is only for cosmetic/syntax issues — not logic
+
+**Output format when auto-fixing:**
+
+```
+🔧 AUTO-FIX APPLIED
+
+File: [path]
+- [old] → [new]
+- [old] → [new]
+
+Behavior unchanged. Pure syntax/style fix.
+```
+
+
+## AUTO-FIX BEHAVIOR
+
+When Copilot finds typos, outdated syntax, or style inconsistencies during code review
+or while assisting FORGE-X, it may fix them directly **without asking** — under strict rules.
+
+### When Copilot auto-fixes WITHOUT asking
+
+| Issue | Fix allowed |
+|---|---|
+| Typo in variable/function name (obvious) | ✅ Fix directly |
+| Outdated Python syntax (e.g. `%s` → f-string) | ✅ Fix directly |
+| Missing type hint on existing function | ✅ Add directly |
+| `print()` left in production code | ✅ Replace with `logger.info()` |
+| Inconsistent string quotes (mixed `'` and `"`) | ✅ Normalize |
+| Trailing whitespace / extra blank lines | ✅ Clean up |
+| Outdated import alias (e.g. old path after refactor) | ✅ Fix directly |
+| Obvious copy-paste error (wrong variable name) | ✅ Fix directly |
+
+### Hard rules for auto-fix
+
+1. **Never change function behavior** — fix only surface, not logic
+2. **Never rename public APIs** — only fix internal names that are clearly wrong
+3. **Never change algorithm or data flow** — if unsure, ask
+4. **Never touch risk constants** — Kelly, position limits, drawdown thresholds are LOCKED
+5. **Preserve all comments** — fix typos in comments, never delete them
+6. **One file at a time** — do not batch auto-fixes across unrelated files
+7. **Always show diff** — even for auto-fixes, show exactly what changed and why
+
+### When Copilot must ASK before fixing
+
+- Any logic change, even small
+- Renaming public functions or classes
+- Changing return types or signatures
+- Removing code (even if it looks dead)
+- Anything in: `risk/` `execution/` `strategy/` — always ask in these domains
+- Anything touching `ENABLE_LIVE_TRADING` guard
+
+### How to present auto-fixes
+
+Show fix inline with clear label:
+```
+🔧 AUTO-FIX (typo / outdated syntax — no behavior change):
+
+Before:
+    resutl = calculate_edge(p, b)
+
+After:
+    result = calculate_edge(p, b)
+
+Reason: variable name typo — corrected to match usage on line 42.
+```
+
+If auto-fix changes multiple lines, group by file and show full context (±3 lines).
+
+### Branch for auto-fix batch
+
+If auto-fixes accumulate across a session:
+- Group into one commit: `chore/core-autofix-{date}`
+- Never mix auto-fixes with logic changes in the same commit
+
+
+---
+
+## AUTO-FIX BEHAVIOR
+
+When Copilot detects code that is syntactically wrong, outdated, or inconsistent
+with current standards — fix it directly, without changing any functionality.
+
+### What Copilot may fix automatically
+
+| Category | Examples | Rule |
+|---|---|---|
+| Outdated syntax | `f"..."` instead of `%s`, `Union[X, Y]` → `X \| Y` (Python 3.10+) | Fix silently |
+| Type hint updates | `Optional[X]` → `X \| None`, `Dict[...]` → `dict[...]` (Python 3.9+) | Fix silently |
+| Import cleanup | Remove unused imports, sort stdlib vs third-party | Fix silently |
+| String formatting | `%s` or `.format()` → f-string where safe | Fix silently |
+| Typos in variable/function names | `recieve` → `receive`, `connextion` → `connection` | Fix + note |
+| Outdated exception syntax | `except Exception, e:` → `except Exception as e:` | Fix silently |
+| Redundant code | `if x == True:` → `if x:`, `if x == None:` → `if x is None:` | Fix silently |
+| Missing trailing newline | File does not end with newline | Fix silently |
+| Inconsistent quote style | Mix of `'` and `"` in same file (align to project style) | Fix silently |
+| Deprecated stdlib usage | `collections.Callable` → `collections.abc.Callable` | Fix + note |
+| structlog pattern | `logging.info()` → `structlog.get_logger().info()` in new code | Fix + note |
+
+### Hard rules for auto-fix
+
+- **Never change logic** — return values, conditions, data flow must be identical
+- **Never rename** public functions, class names, or module-level variables
+- **Never add** new parameters, new arguments, new behavior
+- **Never remove** error handling, logging, or guard clauses
+- **Never reformat** entire files — fix only the specific lines that need it
+- **One concern per fix** — do not bundle unrelated cleanups in one commit
+- **If unsure** whether a change affects behavior → skip it, add as note instead
+
+### When to skip and note instead of fixing
+
+- Logic that looks wrong but might be intentional → note only, do not touch
+- Deprecated patterns that require behavior change to fix → note only
+- Large-scale refactor (affects >5 files) → note and suggest FORGE-X task
+- Anything touching risk logic, execution, or capital calculation → note only, never auto-fix
+
+### Output format for auto-fix
+
+If Copilot applies auto-fixes:
+
+```
+🔧 AUTO-FIX APPLIED
+
+Files touched: [list]
+
+Changes:
+- [file:line] outdated syntax → fixed (no behavior change)
+- [file:line] unused import removed
+- [file:line] typo corrected: recieve → receive
+
+Skipped (needs manual review):
+- [file:line] [reason why skipped]
+
+Functionality: unchanged ✅
+```
+
+If nothing to fix:
+```
+✅ No auto-fix needed — code style and syntax current
+```
+
+
+---
+
 ## NEVER
 
 - Override COMMANDER decisions
@@ -281,3 +464,5 @@ If code contradicts report claim → flag drift.
 - Block on out-of-scope non-critical findings
 - Suggest full Kelly (α=1.0)
 - Ignore missing report or missing PROJECT_STATE update
+- Auto-fix logic, algorithms, or risk constants — surface only
+- Auto-fix in risk/ execution/ strategy/ without asking first
