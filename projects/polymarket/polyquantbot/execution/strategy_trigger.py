@@ -71,6 +71,26 @@ class CrossExchangeArbitrageDecision:
     matched_markets_info: dict[str, object]
 
 
+@dataclass(frozen=True)
+class WalletTradeSignal:
+    wallet_address: str
+    action: str
+    size_usd: float
+    liquidity_usd: float
+    timestamp_ms: int
+    market_move_pct: float
+    wallet_success_rate: float
+    wallet_activity_count: int
+
+
+@dataclass(frozen=True)
+class SmartMoneyCopyTradingDecision:
+    decision: str
+    reason: str
+    confidence: float
+    wallet_info: dict[str, object]
+
+
 class StrategyTrigger:
     """Strategy trigger with execution intelligence.
     
@@ -245,6 +265,111 @@ class StrategyTrigger:
                 "probability_kalshi": round(kalshi_prob, 6),
                 "raw_edge": round(raw_edge, 6),
                 "net_edge": round(net_edge, 6),
+            },
+        )
+
+    def evaluate_smart_money_copy_trading(
+        self,
+        signal: WalletTradeSignal,
+        related_wallet_signals: list[WalletTradeSignal],
+    ) -> SmartMoneyCopyTradingDecision:
+        min_success_rate = 0.60
+        min_activity_count = 15
+        large_position_usd = 10_000.0
+        early_entry_max_move_pct = 0.02
+        repeated_wallet_min_count = 2
+        min_confidence_threshold = 0.65
+
+        if signal.wallet_success_rate < min_success_rate or signal.wallet_activity_count < min_activity_count:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="low-quality wallet",
+                confidence=0.0,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "success_rate": round(signal.wallet_success_rate, 4),
+                    "activity_count": signal.wallet_activity_count,
+                },
+            )
+
+        if signal.market_move_pct > early_entry_max_move_pct:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="late entry",
+                confidence=0.0,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "market_move_pct": round(signal.market_move_pct, 6),
+                },
+            )
+
+        if signal.action.lower() not in {"buy", "sell"}:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="conflicting signals",
+                confidence=0.0,
+                wallet_info={"wallet_address": signal.wallet_address},
+            )
+
+        same_market_signals = [
+            item
+            for item in related_wallet_signals
+            if item.timestamp_ms >= signal.timestamp_ms - (30 * 60 * 1000)
+        ]
+
+        buy_votes = sum(1 for item in same_market_signals if item.action.lower() == "buy")
+        sell_votes = sum(1 for item in same_market_signals if item.action.lower() == "sell")
+        if buy_votes > 0 and sell_votes > 0:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="conflicting signals",
+                confidence=0.0,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "buy_votes": buy_votes,
+                    "sell_votes": sell_votes,
+                },
+            )
+
+        if signal.liquidity_usd < self._config.min_liquidity_usd:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="insufficient liquidity",
+                confidence=0.0,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "liquidity_usd": round(signal.liquidity_usd, 2),
+                },
+            )
+
+        size_score = min(1.0, signal.size_usd / large_position_usd)
+        early_score = max(0.0, 1.0 - (signal.market_move_pct / early_entry_max_move_pct))
+        aligned_wallets = sum(1 for item in same_market_signals if item.action.lower() == signal.action.lower())
+        repeated_score = min(1.0, aligned_wallets / max(float(repeated_wallet_min_count), 1.0))
+        confidence = round((0.4 * size_score) + (0.3 * early_score) + (0.3 * repeated_score), 6)
+
+        if confidence <= min_confidence_threshold:
+            return SmartMoneyCopyTradingDecision(
+                decision="SKIP",
+                reason="signal strength below threshold",
+                confidence=confidence,
+                wallet_info={
+                    "wallet_address": signal.wallet_address,
+                    "aligned_wallets": aligned_wallets,
+                },
+            )
+
+        return SmartMoneyCopyTradingDecision(
+            decision="ENTER",
+            reason="high-quality early smart-money signal",
+            confidence=confidence,
+            wallet_info={
+                "wallet_address": signal.wallet_address,
+                "action": signal.action.upper(),
+                "success_rate": round(signal.wallet_success_rate, 4),
+                "activity_count": signal.wallet_activity_count,
+                "size_usd": round(signal.size_usd, 2),
+                "aligned_wallets": aligned_wallets,
             },
         )
 
