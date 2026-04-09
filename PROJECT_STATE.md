@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 10:36
-- Status        : FORGE-X TG-1 market-title merge-conflict fix implemented (STANDARD, narrow integration) across execution→portfolio→Telegram formatter path; awaiting Codex auto PR review + COMMANDER review.
+- Last Updated  : 2026-04-09 11:12
+- Status        : FORGE-X TG-2 + TG-3 open positions visibility and trade history implementation complete (STANDARD, narrow integration) in Telegram portfolio view/formatter/storage path; awaiting Codex auto PR review + COMMANDER review.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- TG-2 + TG-3 open positions visibility & trade history (2026-04-09): implemented full open-position card rendering without truncation, added separate-card handling for same-market multi-position entries with per-position refs, added closed-trade history rendering with newest-first ordering and capped history display, integrated execution payload closed-trade persistence into portfolio state and Telegram callback payload path, and added focused formatter/view tests (including strict format and empty-state coverage).
 - P12 execution timing & entry optimization (2026-04-09): added pre-execution timing-aware gate with deterministic `ENTER_NOW`/`WAIT`/`SKIP` output contract, anti-chase spike delay/timeout skip handling, micro-pullback wait/re-evaluate/enter flow, bounded reevaluation windows, and timing-first coordination with existing P10 execution-quality gate plus focused deterministic tests.
 - TG-1 market-title merge-conflict fix (2026-04-09): enforced canonical `market_title` propagation in touched path (`execution.open_position` → execution position payload → portfolio snapshot → callback payload → Telegram view adapter → formatter), removed mixed-field priority in formatter/view path, and added focused regression tests proving no `Untitled Market` regression when title exists.
 - P11 market regime detection (2026-04-09): added deterministic regime classification (`NEWS_DRIVEN`/`ARBITRAGE_DOMINANT`/`SMART_MONEY_DOMINANT`/`LOW_ACTIVITY_CHAOTIC`) from social/dispersion/wallet/activity signals, integrated bounded regime-based S4 strategy weighting modifiers with neutral fallback behavior, and added focused deterministic regime/aggregation contract tests.
@@ -108,6 +109,10 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### TG-2 + TG-3 open positions + trade history handoff
+- STANDARD-tier narrow integration implementation is complete for Telegram positions-view rendering and history visibility in touched formatter/view/storage path.
+- Awaiting Codex auto PR review baseline and COMMANDER merge decision.
+
 ### P12 execution timing & entry optimization handoff
 - STANDARD-tier narrow integration implementation is complete for timing-aware pre-execution decisioning (`ENTER_NOW`/`WAIT`/`SKIP`) and bounded reevaluation behavior coordinated with P10 quality gating.
 - Awaiting Codex auto PR review baseline and COMMANDER merge decision.
@@ -201,11 +206,12 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 Codex auto PR review + COMMANDER review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_23_tg1_market_title_merge_conflict.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_24_tg2_tg3_open_positions_trade_history.md
 Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 
+- TG-2 + TG-3 trade history is currently narrow integration in Telegram portfolio rendering path only and is not yet surfaced in other non-portfolio historical analytics views.
 - P12 entry timing layer is currently narrow integration in strategy-trigger pre-execution path only and is not yet wired into broader runtime execution orchestration layers.
 - P11 market regime detection is currently narrow integration in strategy-trigger S4 scoring path only and is not yet wired into broader runtime execution orchestration.
 - P10 execution quality gate is currently narrow integration in strategy-trigger pre-execution path only and is not yet wired into full runtime execution orchestration layers.

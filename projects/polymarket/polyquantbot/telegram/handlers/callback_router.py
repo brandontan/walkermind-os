@@ -356,10 +356,43 @@ class CallbackRouter:
                             self._extract_field(pos, "entry_price", 0.0),
                         )
                     ),
+                    "current_price": safe_number(
+                        self._extract_field(
+                            pos,
+                            "current_price",
+                            self._extract_field(
+                                pos,
+                                "avg_price",
+                                self._extract_field(pos, "entry_price", 0.0),
+                            ),
+                        )
+                    ),
                     "size": safe_number(self._extract_field(pos, "size", 0.0)),
                     "unrealized_pnl": safe_number(
                         self._extract_field(pos, "unrealized_pnl", self._extract_field(pos, "pnl", 0.0))
                     ),
+                    "opened_at": str(self._extract_field(pos, "opened_at", "") or ""),
+                    "position_id": str(self._extract_field(pos, "position_id", self._extract_field(pos, "market_id", "")) or ""),
+                }
+            )
+        return normalized
+
+    def _normalize_closed_trades(self, raw_trades: object) -> list[dict[str, object]]:
+        if not isinstance(raw_trades, list | tuple):
+            return []
+        normalized: list[dict[str, object]] = []
+        for trade in raw_trades:
+            normalized.append(
+                {
+                    "market_id": str(self._extract_field(trade, "market_id", "") or ""),
+                    "market_title": str(self._extract_field(trade, "market_title", "") or ""),
+                    "side": str(self._extract_field(trade, "side", "flat") or "flat"),
+                    "entry_price": safe_number(self._extract_field(trade, "entry_price", 0.0)),
+                    "exit_price": safe_number(self._extract_field(trade, "exit_price", 0.0)),
+                    "pnl": safe_number(self._extract_field(trade, "pnl", 0.0)),
+                    "result": str(self._extract_field(trade, "result", "") or ""),
+                    "closed_at": str(self._extract_field(trade, "closed_at", "") or ""),
+                    "position_id": str(self._extract_field(trade, "position_id", self._extract_field(trade, "market_id", "")) or ""),
                 }
             )
         return normalized
@@ -388,9 +421,12 @@ class CallbackRouter:
         pnl = 0.0
         if portfolio is not None:
             positions = self._normalize_positions(self._extract_field(portfolio, "positions", []))
+            closed_trades = self._normalize_closed_trades(self._extract_field(portfolio, "closed_trades", []))
             equity = safe_number(self._extract_field(portfolio, "equity", 0.0))
             cash = safe_number(self._extract_field(portfolio, "cash", 0.0))
             pnl = safe_number(self._extract_field(portfolio, "pnl", 0.0))
+        else:
+            closed_trades = []
 
         primary = positions[0] if positions else None
         exposure = (
@@ -420,6 +456,7 @@ class CallbackRouter:
             "available_balance": cash,
             "positions_count": safe_count(len(positions), 0),
             "positions": open_positions,
+            "closed_trades": closed_trades,
             "pnl": pnl,
             "realized_pnl": 0.0,
             "unrealized_pnl": unrealized_total,

@@ -20,13 +20,30 @@ class PortfolioPosition:
     market_title: str
     side: str
     avg_price: float
+    current_price: float
     size: float
     unrealized_pnl: float
+    opened_at: str
+    position_id: str
+
+
+@dataclass(frozen=True)
+class ClosedTrade:
+    market_id: str
+    market_title: str
+    side: str
+    entry_price: float
+    exit_price: float
+    pnl: float
+    result: str
+    closed_at: str
+    position_id: str
 
 
 @dataclass(frozen=True)
 class PortfolioState:
     positions: tuple[PortfolioPosition, ...]
+    closed_trades: tuple[ClosedTrade, ...]
     equity: float
     cash: float
     pnl: float
@@ -49,6 +66,7 @@ class PortfolioService:
         self._position_manager: Optional["PaperPositionManager"] = None
         self._pnl_tracker: Optional["PnLTracker"] = None
         self._sim_positions: list[PortfolioPosition] = []
+        self._sim_closed_trades: list[ClosedTrade] = []
         self._sim_cash: float = 0.0
         self._sim_equity: float = 0.0
         self._sim_realized_pnl: float = 0.0
@@ -89,8 +107,29 @@ class PortfolioService:
                     market_title=str(pos.get("market_title", "")),
                     side=str(pos.get("side", "")),
                     avg_price=self._safe_float(pos.get("entry_price", pos.get("avg_price", 0.0)), 0.0),
+                    current_price=self._safe_float(pos.get("current_price", pos.get("entry_price", pos.get("avg_price", 0.0))), 0.0),
                     size=self._safe_float(pos.get("size", 0.0), 0.0),
                     unrealized_pnl=self._safe_float(pos.get("pnl", pos.get("unrealized_pnl", 0.0)), 0.0),
+                    opened_at=str(pos.get("opened_at", "")),
+                    position_id=str(pos.get("position_id", pos.get("market_id", ""))),
+                )
+            )
+        return normalized
+
+    def _normalize_closed_trades(self, raw_trades: list[dict[str, Any]]) -> list[ClosedTrade]:
+        normalized: list[ClosedTrade] = []
+        for trade in raw_trades:
+            normalized.append(
+                ClosedTrade(
+                    market_id=str(trade.get("market_id", "")),
+                    market_title=str(trade.get("market_title", "")),
+                    side=str(trade.get("side", "")),
+                    entry_price=self._safe_float(trade.get("entry_price", trade.get("avg_price", 0.0)), 0.0),
+                    exit_price=self._safe_float(trade.get("exit_price", trade.get("close_price", 0.0)), 0.0),
+                    pnl=self._safe_float(trade.get("pnl", 0.0), 0.0),
+                    result=str(trade.get("result", "")),
+                    closed_at=str(trade.get("closed_at", "")),
+                    position_id=str(trade.get("position_id", trade.get("market_id", ""))),
                 )
             )
         return normalized
@@ -98,6 +137,7 @@ class PortfolioService:
     def merge_execution_state(
         self,
         positions: list[dict[str, Any]],
+        closed_trades: list[dict[str, Any]],
         cash: float,
         equity: float,
         realized_pnl: float,
@@ -105,24 +145,37 @@ class PortfolioService:
         """Merge execution state without overwriting existing data."""
         if equity > 0:
             self._sim_positions = self._normalize_positions(positions)
+            self._sim_closed_trades = self._normalize_closed_trades(closed_trades)
             self._sim_cash = cash
             self._sim_equity = equity
             self._sim_realized_pnl = realized_pnl
-            log.info("portfolio_service_execution_state_merged", positions=len(self._sim_positions), equity=equity)
+            log.info(
+                "portfolio_service_execution_state_merged",
+                positions=len(self._sim_positions),
+                closed_trades=len(self._sim_closed_trades),
+                equity=equity,
+            )
 
     def update_simulated_state(
         self,
         positions: list[dict[str, Any]],
+        closed_trades: list[dict[str, Any]],
         cash: float,
         equity: float,
         realized_pnl: float,
     ) -> None:
         """Update paper-simulation snapshot for execution-engine-only mode."""
         self._sim_positions = self._normalize_positions(positions)
+        self._sim_closed_trades = self._normalize_closed_trades(closed_trades)
         self._sim_cash = cash
         self._sim_equity = equity
         self._sim_realized_pnl = realized_pnl
-        log.info("portfolio_service_simulated_state_updated", positions=len(self._sim_positions), equity=equity)
+        log.info(
+            "portfolio_service_simulated_state_updated",
+            positions=len(self._sim_positions),
+            closed_trades=len(self._sim_closed_trades),
+            equity=equity,
+        )
 
     def get_state(self) -> Optional[PortfolioState]:
         """Return immutable portfolio snapshot or ``None`` when unavailable.
@@ -134,6 +187,7 @@ class PortfolioService:
             if self._sim_equity > 0.0:
                 return PortfolioState(
                     positions=tuple(self._sim_positions),
+                    closed_trades=tuple(self._sim_closed_trades),
                     equity=self._sim_equity,
                     cash=self._sim_cash,
                     pnl=self._sim_realized_pnl + sum(p.unrealized_pnl for p in self._sim_positions),
@@ -170,6 +224,9 @@ class PortfolioService:
                     0.0,
                 )
                 unrealized_pnl = self._safe_float(getattr(pos, "unrealized_pnl", 0.0), 0.0)
+                current_price = self._safe_float(getattr(pos, "current_price", avg_price), avg_price)
+                opened_at = str(getattr(pos, "opened_at", ""))
+                position_id = str(getattr(pos, "position_id", market_id))
                 if not market_id or not side:
                     log.warning("portfolio_service_position_partial", position=repr(pos))
                     return None
@@ -179,8 +236,11 @@ class PortfolioService:
                         market_title=market_title,
                         side=side,
                         avg_price=avg_price,
+                        current_price=current_price,
                         size=size,
                         unrealized_pnl=unrealized_pnl,
+                        opened_at=opened_at,
+                        position_id=position_id,
                     )
                 )
         except Exception as exc:
@@ -190,6 +250,7 @@ class PortfolioService:
         total_pnl = self._safe_float(pnl_summary.get("total_pnl", 0.0), 0.0)
         return PortfolioState(
             positions=tuple(positions),
+            closed_trades=tuple(self._sim_closed_trades),
             equity=self._safe_float(wallet_state.equity, 0.0),
             cash=self._safe_float(wallet_state.cash, 0.0),
             pnl=total_pnl,

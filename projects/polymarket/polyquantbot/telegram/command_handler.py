@@ -464,6 +464,7 @@ class CommandHandler:
         payload = await export_execution_payload()
         get_portfolio_service().merge_execution_state(
             positions=payload.get("positions", []),
+            closed_trades=payload.get("closed_trades", []),
             cash=float(payload.get("cash", 0.0)),
             equity=float(payload.get("equity", 0.0)),
             realized_pnl=float(payload.get("realized", 0.0)),
@@ -515,6 +516,7 @@ class CommandHandler:
         payload = await export_execution_payload()
         get_portfolio_service().merge_execution_state(
             positions=payload.get("positions", []),
+            closed_trades=payload.get("closed_trades", []),
             cash=float(payload.get("cash", 0.0)),
             equity=float(payload.get("equity", 0.0)),
             realized_pnl=float(payload.get("realized", 0.0)),

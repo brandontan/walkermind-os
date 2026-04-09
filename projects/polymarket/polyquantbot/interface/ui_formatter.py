@@ -39,6 +39,7 @@ ROOT_LABELS: dict[str, str] = {
     "settings": "⚙️ Settings",
     "help": "❓ Help",
 }
+TRADE_HISTORY_LIMIT = 10
 
 
 def _safe_float(value: object, default: float = 0.0) -> float:
@@ -135,6 +136,15 @@ def _direction(value: object) -> str:
     if side in {"SELL", "SHORT", "NO"}:
         return "🔴 NO"
     return f"🟡 {side}"
+
+
+def _side_text(value: object) -> str:
+    side = _safe_text(value, "UNKNOWN").upper()
+    if side in {"BUY", "LONG", "YES"}:
+        return "YES"
+    if side in {"SELL", "SHORT", "NO"}:
+        return "NO"
+    return side
 
 
 def _tree_group(items: list[tuple[str, object]]) -> list[str]:
@@ -395,19 +405,19 @@ def _render_position_card(payload: Mapping[str, Any], market_label: str) -> str:
 
     now_value = payload.get("current") if payload.get("current") is not None else payload.get("entry")
     lines = [
-        ("Market", market_label),
-        ("Side", _direction(payload.get("side"))),
-        ("Entry", _fmt_probability_cents(payload.get("entry"))),
-        ("Now", _fmt_probability_cents(now_value)),
-        ("Size", _fmt_currency(payload.get("size"))),
-        ("UPNL", _fmt_signed_currency(payload.get("unrealized_pnl", payload.get("pnl")))),
-        ("Opened", _format_opened_time(payload.get("opened_at"))),
-        ("Status", _safe_text(payload.get("position_status"), "Monitoring")),
+        f"|- Market: {market_label}",
+        f"|- Side: {_side_text(payload.get('side'))}",
+        f"|- Entry: {_fmt_probability_cents(payload.get('entry'))}",
+        f"|- Now: {_fmt_probability_cents(now_value)}",
+        f"|- Size: {_fmt_currency(payload.get('size'))}",
+        f"|- UPNL: {_fmt_signed_currency(payload.get('unrealized_pnl', payload.get('pnl')))}",
+        f"|- Opened: {_format_opened_time(payload.get('opened_at'))}",
+        f"|- Status: {_safe_text(payload.get('position_status'), 'Monitoring')}",
     ]
     market_id = _safe_text(payload.get("market_id"), "")
     if market_id and not _contains_ref_fragment(market_label, market_id):
-        lines.append(("Ref", market_id[:18]))
-    return _section("🎯 Position", _tree_group(lines))
+        lines.append(f"|- Ref: {_safe_text(payload.get('position_id'), market_id)[:18]}")
+    return "\n".join(["🎯 Position", *lines])
 
 
 def _normalize_position_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -439,6 +449,7 @@ async def _render_position_cards(payload: Mapping[str, Any]) -> list[str]:
                 "unrealized_pnl": row.get("unrealized_pnl", row.get("pnl", 0.0)),
                 "opened_at": row.get("opened_at"),
                 "position_status": row.get("position_status", payload.get("position_status")),
+                "position_id": row.get("position_id", row.get("market_id")),
             }
         )
         row_context = await get_market_context(_safe_text(row_payload.get("market_id"), "")) or {}
@@ -447,6 +458,39 @@ async def _render_position_cards(payload: Mapping[str, Any]) -> list[str]:
         if card:
             cards.append(card)
     return cards
+
+
+def _normalize_trade_history_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    rows = payload.get("trade_history_rows")
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, Mapping)]
+
+
+def _render_closed_trade_card(row: Mapping[str, Any]) -> str:
+    pnl = _safe_float(row.get("pnl"), 0.0)
+    result = _safe_text(row.get("result"), "WIN" if pnl >= 0 else "LOSS").upper()
+    return "\n".join(
+        [
+            "🏁 Closed Trade",
+            f"|- Market: {_compact_text(row.get('market_title'), _safe_text(row.get('market_id'), 'Untitled Market'), max_len=86)}",
+            f"|- Side: {_side_text(row.get('side'))}",
+            f"|- Entry: {_fmt_probability_cents(row.get('entry_price'))}",
+            f"|- Exit: {_fmt_probability_cents(row.get('exit_price'))}",
+            f"|- PnL: {_fmt_signed_currency(pnl)}",
+            f"|- Result: {result}",
+            f"|- Closed: {_format_opened_time(row.get('closed_at'))}",
+        ]
+    )
+
+
+def _render_trade_history(payload: Mapping[str, Any]) -> str:
+    rows = _normalize_trade_history_rows(payload)
+    if not rows:
+        return "\n".join(["📜 Trade History", "No trade history yet"])
+
+    cards = [_render_closed_trade_card(row) for row in rows[:TRADE_HISTORY_LIMIT]]
+    return "\n\n".join(["📜 Trade History", *cards])
 
 
 def _render_market_card(payload: Mapping[str, Any], market_label: str) -> str:
@@ -515,16 +559,7 @@ def _render_scope_warning(payload: Mapping[str, Any]) -> str:
 
 def _render_empty_state(mode: str, payload: Mapping[str, Any]) -> str:
     if mode == "positions" and _safe_int(payload.get("positions")) <= 0:
-        return _section(
-            "🫥 Empty State",
-            _tree_group(
-                [
-                    ("Status", "No active positions"),
-                    ("Next", "Open a trade to populate position cards"),
-                    ("Tip", "Use Trade view for the next eligible setup"),
-                ]
-            ),
-        )
+        return "No open positions"
     if mode == "exposure" and _safe_int(payload.get("positions")) <= 0:
         return _section(
             "🫥 Empty State",
@@ -615,7 +650,12 @@ async def render_dashboard(payload: Mapping[str, Any]) -> str:
     blocks: list[str] = [_hero_block(mode, normalized), _primary_block(mode, normalized)]
 
     if mode == "positions":
-        blocks.extend(await _render_position_cards(normalized))
+        position_cards = await _render_position_cards(normalized)
+        if position_cards:
+            blocks.extend(position_cards)
+        else:
+            blocks.append("No open positions")
+        blocks.append(_render_trade_history(normalized))
     elif mode == "trade":
         position_card = _render_position_card(normalized, market_label)
         if position_card:

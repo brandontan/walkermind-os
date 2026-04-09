@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from ..ui_formatter import render_dashboard
@@ -99,6 +100,10 @@ def _derive_position_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
         }
         for row in raw_rows
     ]
+    rows.sort(
+        key=lambda row: _parse_timestamp(_first_present(_as_mapping(row), "opened_at", "created_at", "timestamp", default="")),
+        reverse=True,
+    )
     primary = _as_mapping(rows[0]) if rows else {}
     unrealized_total = sum(
         safe_number(_as_mapping(row).get("unrealized_pnl", _as_mapping(row).get("pnl", 0.0)))
@@ -123,6 +128,41 @@ def _derive_position_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
         "realized_pnl": safe_number(realized, 0.0),
         "total_pnl": safe_number(total_pnl, 0.0),
     }
+
+
+def _parse_timestamp(value: Any) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value or "").strip()
+    if not text:
+        return 0.0
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt_value = datetime.fromisoformat(text)
+    except ValueError:
+        return 0.0
+    if dt_value.tzinfo is None:
+        dt_value = dt_value.replace(tzinfo=timezone.utc)
+    return dt_value.timestamp()
+
+
+def _trade_history_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    raw = _as_list(payload.get("closed_trades"))
+    rows = [_as_mapping(row) for row in raw if isinstance(row, Mapping)]
+    normalized = [
+        {
+            **dict(row),
+            "market_title": _first_present(row, "market_title", "market_question", "question", "title", default=""),
+            "result": str(_first_present(row, "result", default="WIN" if safe_number(row.get("pnl"), 0.0) >= 0 else "LOSS")).upper(),
+        }
+        for row in rows
+    ]
+    normalized.sort(
+        key=lambda row: _parse_timestamp(_first_present(row, "closed_at", "timestamp", "updated_at", default="")),
+        reverse=True,
+    )
+    return normalized
 
 
 def _resolve_active_root(mode: str) -> str:
@@ -196,6 +236,7 @@ def _base_payload(mode: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         "scope_state_file": payload.get("scope_state_file", ""),
         "active_root": payload.get("active_root", _resolve_active_root(mode)),
         "position_rows": metrics["rows"],
+        "trade_history_rows": _trade_history_rows(payload),
     }
 
 
