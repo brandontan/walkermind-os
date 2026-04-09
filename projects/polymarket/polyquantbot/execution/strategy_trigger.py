@@ -50,6 +50,14 @@ class StrategyConfig:
     micro_pullback_improvement_ratio: float = 0.008
     timing_reevaluation_window_seconds: int = 15
     timing_max_wait_cycles: int = 2
+    stop_loss_ratio: float = 0.04
+    favorable_pnl_ratio: float = 0.015
+    momentum_weakening_ratio: float = 0.35
+    stale_trade_price_move_ratio: float = 0.003
+    max_trade_duration_seconds: int = 1800
+    hard_max_trade_duration_seconds: int = 3600
+    fast_exit_regime_factor: float = 0.75
+    slow_exit_regime_factor: float = 1.25
 
 
 @dataclass(frozen=True)
@@ -220,6 +228,14 @@ class EntryExecutionReadiness:
 
 
 @dataclass(frozen=True)
+class ExitDecision:
+    exit_decision: str
+    exit_reason: str
+    pnl_snapshot: float
+    trade_duration: int
+
+
+@dataclass(frozen=True)
 class StrategyPerformanceStats:
     strategy_name: str
     total_trades: int
@@ -286,6 +302,7 @@ class StrategyTrigger:
         )
         self._adaptive_confidence_bounds: tuple[float, float] = (0.55, 0.80)
         self._last_adjustment_explanation: str = "adaptive defaults active"
+        self._position_peak_pnl: dict[str, float] = {}
 
     @staticmethod
     def _clamp(value: float, lower: float, upper: float) -> float:
@@ -1595,6 +1612,120 @@ class StrategyTrigger:
             expected_slippage=execution_quality.expected_slippage,
         )
 
+    def evaluate_exit_decision(
+        self,
+        *,
+        tracked_position: object,
+        market_context: dict[str, float | str | bool] | None = None,
+        aggregation_decision: StrategyAggregationDecision | None = None,
+        now_ts: float | None = None,
+    ) -> ExitDecision:
+        context = market_context or {}
+        current_time = time.time() if now_ts is None else now_ts
+        created_at = float(getattr(tracked_position, "created_at", current_time))
+        trade_duration = max(int(current_time - created_at), 0)
+        current_pnl = float(getattr(tracked_position, "pnl", 0.0))
+        entry_price = max(float(getattr(tracked_position, "entry_price", 0.0)), 1e-6)
+        current_price = max(float(getattr(tracked_position, "current_price", entry_price)), 0.0)
+        position_size = max(float(getattr(tracked_position, "size", 0.0)), 0.0)
+        position_id = str(getattr(tracked_position, "position_id", ""))
+
+        peak_pnl = max(self._position_peak_pnl.get(position_id, current_pnl), current_pnl)
+        self._position_peak_pnl[position_id] = peak_pnl
+
+        regime = (
+            aggregation_decision.current_regime
+            if aggregation_decision is not None
+            else str(context.get("current_regime", "LOW_ACTIVITY_CHAOTIC"))
+        )
+        adaptive_state = self.get_adaptive_adjustment_state()
+        avg_weight = (
+            sum(adaptive_state.strategy_weights.values()) / len(adaptive_state.strategy_weights)
+            if adaptive_state.strategy_weights
+            else 1.0
+        )
+
+        regime_factor = 1.0
+        if regime == "LOW_ACTIVITY_CHAOTIC":
+            regime_factor *= self._config.fast_exit_regime_factor
+        elif regime in {"NEWS_DRIVEN", "SMART_MONEY_DOMINANT"}:
+            regime_factor *= self._config.slow_exit_regime_factor
+
+        if avg_weight < 0.98:
+            regime_factor *= 0.9
+        elif avg_weight > 1.02:
+            regime_factor *= 1.1
+
+        bounded_factor = self._clamp(regime_factor, 0.65, 1.35)
+        stop_loss_limit = position_size * self._config.stop_loss_ratio * bounded_factor
+        favorable_threshold = max(
+            self._config.target_pnl * bounded_factor,
+            position_size * self._config.favorable_pnl_ratio * bounded_factor,
+        )
+        effective_max_duration = max(int(self._config.max_trade_duration_seconds * bounded_factor), 60)
+        effective_hard_max_duration = max(
+            int(self._config.hard_max_trade_duration_seconds * bounded_factor),
+            effective_max_duration,
+        )
+        stale_move_ratio = self._config.stale_trade_price_move_ratio * bounded_factor
+        price_move_ratio = abs(current_price - entry_price) / entry_price
+
+        if bool(context.get("signal_invalidated", False)):
+            return ExitDecision(
+                exit_decision="EXIT_FULL",
+                exit_reason="signal_invalidation",
+                pnl_snapshot=round(current_pnl, 6),
+                trade_duration=trade_duration,
+            )
+
+        if current_pnl <= -abs(stop_loss_limit):
+            return ExitDecision(
+                exit_decision="EXIT_FULL",
+                exit_reason="stop_loss_threshold_breached",
+                pnl_snapshot=round(current_pnl, 6),
+                trade_duration=trade_duration,
+            )
+
+        if trade_duration >= effective_hard_max_duration:
+            return ExitDecision(
+                exit_decision="EXIT_FULL",
+                exit_reason="max_duration_guard",
+                pnl_snapshot=round(current_pnl, 6),
+                trade_duration=trade_duration,
+            )
+
+        if trade_duration >= effective_max_duration and price_move_ratio <= stale_move_ratio:
+            return ExitDecision(
+                exit_decision="EXIT_FULL",
+                exit_reason="stale_trade_timeout",
+                pnl_snapshot=round(current_pnl, 6),
+                trade_duration=trade_duration,
+            )
+
+        if peak_pnl >= favorable_threshold:
+            pullback_from_peak = peak_pnl - current_pnl
+            weakening_threshold = peak_pnl * self._config.momentum_weakening_ratio
+            if pullback_from_peak >= weakening_threshold:
+                return ExitDecision(
+                    exit_decision="EXIT_FULL",
+                    exit_reason="momentum_weakened_after_favorable_move",
+                    pnl_snapshot=round(current_pnl, 6),
+                    trade_duration=trade_duration,
+                )
+            return ExitDecision(
+                exit_decision="HOLD",
+                exit_reason="favorable_momentum_intact",
+                pnl_snapshot=round(current_pnl, 6),
+                trade_duration=trade_duration,
+            )
+
+        return ExitDecision(
+            exit_decision="HOLD",
+            exit_reason="exit_conditions_not_met",
+            pnl_snapshot=round(current_pnl, 6),
+            trade_duration=trade_duration,
+        )
+
     def _select_best_cross_exchange_match(
         self,
         polymarket: CrossExchangeMarket,
@@ -1807,8 +1938,16 @@ class StrategyTrigger:
             await self._engine.update_mark_to_market({self._config.market_id: market_price})
             refreshed = await self._engine.snapshot()
             tracked = next((p for p in refreshed.positions if p.market_id == self._config.market_id), None)
-            if tracked is not None and tracked.pnl > self._config.target_pnl:
+            if tracked is not None:
+                exit_decision = self.evaluate_exit_decision(
+                    tracked_position=tracked,
+                    market_context=market_context,
+                    aggregation_decision=aggregation_decision,
+                )
+                if exit_decision.exit_decision == "HOLD":
+                    return "HOLD"
                 await self._engine.close_position(tracked, market_price)
+                self._position_peak_pnl.pop(str(getattr(tracked, "position_id", "")), None)
                 self._trace_engine.record_trace(
                     position_id=tracked.position_id,
                     market_id=self._config.market_id,
