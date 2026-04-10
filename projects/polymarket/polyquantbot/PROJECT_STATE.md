@@ -1,17 +1,16 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-📅 Last Updated : 2026-04-10 04:12
-🔄 Status       : P18 final execution consistency remediation completed with dynamic drift threshold restoration on VWAP execution basis.
+📅 Last Updated : 2026-04-10 06:10
+🔄 Status       : Public account wallet foundation v1 (MAJOR/FOUNDATION) implemented with durable account/runtime schema, fail-closed account envelope resolver, and trade-intent persistence boundary integration.
 
 ✅ COMPLETED
-- P18 final remediation completed in active root `/workspace/walker-ai-team/projects/polymarket/polyquantbot`:
-  - Restored dynamic drift threshold computation and runtime enforcement in `ExecutionEngine.open_position(...)`.
-  - Preserved VWAP execution-price consistency across drift validation, EV validation, entry/current pricing, and implied probability.
-  - Kept requested/submitted price as trace/debug only; no reintroduction of requested-price drift authority.
-  - Preserved fail-closed behavior for invalid/stale market data, liquidity insufficiency, EV-negative rejection, and no-mutation-on-reject paths.
-  - Added focused tests for dynamic threshold restoration, VWAP consistency continuity, and combined VWAP+dynamic-threshold decision behavior.
+- Public account wallet foundation v1 completed in active root `/workspace/walker-ai-team/projects/polymarket/polyquantbot`:
+  - Added durable persistence schema for `users`, `trading_accounts`, `api_credentials`, `risk_profiles`, and `trade_intents`.
+  - Added fail-closed `AccountRuntimeResolver` + `TradeIntentWriter` foundation services.
+  - Integrated StrategyTrigger with optional account envelope resolution and trade-intent persistence while preserving existing execution-proof submission path.
+  - Added focused tests for account resolution, mode gating, trade-intent persistence, and fail-closed missing-live-auth behavior.
 - FORGE report added:
-  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_49_p18_final_dynamic_drift_restore.md`
+  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_50_public_account_wallet_foundation_v1.md`
 
 🔧 IN PROGRESS
 - None.
@@ -20,7 +19,7 @@
 - None.
 
 🎯 NEXT PRIORITY
-- Auto PR review + COMMANDER review required before merge. Source: reports/forge/24_49_p18_final_dynamic_drift_restore.md. Tier: STANDARD
+- SENTINEL validation required before merge. Source: reports/forge/24_50_public_account_wallet_foundation_v1.md. Tier: MAJOR
 
 ⚠️ KNOWN ISSUES
-- Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking for this remediation task).
+- Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking for this foundation task).

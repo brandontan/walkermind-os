@@ -175,6 +175,79 @@ CREATE TABLE IF NOT EXISTS trade_ledger (
 );
 """
 
+_DDL_USERS = """
+CREATE TABLE IF NOT EXISTS users (
+    user_id          TEXT        PRIMARY KEY,
+    external_ref     TEXT        NOT NULL DEFAULT '',
+    display_name     TEXT        NOT NULL DEFAULT '',
+    created_at       DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    updated_at       DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
+_DDL_RISK_PROFILES = """
+CREATE TABLE IF NOT EXISTS risk_profiles (
+    risk_profile_id      TEXT        PRIMARY KEY,
+    max_position_ratio   DOUBLE PRECISION NOT NULL DEFAULT 0.10,
+    max_concurrent_trades INTEGER    NOT NULL DEFAULT 5,
+    daily_loss_limit_usd DOUBLE PRECISION NOT NULL DEFAULT -2000.0,
+    max_drawdown_ratio   DOUBLE PRECISION NOT NULL DEFAULT 0.08,
+    config               JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    created_at           DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    updated_at           DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
+_DDL_TRADING_ACCOUNTS = """
+CREATE TABLE IF NOT EXISTS trading_accounts (
+    trading_account_id    TEXT        PRIMARY KEY,
+    user_id               TEXT        NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    mode                  TEXT        NOT NULL DEFAULT 'paper',
+    wallet_type           TEXT        NOT NULL DEFAULT '',
+    wallet_address        TEXT        NOT NULL DEFAULT '',
+    proxy_wallet_address  TEXT        NOT NULL DEFAULT '',
+    funder_address        TEXT        NOT NULL DEFAULT '',
+    credential_reference  TEXT        NOT NULL DEFAULT '',
+    risk_profile_id       TEXT        NOT NULL REFERENCES risk_profiles(risk_profile_id),
+    is_active             BOOLEAN     NOT NULL DEFAULT TRUE,
+    created_at            DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    updated_at            DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
+_DDL_API_CREDENTIALS = """
+CREATE TABLE IF NOT EXISTS api_credentials (
+    credential_id         TEXT        PRIMARY KEY,
+    user_id               TEXT        NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    credential_reference  TEXT        NOT NULL UNIQUE,
+    provider              TEXT        NOT NULL DEFAULT 'polymarket',
+    auth_type             TEXT        NOT NULL DEFAULT 'placeholder',
+    secret_ref            TEXT        NOT NULL DEFAULT '',
+    is_active             BOOLEAN     NOT NULL DEFAULT TRUE,
+    metadata              JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    created_at            DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    updated_at            DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
+_DDL_TRADE_INTENTS = """
+CREATE TABLE IF NOT EXISTS trade_intents (
+    trade_intent_id       TEXT        PRIMARY KEY,
+    user_id               TEXT        NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    trading_account_id    TEXT        NOT NULL REFERENCES trading_accounts(trading_account_id) ON DELETE CASCADE,
+    mode                  TEXT        NOT NULL,
+    market_id             TEXT        NOT NULL,
+    side                  TEXT        NOT NULL,
+    size                  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    expected_price        DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    expected_value        DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    strategy_source       TEXT        NOT NULL DEFAULT '',
+    status                TEXT        NOT NULL DEFAULT 'recorded',
+    metadata              JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    created_at            DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+"""
+
 
 # ── DatabaseClient ─────────────────────────────────────────────────────────────
 
@@ -322,6 +395,11 @@ class DatabaseClient:
             await conn.execute(_DDL_WALLET_STATE)
             await conn.execute(_DDL_PAPER_POSITIONS)
             await conn.execute(_DDL_TRADE_LEDGER)
+            await conn.execute(_DDL_USERS)
+            await conn.execute(_DDL_RISK_PROFILES)
+            await conn.execute(_DDL_TRADING_ACCOUNTS)
+            await conn.execute(_DDL_API_CREDENTIALS)
+            await conn.execute(_DDL_TRADE_INTENTS)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────
@@ -429,6 +507,229 @@ class DatabaseClient:
             )
         sql = "UPDATE trades SET status = $2 WHERE trade_id = $1"
         return await self._execute(sql, trade_id, status, op_label="update_trade_status")
+
+    async def upsert_user(self, *, user_id: str, external_ref: str, display_name: str) -> bool:
+        sql = """
+            INSERT INTO users (user_id, external_ref, display_name, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (user_id) DO UPDATE
+            SET external_ref = EXCLUDED.external_ref,
+                display_name = EXCLUDED.display_name,
+                updated_at = EXCLUDED.updated_at
+        """
+        now = time.time()
+        return await self._execute(
+            sql,
+            user_id,
+            external_ref,
+            display_name,
+            now,
+            now,
+            op_label="upsert_user_identity",
+        )
+
+    async def upsert_risk_profile(
+        self,
+        *,
+        risk_profile_id: str,
+        config: dict[str, Any],
+        max_position_ratio: float = 0.10,
+        max_concurrent_trades: int = 5,
+        daily_loss_limit_usd: float = -2000.0,
+        max_drawdown_ratio: float = 0.08,
+    ) -> bool:
+        sql = """
+            INSERT INTO risk_profiles (
+                risk_profile_id, max_position_ratio, max_concurrent_trades,
+                daily_loss_limit_usd, max_drawdown_ratio, config, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (risk_profile_id) DO UPDATE
+            SET max_position_ratio = EXCLUDED.max_position_ratio,
+                max_concurrent_trades = EXCLUDED.max_concurrent_trades,
+                daily_loss_limit_usd = EXCLUDED.daily_loss_limit_usd,
+                max_drawdown_ratio = EXCLUDED.max_drawdown_ratio,
+                config = EXCLUDED.config,
+                updated_at = EXCLUDED.updated_at
+        """
+        now = time.time()
+        return await self._execute(
+            sql,
+            risk_profile_id,
+            max_position_ratio,
+            max_concurrent_trades,
+            daily_loss_limit_usd,
+            max_drawdown_ratio,
+            json.dumps(config or {}),
+            now,
+            now,
+            op_label="upsert_risk_profile",
+        )
+
+    async def upsert_trading_account(
+        self,
+        *,
+        trading_account_id: str,
+        user_id: str,
+        mode: str,
+        risk_profile_id: str,
+        wallet_type: str = "",
+        wallet_address: str = "",
+        proxy_wallet_address: str = "",
+        funder_address: str = "",
+        credential_reference: str = "",
+        is_active: bool = True,
+    ) -> bool:
+        sql = """
+            INSERT INTO trading_accounts (
+                trading_account_id, user_id, mode, wallet_type, wallet_address,
+                proxy_wallet_address, funder_address, credential_reference, risk_profile_id,
+                is_active, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ON CONFLICT (trading_account_id) DO UPDATE
+            SET user_id = EXCLUDED.user_id,
+                mode = EXCLUDED.mode,
+                wallet_type = EXCLUDED.wallet_type,
+                wallet_address = EXCLUDED.wallet_address,
+                proxy_wallet_address = EXCLUDED.proxy_wallet_address,
+                funder_address = EXCLUDED.funder_address,
+                credential_reference = EXCLUDED.credential_reference,
+                risk_profile_id = EXCLUDED.risk_profile_id,
+                is_active = EXCLUDED.is_active,
+                updated_at = EXCLUDED.updated_at
+        """
+        now = time.time()
+        return await self._execute(
+            sql,
+            trading_account_id,
+            user_id,
+            mode,
+            wallet_type,
+            wallet_address,
+            proxy_wallet_address,
+            funder_address,
+            credential_reference,
+            risk_profile_id,
+            is_active,
+            now,
+            now,
+            op_label="upsert_trading_account",
+        )
+
+    async def upsert_api_credential(
+        self,
+        *,
+        credential_id: str,
+        user_id: str,
+        credential_reference: str,
+        provider: str = "polymarket",
+        auth_type: str = "placeholder",
+        secret_ref: str = "",
+        metadata: dict[str, Any] | None = None,
+        is_active: bool = True,
+    ) -> bool:
+        sql = """
+            INSERT INTO api_credentials (
+                credential_id, user_id, credential_reference, provider, auth_type,
+                secret_ref, is_active, metadata, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (credential_id) DO UPDATE
+            SET user_id = EXCLUDED.user_id,
+                credential_reference = EXCLUDED.credential_reference,
+                provider = EXCLUDED.provider,
+                auth_type = EXCLUDED.auth_type,
+                secret_ref = EXCLUDED.secret_ref,
+                is_active = EXCLUDED.is_active,
+                metadata = EXCLUDED.metadata,
+                updated_at = EXCLUDED.updated_at
+        """
+        now = time.time()
+        return await self._execute(
+            sql,
+            credential_id,
+            user_id,
+            credential_reference,
+            provider,
+            auth_type,
+            secret_ref,
+            is_active,
+            json.dumps(metadata or {}),
+            now,
+            now,
+            op_label="upsert_api_credential",
+        )
+
+    async def resolve_account_runtime_row(
+        self,
+        *,
+        user_id: str,
+        trading_account_id: str | None,
+    ) -> dict[str, Any] | None:
+        if trading_account_id:
+            sql = """
+                SELECT
+                    u.user_id AS user_id,
+                    ta.trading_account_id AS trading_account_id,
+                    ta.mode AS mode,
+                    ta.wallet_type AS wallet_type,
+                    ta.wallet_address AS wallet_address,
+                    ta.proxy_wallet_address AS proxy_wallet_address,
+                    ta.funder_address AS funder_address,
+                    ta.credential_reference AS credential_reference,
+                    rp.config AS risk_profile
+                FROM trading_accounts ta
+                JOIN users u ON u.user_id = ta.user_id
+                JOIN risk_profiles rp ON rp.risk_profile_id = ta.risk_profile_id
+                WHERE ta.user_id = $1 AND ta.trading_account_id = $2 AND ta.is_active = TRUE
+                LIMIT 1
+            """
+            rows = await self._fetch(sql, user_id, trading_account_id, op_label="resolve_account_runtime_row")
+        else:
+            sql = """
+                SELECT
+                    u.user_id AS user_id,
+                    ta.trading_account_id AS trading_account_id,
+                    ta.mode AS mode,
+                    ta.wallet_type AS wallet_type,
+                    ta.wallet_address AS wallet_address,
+                    ta.proxy_wallet_address AS proxy_wallet_address,
+                    ta.funder_address AS funder_address,
+                    ta.credential_reference AS credential_reference,
+                    rp.config AS risk_profile
+                FROM trading_accounts ta
+                JOIN users u ON u.user_id = ta.user_id
+                JOIN risk_profiles rp ON rp.risk_profile_id = ta.risk_profile_id
+                WHERE ta.user_id = $1 AND ta.is_active = TRUE
+                ORDER BY ta.updated_at DESC
+                LIMIT 1
+            """
+            rows = await self._fetch(sql, user_id, op_label="resolve_account_runtime_row")
+        return rows[0] if rows else None
+
+    async def insert_trade_intent(self, payload: dict[str, Any]) -> bool:
+        sql = """
+            INSERT INTO trade_intents (
+                trade_intent_id, user_id, trading_account_id, mode, market_id, side,
+                size, expected_price, expected_value, strategy_source, status, metadata, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ON CONFLICT (trade_intent_id) DO NOTHING
+        """
+        return await self._execute(
+            sql,
+            str(payload.get("trade_intent_id", "")),
+            str(payload.get("user_id", "")),
+            str(payload.get("trading_account_id", "")),
+            str(payload.get("mode", "paper")),
+            str(payload.get("market_id", "")),
+            str(payload.get("side", "")),
+            float(payload.get("size", 0.0)),
+            float(payload.get("expected_price", 0.0)),
+            float(payload.get("expected_value", 0.0)),
+            str(payload.get("strategy_source", "")),
+            str(payload.get("status", "recorded")),
+            json.dumps(payload.get("metadata", {})),
+            float(payload.get("created_at", time.time())),
+            op_label="insert_trade_intent",
+        )
 
     # ── Positions ─────────────────────────────────────────────────────────────
 

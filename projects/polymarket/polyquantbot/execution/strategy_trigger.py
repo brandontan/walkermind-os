@@ -10,6 +10,7 @@ from typing import Any
 from .engine import ExecutionEngine
 from .intelligence import ExecutionIntelligence, MarketSnapshot
 from .trade_trace import TradeTraceEngine
+from ..infra.account_runtime import AccountRuntimeResolver, AccountRuntimeResolutionError, TradeIntentWriter
 from ..strategy.falcon_alpha_strategy import FalconSignal
 from ..core.analytics.trade_validator import TradeValidator
 from ..core.execution.execution_tracker import ExecutionTracker
@@ -290,7 +291,16 @@ class StrategyTrigger:
     IF pnl > target -> close position
     """
 
-    def __init__(self, engine: ExecutionEngine, config: StrategyConfig) -> None:
+    def __init__(
+        self,
+        engine: ExecutionEngine,
+        config: StrategyConfig,
+        *,
+        account_runtime_resolver: AccountRuntimeResolver | None = None,
+        trade_intent_writer: TradeIntentWriter | None = None,
+        account_user_id: str | None = None,
+        trading_account_id: str | None = None,
+    ) -> None:
         self._engine = engine
         self._config = config
         self._intelligence = ExecutionIntelligence()
@@ -343,6 +353,10 @@ class StrategyTrigger:
             "fallback_to_neutral": True,
         }
         self._last_dynamic_strategy_weights: dict[str, float] = self._default_dynamic_strategy_weights()
+        self._account_runtime_resolver = account_runtime_resolver
+        self._trade_intent_writer = trade_intent_writer
+        self._account_user_id = account_user_id
+        self._trading_account_id = trading_account_id
 
     @staticmethod
     def _clamp(value: float, lower: float, upper: float) -> float:
@@ -2303,6 +2317,64 @@ class StrategyTrigger:
             if market_type not in {"fast", "normal"}:
                 market_type = "fast" if float((market_context or {}).get("spread", 0.0)) >= 0.03 else "normal"
             volatility_proxy = (market_context or {}).get("volatility")
+
+            resolved_user_id = ""
+            resolved_account_id = ""
+            resolved_mode = "paper"
+            if self._account_runtime_resolver is not None:
+                if not self._account_user_id:
+                    self._record_blocked_terminal_trace(
+                        trade_id=trade_id,
+                        signal_data=signal_data,
+                        decision_data=decision_data,
+                        validation_result={"decision": "NOT_EVALUATED", "reason": "account_user_missing", "checks": {}},
+                        terminal_stage="account_runtime_resolver_block",
+                        reason="account_user_missing",
+                        terminal_outcome="BLOCKED",
+                    )
+                    return "BLOCKED"
+                try:
+                    account_envelope = await self._account_runtime_resolver.resolve_active_envelope(
+                        user_id=self._account_user_id,
+                        trading_account_id=self._trading_account_id,
+                    )
+                except AccountRuntimeResolutionError as exc:
+                    self._record_blocked_terminal_trace(
+                        trade_id=trade_id,
+                        signal_data=signal_data,
+                        decision_data=decision_data,
+                        validation_result={"decision": "NOT_EVALUATED", "reason": "account_runtime_resolution_failed", "checks": {}},
+                        terminal_stage="account_runtime_resolver_block",
+                        reason=str(exc),
+                        terminal_outcome="BLOCKED",
+                    )
+                    return "BLOCKED"
+                resolved_user_id = account_envelope.user_id
+                resolved_account_id = account_envelope.trading_account_id
+                resolved_mode = account_envelope.mode
+
+            if self._trade_intent_writer is not None:
+                await self._trade_intent_writer.write(
+                    payload={
+                        "trade_intent_id": trade_id,
+                        "user_id": resolved_user_id,
+                        "trading_account_id": resolved_account_id,
+                        "mode": resolved_mode,
+                        "market_id": target_market_id,
+                        "side": self._config.side,
+                        "size": size,
+                        "expected_price": readiness.expected_fill_price,
+                        "expected_value": signal_data["expected_value"],
+                        "strategy_source": decision_data["strategy_source"],
+                        "status": "recorded",
+                        "metadata": {
+                            "entry_quality": readiness.execution_quality_reason,
+                            "entry_timing": readiness.timing_reason,
+                            "risk_state": self._risk_engine.as_dict(),
+                        },
+                    }
+                )
+
             validation_proof = self._engine.build_validation_proof(
                 condition_id=target_market_id,
                 side=self._config.side,
