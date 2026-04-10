@@ -21,7 +21,12 @@ from .proof_lifecycle import (
     ValidationProofRegistry,
     new_validation_proof,
 )
-from .drift_guard import evaluate_execution_price_drift, validate_execution_market_data
+from .drift_guard import (
+    compute_dynamic_drift_threshold,
+    estimate_execution_price_from_orderbook,
+    evaluate_execution_price_drift,
+    validate_execution_market_data,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -150,10 +155,59 @@ class ExecutionEngine:
                 )
                 return None
 
+            orderbook_payload = execution_market_data.get("orderbook") if isinstance(execution_market_data, dict) else None
+            execution_price_estimation = estimate_execution_price_from_orderbook(
+                orderbook=orderbook_payload if isinstance(orderbook_payload, dict) else {},
+                side=side,
+                requested_size=float(size),
+            )
+            if not execution_price_estimation.allowed or execution_price_estimation.estimated_execution_price is None:
+                self._record_open_rejection(
+                    reason=str(execution_price_estimation.reason or "liquidity_insufficient"),
+                    market=market,
+                    position_id=position_id,
+                    **execution_price_estimation.details,
+                )
+                return None
+            estimated_execution_price = float(execution_price_estimation.estimated_execution_price)
+
+            volatility_raw = execution_market_data.get("volatility") if isinstance(execution_market_data, dict) else None
+            volatility_input: float | None
+            if volatility_raw is None:
+                volatility_input = None
+            else:
+                try:
+                    volatility_input = float(volatility_raw)
+                except (TypeError, ValueError):
+                    self._record_open_rejection(
+                        reason="invalid_market_data",
+                        market=market,
+                        position_id=position_id,
+                        field="volatility",
+                        issue="invalid_or_non_numeric",
+                        value=volatility_raw,
+                    )
+                    return None
+
+            dynamic_drift_threshold = compute_dynamic_drift_threshold(
+                orderbook=orderbook_payload if isinstance(orderbook_payload, dict) else {},
+                side=side,
+                base_max_drift_ratio=self._max_execution_price_drift_ratio,
+                volatility=volatility_input,
+            )
+            if not dynamic_drift_threshold.allowed or dynamic_drift_threshold.max_drift_ratio is None:
+                self._record_open_rejection(
+                    reason=str(dynamic_drift_threshold.reason or "invalid_market_data"),
+                    market=market,
+                    position_id=position_id,
+                    **dynamic_drift_threshold.details,
+                )
+                return None
+
             drift_result = evaluate_execution_price_drift(
                 expected_price=market_data_validation.reference_price,
-                execution_price=float(price),
-                max_drift_ratio=self._max_execution_price_drift_ratio,
+                execution_price=estimated_execution_price,
+                max_drift_ratio=float(dynamic_drift_threshold.max_drift_ratio),
             )
             if not drift_result.allowed:
                 self._record_open_rejection(
@@ -161,7 +215,8 @@ class ExecutionEngine:
                     market=market,
                     position_id=position_id,
                     reference_price=market_data_validation.reference_price,
-                    execution_price=float(price),
+                    execution_price=estimated_execution_price,
+                    requested_price=float(price),
                     drift_ratio=drift_result.drift_ratio,
                     max_drift_ratio=drift_result.max_drift_ratio,
                 )
@@ -169,9 +224,9 @@ class ExecutionEngine:
 
             normalized_side = str(side).strip().upper()
             if normalized_side in {"YES", "BUY", "LONG"}:
-                expected_value = float(market_data_validation.model_probability) - float(market_data_validation.reference_price)
+                expected_value = float(market_data_validation.model_probability) - estimated_execution_price
             elif normalized_side in {"NO", "SELL", "SHORT"}:
-                expected_value = (1.0 - float(market_data_validation.model_probability)) - float(market_data_validation.reference_price)
+                expected_value = (1.0 - float(market_data_validation.model_probability)) - estimated_execution_price
             else:
                 self._record_open_rejection(
                     reason="invalid_market_data",
@@ -189,6 +244,7 @@ class ExecutionEngine:
                     position_id=position_id,
                     expected_value=expected_value,
                     reference_price=market_data_validation.reference_price,
+                    estimated_execution_price=estimated_execution_price,
                     model_probability=market_data_validation.model_probability,
                 )
                 return None
@@ -268,8 +324,8 @@ class ExecutionEngine:
                 market_id=market,
                 market_title=market_title,
                 side=side.upper(),
-                entry_price=float(price),
-                current_price=float(price),
+                entry_price=estimated_execution_price,
+                current_price=estimated_execution_price,
                 size=size,
                 pnl=0.0,
                 position_id=position_id
@@ -277,10 +333,17 @@ class ExecutionEngine:
             self._positions[market] = position
             self._position_context[position.position_id] = dict(position_context or {})
             self._cash -= size
-            self._implied_prob = max(0.01, min(0.99, float(price)))
+            self._implied_prob = max(0.01, min(0.99, estimated_execution_price))
             self._recalculate_unrealized()
             self._refresh_equity()
-            log.info("execution_engine_position_opened", market=market, side=side, price=price, size=size)
+            log.info(
+                "execution_engine_position_opened",
+                market=market,
+                side=side,
+                requested_price=float(price),
+                execution_price=estimated_execution_price,
+                size=size,
+            )
             return position
 
     def get_last_open_rejection(self) -> dict[str, Any] | None:
