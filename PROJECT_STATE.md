@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 23:28
-- Status        : FORGE-X completed MAJOR-tier execution proof lifecycle (dynamic TTL + replay-safe single-use + persistent DB registry + fail-closed execution-boundary verification) in StrategyTrigger→ExecutionEngine path.
+- Last Updated  : 2026-04-10 10:40
+- Status        : FORGE-X completed MAJOR-tier strategy-trigger persistence gate + account-envelope alignment remediation (PR #373/#374 scope) with discoverable P25 runtime-proof tests in the StrategyTrigger path.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- P25 strategy-trigger gating alignment remediation (2026-04-10): restored `_persist_trade_intent(...)` fail-closed gate, added runtime `AccountEnvelope` usage with missing binding block reason `risk_profile_binding_missing`, and added discoverable test coverage in `projects/polymarket/polyquantbot/tests/test_p25_account_envelope_risk_binding_20260410.py`; report `projects/polymarket/polyquantbot/reports/forge/25_3_strategy_trigger_gating_alignment.md`.
 - P17 execution proof lifecycle (2026-04-09): implemented immutable validation proofs with dynamic TTL policy, DB-backed proof registry (`validation_proofs`), authoritative execution-boundary proof verification (existence/status/TTL/context/atomic consume), StrategyTrigger integration, and focused replay/expiry/context/restart/race/no-bypass tests; report `projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md`.
 - P16 execution-boundary position-sizing enforcement (2026-04-10): enforced authoritative boundary sizing checks in `ExecutionEngine.open_position(...)` for non-positive/per-trade-cap/capital-risk-allowed size violations before mutation, preserved signed validation-proof enforcement, propagated structured rejection reason into StrategyTrigger blocked terminal trace, and added focused tests; report `projects/polymarket/polyquantbot/reports/forge/24_39_execution_position_sizing_boundary_enforcement.md`.
 - P16 execution-boundary validation-proof enforcement (2026-04-09): replaced trust-only execution entry assumption with signed `ExecutionValidationProof` contract at engine boundary, wired StrategyTrigger ALLOW path to pass proof payload, and added focused no-proof/fake-proof/pass-proof runtime tests; report `projects/polymarket/polyquantbot/reports/forge/24_38_execution_validation_proof_boundary_enforcement.md`.
@@ -276,7 +277,7 @@ Status:
 ## 🎯 NEXT PRIORITY
 
 SENTINEL validation required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md
+Source: projects/polymarket/polyquantbot/reports/forge/25_3_strategy_trigger_gating_alignment.md
 Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES

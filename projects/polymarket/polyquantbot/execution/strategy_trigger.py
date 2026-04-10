@@ -259,6 +259,13 @@ class StrategyPerformanceStats:
 
 
 @dataclass(frozen=True)
+class AccountEnvelope:
+    account_id: str
+    risk_profile_present: bool
+    risk_profile_binding: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
 class AdaptiveAdjustmentState:
     strategy_weights: dict[str, float]
     sizing_modifier: float
@@ -290,7 +297,12 @@ class StrategyTrigger:
     IF pnl > target -> close position
     """
 
-    def __init__(self, engine: ExecutionEngine, config: StrategyConfig) -> None:
+    def __init__(
+        self,
+        engine: ExecutionEngine,
+        config: StrategyConfig,
+        trade_intent_writer: Any | None = None,
+    ) -> None:
         self._engine = engine
         self._config = config
         self._intelligence = ExecutionIntelligence()
@@ -318,6 +330,7 @@ class StrategyTrigger:
         self._execution_tracker = ExecutionTracker()
         self._trade_validator = TradeValidator()
         self._risk_engine = RiskEngine(persistence_path=self._config.risk_state_persistence_path)
+        self.trade_intent_writer = trade_intent_writer or self._default_trade_intent_writer
         self._risk_restore_ready = False
         self._risk_restore_reason = "uninitialized"
         restored, restore_reason = self._risk_engine.restore_state()
@@ -343,6 +356,48 @@ class StrategyTrigger:
             "fallback_to_neutral": True,
         }
         self._last_dynamic_strategy_weights: dict[str, float] = self._default_dynamic_strategy_weights()
+
+    @staticmethod
+    def _default_trade_intent_writer(_intent: dict[str, object]) -> bool:
+        return True
+
+    def _build_account_envelope(self, market_context: dict[str, float] | None) -> AccountEnvelope:
+        raw_context = market_context or {}
+        raw_binding = raw_context.get("risk_profile_binding")
+        risk_profile_binding = raw_binding if isinstance(raw_binding, dict) else None
+        return AccountEnvelope(
+            account_id=str(raw_context.get("account_id", "default")),
+            risk_profile_present=raw_binding is not None,
+            risk_profile_binding=risk_profile_binding,
+        )
+
+    def _persist_trade_intent(
+        self,
+        *,
+        trade_id: str,
+        market_id: str,
+        side: str,
+        price: float,
+        size: float,
+        account_envelope: AccountEnvelope,
+    ) -> bool:
+        payload: dict[str, object] = {
+            "trade_id": trade_id,
+            "market_id": market_id,
+            "side": side,
+            "price": round(price, 8),
+            "size": round(size, 8),
+            "account_envelope": {
+                "account_id": account_envelope.account_id,
+                "risk_profile_present": account_envelope.risk_profile_present,
+                "risk_profile_binding": account_envelope.risk_profile_binding or {},
+            },
+        }
+        try:
+            return bool(self.trade_intent_writer(payload))
+        except Exception as exc:
+            log.error("trade_intent_persistence_exception", reason=str(exc), trade_id=trade_id)
+            return False
 
     @staticmethod
     def _clamp(value: float, lower: float, upper: float) -> float:
@@ -2298,6 +2353,39 @@ class StrategyTrigger:
                     terminal_outcome="BLOCKED",
                 )
                 log.info("pre_trade_blocked", reason=validation_result.reason, trade_id=trade_id)
+                return "BLOCKED"
+            account_envelope = self._build_account_envelope(market_context)
+            if not account_envelope.risk_profile_present:
+                self._record_blocked_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data | {"account_id": account_envelope.account_id},
+                    validation_result={"decision": "NOT_EVALUATED", "reason": "risk_profile_binding_missing", "checks": {}},
+                    terminal_stage="account_envelope_gate_block",
+                    reason="risk_profile_binding_missing",
+                    terminal_outcome="BLOCKED",
+                )
+                log.info("account_envelope_blocked", reason="risk_profile_binding_missing", trade_id=trade_id)
+                return "BLOCKED"
+            persisted = self._persist_trade_intent(
+                trade_id=trade_id,
+                market_id=target_market_id,
+                side=self._config.side,
+                price=readiness.expected_fill_price,
+                size=size,
+                account_envelope=account_envelope,
+            )
+            if not persisted:
+                self._record_blocked_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data | {"account_id": account_envelope.account_id},
+                    validation_result={"decision": "NOT_EVALUATED", "reason": "trade_intent_persistence_failed", "checks": {}},
+                    terminal_stage="trade_intent_persistence_gate_block",
+                    reason="trade_intent_persistence_failed",
+                    terminal_outcome="BLOCKED",
+                )
+                log.info("trade_intent_persistence_blocked", reason="trade_intent_persistence_failed", trade_id=trade_id)
                 return "BLOCKED"
             market_type = str((market_context or {}).get("market_type", "normal")).strip().lower()
             if market_type not in {"fast", "normal"}:
