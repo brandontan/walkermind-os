@@ -1,26 +1,24 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-📅 Last Updated : 2026-04-10 04:12
-🔄 Status       : P18 final execution consistency remediation completed with dynamic drift threshold restoration on VWAP execution basis.
+📅 Last Updated : 2026-04-10 05:53
+🔄 Status       : MAJOR narrow-integration runtime account envelope risk-binding fix implemented in StrategyTrigger with structural binding presence enforcement.
 
 ✅ COMPLETED
-- P18 final remediation completed in active root `/workspace/walker-ai-team/projects/polymarket/polyquantbot`:
-  - Restored dynamic drift threshold computation and runtime enforcement in `ExecutionEngine.open_position(...)`.
-  - Preserved VWAP execution-price consistency across drift validation, EV validation, entry/current pricing, and implied probability.
-  - Kept requested/submitted price as trace/debug only; no reintroduction of requested-price drift authority.
-  - Preserved fail-closed behavior for invalid/stale market data, liquidity insufficiency, EV-negative rejection, and no-mutation-on-reject paths.
-  - Added focused tests for dynamic threshold restoration, VWAP consistency continuity, and combined VWAP+dynamic-threshold decision behavior.
-- FORGE report added:
-  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_49_p18_final_dynamic_drift_restore.md`
+- Implemented minimal runtime `AccountEnvelope` binding surface in `/workspace/walker-ai-team/projects/polymarket/polyquantbot/execution/strategy_trigger.py`.
+- Added structural binding resolution (`risk profile row exists => bound`) independent from JSON config content.
+- Enforced fail-closed StrategyTrigger block reason `risk_profile_binding_missing` when binding is absent.
+- Added focused MAJOR tests for bound empty config pass, bound populated config pass, missing-binding fail-close, and persistence-gate regression continuity.
+- Added FORGE report: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/25_3_account_envelope_risk_binding_minimal.md`.
 
 🔧 IN PROGRESS
-- None.
+- Awaiting SENTINEL MAJOR validation for persistence gate continuity, risk binding correctness, and execution boundary preservation.
 
 📋 NOT STARTED
 - None.
 
 🎯 NEXT PRIORITY
-- Auto PR review + COMMANDER review required before merge. Source: reports/forge/24_49_p18_final_dynamic_drift_restore.md. Tier: STANDARD
+- SENTINEL validation required before merge. Source: reports/forge/25_3_account_envelope_risk_binding_minimal.md. Tier: MAJOR
 
 ⚠️ KNOWN ISSUES
-- Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking for this remediation task).
+- Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking for this task).
+- Account envelope integration is intentionally narrow to StrategyTrigger runtime path only; broader account-system orchestration remains out of scope.

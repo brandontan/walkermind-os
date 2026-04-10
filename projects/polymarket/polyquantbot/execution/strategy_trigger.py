@@ -283,6 +283,34 @@ class MarketRegimeClassification:
     strategy_weight_modifiers: dict[str, float]
 
 
+@dataclass(frozen=True)
+class AccountEnvelope:
+    account_id: str
+    risk_profile_present: bool
+    risk_profile_config: dict[str, Any]
+
+    @classmethod
+    def from_risk_profile_row(
+        cls,
+        *,
+        account_id: str,
+        risk_profile_row: dict[str, Any] | None,
+    ) -> "AccountEnvelope":
+        if risk_profile_row is None:
+            return cls(
+                account_id=account_id,
+                risk_profile_present=False,
+                risk_profile_config={},
+            )
+        config_payload = risk_profile_row.get("config")
+        config = config_payload if isinstance(config_payload, dict) else {}
+        return cls(
+            account_id=account_id,
+            risk_profile_present=True,
+            risk_profile_config=config,
+        )
+
+
 class StrategyTrigger:
     """Strategy trigger with execution intelligence.
     
@@ -2078,6 +2106,7 @@ class StrategyTrigger:
         market_price: float,
         aggregation_decision: StrategyAggregationDecision | None = None,
         market_context: dict[str, float] | None = None,
+        account_envelope: AccountEnvelope | None = None,
     ) -> str:
         if not self._risk_restore_ready:
             log.warning("risk_state_not_restored_fail_closed", reason=self._risk_restore_reason)
@@ -2116,6 +2145,41 @@ class StrategyTrigger:
         if open_pos is None and market_price < self._config.threshold and entry_score >= 0.5:
             current_total_exposure = sum(position.exposure() for position in snapshot.positions)
             trade_id = str(uuid.uuid4())
+            resolved_account_envelope = account_envelope
+            if resolved_account_envelope is None:
+                context_account_id = str((market_context or {}).get("account_id", "default"))
+                context_risk_profile_row_raw = (market_context or {}).get("risk_profile_row")
+                context_risk_profile_row = (
+                    context_risk_profile_row_raw
+                    if isinstance(context_risk_profile_row_raw, dict)
+                    else None
+                )
+                resolved_account_envelope = AccountEnvelope.from_risk_profile_row(
+                    account_id=context_account_id,
+                    risk_profile_row=context_risk_profile_row,
+                )
+            if not resolved_account_envelope.risk_profile_present:
+                self._record_blocked_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data={
+                        "expected_value": float((market_context or {}).get("expected_value", 0.0)),
+                        "edge": 0.0,
+                        "liquidity_usd": float((market_context or {}).get("liquidity_usd", 0.0)),
+                        "spread": float((market_context or {}).get("spread", 0.0)),
+                    },
+                    decision_data={
+                        "account_id": resolved_account_envelope.account_id,
+                    },
+                    validation_result={
+                        "decision": "NOT_EVALUATED",
+                        "reason": "risk_profile_binding_missing",
+                        "checks": {},
+                    },
+                    terminal_stage="risk_profile_binding_block",
+                    reason="risk_profile_binding_missing",
+                    terminal_outcome="BLOCKED",
+                )
+                return "BLOCKED"
             selected_candidate = None
             if aggregation_decision is not None and aggregation_decision.selected_trade:
                 selected_candidate = next(
