@@ -367,7 +367,7 @@ class StrategyTrigger:
         """Return last resolved read-only platform context for diagnostics."""
         return self._last_platform_context
 
-    def _build_platform_seed(self, market_context: dict[str, float] | None) -> LegacySessionSeed:
+    def _build_platform_seed(self, market_context: dict[str, Any] | None) -> LegacySessionSeed:
         context = market_context or {}
         user_id = str(context.get("legacy_user_id", context.get("user_id", "legacy-default")))
         session_id = str(context.get("legacy_session_id", "legacy-session"))
