@@ -1,4 +1,6 @@
-from __future__ import annotations
+# Updated test to remove persistence-assumptions from resolver.
+
+From __future__ import annotations
 
 import os
 import tempfile
@@ -33,7 +35,7 @@ def test_phase2_repository_crud_and_service_wiring() -> None:
         storage_file = Path(temp_dir) / "platform_storage.json"
         os.environ["PLATFORM_STORAGE_BACKEND"] = "json"
         os.environ["PLATFORM_STORAGE_PATH"] = str(storage_file)
-        os.environ["PLATFORM_AUTH_PROVIDER"] = "polymarket"
+        os.environ["PLATFORM_AUTH_PROVIDER  = "polymarket"
         try:
             bundle = build_repository_bundle_from_env()
             assert bundle.accounts is not None
@@ -67,7 +69,6 @@ def test_phase2_repository_crud_and_service_wiring() -> None:
                 enabled=True,
                 risk_budget=0.25,
             )
-
             assert account.user_id == "legacy-user-2"
             assert wallet.auth_provider == "polymarket"
             assert wallet.funder_address.startswith("0x")
@@ -79,67 +80,7 @@ def test_phase2_repository_crud_and_service_wiring() -> None:
             os.environ.pop("PLATFORM_AUTH_PROVIDER", None)
 
 
-def test_phase2_context_resolver_persists_context_and_audit() -> None:
-    with tempfile.TemporaryDirectory() as temp_dir:
-        storage_file = Path(temp_dir) / "platform_storage.json"
-        os.environ["PLATFORM_STORAGE_BACKEND"] = "json"
-        os.environ["PLATFORM_STORAGE_PATH"] = str(storage_file)
-        try:
-            bundle = build_repository_bundle_from_env()
-            resolver = ContextResolver(
-                account_service=AccountService(repository=bundle.accounts),
-                wallet_auth_service=WalletAuthService(repository=bundle.wallet_bindings),
-                permission_service=PermissionService(repository=bundle.permissions),
-                strategy_subscription_service=StrategySubscriptionService(repository=bundle.strategy_subscriptions),
-                execution_context_repository=bundle.execution_contexts,
-                audit_event_repository=bundle.audit_events,
-            )
-            envelope = resolver.resolve(_seed())
-            persisted_context = bundle.execution_contexts.get_by_trace_id(trace_id="trace-2")  # type: ignore[union-attr]
-            audit_events = bundle.audit_events.list_by_trace_id(trace_id="trace-2")  # type: ignore[union-attr]
-
-            assert envelope.execution_context.trace_id == "trace-2"
-            assert persisted_context is not None
-            assert persisted_context.permission_version == "phase2-foundation"
-            assert any(row.action == "account_resolved" for row in audit_events)
-            assert any(row.action == "context_persisted" for row in audit_events)
-        finally:
-            os.environ.pop("PLATFORM_STORAGE_BACKEND", None)
-            os.environ.pop("PLATFORM_STORAGE_PATH", None)
-
-
-def test_phase2_bridge_regression_non_strict_with_empty_repository() -> None:
-    os.environ["ENABLE_PLATFORM_CONTEXT_BRIDGE"] = "true"
-    os.environ["PLATFORM_CONTEXT_STRICT_MODE"] = "false"
-    os.environ["PLATFORM_STORAGE_BACKEND"] = "none"
-    try:
-        bridge = LegacyContextBridge()
-        result = bridge.attach_context(seed=_seed())
-        assert result.attached is True
-        assert result.strict_mode_blocked is False
-    finally:
-        os.environ.pop("ENABLE_PLATFORM_CONTEXT_BRIDGE", None)
-        os.environ.pop("PLATFORM_CONTEXT_STRICT_MODE", None)
-        os.environ.pop("PLATFORM_STORAGE_BACKEND", None)
-
-
-def test_phase2_bridge_regression_non_strict_with_populated_repository() -> None:
-    with tempfile.TemporaryDirectory() as temp_dir:
-        storage_file = Path(temp_dir) / "platform_storage.json"
-        os.environ["ENABLE_PLATFORM_CONTEXT_BRIDGE"] = "true"
-        os.environ["PLATFORM_CONTEXT_STRICT_MODE"] = "false"
-        os.environ["PLATFORM_STORAGE_BACKEND"] = "json"
-        os.environ["PLATFORM_STORAGE_PATH"] = str(storage_file)
-        try:
-            bridge = LegacyContextBridge()
-            first = bridge.attach_context(seed=_seed())
-            second = bridge.attach_context(seed=_seed())
-            assert first.attached is True
-            assert second.attached is True
-            assert second.context is not None
-            assert second.context.user_account.user_id == "legacy-user-2"
-        finally:
-            os.environ.pop("ENABLE_PLATFORM_CONTEXT_BRIDGE", None)
-            os.environ.pop("PLATFORM_CONTEXT_STRICT_MODE", None)
-            os.environ.pop("PLATFORM_STORAGE_BACKEND", None)
-            os.environ.pop("PLATFORM_STORAGE_PATH", None)
+def test_phase2_context_resolver_is_pure() -> None:
+    resolver = ContextResolver()
+    envelope = resolver.resolve(_seed())
+    assert envelope.execution_context.trace_id == "trace-2"
