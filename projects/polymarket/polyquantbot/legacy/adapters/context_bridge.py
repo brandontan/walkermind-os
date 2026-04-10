@@ -41,8 +41,6 @@ class LegacyContextBridge:
             wallet_auth_service=WalletAuthService(repository=bundle.wallet_bindings),
             permission_service=PermissionService(repository=bundle.permissions),
             strategy_subscription_service=StrategySubscriptionService(repository=bundle.strategy_subscriptions),
-            execution_context_repository=bundle.execution_contexts,
-            audit_event_repository=bundle.audit_events,
         )
 
     @staticmethod

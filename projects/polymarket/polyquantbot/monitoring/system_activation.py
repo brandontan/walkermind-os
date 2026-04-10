@@ -9,7 +9,7 @@ Periodic logging (every 10s):
     "events=X signals=Y"
 
 Assertions (every 60s):
-    - If event_count == 0 after 60s → raises RuntimeError
+    - If event_count == 0 after 60s → marks boot health as unhealthy
     - If event_count > 0 and signal_count == 0 after 60s → logs WARNING "NO SIGNAL GENERATED"
 """
 from __future__ import annotations
@@ -49,6 +49,16 @@ class SystemActivationMonitor:
         self._log_task: Optional[asyncio.Task] = None
         self._assert_task: Optional[asyncio.Task] = None
         self._start_ts: float = 0.0
+        self._boot_healthy: bool = True
+        self._boot_health_reason: str = "pending"
+
+    def is_boot_healthy(self) -> bool:
+        """Return latest startup health state from assert loop."""
+        return self._boot_healthy
+
+    def boot_health_reason(self) -> str:
+        """Return latest startup health reason code."""
+        return self._boot_health_reason
 
     # ── Counters ──────────────────────────────────────────────────────────────
 
@@ -76,6 +86,8 @@ class SystemActivationMonitor:
             return
         self._running = True
         self._start_ts = time.time()
+        self._boot_healthy = True
+        self._boot_health_reason = "pending"
         self._log_task = asyncio.create_task(
             self._log_loop(), name="activation_monitor_log"
         )
@@ -110,18 +122,26 @@ class SystemActivationMonitor:
             )
 
     async def _assert_loop(self) -> None:
-        """After assert_interval_s, validate liveness — raises if no events received."""
+        """After assert_interval_s, validate liveness with controlled startup noise."""
         await asyncio.sleep(self._assert_interval)
         elapsed = time.time() - self._start_ts
 
         if self.event_count == 0:
-            raise RuntimeError(
-                f"No events received after {round(elapsed, 1)}s — "
-                "WebSocket feed may be disconnected or market IDs may be invalid. "
-                "Check WebSocket connection status and verify MARKET_IDS are correct condition IDs."
+            self._boot_healthy = False
+            self._boot_health_reason = "no_events_received"
+            log.error(
+                "activation_boot_health_unhealthy",
+                elapsed_s=round(elapsed, 1),
+                event_count=self.event_count,
+                signal_count=self.signal_count,
+                hint="WebSocket feed may be disconnected or MARKET_IDS may be invalid",
             )
+            return
 
-        if self.event_count > 0 and self.signal_count == 0:
+        self._boot_healthy = True
+        self._boot_health_reason = "healthy"
+
+        if self.signal_count == 0:
             log.warning(
                 "NO SIGNAL GENERATED",
                 event_count=self.event_count,

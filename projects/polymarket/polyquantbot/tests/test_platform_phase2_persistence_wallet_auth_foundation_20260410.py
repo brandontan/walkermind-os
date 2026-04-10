@@ -1,6 +1,4 @@
-# Updated test to remove persistence-assumptions from resolver.
-
-From __future__ import annotations
+from __future__ import annotations
 
 import os
 import tempfile
@@ -35,7 +33,7 @@ def test_phase2_repository_crud_and_service_wiring() -> None:
         storage_file = Path(temp_dir) / "platform_storage.json"
         os.environ["PLATFORM_STORAGE_BACKEND"] = "json"
         os.environ["PLATFORM_STORAGE_PATH"] = str(storage_file)
-        os.environ["PLATFORM_AUTH_PROVIDER  = "polymarket"
+        os.environ["PLATFORM_AUTH_PROVIDER"] = "polymarket"
         try:
             bundle = build_repository_bundle_from_env()
             assert bundle.accounts is not None
@@ -84,3 +82,16 @@ def test_phase2_context_resolver_is_pure() -> None:
     resolver = ContextResolver()
     envelope = resolver.resolve(_seed())
     assert envelope.execution_context.trace_id == "trace-2"
+
+
+def test_phase2_legacy_context_bridge_smoke_import_and_resolve() -> None:
+    os.environ["ENABLE_PLATFORM_CONTEXT_BRIDGE"] = "true"
+    os.environ["PLATFORM_CONTEXT_STRICT_MODE"] = "false"
+    try:
+        bridge = LegacyContextBridge()
+        result = bridge.attach_context(seed=_seed())
+    finally:
+        os.environ.pop("ENABLE_PLATFORM_CONTEXT_BRIDGE", None)
+        os.environ.pop("PLATFORM_CONTEXT_STRICT_MODE", None)
+
+    assert result.strict_mode_blocked is False
