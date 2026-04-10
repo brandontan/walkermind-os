@@ -21,7 +21,8 @@ from .proof_lifecycle import (
     ValidationProofRegistry,
     new_validation_proof,
 )
-from .drift_guard import evaluate_execution_price_drift, validate_execution_market_data
+from .drift_guard import compute_dynamic_drift_threshold, evaluate_execution_price_drift, validate_execution_market_data
+from .utils import compute_execution_size, simulate_vwap_execution
 
 log = structlog.get_logger(__name__)
 
@@ -76,6 +77,7 @@ class ExecutionEngine:
         self._last_open_rejection: dict[str, Any] | None = None
         self._max_market_data_age_seconds = float(max_market_data_age_seconds)
         self._max_execution_price_drift_ratio = float(max_execution_price_drift_ratio)
+        self._max_execution_slippage_ratio = 0.015
 
     def build_validation_proof(
         self,
@@ -149,11 +151,78 @@ class ExecutionEngine:
                     issue="reference_price_or_model_probability_missing_after_validation",
                 )
                 return None
+            orderbook = execution_market_data.get("orderbook") if isinstance(execution_market_data, dict) else None
+            if not isinstance(orderbook, dict):
+                self._record_open_rejection(
+                    reason="invalid_market_data",
+                    market=market,
+                    position_id=position_id,
+                    field="orderbook",
+                    issue="missing_or_not_dict_post_validation",
+                )
+                return None
+
+            requested_size = float(size)
+            size_result = compute_execution_size(
+                orderbook=orderbook,
+                target_size=requested_size,
+                max_slippage=self._max_execution_slippage_ratio,
+                side=side,
+            )
+            if not size_result.allowed:
+                self._record_open_rejection(
+                    reason=str(size_result.reason or "slippage_tolerance_exceeded"),
+                    market=market,
+                    position_id=position_id,
+                    requested_size=requested_size,
+                    filled_size=size_result.filled_size,
+                    remaining_size=size_result.remaining_size,
+                )
+                return None
+            adjusted_size = float(size_result.filled_size)
+            if adjusted_size <= 0.0:
+                self._record_open_rejection(
+                    reason="adjusted_size_zero",
+                    market=market,
+                    position_id=position_id,
+                    requested_size=requested_size,
+                    adjusted_size=adjusted_size,
+                )
+                return None
+
+            vwap_result = simulate_vwap_execution(orderbook=orderbook, size=adjusted_size, side=side)
+            if not vwap_result.allowed or vwap_result.vwap_price is None:
+                self._record_open_rejection(
+                    reason=str(vwap_result.reason or "vwap_simulation_failed"),
+                    market=market,
+                    position_id=position_id,
+                    requested_size=requested_size,
+                    adjusted_size=adjusted_size,
+                    filled_size=vwap_result.filled_size,
+                    remaining_size=vwap_result.remaining_size,
+                )
+                return None
+            estimated_execution_price = float(vwap_result.vwap_price)
+
+            try:
+                dynamic_max_drift_ratio = compute_dynamic_drift_threshold(
+                    orderbook=orderbook,
+                    base_threshold=self._max_execution_price_drift_ratio,
+                )
+            except ValueError as error:
+                self._record_open_rejection(
+                    reason="invalid_market_data",
+                    market=market,
+                    position_id=position_id,
+                    issue="dynamic_drift_threshold_failed",
+                    error=str(error),
+                )
+                return None
 
             drift_result = evaluate_execution_price_drift(
                 expected_price=market_data_validation.reference_price,
                 execution_price=float(price),
-                max_drift_ratio=self._max_execution_price_drift_ratio,
+                max_drift_ratio=dynamic_max_drift_ratio,
             )
             if not drift_result.allowed:
                 self._record_open_rejection(
@@ -164,14 +233,16 @@ class ExecutionEngine:
                     execution_price=float(price),
                     drift_ratio=drift_result.drift_ratio,
                     max_drift_ratio=drift_result.max_drift_ratio,
+                    requested_size=requested_size,
+                    adjusted_size=adjusted_size,
                 )
                 return None
 
             normalized_side = str(side).strip().upper()
             if normalized_side in {"YES", "BUY", "LONG"}:
-                expected_value = float(market_data_validation.model_probability) - float(market_data_validation.reference_price)
+                expected_value = float(market_data_validation.model_probability) - estimated_execution_price
             elif normalized_side in {"NO", "SELL", "SHORT"}:
-                expected_value = (1.0 - float(market_data_validation.model_probability)) - float(market_data_validation.reference_price)
+                expected_value = (1.0 - float(market_data_validation.model_probability)) - estimated_execution_price
             else:
                 self._record_open_rejection(
                     reason="invalid_market_data",
@@ -188,7 +259,7 @@ class ExecutionEngine:
                     market=market,
                     position_id=position_id,
                     expected_value=expected_value,
-                    reference_price=market_data_validation.reference_price,
+                    reference_price=estimated_execution_price,
                     model_probability=market_data_validation.model_probability,
                 )
                 return None
@@ -204,7 +275,7 @@ class ExecutionEngine:
                 condition_id=str(market),
                 side=str(side),
                 price_snapshot=float(validation_proof.price_snapshot),
-                size=float(size),
+                size=requested_size,
             )
             if not proof_ok:
                 self._record_open_rejection(
@@ -214,7 +285,7 @@ class ExecutionEngine:
                     proof_id=validation_proof.proof_id,
                 )
                 return None
-            size = float(size)
+            size = adjusted_size
             if size <= 0:
                 self._record_open_rejection(
                     reason="size_non_positive",
@@ -268,8 +339,8 @@ class ExecutionEngine:
                 market_id=market,
                 market_title=market_title,
                 side=side.upper(),
-                entry_price=float(price),
-                current_price=float(price),
+                entry_price=estimated_execution_price,
+                current_price=estimated_execution_price,
                 size=size,
                 pnl=0.0,
                 position_id=position_id
@@ -277,10 +348,19 @@ class ExecutionEngine:
             self._positions[market] = position
             self._position_context[position.position_id] = dict(position_context or {})
             self._cash -= size
-            self._implied_prob = max(0.01, min(0.99, float(price)))
+            self._implied_prob = max(0.01, min(0.99, estimated_execution_price))
             self._recalculate_unrealized()
             self._refresh_equity()
-            log.info("execution_engine_position_opened", market=market, side=side, price=price, size=size)
+            log.info(
+                "execution_engine_position_opened",
+                market=market,
+                side=side,
+                requested_price=price,
+                execution_price=estimated_execution_price,
+                requested_size=requested_size,
+                executed_size=size,
+                max_drift_ratio=dynamic_max_drift_ratio,
+            )
             return position
 
     def get_last_open_rejection(self) -> dict[str, Any] | None:

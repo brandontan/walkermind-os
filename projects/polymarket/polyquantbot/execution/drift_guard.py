@@ -49,6 +49,55 @@ def evaluate_execution_price_drift(
     )
 
 
+def compute_dynamic_drift_threshold(
+    *,
+    orderbook: dict[str, Any],
+    base_threshold: float,
+    volatility_proxy: float | None = None,
+) -> float:
+    """Compute conservative, context-aware drift threshold from orderbook conditions."""
+    if base_threshold <= 0.0:
+        raise ValueError("base_threshold must be > 0")
+    if not isinstance(orderbook, dict):
+        raise ValueError("orderbook must be a dict")
+
+    bids = _normalize_levels(orderbook.get("bids"))
+    asks = _normalize_levels(orderbook.get("asks"))
+    if bids is None or asks is None or not bids or not asks:
+        raise ValueError("orderbook must contain valid bids and asks")
+
+    best_bid = _best_bid_price(bids)
+    best_ask = _best_ask_price(asks)
+    if best_bid is None or best_ask is None or best_ask <= best_bid:
+        raise ValueError("orderbook spread is invalid")
+
+    mid_price = (best_bid + best_ask) / 2.0
+    spread_ratio = (best_ask - best_bid) / mid_price
+    top_bid_depth = sum(size for _, size in sorted(bids, key=lambda x: x[0], reverse=True)[:3])
+    top_ask_depth = sum(size for _, size in sorted(asks, key=lambda x: x[0])[:3])
+    total_top_depth = top_bid_depth + top_ask_depth
+    if total_top_depth <= 0.0:
+        raise ValueError("orderbook top depth must be > 0")
+    depth_imbalance = abs(top_bid_depth - top_ask_depth) / total_top_depth
+
+    stress_multiplier = 1.0
+    stress_multiplier += min(spread_ratio * 2.0, 0.5)
+    stress_multiplier += min(depth_imbalance * 0.6, 0.3)
+    if volatility_proxy is not None:
+        if volatility_proxy < 0.0:
+            raise ValueError("volatility_proxy must be >= 0")
+        stress_multiplier += min(float(volatility_proxy), 0.4)
+
+    relaxed_multiplier = 1.0
+    if spread_ratio < 0.01 and depth_imbalance < 0.20:
+        relaxed_multiplier = 1.10
+
+    conservative_threshold = base_threshold * relaxed_multiplier / stress_multiplier
+    min_threshold = base_threshold * 0.60
+    max_threshold = base_threshold * 1.25
+    return max(min_threshold, min(max_threshold, conservative_threshold))
+
+
 def validate_execution_market_data(
     *,
     execution_market_data: dict[str, Any] | None,
