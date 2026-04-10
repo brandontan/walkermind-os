@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import os
 import tempfile
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 from projects.polymarket.polyquantbot.execution.engine import ExecutionEngine
 from projects.polymarket.polyquantbot.execution.strategy_trigger import StrategyConfig, StrategyTrigger
 from projects.polymarket.polyquantbot.legacy.adapters.context_bridge import LegacyContextBridge
+from projects.polymarket.polyquantbot.monitoring.system_activation import SystemActivationMonitor
 from projects.polymarket.polyquantbot.platform.context.resolver import ContextResolver, LegacySessionSeed
 
 
@@ -150,5 +152,35 @@ def test_phase1_bridge_strict_mode_blocks_on_resolution_failure() -> None:
                 os.environ.pop("PLATFORM_CONTEXT_STRICT_MODE", None)
 
             assert decision == "BLOCKED"
+
+    asyncio.run(_run())
+
+
+def test_startup_import_chain_smoke() -> None:
+    importlib.import_module("projects.polymarket.polyquantbot.main")
+    importlib.import_module("projects.polymarket.polyquantbot.telegram.command_handler")
+    importlib.import_module("projects.polymarket.polyquantbot.execution.strategy_trigger")
+    importlib.import_module("projects.polymarket.polyquantbot.legacy.adapters.context_bridge")
+    importlib.import_module("projects.polymarket.polyquantbot.platform.context.resolver")
+
+
+def test_bridge_constructor_succeeds_without_resolver_constructor_mismatch() -> None:
+    os.environ["PLATFORM_STORAGE_BACKEND"] = "none"
+    try:
+        bridge = LegacyContextBridge()
+    finally:
+        os.environ.pop("PLATFORM_STORAGE_BACKEND", None)
+    assert bridge is not None
+
+
+def test_activation_monitor_handles_unhealthy_assertion_without_unhandled_task_exception() -> None:
+    async def _run() -> None:
+        monitor = SystemActivationMonitor(log_interval_s=0.01, assert_interval_s=0.02)
+        await monitor.start()
+        await asyncio.sleep(0.05)
+        assert monitor._assert_task is not None  # noqa: SLF001
+        assert monitor._assert_task.done() is True  # noqa: SLF001
+        assert monitor._assert_task.exception() is None  # noqa: SLF001
+        await monitor.stop()
 
     asyncio.run(_run())

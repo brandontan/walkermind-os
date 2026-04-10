@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 import structlog
 
@@ -77,10 +77,10 @@ class SystemActivationMonitor:
         self._running = True
         self._start_ts = time.time()
         self._log_task = asyncio.create_task(
-            self._log_loop(), name="activation_monitor_log"
+            self._run_guarded(self._log_loop, "activation_monitor_log"), name="activation_monitor_log"
         )
         self._assert_task = asyncio.create_task(
-            self._assert_loop(), name="activation_monitor_assert"
+            self._run_guarded(self._assert_loop, "activation_monitor_assert"), name="activation_monitor_assert"
         )
         log.info("system_activation_monitor_started")
 
@@ -107,6 +107,18 @@ class SystemActivationMonitor:
                 events=self.event_count,
                 signals=self.signal_count,
                 trades=self.trade_count,
+            )
+
+    async def _run_guarded(self, runner: Callable[[], Awaitable[None]], task_name: str) -> None:
+        try:
+            await runner()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.error(
+                "activation_monitor_task_failed",
+                task_name=task_name,
+                error=str(exc),
             )
 
     async def _assert_loop(self) -> None:
