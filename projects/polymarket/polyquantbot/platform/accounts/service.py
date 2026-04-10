@@ -17,8 +17,19 @@ class AccountService:
             existing = self._repository.get_by_user_id(user_id=normalized_user_id)
             if existing is not None:
                 return UserAccount(**existing.__dict__)
+        return UserAccount(**self._build_record(legacy_user_id=legacy_user_id, source_type=source_type).__dict__)
+
+    def ensure_user_account(self, *, legacy_user_id: str, source_type: str = "legacy") -> UserAccount:
+        resolved = self.resolve_user_account(legacy_user_id=legacy_user_id, source_type=source_type)
+        if self._repository is not None:
+            self._repository.upsert(UserAccountRecord(**resolved.__dict__))
+        return resolved
+
+    @staticmethod
+    def _build_record(*, legacy_user_id: str, source_type: str) -> UserAccountRecord:
+        normalized_user_id = legacy_user_id.strip() or "legacy-default"
         now = utc_now()
-        record = UserAccountRecord(
+        return UserAccountRecord(
             user_id=normalized_user_id,
             external_user_id=legacy_user_id,
             source_type=source_type,
@@ -26,6 +37,3 @@ class AccountService:
             created_at=now,
             updated_at=now,
         )
-        if self._repository is not None:
-            self._repository.upsert(record)
-        return UserAccount(**record.__dict__)

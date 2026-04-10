@@ -14,13 +14,13 @@ This package extends the Phase 1 read-only bridge with **foundation-level persis
   - `ExecutionContextRecord`
   - `AuditEventRecord`
 - Service wiring upgrades:
-  - `AccountService` uses account repository when configured.
-  - `WalletAuthService` uses wallet binding repository and auth provider skeleton.
-  - `PermissionService` uses permission repository.
-  - `ContextResolver` persists execution context metadata + writes audit events.
+  - `AccountService.resolve_user_account` is read-only; `ensure_user_account` performs explicit persistence when needed.
+  - `WalletAuthService.resolve_wallet_binding` is read-only; `ensure_wallet_binding` performs explicit persistence when needed.
+  - `PermissionService.resolve_permission_profile` is read-only; `ensure_permission_profile` performs explicit persistence when needed.
+  - `ContextResolver` is pure and read-only: it composes `PlatformContextEnvelope` only and performs no persistence/audit writes.
 - Strategy subscription foundation:
   - enable/disable strategy IDs per user via repository-backed service.
-- Legacy bridge remains read-only and feature-flagged, with fallback continuity.
+- Legacy bridge remains feature-flagged with strict/non-strict fallback continuity; resolver path remains read-only.
 
 ## Storage/backend configuration
 

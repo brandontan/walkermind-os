@@ -22,9 +22,24 @@ class PermissionService:
             existing = self._repository.get_by_user_id(user_id=user_id)
             if existing is not None:
                 return PermissionProfile(**existing.__dict__)
+        return PermissionProfile(**self._build_record(user_id=user_id, allowed_markets=allowed_markets, mode=mode).__dict__)
 
+    def ensure_permission_profile(
+        self,
+        *,
+        user_id: str,
+        allowed_markets: tuple[str, ...],
+        mode: str,
+    ) -> PermissionProfile:
+        resolved = self.resolve_permission_profile(user_id=user_id, allowed_markets=allowed_markets, mode=mode)
+        if self._repository is not None:
+            self._repository.upsert(PermissionProfileRecord(**resolved.__dict__))
+        return resolved
+
+    @staticmethod
+    def _build_record(*, user_id: str, allowed_markets: tuple[str, ...], mode: str) -> PermissionProfileRecord:
         normalized_mode = mode.strip().upper()
-        record = PermissionProfileRecord(
+        return PermissionProfileRecord(
             user_id=user_id,
             allowed_markets=allowed_markets,
             live_enabled=normalized_mode == "LIVE",
@@ -34,6 +49,3 @@ class PermissionService:
             version="phase2-foundation",
             updated_at=utc_now(),
         )
-        if self._repository is not None:
-            self._repository.upsert(record)
-        return PermissionProfile(**record.__dict__)

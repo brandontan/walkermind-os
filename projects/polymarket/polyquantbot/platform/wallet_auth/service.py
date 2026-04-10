@@ -28,24 +28,41 @@ class WalletAuthService:
             existing = self._repository.get_by_id(wallet_binding_id=wallet_binding_id)
             if existing is not None:
                 return WalletBinding(**existing.__dict__)
-        l1_context = self._auth_provider.bootstrap_l1_context(user_id=user_id, wallet_hint=funder_address)
-        validated_state = self._auth_provider.validate_auth_state(auth_context=l1_context)
-        now = utc_now()
-        record = WalletBindingRecord(
-            wallet_binding_id=wallet_binding_id,
+        return WalletBinding(
+            **self._build_record(
+                user_id=user_id,
+                wallet_binding_id=wallet_binding_id,
+                wallet_type=wallet_type,
+                signature_type=signature_type,
+                funder_address=funder_address,
+                auth_state=auth_state,
+                mode=mode,
+            ).__dict__
+        )
+
+    def ensure_wallet_binding(
+        self,
+        *,
+        user_id: str,
+        wallet_binding_id: str,
+        wallet_type: str,
+        signature_type: str,
+        funder_address: str,
+        auth_state: str,
+        mode: str,
+    ) -> WalletBinding:
+        binding = self.resolve_wallet_binding(
             user_id=user_id,
+            wallet_binding_id=wallet_binding_id,
             wallet_type=wallet_type,
             signature_type=signature_type,
-            funder_address=self._auth_provider.normalize_funder_address(funder_address=funder_address),
-            auth_state=validated_state.value if auth_state == "UNVERIFIED" else auth_state,
+            funder_address=funder_address,
+            auth_state=auth_state,
             mode=mode,
-            auth_provider=l1_context.provider.value,
-            created_at=now,
-            updated_at=now,
         )
         if self._repository is not None:
-            self._repository.upsert(record)
-        return WalletBinding(**record.__dict__)
+            self._repository.upsert(WalletBindingRecord(**binding.__dict__))
+        return binding
 
     def to_wallet_context(self, binding: WalletBinding) -> WalletContext:
         return WalletContext(
@@ -57,4 +74,31 @@ class WalletAuthService:
             funder_address=binding.funder_address,
             mode=binding.mode,
             auth_provider=binding.auth_provider,
+        )
+
+    def _build_record(
+        self,
+        *,
+        user_id: str,
+        wallet_binding_id: str,
+        wallet_type: str,
+        signature_type: str,
+        funder_address: str,
+        auth_state: str,
+        mode: str,
+    ) -> WalletBindingRecord:
+        l1_context = self._auth_provider.bootstrap_l1_context(user_id=user_id, wallet_hint=funder_address)
+        validated_state = self._auth_provider.validate_auth_state(auth_context=l1_context)
+        now = utc_now()
+        return WalletBindingRecord(
+            wallet_binding_id=wallet_binding_id,
+            user_id=user_id,
+            wallet_type=wallet_type,
+            signature_type=signature_type,
+            funder_address=self._auth_provider.normalize_funder_address(funder_address=funder_address),
+            auth_state=validated_state.value if auth_state == "UNVERIFIED" else auth_state,
+            mode=mode,
+            auth_provider=l1_context.provider.value,
+            created_at=now,
+            updated_at=now,
         )
