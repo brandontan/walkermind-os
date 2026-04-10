@@ -65,8 +65,6 @@ async def main() -> None:
     startup_state = StartupStateTracker()
 
     # ── Entrypoint assertion — confirms correct runtime path ───────────────────
-    print("🚀 NEW TELEGRAM SYSTEM ACTIVE")
-    print("ENTRYPOINT: main.py")
     log.info(
         "entrypoint_active",
         entrypoint="projects/polymarket/polyquantbot/main.py",
