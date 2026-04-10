@@ -1,12 +1,9 @@
-# Updated test to remove persistence-assumptions from resolver.
-
-From __future__ import annotations
+from __future__ import annotations
 
 import os
 import tempfile
 from pathlib import Path
 
-from projects.polymarket.polyquantbot.legacy.adapters.context_bridge import LegacyContextBridge
 from projects.polymarket.polyquantbot.platform.accounts.service import AccountService
 from projects.polymarket.polyquantbot.platform.context.resolver import ContextResolver, LegacySessionSeed
 from projects.polymarket.polyquantbot.platform.permissions.service import PermissionService
@@ -35,7 +32,7 @@ def test_phase2_repository_crud_and_service_wiring() -> None:
         storage_file = Path(temp_dir) / "platform_storage.json"
         os.environ["PLATFORM_STORAGE_BACKEND"] = "json"
         os.environ["PLATFORM_STORAGE_PATH"] = str(storage_file)
-        os.environ["PLATFORM_AUTH_PROVIDER  = "polymarket"
+        os.environ["PLATFORM_AUTH_PROVIDER"] = "polymarket"
         try:
             bundle = build_repository_bundle_from_env()
             assert bundle.accounts is not None
@@ -80,7 +77,19 @@ def test_phase2_repository_crud_and_service_wiring() -> None:
             os.environ.pop("PLATFORM_AUTH_PROVIDER", None)
 
 
-def test_phase2_context_resolver_is_pure() -> None:
+def test_phase2_context_resolver_is_pure_and_deterministic() -> None:
     resolver = ContextResolver()
-    envelope = resolver.resolve(_seed())
-    assert envelope.execution_context.trace_id == "trace-2"
+
+    assert not hasattr(resolver, "_execution_context_repository")
+    assert not hasattr(resolver, "_audit_event_repository")
+
+    seed = _seed()
+    envelope_a = resolver.resolve(seed)
+    envelope_b = resolver.resolve(seed)
+
+    assert envelope_a.execution_context == envelope_b.execution_context
+    assert envelope_a.wallet_context == envelope_b.wallet_context
+    assert envelope_a.strategy_subscriptions == envelope_b.strategy_subscriptions
+    assert envelope_a.user_account.user_id == envelope_b.user_account.user_id
+    assert envelope_a.permission_profile.allowed_markets == envelope_b.permission_profile.allowed_markets
+    assert envelope_a.execution_context.trace_id == "trace-2"

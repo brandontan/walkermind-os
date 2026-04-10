@@ -35,7 +35,7 @@ class ContextResolver:
         wallet_auth_service: WalletAuthService | None = None,
         permission_service: PermissionService | None = None,
         strategy_subscription_service: StrategySubscriptionService | None = None,
-    ) => None:
+    ) -> None:
         self._account_service = account_service or AccountService()
         self._wallet_auth_service = wallet_auth_service or WalletAuthService()
         self._permission_service = permission_service or PermissionService()
