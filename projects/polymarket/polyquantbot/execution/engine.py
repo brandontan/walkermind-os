@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import os
 import statistics
+import time
 from typing import Any
 import uuid
 
@@ -20,6 +21,7 @@ from .proof_lifecycle import (
     ValidationProofRegistry,
     new_validation_proof,
 )
+from .drift_guard import evaluate_execution_price_drift, validate_execution_market_data
 
 log = structlog.get_logger(__name__)
 
@@ -46,6 +48,8 @@ class ExecutionEngine:
         starting_equity: float = 10_000.0,
         proof_registry_path: str | None = None,
         ttl_resolver: TTLResolver | None = None,
+        max_market_data_age_seconds: float = 5.0,
+        max_execution_price_drift_ratio: float = 0.02,
     ) -> None:
         self._lock = asyncio.Lock()
         self._positions: dict[str, Position] = {}
@@ -70,6 +74,8 @@ class ExecutionEngine:
         self._proof_verifier = ProofVerifier(self._proof_registry)
         self._ttl_resolver = ttl_resolver or TTLResolver()
         self._last_open_rejection: dict[str, Any] | None = None
+        self._max_market_data_age_seconds = float(max_market_data_age_seconds)
+        self._max_execution_price_drift_ratio = float(max_execution_price_drift_ratio)
 
     def build_validation_proof(
         self,
@@ -116,10 +122,76 @@ class ExecutionEngine:
         position_id: str | None = None,
         position_context: dict[str, Any] | None = None,
         validation_proof: ValidationProof | None = None,
+        execution_market_data: dict[str, Any] | None = None,
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
             self._last_open_rejection = None
+            market_data_validation = validate_execution_market_data(
+                execution_market_data=execution_market_data,
+                side=side,
+                now_ts=time.time(),
+                max_age_seconds=self._max_market_data_age_seconds,
+            )
+            if not market_data_validation.allowed:
+                self._record_open_rejection(
+                    reason=str(market_data_validation.reason or "invalid_market_data"),
+                    market=market,
+                    position_id=position_id,
+                    **market_data_validation.details,
+                )
+                return None
+            if market_data_validation.reference_price is None or market_data_validation.model_probability is None:
+                self._record_open_rejection(
+                    reason="invalid_market_data",
+                    market=market,
+                    position_id=position_id,
+                    issue="reference_price_or_model_probability_missing_after_validation",
+                )
+                return None
+
+            drift_result = evaluate_execution_price_drift(
+                expected_price=market_data_validation.reference_price,
+                execution_price=float(price),
+                max_drift_ratio=self._max_execution_price_drift_ratio,
+            )
+            if not drift_result.allowed:
+                self._record_open_rejection(
+                    reason="price_deviation",
+                    market=market,
+                    position_id=position_id,
+                    reference_price=market_data_validation.reference_price,
+                    execution_price=float(price),
+                    drift_ratio=drift_result.drift_ratio,
+                    max_drift_ratio=drift_result.max_drift_ratio,
+                )
+                return None
+
+            normalized_side = str(side).strip().upper()
+            if normalized_side in {"YES", "BUY", "LONG"}:
+                expected_value = float(market_data_validation.model_probability) - float(market_data_validation.reference_price)
+            elif normalized_side in {"NO", "SELL", "SHORT"}:
+                expected_value = (1.0 - float(market_data_validation.model_probability)) - float(market_data_validation.reference_price)
+            else:
+                self._record_open_rejection(
+                    reason="invalid_market_data",
+                    market=market,
+                    position_id=position_id,
+                    field="side",
+                    issue="unsupported_value",
+                    value=side,
+                )
+                return None
+            if expected_value <= 0.0:
+                self._record_open_rejection(
+                    reason="ev_negative",
+                    market=market,
+                    position_id=position_id,
+                    expected_value=expected_value,
+                    reference_price=market_data_validation.reference_price,
+                    model_probability=market_data_validation.model_probability,
+                )
+                return None
             if not isinstance(validation_proof, ValidationProof):
                 self._record_open_rejection(
                     reason="validation_proof_required_or_invalid",
@@ -131,7 +203,7 @@ class ExecutionEngine:
                 proof_id=validation_proof.proof_id,
                 condition_id=str(market),
                 side=str(side),
-                price_snapshot=float(price),
+                price_snapshot=float(validation_proof.price_snapshot),
                 size=float(size),
             )
             if not proof_ok:
