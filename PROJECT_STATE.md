@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 23:28
-- Status        : FORGE-X completed MAJOR-tier execution proof lifecycle (dynamic TTL + replay-safe single-use + persistent DB registry + fail-closed execution-boundary verification) in StrategyTrigger→ExecutionEngine path.
+- Last Updated  : 2026-04-10 12:05
+- Status        : SENTINEL reran P25 PR #377 validation pre-checks and produced INVALID CONTEXT verdict because true PR head/state could not be proven in this environment.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- SENTINEL P25 PR #377 true-PR revalidation (2026-04-10): pre-check-only run completed in current environment; branch/head could not be proven against PR #377, required symbols (`AccountEnvelope`, `trade_intent_writer`, `_persist_trade_intent`) were absent in `strategy_trigger.py`, and required test file `test_p25_account_envelope_risk_binding_20260410.py` was missing; verdict **INVALID CONTEXT**. Report: `projects/polymarket/polyquantbot/reports/sentinel/25_3_p25_pr377_true_pr_environment_validation.md`.
 - P17 execution proof lifecycle (2026-04-09): implemented immutable validation proofs with dynamic TTL policy, DB-backed proof registry (`validation_proofs`), authoritative execution-boundary proof verification (existence/status/TTL/context/atomic consume), StrategyTrigger integration, and focused replay/expiry/context/restart/race/no-bypass tests; report `projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md`.
 - P16 execution-boundary position-sizing enforcement (2026-04-10): enforced authoritative boundary sizing checks in `ExecutionEngine.open_position(...)` for non-positive/per-trade-cap/capital-risk-allowed size violations before mutation, preserved signed validation-proof enforcement, propagated structured rejection reason into StrategyTrigger blocked terminal trace, and added focused tests; report `projects/polymarket/polyquantbot/reports/forge/24_39_execution_position_sizing_boundary_enforcement.md`.
 - P16 execution-boundary validation-proof enforcement (2026-04-09): replaced trust-only execution entry assumption with signed `ExecutionValidationProof` contract at engine boundary, wired StrategyTrigger ALLOW path to pass proof payload, and added focused no-proof/fake-proof/pass-proof runtime tests; report `projects/polymarket/polyquantbot/reports/forge/24_38_execution_validation_proof_boundary_enforcement.md`.
@@ -275,12 +276,11 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md
-Tier: MAJOR
+Fix PR validation infrastructure for true branch-aware execution (restore GitHub PR fetch/checkout capability), then rerun SENTINEL P25 validation for PR #377 using `projects/polymarket/polyquantbot/reports/sentinel/25_3_p25_pr377_true_pr_environment_validation.md` as source.
 
 ## ⚠️ KNOWN ISSUES
 
+- P25 PR #377 validation currently blocked by infrastructure/context mismatch: GitHub PR head could not be fetched in this environment (`CONNECT tunnel failed, response 403`), so behavior-level verdict remains INVALID CONTEXT until true PR-aware runner is available.
 - P17 proof lifecycle currently uses lazy expiration enforcement at execution boundary; background cleanup of expired rows is deferred.
 - P17 TTL policy currently uses configurable baseline market-type ranges with optional volatility proxy scaling; advanced volatility-driven calibration remains out of scope for this phase.
 - P16 execution-boundary validation-proof enforcement is currently narrow integration in StrategyTrigger→ExecutionEngine path only; any future alternate execution entry surfaces must explicitly adopt the same proof contract.
