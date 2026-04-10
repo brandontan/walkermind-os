@@ -1,17 +1,24 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from .models import UserAccount
+from ..storage.models import UserAccountRecord, utc_now
+from ..storage.repositories import UserAccountRepository
 
 
 class AccountService:
-    """Read-only account contract provider for Phase 1 bridge integration."""
+    """Account contract provider with optional Phase 2 persistence."""
+
+    def __init__(self, repository: UserAccountRepository | None = None) -> None:
+        self._repository = repository
 
     def resolve_user_account(self, *, legacy_user_id: str, source_type: str = "legacy") -> UserAccount:
-        now = datetime.now(tz=timezone.utc)
         normalized_user_id = legacy_user_id.strip() or "legacy-default"
-        return UserAccount(
+        if self._repository is not None:
+            existing = self._repository.get_by_user_id(user_id=normalized_user_id)
+            if existing is not None:
+                return UserAccount(**existing.__dict__)
+        now = utc_now()
+        record = UserAccountRecord(
             user_id=normalized_user_id,
             external_user_id=legacy_user_id,
             source_type=source_type,
@@ -19,3 +26,6 @@ class AccountService:
             created_at=now,
             updated_at=now,
         )
+        if self._repository is not None:
+            self._repository.upsert(record)
+        return UserAccount(**record.__dict__)

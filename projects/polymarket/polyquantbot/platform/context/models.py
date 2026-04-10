@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from ..accounts.models import RiskProfileRef, UserAccount
 from ..permissions.models import PermissionProfile
+from ..strategy_subscriptions.models import StrategySubscription
 from ..wallet_auth.models import WalletContext
 
 
@@ -24,3 +25,4 @@ class PlatformContextEnvelope:
     wallet_context: WalletContext
     permission_profile: PermissionProfile
     execution_context: ExecutionContext
+    strategy_subscriptions: tuple[StrategySubscription, ...] = ()

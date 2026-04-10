@@ -48,7 +48,7 @@ def test_phase1_platform_context_contracts_resolve() -> None:
     assert envelope.user_account.user_id == "legacy-user-1"
     assert envelope.wallet_context.wallet_binding_id == "wb-1"
     assert envelope.permission_profile.paper_enabled is True
-    assert envelope.execution_context.permission_version == "phase1-foundation"
+    assert envelope.execution_context.permission_version == "phase2-foundation"
     assert envelope.execution_context.trace_id == "trace-1"
 
 

@@ -13,6 +13,7 @@ class WalletBinding:
     funder_address: str
     auth_state: str
     mode: str
+    auth_provider: str
     created_at: datetime
     updated_at: datetime
 
@@ -26,3 +27,4 @@ class WalletContext:
     auth_state: str
     funder_address: str
     mode: str
+    auth_provider: str
