@@ -1,32 +1,60 @@
-# Phase 1 Platform Foundation (Read-Only Bridge)
+# Phase 2 Platform Foundation (Persistence + Wallet/Auth Skeleton)
 
-This package introduces **foundation-only** contracts and service skeletons for future
-multi-user migration without changing current legacy trading behavior.
+This package extends the Phase 1 read-only bridge with **foundation-level persistence and auth skeleton contracts** for multi-user architecture.
 
-## Purpose
+## What is included in Phase 2 foundation
 
-- Define typed contracts for account, wallet/auth, permission, and execution context.
-- Resolve platform context from legacy session inputs.
-- Attach context in read-only mode so legacy runtime can observe metadata safely.
+- Persistent repository contracts and dev-safe local JSON backend under:
+  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/storage/`
+- Persistent records:
+  - `UserAccountRecord`
+  - `WalletBindingRecord`
+  - `PermissionProfileRecord`
+  - `StrategySubscriptionRecord`
+  - `ExecutionContextRecord`
+  - `AuditEventRecord`
+- Service wiring upgrades:
+  - `AccountService` uses account repository when configured.
+  - `WalletAuthService` uses wallet binding repository and auth provider skeleton.
+  - `PermissionService` uses permission repository.
+  - `ContextResolver` persists execution context metadata + writes audit events.
+- Strategy subscription foundation:
+  - enable/disable strategy IDs per user via repository-backed service.
+- Legacy bridge remains read-only and feature-flagged, with fallback continuity.
 
-## Read-only bridge behavior
+## Storage/backend configuration
 
-- Controlled by env flags:
-  - `ENABLE_PLATFORM_CONTEXT_BRIDGE` (default: `false`)
-  - `PLATFORM_CONTEXT_STRICT_MODE` (default: `false`)
-- When bridge is disabled, legacy flow is unchanged.
-- When enabled and resolution succeeds, context metadata is attached for diagnostics.
-- When enabled and resolution fails:
-  - non-strict mode: legacy flow continues unchanged (fallback)
-  - strict mode: flow is blocked intentionally for development validation
+- `PLATFORM_STORAGE_BACKEND`
+  - `none` (default) keeps legacy-safe behavior with no persistence.
+  - `json` enables dev-safe local JSON persistence.
+  - `sqlite` currently maps to the same local skeleton backend (foundation placeholder).
+- `PLATFORM_STORAGE_PATH`
+  - local file path for persistent dev data.
+- `PLATFORM_AUTH_PROVIDER`
+  - `polymarket` or `skeleton` resolves to non-live auth provider skeleton.
 
-## Future extension points
+Existing bridge controls are unchanged:
+- `ENABLE_PLATFORM_CONTEXT_BRIDGE` (default: `false`)
+- `PLATFORM_CONTEXT_STRICT_MODE` (default: `false`)
 
-- Replace placeholder account/wallet/permission lookup with persistent stores.
-- Expand context resolver for multi-user runtime and execution queues.
-- Add authenticated wallet/session wiring in later phases.
+## Auth skeleton lifecycle (non-live)
 
-## Explicit non-goal for Phase 1
+Auth contracts are scaffold-only and make **no live network calls**:
 
-This foundation does **not** provide live wallet/auth execution support and does not
-alter strategy, risk, or order submission behavior.
+- `bootstrap_l1_context`
+- `derive_or_load_l2_context`
+- `validate_auth_state`
+- `normalize_funder_address`
+
+All methods currently return deterministic placeholder values for local/dev testing.
+
+## Explicit non-goals (deferred)
+
+- Live Polymarket order placement
+- Production L1 signing
+- Production L2 credential issuance
+- Execution engine authority changes
+- Strategy logic or risk logic mutation
+- Queue workers, websocket runtime subscriptions, reconciliation jobs
+- Public API/UI clients
+- Production secrets vault wiring
