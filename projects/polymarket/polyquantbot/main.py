@@ -65,8 +65,6 @@ async def main() -> None:
     startup_state = StartupStateTracker()
 
     # ── Entrypoint assertion — confirms correct runtime path ───────────────────
-    print("🚀 NEW TELEGRAM SYSTEM ACTIVE")
-    print("ENTRYPOINT: main.py")
     log.info(
         "entrypoint_active",
         entrypoint="projects/polymarket/polyquantbot/main.py",
@@ -147,6 +145,7 @@ async def main() -> None:
     from projects.polymarket.polyquantbot.monitoring.system_activation import SystemActivationMonitor
     activation_monitor = SystemActivationMonitor()
     await activation_monitor.start()
+    activation_monitor.mark_startup_healthy(False)
 
     # ── WebSocket client (data feed) ──────────────────────────────────────────
     from projects.polymarket.polyquantbot.data.websocket.ws_client import PolymarketWSClient
@@ -561,6 +560,7 @@ async def main() -> None:
         raise RuntimeError(f"Database required — startup aborted: {db_exc}") from db_exc
 
     startup_state.set_phase(StartupPhase.RUNNING, reason="database_ready")
+    activation_monitor.mark_startup_healthy(True)
 
     # ── Load strategy state from DB and wire DB into callback router ──────────
     await strategy_mgr.load(db=db)

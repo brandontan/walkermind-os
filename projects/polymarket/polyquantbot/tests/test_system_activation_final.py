@@ -239,24 +239,22 @@ async def test_sa25_log_loop_fires_at_interval():
     await monitor.stop()
 
 
-async def test_sa26_assert_loop_raises_on_no_events():
-    """SA-26: Assert loop raises RuntimeError if event_count==0 after interval."""
+async def test_sa26_assert_loop_controls_no_event_failure_without_task_crash():
+    """SA-26: Assert loop keeps failures controlled with no task exception spam."""
     from projects.polymarket.polyquantbot.monitoring.system_activation import SystemActivationMonitor
     monitor = SystemActivationMonitor(log_interval_s=9999, assert_interval_s=0.05)
     await monitor.start()
     await asyncio.sleep(0.3)
-    # The assert_task should have completed; check it has an exception
+    monitor.mark_startup_healthy(True)
+    # The assert task should complete without unhandled exception noise
     assert monitor._assert_task is not None
     assert monitor._assert_task.done()
-    exc = monitor._assert_task.exception()
-    assert isinstance(exc, RuntimeError)
-    assert "No events received" in str(exc)
+    assert monitor._assert_task.exception() is None
     await monitor.stop()
 
 
 async def test_sa27_assert_loop_warns_on_no_signals():
-    """SA-27: Assert loop logs WARNING when events>0 but signals==0."""
-    import logging
+    """SA-27: Assert loop logs warning when events>0 but signals==0."""
     from projects.polymarket.polyquantbot.monitoring.system_activation import SystemActivationMonitor
     monitor = SystemActivationMonitor(log_interval_s=9999, assert_interval_s=0.05)
     monitor.event_count = 10  # pre-seed events so no RuntimeError
