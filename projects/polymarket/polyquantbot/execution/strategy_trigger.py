@@ -2324,6 +2324,11 @@ class StrategyTrigger:
                 price=readiness.expected_fill_price,
                 size=size,
                 position_id=trade_id,
+                execution_market_data={
+                    "timestamp": (market_context or {}).get("timestamp"),
+                    "model_probability": (market_context or {}).get("model_probability"),
+                    "orderbook": (market_context or {}).get("orderbook"),
+                },
                 position_context={
                     "strategy_source": (
                         selected_candidate.strategy_name
