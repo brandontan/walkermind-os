@@ -194,8 +194,8 @@ def test_p17_4_reference_price_derived_from_orderbook_not_injected_fallback() ->
 
     assert created is None
     rejection = engine.get_last_open_rejection() or {}
-    assert rejection.get("reason") == "price_deviation"
-    assert rejection.get("reference_price") == 0.70
+    assert rejection.get("reason") == "ev_negative"
+    assert rejection.get("execution_price") == 0.70
     snap = _snapshot(engine)
     assert len(snap.positions) == 0
     assert snap.cash == 10_000.0
@@ -206,8 +206,15 @@ def test_p17_4_existing_rejection_paths_still_enforced() -> None:
     deviation_engine = ExecutionEngine(starting_equity=10_000.0)
     deviation_created = _open_with_boundary_data(
         engine=deviation_engine,
-        price=0.60,
-        execution_market_data=_build_market_data(ts=time.time(), model_probability=0.70),
+        price=0.51,
+        execution_market_data={
+            "timestamp": time.time(),
+            "model_probability": 0.80,
+            "orderbook": {
+                "bids": [{"price": 0.49, "size": 1000.0}],
+                "asks": [{"price": 0.51, "size": 1.0}, {"price": 0.55, "size": 99.0}],
+            },
+        },
     )
     assert deviation_created is None
     assert (deviation_engine.get_last_open_rejection() or {}).get("reason") == "price_deviation"
@@ -235,3 +242,62 @@ def test_p17_4_existing_rejection_paths_still_enforced() -> None:
     )
     assert liquidity_created is None
     assert (liquidity_engine.get_last_open_rejection() or {}).get("reason") == "liquidity_insufficient"
+
+
+def test_p18_drift_validation_uses_vwap_not_requested_price() -> None:
+    engine = ExecutionEngine(starting_equity=10_000.0, max_execution_price_drift_ratio=0.02)
+
+    created = _open_with_boundary_data(
+        engine=engine,
+        price=0.51,
+        size=100.0,
+        execution_market_data={
+            "timestamp": time.time(),
+            "model_probability": 0.80,
+            "orderbook": {
+                "bids": [{"price": 0.49, "size": 1000.0}],
+                "asks": [
+                    {"price": 0.51, "size": 1.0},
+                    {"price": 0.55, "size": 99.0},
+                ],
+            },
+        },
+    )
+
+    assert created is None
+    rejection = engine.get_last_open_rejection() or {}
+    assert rejection.get("reason") == "price_deviation"
+    assert rejection.get("requested_price") == 0.51
+    assert rejection.get("execution_price", 0.0) > 0.54
+    snap = _snapshot(engine)
+    assert len(snap.positions) == 0
+    assert snap.cash == 10_000.0
+
+
+def test_p18_vwap_pricing_basis_consistent_across_drift_ev_and_entry() -> None:
+    engine = ExecutionEngine(starting_equity=10_000.0, max_execution_price_drift_ratio=0.03)
+
+    created = _open_with_boundary_data(
+        engine=engine,
+        price=0.51,
+        size=100.0,
+        execution_market_data={
+            "timestamp": time.time(),
+            "model_probability": 0.64,
+            "orderbook": {
+                "bids": [{"price": 0.49, "size": 1000.0}],
+                "asks": [
+                    {"price": 0.51, "size": 30.0},
+                    {"price": 0.512, "size": 70.0},
+                ],
+            },
+        },
+    )
+
+    assert created is not None
+    expected_vwap = ((30.0 * 0.51) + (70.0 * 0.512)) / 100.0
+    assert created.entry_price == expected_vwap
+    assert created.current_price == expected_vwap
+    assert created.size == 100.0
+    snap = _snapshot(engine)
+    assert snap.implied_prob == expected_vwap

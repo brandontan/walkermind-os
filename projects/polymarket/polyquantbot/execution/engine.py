@@ -149,10 +149,42 @@ class ExecutionEngine:
                     issue="reference_price_or_model_probability_missing_after_validation",
                 )
                 return None
+            requested_price = float(price)
+            requested_size = float(size)
+            estimated_execution = self._estimate_execution_vwap(
+                side=side,
+                requested_size=requested_size,
+                orderbook=(
+                    execution_market_data.get("orderbook")
+                    if isinstance(execution_market_data, dict)
+                    else None
+                ),
+            )
+            if estimated_execution is None:
+                self._record_open_rejection(
+                    reason="liquidity_insufficient",
+                    market=market,
+                    position_id=position_id,
+                    requested_size=requested_size,
+                    issue="vwap_estimation_unavailable",
+                )
+                return None
+            estimated_execution_price, adjusted_execution_size = estimated_execution
+            if estimated_execution_price <= 0.0 or adjusted_execution_size <= 0.0:
+                self._record_open_rejection(
+                    reason="liquidity_insufficient",
+                    market=market,
+                    position_id=position_id,
+                    requested_size=requested_size,
+                    estimated_execution_price=estimated_execution_price,
+                    adjusted_execution_size=adjusted_execution_size,
+                    issue="vwap_estimation_invalid",
+                )
+                return None
 
             drift_result = evaluate_execution_price_drift(
                 expected_price=market_data_validation.reference_price,
-                execution_price=float(price),
+                execution_price=estimated_execution_price,
                 max_drift_ratio=self._max_execution_price_drift_ratio,
             )
             if not drift_result.allowed:
@@ -161,7 +193,8 @@ class ExecutionEngine:
                     market=market,
                     position_id=position_id,
                     reference_price=market_data_validation.reference_price,
-                    execution_price=float(price),
+                    execution_price=estimated_execution_price,
+                    requested_price=requested_price,
                     drift_ratio=drift_result.drift_ratio,
                     max_drift_ratio=drift_result.max_drift_ratio,
                 )
@@ -169,9 +202,9 @@ class ExecutionEngine:
 
             normalized_side = str(side).strip().upper()
             if normalized_side in {"YES", "BUY", "LONG"}:
-                expected_value = float(market_data_validation.model_probability) - float(market_data_validation.reference_price)
+                expected_value = float(market_data_validation.model_probability) - estimated_execution_price
             elif normalized_side in {"NO", "SELL", "SHORT"}:
-                expected_value = (1.0 - float(market_data_validation.model_probability)) - float(market_data_validation.reference_price)
+                expected_value = (1.0 - float(market_data_validation.model_probability)) - estimated_execution_price
             else:
                 self._record_open_rejection(
                     reason="invalid_market_data",
@@ -188,7 +221,7 @@ class ExecutionEngine:
                     market=market,
                     position_id=position_id,
                     expected_value=expected_value,
-                    reference_price=market_data_validation.reference_price,
+                    execution_price=estimated_execution_price,
                     model_probability=market_data_validation.model_probability,
                 )
                 return None
@@ -204,7 +237,7 @@ class ExecutionEngine:
                 condition_id=str(market),
                 side=str(side),
                 price_snapshot=float(validation_proof.price_snapshot),
-                size=float(size),
+                size=requested_size,
             )
             if not proof_ok:
                 self._record_open_rejection(
@@ -214,13 +247,13 @@ class ExecutionEngine:
                     proof_id=validation_proof.proof_id,
                 )
                 return None
-            size = float(size)
-            if size <= 0:
+            size = adjusted_execution_size
+            if requested_size <= 0:
                 self._record_open_rejection(
                     reason="size_non_positive",
                     market=market,
                     position_id=position_id,
-                    requested_size=size,
+                    requested_size=requested_size,
                 )
                 return None
             if not position_id:
@@ -268,8 +301,8 @@ class ExecutionEngine:
                 market_id=market,
                 market_title=market_title,
                 side=side.upper(),
-                entry_price=float(price),
-                current_price=float(price),
+                entry_price=estimated_execution_price,
+                current_price=estimated_execution_price,
                 size=size,
                 pnl=0.0,
                 position_id=position_id
@@ -277,7 +310,7 @@ class ExecutionEngine:
             self._positions[market] = position
             self._position_context[position.position_id] = dict(position_context or {})
             self._cash -= size
-            self._implied_prob = max(0.01, min(0.99, float(price)))
+            self._implied_prob = max(0.01, min(0.99, estimated_execution_price))
             self._recalculate_unrealized()
             self._refresh_equity()
             log.info("execution_engine_position_opened", market=market, side=side, price=price, size=size)
@@ -292,6 +325,58 @@ class ExecutionEngine:
         rejection_payload = {"reason": reason, **details}
         self._last_open_rejection = rejection_payload
         log.warning("execution_engine_open_rejected", **rejection_payload)
+
+    @staticmethod
+    def _estimate_execution_vwap(
+        *,
+        side: str,
+        requested_size: float,
+        orderbook: dict[str, Any] | None,
+    ) -> tuple[float, float] | None:
+        if requested_size <= 0.0 or not isinstance(orderbook, dict):
+            return None
+
+        normalized_side = str(side).strip().upper()
+        if normalized_side in {"YES", "BUY", "LONG"}:
+            raw_levels = orderbook.get("asks")
+            descending = False
+        elif normalized_side in {"NO", "SELL", "SHORT"}:
+            raw_levels = orderbook.get("bids")
+            descending = True
+        else:
+            return None
+        if not isinstance(raw_levels, list):
+            return None
+
+        levels: list[tuple[float, float]] = []
+        for raw_level in raw_levels:
+            if not isinstance(raw_level, dict):
+                continue
+            try:
+                level_price = float(raw_level.get("price"))
+                level_size = float(raw_level.get("size"))
+            except (TypeError, ValueError):
+                continue
+            if not (0.0 < level_price <= 1.0 and level_size > 0.0):
+                continue
+            levels.append((level_price, level_size))
+        if not levels:
+            return None
+
+        levels.sort(key=lambda item: item[0], reverse=descending)
+        remaining = requested_size
+        filled = 0.0
+        notional = 0.0
+        for level_price, level_size in levels:
+            if remaining <= 0.0:
+                break
+            executed = min(level_size, remaining)
+            filled += executed
+            notional += level_price * executed
+            remaining -= executed
+        if filled <= 0.0:
+            return None
+        return (notional / filled, filled)
 
     async def close_position(
         self,
