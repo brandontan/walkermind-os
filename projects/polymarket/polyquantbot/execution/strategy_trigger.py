@@ -10,6 +10,9 @@ from typing import Any
 from .engine import ExecutionEngine
 from .intelligence import ExecutionIntelligence, MarketSnapshot
 from .trade_trace import TradeTraceEngine
+from ..legacy.adapters.context_bridge import LegacyContextBridge
+from ..platform.context.models import PlatformContextEnvelope
+from ..platform.context.resolver import LegacySessionSeed
 from ..strategy.falcon_alpha_strategy import FalconSignal
 from ..core.analytics.trade_validator import TradeValidator
 from ..core.execution.execution_tracker import ExecutionTracker
@@ -297,6 +300,8 @@ class StrategyTrigger:
         self._last_trigger_time: float | None = None
         self._cooldown_seconds = 30.0  # Anti-loop guard
         self._trace_engine = TradeTraceEngine()
+        self._legacy_context_bridge = LegacyContextBridge()
+        self._last_platform_context: PlatformContextEnvelope | None = None
         self._strategy_results: dict[str, list[dict[str, float]]] = {}
         self._adaptive_weights: dict[str, float] = {"S1": 1.0, "S2": 1.0, "S3": 1.0}
         self._adaptive_sizing_modifier: float = 1.0
@@ -357,6 +362,31 @@ class StrategyTrigger:
             "ready": self._risk_restore_ready,
             "reason": self._risk_restore_reason,
         }
+
+    def get_platform_context(self) -> PlatformContextEnvelope | None:
+        """Return last resolved read-only platform context for diagnostics."""
+        return self._last_platform_context
+
+    def _build_platform_seed(self, market_context: dict[str, Any] | None) -> LegacySessionSeed:
+        context = market_context or {}
+        user_id = str(context.get("legacy_user_id", context.get("user_id", "legacy-default")))
+        session_id = str(context.get("legacy_session_id", "legacy-session"))
+        wallet_binding_id = str(context.get("wallet_binding_id", f"wb-{user_id}-{session_id}"))
+        mode = str(context.get("mode", "PAPER")).upper()
+        allowed_market = str(context.get("market_id", self._config.market_id))
+        trace_id = str(context.get("trace_id", f"trace-{uuid.uuid4()}"))
+        return LegacySessionSeed(
+            user_id=user_id,
+            external_user_id=session_id,
+            mode=mode,
+            wallet_binding_id=wallet_binding_id,
+            wallet_type=str(context.get("wallet_type", "LEGACY_SESSION")),
+            signature_type=str(context.get("signature_type", "SESSION")),
+            funder_address=str(context.get("funder_address", "N/A")),
+            auth_state=str(context.get("auth_state", "UNVERIFIED")),
+            allowed_markets=(allowed_market,),
+            trace_id=trace_id,
+        )
 
     def _record_blocked_terminal_trace(
         self,
@@ -2087,6 +2117,16 @@ class StrategyTrigger:
             return "COOLDOWN"
         self._last_trigger_time = now
         self.refresh_optimization_output()
+        bridge_seed = self._build_platform_seed(market_context)
+        bridge_result = self._legacy_context_bridge.attach_context(seed=bridge_seed)
+        self._last_platform_context = bridge_result.context
+        if bridge_result.strict_mode_blocked:
+            log.error(
+                "platform_context_bridge_strict_mode_block",
+                user_id=bridge_seed.user_id,
+                trace_id=bridge_seed.trace_id,
+            )
+            return "BLOCKED"
 
         snapshot = await self._engine.snapshot()
         self._risk_engine.update_from_snapshot(
