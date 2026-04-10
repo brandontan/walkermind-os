@@ -1,26 +1,25 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-📅 Last Updated : 2026-04-10 04:12
-🔄 Status       : P18 final execution consistency remediation completed with dynamic drift threshold restoration on VWAP execution basis.
+📅 Last Updated : 2026-04-10 06:42
+🔄 Status       : SENTINEL MAJOR validation for P25 strategy-trigger gating alignment (PR #377 objective) completed with BLOCKED verdict based on current repository runtime evidence.
 
 ✅ COMPLETED
-- P18 final remediation completed in active root `/workspace/walker-ai-team/projects/polymarket/polyquantbot`:
-  - Restored dynamic drift threshold computation and runtime enforcement in `ExecutionEngine.open_position(...)`.
-  - Preserved VWAP execution-price consistency across drift validation, EV validation, entry/current pricing, and implied probability.
-  - Kept requested/submitted price as trace/debug only; no reintroduction of requested-price drift authority.
-  - Preserved fail-closed behavior for invalid/stale market data, liquidity insufficiency, EV-negative rejection, and no-mutation-on-reject paths.
-  - Added focused tests for dynamic threshold restoration, VWAP consistency continuity, and combined VWAP+dynamic-threshold decision behavior.
-- FORGE report added:
-  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_49_p18_final_dynamic_drift_restore.md`
+- SENTINEL MAJOR validation task executed for P25 objective (trade intent persistence gate + account envelope binding + fail-closed execution boundary) against active root `/workspace/walker-ai-team/projects/polymarket/polyquantbot`.
+- Validation evidence captured in report:
+  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/sentinel/25_3_p25_strategy_trigger_gating_alignment_validation_20260410.md`
+- Requested symbol scans and runtime order checks completed.
+- Requested pytest commands executed and outputs recorded.
 
 🔧 IN PROGRESS
 - None.
 
 📋 NOT STARTED
-- None.
+- FORGE-X remediation for missing P25 gate wiring in runtime path.
 
 🎯 NEXT PRIORITY
-- Auto PR review + COMMANDER review required before merge. Source: reports/forge/24_49_p18_final_dynamic_drift_restore.md. Tier: STANDARD
+- FORGE-X remediation required for P25 gate restoration, then rerun SENTINEL MAJOR validation. Source: reports/sentinel/25_3_p25_strategy_trigger_gating_alignment_validation_20260410.md. Tier: MAJOR
 
 ⚠️ KNOWN ISSUES
-- Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking for this remediation task).
+- `AccountEnvelope`, `trade_intent_writer`, and `_persist_trade_intent` symbols are not present in the current project tree.
+- Requested test file `tests/test_p25_account_envelope_risk_binding_20260410.py` is not present.
+- Environment import-path issue during broad test collection (`ModuleNotFoundError: No module named 'projects'`) affects keyword-only test invocation in current shell context.
