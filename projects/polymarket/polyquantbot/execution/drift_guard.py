@@ -25,6 +25,27 @@ class MarketDataValidationResult:
     model_probability: float | None
 
 
+@dataclass(frozen=True)
+class ExecutionPriceEstimateResult:
+    """Execution-price estimation outcome from orderbook levels."""
+
+    allowed: bool
+    reason: str | None
+    details: dict[str, Any]
+    estimated_execution_price: float | None
+    executable_size: float
+
+
+@dataclass(frozen=True)
+class DynamicDriftThresholdResult:
+    """Dynamic drift-threshold computation outcome."""
+
+    allowed: bool
+    reason: str | None
+    details: dict[str, Any]
+    max_drift_ratio: float | None
+
+
 def evaluate_execution_price_drift(
     *,
     expected_price: float,
@@ -172,6 +193,208 @@ def validate_execution_market_data(
         },
         reference_price=reference_price,
         model_probability=model_probability,
+    )
+
+
+def estimate_execution_price_from_orderbook(
+    *,
+    orderbook: dict[str, Any],
+    side: str,
+    requested_size: float,
+) -> ExecutionPriceEstimateResult:
+    """Estimate executable VWAP from orderbook depth for the requested side."""
+    if requested_size <= 0.0:
+        return ExecutionPriceEstimateResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "size", "issue": "non_positive", "value": requested_size},
+            estimated_execution_price=None,
+            executable_size=0.0,
+        )
+    if not isinstance(orderbook, dict):
+        return ExecutionPriceEstimateResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "orderbook", "issue": "missing_or_not_dict"},
+            estimated_execution_price=None,
+            executable_size=0.0,
+        )
+    bids = _normalize_levels(orderbook.get("bids"))
+    asks = _normalize_levels(orderbook.get("asks"))
+    if bids is None or asks is None:
+        return ExecutionPriceEstimateResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "orderbook", "issue": "malformed_levels"},
+            estimated_execution_price=None,
+            executable_size=0.0,
+        )
+
+    normalized_side = str(side).strip().upper()
+    if normalized_side in {"YES", "BUY", "LONG"}:
+        book_levels = sorted(asks, key=lambda level: level[0])
+    elif normalized_side in {"NO", "SELL", "SHORT"}:
+        book_levels = sorted(bids, key=lambda level: level[0], reverse=True)
+    else:
+        return ExecutionPriceEstimateResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "side", "issue": "unsupported_value", "value": side},
+            estimated_execution_price=None,
+            executable_size=0.0,
+        )
+    if not book_levels:
+        return ExecutionPriceEstimateResult(
+            allowed=False,
+            reason="liquidity_insufficient",
+            details={"field": "orderbook", "issue": "no_executable_levels", "side": normalized_side},
+            estimated_execution_price=None,
+            executable_size=0.0,
+        )
+
+    remaining = float(requested_size)
+    filled_size = 0.0
+    total_notional = 0.0
+    for level_price, level_size in book_levels:
+        if remaining <= 0.0:
+            break
+        take_size = min(level_size, remaining)
+        if take_size <= 0.0:
+            continue
+        total_notional += float(level_price) * take_size
+        filled_size += take_size
+        remaining -= take_size
+    if filled_size <= 0.0:
+        return ExecutionPriceEstimateResult(
+            allowed=False,
+            reason="liquidity_insufficient",
+            details={"field": "orderbook", "issue": "no_fillable_size", "side": normalized_side},
+            estimated_execution_price=None,
+            executable_size=0.0,
+        )
+    if filled_size + 1e-9 < float(requested_size):
+        return ExecutionPriceEstimateResult(
+            allowed=False,
+            reason="liquidity_insufficient",
+            details={
+                "field": "orderbook",
+                "issue": "insufficient_depth",
+                "side": normalized_side,
+                "requested_size": float(requested_size),
+                "fillable_size": filled_size,
+            },
+            estimated_execution_price=None,
+            executable_size=filled_size,
+        )
+
+    return ExecutionPriceEstimateResult(
+        allowed=True,
+        reason=None,
+        details={"side": normalized_side, "requested_size": float(requested_size)},
+        estimated_execution_price=(total_notional / filled_size),
+        executable_size=filled_size,
+    )
+
+
+def compute_dynamic_drift_threshold(
+    *,
+    orderbook: dict[str, Any],
+    side: str,
+    base_max_drift_ratio: float,
+    volatility: float | None = None,
+) -> DynamicDriftThresholdResult:
+    """Compute dynamic drift threshold from spread/depth stress and volatility."""
+    if base_max_drift_ratio <= 0.0:
+        return DynamicDriftThresholdResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "base_max_drift_ratio", "issue": "non_positive", "value": base_max_drift_ratio},
+            max_drift_ratio=None,
+        )
+    if volatility is not None and (volatility < 0.0 or volatility > 1.0):
+        return DynamicDriftThresholdResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "volatility", "issue": "out_of_range", "value": volatility},
+            max_drift_ratio=None,
+        )
+    if not isinstance(orderbook, dict):
+        return DynamicDriftThresholdResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "orderbook", "issue": "missing_or_not_dict"},
+            max_drift_ratio=None,
+        )
+    bids = _normalize_levels(orderbook.get("bids"))
+    asks = _normalize_levels(orderbook.get("asks"))
+    if bids is None or asks is None or not bids or not asks:
+        return DynamicDriftThresholdResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "orderbook", "issue": "invalid_depth_levels"},
+            max_drift_ratio=None,
+        )
+
+    best_bid = _best_bid_price(bids)
+    best_ask = _best_ask_price(asks)
+    if best_bid is None or best_ask is None or best_ask <= 0.0 or best_bid <= 0.0 or best_ask <= best_bid:
+        return DynamicDriftThresholdResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "spread", "issue": "invalid_or_non_positive"},
+            max_drift_ratio=None,
+        )
+
+    normalized_side = str(side).strip().upper()
+    if normalized_side in {"YES", "BUY", "LONG"}:
+        same_side_depth = sum(size for _, size in asks)
+        opposite_side_depth = sum(size for _, size in bids)
+    elif normalized_side in {"NO", "SELL", "SHORT"}:
+        same_side_depth = sum(size for _, size in bids)
+        opposite_side_depth = sum(size for _, size in asks)
+    else:
+        return DynamicDriftThresholdResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "side", "issue": "unsupported_value", "value": side},
+            max_drift_ratio=None,
+        )
+    if same_side_depth <= 0.0 or opposite_side_depth <= 0.0:
+        return DynamicDriftThresholdResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "depth", "issue": "non_positive"},
+            max_drift_ratio=None,
+        )
+
+    midpoint = (best_bid + best_ask) / 2.0
+    if midpoint <= 0.0:
+        return DynamicDriftThresholdResult(
+            allowed=False,
+            reason="invalid_market_data",
+            details={"field": "spread", "issue": "invalid_midpoint"},
+            max_drift_ratio=None,
+        )
+    spread_ratio = (best_ask - best_bid) / midpoint
+    depth_imbalance = abs(same_side_depth - opposite_side_depth) / (same_side_depth + opposite_side_depth)
+    volatility_factor = float(volatility) if volatility is not None else 0.0
+    stress_score = min(1.0, (spread_ratio * 8.0) + (depth_imbalance * 0.7) + (volatility_factor * 0.8))
+
+    floor_ratio = float(base_max_drift_ratio) * 0.15
+    dynamic_ratio = max(floor_ratio, float(base_max_drift_ratio) * (1.0 - (0.90 * stress_score)))
+    dynamic_ratio = min(float(base_max_drift_ratio), dynamic_ratio)
+
+    return DynamicDriftThresholdResult(
+        allowed=True,
+        reason=None,
+        details={
+            "spread_ratio": spread_ratio,
+            "depth_imbalance": depth_imbalance,
+            "volatility": volatility_factor,
+            "stress_score": stress_score,
+            "floor_ratio": floor_ratio,
+        },
+        max_drift_ratio=dynamic_ratio,
     )
 
 
