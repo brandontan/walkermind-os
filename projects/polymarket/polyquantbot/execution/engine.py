@@ -20,6 +20,7 @@ from .proof_lifecycle import (
     ValidationProofRegistry,
     new_validation_proof,
 )
+from .drift_guard import ExecutionDriftGuard
 
 log = structlog.get_logger(__name__)
 
@@ -70,6 +71,7 @@ class ExecutionEngine:
         self._proof_verifier = ProofVerifier(self._proof_registry)
         self._ttl_resolver = ttl_resolver or TTLResolver()
         self._last_open_rejection: dict[str, Any] | None = None
+        self._drift_guard = ExecutionDriftGuard()
 
     def build_validation_proof(
         self,
@@ -116,6 +118,7 @@ class ExecutionEngine:
         position_id: str | None = None,
         position_context: dict[str, Any] | None = None,
         validation_proof: ValidationProof | None = None,
+        execution_market_data: dict[str, Any] | None = None,
     ) -> Position | None:
         """Create position object and update paper portfolio if risk allows."""
         async with self._lock:
@@ -131,7 +134,7 @@ class ExecutionEngine:
                 proof_id=validation_proof.proof_id,
                 condition_id=str(market),
                 side=str(side),
-                price_snapshot=float(price),
+                price_snapshot=float(validation_proof.price_snapshot),
                 size=float(size),
             )
             if not proof_ok:
@@ -143,6 +146,21 @@ class ExecutionEngine:
                 )
                 return None
             size = float(size)
+            drift_guard = self._drift_guard.validate(
+                side=str(side),
+                validated_price=float(validation_proof.price_snapshot),
+                execution_price=float(price),
+                size=size,
+                market_data=execution_market_data,
+            )
+            if not drift_guard.allowed:
+                self._record_open_rejection(
+                    reason=str(drift_guard.reason or "drift_guard_rejected"),
+                    market=market,
+                    position_id=position_id,
+                    drift_guard=drift_guard.details or {},
+                )
+                return None
             if size <= 0:
                 self._record_open_rejection(
                     reason="size_non_positive",

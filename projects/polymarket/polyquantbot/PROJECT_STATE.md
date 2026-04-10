@@ -1,11 +1,18 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-📅 Last Updated  : 2026-04-10 22:30
-🔄 Status        : P16 restart-safe risk enforcement & traceability remediation COMPLETE — validated and merged.
+📅 Last Updated  : 2026-04-10 23:20
+🔄 Status        : P17.4 execution-boundary drift guard remediation COMPLETE (FORGE-X) — awaiting SENTINEL MAJOR validation.
 
 ---
 
 ## ✅ COMPLETED
+
+- P17.4 execution drift guard remediation (2026-04-10):
+  - Added authoritative `ExecutionDriftGuard` boundary module with explicit rejection contract (`price_deviation`, `ev_negative`, `liquidity_insufficient`).
+  - Enforced unconditional drift guard checks in `ExecutionEngine.open_position(...)` after proof verification and before any mutation.
+  - Enforced execution-time EV recomputation and liquidity/VWAP slippage fail-close behavior for StrategyTrigger and direct engine-entry flows.
+  - Added focused runtime tests (`8` cases) in `tests/test_p17_4_execution_drift_guard_20260410.py`.
+  - Report: `projects/polymarket/polyquantbot/reports/forge/24_42_p17_4_execution_drift_guard_remediation.md`
 
 - P16 restart-safe risk enforcement & traceability remediation (2026-04-10):
   - Restart-safe risk enforcement: ✅ Authoritative, fail-closed, and runtime-proven.
@@ -70,8 +77,9 @@
 
 ## 🎯 NEXT PRIORITY
 
-- Close PR #352 and #353 (validation chain complete)
-- System proceeds to next development phase
+SENTINEL validation required for p17.4 execution drift guard remediation before merge.
+Source: reports/forge/24_42_p17_4_execution_drift_guard_remediation.md
+Tier: MAJOR
 
 ---
 

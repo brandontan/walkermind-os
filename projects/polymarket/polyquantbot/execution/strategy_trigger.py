@@ -2324,6 +2324,11 @@ class StrategyTrigger:
                 price=readiness.expected_fill_price,
                 size=size,
                 position_id=trade_id,
+                execution_market_data={
+                    "reference_price": float((market_context or {}).get("execution_reference_price", readiness.expected_fill_price)),
+                    "model_probability": float((signal_data or {}).get("probability", (signal_data or {}).get("signal", 0.5))),
+                    "orderbook": (market_context or {}).get("orderbook", {}),
+                },
                 position_context={
                     "strategy_source": (
                         selected_candidate.strategy_name
