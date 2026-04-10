@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import inspect
 import time
 import structlog
 import uuid
@@ -316,6 +317,7 @@ class StrategyTrigger:
         self._position_entry_context: dict[str, dict[str, object]] = {}
         self._pre_trade_validator = PreTradeValidator()
         self._execution_tracker = ExecutionTracker()
+        self._trade_intent_writer: Any | None = None
         self._trade_validator = TradeValidator()
         self._risk_engine = RiskEngine(persistence_path=self._config.risk_state_persistence_path)
         self._risk_restore_ready = False
@@ -388,6 +390,65 @@ class StrategyTrigger:
             },
             "risk_state": self._risk_engine.as_dict(),
         }
+
+    async def _persist_trade_intent(
+        self,
+        *,
+        trade_id: str,
+        expected_price: float,
+        signal_data: dict[str, Any],
+        decision_data: dict[str, Any],
+    ) -> bool:
+        writer = self._trade_intent_writer
+        if writer is None:
+            self._execution_tracker.record_order_submission(
+                trade_id=trade_id,
+                expected_price=expected_price,
+                signal_data=signal_data,
+                decision_data=decision_data,
+            )
+            return True
+        write_callable = getattr(writer, "write", None)
+        if write_callable is None:
+            log.error(
+                "trade_intent_persistence_failed",
+                reason="trade_intent_persistence_failed",
+                trade_id=trade_id,
+                error="trade_intent_writer_missing_write",
+            )
+            return False
+        try:
+            result = write_callable(
+                trade_id=trade_id,
+                expected_price=expected_price,
+                signal_data=signal_data,
+                decision_data=decision_data,
+            )
+            if inspect.isawaitable(result):
+                result = await result
+        except Exception as exc:
+            log.error(
+                "trade_intent_persistence_failed",
+                reason="trade_intent_persistence_failed",
+                trade_id=trade_id,
+                error=str(exc),
+            )
+            return False
+        if result is False:
+            log.error(
+                "trade_intent_persistence_failed",
+                reason="trade_intent_persistence_failed",
+                trade_id=trade_id,
+                error="trade_intent_writer_returned_false",
+            )
+            return False
+        self._execution_tracker.record_order_submission(
+            trade_id=trade_id,
+            expected_price=expected_price,
+            signal_data=signal_data,
+            decision_data=decision_data,
+        )
+        return True
 
     def _regime_strategy_modifiers(self, regime: MarketRegimeClassification) -> dict[str, float]:
         modifiers: dict[str, float] = {
@@ -2303,6 +2364,27 @@ class StrategyTrigger:
             if market_type not in {"fast", "normal"}:
                 market_type = "fast" if float((market_context or {}).get("spread", 0.0)) >= 0.03 else "normal"
             volatility_proxy = (market_context or {}).get("volatility")
+            persisted = await self._persist_trade_intent(
+                trade_id=trade_id,
+                expected_price=readiness.expected_fill_price,
+                signal_data=signal_data,
+                decision_data=decision_data,
+            )
+            if not persisted:
+                self._record_blocked_terminal_trace(
+                    trade_id=trade_id,
+                    signal_data=signal_data,
+                    decision_data=decision_data,
+                    validation_result={
+                        "decision": validation_result.decision,
+                        "reason": validation_result.reason,
+                        "checks": validation_result.checks,
+                    },
+                    terminal_stage="trade_intent_persistence_block",
+                    reason="trade_intent_persistence_failed",
+                    terminal_outcome="BLOCKED",
+                )
+                return "BLOCKED"
             validation_proof = self._engine.build_validation_proof(
                 condition_id=target_market_id,
                 side=self._config.side,
@@ -2310,12 +2392,6 @@ class StrategyTrigger:
                 size=size,
                 market_type=market_type,
                 volatility_proxy=float(volatility_proxy) if volatility_proxy is not None else None,
-            )
-            self._execution_tracker.record_order_submission(
-                trade_id=trade_id,
-                expected_price=readiness.expected_fill_price,
-                signal_data=signal_data,
-                decision_data=decision_data,
             )
             created = await self._engine.open_position(
                 market=target_market_id,

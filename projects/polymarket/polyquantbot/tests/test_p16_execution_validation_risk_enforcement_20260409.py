@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import tempfile
+import time
 from pathlib import Path
 
 from projects.polymarket.polyquantbot.execution.engine import ExecutionEngine, ExecutionValidationProof
@@ -310,6 +311,148 @@ def test_p16_blocked_terminal_traceability_has_single_terminal_trace_per_path() 
             if trace.get("outcome_data", {}).get("terminal_stage") == "execution_engine_rejected_open"
         ]
         assert len(engine_traces) == 1
+
+    asyncio.run(_run())
+
+
+def test_p16_trade_intent_persistence_false_blocks_before_proof_and_open() -> None:
+    class _FailFalseWriter:
+        async def write(self, **_: object) -> bool:
+            return False
+
+    async def _run() -> None:
+        trigger = _build_trigger()
+        trigger._trade_intent_writer = _FailFalseWriter()  # noqa: SLF001
+        proof_calls = 0
+        open_calls = 0
+        original_build = trigger._engine.build_validation_proof  # noqa: SLF001
+        original_open = trigger._engine.open_position  # noqa: SLF001
+
+        def _counted_build(*args: object, **kwargs: object):
+            nonlocal proof_calls
+            proof_calls += 1
+            return original_build(*args, **kwargs)
+
+        async def _counted_open(*args: object, **kwargs: object):
+            nonlocal open_calls
+            open_calls += 1
+            return await original_open(*args, **kwargs)
+
+        trigger._engine.build_validation_proof = _counted_build  # type: ignore[assignment] # noqa: SLF001
+        trigger._engine.open_position = _counted_open  # type: ignore[assignment] # noqa: SLF001
+        decision = await trigger.evaluate(
+            market_price=0.45,
+            aggregation_decision=_build_aggregation(),
+            market_context={
+                "expected_value": 0.12,
+                "liquidity_usd": 50_000.0,
+                "spread": 0.01,
+                "best_bid": 0.445,
+                "best_ask": 0.455,
+                "timestamp": time.time(),
+                "model_probability": 0.62,
+                "orderbook": {"bids": [[0.44, 10_000.0]], "asks": [[0.46, 10_000.0]]},
+            },
+        )
+        assert decision == "BLOCKED"
+        assert proof_calls == 0
+        assert open_calls == 0
+        trace = next(iter(trigger._trade_traceability.values()))  # noqa: SLF001
+        assert trace["outcome_data"]["reason"] == "trade_intent_persistence_failed"
+
+    asyncio.run(_run())
+
+
+def test_p16_trade_intent_persistence_exception_blocks_before_proof_and_open() -> None:
+    class _RaiseWriter:
+        async def write(self, **_: object) -> bool:
+            raise RuntimeError("db down")
+
+    async def _run() -> None:
+        trigger = _build_trigger()
+        trigger._trade_intent_writer = _RaiseWriter()  # noqa: SLF001
+        proof_calls = 0
+        open_calls = 0
+        original_build = trigger._engine.build_validation_proof  # noqa: SLF001
+        original_open = trigger._engine.open_position  # noqa: SLF001
+
+        def _counted_build(*args: object, **kwargs: object):
+            nonlocal proof_calls
+            proof_calls += 1
+            return original_build(*args, **kwargs)
+
+        async def _counted_open(*args: object, **kwargs: object):
+            nonlocal open_calls
+            open_calls += 1
+            return await original_open(*args, **kwargs)
+
+        trigger._engine.build_validation_proof = _counted_build  # type: ignore[assignment] # noqa: SLF001
+        trigger._engine.open_position = _counted_open  # type: ignore[assignment] # noqa: SLF001
+        decision = await trigger.evaluate(
+            market_price=0.45,
+            aggregation_decision=_build_aggregation(),
+            market_context={
+                "expected_value": 0.12,
+                "liquidity_usd": 50_000.0,
+                "spread": 0.01,
+                "best_bid": 0.445,
+                "best_ask": 0.455,
+                "timestamp": time.time(),
+                "model_probability": 0.62,
+                "orderbook": {"bids": [[0.44, 10_000.0]], "asks": [[0.46, 10_000.0]]},
+            },
+        )
+        assert decision == "BLOCKED"
+        assert proof_calls == 0
+        assert open_calls == 0
+        trace = next(iter(trigger._trade_traceability.values()))  # noqa: SLF001
+        assert trace["outcome_data"]["reason"] == "trade_intent_persistence_failed"
+
+    asyncio.run(_run())
+
+
+def test_p16_trade_intent_persistence_success_keeps_normal_path() -> None:
+    class _SuccessWriter:
+        async def write(self, **_: object) -> bool:
+            return True
+
+    async def _run() -> None:
+        trigger = _build_trigger()
+        trigger._trade_intent_writer = _SuccessWriter()  # noqa: SLF001
+        proof_calls = 0
+        open_calls = 0
+        original_build = trigger._engine.build_validation_proof  # noqa: SLF001
+        original_open = trigger._engine.open_position  # noqa: SLF001
+
+        def _counted_build(*args: object, **kwargs: object):
+            nonlocal proof_calls
+            proof_calls += 1
+            return original_build(*args, **kwargs)
+
+        async def _counted_open(*args: object, **kwargs: object):
+            nonlocal open_calls
+            open_calls += 1
+            return await original_open(*args, **kwargs)
+
+        trigger._engine.build_validation_proof = _counted_build  # type: ignore[assignment] # noqa: SLF001
+        trigger._engine.open_position = _counted_open  # type: ignore[assignment] # noqa: SLF001
+        decision = await trigger.evaluate(
+            market_price=0.45,
+            aggregation_decision=_build_aggregation(),
+            market_context={
+                "expected_value": 0.12,
+                "liquidity_usd": 50_000.0,
+                "spread": 0.01,
+                "best_bid": 0.445,
+                "best_ask": 0.455,
+                "timestamp": time.time(),
+                "model_probability": 0.62,
+                "orderbook": {"bids": [[0.44, 10_000.0]], "asks": [[0.46, 10_000.0]]},
+            },
+        )
+        assert decision == "OPENED"
+        assert proof_calls == 1
+        assert open_calls == 1
 
     asyncio.run(_run())
 
