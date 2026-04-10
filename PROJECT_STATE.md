@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 23:28
-- Status        : FORGE-X completed MAJOR-tier execution proof lifecycle (dynamic TTL + replay-safe single-use + persistent DB registry + fail-closed execution-boundary verification) in StrategyTrigger→ExecutionEngine path.
+- Last Updated  : 2026-04-10 00:06
+- Status        : SENTINEL completed MAJOR validation for P17.4 execution drift guard and returned BLOCKED verdict due missing drift-guard module and absent execution-boundary EV/liquidity/slippage enforcement.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- SENTINEL validation for P17.4 execution drift guard (2026-04-10): verdict **BLOCKED** (score **31/100**) after runtime/code verification found missing `execution/drift_guard.py`, no thresholded price-drift policy, no execution-boundary EV-flip rejection, no boundary liquidity/slippage guard, and bypassable direct engine path for drift-policy scope; report `projects/polymarket/polyquantbot/reports/sentinel/24_41_p17_4_execution_drift_guard_validation.md`.
 - P17 execution proof lifecycle (2026-04-09): implemented immutable validation proofs with dynamic TTL policy, DB-backed proof registry (`validation_proofs`), authoritative execution-boundary proof verification (existence/status/TTL/context/atomic consume), StrategyTrigger integration, and focused replay/expiry/context/restart/race/no-bypass tests; report `projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md`.
 - P16 execution-boundary position-sizing enforcement (2026-04-10): enforced authoritative boundary sizing checks in `ExecutionEngine.open_position(...)` for non-positive/per-trade-cap/capital-risk-allowed size violations before mutation, preserved signed validation-proof enforcement, propagated structured rejection reason into StrategyTrigger blocked terminal trace, and added focused tests; report `projects/polymarket/polyquantbot/reports/forge/24_39_execution_position_sizing_boundary_enforcement.md`.
 - P16 execution-boundary validation-proof enforcement (2026-04-09): replaced trust-only execution entry assumption with signed `ExecutionValidationProof` contract at engine boundary, wired StrategyTrigger ALLOW path to pass proof payload, and added focused no-proof/fake-proof/pass-proof runtime tests; report `projects/polymarket/polyquantbot/reports/forge/24_38_execution_validation_proof_boundary_enforcement.md`.
@@ -129,9 +130,13 @@ Status:
 
 ## 🚧 IN PROGRESS
 
+### P17.4 execution drift guard remediation handoff
+- SENTINEL MAJOR validation is complete with verdict BLOCKED for declared drift-guard objective.
+- FORGE-X remediation is required for execution-boundary drift/EV/liquidity/slippage enforcement before revalidation.
+
 ### P17 execution proof lifecycle handoff
 - MAJOR-tier FULL RUNTIME INTEGRATION implementation is complete for StrategyTrigger→ExecutionEngine proof lifecycle enforcement (dynamic TTL, replay safety, persistence, fail-closed verifier, atomic consume).
-- Awaiting SENTINEL validation before merge per MAJOR policy.
+- SENTINEL follow-up for P17.4 drift-guard extension is BLOCKED; targeted FORGE-X remediation is now required before merge decision.
 
 ### P16 execution-boundary position-sizing enforcement handoff
 - STANDARD-tier NARROW INTEGRATION implementation is complete for StrategyTrigger→ExecutionEngine boundary sizing enforcement + explicit rejection traceability in touched path.
@@ -275,12 +280,13 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md
+FORGE-X remediation required for P17.4 execution drift guard before merge.
+Source: projects/polymarket/polyquantbot/reports/sentinel/24_41_p17_4_execution_drift_guard_validation.md
 Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 
+- P17.4 drift-guard target is currently incomplete: `execution/drift_guard.py` is missing and `ExecutionEngine.open_position(...)` does not yet enforce execution-time thresholded price-drift, EV-flip rejection, or liquidity/slippage boundary checks.
 - P17 proof lifecycle currently uses lazy expiration enforcement at execution boundary; background cleanup of expired rows is deferred.
 - P17 TTL policy currently uses configurable baseline market-type ranges with optional volatility proxy scaling; advanced volatility-driven calibration remains out of scope for this phase.
 - P16 execution-boundary validation-proof enforcement is currently narrow integration in StrategyTrigger→ExecutionEngine path only; any future alternate execution entry surfaces must explicitly adopt the same proof contract.
