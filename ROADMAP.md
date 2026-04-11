@@ -98,16 +98,17 @@
 **Status:** 🚧 In Progress
 **Last Updated:** 2026-04-11
 
-> ⚠️ NOTE: PR #396 (ExecutionIsolationGateway) is Phase 2 work — branch was labelled "Phase 3" but correctly belongs here. Review fix pass in progress before merge.
+> ⚠️ NOTE: PR #396 (ExecutionIsolationGateway) is Phase 2 work — branch/report naming used legacy "Phase 3" labels, but milestone ownership remains Phase 2.
+> ✅ Merge + validation status: PR #396 merged on 2026-04-11 after SENTINEL rerun approval (`projects/polymarket/polyquantbot/reports/sentinel/24_56_pr396_execution_isolation_rerun.md`).
 
 ### Core Extraction & Isolation
 | # | Task | Status | Notes |
 |---|---|---|---|
 | 2.1 | Freeze legacy core behavior (no logic drift) | 🚧 | PR #394 merged — stable, not formally tagged |
 | 2.2 | Extract core module boundaries | 🚧 | Structure exists, formal boundary not declared |
-| 2.3 | Add ExecutionIsolationGateway | 🚧 | PR #396 open — review fix pass in progress |
-| 2.4 | Preserve resolver/bridge purity (read-only) | 🚧 | PR #396 — context_bridge audit suppression included |
-| 2.5 | Regression tests around execution path | 🚧 | Covered in PR #396 test suite |
+| 2.3 | Add ExecutionIsolationGateway | ✅ | PR #396 merged (2026-04-11) — SENTINEL rerun approved before merge |
+| 2.4 | Preserve resolver/bridge purity (read-only) | ✅ | Delivered in PR #396 chain; compatibility fixes included in follow-up `24_55` pass before merge |
+| 2.5 | Regression tests around execution path | ✅ | Covered in PR #396 chain and SENTINEL rerun (`24_56`) with passing focused checks |
 
 ### Platform Shell
 | # | Task | Status | Notes |
