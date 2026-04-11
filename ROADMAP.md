@@ -112,9 +112,9 @@
 ### Platform Shell
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | |
-| 2.7 | Build public API/app gateway skeleton | ❌ | |
-| 2.8 | Add legacy-core facade adapter | ❌ | |
+| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | Foundation scaffolding present; delivery not merged to main |
+| 2.7 | Build public API/app gateway skeleton | ❌ | PR #413 blocker-fix line in progress; awaiting fresh SENTINEL rerun |
+| 2.8 | Add legacy-core facade adapter | ❌ | FOUNDATION seam only; no expanded runtime claim |
 | 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | |
 | 2.10 | Staging deploy on Fly.io | ❌ | Migration from Railway pending |
 
