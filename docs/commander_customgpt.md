@@ -141,6 +141,11 @@ Full template in commander_knowledge.md.
 - Required: Objective / Branch / Env / Tier / Claim Level / Target / Not in Scope / Steps / Done Criteria
 Same rules for SENTINEL TASK and BRIEFER TASK.
 
+Batch rule (ALL agents): max 5 files per commit. >5 files → split into sequential commits, same branch.
+Commit order — FORGE-X: logic → tests → report → PROJECT_STATE.md (always last).
+Commit order — SENTINEL: report → PROJECT_STATE.md.
+Never open multiple PRs for one task.
+
 ---
 
 ## PRE-TASK CHECKS
