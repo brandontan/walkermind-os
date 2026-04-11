@@ -11,6 +11,7 @@ from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
 from ..interface.telegram.view_handler import render_view, safe_count, safe_number
 from ..execution.engine import export_execution_payload, get_execution_engine
+from ..execution.execution_isolation import get_execution_isolation_gateway
 from ..execution.observability import (
     EVENT_OUTCOME,
     EVENT_STAGE,
@@ -450,6 +451,7 @@ class CommandHandler:
             )
         self._trade_intents[intent] = now
         engine = get_execution_engine()
+        execution_gateway = get_execution_isolation_gateway(engine)
         trigger = StrategyTrigger(
             engine=engine,
             config=StrategyConfig(
@@ -458,8 +460,12 @@ class CommandHandler:
                 threshold=0.45,
                 target_pnl=20.0,
             ),
+            execution_gateway=execution_gateway,
         )
-        result = await trigger.evaluate(0.42)
+        result = await trigger.evaluate(
+            0.42,
+            market_context={"open_source": "execution.command_handler.trade_open.manual"},
+        )
         await engine.update_mark_to_market({market: 0.46})
         payload = await export_execution_payload()
         get_portfolio_service().merge_execution_state(
@@ -505,6 +511,7 @@ class CommandHandler:
             )
         market = args.strip()
         engine = get_execution_engine()
+        execution_gateway = get_execution_isolation_gateway(engine)
         snapshot = await engine.snapshot()
         position = next((p for p in snapshot.positions if p.market_id == market), None)
         if position is None:
@@ -512,7 +519,19 @@ class CommandHandler:
                 success=False,
                 message=f"No open position for {market}.",
             )
-        realized_pnl = await engine.close_position(position, 0.50)
+        close_outcome = await execution_gateway.close_position(
+            source_path="telegram.command_handler.manual",
+            position=position,
+            close_price=0.50,
+            close_context={"exit_reason": "manual_command_close"},
+            terminal_reason="manual_command_close",
+        )
+        if not close_outcome.allowed:
+            return CommandResult(
+                success=False,
+                message=f"manual_close_blocked: {close_outcome.reason}",
+            )
+        realized_pnl = float(close_outcome.realized_pnl or 0.0)
         payload = await export_execution_payload()
         get_portfolio_service().merge_execution_state(
             positions=payload.get("positions", []),

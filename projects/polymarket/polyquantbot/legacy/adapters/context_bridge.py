@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import uuid
 from dataclasses import dataclass
 
 import structlog
@@ -13,7 +12,6 @@ from ...platform.permissions.service import PermissionService
 from ...platform.storage import build_repository_bundle_from_env
 from ...platform.strategy_subscriptions.service import StrategySubscriptionService
 from ...platform.wallet_auth.service import WalletAuthService
-from ...platform.storage.models import AuditEventRecord, utc_now
 
 log = structlog.get_logger(__name__)
 
@@ -32,10 +30,8 @@ class LegacyContextBridge:
     def __init__(self, resolver: ContextResolver | None = None) -> None:
         if resolver is not None:
             self._resolver = resolver
-            self._audit_events = None
             return
         bundle = build_repository_bundle_from_env()
-        self._audit_events = bundle.audit_events
         self._resolver = ContextResolver(
             account_service=AccountService(repository=bundle.accounts),
             wallet_auth_service=WalletAuthService(repository=bundle.wallet_bindings),
@@ -104,17 +100,10 @@ class LegacyContextBridge:
             )
 
     def _write_bridge_audit(self, *, seed: LegacySessionSeed, action: str, status: str) -> None:
-        if self._audit_events is None:
-            return
-        self._audit_events.append(
-            AuditEventRecord(
-                event_id=f"evt-{uuid.uuid4().hex[:10]}",
-                user_id=seed.user_id,
-                category="bridge",
-                action=action,
-                status=status,
-                trace_id=seed.trace_id,
-                payload_json={"mode": seed.mode},
-                created_at=utc_now(),
-            )
+        log.info(
+            "platform_context_bridge_audit_suppressed",
+            user_id=seed.user_id,
+            action=action,
+            status=status,
+            trace_id=seed.trace_id,
         )
