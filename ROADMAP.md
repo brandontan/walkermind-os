@@ -113,11 +113,13 @@
 ### Platform Shell
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | |
+| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ✅ | Merged via PR #408 chain (Phase 2 foundation shell) |
 | 2.7 | Build public API/app gateway skeleton | ❌ | |
 | 2.8 | Add legacy-core facade adapter | ❌ | |
 | 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | |
 | 2.10 | Staging deploy on Fly.io | ❌ | Migration from Railway pending |
+
+> Sequencing note: continue implementation order `2.8 -> 2.7 -> 2.9` for Phase 2 shell continuity, only while it remains consistent with current repo truth.
 
 ### Multi-User DB Schema
 | # | Task | Status | Notes |
