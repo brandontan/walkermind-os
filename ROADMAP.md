@@ -99,7 +99,7 @@
 **Last Updated:** 2026-04-11
 
 > ⚠️ NOTE: PR #396 (ExecutionIsolationGateway) is Phase 2 work — branch/report naming used legacy "Phase 3" labels, but milestone ownership remains Phase 2.
-> ✅ Merge + validation status: PR #396 merged on 2026-04-11 after SENTINEL rerun approval (`reports/sentinel/24_56_pr396_execution_isolation_rerun.md`).
+> ✅ Merge + validation status: PR #396 merged on 2026-04-11 after SENTINEL rerun approval (`projects/polymarket/polyquantbot/reports/sentinel/24_56_pr396_execution_isolation_rerun.md`).
 
 ### Core Extraction & Isolation
 | # | Task | Status | Notes |
