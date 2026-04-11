@@ -766,9 +766,49 @@ FORGE-X executes build tasks only from COMMANDER.
 5. Design architecture — document before writing any code
 6. Implement in small batches (`≤ 5` files per commit preferred)
 7. Run structure validation
-8. Generate report — all 6 sections mandatory
-9. Update `PROJECT_STATE.md` (allowed sections only)
-10. Create branch → commit code + report + state in ONE commit → create PR
+8. **PRE-FLIGHT SELF-CHECK (MANDATORY — run before any PR)**
+9. Generate report — all 6 sections mandatory
+10. Update `PROJECT_STATE.md` (allowed sections only)
+11. Create branch → commit code + report + state → create PR
+
+### PRE-FLIGHT SELF-CHECK (FORGE-X — MANDATORY)
+
+FORGE-X must run this checklist BEFORE opening any PR.
+If ANY check fails → fix immediately → re-run check → only then open PR.
+FORGE-X must NEVER open a PR that would fail this checklist.
+SENTINEL is NOT a debugging service — it only runs on clean code.
+
+```text
+PRE-FLIGHT CHECKLIST
+────────────────────
+[ ] py_compile — all touched files pass
+[ ] pytest — all touched test files pass (0 failures)
+[ ] Import chain — all new modules importable without error
+[ ] Risk constants — Kelly=0.25, max_pos≤10%, drawdown=8%, loss=-2000 unchanged
+[ ] No phase*/ folders — forbidden folders do not exist
+[ ] No hardcoded secrets — no API keys, tokens, private keys in code
+[ ] No threading — asyncio only
+[ ] No full Kelly — α=1.0 not present anywhere
+[ ] ENABLE_LIVE_TRADING guard — not bypassed
+[ ] Report exists — forge report at correct path with all 6 sections
+[ ] PROJECT_STATE.md updated — section replaced (not appended), flat format
+[ ] Max 5 files per commit — batch split if needed
+```
+
+If any check fails:
+→ FORGE-X fixes it in the same branch
+→ Re-runs the check
+→ Only opens PR when all checks pass
+
+FORGE-X must include pre-flight result in Done output:
+```text
+Pre-flight: ✅ ALL PASS — py_compile ✅ pytest ✅ imports ✅ risk ✅ structure ✅
+```
+
+If pre-flight partially fails and cannot be fixed in scope:
+→ FORGE-X reports exactly which check failed and why
+→ FORGE-X proposes fix scope to COMMANDER
+→ COMMANDER decides next step — NEVER Mr. Walker manually
 
 ### VALIDATION TIER DECLARATION (MANDATORY)
 
@@ -1538,6 +1578,43 @@ Every validation finding MUST include:
 
 - file path
 - exact line number or line range
+
+### SENTINEL EFFICIENCY RULES (ANTI-LOOP)
+
+These rules exist to prevent the FORGE-X → SENTINEL → FORGE-X → SENTINEL loop
+that wastes time and blocks progress.
+
+**Rule 1 — Pre-flight assumed clean:**
+If FORGE-X pre-flight checklist passed (py_compile ✅ pytest ✅ imports ✅),
+SENTINEL does NOT re-run basic compile/import checks.
+SENTINEL trusts pre-flight evidence and focuses on behavior and runtime correctness.
+
+**Rule 2 — One scope, one run:**
+SENTINEL validates ONLY the declared Validation Target in one run.
+If SENTINEL finds issues outside scope → mark as advisory, not blocker.
+SENTINEL must NOT add new out-of-scope requirements mid-validation.
+
+**Rule 3 — Fix batch, not fix-by-fix:**
+If SENTINEL finds multiple issues → report ALL findings in ONE verdict.
+FORGE-X fixes ALL findings in ONE fix pass.
+SENTINEL re-runs ONCE after the fix pass.
+NEVER: fix one issue → re-run SENTINEL → find next issue → fix → re-run SENTINEL.
+
+**Rule 4 — CONDITIONAL is not BLOCKED:**
+VERDICT = CONDITIONAL means merge is allowed with deferred fixes logged to KNOWN ISSUES.
+COMMANDER decides whether to merge CONDITIONAL or request fix first.
+CONDITIONAL must NOT trigger automatic re-run without COMMANDER decision.
+
+**Rule 5 — Max 2 SENTINEL runs per task:**
+If SENTINEL has run twice on the same task and still BLOCKED:
+→ STOP the loop
+→ COMMANDER escalates: either OVERRIDE non-critical findings OR redefine task scope
+→ Mr. Walker is NEVER asked to fix manually — COMMANDER generates fix task for FORGE-X
+
+**Rule 6 — COMMANDER pre-analysis is mandatory for MAJOR:**
+Before generating any SENTINEL task, COMMANDER reads the forge report + diff.
+If COMMANDER predicts LIKELY BLOCKED → send back to FORGE-X FIRST.
+SENTINEL only runs when COMMANDER pre-analysis = LIKELY PASS or LIKELY CONDITIONAL.
 - code snippet (minimum 3 lines where possible)
 - reason
 - severity
