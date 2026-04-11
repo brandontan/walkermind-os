@@ -13,8 +13,8 @@
 
 - AGENTS + project state + roadmap + forge reports (`24_60`, `24_61`) reviewed before technical validation.
 - Branch truth is internally consistent for this line:
-  - ROADMAP Phase 2.7 marked in progress (`🚧`) pending rerun.
-  - PROJECT_STATE next priority requires fresh SENTINEL rerun.
+  - ROADMAP Phase 2.7 marked in progress (`🚧`) with SENTINEL rerun approved; COMMANDER merge decision pending.
+  - PROJECT_STATE next priority points to COMMANDER merge decision using this approved SENTINEL report.
   - Forge `24_61` explicitly states merge safety is not yet claimed.
 
 ## 2. Technical seam verification

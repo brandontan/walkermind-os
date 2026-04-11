@@ -4,7 +4,7 @@
 **Claim Level:** FOUNDATION  
 **Validation Target:** /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/api/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_7_public_app_gateway_skeleton_20260411.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_legacy_core_facade_adapter_foundation_20260411.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md  
 **Not in Scope:** dual-mode routing enablement; public route activation for production traffic; live auth/session/network calls; execution/risk/strategy/capital logic changes; database migration/schema rollout; websocket/worker/dashboard/UI work; resolver purity rewrites outside touched seams; ExecutionEngine.open_position return-contract refactor  
-**Suggested Next Step:** SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md. Tier: MAJOR
+**Suggested Next Step:** SENTINEL rerun completed and approved on PR #413 (`projects/polymarket/polyquantbot/reports/sentinel/24_62_phase2_7_gateway_seam_rerun_pr413.md`). COMMANDER merge decision pending. Tier: MAJOR
 
 ---
 
@@ -52,8 +52,9 @@
 
 ## 6. What is next
 
-- SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md. Tier: MAJOR
-- After SENTINEL approval, Phase 2.9 should add explicit dual-mode routing continuity using the new API boundary + gateway seam.
+- SENTINEL rerun completed and approved on PR #413 (`projects/polymarket/polyquantbot/reports/sentinel/24_62_phase2_7_gateway_seam_rerun_pr413.md`).
+- COMMANDER merge decision is pending for PR #413; this remains FOUNDATION-only with no runtime/public activation claim.
+- After merge decision, Phase 2.9 may add explicit dual-mode routing continuity using the new API boundary + gateway seam.
 
 ## Validation commands run
 

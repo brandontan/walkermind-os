@@ -4,7 +4,7 @@
 **Claim Level:** FOUNDATION  
 **Validation Target:** /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/gateway_factory.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/public_app_gateway.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/api/app_gateway.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_7_public_app_gateway_skeleton_20260411.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md ; /workspace/walker-ai-team/PROJECT_STATE.md  
 **Not in Scope:** Phase 2.9 dual-mode routing; production/public route activation; execution/risk/strategy/capital logic changes; resolver purity rewrites outside touched seam; ROADMAP status updates; new facade contracts beyond Phase 2.8  
-**Suggested Next Step:** SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md. Tier: MAJOR
+**Suggested Next Step:** Branch-accurate SENTINEL rerun completed with APPROVED verdict (`projects/polymarket/polyquantbot/reports/sentinel/24_62_phase2_7_gateway_seam_rerun_pr413.md`). COMMANDER merge decision pending. Tier: MAJOR
 
 ---
 
@@ -44,9 +44,9 @@
 
 ## 6. What is next
 
-- SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md. Tier: MAJOR
-- This blocker-fix is pending fresh SENTINEL rerun on PR #413 head; merge safety is not yet claimed.
-- If approved, Phase 2.9 can continue dual-mode routing implementation against this corrected seam.
+- Branch-accurate SENTINEL rerun completed with APPROVED verdict in `projects/polymarket/polyquantbot/reports/sentinel/24_62_phase2_7_gateway_seam_rerun_pr413.md`.
+- COMMANDER merge decision is pending for PR #413; this remains FOUNDATION-only and does not claim runtime/public activation delivery.
+- After merge decision, Phase 2.9 can continue dual-mode routing implementation against this corrected seam.
 
 ## Validation commands run
 
