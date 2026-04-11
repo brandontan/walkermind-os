@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-11 14:00
-- Status        : FORGE-X MINOR — Live Dashboard deployed to docs/ for GitHub Pages. docs/index.html + docs/LIVE_DASHBOARD.html committed to branch claude/deploy-dashboard-github-pages-nx06q. COMMANDER repository settings action required to enable GitHub Pages.
+- Last Updated  : 2026-04-11 15:00
+- Status        : FORGE-X MINOR — Duplicate project-local PROJECT_STATE.md verified absent. Repo root is sole authoritative state file. Report: projects/polymarket/polyquantbot/reports/forge/25_8_delete_duplicate_project_state.md. Branch: claude/delete-duplicate-state-file-ncZ72.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Duplicate project-local PROJECT_STATE.md removal (2026-04-11): verified `projects/polymarket/polyquantbot/PROJECT_STATE.md` does not exist locally or on any GitHub branch; 12 historical report references confirmed read-only (no code changes required); repo root `PROJECT_STATE.md` confirmed sole authoritative state file; report `projects/polymarket/polyquantbot/reports/forge/25_8_delete_duplicate_project_state.md`; Validation Tier: MINOR.
 - Live Dashboard GitHub Pages deployment (2026-04-11): created `docs/index.html` redirect entry point, confirmed `docs/LIVE_DASHBOARD.html` present; both files committed to branch `claude/deploy-dashboard-github-pages-nx06q`; report `projects/polymarket/polyquantbot/reports/forge/25_7_deploy_live_dashboard_github_pages.md`; Validation Tier: MINOR.
 - SENTINEL validation complete for resolver purity surgical fix PR #394 (2026-04-11): verdict **APPROVED**, score **96/100**, 0 critical issues; compile gate passed on all 9 files, 5/5 import chains pass, resolver read-only purity AST-verified, ensure_* isolation confirmed, bridge constructor aligned, activation monitor task-exception containment verified, 11/11 tests pass; report `projects/polymarket/polyquantbot/reports/sentinel/24_53_resolver_purity_revalidation_pr394.md`.
 - Resolver purity surgical fix / PR392 unblock (2026-04-11): eliminated resolver.py `=> None:` syntax error, fixed test_platform_phase2 `From __future__` + malformed env string, removed all `upsert` calls from `resolve_*` methods (AccountService / WalletAuthService / PermissionService), added `ensure_*` write-path counterparts, aligned LegacyContextBridge ContextResolver constructor (removed unsupported `execution_context_repository` / `audit_event_repository` params), hardened SystemActivationMonitor with `_safe_task` done-callback and non-fatal `_assert_loop` warning path, created import-chain test and forge report; 11 tests pass; report `projects/polymarket/polyquantbot/reports/forge/24_52_resolver_purity_final_unblock_pr390.md`.
@@ -277,6 +278,11 @@ Status:
 ---
 
 ## 🎯 NEXT PRIORITY
+
+Auto PR review (Codex/Gemini/Copilot) + COMMANDER review required for duplicate state file removal verification.
+Source: projects/polymarket/polyquantbot/reports/forge/25_8_delete_duplicate_project_state.md
+Branch: claude/delete-duplicate-state-file-ncZ72
+Tier: MINOR
 
 Auto PR review (Codex/Gemini/Copilot) + COMMANDER review required for Live Dashboard GitHub Pages deployment.
 Source: projects/polymarket/polyquantbot/reports/forge/25_7_deploy_live_dashboard_github_pages.md
