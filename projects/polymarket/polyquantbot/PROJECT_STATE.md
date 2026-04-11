@@ -1,29 +1,27 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-📅 Last Updated : 2026-04-11 02:29
-🔄 Status       : PR #396 review fix pass applied for execution isolation boundary with atomic open rejection handling, public gateway engine property, and traceability lookup optimization.
+📅 Last Updated : 2026-04-11 08:30
+🔄 Status       : SENTINEL MAJOR rerun for PR #396 execution-isolation chain completed on current branch state with BLOCKED verdict due missing forge artifact continuity and attribution/rejection-schema validation gaps.
 
 ✅ COMPLETED
-- Added `self._open_lock` to `/workspace/walker-ai-team/projects/polymarket/polyquantbot/execution/execution_isolation.py` and wrapped open attempt + rejection lookup atomically.
-- Added public `engine` property to execution isolation gateway and switched singleton guard check to property access.
-- Cached close-rejection trace lookup in `/workspace/walker-ai-team/projects/polymarket/polyquantbot/execution/strategy_trigger.py`.
-- Added focused concurrent lock behavior test in `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase3_execution_isolation_foundation_20260411.py`.
-- FORGE review-fix report added:
-  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_54_pr396_review_fix_pass.md`
+- Ran SENTINEL MAJOR rerun for PR #396 execution-isolation scope on current branch state snapshot.
+- Produced rerun report at `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/sentinel/24_56_pr396_execution_isolation_rerun.md`.
+- Revalidated gateway presence and autonomous/manual close routing through execution isolation boundary.
+- Executed focused compile gate and focused pytest evidence collection for execution-isolation scope.
 
 🔧 IN PROGRESS
-- None.
+- FORGE-X remediation for missing `24_55` artifact continuity and runtime behavior gaps (manual open attribution split and flat rejection payload compatibility).
 
 📋 NOT STARTED
-- SENTINEL validation pass for original MAJOR Phase 3 isolation foundation.
 - Live Polymarket wallet/auth execution integration.
 - Multi-user execution queue workers and websocket subscriptions.
 - Public API and UI clients for multi-user platform controls.
 
 🎯 NEXT PRIORITY
-- Codex auto PR review + COMMANDER review required before merge. Source: reports/forge/24_54_pr396_review_fix_pass.md. Tier: STANDARD
+- FORGE-X remediation required before revalidation. Source: reports/sentinel/24_56_pr396_execution_isolation_rerun.md. Tier: MAJOR
 
 ⚠️ KNOWN ISSUES
-- Long-term fix pending: refactor `ExecutionEngine.open_position` to return result + rejection payload directly and remove dependency on post-call rejection fetch.
-- Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking for this task).
-- `PLATFORM_STORAGE_BACKEND=sqlite` is scaffold-mapped to local JSON backend in this foundation phase.
+- Missing forge artifact: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_55_pr396_attribution_and_rejection_schema_fix.md`.
+- Command-driven `/trade` open attribution is not yet verified as distinct from autonomous open source path.
+- Blocked-open rejection payload compatibility at `execution_rejection.reason` failed focused regression check.
+- Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking).
