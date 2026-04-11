@@ -1,29 +1,24 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-📅 Last Updated : 2026-04-10 12:43
-🔄 Status       : Phase 2 foundation for multi-user persistence and wallet/auth skeleton is implemented with legacy read-only bridge compatibility preserved.
+📅 Last Updated : 2026-04-11 03:50
+🔄 Status       : SENTINEL MAJOR validation for PR #396 phase3 execution isolation foundation completed with BLOCKED verdict; gateway/runtime-claim evidence is incomplete in current branch state.
 
 ✅ COMPLETED
-- Phase 2 persistence foundation added for account, wallet binding, permission profile, strategy subscription, execution context, and audit event repositories under `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/storage/`.
-- Phase 1 services upgraded to repository-aware behavior with fallback-safe defaults for empty/disabled persistence.
-- Wallet/auth integration skeleton contracts added under `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/auth/` with non-live provider behavior.
-- Context resolver extended to persist execution-context diagnostics and write minimal secret-safe audit events.
-- Legacy read-only bridge updated to use repository-backed resolver wiring when enabled while preserving fallback behavior.
-- Focused Phase 2 tests added for repository CRUD, resolver persistence, bridge compatibility, and regression safety.
-- FORGE report added:
-  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_51_phase2_multi_user_persistence_wallet_auth_foundation.md`
+- SENTINEL MAJOR validation executed for PR #396 target scope with compile gate pass on available touched runtime/test files and import-chain pass for main/command_handler/strategy_trigger/context_bridge/resolver.
+- Targeted pytest `test_platform_resolver_import_chain_20260411.py` passes (5/5).
+- SENTINEL report created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/sentinel/24_55_phase3_execution_isolation_foundation_pr396_validation.md`.
 
 🔧 IN PROGRESS
-- None.
+- PR #396 execution-isolation foundation requires FORGE-X remediation for missing gateway wiring/proof artifacts and missing target test coverage before MAJOR revalidation.
 
 📋 NOT STARTED
-- Live Polymarket wallet/auth execution integration.
-- Multi-user execution queue workers and websocket subscriptions.
-- Public API and UI clients for multi-user platform controls.
+- Revalidation rerun after FORGE-X fix pass for gateway-authoritative mutation routing and concurrent rejection attribution proof.
+- COMMANDER merge decision for PR #396 pending successful SENTINEL revalidation.
 
 🎯 NEXT PRIORITY
-- Auto PR review + COMMANDER review required before merge. Source: reports/forge/24_51_phase2_multi_user_persistence_wallet_auth_foundation.md. Tier: STANDARD
+- FORGE-X fix required for PR #396 blockers, then SENTINEL revalidation required before merge. Source: projects/polymarket/polyquantbot/reports/sentinel/24_55_phase3_execution_isolation_foundation_pr396_validation.md. Tier: MAJOR
 
 ⚠️ KNOWN ISSUES
-- Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking for this task).
-- `PLATFORM_STORAGE_BACKEND=sqlite` is scaffold-mapped to local JSON backend in this foundation phase.
+- [BLOCKER] Missing declared forge reports for PR #396: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_53_phase3_execution_isolation_foundation.md` and `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_54_pr396_review_fix_pass.md`.
+- [BLOCKER] `ExecutionIsolationGateway` not present in current execution module tree; touched entry paths still call engine mutation methods directly.
+- [BLOCKER] Missing target test file: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase3_execution_isolation_foundation_20260411.py`.
