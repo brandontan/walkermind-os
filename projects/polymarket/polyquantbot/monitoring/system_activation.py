@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
+from typing import Awaitable, Optional
 
 import structlog
 
@@ -50,42 +50,34 @@ class SystemActivationMonitor:
         self._assert_task: Optional[asyncio.Task] = None
         self._start_ts: float = 0.0
 
-    # ── Counters ──────────────────────────────────────────────────────────────
-
     def record_event(self) -> None:
-        """Increment the event counter (call on each WS event received)."""
         self.event_count += 1
 
     def record_signal(self) -> None:
-        """Increment the signal counter (call on each signal generated)."""
         self.signal_count += 1
 
     def record_trade(self) -> None:
-        """Increment the trade counter (call on each trade executed)."""
         self.trade_count += 1
 
     def record_ws_state(self, connected: bool) -> None:
-        """Update the current WebSocket connection state."""
         self.ws_connected = connected
 
-    # ── Lifecycle ─────────────────────────────────────────────────────────────
-
     async def start(self) -> None:
-        """Start background logging and assertion tasks."""
         if self._running:
             return
         self._running = True
         self._start_ts = time.time()
         self._log_task = asyncio.create_task(
-            self._log_loop(), name="activation_monitor_log"
+            self._run_guarded(self._log_loop(), runner_name="activation_monitor_log"),
+            name="activation_monitor_log",
         )
         self._assert_task = asyncio.create_task(
-            self._assert_loop(), name="activation_monitor_assert"
+            self._run_guarded(self._assert_loop(), runner_name="activation_monitor_assert"),
+            name="activation_monitor_assert",
         )
         log.info("system_activation_monitor_started")
 
     async def stop(self) -> None:
-        """Stop background tasks."""
         self._running = False
         for task in (self._log_task, self._assert_task):
             if task and not task.done():
@@ -96,10 +88,19 @@ class SystemActivationMonitor:
                     pass
         log.info("system_activation_monitor_stopped")
 
-    # ── Internal loops ────────────────────────────────────────────────────────
+    async def _run_guarded(self, runner: Awaitable[None], *, runner_name: str) -> None:
+        try:
+            await runner
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.exception(
+                "system_activation_monitor_runner_failed",
+                runner=runner_name,
+                error=str(exc),
+            )
 
     async def _log_loop(self) -> None:
-        """Log event/signal counts every log_interval_s seconds."""
         while self._running:
             await asyncio.sleep(self._log_interval)
             log.info(
@@ -110,7 +111,6 @@ class SystemActivationMonitor:
             )
 
     async def _assert_loop(self) -> None:
-        """After assert_interval_s, validate liveness — raises if no events received."""
         await asyncio.sleep(self._assert_interval)
         elapsed = time.time() - self._start_ts
 

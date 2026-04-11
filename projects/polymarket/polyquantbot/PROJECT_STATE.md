@@ -1,29 +1,33 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-📅 Last Updated : 2026-04-10 12:43
-🔄 Status       : Phase 2 foundation for multi-user persistence and wallet/auth skeleton is implemented with legacy read-only bridge compatibility preserved.
+📅 Last Updated : 2026-04-11 00:21
+🔄 Status       : FORGE-X completed MAJOR-tier resolver-purity unblock remediation for PR390 target path and prepared branch for SENTINEL validation.
 
 ✅ COMPLETED
-- Phase 2 persistence foundation added for account, wallet binding, permission profile, strategy subscription, execution context, and audit event repositories under `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/storage/`.
-- Phase 1 services upgraded to repository-aware behavior with fallback-safe defaults for empty/disabled persistence.
-- Wallet/auth integration skeleton contracts added under `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/auth/` with non-live provider behavior.
-- Context resolver extended to persist execution-context diagnostics and write minimal secret-safe audit events.
-- Legacy read-only bridge updated to use repository-backed resolver wiring when enabled while preserving fallback behavior.
-- Focused Phase 2 tests added for repository CRUD, resolver persistence, bridge compatibility, and regression safety.
+- Fixed resolver syntax blocker in `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/context/resolver.py` (`) ->`), removing py_compile hard stop.
+- Corrected Phase 2 test corruption in `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_platform_phase2_persistence_wallet_auth_foundation_20260410.py` (`from __future__` + `PLATFORM_AUTH_PROVIDER="polymarket"`).
+- Enforced read/write split in targeted services:
+  - `resolve_user_account` / `ensure_user_account`
+  - `resolve_wallet_binding` / `ensure_wallet_binding`
+  - `resolve_permission_profile` / `ensure_permission_profile`
+- Verified resolver path purity with write-spy assertions (`write_calls == 0`) and explicit service split tests.
+- Removed invalid resolver constructor args from `/workspace/walker-ai-team/projects/polymarket/polyquantbot/legacy/adapters/context_bridge.py` to match signature exactly.
+- Hardened `/workspace/walker-ai-team/projects/polymarket/polyquantbot/monitoring/system_activation.py` task runners with guarded try/except logging for async failures.
+- Added explicit import-chain proof test (`main -> command_handler -> strategy_trigger -> context_bridge -> resolver`).
 - FORGE report added:
-  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_51_phase2_multi_user_persistence_wallet_auth_foundation.md`
+  - `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_52_resolver_purity_final_unblock_pr390.md`
 
 🔧 IN PROGRESS
 - None.
 
 📋 NOT STARTED
-- Live Polymarket wallet/auth execution integration.
-- Multi-user execution queue workers and websocket subscriptions.
-- Public API and UI clients for multi-user platform controls.
+- SENTINEL MAJOR validation pass for resolver-purity final unblock scope.
+- Any post-SENTINEL remediation follow-up (if findings are raised).
 
 🎯 NEXT PRIORITY
-- Auto PR review + COMMANDER review required before merge. Source: reports/forge/24_51_phase2_multi_user_persistence_wallet_auth_foundation.md. Tier: STANDARD
+- SENTINEL validation required for execute-final-fix-pr390-unblock before merge.
+  Source: reports/forge/24_52_resolver_purity_final_unblock_pr390.md
+  Tier: MAJOR
 
 ⚠️ KNOWN ISSUES
-- Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking for this task).
-- `PLATFORM_STORAGE_BACKEND=sqlite` is scaffold-mapped to local JSON backend in this foundation phase.
+- Pytest warning persists in environment: unknown config option `asyncio_mode`.
