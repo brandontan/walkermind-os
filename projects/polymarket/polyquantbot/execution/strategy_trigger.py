@@ -426,6 +426,39 @@ class StrategyTrigger:
             "risk_state": self._risk_engine.as_dict(),
         }
 
+    @staticmethod
+    def _resolve_open_source(market_context: dict[str, Any] | None) -> str:
+        context = market_context or {}
+        source = str(context.get("open_source", "execution.strategy_trigger.autonomous")).strip()
+        return source or "execution.strategy_trigger.autonomous"
+
+    @staticmethod
+    def _normalize_open_rejection_payload(
+        payload: dict[str, Any] | None,
+        *,
+        fallback_reason: str,
+    ) -> dict[str, Any]:
+        source_payload = dict(payload or {})
+        nested_execution = source_payload.get("execution_rejection")
+        nested_engine = source_payload.get("engine_rejection")
+        flat: dict[str, Any] = {}
+
+        if isinstance(nested_execution, dict):
+            flat.update(nested_execution)
+        if isinstance(nested_engine, dict):
+            for key, value in nested_engine.items():
+                flat.setdefault(str(key), value)
+        for key, value in source_payload.items():
+            if key in {"execution_rejection", "engine_rejection"}:
+                continue
+            flat.setdefault(str(key), value)
+
+        flat_reason = flat.get("reason")
+        if isinstance(flat_reason, str) and flat_reason.strip():
+            return flat
+        flat["reason"] = fallback_reason
+        return flat
+
     def _regime_strategy_modifiers(self, regime: MarketRegimeClassification) -> dict[str, float]:
         modifiers: dict[str, float] = {
             "S1": self._clamp(float(regime.strategy_weight_modifiers.get("S1", 1.0)), 0.85, 1.20),
@@ -2364,8 +2397,9 @@ class StrategyTrigger:
                 signal_data=signal_data,
                 decision_data=decision_data,
             )
+            open_source = self._resolve_open_source(market_context)
             open_outcome = await self._execution_gateway.open_position(
-                source_path="execution.strategy_trigger.autonomous",
+                source_path=open_source,
                 market=target_market_id,
                 market_title=str(candidate_title),
                 side=self._config.side,
@@ -2450,6 +2484,10 @@ class StrategyTrigger:
                 )
             if created is None:
                 rejection_reason = open_outcome.reason
+                normalized_rejection = self._normalize_open_rejection_payload(
+                    open_outcome.details,
+                    fallback_reason=rejection_reason,
+                )
                 self._record_blocked_terminal_trace(
                     trade_id=trade_id,
                     signal_data=signal_data,
@@ -2461,7 +2499,7 @@ class StrategyTrigger:
                     },
                     terminal_stage="execution_engine_rejected_open",
                     reason=rejection_reason,
-                    extra_details={"execution_rejection": open_outcome.details or {}},
+                    extra_details={"execution_rejection": normalized_rejection},
                     terminal_outcome="BLOCKED",
                 )
                 return "BLOCKED"

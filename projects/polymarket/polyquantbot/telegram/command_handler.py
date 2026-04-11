@@ -462,7 +462,10 @@ class CommandHandler:
             ),
             execution_gateway=execution_gateway,
         )
-        result = await trigger.evaluate(0.42)
+        result = await trigger.evaluate(
+            0.42,
+            market_context={"open_source": "execution.command_handler.trade_open.manual"},
+        )
         await engine.update_mark_to_market({market: 0.46})
         payload = await export_execution_payload()
         get_portfolio_service().merge_execution_state(

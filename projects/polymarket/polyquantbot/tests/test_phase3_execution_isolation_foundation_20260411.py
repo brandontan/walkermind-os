@@ -15,6 +15,7 @@ from projects.polymarket.polyquantbot.execution.execution_isolation import (
     get_execution_isolation_gateway,
 )
 from projects.polymarket.polyquantbot.execution.proof_lifecycle import new_validation_proof
+from projects.polymarket.polyquantbot.execution.strategy_trigger import StrategyConfig, StrategyTrigger
 
 
 def _valid_market_data(reference_price: float = 0.41) -> dict[str, object]:
@@ -51,6 +52,39 @@ def test_phase3_autonomous_and_manual_paths_route_through_isolation_gateway() ->
     assert "self._engine.close_position(" not in trigger_source
     assert "execution_gateway.close_position(" in command_source
     assert "execution_gateway=execution_gateway" in command_source
+    assert "execution.command_handler.trade_open.manual" in command_source
+    assert "execution.strategy_trigger.autonomous" in trigger_source
+
+
+def test_phase3_open_source_default_and_manual_are_distinct() -> None:
+    trigger = StrategyTrigger(
+        engine=ExecutionEngine(starting_equity=10_000.0),
+        config=StrategyConfig(market_id="m-source"),
+    )
+    assert trigger._resolve_open_source(None) == "execution.strategy_trigger.autonomous"  # noqa: SLF001
+    assert (
+        trigger._resolve_open_source({"open_source": "execution.command_handler.trade_open.manual"})  # noqa: SLF001
+        == "execution.command_handler.trade_open.manual"
+    )
+
+
+def test_phase3_open_rejection_payload_is_flat_and_keeps_sibling_metadata() -> None:
+    trigger = StrategyTrigger(
+        engine=ExecutionEngine(starting_equity=10_000.0),
+        config=StrategyConfig(market_id="m-rejection"),
+    )
+    normalized = trigger._normalize_open_rejection_payload(  # noqa: SLF001
+        {
+            "engine_rejection": {"reason": "max_position_size_exceeded", "limit": 100.0},
+            "source_path": "execution.command_handler.trade_open.manual",
+            "attempt_id": "attempt-1",
+        },
+        fallback_reason="execution_open_position_rejected",
+    )
+    assert normalized["reason"] == "max_position_size_exceeded"
+    assert normalized["limit"] == 100.0
+    assert normalized["source_path"] == "execution.command_handler.trade_open.manual"
+    assert normalized["attempt_id"] == "attempt-1"
 
 
 def test_phase3_isolation_boundary_rejects_bypass_without_risk_or_proof() -> None:
