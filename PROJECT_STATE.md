@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-11 15:20
-- Status        : FORGE-X MAJOR — PR #413 Phase 2.7 FOUNDATION blocker-fix pass complete on branch feature/build-public/app-gateway-skeleton-2026-04-11; factory composition/test/runtime-safe seam corrections applied; fresh SENTINEL rerun required.
+- Last Updated  : 2026-04-11 15:45
+- Status        : FORGE-X MAJOR — PR #413 Phase 2.7 FOUNDATION blocker-fix port finalized on branch feature/build-public/app-gateway-skeleton-2026-04-11; non-activation contract tightened (`runtime_routing_active=False`) and roadmap overclaim drift cleaned; fresh SENTINEL rerun required.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- PR #413 branch-state cleanup (2026-04-11): reverted premature ROADMAP Phase 2.6/2.7/2.8 completion marks to unmerged truth and aligned Phase 2.7 reports (`24_60`, `24_61`) with current branch artifacts and non-activation contract semantics.
 - PR #413 Phase 2.7 blocker-fix pass (2026-04-11): corrected gateway factory composition to Phase 2.8 constant-driven seam (`LEGACY_CORE_FACADE_CONTEXT_RESOLVER`), removed facade injection bypass from app/gateway factory API, added composition assertion test coverage, and published report `projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md` (Validation Tier: MAJOR, Claim Level: FOUNDATION).
 - Phase 2.7 public/app gateway skeleton foundation (2026-04-11): delivered deterministic `PublicAppGateway` seam + `build_public_app_gateway(...)` mode parsing (`disabled`/`legacy-facade`), API composition boundary `build_api_gateway_boundary(...)`, focused non-activation continuity tests, and report `projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md` (Validation Tier: MAJOR, Claim Level: FOUNDATION).
 - Live Dashboard GitHub Pages deployment (2026-04-11): created `docs/index.html` redirect entry point, confirmed `docs/LIVE_DASHBOARD.html` present; both files committed to branch `claude/deploy-dashboard-github-pages-nx06q`; report `projects/polymarket/polyquantbot/reports/forge/25_7_deploy_live_dashboard_github_pages.md`; Validation Tier: MINOR.
@@ -280,7 +281,7 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md. Tier: MAJOR
+Fresh SENTINEL rerun required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md. Tier: MAJOR
 Branch: feature/build-public/app-gateway-skeleton-2026-04-11
 Claim Level: FOUNDATION
 

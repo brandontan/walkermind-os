@@ -113,9 +113,9 @@
 ### Platform Shell
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ✅ | Completed via Phase 2.6 shell foundation (`24_58`) |
-| 2.7 | Build public API/app gateway skeleton | ✅ | Foundation seam delivered (`24_60`) — non-activating by default |
-| 2.8 | Add legacy-core facade adapter | ✅ | Foundation adapter seam delivered (`24_59`) |
+| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | |
+| 2.7 | Build public API/app gateway skeleton | ❌ | |
+| 2.8 | Add legacy-core facade adapter | ❌ | |
 | 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | |
 | 2.10 | Staging deploy on Fly.io | ❌ | Migration from Railway pending |
 

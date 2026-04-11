@@ -13,13 +13,13 @@
 - Fixed Phase 2.7 gateway factory composition so legacy-facade mode composes only via `build_legacy_core_facade(...)`.
 - Replaced hardcoded legacy facade mode string with `LEGACY_CORE_FACADE_CONTEXT_RESOLVER` constant from Phase 2.8 seam.
 - Tightened API boundary and gateway factory signatures to remove facade injection path at this layer, preventing bypass of the factory composition contract.
-- Added blocker-focused test coverage asserting factory composition uses the Phase 2.8 constant and preserves non-activation semantics.
+- Added blocker-focused test coverage asserting factory composition uses the Phase 2.8 constant and preserves explicit `runtime_routing_active=False` non-activation semantics.
 
 ## 2. Current system architecture
 
 - `build_public_app_gateway(...)` remains the only constructor path in touched scope for public/app seam objects.
 - `legacy-facade` mode now always acquires the facade through `build_legacy_core_facade(mode=LEGACY_CORE_FACADE_CONTEXT_RESOLVER, ...)`.
-- Public/app gateway layer remains non-activating (`activated=False`) in both `disabled` and `legacy-facade` modes.
+- Public/app gateway layer remains non-activating (`activated=False`, `runtime_routing_active=False`) in both `disabled` and `legacy-facade` modes.
 - Canonical Phase 2.7 test artifact remains: `test_phase2_7_public_app_gateway_skeleton_20260411.py`.
 
 ## 3. Files created / modified (full paths)

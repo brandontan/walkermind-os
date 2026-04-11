@@ -46,6 +46,7 @@ def test_phase2_7_gateway_default_mode_is_deterministic_non_activating() -> None
 
     assert isinstance(gateway, PublicAppGatewayDisabled)
     assert resolution.activated is False
+    assert resolution.runtime_routing_active is False
     assert resolution.mode == PUBLIC_APP_GATEWAY_DISABLED
     assert resolution.facade_resolution is None
 
@@ -56,6 +57,7 @@ def test_phase2_7_gateway_explicit_legacy_facade_construction_is_available() -> 
 
     assert isinstance(gateway, PublicAppGatewayLegacyFacade)
     assert resolution.activated is False
+    assert resolution.runtime_routing_active is False
     assert resolution.mode == PUBLIC_APP_GATEWAY_LEGACY_FACADE
     assert resolution.facade_resolution is not None
     assert resolution.facade_resolution.activated is True
@@ -87,6 +89,7 @@ def test_phase2_7_default_gateway_path_has_no_runtime_drift() -> None:
         gateway = build_api_gateway_boundary()
         gateway_resolution = gateway.resolve(_seed())
         assert gateway_resolution.activated is False
+        assert gateway_resolution.runtime_routing_active is False
 
         bridge = LegacyContextBridge()
         bridge_result = bridge.attach_context(seed=_seed())

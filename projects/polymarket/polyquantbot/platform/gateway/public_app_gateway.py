@@ -22,6 +22,7 @@ class PublicAppGatewayResolution:
     """Boundary result contract for future app/public gateway composition (always non-activating in Phase 2.7)."""
 
     activated: bool
+    runtime_routing_active: bool
     mode: str
     source: str
     facade_resolution: LegacyCoreFacadeResolution | None
@@ -45,6 +46,7 @@ class PublicAppGatewayDisabled:
         _ = seed
         return PublicAppGatewayResolution(
             activated=False,
+            runtime_routing_active=False,
             mode=self._config.mode,
             source=PUBLIC_APP_GATEWAY_DISABLED,
             facade_resolution=None,
@@ -62,6 +64,7 @@ class PublicAppGatewayLegacyFacade:
         facade_resolution = self._facade.resolve_context(seed)
         return PublicAppGatewayResolution(
             activated=False,
+            runtime_routing_active=False,
             mode=self._config.mode,
             source=PUBLIC_APP_GATEWAY_LEGACY_FACADE,
             facade_resolution=facade_resolution,

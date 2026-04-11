@@ -2,7 +2,7 @@
 
 **Validation Tier:** MAJOR  
 **Claim Level:** FOUNDATION  
-**Validation Target:** /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/api/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_7_public_app_gateway_skeleton_20260411.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_legacy_core_facade_adapter_foundation_20260411.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md ; /workspace/walker-ai-team/ROADMAP.md  
+**Validation Target:** /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/api/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_7_public_app_gateway_skeleton_20260411.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_legacy_core_facade_adapter_foundation_20260411.py ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md  
 **Not in Scope:** dual-mode routing enablement; public route activation for production traffic; live auth/session/network calls; execution/risk/strategy/capital logic changes; database migration/schema rollout; websocket/worker/dashboard/UI work; resolver purity rewrites outside touched seams; ExecutionEngine.open_position return-contract refactor  
 **Suggested Next Step:** SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md. Tier: MAJOR
 
@@ -13,7 +13,7 @@
 - Added a new foundation-only public/app gateway seam in `platform.gateway` with deterministic config and explicit mode parsing.
 - Implemented `build_public_app_gateway(...)` with safe default mode (`disabled`) and optional facade-backed skeleton mode (`legacy-facade`) that reuses the existing Phase 2.8 legacy facade contract.
 - Added API-facing composition boundary `build_api_gateway_boundary(...)` in `api/app_gateway.py` so future app/public routing composition can switch path selection without directly binding to legacy runtime surfaces.
-- Kept activation semantics non-operative by default and in legacy-facade skeleton mode (`activated=False` at public/app gateway layer).
+- Kept activation semantics non-operative by default and in legacy-facade skeleton mode (`activated=False`, `runtime_routing_active=False` at public/app gateway layer).
 
 ## 2. Current system architecture
 
@@ -34,7 +34,6 @@
 - Modified: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/api/__init__.py`
 - Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/api/app_gateway.py`
 - Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_7_public_app_gateway_skeleton_20260411.py`
-- Modified: `/workspace/walker-ai-team/ROADMAP.md`
 - Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md`
 
 ## 4. What is working
