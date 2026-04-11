@@ -100,6 +100,7 @@
 
 > ⚠️ NOTE: PR #396 (ExecutionIsolationGateway) is Phase 2 work — branch/report naming used legacy "Phase 3" labels, but milestone ownership remains Phase 2.
 > ✅ Merge + validation status: PR #396 merged on 2026-04-11 after SENTINEL rerun approval (`projects/polymarket/polyquantbot/reports/sentinel/24_56_pr396_execution_isolation_rerun.md`).
+> ✅ Repo truth sync: PR #407 merged on 2026-04-11 (`24_58_phase2_platform_shell_foundation`); no open PRs.
 
 ### Core Extraction & Isolation
 | # | Task | Status | Notes |
@@ -113,10 +114,10 @@
 ### Platform Shell
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | |
-| 2.7 | Build public API/app gateway skeleton | ❌ | |
-| 2.8 | Add legacy-core facade adapter | ❌ | |
-| 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | |
+| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ✅ | PR #407 merged (2026-04-11) — report `24_58_phase2_platform_shell_foundation.md` |
+| 2.7 | Build public API/app gateway skeleton | ❌ | queued after 2.8 facade adapter foundation |
+| 2.8 | Add legacy-core facade adapter | ❌ | next continuity priority |
+| 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | queued after 2.7 gateway skeleton |
 | 2.10 | Staging deploy on Fly.io | ❌ | Migration from Railway pending |
 
 ### Multi-User DB Schema
