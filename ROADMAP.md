@@ -18,23 +18,10 @@
 
 ---
 
----
-
 # 🟢 PROJECT: CRUSADER
 **Description:** Non-Custodial Polymarket Trading Platform — Multi-User, Closed Beta First
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Last Updated:** 2026-04-11
-
-## Board Overview
-
-| Phase | Name | Status | Target |
-|---|---|---|---|
-| Phase 1 | Core Hardening | ✅ Done | Internal |
-| Phase 2 | Platform Foundation | 🚧 In Progress | Internal |
-| Phase 3 | Execution-Safe MVP | ❌ Not Started | Closed Beta |
-| Phase 4 | Multi-User Public Architecture | ❌ Not Started | Closed Beta → Public |
-| Phase 5 | Funding UX & Convenience | ❌ Not Started | Public |
-| Phase 6 | Public Launch & Stabilization | ❌ Not Started | Public |
 
 ---
 
@@ -98,21 +85,19 @@
 **Status:** 🚧 In Progress
 **Last Updated:** 2026-04-11
 
-> ⚠️ NOTE: PR #396 (ExecutionIsolationGateway) is Phase 2 work — branch was labelled "Phase 3" but correctly belongs here. Review fix pass in progress before merge.
-
 ### Core Extraction & Isolation
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 2.1 | Freeze legacy core behavior (no logic drift) | 🚧 | PR #394 merged — stable, not formally tagged |
-| 2.2 | Extract core module boundaries | 🚧 | Structure exists, formal boundary not declared |
-| 2.3 | Add ExecutionIsolationGateway | 🚧 | PR #396 open — review fix pass in progress |
-| 2.4 | Preserve resolver/bridge purity (read-only) | 🚧 | PR #396 — context_bridge audit suppression included |
-| 2.5 | Regression tests around execution path | 🚧 | Covered in PR #396 test suite |
+| 2.1 | Freeze legacy core behavior (no logic drift) | ✅ | PR #394 merged — stable, not formally tagged |
+| 2.2 | Extract core module boundaries | ✅ | Structure exists, formal boundary not declared |
+| 2.3 | Add ExecutionIsolationGateway | ✅ | **MERGED** — PR #396, SENTINEL 96/100, 2026-04-11 |
+| 2.4 | Preserve resolver/bridge purity (read-only) | ✅ | PR #396 — context_bridge audit suppression included |
+| 2.5 | Regression tests around execution path | ✅ | Covered in PR #396 test suite |
 
 ### Platform Shell
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | |
+| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | **NEXT PRIORITY** |
 | 2.7 | Build public API/app gateway skeleton | ❌ | |
 | 2.8 | Add legacy-core facade adapter | ❌ | |
 | 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | |
@@ -214,68 +199,6 @@
 | Concurrent users | 5–10 | 100+ | 500+ |
 | Duplicate execution rate | <1% | <0.2% | <0.1% |
 | Tenant isolation incidents | 0 | 0 | 0 |
-
----
-
----
-
-# ⚪ PROJECT: TRADINGVIEW INDICATORS
-**Description:** Pine Script v5 indicators and strategies for TradingView
-**Tech Stack:** Pine Script v5
-**Status:** ❌ Not Started
-**Last Updated:** —
-
-## Board Overview
-
-| Phase | Name | Status | Target |
-|---|---|---|---|
-| Phase 1 | Indicator Development | ❌ Not Started | — |
-| Phase 2 | Strategy Development | ❌ Not Started | — |
-| Phase 3 | Publishing & Maintenance | ❌ Not Started | — |
-
-> COMMANDER: Fill in phases and tasks when this project becomes active.
-
----
-
----
-
-# ⚪ PROJECT: MT5 EXPERT ADVISORS
-**Description:** MQL5 Expert Advisors and indicators for MT4/MT5
-**Tech Stack:** MQL5 · MQL4
-**Status:** ❌ Not Started
-**Last Updated:** —
-
-## Board Overview
-
-| Phase | Name | Status | Target |
-|---|---|---|---|
-| Phase 1 | EA Development | ❌ Not Started | — |
-| Phase 2 | Backtesting & Optimization | ❌ Not Started | — |
-| Phase 3 | Live Deployment | ❌ Not Started | — |
-
-> COMMANDER: Fill in phases and tasks when this project becomes active.
-
----
-
----
-
-# ⚪ PROJECT: KALSHI BOT
-**Description:** Algorithmic trading bot for Kalshi prediction market
-**Tech Stack:** Python · Kalshi API
-**Status:** ❌ Not Started
-**Last Updated:** —
-
-## Board Overview
-
-| Phase | Name | Status | Target |
-|---|---|---|---|
-| Phase 1 | Core Strategy | ❌ Not Started | — |
-| Phase 2 | Execution & Risk | ❌ Not Started | — |
-| Phase 3 | Production Deploy | ❌ Not Started | — |
-
-> COMMANDER: Fill in phases and tasks when this project becomes active.
-
----
 
 ---
 
