@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import tempfile
+import time
 from pathlib import Path
 
 from projects.polymarket.polyquantbot.execution.engine import ExecutionEngine, ExecutionValidationProof
@@ -326,6 +327,12 @@ def test_p16_successful_trade_records_execution_trace() -> None:
                 "spread": 0.01,
                 "best_bid": 0.445,
                 "best_ask": 0.455,
+                "timestamp": time.time(),
+                "model_probability": 0.60,
+                "orderbook": {
+                    "bids": [[0.44, 2_500.0]],
+                    "asks": [[0.45, 2_500.0]],
+                },
             },
         )
         assert decision == "OPENED"
@@ -512,6 +519,12 @@ def test_p16_strategy_trigger_records_execution_rejection_reason_for_sizing_bloc
                 "spread": 0.01,
                 "best_bid": 0.445,
                 "best_ask": 0.455,
+                "timestamp": time.time(),
+                "model_probability": 0.60,
+                "orderbook": {
+                    "bids": [[0.44, 2_500.0]],
+                    "asks": [[0.45, 2_500.0]],
+                },
             },
         )
         assert decision == "BLOCKED"
@@ -526,5 +539,6 @@ def test_p16_strategy_trigger_records_execution_rejection_reason_for_sizing_bloc
         assert trace is not None
         assert trace["outcome_data"]["reason"] == "max_position_size_exceeded"
         assert trace["outcome_data"]["execution_rejection"]["reason"] == "max_position_size_exceeded"
+        assert "execution_rejection" not in trace["outcome_data"]["execution_rejection"]
 
     asyncio.run(_run())

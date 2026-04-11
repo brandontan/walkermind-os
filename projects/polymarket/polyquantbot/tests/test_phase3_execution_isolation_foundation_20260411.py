@@ -150,6 +150,7 @@ def test_blocked_open_rejection_payload_schema_stays_flat() -> None:
 
         trigger._engine.open_position = _reject_open  # type: ignore[assignment] # noqa: SLF001
         trigger._engine.get_last_open_rejection = lambda: {  # type: ignore[assignment] # noqa: SLF001
+            "market": "MARKET-1",
             "execution_rejection": {
                 "reason": "max_position_size_exceeded",
                 "position_size": 1500.0,
@@ -166,6 +167,7 @@ def test_blocked_open_rejection_payload_schema_stays_flat() -> None:
         trace = next(iter(trigger._trade_traceability.values()))  # noqa: SLF001
         rejection_payload = trace["outcome_data"]["execution_rejection"]
         assert rejection_payload["reason"] == "max_position_size_exceeded"
+        assert rejection_payload["market"] == "MARKET-1"
         assert "execution_rejection" not in rejection_payload
 
     asyncio.run(_run())

@@ -424,9 +424,9 @@ class StrategyTrigger:
         rejection_payload: dict[str, Any],
     ) -> dict[str, Any]:
         payload = dict(rejection_payload)
-        nested_payload = payload.get("execution_rejection")
+        nested_payload = payload.pop("execution_rejection", None)
         if isinstance(nested_payload, dict):
-            payload = dict(nested_payload)
+            payload = {**payload, **nested_payload}
         if "reason" not in payload:
             payload["reason"] = "execution_open_position_rejected"
         return payload
