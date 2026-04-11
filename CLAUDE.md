@@ -6,6 +6,9 @@
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walker-ai-team
 
+PROJECT_STATE.md = ALWAYS repo root only
+Path: PROJECT_STATE.md (never {PROJECT_ROOT}/PROJECT_STATE.md)
+If project-local PROJECT_STATE.md exists → DELETE it, it is wrong
 ---
 
 ## 🧠 IDENTITY
