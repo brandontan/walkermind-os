@@ -30,3 +30,4 @@
 - Long-term fix pending: refactor `ExecutionEngine.open_position` to return result + rejection payload directly and remove dependency on post-call rejection fetch.
 - Pytest warning: unknown config option `asyncio_mode` in current environment (non-blocking for this task).
 - Naming continuity drift: roadmap/system truth labels this execution-isolation chain under Phase 2 while branch/report naming still references Phase 3.
+- `PLATFORM_STORAGE_BACKEND=sqlite` is scaffold-mapped to local JSON backend in this foundation phase.
