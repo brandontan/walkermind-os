@@ -113,10 +113,10 @@
 ### Platform Shell
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | |
-| 2.7 | Build public API/app gateway skeleton | ❌ | |
-| 2.8 | Add legacy-core facade adapter | ❌ | |
-| 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | |
+| 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ✅ | Foundation delivered in PR #407 |
+| 2.7 | Build public API/app gateway skeleton | ❌ | Sequencing note: execute 2.8 -> 2.7 -> 2.9 |
+| 2.8 | Add legacy-core facade adapter | ❌ | Must land before 2.7 and 2.9 integration |
+| 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | After 2.8 and 2.7 are in place |
 | 2.10 | Staging deploy on Fly.io | ❌ | Migration from Railway pending |
 
 ### Multi-User DB Schema
