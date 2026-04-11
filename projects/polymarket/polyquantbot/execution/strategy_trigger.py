@@ -419,6 +419,18 @@ class StrategyTrigger:
             "risk_state": self._risk_engine.as_dict(),
         }
 
+    @staticmethod
+    def _normalize_execution_rejection_payload(
+        rejection_payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        payload = dict(rejection_payload)
+        nested_payload = payload.get("execution_rejection")
+        if isinstance(nested_payload, dict):
+            payload = dict(nested_payload)
+        if "reason" not in payload:
+            payload["reason"] = "execution_open_position_rejected"
+        return payload
+
     def _regime_strategy_modifiers(self, regime: MarketRegimeClassification) -> dict[str, float]:
         modifiers: dict[str, float] = {
             "S1": self._clamp(float(regime.strategy_weight_modifiers.get("S1", 1.0)), 0.85, 1.20),
@@ -2108,6 +2120,7 @@ class StrategyTrigger:
         market_price: float,
         aggregation_decision: StrategyAggregationDecision | None = None,
         market_context: dict[str, float] | None = None,
+        open_source: str = "execution.strategy_trigger.autonomous",
     ) -> str:
         if not self._risk_restore_ready:
             log.warning("risk_state_not_restored_fail_closed", reason=self._risk_restore_reason)
@@ -2375,6 +2388,7 @@ class StrategyTrigger:
                         if selected_candidate is not None
                         else "UNKNOWN"
                     ),
+                    "open_source": open_source,
                     "regime_at_entry": (
                         aggregation_decision.current_regime
                         if aggregation_decision is not None
@@ -2438,7 +2452,9 @@ class StrategyTrigger:
                     action="OPEN",
                 )
             if created is None:
-                rejection_payload = self._engine.get_last_open_rejection() or {}
+                rejection_payload = self._normalize_execution_rejection_payload(
+                    self._engine.get_last_open_rejection() or {},
+                )
                 rejection_reason = str(rejection_payload.get("reason", "execution_open_position_rejected"))
                 self._record_blocked_terminal_trace(
                     trade_id=trade_id,
