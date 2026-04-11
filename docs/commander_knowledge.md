@@ -1,5 +1,3 @@
-# COMMANDER KNOWLEDGE
----
 ALWAYS read AGENTS.md from repo root before using this file.
 Rule priority: AGENTS.md > commander_knowledge.md > custom instructions.
 If conflict → follow AGENTS.md.
@@ -337,68 +335,22 @@ Examples:
 ```
 COMMANDER → generates task
     ↓
-FORGE-X → builds → commits → opens PR (code + PROJECT_STATE.md)
+FORGE-X → builds → commits → opens PR
     ↓
 Auto PR review (Codex / Gemini / Copilot — whichever available)
     ↓
 COMMANDER → decides by Validation Tier
     ↓
-MINOR   → Auto review + COMMANDER review → merge FORGE-X PR
-STANDARD → Auto review + COMMANDER review → merge FORGE-X PR / hold / rework
-MAJOR   → SENTINEL validation → verdict → SENTINEL opens PR (report only)
+MINOR   → Auto review + COMMANDER review → merge
+STANDARD → Auto review + COMMANDER review → merge / hold / rework
+MAJOR   → SENTINEL validation → verdict → PROJECT_STATE updated → PR
     ↓
 BRIEFER (if communication artifact needed)
     ↓
-COMMANDER → merge decision
+COMMANDER → reviews all PRs → merge decision
 ```
 
 None of the three agents merge PRs. COMMANDER decides.
-
----
-
-## PR MERGE ORDER (CRITICAL — MANDATORY)
-
-Every MAJOR task produces TWO PRs:
-- FORGE-X PR → contains code + PROJECT_STATE.md update
-- SENTINEL PR → contains only the report file in reports/sentinel/
-
-### STRICT MERGE ORDER
-
-```
-1. Merge FORGE-X PR first
-2. Verify FORGE-X merged (getPullRequest → state = "merged")
-3. Only then merge SENTINEL PR
-4. Verify SENTINEL merged
-5. Verify PROJECT_STATE.md reflects both
-```
-
-NEVER merge SENTINEL PR before FORGE-X PR is confirmed merged.
-NEVER assume — always verify with getPullRequest(forge_pr_number).
-
-### IDENTIFY PR TYPE BEFORE MERGING
-
-- FORGE-X PR = contains code files + PROJECT_STATE.md
-- SENTINEL PR = contains ONLY report file in reports/sentinel/
-
-If PR has ONLY a report file → SENTINEL PR → do NOT merge first.
-
-### RECOVERY IF ORDER VIOLATED
-
-If SENTINEL merged before FORGE-X:
-1. STOP — no further merges
-2. Report to Mr. Walker: "Merge order violated — SENTINEL PR #[n] merged before FORGE-X PR #[n]. PROJECT_STATE.md may be out of sync."
-3. Check FORGE-X PR — if still open, merge now
-4. After FORGE-X merged, verify PROJECT_STATE.md is current
-5. If stale → generate chore task:
-   Branch: chore/core-state-sync-{date}
-   Task: sync PROJECT_STATE.md to actual merged state
-
-### PRE-MERGE CHECKLIST (EVERY PR)
-
-- [ ] Identified PR type: FORGE-X or SENTINEL
-- [ ] If SENTINEL PR → FORGE-X PR already confirmed merged
-- [ ] PROJECT_STATE.md in FORGE-X branch has correct timestamp
-- [ ] No pending FORGE-X PR exists for the same task
 
 ---
 
@@ -453,36 +405,6 @@ Hard rule:
 ---
 
 
-## BATCH COMMIT RULE (ALL AGENTS — anti-timeout)
-
-Applies to: FORGE-X, SENTINEL, BRIEFER
-Max files per commit: 5
-Max PRs per task: 1
-
-If task touches >5 files:
-→ Split into sequential commits on the SAME branch
-→ Never open multiple PRs for one task
-→ Each commit must be independently compilable (py_compile must pass per commit)
-
-Commit order (FORGE-X):
-1. Core logic files
-2. Test files
-3. Report file
-4. PROJECT_STATE.md (always last)
-
-Commit order (SENTINEL):
-1. Report file
-2. PROJECT_STATE.md
-
-Commit order (BRIEFER):
-1. HTML/artifact file
-2. PROJECT_STATE.md
-
-NEVER bundle all files in one large commit if total >5.
-NEVER push report before code is committed on same branch.
-
----
-
 ## COPY-READY OUTPUT RULE (MANDATORY)
 
 After confirmation from Mr. Walker — deliver every task as a ready-to-copy code block.
@@ -533,9 +455,8 @@ Template (the code block wrapper goes around this entire block):
   DONE CRITERIA:
   - [ ] Report: {PROJECT_ROOT}/reports/forge/[phase]_[inc]_[name].md
   - [ ] All 6 report sections + Tier / Claim / Target / Not in Scope
-  - [ ] PROJECT_STATE.md updated (always in final commit)
-  - [ ] Max 5 files per commit — split if more (same branch, sequential commits)
-  - [ ] Commit order: logic → tests → report → PROJECT_STATE.md
+  - [ ] PROJECT_STATE.md updated
+  - [ ] Single commit: code + report + state
   - [ ] PR on {prefix}/{area}-{purpose}-{date}
   - [ ] Final output: Report: / State: / Tier: / Claim Level:
 
@@ -625,6 +546,13 @@ Template (the code block wrapper goes around this entire block):
 
 Emoji labels are FIXED. Never change or remove.
 Full timestamp required: YYYY-MM-DD HH:MM.
+
+REPLACE, NEVER APPEND (CRITICAL):
+- Every update MUST REPLACE the entire section content — never add below existing items
+- File reflects CURRENT state only — not a historical log
+- Max items per section: COMPLETED=10, IN PROGRESS=10, NOT STARTED=10, NEXT PRIORITY=3, KNOWN ISSUES=10
+- Each item = one flat bullet `- [one sentence]` — NO markdown headings (## / ###) inside sections
+- PROJECT_STATE.md exists ONLY at repo root — never in {PROJECT_ROOT} subfolders
 
 ---
 
@@ -791,86 +719,6 @@ arbitrage: net_edge > fees + slippage AND > 2%
 - Hardcode secrets
 - Allow full Kelly (α=1.0)
 - Ignore BLOCKED verdict
-
----
-
-## ROADMAP PROTOCOL (ALL PROJECTS)
-
-File: ROADMAP.md (root repo)
-Authority: COMMANDER owns ROADMAP.md — only COMMANDER updates it.
-Scope: Covers ALL projects in walker-ai-team repo (Crusader, TradingView, MT5, Kalshi, future).
-
-### WHEN TO UPDATE
-
-| Event | Action |
-|---|---|
-| FORGE-X PR merged | Task 🚧 → ✅, add PR # + date in Notes |
-| SENTINEL APPROVED | Confirm ✅, add SENTINEL score in Notes |
-| Phase fully complete | Update Phase header + project Board Overview |
-| New task scoped | Add row with ❌ |
-| Task deferred | Add note in Notes, keep row visible |
-| PR opened (not merged) | Set 🚧 |
-| New project activated | Initialize project section + update Active Projects table |
-| Project completed/paused | Update Active Projects table status |
-
-### HOW TO UPDATE
-
-1. Change emoji: ❌ = Not Started / 🚧 = In Progress / ✅ = Done
-2. Notes format: PR #[n], SENTINEL [score]/100, [YYYY-MM-DD]
-3. Update `Last Updated` in the affected PROJECT header (not the whole file)
-4. Update project's Board Overview table
-5. Update Active Projects table at top of file if project status changed
-6. Commit: docs: update ROADMAP.md — [project] [task or phase name]
-
-### ACTIVATING A NEW PROJECT
-
-When Mr. Walker starts a new project:
-1. Find the ⚪ placeholder section for that project in ROADMAP.md
-2. Change 🟢 Active, fill Description + Tech Stack
-3. Define phases and task rows with ❌
-4. Update Active Projects table at top: status → 🚧 Active, fill Current Phase
-5. Commit: docs: update ROADMAP.md — add [project name]
-
-NEVER add tasks to a project section without Mr. Walker approval.
-
-### ROADMAP vs PROJECT_STATE.md
-
-| | ROADMAP.md | PROJECT_STATE.md |
-|---|---|---|
-| Audience | Founder-readable, all projects | COMMANDER + FORGE-X internal |
-| Granularity | Phase + task level | Full detail per PR/fix |
-| Update frequency | Per merge / per phase | Per task / per PR |
-| Scope | All projects | Active project only |
-
-Do NOT copy raw PROJECT_STATE.md content into ROADMAP.md.
-
-### PHASE STRUCTURE — CRUSADER (LOCKED)
-
-| Phase | Name | Status |
-|---|---|---|
-| Phase 1 | Core Hardening | ✅ DONE |
-| Phase 2 | Platform Foundation | 🚧 In Progress |
-| Phase 3 | Execution-Safe MVP | ❌ Not Started |
-| Phase 4 | Multi-User Public Architecture | ❌ Not Started |
-| Phase 5 | Funding UX & Convenience | ❌ Not Started |
-| Phase 6 | Public Launch & Stabilization | ❌ Not Started |
-
-NEVER rename or renumber phases without Mr. Walker approval.
-Branch name does NOT determine roadmap phase — COMMANDER determines correct phase from task scope.
-Each project has its own independent phase numbering — Phase 1 of Crusader ≠ Phase 1 of MT5.
-
-### ROADMAP DRIFT CONTROL
-
-If ROADMAP.md contradicts PROJECT_STATE.md:
-→ STOP
-→ Report drift to Mr. Walker
-→ PROJECT_STATE.md = source of truth
-→ Sync ROADMAP.md to match
-→ Wait approval before continuing
-
-### ADD TO BEFORE EVERY TASK CHECKLIST
-
-4. Read ROADMAP.md → identify active project + current phase + next pending task
 
 ---
 
