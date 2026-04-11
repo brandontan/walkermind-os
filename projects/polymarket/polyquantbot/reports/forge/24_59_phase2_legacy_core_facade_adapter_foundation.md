@@ -2,7 +2,7 @@
 
 **Validation Tier:** STANDARD  
 **Claim Level:** FOUNDATION  
-**Validation Target:** /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/context/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/accounts/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/wallet_auth/ ; /workspace/walker-ai-team/PROJECT_STATE.md ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_59_phase2_legacy_core_facade_adapter_foundation.md  
+**Validation Target:** /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/context/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/accounts/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/wallet_auth/ ; /workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_59_phase2_legacy_core_facade_adapter_foundation.md  
 **Not in Scope:** public API/app gateway runtime activation; dual-mode routing enablement; live auth/network calls; execution/strategy/risk model mutations; database migration/schema rollout; websocket/worker/UI work; SENTINEL routing  
 **Suggested Next Step:** 2.7 gateway skeleton, then 2.9 routing continuity
 
@@ -34,7 +34,6 @@
 - Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/facade_factory.py`
 - Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_legacy_core_facade_adapter_foundation_20260411.py`
 - Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_59_phase2_legacy_core_facade_adapter_foundation.md`
-- Modified: `/workspace/walker-ai-team/PROJECT_STATE.md`
 
 ## 4. What is working
 
