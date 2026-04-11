@@ -13,13 +13,13 @@
     --mono: 'Space Mono', monospace; --sans: 'DM Sans', sans-serif;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100vh; -webkit-text-size-adjust:100%; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100vh; -webkit-text-size-adjust:100%; overflow-x:hidden; }
   body::before {
     content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
     background-image: linear-gradient(rgba(0,180,255,0.025) 1px,transparent 1px), linear-gradient(90deg,rgba(0,180,255,0.025) 1px,transparent 1px);
     background-size:40px 40px;
   }
-  .wrap { position:relative; z-index:1; max-width:900px; margin:0 auto; padding:0 14px 60px; }
+  .wrap { position:relative; z-index:1; max-width:900px; margin:0 auto; padding:0 12px 60px; width:100%; }
 
   /* HEADER */
   header { padding:24px 0 20px; border-bottom:1px solid var(--border); margin-bottom:20px; }
@@ -83,7 +83,7 @@
     display:flex; gap:12px; align-items:flex-start;
   }
   .status-tag { font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); flex-shrink:0; padding-top:2px; }
-  .status-body { font-size:13px; line-height:1.55; }
+  .status-body { font-size:13px; line-height:1.55; word-break:break-word; }
   .g { color:var(--green); font-weight:600; }
   .b { color:var(--blue); font-family:var(--mono); font-size:11px; }
   .y { color:var(--yellow); }
@@ -96,7 +96,7 @@
   }
   .next-icon { font-size:18px; flex-shrink:0; }
   .next-label { font-family:var(--mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--green); margin-bottom:6px; }
-  .next-body { font-size:13px; line-height:1.6; }
+  .next-body { font-size:13px; line-height:1.6; word-break:break-word; overflow-wrap:anywhere; }
   .path { display:block; margin-top:6px; font-family:var(--mono); font-size:10px; color:var(--mid); word-break:break-all; }
 
   /* SECTION CARDS */
@@ -406,38 +406,68 @@ async function fetchRaw(path) {
 }
 
 // ── PARSE PROJECT_STATE.md ──────────────────────────────
-function parseSection(md, header) {
+function parseSection(md, emoji) {
   const lines = md.split('\n');
   const items = [];
   let inside = false;
-  for (const line of lines) {
-    if (line.includes(header)) { inside = true; continue; }
-    if (inside) {
-      if (/^(✅|🔧|📋|🎯|⚠️)/.test(line) && !line.includes(header)) break;
-      const m = line.match(/^[-*]\s+(.+)/);
-      if (m) items.push(m[1].trim());
+  const sectionEmojis = ['✅','🔧','📋','🎯','⚠️'];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Detect section header by emoji at start of line
+    const startsWithEmoji = sectionEmojis.some(e => line.trimStart().startsWith(e));
+    if (startsWithEmoji) {
+      if (line.includes(emoji)) { inside = true; continue; }
+      if (inside) break; // hit next section
     }
+    if (!inside) continue;
+    // Match bullet items: "- text" or "* text"
+    const m = line.match(/^[-*]\s+(.+)/);
+    if (m) items.push(m[1].trim());
   }
   return items;
 }
 
-function parseSingleLine(md, header) {
+function parseStatus(md) {
+  // Try multiple formats
+  const patterns = [
+    /\* Status\s*[:：]\s*(.+)/,
+    /🔄\s*Status\s*[:：]\s*(.+)/,
+    /Status\s*[:：]\s*(.+)/,
+    /\*\s*Status\s*[:：]\s*(.+)/,
+  ];
+  for (const p of patterns) {
+    const m = md.match(p);
+    if (m) return m[1].trim().replace(/\*\*/g,'');
+  }
+  // Fallback: find line with "Status" near top
+  const lines = md.split('\n').slice(0, 10);
+  for (const l of lines) {
+    if (l.toLowerCase().includes('status')) {
+      const parts = l.split(/[:：]/);
+      if (parts[1]) return parts[1].trim().replace(/\*\*/g,'');
+    }
+  }
+  return '—';
+}
+
+function parseNextPriority(md) {
   const lines = md.split('\n');
   let inside = false;
   const parts = [];
   for (const line of lines) {
-    if (line.includes(header)) { inside = true; continue; }
+    if (line.trimStart().startsWith('🎯')) { inside = true; continue; }
     if (inside) {
-      if (/^(✅|🔧|📋|🎯|⚠️)/.test(line) && !line.includes(header)) break;
-      if (line.trim()) parts.push(line.trim());
+      // Stop at next emoji section
+      const sectionEmojis = ['✅','🔧','📋','⚠️'];
+      if (sectionEmojis.some(e => line.trimStart().startsWith(e))) break;
+      const clean = line.replace(/^[-*]\s+/, '').trim();
+      if (clean) parts.push(clean);
     }
   }
-  return parts.join(' ');
-}
-
-function parseStatus(md) {
-  const m = md.match(/🔄\s*Status\s*[:：]\s*(.+)/);
-  return m ? m[1].trim() : '—';
+  // Only take first meaningful line, max 200 chars
+  const full = parts.join(' ').trim();
+  return full.length > 200 ? full.substring(0, 200) + '…' : (full || '—');
 }
 
 function renderItems(items, dotClass, dim) {
@@ -451,14 +481,14 @@ async function loadState() {
   try {
     const md = await fetchRaw('PROJECT_STATE.md');
     const status = parseStatus(md);
-    const completed = parseSection(md, '✅ COMPLETED');
-    const inprogress = parseSection(md, '🔧 IN PROGRESS');
-    const pending = parseSection(md, '📋 NOT STARTED');
-    const issues = parseSection(md, '⚠️ KNOWN ISSUES');
-    const next = parseSingleLine(md, '🎯 NEXT PRIORITY');
+    const next = parseNextPriority(md);
+    const completed = parseSection(md, '✅');
+    const inprogress = parseSection(md, '🔧');
+    const pending = parseSection(md, '📋');
+    const issues = parseSection(md, '⚠️');
 
     document.getElementById('currentStatus').innerHTML = escHtml(status);
-    document.getElementById('nextPriority').innerHTML = escHtml(next) || '—';
+    document.getElementById('nextPriority').innerHTML = escHtml(next);
     document.getElementById('completedCount').textContent = completed.length;
     document.getElementById('progressCount').textContent = inprogress.length;
     document.getElementById('pendingCount').textContent = pending.length;
