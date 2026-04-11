@@ -10,7 +10,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from projects.polymarket.polyquantbot.execution.engine import ExecutionEngine
-from projects.polymarket.polyquantbot.execution.execution_isolation import get_execution_isolation_gateway
+from projects.polymarket.polyquantbot.execution.execution_isolation import (
+    ExecutionIsolationGateway,
+    get_execution_isolation_gateway,
+)
+from projects.polymarket.polyquantbot.execution.proof_lifecycle import new_validation_proof
 
 
 def _valid_market_data(reference_price: float = 0.41) -> dict[str, object]:
@@ -147,5 +151,75 @@ def test_phase3_isolation_boundary_enforces_risk_then_preserves_execution_truth(
         assert len(engine._closed_trades) == 1  # noqa: SLF001
         assert engine._closed_trades[0]["position_id"] == "allow-1"  # noqa: SLF001
         assert engine._closed_trades[0]["exit_reason"] == "take_profit"  # noqa: SLF001
+
+    asyncio.run(_run())
+
+
+def test_phase3_isolation_open_lock_keeps_rejection_reason_per_call() -> None:
+    class _RaceEngine:
+        def __init__(self) -> None:
+            self._last_open_rejection: dict[str, object] | None = None
+
+        async def open_position(self, **kwargs: object) -> None:
+            position_id = str(kwargs.get("position_id", "unknown"))
+            self._last_open_rejection = {"reason": f"reject_{position_id}"}
+            await asyncio.sleep(0.01)
+            return None
+
+        def get_last_open_rejection(self) -> dict[str, object] | None:
+            return dict(self._last_open_rejection or {})
+
+    async def _run() -> None:
+        gateway = ExecutionIsolationGateway(engine=_RaceEngine())  # type: ignore[arg-type]
+        proof_a = new_validation_proof(
+            condition_id="m-lock-a",
+            side="YES",
+            price_snapshot=0.41,
+            size=10.0,
+            ttl_seconds=30,
+        )
+        proof_b = new_validation_proof(
+            condition_id="m-lock-b",
+            side="YES",
+            price_snapshot=0.41,
+            size=10.0,
+            ttl_seconds=30,
+        )
+
+        outcome_a, outcome_b = await asyncio.gather(
+            gateway.open_position(
+                source_path="tests.lock.a",
+                market="m-lock-a",
+                market_title="Lock A",
+                side="YES",
+                price=0.41,
+                size=10.0,
+                position_id="A",
+                position_context={},
+                execution_market_data=_valid_market_data(),
+                validation_proof=proof_a,
+                risk_decision="ALLOW",
+                risk_reason="ok",
+            ),
+            gateway.open_position(
+                source_path="tests.lock.b",
+                market="m-lock-b",
+                market_title="Lock B",
+                side="YES",
+                price=0.41,
+                size=10.0,
+                position_id="B",
+                position_context={},
+                execution_market_data=_valid_market_data(),
+                validation_proof=proof_b,
+                risk_decision="ALLOW",
+                risk_reason="ok",
+            ),
+        )
+
+        assert outcome_a.allowed is False
+        assert outcome_b.allowed is False
+        assert outcome_a.reason == "reject_A"
+        assert outcome_b.reason == "reject_B"
 
     asyncio.run(_run())

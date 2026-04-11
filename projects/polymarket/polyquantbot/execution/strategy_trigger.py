@@ -2498,11 +2498,12 @@ class StrategyTrigger:
                     terminal_reason=exit_decision.exit_reason,
                 )
                 if not close_outcome.allowed:
+                    trace = self._trade_traceability.get(trade_id, {})
                     self._record_blocked_terminal_trace(
                         trade_id=trade_id,
-                        signal_data=self._trade_traceability.get(trade_id, {}).get("signal_data", {}),
-                        decision_data=self._trade_traceability.get(trade_id, {}).get("decision_data", {}),
-                        validation_result=self._trade_traceability.get(trade_id, {}).get("validation_result", {}),
+                        signal_data=trace.get("signal_data", {}),
+                        decision_data=trace.get("decision_data", {}),
+                        validation_result=trace.get("validation_result", {}),
                         terminal_stage="execution_isolation_rejected_close",
                         reason=close_outcome.reason,
                         extra_details={"execution_rejection": close_outcome.details or {}},

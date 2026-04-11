@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,6 +26,11 @@ class ExecutionIsolationGateway:
 
     def __init__(self, engine: ExecutionEngine) -> None:
         self._engine = engine
+        self._open_lock = asyncio.Lock()
+
+    @property
+    def engine(self) -> ExecutionEngine:
+        return self._engine
 
     async def open_position(
         self,
@@ -55,24 +61,25 @@ class ExecutionIsolationGateway:
                 details={"risk_decision": risk_decision},
             )
 
-        opened = await self._engine.open_position(
-            market=market,
-            market_title=market_title,
-            side=side,
-            price=price,
-            size=size,
-            position_id=position_id,
-            position_context=position_context,
-            validation_proof=validation_proof,
-            execution_market_data=execution_market_data,
-        )
-        if opened is None:
-            rejection = self._engine.get_last_open_rejection() or {}
-            return self._block(
-                source_path=source_path,
-                reason=str(rejection.get("reason", "execution_open_rejected")),
-                details={"engine_rejection": rejection},
+        async with self._open_lock:
+            opened = await self._engine.open_position(
+                market=market,
+                market_title=market_title,
+                side=side,
+                price=price,
+                size=size,
+                position_id=position_id,
+                position_context=position_context,
+                validation_proof=validation_proof,
+                execution_market_data=execution_market_data,
             )
+            rejection = self._engine.get_last_open_rejection() or {}
+            if opened is None:
+                return self._block(
+                    source_path=source_path,
+                    reason=str(rejection.get("reason", "execution_open_rejected")),
+                    details={"engine_rejection": rejection},
+                )
 
         log.info(
             "execution_isolation_decision",
@@ -156,6 +163,6 @@ _gateway_singleton: ExecutionIsolationGateway | None = None
 def get_execution_isolation_gateway(engine: ExecutionEngine | None = None) -> ExecutionIsolationGateway:
     global _gateway_singleton  # noqa: PLW0603
     resolved_engine = engine or get_execution_engine()
-    if _gateway_singleton is None or _gateway_singleton._engine is not resolved_engine:
+    if _gateway_singleton is None or _gateway_singleton.engine is not resolved_engine:
         _gateway_singleton = ExecutionIsolationGateway(engine=resolved_engine)
     return _gateway_singleton
