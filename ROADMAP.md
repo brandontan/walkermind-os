@@ -114,7 +114,7 @@
 | # | Task | Status | Notes |
 |---|---|---|---|
 | 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | |
-| 2.7 | Build public API/app gateway skeleton | ❌ | |
+| 2.7 | Build public API/app gateway skeleton | 🚧 | PR #413 blocker-fix branch prepared; fresh SENTINEL rerun pending |
 | 2.8 | Add legacy-core facade adapter | ❌ | |
 | 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | |
 | 2.10 | Staging deploy on Fly.io | ❌ | Migration from Railway pending |

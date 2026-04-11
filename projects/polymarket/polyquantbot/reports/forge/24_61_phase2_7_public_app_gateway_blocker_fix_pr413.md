@@ -45,6 +45,7 @@
 ## 6. What is next
 
 - SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md. Tier: MAJOR
+- This blocker-fix is pending fresh SENTINEL rerun on PR #413 head; merge safety is not yet claimed.
 - If approved, Phase 2.9 can continue dual-mode routing implementation against this corrected seam.
 
 ## Validation commands run
