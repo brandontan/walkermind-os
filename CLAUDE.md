@@ -167,7 +167,7 @@ No `except: pass`. No swallowed exceptions. No placeholder logic presented as co
 
 ---
 
-## 📊 PROJECT_STATE FORMAT (LOCKED — do not change structure)
+## 📊 PROJECT\_STATE FORMAT (LOCKED — do not change structure)
 
 Update ONLY these 7 sections. Never rewrite entire file.
 
@@ -192,10 +192,35 @@ Update ONLY these 7 sections. Never rewrite entire file.
 ```
 
 Rules:
-- Emoji labels are FIXED — never change or remove
-- `📅 Last Updated` requires full timestamp: `YYYY-MM-DD HH:MM`
-- Never replace entire file — update only the 7 sections above
-- Commit: `chore/core-project-state-YYYYMMDD`
+
+* Emoji labels are FIXED — never change or remove
+* `📅 Last Updated` requires full timestamp: `YYYY-MM-DD HH:MM`
+* Never replace entire file — update only the 7 sections above
+* Commit: `chore/core-project-state-YYYYMMDD`
+
+REPLACE, NEVER APPEND (CRITICAL):
+* Every update MUST REPLACE entire section content — never add items below existing ones
+* File reflects CURRENT state only — not a historical log
+* Violation = FORMAT DRIFT → BLOCKED
+
+MAX ITEMS PER SECTION (ENFORCED):
+* ✅ COMPLETED: max 10 items — summarize, not every sub-task
+* 🔧 IN PROGRESS: max 10 items — active work + pending decisions only
+* 📋 NOT STARTED: max 10 items — upcoming phases only
+* 🎯 NEXT PRIORITY: max 3 lines — immediate next action only
+* ⚠️ KNOWN ISSUES: max 10 items — active blockers/deferred only
+
+HEADING FORMAT (STRICT):
+* Use ONLY flat bullets — NO markdown headings (## or ###) inside sections
+* Each item = `- [one sentence max]`
+* NO subsections like `### P17 handoff` inside any section
+* Violation = FORMAT DRIFT → fix before merge
+
+SINGLE FILE, REPO ROOT ONLY:
+* PROJECT_STATE.md exists ONLY at repo root
+* NEVER create inside {PROJECT_ROOT} subfolders (e.g. projects/polymarket/polyquantbot/)
+* If project-local copy exists → DELETE immediately
+* Project-local PROJECT_STATE.md = drift violation → BLOCKED
 
 ---
 
