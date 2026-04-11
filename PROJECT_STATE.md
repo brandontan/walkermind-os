@@ -1,7 +1,7 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-11 14:00
-- Status        : FORGE-X MINOR — Live Dashboard deployed to docs/ for GitHub Pages. docs/index.html + docs/LIVE_DASHBOARD.html committed to branch claude/deploy-dashboard-github-pages-nx06q. COMMANDER repository settings action required to enable GitHub Pages.
+- Last Updated  : 2026-04-11 20:45
+- Status        : FORGE-X MAJOR — PR #413 Phase 2.7 FOUNDATION blocker-fix pass applied on branch feature/build-public/app-gateway-skeleton-2026-04-11; public/app gateway seam now composes safely and canonical tests execute; pending fresh SENTINEL rerun.
 
 ---
 
@@ -131,6 +131,10 @@ Status:
 ---
 
 ## 🚧 IN PROGRESS
+
+### PR #413 phase 2.7 gateway skeleton blocker-fix handoff
+- MAJOR-tier FOUNDATION blocker-fix is complete for public/app gateway skeleton seam: factory composition now uses `build_legacy_core_facade(...)`, invalid/absent mode fails closed to disabled, and non-activation semantics are test-enforced in canonical Phase 2.7 test artifact.
+- Awaiting fresh SENTINEL rerun against updated PR #413 branch head before merge.
 
 ### P17 execution proof lifecycle handoff
 - MAJOR-tier FULL RUNTIME INTEGRATION implementation is complete for StrategyTrigger→ExecutionEngine proof lifecycle enforcement (dynamic TTL, replay safety, persistence, fail-closed verifier, atomic consume).
@@ -278,6 +282,11 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
+SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md. Tier: MAJOR
+PR: #413
+Branch: feature/build-public/app-gateway-skeleton-2026-04-11
+Action: Run fresh SENTINEL rerun on updated blocker-fix head for Phase 2.7 FOUNDATION scope.
+
 Auto PR review (Codex/Gemini/Copilot) + COMMANDER review required for Live Dashboard GitHub Pages deployment.
 Source: projects/polymarket/polyquantbot/reports/forge/25_7_deploy_live_dashboard_github_pages.md
 Branch: claude/deploy-dashboard-github-pages-nx06q
@@ -291,6 +300,7 @@ Branch: claude/fix-resolver-purity-pr392-Ujo1o
 
 ## ⚠️ KNOWN ISSUES
 
+- PR #413 remains FOUNDATION-only for Phase 2.7: public/app gateway seam is intentionally non-activating, and production/public routing activation remains out of scope pending later phases.
 - Resolver purity fix (2026-04-11): `ensure_*` methods are not yet wired into `ContextResolver.resolve()` — resolver remains read-only by design; callers requiring persistence must invoke `ensure_*` directly.
 - Resolver purity fix (2026-04-11): `execution_context_repository` and `audit_event_repository` bundle fields are unused by the bridge after the constructor fix; their persistence is deferred to a future scope if needed.
 - P17 proof lifecycle currently uses lazy expiration enforcement at execution boundary; background cleanup of expired rows is deferred.
