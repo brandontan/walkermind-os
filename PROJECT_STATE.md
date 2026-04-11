@@ -1,12 +1,14 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-09 23:28
-- Status        : FORGE-X completed MAJOR-tier execution proof lifecycle (dynamic TTL + replay-safe single-use + persistent DB registry + fail-closed execution-boundary verification) in StrategyTrigger→ExecutionEngine path.
+- Last Updated  : 2026-04-11 12:00
+- Status        : SENTINEL APPROVED — Resolver purity surgical fix (PR #394) validated APPROVED (score 96/100, 0 critical issues). PR is merge-eligible from SENTINEL perspective. COMMANDER merge decision pending.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- SENTINEL validation complete for resolver purity surgical fix PR #394 (2026-04-11): verdict **APPROVED**, score **96/100**, 0 critical issues; compile gate passed on all 9 files, 5/5 import chains pass, resolver read-only purity AST-verified, ensure_* isolation confirmed, bridge constructor aligned, activation monitor task-exception containment verified, 11/11 tests pass; report `projects/polymarket/polyquantbot/reports/sentinel/24_53_resolver_purity_revalidation_pr394.md`.
+- Resolver purity surgical fix / PR392 unblock (2026-04-11): eliminated resolver.py `=> None:` syntax error, fixed test_platform_phase2 `From __future__` + malformed env string, removed all `upsert` calls from `resolve_*` methods (AccountService / WalletAuthService / PermissionService), added `ensure_*` write-path counterparts, aligned LegacyContextBridge ContextResolver constructor (removed unsupported `execution_context_repository` / `audit_event_repository` params), hardened SystemActivationMonitor with `_safe_task` done-callback and non-fatal `_assert_loop` warning path, created import-chain test and forge report; 11 tests pass; report `projects/polymarket/polyquantbot/reports/forge/24_52_resolver_purity_final_unblock_pr390.md`.
 - P17 execution proof lifecycle (2026-04-09): implemented immutable validation proofs with dynamic TTL policy, DB-backed proof registry (`validation_proofs`), authoritative execution-boundary proof verification (existence/status/TTL/context/atomic consume), StrategyTrigger integration, and focused replay/expiry/context/restart/race/no-bypass tests; report `projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md`.
 - P16 execution-boundary position-sizing enforcement (2026-04-10): enforced authoritative boundary sizing checks in `ExecutionEngine.open_position(...)` for non-positive/per-trade-cap/capital-risk-allowed size violations before mutation, preserved signed validation-proof enforcement, propagated structured rejection reason into StrategyTrigger blocked terminal trace, and added focused tests; report `projects/polymarket/polyquantbot/reports/forge/24_39_execution_position_sizing_boundary_enforcement.md`.
 - P16 execution-boundary validation-proof enforcement (2026-04-09): replaced trust-only execution entry assumption with signed `ExecutionValidationProof` contract at engine boundary, wired StrategyTrigger ALLOW path to pass proof payload, and added focused no-proof/fake-proof/pass-proof runtime tests; report `projects/polymarket/polyquantbot/reports/forge/24_38_execution_validation_proof_boundary_enforcement.md`.
@@ -275,12 +277,15 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/24_40_execution_proof_lifecycle_ttl_replay_safety.md
-Tier: MAJOR
+COMMANDER merge decision required for PR #394 (resolver purity surgical fix).
+SENTINEL verdict: APPROVED (score 96/100, 0 critical issues).
+Report: projects/polymarket/polyquantbot/reports/sentinel/24_53_resolver_purity_revalidation_pr394.md
+Branch: claude/fix-resolver-purity-pr392-Ujo1o
 
 ## ⚠️ KNOWN ISSUES
 
+- Resolver purity fix (2026-04-11): `ensure_*` methods are not yet wired into `ContextResolver.resolve()` — resolver remains read-only by design; callers requiring persistence must invoke `ensure_*` directly.
+- Resolver purity fix (2026-04-11): `execution_context_repository` and `audit_event_repository` bundle fields are unused by the bridge after the constructor fix; their persistence is deferred to a future scope if needed.
 - P17 proof lifecycle currently uses lazy expiration enforcement at execution boundary; background cleanup of expired rows is deferred.
 - P17 TTL policy currently uses configurable baseline market-type ranges with optional volatility proxy scaling; advanced volatility-driven calibration remains out of scope for this phase.
 - P16 execution-boundary validation-proof enforcement is currently narrow integration in StrategyTrigger→ExecutionEngine path only; any future alternate execution entry surfaces must explicitly adopt the same proof contract.

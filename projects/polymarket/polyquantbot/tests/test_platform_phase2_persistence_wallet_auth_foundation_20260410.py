@@ -1,6 +1,6 @@
 # Updated test to remove persistence-assumptions from resolver.
 
-From __future__ import annotations
+from __future__ import annotations
 
 import os
 import tempfile
@@ -35,7 +35,7 @@ def test_phase2_repository_crud_and_service_wiring() -> None:
         storage_file = Path(temp_dir) / "platform_storage.json"
         os.environ["PLATFORM_STORAGE_BACKEND"] = "json"
         os.environ["PLATFORM_STORAGE_PATH"] = str(storage_file)
-        os.environ["PLATFORM_AUTH_PROVIDER  = "polymarket"
+        os.environ["PLATFORM_AUTH_PROVIDER"] = "polymarket"
         try:
             bundle = build_repository_bundle_from_env()
             assert bundle.accounts is not None
@@ -48,8 +48,8 @@ def test_phase2_repository_crud_and_service_wiring() -> None:
             permission_service = PermissionService(repository=bundle.permissions)
             subscription_service = StrategySubscriptionService(repository=bundle.strategy_subscriptions)
 
-            account = account_service.resolve_user_account(legacy_user_id="legacy-user-2", source_type="legacy-session")
-            wallet = wallet_service.resolve_wallet_binding(
+            account = account_service.ensure_user_account(legacy_user_id="legacy-user-2", source_type="legacy-session")
+            wallet = wallet_service.ensure_wallet_binding(
                 user_id=account.user_id,
                 wallet_binding_id="wb-2",
                 wallet_type="LEGACY_SESSION",
@@ -58,7 +58,7 @@ def test_phase2_repository_crud_and_service_wiring() -> None:
                 auth_state="UNVERIFIED",
                 mode="PAPER",
             )
-            permission = permission_service.resolve_permission_profile(
+            permission = permission_service.ensure_permission_profile(
                 user_id=account.user_id,
                 allowed_markets=("MKT-A",),
                 mode="PAPER",

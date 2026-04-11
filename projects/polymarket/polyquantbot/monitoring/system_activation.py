@@ -9,7 +9,7 @@ Periodic logging (every 10s):
     "events=X signals=Y"
 
 Assertions (every 60s):
-    - If event_count == 0 after 60s → raises RuntimeError
+    - If event_count == 0 after 60s → logs WARNING (non-fatal, loop continues)
     - If event_count > 0 and signal_count == 0 after 60s → logs WARNING "NO SIGNAL GENERATED"
 """
 from __future__ import annotations
@@ -26,10 +26,31 @@ _LOG_INTERVAL_S: float = 10.0
 _ASSERT_INTERVAL_S: float = 60.0
 
 
+def _handle_task_exception(task: asyncio.Task) -> None:
+    """Done callback: log any task exception without re-raising or crashing the loop."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        log.error(
+            "activation_monitor_task_failed",
+            task=task.get_name(),
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+
+
+def _safe_task(task: asyncio.Task) -> asyncio.Task:
+    """Attach exception-logging done callback to a task and return it."""
+    task.add_done_callback(_handle_task_exception)
+    return task
+
+
 class SystemActivationMonitor:
     """Monitors event and signal flow, logging and asserting liveness.
 
     Thread-safety: single asyncio event loop only.
+    Background task failures are contained, logged, and non-fatal.
     """
 
     def __init__(
@@ -76,11 +97,11 @@ class SystemActivationMonitor:
             return
         self._running = True
         self._start_ts = time.time()
-        self._log_task = asyncio.create_task(
-            self._log_loop(), name="activation_monitor_log"
+        self._log_task = _safe_task(
+            asyncio.create_task(self._log_loop(), name="activation_monitor_log")
         )
-        self._assert_task = asyncio.create_task(
-            self._assert_loop(), name="activation_monitor_assert"
+        self._assert_task = _safe_task(
+            asyncio.create_task(self._assert_loop(), name="activation_monitor_assert")
         )
         log.info("system_activation_monitor_started")
 
@@ -110,16 +131,22 @@ class SystemActivationMonitor:
             )
 
     async def _assert_loop(self) -> None:
-        """After assert_interval_s, validate liveness — raises if no events received."""
+        """After assert_interval_s, validate liveness — logs warning if no events received.
+        Non-fatal: never raises RuntimeError; background failure is contained and logged.
+        """
         await asyncio.sleep(self._assert_interval)
         elapsed = time.time() - self._start_ts
 
         if self.event_count == 0:
-            raise RuntimeError(
-                f"No events received after {round(elapsed, 1)}s — "
-                "WebSocket feed may be disconnected or market IDs may be invalid. "
-                "Check WebSocket connection status and verify MARKET_IDS are correct condition IDs."
+            log.warning(
+                "NO EVENTS RECEIVED",
+                elapsed_s=round(elapsed, 1),
+                hint=(
+                    "WebSocket feed may be disconnected or market IDs may be invalid. "
+                    "Check WebSocket connection status and verify MARKET_IDS are correct condition IDs."
+                ),
             )
+            return
 
         if self.event_count > 0 and self.signal_count == 0:
             log.warning(
