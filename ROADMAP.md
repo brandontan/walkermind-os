@@ -90,7 +90,7 @@
 |---|---|---|---|
 | 2.1 | Freeze legacy core behavior (no logic drift) | ✅ | PR #394 merged — stable, not formally tagged |
 | 2.2 | Extract core module boundaries | ✅ | Structure exists, formal boundary not declared |
-| 2.3 | Add ExecutionIsolationGateway | ✅ | **MERGED** — PR #396, SENTINEL 96/100, 2026-04-11 |
+| 2.3 | Add ExecutionIsolationGateway | ✅ | **MERGED** — PR #396, SENTINEL rerun 92/100, 2026-04-11 |
 | 2.4 | Preserve resolver/bridge purity (read-only) | ✅ | PR #396 — context_bridge audit suppression included |
 | 2.5 | Regression tests around execution path | ✅ | Covered in PR #396 test suite |
 
