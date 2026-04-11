@@ -1,3 +1,5 @@
+# COMMANDER KNOWLEDGE
+---
 ALWAYS read AGENTS.md from repo root before using this file.
 Rule priority: AGENTS.md > commander_knowledge.md > custom instructions.
 If conflict → follow AGENTS.md.
@@ -451,6 +453,36 @@ Hard rule:
 ---
 
 
+## BATCH COMMIT RULE (ALL AGENTS — anti-timeout)
+
+Applies to: FORGE-X, SENTINEL, BRIEFER
+Max files per commit: 5
+Max PRs per task: 1
+
+If task touches >5 files:
+→ Split into sequential commits on the SAME branch
+→ Never open multiple PRs for one task
+→ Each commit must be independently compilable (py_compile must pass per commit)
+
+Commit order (FORGE-X):
+1. Core logic files
+2. Test files
+3. Report file
+4. PROJECT_STATE.md (always last)
+
+Commit order (SENTINEL):
+1. Report file
+2. PROJECT_STATE.md
+
+Commit order (BRIEFER):
+1. HTML/artifact file
+2. PROJECT_STATE.md
+
+NEVER bundle all files in one large commit if total >5.
+NEVER push report before code is committed on same branch.
+
+---
+
 ## COPY-READY OUTPUT RULE (MANDATORY)
 
 After confirmation from Mr. Walker — deliver every task as a ready-to-copy code block.
@@ -501,8 +533,9 @@ Template (the code block wrapper goes around this entire block):
   DONE CRITERIA:
   - [ ] Report: {PROJECT_ROOT}/reports/forge/[phase]_[inc]_[name].md
   - [ ] All 6 report sections + Tier / Claim / Target / Not in Scope
-  - [ ] PROJECT_STATE.md updated
-  - [ ] Single commit: code + report + state
+  - [ ] PROJECT_STATE.md updated (always in final commit)
+  - [ ] Max 5 files per commit — split if more (same branch, sequential commits)
+  - [ ] Commit order: logic → tests → report → PROJECT_STATE.md
   - [ ] PR on {prefix}/{area}-{purpose}-{date}
   - [ ] Final output: Report: / State: / Tier: / Claim Level:
 
