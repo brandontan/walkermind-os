@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-11 14:00
-- Status        : FORGE-X MINOR — Live Dashboard deployed to docs/ for GitHub Pages. docs/index.html + docs/LIVE_DASHBOARD.html committed to branch claude/deploy-dashboard-github-pages-nx06q. COMMANDER repository settings action required to enable GitHub Pages.
+- Last Updated  : 2026-04-11 14:55
+- Status        : FORGE-X MAJOR — Phase 2.7 public/app gateway skeleton FOUNDATION seam delivered on branch feature/infra-phase2-7-gateway-skeleton-2026-04-12; default path remains non-activating; SENTINEL validation required before merge.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- Phase 2.7 public/app gateway skeleton foundation (2026-04-11): delivered deterministic `PublicAppGateway` seam + `build_public_app_gateway(...)` mode parsing (`disabled`/`legacy-facade`), API composition boundary `build_api_gateway_boundary(...)`, focused non-activation continuity tests, and report `projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md` (Validation Tier: MAJOR, Claim Level: FOUNDATION).
 - Live Dashboard GitHub Pages deployment (2026-04-11): created `docs/index.html` redirect entry point, confirmed `docs/LIVE_DASHBOARD.html` present; both files committed to branch `claude/deploy-dashboard-github-pages-nx06q`; report `projects/polymarket/polyquantbot/reports/forge/25_7_deploy_live_dashboard_github_pages.md`; Validation Tier: MINOR.
 - SENTINEL validation complete for resolver purity surgical fix PR #394 (2026-04-11): verdict **APPROVED**, score **96/100**, 0 critical issues; compile gate passed on all 9 files, 5/5 import chains pass, resolver read-only purity AST-verified, ensure_* isolation confirmed, bridge constructor aligned, activation monitor task-exception containment verified, 11/11 tests pass; report `projects/polymarket/polyquantbot/reports/sentinel/24_53_resolver_purity_revalidation_pr394.md`.
 - Resolver purity surgical fix / PR392 unblock (2026-04-11): eliminated resolver.py `=> None:` syntax error, fixed test_platform_phase2 `From __future__` + malformed env string, removed all `upsert` calls from `resolve_*` methods (AccountService / WalletAuthService / PermissionService), added `ensure_*` write-path counterparts, aligned LegacyContextBridge ContextResolver constructor (removed unsupported `execution_context_repository` / `audit_event_repository` params), hardened SystemActivationMonitor with `_safe_task` done-callback and non-fatal `_assert_loop` warning path, created import-chain test and forge report; 11 tests pass; report `projects/polymarket/polyquantbot/reports/forge/24_52_resolver_purity_final_unblock_pr390.md`.
@@ -278,11 +279,9 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-Auto PR review (Codex/Gemini/Copilot) + COMMANDER review required for Live Dashboard GitHub Pages deployment.
-Source: projects/polymarket/polyquantbot/reports/forge/25_7_deploy_live_dashboard_github_pages.md
-Branch: claude/deploy-dashboard-github-pages-nx06q
-Tier: MINOR
-Action: COMMANDER to enable GitHub Pages in repository settings (Source: docs/ folder on target branch) after merge.
+SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md. Tier: MAJOR
+Branch: feature/infra-phase2-7-gateway-skeleton-2026-04-12
+Claim Level: FOUNDATION
 
 COMMANDER merge decision also required for PR #394 (resolver purity surgical fix).
 SENTINEL verdict: APPROVED (score 96/100, 0 critical issues).
@@ -291,6 +290,7 @@ Branch: claude/fix-resolver-purity-pr392-Ujo1o
 
 ## ⚠️ KNOWN ISSUES
 
+- Phase 2.7 gateway skeleton is FOUNDATION only; dual-mode routing activation remains out of scope until Phase 2.9.
 - Resolver purity fix (2026-04-11): `ensure_*` methods are not yet wired into `ContextResolver.resolve()` — resolver remains read-only by design; callers requiring persistence must invoke `ensure_*` directly.
 - Resolver purity fix (2026-04-11): `execution_context_repository` and `audit_event_repository` bundle fields are unused by the bridge after the constructor fix; their persistence is deferred to a future scope if needed.
 - P17 proof lifecycle currently uses lazy expiration enforcement at execution boundary; background cleanup of expired rows is deferred.
