@@ -1,12 +1,13 @@
 # PROJECT STATE - Walker AI DevOps Team
 
-- Last Updated  : 2026-04-11 14:55
-- Status        : FORGE-X MAJOR — Phase 2.7 public/app gateway skeleton FOUNDATION seam delivered on branch feature/infra-phase2-7-gateway-skeleton-2026-04-12; default path remains non-activating; SENTINEL validation required before merge.
+- Last Updated  : 2026-04-11 15:20
+- Status        : FORGE-X MAJOR — PR #413 Phase 2.7 FOUNDATION blocker-fix pass complete on branch feature/build-public/app-gateway-skeleton-2026-04-11; factory composition/test/runtime-safe seam corrections applied; fresh SENTINEL rerun required.
 
 ---
 
 ## ✅ COMPLETED PHASES
 
+- PR #413 Phase 2.7 blocker-fix pass (2026-04-11): corrected gateway factory composition to Phase 2.8 constant-driven seam (`LEGACY_CORE_FACADE_CONTEXT_RESOLVER`), removed facade injection bypass from app/gateway factory API, added composition assertion test coverage, and published report `projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md` (Validation Tier: MAJOR, Claim Level: FOUNDATION).
 - Phase 2.7 public/app gateway skeleton foundation (2026-04-11): delivered deterministic `PublicAppGateway` seam + `build_public_app_gateway(...)` mode parsing (`disabled`/`legacy-facade`), API composition boundary `build_api_gateway_boundary(...)`, focused non-activation continuity tests, and report `projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md` (Validation Tier: MAJOR, Claim Level: FOUNDATION).
 - Live Dashboard GitHub Pages deployment (2026-04-11): created `docs/index.html` redirect entry point, confirmed `docs/LIVE_DASHBOARD.html` present; both files committed to branch `claude/deploy-dashboard-github-pages-nx06q`; report `projects/polymarket/polyquantbot/reports/forge/25_7_deploy_live_dashboard_github_pages.md`; Validation Tier: MINOR.
 - SENTINEL validation complete for resolver purity surgical fix PR #394 (2026-04-11): verdict **APPROVED**, score **96/100**, 0 critical issues; compile gate passed on all 9 files, 5/5 import chains pass, resolver read-only purity AST-verified, ensure_* isolation confirmed, bridge constructor aligned, activation monitor task-exception containment verified, 11/11 tests pass; report `projects/polymarket/polyquantbot/reports/sentinel/24_53_resolver_purity_revalidation_pr394.md`.
@@ -279,14 +280,9 @@ Status:
 
 ## 🎯 NEXT PRIORITY
 
-SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_60_phase2_7_public_app_gateway_skeleton_foundation.md. Tier: MAJOR
-Branch: feature/infra-phase2-7-gateway-skeleton-2026-04-12
+SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_61_phase2_7_public_app_gateway_blocker_fix_pr413.md. Tier: MAJOR
+Branch: feature/build-public/app-gateway-skeleton-2026-04-11
 Claim Level: FOUNDATION
-
-COMMANDER merge decision also required for PR #394 (resolver purity surgical fix).
-SENTINEL verdict: APPROVED (score 96/100, 0 critical issues).
-Report: projects/polymarket/polyquantbot/reports/sentinel/24_53_resolver_purity_revalidation_pr394.md
-Branch: claude/fix-resolver-purity-pr392-Ujo1o
 
 ## ⚠️ KNOWN ISSUES
 

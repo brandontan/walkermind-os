@@ -19,7 +19,7 @@ class PublicAppGatewayConfig:
 
 @dataclass(frozen=True)
 class PublicAppGatewayResolution:
-    """Boundary result contract for future app/public gateway composition."""
+    """Boundary result contract for future app/public gateway composition (always non-activating in Phase 2.7)."""
 
     activated: bool
     mode: str

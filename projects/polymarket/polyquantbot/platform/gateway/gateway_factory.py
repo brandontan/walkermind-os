@@ -3,8 +3,7 @@ from __future__ import annotations
 import os
 
 from ..context.resolver import ContextResolver
-from .facade_factory import build_legacy_core_facade
-from .legacy_core_facade import LegacyCoreFacade
+from .facade_factory import LEGACY_CORE_FACADE_CONTEXT_RESOLVER, build_legacy_core_facade
 from .public_app_gateway import (
     PUBLIC_APP_GATEWAY_DISABLED,
     PUBLIC_APP_GATEWAY_LEGACY_FACADE,
@@ -29,7 +28,6 @@ def parse_public_app_gateway_mode(mode: str | None = None) -> str:
 def build_public_app_gateway(
     *,
     mode: str | None = None,
-    facade: LegacyCoreFacade | None = None,
     resolver: ContextResolver | None = None,
 ) -> PublicAppGateway:
     """Build foundation-only app/public gateway seam without enabling runtime routing."""
@@ -37,6 +35,9 @@ def build_public_app_gateway(
     selected_mode = parse_public_app_gateway_mode(mode)
     config = PublicAppGatewayConfig(mode=selected_mode)
     if selected_mode == PUBLIC_APP_GATEWAY_LEGACY_FACADE:
-        selected_facade = facade or build_legacy_core_facade(mode="legacy-context-resolver", resolver=resolver)
+        selected_facade = build_legacy_core_facade(
+            mode=LEGACY_CORE_FACADE_CONTEXT_RESOLVER,
+            resolver=resolver,
+        )
         return PublicAppGatewayLegacyFacade(facade=selected_facade, config=config)
     return PublicAppGatewayDisabled(config=config)

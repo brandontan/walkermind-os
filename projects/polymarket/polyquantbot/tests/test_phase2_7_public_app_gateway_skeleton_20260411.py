@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+from unittest.mock import patch
 
 from projects.polymarket.polyquantbot.api import build_api_gateway_boundary
 from projects.polymarket.polyquantbot.legacy.adapters.context_bridge import LegacyContextBridge
 from projects.polymarket.polyquantbot.platform.context.resolver import LegacySessionSeed
 from projects.polymarket.polyquantbot.platform.gateway import (
+    LEGACY_CORE_FACADE_CONTEXT_RESOLVER,
     PUBLIC_APP_GATEWAY_DISABLED,
     PUBLIC_APP_GATEWAY_LEGACY_FACADE,
     PublicAppGatewayDisabled,
@@ -58,6 +60,15 @@ def test_phase2_7_gateway_explicit_legacy_facade_construction_is_available() -> 
     assert resolution.facade_resolution is not None
     assert resolution.facade_resolution.activated is True
 
+
+
+def test_phase2_7_legacy_facade_mode_composes_via_phase2_8_factory_constant() -> None:
+    with patch("projects.polymarket.polyquantbot.platform.gateway.gateway_factory.build_legacy_core_facade") as mocked:
+        mocked.return_value.resolve_context.return_value = None  # type: ignore[assignment]
+        gateway = build_public_app_gateway(mode=PUBLIC_APP_GATEWAY_LEGACY_FACADE)
+        assert isinstance(gateway, PublicAppGatewayLegacyFacade)
+        mocked.assert_called_once()
+        assert mocked.call_args.kwargs["mode"] == LEGACY_CORE_FACADE_CONTEXT_RESOLVER
 
 def test_phase2_7_gateway_mode_parser_uses_safe_default_for_unknown_values() -> None:
     os.environ["PLATFORM_PUBLIC_APP_GATEWAY_MODE"] = "unknown-mode"
