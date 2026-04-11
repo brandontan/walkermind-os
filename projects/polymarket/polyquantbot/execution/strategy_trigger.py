@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from .engine import ExecutionEngine
+from .execution_isolation import ExecutionIsolationGateway, get_execution_isolation_gateway
 from .intelligence import ExecutionIntelligence, MarketSnapshot
 from .trade_trace import TradeTraceEngine
 from ..legacy.adapters.context_bridge import LegacyContextBridge
@@ -293,8 +294,14 @@ class StrategyTrigger:
     IF pnl > target -> close position
     """
 
-    def __init__(self, engine: ExecutionEngine, config: StrategyConfig) -> None:
+    def __init__(
+        self,
+        engine: ExecutionEngine,
+        config: StrategyConfig,
+        execution_gateway: ExecutionIsolationGateway | None = None,
+    ) -> None:
         self._engine = engine
+        self._execution_gateway = execution_gateway or get_execution_isolation_gateway(engine)
         self._config = config
         self._intelligence = ExecutionIntelligence()
         self._last_trigger_time: float | None = None
@@ -2357,7 +2364,8 @@ class StrategyTrigger:
                 signal_data=signal_data,
                 decision_data=decision_data,
             )
-            created = await self._engine.open_position(
+            open_outcome = await self._execution_gateway.open_position(
+                source_path="execution.strategy_trigger.autonomous",
                 market=target_market_id,
                 market_title=str(candidate_title),
                 side=self._config.side,
@@ -2388,7 +2396,10 @@ class StrategyTrigger:
                     "trade_id": trade_id,
                 },
                 validation_proof=validation_proof,
+                risk_decision=validation_result.decision,
+                risk_reason=validation_result.reason,
             )
+            created = open_outcome.position
             if created:
                 execution_data = self._execution_tracker.record_fill(
                     trade_id=trade_id,
@@ -2438,8 +2449,7 @@ class StrategyTrigger:
                     action="OPEN",
                 )
             if created is None:
-                rejection_payload = self._engine.get_last_open_rejection() or {}
-                rejection_reason = str(rejection_payload.get("reason", "execution_open_position_rejected"))
+                rejection_reason = open_outcome.reason
                 self._record_blocked_terminal_trace(
                     trade_id=trade_id,
                     signal_data=signal_data,
@@ -2451,7 +2461,7 @@ class StrategyTrigger:
                     },
                     terminal_stage="execution_engine_rejected_open",
                     reason=rejection_reason,
-                    extra_details={"execution_rejection": rejection_payload},
+                    extra_details={"execution_rejection": open_outcome.details or {}},
                     terminal_outcome="BLOCKED",
                 )
                 return "BLOCKED"
@@ -2476,15 +2486,29 @@ class StrategyTrigger:
                     exit_efficiency = 1.0
                 elif exit_decision.exit_reason in {"stop_loss_threshold_breached", "signal_invalidation"}:
                     exit_efficiency = 0.3
-                await self._engine.close_position(
-                    tracked,
-                    market_price,
+                close_outcome = await self._execution_gateway.close_position(
+                    source_path="execution.strategy_trigger.autonomous",
+                    position=tracked,
+                    close_price=market_price,
                     close_context={
                         **entry_context,
                         "exit_reason": exit_decision.exit_reason,
                         "exit_efficiency": exit_efficiency,
                     },
+                    terminal_reason=exit_decision.exit_reason,
                 )
+                if not close_outcome.allowed:
+                    self._record_blocked_terminal_trace(
+                        trade_id=trade_id,
+                        signal_data=self._trade_traceability.get(trade_id, {}).get("signal_data", {}),
+                        decision_data=self._trade_traceability.get(trade_id, {}).get("decision_data", {}),
+                        validation_result=self._trade_traceability.get(trade_id, {}).get("validation_result", {}),
+                        terminal_stage="execution_isolation_rejected_close",
+                        reason=close_outcome.reason,
+                        extra_details={"execution_rejection": close_outcome.details or {}},
+                        terminal_outcome="BLOCKED",
+                    )
+                    return "BLOCKED"
                 validation_data = self._trade_validator.validate_closed_trade(
                     trade_id=trade_id,
                     expected_edge=float(entry_context.get("theoretical_edge", 0.0)),
