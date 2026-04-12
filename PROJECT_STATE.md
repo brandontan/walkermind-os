@@ -2,12 +2,16 @@
 ## Walker AI DevOps
 
 ## 📅 Last Updated
-2026-04-12 17:18
+2026-04-12 17:55
 
 ## 🔄 Status
-✅ **Phase 3.5 COMPLETE (STANDARD, NARROW INTEGRATION)** deterministic non-activating execution risk evaluation layer added (Plan → Risk Decision contract), with deterministic policy blocking and no runtime activation path.
+✅ **Phase 3.6 COMPLETE (STANDARD, NARROW INTEGRATION)** deterministic non-activating execution decision aggregation layer added (Intent + Plan + Risk → Final Decision contract), with deterministic upstream mismatch/block propagation and no runtime activation path.
 
 ## ✅ COMPLETED
+- **Phase 3.6 execution decision aggregation layer** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_decision.py` with explicit deterministic `ExecutionDecision` final pre-execution contract, deterministic `ExecutionDecisionTrace`, and deterministic blocked outcomes for invalid top-level contracts, upstream mismatch, and upstream blocked risk decisions.
+- Added `ExecutionDecisionAggregator` (`aggregate`, `aggregate_with_trace`) and typed aggregation inputs (`ExecutionDecisionIntentInput`, `ExecutionDecisionPlanInput`, `ExecutionDecisionRiskInput`) with strict identity consistency checks and non-activating finalization (`ready_for_execution=False`, `non_activating=True`).
+- **Phase 3.6 tests added** in `projects/polymarket/polyquantbot/tests/test_phase3_6_execution_decision_aggregation_20260412.py` covering valid path, invalid contract blocking, upstream mismatch blocking, blocked-risk propagation, deterministic equality, non-activating constraints, and None/dict/wrong-object safety.
+- **Phase 3.5 baseline remains green** in `projects/polymarket/polyquantbot/tests/test_phase3_5_execution_risk_evaluation_20260412.py`.
 - **Phase 3.5 execution risk evaluation layer** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_risk.py` with explicit deterministic `ExecutionRiskDecision` contract, deterministic trace metadata, local-only policy checks, and deterministic blocked outcomes for invalid top-level or invalid field-level risk inputs.
 - Added `ExecutionRiskEvaluator` (`evaluate`, `evaluate_with_trace`) and typed risk inputs (`ExecutionRiskPlanInput`, `ExecutionRiskPolicyInput`) with explicit plan-ready/non-activating/side/routing/execution-mode/size/slippage cap enforcement.
 - **Phase 3.5 tests added** in `projects/polymarket/polyquantbot/tests/test_phase3_5_execution_risk_evaluation_20260412.py` covering valid path, deterministic blocking for invalid contracts/fields and policy violations, non-activating enforcement, deterministic equality, and safety checks for None/dict/wrong-object inputs.
@@ -31,10 +35,10 @@
 ## 📋 NOT STARTED
 - **Phase 2 task 2.10:** Fly.io staging deploy.
 - **Phase 2 tasks 2.11–2.13:** multi-user DB schema, audit/event log schema, wallet context abstraction.
-- **Phase 3 remaining tasks (3.6–3.11), Phase 4 Multi-User Public Architecture (4.1–4.11), and Phases 5–6** remain not started.
+- **Phase 3 remaining tasks (3.7–3.11), Phase 4 Multi-User Public Architecture (4.1–4.11), and Phases 5–6** remain not started.
 
 ## 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/24_73_phase3_5_execution_risk_evaluation.md. Tier: STANDARD
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/24_74_phase3_6_execution_decision_aggregation.md. Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
 - Path-based test portability issues (manual port override required in CI).
@@ -43,6 +47,7 @@
 - Execution intent layer remains intentionally standalone (no gateway/runtime wiring yet) until later execution-engine phases.
 - Execution plan layer remains intentionally pre-execution only (no gateway/execution engine/order object/runtime orchestration wiring yet).
 - Execution risk layer remains intentionally pre-execution only (no gateway/execution/order/wallet/signing/capital wiring yet).
+- Execution decision aggregation layer remains intentionally pre-execution only (`ready_for_execution=False`; no gateway/execution/order/wallet/signing/capital wiring yet).
 - Async pytest plugin unavailable in current container; async adapter assertions covered via `asyncio.run(...)` in focused tests.
 - ContextResolver remains read-only by design; persistence-side ensure/write behavior is explicit-call only.
 - `execution_context_repository` and `audit_event_repository` bundle fields remain unused in current bridge/facade path.
