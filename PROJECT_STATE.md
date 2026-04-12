@@ -1,12 +1,12 @@
-📅 Last Updated : 2026-04-12 03:30
-🔄 Status       : Phase 2.9 dual-mode routing foundation rerun completed in gateway scope (MAJOR / NARROW INTEGRATION) with added negative tests and roadmap sync; runtime/public activation remains disabled.
+📅 Last Updated : 2026-04-12 03:14
+🔄 Status       : SENTINEL validation for Phase 2.9 dual-mode routing foundation (PR #424 scope) completed with APPROVED verdict; routing remains structural and fail-closed with no runtime/public activation drift.
 
 ✅ COMPLETED
-- Phase 2.9 dual-mode routing contract remains implemented with explicit modes: disabled, legacy-only, platform-gateway-shadow, and platform-gateway-primary (structural-only).
-- Added focused negative test for malformed mode parsing fail-closed behavior (`invalid_gateway_mode`).
-- Added focused negative test proving legacy route adapter bypass fails fast (`adapter_not_used_in_gateway_path`).
-- Updated ROADMAP.md Phase 2 table to sync 2.8 and 2.9 implementation status truth.
-- Forge rerun report delivered: `projects/polymarket/polyquantbot/reports/forge/24_67_phase2_9_dual_mode_routing_foundation_rerun.md`.
+- SENTINEL MAJOR validation executed for `validate_phase2_9_dual_mode_routing_foundation_pr424` against declared NARROW INTEGRATION target scope.
+- Phase 0 checks passed: forge source report present with required sections, timestamp format valid, domain structure valid for touched scope, and no forbidden `phase*/` folders detected.
+- Runtime proof confirmed fail-closed mode parsing, fail-fast adapter enforcement, and fail-fast activation guard (`attempted_active_routing_without_explicit_safe_contract`).
+- Verified all supported modes (`disabled`, `legacy-only`, `platform-gateway-shadow`, `platform-gateway-primary`) remain non-activating (`activated=False`, `runtime_routing_active=False`).
+- SENTINEL report saved: `projects/polymarket/polyquantbot/reports/sentinel/24_66_phase2_9_dual_mode_routing_validation_pr424.md`.
 
 🔧 IN PROGRESS
 - Phase 2 task 2.1: Freeze legacy core behavior — stable post-PR #394 merge; formal freeze tag not yet applied.
@@ -19,7 +19,7 @@
 - Phase 3 Execution-Safe MVP (3.1–3.11), Phase 4 Multi-User Public Architecture (4.1–4.11), and Phases 5–6 remain not started.
 
 🎯 NEXT PRIORITY
-SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_67_phase2_9_dual_mode_routing_foundation_rerun.md. Tier: MAJOR
+COMMANDER merge decision for PR #424 based on SENTINEL APPROVED verdict. Source: projects/polymarket/polyquantbot/reports/sentinel/24_66_phase2_9_dual_mode_routing_validation_pr424.md. Tier: MAJOR
 
 ⚠️ KNOWN ISSUES
 - Phase 2.9 routing remains structural foundation only; no live/public activation, runtime traffic switching, or execution-path enablement is delivered.
