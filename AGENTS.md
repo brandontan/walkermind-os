@@ -710,6 +710,14 @@ Rules:
 - `{date}` is required for uniqueness (YYYYMMDD)
 - pick the most specific area — default to `feature/` only for genuinely new capabilities
 
+### BRANCH NAMING ENFORCEMENT (HARD)
+
+- FORGE-X MUST use the exact branch name defined in the COMMANDER task
+- Any deviation from task-defined branch name = VIOLATION
+- PR branch must exactly match the declared task branch (case-sensitive)
+- Do not auto-rename, paraphrase, shorten, or expand the branch purpose
+- Branch mismatch must be corrected before downstream validation begins (except in Codex environment per rule below)
+
 ## CODEX WORKTREE RULE (CRITICAL)
 
 In Codex environment:
@@ -853,6 +861,12 @@ Use:
 ```text
 feature/{feature}-{date}
 ```
+
+Hard rule:
+- The exact branch name declared in the FORGE-X task is authoritative
+- FORGE-X must create and use that exact branch name
+- Opening a PR from a different branch name = task drift
+- Corrective action: rename/recreate branch or reopen task on the declared branch before review
 
 ### Report System (MANDATORY — STRICT)
 

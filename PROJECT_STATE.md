@@ -1,4 +1,4 @@
-📅 Last Updated : 2026-04-12 04:20
+📅 Last Updated : 2026-04-12 10:00
 🔄 Status       : Phase 3.1 execution-safe MVP boundary implemented at gateway scope (MAJOR / NARROW INTEGRATION); pre-execution readiness is observable, deterministic, and explicitly non-activating.
 
 ✅ COMPLETED
@@ -7,6 +7,7 @@
 - Added Phase 3.1 focused tests for non-activation guarantee, unsupported mode handling, missing context handling, risk-validator surfacing, activation request blocking, and gateway direct-core-import regression checks.
 - Verified Phase 2.8 and 2.9 baseline test surfaces remain passing alongside new Phase 3.1 coverage.
 - Forge report delivered: `projects/polymarket/polyquantbot/reports/forge/24_68_phase3_1_execution_safe_mvp_boundary.md`.
+- AGENTS.md branch naming enforcement added: `### BRANCH NAMING ENFORCEMENT (HARD)` in `## BRANCH NAMING (FINAL)` and `Hard rule:` block in `### Branch` (FORGE-X section). Report: `projects/polymarket/polyquantbot/reports/forge/24_68_agents_branch_enforcement.md`.
 
 🔧 IN PROGRESS
 - Phase 2 task 2.1: Freeze legacy core behavior — stable post-PR #394 merge; formal freeze tag not yet applied.
