@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-12 03:30
-🔄 Status       : Phase 2.9 dual-mode routing foundation rerun completed in gateway scope (MAJOR / NARROW INTEGRATION) with added negative tests and roadmap sync; runtime/public activation remains disabled.
+📅 Last Updated : 2026-04-12 10:00
+🔄 Status       : AGENTS.md branch naming enforcement added (MINOR / FOUNDATION); Phase 2.9 dual-mode routing foundation remains pending SENTINEL validation.
 
 ✅ COMPLETED
 - Phase 2.9 dual-mode routing contract remains implemented with explicit modes: disabled, legacy-only, platform-gateway-shadow, and platform-gateway-primary (structural-only).
@@ -7,6 +7,7 @@
 - Added focused negative test proving legacy route adapter bypass fails fast (`adapter_not_used_in_gateway_path`).
 - Updated ROADMAP.md Phase 2 table to sync 2.8 and 2.9 implementation status truth.
 - Forge rerun report delivered: `projects/polymarket/polyquantbot/reports/forge/24_67_phase2_9_dual_mode_routing_foundation_rerun.md`.
+- AGENTS.md branch naming enforcement added: `### BRANCH NAMING ENFORCEMENT (HARD)` in `## BRANCH NAMING (FINAL)` and `Hard rule:` block in `### Branch` (FORGE-X section). Report: `projects/polymarket/polyquantbot/reports/forge/24_68_agents_branch_enforcement.md`.
 
 🔧 IN PROGRESS
 - Phase 2 task 2.1: Freeze legacy core behavior — stable post-PR #394 merge; formal freeze tag not yet applied.
@@ -19,7 +20,8 @@
 - Phase 3 Execution-Safe MVP (3.1–3.11), Phase 4 Multi-User Public Architecture (4.1–4.11), and Phases 5–6 remain not started.
 
 🎯 NEXT PRIORITY
-SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_67_phase2_9_dual_mode_routing_foundation_rerun.md. Tier: MAJOR
+1. SENTINEL validation required for Phase 2.9 dual-mode routing before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_67_phase2_9_dual_mode_routing_foundation_rerun.md. Tier: MAJOR
+2. Auto PR review (Codex/Gemini/Copilot) + COMMANDER review for AGENTS.md branch enforcement PR. Source: projects/polymarket/polyquantbot/reports/forge/24_68_agents_branch_enforcement.md. Tier: MINOR
 
 ⚠️ KNOWN ISSUES
 - Phase 2.9 routing remains structural foundation only; no live/public activation, runtime traffic switching, or execution-path enablement is delivered.
