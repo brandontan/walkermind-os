@@ -1,5 +1,17 @@
 """Platform gateway boundary contracts and deterministic facade foundations."""
 
+from .execution_readiness_gate import (
+    READINESS_BLOCK_ACTIVATION_NOT_ALLOWED,
+    READINESS_BLOCK_MISSING_EXECUTION_CONTEXT,
+    READINESS_BLOCK_RISK_VALIDATION_BLOCKED,
+    READINESS_BLOCK_ROUTING_NOT_SAFE,
+    READINESS_BLOCK_UNSUPPORTED_MODE,
+    READINESS_READY_BUT_NON_ACTIVATING,
+    ExecutionReadinessResult,
+    ExecutionReadinessTrace,
+    ExecutionSafeReadinessGate,
+)
+
 from .facade_factory import (
     LEGACY_CORE_FACADE_CONTEXT_RESOLVER,
     LEGACY_CORE_FACADE_DISABLED,
@@ -34,6 +46,15 @@ from .public_app_gateway import (
 )
 
 __all__ = [
+    "READINESS_BLOCK_ACTIVATION_NOT_ALLOWED",
+    "READINESS_BLOCK_MISSING_EXECUTION_CONTEXT",
+    "READINESS_BLOCK_RISK_VALIDATION_BLOCKED",
+    "READINESS_BLOCK_ROUTING_NOT_SAFE",
+    "READINESS_BLOCK_UNSUPPORTED_MODE",
+    "READINESS_READY_BUT_NON_ACTIVATING",
+    "ExecutionReadinessResult",
+    "ExecutionReadinessTrace",
+    "ExecutionSafeReadinessGate",
     "LEGACY_CORE_FACADE_CONTEXT_RESOLVER",
     "LEGACY_CORE_FACADE_DISABLED",
     "LEGACY_CORE_FACADE_MODE_ENV",
