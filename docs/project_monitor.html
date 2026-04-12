@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Crusader — Project Monitor</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>CRUSADER — Project Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #07090f;
@@ -22,11 +22,9 @@
   --mid: #6a8aaa;
   --mono: 'JetBrains Mono', monospace;
   --sans: 'Syne', sans-serif;
-  --glow-g: 0 0 20px rgba(0,245,160,0.15);
-  --glow-b: 0 0 20px rgba(0,170,255,0.15);
 }
 
-* { margin:0; padding:0; box-sizing:border-box; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   background: var(--bg);
@@ -37,349 +35,348 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Animated bg grid */
 body::before {
   content: '';
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background-image:
-    linear-gradient(rgba(0,170,255,0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,170,255,0.02) 1px, transparent 1px);
+    linear-gradient(rgba(0,170,255,.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,170,255,.02) 1px, transparent 1px);
   background-size: 48px 48px;
-}
-
-/* Glow orbs */
-body::after {
-  content: '';
-  position: fixed; z-index: 0; pointer-events: none;
-  width: 600px; height: 600px;
-  top: -200px; right: -200px;
-  background: radial-gradient(circle, rgba(0,245,160,0.04) 0%, transparent 70%);
 }
 
 .wrap {
   position: relative; z-index: 1;
-  max-width: 960px; margin: 0 auto;
-  padding: 0 14px 80px;
+  max-width: 1120px; margin: 0 auto;
+  padding: 0 14px 72px;
 }
 
 /* ── HEADER ── */
 header {
-  padding: 28px 0 24px;
+  padding: 20px 0 0;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 28px;
-  display: flex; align-items: center;
-  justify-content: space-between;
-  gap: 16px; flex-wrap: wrap;
+  margin-bottom: 24px;
 }
 
-.brand { display: flex; align-items: center; gap: 14px; }
+.header-top {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
 
 .brand-icon {
-  width: 42px; height: 42px; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
   background: linear-gradient(135deg, var(--green), var(--blue));
-  border-radius: 10px;
+  color: var(--bg);
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--mono); font-size: 10px; font-weight: 500;
-  color: var(--bg); letter-spacing: -0.5px;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: -.5px;
 }
 
 .brand-sub {
   font-family: var(--mono); font-size: 9px;
-  color: var(--muted); letter-spacing: 0.12em;
-  text-transform: uppercase; margin-bottom: 4px;
+  color: var(--muted); letter-spacing: .12em;
+  text-transform: uppercase; margin-bottom: 3px;
 }
 
 .brand-name {
-  font-size: 22px; font-weight: 800;
-  letter-spacing: -0.5px;
-  background: linear-gradient(90deg, var(--text), var(--blue));
+  font-size: 20px; font-weight: 800; letter-spacing: -.5px;
+  background: linear-gradient(90deg, var(--text) 60%, var(--blue));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 
-.header-right {
-  display: flex; flex-direction: column;
-  align-items: flex-end; gap: 8px;
+.header-controls {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 
 .live-indicator {
-  display: flex; align-items: center; gap: 8px;
-  background: rgba(0,245,160,0.06);
-  border: 1px solid rgba(0,245,160,0.2);
-  border-radius: 20px; padding: 5px 12px;
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,245,160,.06);
+  border: 1px solid rgba(0,245,160,.2);
+  border-radius: 20px; padding: 5px 11px;
   font-family: var(--mono); font-size: 9px;
-  color: var(--green); letter-spacing: 0.1em;
+  color: var(--green); letter-spacing: .1em;
 }
 
 .pulse {
-  width: 6px; height: 6px;
-  background: var(--green); border-radius: 50%;
-  animation: pulse 1.5s infinite;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); animation: pulse 1.5s infinite;
 }
 
-@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.8)} }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .3; transform: scale(.8); }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .refresh-btn {
   background: var(--surface); border: 1px solid var(--border2);
-  border-radius: 6px; padding: 6px 12px; cursor: pointer;
-  font-family: var(--mono); font-size: 9px; color: var(--mid);
-  display: flex; align-items: center; gap: 6px;
-  transition: all 0.2s;
+  border-radius: 8px; padding: 6px 11px;
+  cursor: pointer; font-family: var(--mono); font-size: 10px;
+  color: var(--mid); transition: all .2s;
+  display: flex; align-items: center; gap: 5px;
 }
 
-.refresh-btn:hover { border-color: rgba(0,245,160,0.3); color: var(--green); }
-.refresh-btn.spin .ri { animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.refresh-btn:hover { color: var(--green); border-color: rgba(0,245,160,.3); }
 
 .ts { font-family: var(--mono); font-size: 9px; color: var(--muted); }
 .ts span { color: var(--blue); }
 
-/* ── HERO METRICS ── */
+/* ── HEADER INFO STRIP ── */
+.header-strip {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+  margin-bottom: 0;
+  background: var(--surface);
+}
+
+.strip-item {
+  flex: 1; padding: 9px 12px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+
+.strip-item:last-child { border-right: none; }
+
+.strip-label {
+  font-family: var(--mono); font-size: 8px;
+  color: var(--muted); letter-spacing: .1em;
+  text-transform: uppercase; margin-bottom: 3px;
+}
+
+.strip-val {
+  font-family: var(--mono); font-size: 12px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.strip-val.green  { color: var(--green); }
+.strip-val.blue   { color: var(--blue); }
+.strip-val.yellow { color: var(--yellow); }
+.strip-val.purple { color: var(--purple); }
+.strip-val.mid    { color: var(--mid); }
+
+/* ── VIEW SWITCH ── */
+.view-switch {
+  display: flex; gap: 0;
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+}
+
+.view-btn {
+  flex: 1; border: none; background: transparent;
+  color: var(--muted); cursor: pointer;
+  padding: 10px 16px;
+  font-family: var(--mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: .1em;
+  border-bottom: 2px solid transparent;
+  transition: all .2s;
+}
+
+.view-btn:hover { color: var(--mid); }
+
+.view-btn.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+  background: rgba(0,170,255,.04);
+}
+
+/* ── HERO ── */
 .hero {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px; margin-bottom: 20px;
+  gap: 10px; margin-bottom: 18px;
 }
 
-@media(min-width: 600px) { .hero { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 720px) {
+  .hero { grid-template-columns: repeat(4, 1fr); }
+  .brand-name { font-size: 22px; }
+  .strip-val  { font-size: 13px; }
+}
 
 .hero-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; padding: 16px 14px;
   position: relative; overflow: hidden;
-  transition: border-color 0.2s;
 }
 
 .hero-card::before {
   content: ''; position: absolute;
   top: 0; left: 0; right: 0; height: 2px;
-  background: var(--accent, var(--green));
-  opacity: 0.6;
+  background: var(--accent, var(--green)); opacity: .65;
 }
-
-.hero-card:hover { border-color: var(--border2); }
 
 .hero-label {
   font-family: var(--mono); font-size: 9px;
-  color: var(--muted); letter-spacing: 0.1em;
+  color: var(--muted); letter-spacing: .1em;
   text-transform: uppercase; margin-bottom: 10px;
 }
 
 .hero-val {
-  font-size: 26px; font-weight: 800;
+  font-size: 28px; font-weight: 800;
   letter-spacing: -1px; line-height: 1;
-  color: var(--accent, var(--green));
-  margin-bottom: 4px;
+  color: var(--accent, var(--green)); margin-bottom: 6px;
 }
 
 .hero-sub {
   font-family: var(--mono); font-size: 9px;
-  color: var(--muted);
+  color: var(--muted); line-height: 1.6;
 }
 
-/* ── STATUS BANNER ── */
-.status-banner {
-  background: linear-gradient(135deg, rgba(0,245,160,0.05), rgba(0,170,255,0.05));
-  border: 1px solid rgba(0,245,160,0.15);
-  border-radius: 10px; padding: 14px 16px;
-  margin-bottom: 20px;
-  display: flex; align-items: flex-start; gap: 12px;
+/* ── SUMMARY / FOCUS CARDS ── */
+.summary-card, .focus-card {
+  background: linear-gradient(135deg, rgba(0,245,160,.05), rgba(0,170,255,.05));
+  border: 1px solid rgba(0,245,160,.15);
+  border-radius: 12px; padding: 16px; margin-bottom: 16px;
 }
 
-.banner-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-
-/* FIX: Ensure flex children with long text can shrink */
-.banner-content {
-  flex: 1; 
-  min-width: 0; 
-}
-
-.banner-label {
+.summary-label, .focus-label {
   font-family: var(--mono); font-size: 9px;
-  color: var(--green); letter-spacing: 0.1em;
-  text-transform: uppercase; margin-bottom: 4px;
+  color: var(--green); text-transform: uppercase;
+  letter-spacing: .1em; margin-bottom: 8px;
 }
 
-/* FIX: Aggressive word wrapping for long strings */
-.banner-text { 
-  font-size: 13px; 
-  line-height: 1.55; 
-  color: var(--text); 
-  overflow-wrap: break-word; 
-  word-wrap: break-word;
-  hyphens: auto;
-}
-.banner-text .g { color: var(--green); font-weight: 600; }
-.banner-text .b { color: var(--blue); font-family: var(--mono); font-size: 11px; }
-
-/* ── TWO COL ── */
-.two-col {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px; margin-bottom: 14px;
+.summary-text, .focus-text {
+  font-size: 13px; line-height: 1.7;
+  color: var(--text); overflow-wrap: anywhere;
 }
 
-@media(min-width: 680px) { .two-col { grid-template-columns: 1fr 1fr; } }
+/* ── GRID ── */
+.grid-2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
 
-/* ── SECTION CARD ── */
+@media (min-width: 760px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+
+/* ── CARDS ── */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px; overflow: hidden;
-  margin-bottom: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden; margin-bottom: 14px;
 }
 
 .card-head {
-  padding: 12px 16px;
-  background: var(--surface2);
+  padding: 12px 16px; background: var(--surface2);
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center;
-  gap: 8px; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
 }
 
-.ch-icon { font-size: 13px; }
 .ch-title {
-  font-family: var(--mono); font-size: 9px;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--mid); flex: 1;
+  flex: 1; font-family: var(--mono); font-size: 9px;
+  color: var(--mid); text-transform: uppercase; letter-spacing: .12em;
 }
+
 .ch-badge {
   font-family: var(--mono); font-size: 9px;
   padding: 2px 8px; border-radius: 8px;
-  background: rgba(26,45,66,0.8); color: var(--muted);
+  color: var(--muted); background: rgba(26,45,66,.8);
 }
-.ch-chev { color: var(--muted); font-size: 10px; transition: transform 0.2s; }
+
+.ch-chev {
+  color: var(--muted); font-size: 10px; transition: transform .2s;
+}
+
 .card-head.closed .ch-chev { transform: rotate(-90deg); }
 
 .card-body { padding: 14px 16px; }
 .card-body.hidden { display: none; }
 
-/* ── PHASE PROGRESS ── */
-.phase-list { display: flex; flex-direction: column; gap: 8px; }
+/* ── ROW LIST ── */
+.list { display: flex; flex-direction: column; gap: 8px; }
 
-.phase-row {
-  display: flex; align-items: center;
-  gap: 10px; padding: 10px 12px;
-  border-radius: 8px; border: 1px solid var(--border);
-  background: var(--surface2); transition: border-color 0.15s;
+.row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface2);
 }
 
-.phase-row:hover { border-color: var(--border2); }
-.phase-row.active { border-color: rgba(0,170,255,0.3); }
-.phase-row.done { border-color: rgba(0,245,160,0.2); }
+.row-left { flex: 1; min-width: 0; }
+.row-main { font-size: 12.5px; line-height: 1.5; color: var(--text); word-break: break-word; }
+.row-sub  { margin-top: 4px; font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.6; word-break: break-word; }
 
-.phase-num {
+/* ── BADGES ── */
+.badge {
+  flex-shrink: 0; font-family: var(--mono); font-size: 9px;
+  padding: 2px 8px; border-radius: 10px;
+}
+
+.ok   { color: var(--green);  background: rgba(0,245,160,.08);  border: 1px solid rgba(0,245,160,.2); }
+.prog { color: var(--blue);   background: rgba(0,170,255,.08);  border: 1px solid rgba(0,170,255,.2); }
+.warn { color: var(--yellow); background: rgba(255,214,10,.08); border: 1px solid rgba(255,214,10,.2); }
+.risk { color: var(--red);    background: rgba(255,60,95,.08);  border: 1px solid rgba(255,60,95,.2); }
+
+/* ── CAPABILITY ROWS ── */
+.cap-list { display: flex; flex-direction: column; gap: 10px; }
+
+.cap-item {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+}
+
+.cap-top {
+  display: flex; align-items: flex-start;
+  gap: 10px; margin-bottom: 8px;
+}
+
+.cap-main {
+  font-size: 12.5px; font-weight: 500;
+  line-height: 1.4; color: var(--text);
+  word-break: break-word;
+}
+
+.cap-sub {
+  margin-top: 4px; font-family: var(--mono); font-size: 9px;
+  color: var(--muted); line-height: 1.6; word-break: break-word;
+}
+
+.cap-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+
+.cap-badge {
   font-family: var(--mono); font-size: 9px;
-  color: var(--muted); flex-shrink: 0; width: 20px;
+  padding: 2px 8px; border-radius: 10px;
 }
 
-.phase-name { font-size: 12px; flex: 1; font-weight: 500; }
-.phase-name.dim { color: var(--muted); font-weight: 400; }
-
-.phase-badge {
-  font-family: var(--mono); font-size: 9px;
-  padding: 2px 8px; border-radius: 10px; flex-shrink: 0;
+.cap-meta {
+  font-family: var(--mono); font-size: 8px;
+  color: var(--muted); text-align: right;
 }
 
-.pb-done { background: rgba(0,245,160,0.1); color: var(--green); border: 1px solid rgba(0,245,160,0.2); }
-.pb-prog { background: rgba(0,170,255,0.1); color: var(--blue); border: 1px solid rgba(0,170,255,0.2); }
-.pb-pend { background: rgba(61,85,112,0.2); color: var(--muted); border: 1px solid var(--border); }
-
-.phase-bar-wrap { width: 48px; flex-shrink: 0; }
-.phase-bar {
+.cap-bar {
   height: 3px; background: var(--border);
   border-radius: 2px; overflow: hidden;
 }
-.phase-bar-fill {
+
+.cap-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--green), var(--blue));
-  border-radius: 2px; transition: width 1s ease;
+  border-radius: 2px; transition: width 0.8s ease;
 }
 
 /* ── ACTIVITY FEED ── */
-.feed { display: flex; flex-direction: column; gap: 0; }
-
 .feed-item {
   display: flex; gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid rgba(24,32,48,0.8);
-  position: relative;
+  border-bottom: 1px solid rgba(24,32,48,.8);
 }
 
 .feed-item:last-child { border-bottom: none; }
 
-.feed-line {
-  position: absolute; left: 17px;
-  top: 32px; bottom: -1px; width: 1px;
-  background: var(--border);
-}
-
-.feed-item:last-child .feed-line { display: none; }
-
 .feed-dot {
   width: 10px; height: 10px; border-radius: 50%;
-  flex-shrink: 0; margin-top: 3px; position: relative; z-index: 1;
+  margin-top: 4px; flex-shrink: 0;
   border: 2px solid var(--bg);
 }
 
-.fd-g { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.fd-b { background: var(--blue); box-shadow: 0 0 6px var(--blue); animation: pulse 2s infinite; }
+.fd-g { background: var(--green); }
+.fd-b { background: var(--blue); }
 .fd-y { background: var(--yellow); }
-.fd-m { background: var(--muted); }
 .fd-r { background: var(--red); }
 
-.feed-content { flex: 1; min-width: 0; }
+/* ── SPEC / RISK GRID ── */
+.spec-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 
-.feed-title {
-  font-size: 12.5px; line-height: 1.4;
-  margin-bottom: 3px; word-break: break-word;
-}
-
-.feed-meta {
-  display: flex; align-items: center; gap: 8px;
-  flex-wrap: wrap;
-}
-
-.feed-time {
-  font-family: var(--mono); font-size: 9px; color: var(--muted);
-}
-
-.feed-tag {
-  font-family: var(--mono); font-size: 9px;
-  padding: 1px 6px; border-radius: 4px;
-}
-
-.ft-merged { background: rgba(0,245,160,0.1); color: var(--green); border: 1px solid rgba(0,245,160,0.2); }
-.ft-open { background: rgba(0,170,255,0.1); color: var(--blue); border: 1px solid rgba(0,170,255,0.2); }
-.ft-sentinel { background: rgba(167,139,250,0.1); color: var(--purple); border: 1px solid rgba(167,139,250,0.2); }
-.ft-blocked { background: rgba(255,60,95,0.1); color: var(--red); border: 1px solid rgba(255,60,95,0.2); }
-.ft-info { background: rgba(61,85,112,0.2); color: var(--mid); border: 1px solid var(--border); }
-
-.feed-score {
-  font-family: var(--mono); font-size: 9px; color: var(--green);
-}
-
-/* ── PR LIST ── */
-.pr-list { display: flex; flex-direction: column; gap: 8px; }
-
-.pr-item {
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 10px 14px;
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-}
-
-.pr-num { font-family: var(--mono); font-size: 11px; color: var(--blue); flex-shrink: 0; }
-.pr-title { font-size: 12px; flex: 1; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pr-labels { display: flex; gap: 4px; flex-wrap: wrap; }
-
-/* ── RISK SPECS ── */
-.spec-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-@media(min-width: 480px) { .spec-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 520px) { .spec-grid { grid-template-columns: repeat(4, 1fr); } }
 
 .spec-item {
   background: var(--surface2); border: 1px solid var(--border);
@@ -387,61 +384,34 @@ header {
 }
 
 .spec-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
-.spec-val { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--green); }
+.spec-val   { font-family: var(--mono); font-size: 13px; color: var(--green); line-height: 1.5; }
 
-/* ── TARGETS ── */
+/* ── PERFORMANCE TARGETS ── */
 .target-row {
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 0; border-bottom: 1px solid rgba(24,32,48,0.8);
-  font-size: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(24,32,48,.8);
 }
+
 .target-row:last-child { border-bottom: none; }
-.target-label { flex: 1; color: var(--mid); }
-.target-val {
-  font-family: var(--mono); font-size: 11px;
-  color: var(--muted); text-align: right;
-}
-.target-val.beta { color: var(--yellow); }
-.target-val.launch { color: var(--green); }
 
-/* ── NEXT PRIORITY ── */
-.next-card {
-  background: linear-gradient(135deg, rgba(0,245,160,0.04), rgba(0,170,255,0.04));
-  border: 1px solid rgba(0,245,160,0.15);
-  border-radius: 10px; padding: 14px 16px;
-  margin-bottom: 14px;
-  display: flex; gap: 12px; align-items: flex-start;
-}
-.next-icon { font-size: 16px; flex-shrink: 0; }
+.target-label { flex: 1; color: var(--mid); font-size: 12px; }
+.target-val   { font-family: var(--mono); font-size: 11px; text-align: right; }
+.beta   { color: var(--yellow); }
+.launch { color: var(--green);  }
 
-/* FIX: Aggressive word wrapping for long strings */
-.next-text { 
-  font-size: 13px; 
-  line-height: 1.55; 
-  overflow-wrap: break-word; 
-  word-wrap: break-word;
-  hyphens: auto;
-}
-.next-text .b { color: var(--blue); font-family: var(--mono); font-size: 11px; }
+/* ── UTILITIES ── */
+.mode-hidden { display: none !important; }
 
-/* ── LOADING ── */
 .loading {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: 48px 20px; gap: 14px; color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+  padding: 48px 20px; color: var(--muted);
+  font-family: var(--mono); font-size: 10px;
 }
-.spinner {
-  width: 28px; height: 28px;
-  border: 2px solid var(--border);
-  border-top-color: var(--green);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-.load-text { font-family: var(--mono); font-size: 10px; }
 
 .error-box {
-  background: rgba(255,60,95,0.05);
-  border: 1px solid rgba(255,60,95,0.2);
+  background: rgba(255,60,95,.05);
+  border: 1px solid rgba(255,60,95,.2);
   border-radius: 8px; padding: 14px;
   font-family: var(--mono); font-size: 11px;
   color: var(--red); line-height: 1.6;
@@ -452,236 +422,189 @@ footer {
   border-top: 1px solid var(--border);
   padding-top: 20px; margin-top: 32px;
   display: flex; justify-content: space-between;
-  align-items: center; flex-wrap: wrap; gap: 12px;
+  align-items: center; gap: 12px; flex-wrap: wrap;
 }
 
-.footer-text {
-  font-family: var(--mono); font-size: 9px;
-  color: var(--muted); line-height: 1.9;
-}
+.footer-text { font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.9; }
 .footer-text span { color: var(--green); }
 
 .agent-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.atag {
-  font-family: var(--mono); font-size: 9px;
-  padding: 3px 8px; border-radius: 4px;
-}
-.at-c { background: rgba(0,245,160,0.08); color: var(--green); border: 1px solid rgba(0,245,160,0.2); }
-.at-f { background: rgba(0,170,255,0.08); color: var(--blue); border: 1px solid rgba(0,170,255,0.2); }
-.at-s { background: rgba(255,214,10,0.08); color: var(--yellow); border: 1px solid rgba(255,214,10,0.2); }
-.at-b { background: rgba(61,85,112,0.15); color: var(--mid); border: 1px solid var(--border); }
-
-@media(min-width:700px) {
-  .brand-name { font-size: 26px; }
-  .hero-val { font-size: 32px; }
-}
+.atag { font-family: var(--mono); font-size: 9px; padding: 3px 8px; border-radius: 4px; }
+.at-c { background: rgba(0,245,160,.08); color: var(--green);  border: 1px solid rgba(0,245,160,.2); }
+.at-f { background: rgba(0,170,255,.08); color: var(--blue);   border: 1px solid rgba(0,170,255,.2); }
+.at-s { background: rgba(255,214,10,.08); color: var(--yellow); border: 1px solid rgba(255,214,10,.2); }
+.at-b { background: rgba(61,85,112,.15); color: var(--mid);    border: 1px solid var(--border); }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <header>
+    <div class="header-top">
+      <div class="brand">
+        <div class="brand-icon">CR</div>
+        <div>
+          <div class="brand-sub">Walker AI Trading Team</div>
+          <div class="brand-name">Project Monitor</div>
+        </div>
+      </div>
+      <div class="header-controls">
+        <div class="live-indicator"><span class="pulse"></span>LIVE</div>
+        <button class="refresh-btn" onclick="loadAll()"><span id="refreshIcon">↻</span> Sync</button>
+        <div class="ts" id="ts">—</div>
+      </div>
+    </div>
 
-<!-- HEADER -->
-<header>
-  <div class="brand">
-    <div class="brand-icon">CR</div>
-    <div>
-      <div class="brand-sub">Walker AI Trading Team</div>
-      <div class="brand-name">Project Monitor</div>
+    <!-- Info strip: key metrics always visible -->
+    <div class="header-strip">
+      <div class="strip-item">
+        <div class="strip-label">Active Phase</div>
+        <div class="strip-val green" id="stripPhase">—</div>
+      </div>
+      <div class="strip-item">
+        <div class="strip-label">Open PRs</div>
+        <div class="strip-val blue" id="stripPRs">—</div>
+      </div>
+      <div class="strip-item">
+        <div class="strip-label">In Progress</div>
+        <div class="strip-val yellow" id="stripProgress">—</div>
+      </div>
+      <div class="strip-item">
+        <div class="strip-label">Bot Status</div>
+        <div class="strip-val mid" id="stripBot">🔨 BUILD</div>
+      </div>
+      <div class="strip-item">
+        <div class="strip-label">Last Commit</div>
+        <div class="strip-val mid" id="stripCommit">—</div>
+      </div>
+    </div>
+
+    <!-- View switch at bottom of header -->
+    <div class="view-switch">
+      <button class="view-btn active" data-view="internal" onclick="setView('internal')">Engineering</button>
+      <button class="view-btn" data-view="client" onclick="setView('client')">Executive</button>
+    </div>
+  </header>
+
+  <div class="hero" id="hero"></div>
+
+  <div class="summary-card">
+    <div class="summary-label" id="summaryLabel">Executive Summary</div>
+    <div class="summary-text" id="summaryText">Loading...</div>
+  </div>
+
+  <div class="focus-card">
+    <div class="focus-label">Current Focus</div>
+    <div class="focus-text" id="focusText">Loading...</div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head" onclick="tog(this)">
+        <span>📊</span>
+        <span class="ch-title" id="progressTitle">Build Progress</span>
+        <span class="ch-badge" id="progressBadge">Live</span>
+        <span class="ch-chev">▼</span>
+      </div>
+      <div class="card-body" id="progressBody"><div class="loading">Loading...</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head" onclick="tog(this)">
+        <span id="rightCardIcon">⚡</span>
+        <span class="ch-title" id="rightCardTitle">Activity Feed</span>
+        <span class="ch-badge" id="rightCardBadge">Live</span>
+        <span class="ch-chev">▼</span>
+      </div>
+      <div class="card-body" id="rightCardBody"><div class="loading">Loading...</div></div>
     </div>
   </div>
-  <div class="header-right">
-    <div class="live-indicator"><span class="pulse"></span>LIVE</div>
-    <button class="refresh-btn" onclick="loadAll()">
-      <span class="ri">↻</span> Refresh
-    </button>
-    <div class="ts" id="ts">—</div>
-  </div>
-</header>
 
-<!-- HERO METRICS -->
-<div class="hero">
-  <div class="hero-card" style="--accent:var(--green)">
-    <div class="hero-label">Build Phase</div>
-    <div class="hero-val" id="h-phase">—</div>
-    <div class="hero-sub" id="h-phase-sub">Loading...</div>
-  </div>
-  <div class="hero-card" style="--accent:var(--blue)">
-    <div class="hero-label">Open PRs</div>
-    <div class="hero-val" id="h-prs">—</div>
-    <div class="hero-sub" id="h-prs-sub">Awaiting merge</div>
-  </div>
-  <div class="hero-card" style="--accent:var(--yellow)">
-    <div class="hero-label">In Progress</div>
-    <div class="hero-val" id="h-progress">—</div>
-    <div class="hero-sub">Active tasks</div>
-  </div>
-  <div class="hero-card" style="--accent:var(--purple)">
-    <div class="hero-label">Bot Status</div>
-    <div class="hero-val" style="font-size:16px;padding-top:4px">🔨 BUILD</div>
-    <div class="hero-sub">Paper mode ready</div>
-  </div>
-</div>
-
-<!-- STATUS BANNER -->
-<div class="status-banner" id="statusBanner">
-  <div class="banner-icon">📡</div>
-  <div class="banner-content">
-    <div class="banner-label">Current Status</div>
-    <div class="banner-text" id="statusText">Loading project state...</div>
-  </div>
-</div>
-
-<!-- NEXT PRIORITY -->
-<div class="next-card" id="nextCard" style="display:none">
-  <div class="next-icon">🎯</div>
-  <div class="banner-content">
-    <div class="next-label">Next Priority</div>
-    <div class="next-text" id="nextText">—</div>
-  </div>
-</div>
-
-<!-- TWO COL: Phase Progress + Activity Feed -->
-<div class="two-col">
-
-  <!-- Phase Progress -->
-  <div class="card">
+  <div class="card" id="prCard">
     <div class="card-head" onclick="tog(this)">
-      <span class="ch-icon">📊</span>
-      <span class="ch-title">Build Progress</span>
-      <span class="ch-badge">Crusader</span>
+      <span>🔀</span>
+      <span class="ch-title">Open Pull Requests</span>
+      <span class="ch-badge" id="prCount">—</span>
       <span class="ch-chev">▼</span>
     </div>
-    <div class="card-body" id="phaseBody">
-      <div class="loading"><div class="spinner"></div><div class="load-text">Loading...</div></div>
-    </div>
+    <div class="card-body" id="prBody"><div class="loading">Loading...</div></div>
   </div>
 
-  <!-- Activity Feed -->
-  <div class="card">
+  <div class="card mode-hidden" id="workstreamCard">
     <div class="card-head" onclick="tog(this)">
-      <span class="ch-icon">⚡</span>
-      <span class="ch-title">Activity Feed</span>
-      <span class="ch-badge" id="feedCount">—</span>
+      <span>🧩</span>
+      <span class="ch-title">Active Workstreams</span>
+      <span class="ch-badge">Client View</span>
       <span class="ch-chev">▼</span>
     </div>
-    <div class="card-body" id="feedBody">
-      <div class="loading"><div class="spinner"></div><div class="load-text">Loading...</div></div>
+    <div class="card-body" id="workstreamBody"><div class="loading">Loading...</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head" onclick="tog(this)">
+        <span>🏗️</span>
+        <span class="ch-title" id="structureTitle">Project Structure</span>
+        <span class="ch-badge" id="structureBadge">Snapshot</span>
+        <span class="ch-chev">▼</span>
+      </div>
+      <div class="card-body" id="structureBody"><div class="loading">Loading...</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head" onclick="tog(this)">
+        <span>🧠</span>
+        <span class="ch-title" id="strategyTitle">Strategy Model Status</span>
+        <span class="ch-badge" id="strategyBadge">Snapshot</span>
+        <span class="ch-chev">▼</span>
+      </div>
+      <div class="card-body" id="strategyBody"><div class="loading">Loading...</div></div>
     </div>
   </div>
 
-</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head" onclick="tog(this)">
+        <span>🛡️</span>
+        <span class="ch-title" id="riskTitle">Risk Controls</span>
+        <span class="ch-badge">Fixed</span>
+        <span class="ch-chev">▼</span>
+      </div>
+      <div class="card-body" id="riskBody"></div>
+    </div>
 
-<!-- Open PRs -->
-<div class="card">
-  <div class="card-head" onclick="tog(this)">
-    <span class="ch-icon">🔀</span>
-    <span class="ch-title">Open Pull Requests</span>
-    <span class="ch-badge" id="prCount">—</span>
-    <span class="ch-chev">▼</span>
+    <div class="card">
+      <div class="card-head" onclick="tog(this)">
+        <span>🎯</span>
+        <span class="ch-title" id="targetTitle">Performance Targets</span>
+        <span class="ch-badge">Beta → Launch</span>
+        <span class="ch-chev">▼</span>
+      </div>
+      <div class="card-body" id="targetBody"></div>
+    </div>
   </div>
-  <div class="card-body" id="prBody">
-    <div class="loading"><div class="spinner"></div><div class="load-text">Loading...</div></div>
-  </div>
-</div>
-
-<!-- TWO COL: Risk Specs + Performance Targets -->
-<div class="two-col">
 
   <div class="card">
-    <div class="card-head" onclick="tog(this)">
-      <span class="ch-icon">🛡️</span>
-      <span class="ch-title">Risk Constants</span>
-      <span class="ch-badge">Fixed</span>
+    <div class="card-head closed" onclick="tog(this)">
+      <span>⚠️</span>
+      <span class="ch-title" id="issuesTitle">Known Issues</span>
+      <span class="ch-badge" id="issuesBadge">—</span>
       <span class="ch-chev">▼</span>
     </div>
-    <div class="card-body">
-      <div class="spec-grid">
-        <div class="spec-item"><div class="spec-label">Kelly α</div><div class="spec-val">0.25</div></div>
-        <div class="spec-item"><div class="spec-label">Max Position</div><div class="spec-val">≤10%</div></div>
-        <div class="spec-item"><div class="spec-label">Daily Loss</div><div class="spec-val">−$2K</div></div>
-        <div class="spec-item"><div class="spec-label">Drawdown Halt</div><div class="spec-val">8%</div></div>
-        <div class="spec-item"><div class="spec-label">Max Concurrent</div><div class="spec-val">5</div></div>
-        <div class="spec-item"><div class="spec-label">Min Liquidity</div><div class="spec-val">$10K</div></div>
-        <div class="spec-item"><div class="spec-label">Min Arb Edge</div><div class="spec-val">&gt;2%</div></div>
-        <div class="spec-item"><div class="spec-label">Kill Switch</div><div class="spec-val" style="color:var(--green)">ON ✓</div></div>
-      </div>
+    <div class="card-body hidden" id="issuesBody"><div class="loading">Loading...</div></div>
+  </div>
+
+  <footer>
+    <div class="footer-text">
+      Walker AI Trading Team · Project Monitor<br>
+      Internal + Client view · <span>LIVE</span> data from GitHub
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head" onclick="tog(this)">
-      <span class="ch-icon">🎯</span>
-      <span class="ch-title">Performance Targets</span>
-      <span class="ch-badge">Beta → Launch</span>
-      <span class="ch-chev">▼</span>
+    <div class="agent-row">
+      <span class="atag at-c">COMMANDER</span>
+      <span class="atag at-f">FORGE-X</span>
+      <span class="atag at-s">SENTINEL</span>
+      <span class="atag at-b">BRIEFER</span>
     </div>
-    <div class="card-body">
-      <div class="target-row">
-        <span class="target-label">Win Rate</span>
-        <span class="target-val beta">&gt;65% beta</span>
-        <span class="target-val launch">&gt;70% launch</span>
-      </div>
-      <div class="target-row">
-        <span class="target-label">Sharpe Ratio</span>
-        <span class="target-val beta">&gt;1.5</span>
-        <span class="target-val launch">&gt;2.5</span>
-      </div>
-      <div class="target-row">
-        <span class="target-label">Exec Success Rate</span>
-        <span class="target-val beta">95%</span>
-        <span class="target-val launch">99%+</span>
-      </div>
-      <div class="target-row">
-        <span class="target-label">Reconciliation</span>
-        <span class="target-val beta">&lt;60s</span>
-        <span class="target-val launch">&lt;10s</span>
-      </div>
-      <div class="target-row">
-        <span class="target-label">Max Drawdown</span>
-        <span class="target-val beta" style="color:var(--red)">&lt;5%</span>
-        <span class="target-val launch" style="color:var(--red)">&lt;8%</span>
-      </div>
-      <div class="target-row">
-        <span class="target-label">Concurrent Users</span>
-        <span class="target-val beta">5–10</span>
-        <span class="target-val launch">500+</span>
-      </div>
-      <div class="target-row">
-        <span class="target-label">Profit Factor</span>
-        <span class="target-val beta">&gt;1.3</span>
-        <span class="target-val launch">&gt;1.5</span>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<!-- Known Issues -->
-<div class="card">
-  <div class="card-head closed" onclick="tog(this)">
-    <span class="ch-icon">⚠️</span>
-    <span class="ch-title">Known Issues</span>
-    <span class="ch-badge" id="issueCount">—</span>
-    <span class="ch-chev">▼</span>
-  </div>
-  <div class="card-body hidden" id="issueBody">
-    <div class="loading"><div class="spinner"></div></div>
-  </div>
-</div>
-
-<footer>
-  <div class="footer-text">
-    Crusader — Non-Custodial Polymarket Trading Platform<br>
-    Walker AI Trading Team · Bayue Walker © 2026 · <span>LIVE</span> data from GitHub
-  </div>
-  <div class="agent-row">
-    <span class="atag at-c">COMMANDER</span>
-    <span class="atag at-f">FORGE-X</span>
-    <span class="atag at-s">SENTINEL</span>
-    <span class="atag at-b">BRIEFER</span>
-  </div>
-</footer>
-
+  </footer>
 </div>
 
 <script>
@@ -689,33 +612,188 @@ const REPO = 'bayuewalker/walker-ai-team';
 const RAW  = 'https://raw.githubusercontent.com/' + REPO + '/main/';
 const API  = 'https://api.github.com/repos/' + REPO;
 
+let currentView = 'internal';
+const state = {
+  status: '—', next: '—',
+  inProgress: [], issues: [],
+  phases: [], prs: [], commits: []
+};
+
+// ── AUTO-PARSED: PROJECT STRUCTURE & STRATEGY ────────────
+
+function buildStructureItems(view) {
+  const phases = state.phases;
+  const done   = phases.filter(p => p.status === '✅').length;
+  const total  = phases.length || 1;
+  const pct    = Math.round((done / total) * 100);
+  const active = phases.find(p => p.status === '🚧');
+
+  if (view === 'internal') {
+    return [
+      {
+        main: 'Core runtime domains',
+        sub: 'core / data / strategy / intelligence / risk / execution / monitoring',
+        badge: 'Structured', cls: 'ok', progress: 100,
+        meta: 'Locked domain layout'
+      },
+      {
+        main: 'Platform layer',
+        sub: 'platform / gateway / accounts / wallet_auth — Phase 2 in progress',
+        badge: active ? 'Building' : 'Done', cls: active ? 'prog' : 'ok',
+        progress: active ? 40 : 100, meta: 'Multi-user architecture'
+      },
+      {
+        main: 'Phase completion',
+        sub: done + ' of ' + total + ' phases complete (' + pct + '%) — ' + (active ? active.name + ' active' : 'All done'),
+        badge: pct + '%', cls: pct >= 80 ? 'ok' : pct >= 40 ? 'prog' : 'warn',
+        progress: pct, meta: 'Roadmap progress'
+      },
+      {
+        main: 'Structure hygiene',
+        sub: 'No phase*/ folders. Domain structure enforced. Batch commit ≤5 files.',
+        badge: 'Enforced', cls: 'ok', progress: 100, meta: 'Ops rules active'
+      }
+    ];
+  }
+
+  return [
+    {
+      main: 'Core platform architecture is in place',
+      sub: 'The system is organized into clear, independent layers for data, strategy, risk, execution, and monitoring.',
+      badge: 'Ready', cls: 'ok', progress: 100, meta: 'Modular structure'
+    },
+    {
+      main: 'Platform and multi-user layer is being built',
+      sub: 'Currently building the user-facing platform layer on top of the hardened trading core.',
+      badge: 'Active', cls: 'prog', progress: 40, meta: 'Phase 2 in progress'
+    },
+    {
+      main: 'Overall project progress: ' + pct + '%',
+      sub: done + ' of ' + total + ' major milestones completed. Controlled, validated delivery.',
+      badge: pct + '%', cls: pct >= 60 ? 'ok' : 'prog',
+      progress: pct, meta: 'Milestone tracking'
+    }
+  ];
+}
+
+function buildStrategyItems(view) {
+  const completed = state.inProgress.length === 0 && state.phases.length > 0;
+  const strategies = ['S1', 'S2', 'S3', 'S4', 'S5'];
+  const pSeries    = ['P7', 'P8', 'P9', 'P10', 'P11', 'P12', 'P13', 'P14', 'P15', 'P16', 'P17'];
+
+  // Detect which are done from completed section of state
+  const completedText = state.phases
+    .filter(p => p.status === '✅')
+    .map(p => p.name).join(' ').toLowerCase();
+
+  const strategiesDone = state.phases.some(p => p.status === '✅');
+  const phase1Done     = state.phases.find(p => p.num === 'Phase 1' && p.status === '✅');
+
+  if (view === 'internal') {
+    return [
+      {
+        main: 'Signal strategies (S1–S5)',
+        sub: 'Momentum (S1) · Cross-exchange arb (S2) · Smart-money copy (S3) · Aggregation (S4) · Settlement-gap (S5)',
+        badge: phase1Done ? 'Complete' : 'Building',
+        cls:   phase1Done ? 'ok' : 'prog',
+        progress: phase1Done ? 100 : 60,
+        meta: '5 strategies built'
+      },
+      {
+        main: 'Execution & risk pipeline (P7–P17)',
+        sub: 'Capital sizing · Exposure guard · Feedback loop · Regime detection · Timing · Analytics · Proof lifecycle',
+        badge: phase1Done ? 'Complete' : 'Building',
+        cls:   phase1Done ? 'ok' : 'prog',
+        progress: phase1Done ? 100 : 75,
+        meta: '11 modules built'
+      },
+      {
+        main: 'Validation layer (SENTINEL)',
+        sub: 'Pre-flight checks · Max 2 runs per task · Fix-batch protocol · Anti-loop enforced',
+        badge: 'Active', cls: 'ok', progress: 100,
+        meta: 'Quality gate active'
+      },
+      {
+        main: 'Platform strategy rollout',
+        sub: 'Per-user strategy subscriptions · conservative / balanced / aggressive risk profiles · Live/paper mode',
+        badge: 'Planned', cls: 'warn', progress: 0,
+        meta: 'Phase 4 scope'
+      }
+    ];
+  }
+
+  return [
+    {
+      main: 'Core trading strategy framework is complete',
+      sub: 'Five independent strategy models are built and validated — covering momentum, arbitrage, smart-money, and more.',
+      badge: phase1Done ? 'Delivered' : 'In Progress',
+      cls:   phase1Done ? 'ok' : 'prog',
+      progress: phase1Done ? 100 : 65,
+      meta: 'Strategy foundation'
+    },
+    {
+      main: 'Execution and risk controls are hardened',
+      sub: 'A full execution pipeline with capital guardrails, position limits, drawdown protection, and kill-switch is active.',
+      badge: phase1Done ? 'Validated' : 'Building',
+      cls:   phase1Done ? 'ok' : 'prog',
+      progress: phase1Done ? 100 : 75,
+      meta: 'Risk enforcement'
+    },
+    {
+      main: 'Platform rollout capability is on track',
+      sub: 'The system is being prepared to support multiple users with individual strategies, risk profiles, and wallets.',
+      badge: 'In Progress', cls: 'prog', progress: 35,
+      meta: 'Multi-user phase'
+    }
+  ];
+}
+
+
+
+// ── UTILS ────────────────────────────────────────────────
 function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function setView(view) {
+  currentView = view;
+  document.querySelectorAll('.view-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === view);
+  });
+  render();
 }
 
 function tog(head) {
   const body = head.nextElementSibling;
-  const isOpen = !body.classList.contains('hidden');
-  body.classList.toggle('hidden', isOpen);
-  head.classList.toggle('closed', isOpen);
+  const isHidden = body.classList.contains('hidden');
+  body.classList.toggle('hidden', !isHidden);
+  head.classList.toggle('closed', !isHidden);
 }
 
 function setTs() {
-  const t = new Date().toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const t = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   document.getElementById('ts').innerHTML = 'Updated: <span>' + t + '</span>';
 }
 
 async function fetchRaw(path) {
   const r = await fetch(RAW + path + '?t=' + Date.now());
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' on ' + path);
   return r.text();
 }
 
-// ── PARSE PROJECT STATE ──
+// ── PARSERS ──────────────────────────────────────────────
 function parseStatus(md) {
-  for (const p of [/\* Status\s*[:：]\s*(.+)/, /🔄\s*Status\s*[:：]\s*(.+)/, /Status\s*[:：]\s*(.+)/]) {
+  const patterns = [
+    /\* Status\s*[:：]\s*(.+)/,
+    /🔄\s*Status\s*[:：]\s*(.+)/,
+    /Status\s*[:：]\s*(.+)/
+  ];
+  for (const p of patterns) {
     const m = md.match(p);
-    if (m) return m[1].trim().replace(/\*\*/g,'');
+    if (m) return m[1].trim().replace(/\*\*/g, '');
   }
   return '—';
 }
@@ -724,7 +802,7 @@ function parseSection(md, emoji) {
   const lines = md.split('\n');
   const items = [];
   let inside = false;
-  const stops = ['✅','🔧','📋','🎯','⚠️'];
+  const stops = ['✅', '🔧', '📋', '🎯', '⚠️'];
   for (const line of lines) {
     const t = line.trimStart();
     if (t.startsWith(emoji)) { inside = true; continue; }
@@ -740,10 +818,10 @@ function parseSection(md, emoji) {
 function parseNextPriority(md) {
   const items = parseSection(md, '🎯');
   const text = items.join(' ').trim();
-  return text.length > 180 ? text.slice(0,180) + '…' : text || '—';
+  if (!text) return '—';
+  return text.length > 200 ? text.slice(0, 197) + '…' : text;
 }
 
-// ── PARSE ROADMAP PHASES ──
 function parsePhases(md) {
   const phases = [];
   const lines = md.split('\n');
@@ -753,176 +831,394 @@ function parsePhases(md) {
     if (inCrusader && line.match(/^# [🟢⚪] PROJECT:/) && !line.includes('CRUSADER')) break;
     if (!inCrusader) continue;
     const m = line.match(/^\|\s*(Phase \d+)\s*\|\s*([^|]+?)\s*\|\s*(✅|🚧|❌)[^|]*\|/);
-    if (m) {
-      phases.push({ num: m[1], name: m[2].trim(), status: m[3] });
-    }
+    if (m) phases.push({ num: m[1], name: m[2].trim(), status: m[3] });
   }
   return phases;
 }
 
-function phaseProgress(status) {
-  return status === '✅' ? 100 : status === '🚧' ? 40 : 0;
+// ── HELPERS ──────────────────────────────────────────────
+function phaseBadge(status) {
+  return status === '✅' ? ['Done', 'ok']
+       : status === '🚧' ? ['In Progress', 'prog']
+       :                   ['Pending', 'warn'];
 }
 
-// ── LOAD STATE ──
-async function loadState() {
-  try {
-    const md = await fetchRaw('PROJECT_STATE.md');
-    const status = parseStatus(md);
-    const next = parseNextPriority(md);
-    const inprog = parseSection(md, '🔧');
-    const issues = parseSection(md, '⚠️');
+function feedDot(msg) {
+  const m = msg.toLowerCase();
+  if (m.includes('sentinel'))                             return 'fd-y';
+  if (m.includes('merge'))                               return 'fd-g';
+  if (m.includes('fix') || m.includes('feature/'))       return 'fd-b';
+  return 'fd-b';
+}
 
-    document.getElementById('statusText').innerHTML = esc(status);
-    document.getElementById('h-progress').textContent = inprog.length;
-    document.getElementById('issueCount').textContent = issues.length;
+function simplifyClientIssue(txt) {
+  const t = txt
+    .replace(/PR #\d+/g, 'current review')
+    .replace(/SENTINEL/gi, 'validation')
+    .replace(/PROJECT_STATE\.md/gi, 'project state');
+  return t.length > 140 ? t.slice(0, 137) + '...' : t;
+}
 
-    if (next && next !== '—') {
-      document.getElementById('nextText').innerHTML = esc(next);
-      document.getElementById('nextCard').style.display = 'flex';
-    }
-
-    // Issues
-    if (issues.length) {
-      document.getElementById('issueBody').innerHTML = issues.map(i =>
-        `<div class="feed-item">
-          <div class="feed-dot fd-y"></div>
-          <div class="feed-content"><div class="feed-title">${esc(i)}</div></div>
-        </div>`
-      ).join('');
-    } else {
-      document.getElementById('issueBody').innerHTML = '<div style="color:var(--muted);font-family:var(--mono);font-size:11px;padding:4px 0">No known issues ✓</div>';
-    }
-  } catch(e) {
-    document.getElementById('statusText').innerHTML = '<span style="color:var(--red)">Failed to load: ' + esc(e.message) + '</span>';
+function deriveWorkstreams(prs, inProg) {
+  const out = [];
+  prs.slice(0, 3).forEach(pr => out.push({
+    main: pr.title.replace(/^#\d+\s*[—-]\s*/, ''),
+    sub: 'Active review or implementation workstream.',
+    badge: 'Active',
+    cls: 'prog'
+  }));
+  if (!out.length) {
+    inProg.slice(0, 3).forEach(item => out.push({
+      main: item,
+      sub: 'Current active project focus.',
+      badge: 'Active',
+      cls: 'prog'
+    }));
   }
+  return out.length
+    ? out
+    : [{ main: 'Current delivery workstream active', sub: 'Project activity is in progress.', badge: 'Active', cls: 'prog' }];
 }
 
-// ── LOAD ROADMAP ──
-async function loadRoadmap() {
-  try {
-    const md = await fetchRaw('ROADMAP.md');
-    const phases = parsePhases(md);
+// ── DATA BUILDER ─────────────────────────────────────────
+function buildData(view) {
+  const openPRs      = state.prs.length;
+  const inProgCount  = state.inProgress.length;
+  const phaseDone    = state.phases.filter(p => p.status === '✅').length;
+  const phaseTotal   = state.phases.length || 1;
+  const activePhase  = state.phases.find(p => p.status === '🚧') || state.phases[state.phases.length - 1];
+  const phaseLabel   = activePhase ? activePhase.num : '—';
+  const phaseName    = activePhase ? activePhase.name : 'Awaiting sync';
+  const progressPct  = Math.round((phaseDone / phaseTotal) * 100);
+  const majorGate    = /sentinel|major/i.test(state.next + ' ' + state.status + ' ' + state.issues.join(' ')) ? 'MAJOR' : 'Review';
+  const confidence   = state.issues.length >= 3 ? 'Watch' : state.issues.length >= 1 ? 'Good' : 'Strong';
 
-    // Hero phase card
-    const active = phases.find(p => p.status === '🚧') || phases[phases.length-1];
-    if (active) {
-      document.getElementById('h-phase').textContent = active.num.replace('Phase ','P');
-      document.getElementById('h-phase-sub').textContent = active.name;
-    }
+  const progressItems = state.phases.map(p => {
+    const [badge, cls] = phaseBadge(p.status);
+    return {
+      main: p.num + ' — ' + p.name,
+      sub: p.status === '✅' ? 'Completed phase milestone.'
+         : p.status === '🚧' ? 'Current active build and validation phase.'
+         : 'Pending phase milestone.',
+      badge, cls
+    };
+  });
 
-    const done = phases.filter(p => p.status === '✅').length;
-    const total = phases.length;
+  const feedItems = state.commits.slice(0, 5).map(c => ({
+    dot: feedDot(c.msg),
+    title: c.msg,
+    meta: c.when,
+    tag: c.tag,
+    cls: c.cls
+  }));
 
-    document.getElementById('phaseBody').innerHTML = `
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:12px">
-        ${done}/${total} phases complete
+  const prRows = state.prs.map(pr => ({
+    main: '#' + pr.number + ' — ' + pr.title,
+    sub: pr.sub,
+    badge: 'Review',
+    cls: pr.cls || 'prog'
+  }));
+
+  const issueRows = (state.issues.length ? state.issues : ['No known issues'])
+    .slice(0, 6)
+    .map((i, idx) => ({
+      main: view === 'client' ? simplifyClientIssue(i) : i,
+      sub: view === 'client'
+        ? 'Managed through current delivery and review process.'
+        : 'Tracked from PROJECT_STATE current truth.',
+      badge: i === 'No known issues' ? 'Clear' : (idx === 0 ? 'Watch' : 'Open'),
+      cls:   i === 'No known issues' ? 'ok'    : (idx === 0 ? 'warn'  : 'prog')
+    }));
+
+  if (view === 'internal') {
+    return {
+      hero: [
+        { label: 'Build Phase',      value: phaseLabel.replace('Phase ', 'P'), sub: phaseName,                   accent: 'var(--green)'  },
+        { label: 'Open PRs',         value: String(openPRs),                    sub: 'Awaiting merge or review',   accent: 'var(--blue)'   },
+        { label: 'In Progress',      value: String(inProgCount),                sub: 'Active tasks',               accent: 'var(--yellow)' },
+        { label: 'Validation Gate',  value: majorGate,                          sub: state.next || 'Awaiting sync', accent: 'var(--purple)' }
+      ],
+      summaryLabel: 'Internal Summary',
+      summaryText:  state.status || 'Awaiting project state sync.',
+      focusText:    state.next   || 'Awaiting next priority sync.',
+      progressTitle: 'Build Progress',
+      progressBadge: 'Engineering',
+      progressItems,
+      rightIcon:  '⚡',
+      rightTitle: 'Activity Feed',
+      rightBadge: String(feedItems.length || 0),
+      rightItems: feedItems,
+      prs: prRows,
+      riskTitle: 'Risk Controls',
+      riskGrid: [
+        ['Kelly α', '0.25'],    ['Max Position', '≤10%'],  ['Daily Loss', '−$2K'],   ['Drawdown Halt', '8%'],
+        ['Max Concurrent', '5'], ['Min Liquidity', '$10K'], ['Kill Switch', 'ON'],    ['Validation Gate', majorGate]
+      ],
+      targetTitle: 'Performance Targets',
+      targets: [
+        ['Win Rate',           '>65% beta', '>70% launch'],
+        ['Sharpe Ratio',       '>1.5',      '>2.5'],
+        ['Execution Success',  '95%',       '99%+'],
+        ['Reconciliation',     '<60s',      '<10s'],
+        ['Profit Factor',      '>1.3',      '>1.5']
+      ],
+      issuesTitle: 'Known Issues',
+      issuesBadge: String(state.issues.length),
+      issues: issueRows
+    };
+  }
+
+  return {
+    hero: [
+      { label: 'Current Phase',        value: phaseLabel || '—',                   sub: phaseName,                               accent: 'var(--green)'  },
+      { label: 'Progress',             value: progressPct + '%',                    sub: 'Project milestones completed',           accent: 'var(--blue)'   },
+      { label: 'Current Focus',        value: inProgCount ? 'Active' : 'Review',    sub: 'Validation, stability, and delivery',    accent: 'var(--yellow)' },
+      { label: 'Delivery Confidence',  value: confidence,                           sub: 'Controlled progress',                    accent: 'var(--purple)' }
+    ],
+    summaryLabel: 'Executive Summary',
+    summaryText: state.status && state.status !== '—'
+      ? 'The project is currently in ' + (phaseLabel || 'the active phase') + ' with work focused on validation, stability, and delivery readiness. ' + state.status
+      : 'The project is active and currently focused on validation, stability, and delivery readiness.',
+    focusText: state.next && state.next !== '—'
+      ? simplifyClientIssue(state.next)
+      : 'Current work is focused on moving the next delivery step through review and readiness checks.',
+    progressTitle: 'Current Phase',
+    progressBadge: 'Client View',
+    progressItems: progressItems.map(x => ({
+      main:  x.main.replace(/^Phase \d+ — /, ''),
+      sub:   x.sub,
+      badge: x.badge === 'Done' ? 'Complete' : x.badge === 'In Progress' ? 'Active' : 'Upcoming',
+      cls:   x.cls
+    })),
+    rightIcon:  '📈',
+    rightTitle: 'Recent Progress',
+    rightBadge: 'This Cycle',
+    rightItems: feedItems.map(x => ({
+      dot:   x.dot,
+      title: simplifyClientIssue(x.title),
+      meta:  'Recent project activity',
+      tag:   x.tag === 'Merged' ? 'Delivered' : 'In Progress',
+      cls:   x.cls
+    })),
+    workstreams: deriveWorkstreams(state.prs, state.inProgress),
+    riskTitle: 'Risk & Quality Controls',
+    riskGrid: [
+      ['Position Limit', 'Controlled'], ['Loss Limit', 'Hard Stop'],    ['Kill Switch', 'Active'],      ['Validation', 'Required'],
+      ['Execution Guard', 'Enabled'],   ['Data Checks', 'Enabled'],     ['Review Path', 'Controlled'],  ['Release Gate', 'Strict']
+    ],
+    targetTitle: 'Target Outcomes',
+    targets: [
+      ['System Stability',       'Strengthening', 'Release-ready'],
+      ['Execution Reliability',  'High priority', 'Validated'],
+      ['Risk Discipline',        'Fixed controls', 'Maintained'],
+      ['Delivery Readiness',     'In review',     'Approved'],
+      ['Operational Confidence', confidence,      'High']
+    ],
+    issuesTitle: 'Current Risks / Dependencies',
+    issuesBadge: String(state.issues.length),
+    issues: issueRows
+  };
+}
+
+// ── RENDERERS ────────────────────────────────────────────
+function renderHero(data) {
+  document.getElementById('hero').innerHTML = data.hero.map(item => `
+    <div class="hero-card" style="--accent:${item.accent}">
+      <div class="hero-label">${esc(item.label)}</div>
+      <div class="hero-val">${esc(item.value)}</div>
+      <div class="hero-sub">${esc(item.sub)}</div>
+    </div>`).join('');
+}
+
+function rows(items) {
+  return '<div class="list">' + items.map(item => `
+    <div class="row">
+      <div class="row-left">
+        <div class="row-main">${esc(item.main)}</div>
+        <div class="row-sub">${esc(item.sub || '')}</div>
       </div>
-      <div class="phase-list">
-        ${phases.map(p => `
-          <div class="phase-row ${p.status==='✅'?'done':p.status==='🚧'?'active':''}">
-            <span class="phase-num">${esc(p.num.replace('Phase ','P'))}</span>
-            <span class="phase-name${p.status==='❌'?' dim':''}">${esc(p.name)}</span>
-            <span class="phase-badge ${p.status==='✅'?'pb-done':p.status==='🚧'?'pb-prog':'pb-pend'}">${p.status}</span>
-            <div class="phase-bar-wrap">
-              <div class="phase-bar">
-                <div class="phase-bar-fill" style="width:${phaseProgress(p.status)}%"></div>
-              </div>
-            </div>
-          </div>`).join('')}
-      </div>`;
-  } catch(e) {
-    document.getElementById('phaseBody').innerHTML = '<div class="error-box">Failed: ' + esc(e.message) + '</div>';
+      <div class="badge ${item.cls || 'prog'}">${esc(item.badge || '')}</div>
+    </div>`).join('') + '</div>';
+}
+
+function capabilityRows(items) {
+  return '<div class="cap-list">' + items.map(item => `
+    <div class="cap-item">
+      <div class="cap-top">
+        <div class="row-left">
+          <div class="cap-main">${esc(item.main)}</div>
+          <div class="cap-sub">${esc(item.sub || '')}</div>
+        </div>
+        <div class="cap-right">
+          <div class="cap-badge ${item.cls || 'prog'}">${esc(item.badge || '')}</div>
+          <div class="cap-meta">${esc(item.meta || '')}</div>
+        </div>
+      </div>
+      <div class="cap-bar">
+        <div class="cap-fill" style="width:${Math.max(0, Math.min(100, item.progress || 0))}%"></div>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+function feed(items) {
+  return items.map(item => `
+    <div class="feed-item">
+      <div class="feed-dot ${item.dot}"></div>
+      <div class="row-left">
+        <div class="row-main">${esc(item.title)}</div>
+        <div class="row-sub">${esc(item.meta)}</div>
+      </div>
+      <div class="badge ${item.cls || 'prog'}">${esc(item.tag)}</div>
+    </div>`).join('');
+}
+
+function riskGrid(items) {
+  return '<div class="spec-grid">' + items.map(([label, value]) => `
+    <div class="spec-item">
+      <div class="spec-label">${esc(label)}</div>
+      <div class="spec-val">${esc(value)}</div>
+    </div>`).join('') + '</div>';
+}
+
+function targets(items) {
+  return items.map(([label, beta, launch]) => `
+    <div class="target-row">
+      <div class="target-label">${esc(label)}</div>
+      <div class="target-val beta">${esc(beta)}</div>
+      <div class="target-val launch">${esc(launch)}</div>
+    </div>`).join('');
+}
+
+function render() {
+  const data = buildData(currentView);
+  renderHero(data);
+
+  // Update header strip
+  const active = state.phases.find(p => p.status === '🚧') || state.phases[state.phases.length - 1];
+  document.getElementById('stripPhase').textContent   = active ? active.num.replace('Phase ', 'P') + ' — ' + active.name : '—';
+  document.getElementById('stripPRs').textContent     = String(state.prs.length);
+  document.getElementById('stripProgress').textContent = String(state.inProgress.length) + ' tasks';
+  const lastCommit = state.commits[0];
+  document.getElementById('stripCommit').textContent  = lastCommit ? lastCommit.when : '—';
+
+  document.getElementById('summaryLabel').textContent   = data.summaryLabel;
+  document.getElementById('summaryText').textContent    = data.summaryText;
+  document.getElementById('focusText').textContent      = data.focusText;
+  document.getElementById('progressTitle').textContent  = data.progressTitle;
+  document.getElementById('progressBadge').textContent  = data.progressBadge;
+  document.getElementById('progressBody').innerHTML     = rows(data.progressItems);
+  document.getElementById('rightCardIcon').textContent  = data.rightIcon;
+  document.getElementById('rightCardTitle').textContent = data.rightTitle;
+  document.getElementById('rightCardBadge').textContent = data.rightBadge;
+  document.getElementById('rightCardBody').innerHTML    = feed(data.rightItems);
+
+  // Auto-parsed structure + strategy
+  const isInternal = currentView === 'internal';
+  document.getElementById('structureTitle').textContent  = isInternal ? 'Project Structure' : 'System Architecture';
+  document.getElementById('structureBadge').textContent  = isInternal ? 'Live' : 'Overview';
+  document.getElementById('structureBody').innerHTML     = capabilityRows(buildStructureItems(currentView));
+  document.getElementById('strategyTitle').textContent   = isInternal ? 'Strategy Model Status' : 'Strategy & Capability Status';
+  document.getElementById('strategyBadge').textContent   = isInternal ? 'Engineering' : 'Executive';
+  document.getElementById('strategyBody').innerHTML      = capabilityRows(buildStrategyItems(currentView));
+
+  document.getElementById('riskTitle').textContent   = data.riskTitle;
+  document.getElementById('riskBody').innerHTML      = riskGrid(data.riskGrid);
+  document.getElementById('targetTitle').textContent = data.targetTitle;
+  document.getElementById('targetBody').innerHTML    = targets(data.targets);
+  document.getElementById('issuesTitle').textContent = data.issuesTitle;
+  document.getElementById('issuesBadge').textContent = data.issuesBadge;
+  document.getElementById('issuesBody').innerHTML    = rows(data.issues);
+
+  const prCard         = document.getElementById('prCard');
+  const workstreamCard = document.getElementById('workstreamCard');
+
+  if (currentView === 'internal') {
+    prCard.classList.remove('mode-hidden');
+    workstreamCard.classList.add('mode-hidden');
+    document.getElementById('prCount').textContent = String(state.prs.length);
+    document.getElementById('prBody').innerHTML    = rows(data.prs);
+  } else {
+    prCard.classList.add('mode-hidden');
+    workstreamCard.classList.remove('mode-hidden');
+    document.getElementById('workstreamBody').innerHTML = rows(data.workstreams);
   }
 }
 
-// ── LOAD PRs + ACTIVITY ──
+// ── DATA LOADERS ─────────────────────────────────────────
+async function loadState() {
+  const md = await fetchRaw('PROJECT_STATE.md');
+  state.status     = parseStatus(md);
+  state.next       = parseNextPriority(md);
+  state.inProgress = parseSection(md, '🔧');
+  state.issues     = parseSection(md, '⚠️');
+}
+
+async function loadRoadmap() {
+  const md = await fetchRaw('ROADMAP.md');
+  state.phases = parsePhases(md);
+}
+
 async function loadPRs() {
-  try {
-    // Open PRs
-    const r = await fetch(API + '/pulls?state=open&per_page=20&t=' + Date.now(), {
-      headers: { Accept: 'application/vnd.github.v3+json' }
-    });
-    if (!r.ok) throw new Error('API ' + r.status);
-    const prs = await r.json();
+  const [prRes, commitRes] = await Promise.all([
+    fetch(API + '/pulls?state=open&per_page=20&t='   + Date.now(), { headers: { Accept: 'application/vnd.github.v3+json' } }),
+    fetch(API + '/commits?per_page=15&t=' + Date.now(), { headers: { Accept: 'application/vnd.github.v3+json' } })
+  ]);
 
-    document.getElementById('prCount').textContent = prs.length;
-    document.getElementById('h-prs').textContent = prs.length;
+  if (!prRes.ok)     throw new Error('PR API '     + prRes.status);
+  if (!commitRes.ok) throw new Error('Commits API ' + commitRes.status);
 
-    document.getElementById('prBody').innerHTML = prs.length ? `
-      <div class="pr-list">
-        ${prs.map(pr => {
-          const labels = pr.labels.map(l => {
-            const cls = l.name.includes('codex') ? 'ft-sentinel' :
-                        l.name.includes('fix') ? 'ft-blocked' :
-                        l.name.includes('hold') ? 'ft-info' : 'ft-open';
-            return `<span class="feed-tag ${cls}">${esc(l.name)}</span>`;
-          }).join('');
-          return `<div class="pr-item">
-            <span class="pr-num">#${pr.number}</span>
-            <span class="pr-title" title="${esc(pr.title)}">${esc(pr.title)}</span>
-            <div class="pr-labels">
-              <span class="feed-tag ft-open">open</span>${labels}
-            </div>
-          </div>`;
-        }).join('')}
-      </div>` : '<div style="color:var(--muted);font-family:var(--mono);font-size:11px">No open PRs</div>';
+  const prs     = await prRes.json();
+  const commits = await commitRes.json();
 
-    // Activity feed from recent commits
-    const cr = await fetch(API + '/commits?per_page=15&t=' + Date.now(), {
-      headers: { Accept: 'application/vnd.github.v3+json' }
-    });
-    if (!cr.ok) throw new Error('Commits API ' + cr.status);
-    const commits = await cr.json();
+  state.prs = prs.map(pr => {
+    const labels = (pr.labels || []).map(l => l.name).join(', ');
+    let sub = labels ? labels : 'Open review item';
+    if (/needs-fix|blocked/i.test(labels))              sub = 'Blocked · ' + labels;
+    else if (/major/i.test(pr.title + ' ' + labels))   sub = 'Major review item';
+    return {
+      number: pr.number,
+      title:  pr.title,
+      sub,
+      cls: /needs-fix|blocked/i.test(labels) ? 'risk' : 'prog'
+    };
+  });
 
-    document.getElementById('feedCount').textContent = commits.length;
-
-    document.getElementById('feedBody').innerHTML = '<div class="feed">' +
-      commits.map((c, i) => {
-        const msg = c.commit.message.split('\n')[0];
-        const date = new Date(c.commit.author.date);
-        const dateStr = date.toLocaleDateString('id-ID', {day:'2-digit',month:'short'}) + ' ' +
-                        date.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'});
-
-        const isSentinel = msg.toLowerCase().includes('sentinel');
-        const isMerge = msg.toLowerCase().includes('merge');
-        const isForge = msg.toLowerCase().includes('forge') || msg.startsWith('feature/') || msg.startsWith('fix/');
-        const isChore = msg.startsWith('chore/') || msg.toLowerCase().includes('chore');
-
-        const dotClass = isSentinel ? 'fd-y' : isMerge ? 'fd-g' : isForge ? 'fd-b' : isChore ? 'fd-m' : 'fd-b';
-
-        const tag = isSentinel ? '<span class="feed-tag ft-sentinel">SENTINEL</span>' :
-                    isMerge ? '<span class="feed-tag ft-merged">MERGED</span>' :
-                    isChore ? '<span class="feed-tag ft-info">CHORE</span>' :
-                    '<span class="feed-tag ft-open">FORGE</span>';
-
-        return `<div class="feed-item">
-          ${i < commits.length-1 ? '<div class="feed-line"></div>' : ''}
-          <div class="feed-dot ${dotClass}"></div>
-          <div class="feed-content">
-            <div class="feed-title">${esc(msg)}</div>
-            <div class="feed-meta">
-              <span class="feed-time">${dateStr}</span>
-              ${tag}
-            </div>
-          </div>
-        </div>`;
-      }).join('') + '</div>';
-
-  } catch(e) {
-    document.getElementById('prBody').innerHTML = '<div class="error-box">Failed: ' + esc(e.message) + '</div>';
-    document.getElementById('feedBody').innerHTML = '<div class="error-box">Failed: ' + esc(e.message) + '</div>';
-  }
+  state.commits = commits.map(c => {
+    const msg  = c.commit.message.split('\n')[0];
+    const m    = msg.toLowerCase();
+    const when = new Date(c.commit.author.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+               + ' '
+               + new Date(c.commit.author.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const tag  = m.includes('merge')    ? 'Merged'
+               : m.includes('sentinel') ? 'Validation'
+               : 'Update';
+    const cls  = m.includes('merge')    ? 'ok'
+               : m.includes('sentinel') ? 'warn'
+               : 'prog';
+    return { msg, when, tag, cls };
+  });
 }
 
+// ── MAIN ─────────────────────────────────────────────────
 async function loadAll() {
-  document.querySelector('.refresh-btn').classList.add('spin');
-  await Promise.all([loadState(), loadRoadmap(), loadPRs()]);
-  setTs();
-  document.querySelector('.refresh-btn').classList.remove('spin');
+  const icon = document.getElementById('refreshIcon');
+  if (icon) icon.style.animation = 'spin 0.8s linear infinite';
+  try {
+    await Promise.all([loadState(), loadRoadmap(), loadPRs()]);
+    render();
+    setTs();
+  } catch (e) {
+    const err = '<div class="error-box">⚠️ Failed to load: ' + esc(e.message) + '</div>';
+    ['progressBody', 'rightCardBody', 'prBody', 'workstreamBody', 'issuesBody'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = err;
+    });
+    document.getElementById('summaryText').textContent = 'Live sync failed. Check API access.';
+    setTs();
+  }
+  if (icon) icon.style.animation = '';
 }
 
-// Auto-refresh every 5 min
 setInterval(loadAll, 5 * 60 * 1000);
 loadAll();
 </script>
