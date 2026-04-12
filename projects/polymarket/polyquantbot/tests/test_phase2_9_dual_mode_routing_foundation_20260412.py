@@ -18,6 +18,7 @@ from projects.polymarket.polyquantbot.platform.gateway import (
     build_public_app_gateway,
     parse_public_app_gateway_mode,
 )
+from projects.polymarket.polyquantbot.platform.gateway.legacy_core_facade import LegacyCoreFacadeResolution
 
 
 def _seed() -> LegacySessionSeed:
@@ -38,6 +39,11 @@ def _seed() -> LegacySessionSeed:
 def test_phase2_9_invalid_mode_fails_closed() -> None:
     with pytest.raises(ValueError, match="invalid_gateway_mode"):
         parse_public_app_gateway_mode("not-real")
+
+
+def test_phase2_9_malformed_mode_input_fails_closed() -> None:
+    with pytest.raises(ValueError, match="invalid_gateway_mode"):
+        parse_public_app_gateway_mode(" platform-gateway-shadow\ninvalid ")
 
 
 def test_phase2_9_default_mode_remains_non_activating() -> None:
@@ -98,6 +104,38 @@ def test_phase2_9_platform_routing_raises_when_adapter_enforcement_fails() -> No
     facade.assert_adapter_usage = lambda: False  # type: ignore[assignment]
 
     with pytest.raises(RuntimeError, match="adapter_not_used_in_platform_gateway_path"):
+        gateway.resolve(_seed())
+
+
+def test_phase2_9_legacy_routing_raises_when_adapter_enforcement_fails() -> None:
+    class _LegacyAdapterBypassFacade:
+        def resolve_context(self, seed: LegacySessionSeed) -> LegacyCoreFacadeResolution:
+            _ = seed
+            return LegacyCoreFacadeResolution(context_envelope=None, source="test", activated=False)
+
+        async def execute_signal(self, request: object) -> object:
+            _ = request
+            return object()
+
+        def validate_trade(self, request: object) -> object:
+            _ = request
+            return object()
+
+        def prepare_execution_context(self, seed: LegacySessionSeed) -> LegacyCoreFacadeResolution:
+            return self.resolve_context(seed)
+
+        def assert_adapter_usage(self) -> bool:
+            return False
+
+    gateway = PublicAppGatewayLegacyFacade(
+        facade=_LegacyAdapterBypassFacade(),  # type: ignore[arg-type]
+        config=PublicAppGatewayConfig(
+            mode=PUBLIC_APP_GATEWAY_LEGACY_ONLY,
+            activation_requested=False,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="adapter_not_used_in_gateway_path"):
         gateway.resolve(_seed())
 
 

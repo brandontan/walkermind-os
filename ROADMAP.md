@@ -114,8 +114,8 @@
 |---|---|---|---|
 | 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | |
 | 2.7 | Build public API/app gateway skeleton | ✅ | PR #413 merged (squash); FOUNDATION seam only, no runtime/public activation |
-| 2.8 | Add legacy-core facade adapter | 🚧 | Next priority: internal routing / execution preparation layer |
-| 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | |
+| 2.8 | Add legacy-core facade adapter | ✅ | Gateway facade adapter merged; non-activating seam preserved |
+| 2.9 | Add dual-mode routing (legacy + platform path) | ✅ | Structural dual-mode routing foundation merged; runtime/public activation still disabled |
 | 2.10 | Staging deploy on Fly.io | ❌ | Migration from Railway pending |
 
 ### Multi-User DB Schema
