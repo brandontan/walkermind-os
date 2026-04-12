@@ -26,6 +26,7 @@ class PublicAppGatewayResolution:
     mode: str
     source: str
     facade_resolution: LegacyCoreFacadeResolution | None
+    adapter_enforced: bool
 
 
 @runtime_checkable
@@ -50,6 +51,7 @@ class PublicAppGatewayDisabled:
             mode=self._config.mode,
             source=PUBLIC_APP_GATEWAY_DISABLED,
             facade_resolution=None,
+            adapter_enforced=False,
         )
 
 
@@ -61,11 +63,14 @@ class PublicAppGatewayLegacyFacade:
         self._config = config or PublicAppGatewayConfig(mode=PUBLIC_APP_GATEWAY_LEGACY_FACADE)
 
     def resolve(self, seed: LegacySessionSeed) -> PublicAppGatewayResolution:
-        facade_resolution = self._facade.resolve_context(seed)
+        if not self._facade.assert_adapter_usage():
+            raise RuntimeError("adapter_not_used_in_gateway_path")
+        facade_resolution = self._facade.prepare_execution_context(seed)
         return PublicAppGatewayResolution(
             activated=False,
             runtime_routing_active=False,
             mode=self._config.mode,
             source=PUBLIC_APP_GATEWAY_LEGACY_FACADE,
             facade_resolution=facade_resolution,
+            adapter_enforced=True,
         )
