@@ -716,7 +716,7 @@ Rules:
 - Any deviation from task-defined branch name = VIOLATION
 - PR branch must exactly match the declared task branch (case-sensitive)
 - Do not auto-rename, paraphrase, shorten, or expand the branch purpose
-- Branch mismatch must be corrected before downstream validation begins
+- Branch mismatch must be corrected before downstream validation begins (except in Codex environment per rule below)
 
 ## CODEX WORKTREE RULE (CRITICAL)
 
