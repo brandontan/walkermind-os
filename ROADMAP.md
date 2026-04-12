@@ -23,7 +23,7 @@
 # 🟢 PROJECT: CRUSADER
 **Description:** Non-Custodial Polymarket Trading Platform — Multi-User, Closed Beta First
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
-**Last Updated:** 2026-04-11
+**Last Updated:** 2026-04-12
 
 ## Board Overview
 
@@ -96,7 +96,7 @@
 ## 🚧 Phase 2 — Platform Foundation
 **Goal:** Extract legacy core into protected kernel, build platform shell, establish multi-user DB schema, and introduce execution isolation boundary.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-11
+**Last Updated:** 2026-04-12
 
 > ⚠️ NOTE: PR #396 (ExecutionIsolationGateway) is Phase 2 work — branch was labelled "Phase 3" but correctly belongs here. Review fix pass in progress before merge.
 
@@ -113,8 +113,8 @@
 | # | Task | Status | Notes |
 |---|---|---|---|
 | 2.6 | Create platform folder structure (platform/gateway, accounts, wallet_auth) | ❌ | |
-| 2.7 | Build public API/app gateway skeleton | 🚧 | PR #413 SENTINEL rerun approved (24_62); COMMANDER merge decision pending |
-| 2.8 | Add legacy-core facade adapter | ❌ | |
+| 2.7 | Build public API/app gateway skeleton | ✅ | PR #413 merged (squash); FOUNDATION seam only, no runtime/public activation |
+| 2.8 | Add legacy-core facade adapter | 🚧 | Next priority: internal routing / execution preparation layer |
 | 2.9 | Add dual-mode routing (legacy + platform path) | ❌ | |
 | 2.10 | Staging deploy on Fly.io | ❌ | Migration from Railway pending |
 
