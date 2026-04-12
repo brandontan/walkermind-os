@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-12 10:00
-🔄 Status       : AGENTS.md branch naming enforcement added (MINOR / FOUNDATION); Phase 2.9 dual-mode routing foundation remains pending SENTINEL validation.
+📅 Last Updated : 2026-04-12 12:00
+🔄 Status       : Phase 3.1 null-safety hardened (fix_execution_readiness_null_safety_final_pr427): staged extraction pattern enforced, all null paths return missing_execution_context deterministically, 3 regression tests added. SENTINEL validation remains required before merge.
 
 ✅ COMPLETED
 - Phase 2.9 dual-mode routing contract remains implemented with explicit modes: disabled, legacy-only, platform-gateway-shadow, and platform-gateway-primary (structural-only).
@@ -8,6 +8,7 @@
 - Updated ROADMAP.md Phase 2 table to sync 2.8 and 2.9 implementation status truth.
 - Forge rerun report delivered: `projects/polymarket/polyquantbot/reports/forge/24_67_phase2_9_dual_mode_routing_foundation_rerun.md`.
 - AGENTS.md branch naming enforcement added: `### BRANCH NAMING ENFORCEMENT (HARD)` in `## BRANCH NAMING (FINAL)` and `Hard rule:` block in `### Branch` (FORGE-X section). Report: `projects/polymarket/polyquantbot/reports/forge/24_68_agents_branch_enforcement.md`.
+- Phase 3.1 null-safety hardened (no exception path in readiness boundary): staged extraction pattern enforced in `execution_readiness_gate.py`; `asdict()` never called without prior null guard; all null scenarios (`facade_resolution=None`, `context_envelope=None`, `execution_context=None`) return `missing_execution_context` deterministically; 3 explicit regression tests added and passing.
 
 🔧 IN PROGRESS
 - Phase 2 task 2.1: Freeze legacy core behavior — stable post-PR #394 merge; formal freeze tag not yet applied.
