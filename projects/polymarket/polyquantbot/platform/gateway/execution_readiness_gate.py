@@ -91,16 +91,18 @@ class ExecutionSafeReadinessGate:
                 reason=READINESS_BLOCK_ROUTING_NOT_SAFE,
             )
 
-        execution_context = None
-        if facade_resolution is not None and facade_resolution.context_envelope is not None:
-            execution_context = asdict(facade_resolution.context_envelope.execution_context)
+        facade = facade_resolution
+        envelope = getattr(facade, "context_envelope", None) if facade else None
+        execution_ctx = getattr(envelope, "execution_context", None) if envelope else None
 
-        if execution_context is None:
+        if execution_ctx is None:
             return self._blocked_result(
                 routing_trace=routing_trace,
                 checks=checks,
                 reason=READINESS_BLOCK_MISSING_EXECUTION_CONTEXT,
             )
+
+        execution_context = asdict(execution_ctx)
 
         validation_result = self._facade.validate_trade(
             LegacyTradeValidationRequest(

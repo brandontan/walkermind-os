@@ -15,6 +15,14 @@
 - Enforced deterministic block reasons: `routing_not_safe`, `missing_execution_context`, `risk_validation_blocked`, `activation_not_allowed_in_phase3_1`, and `unsupported_mode`.
 - Hard-locked non-activation behavior: readiness assessment never enables runtime activation and always returns `runtime_activation_allowed=False`.
 
+### Null-Safety Hardening (fix_execution_readiness_null_safety_final_pr427)
+
+- Fixed unsafe nested `execution_context` access: removed chained `facade_resolution.context_envelope.execution_context` pattern that could call `asdict(None)` if `execution_context` was `None`.
+- Replaced with staged extraction pattern: `facade → getattr(envelope) → getattr(execution_ctx)` with explicit None guard before any `asdict()` call.
+- Removed all possible null-serialization crash paths: `asdict()` is now called only after a confirmed non-None `execution_ctx`.
+- Ensured deterministic block behavior: all three null scenarios (`facade_resolution=None`, `context_envelope=None`, `execution_context=None`) return `missing_execution_context` without exception.
+- Added 3 explicit regression tests: `test_null_safety_execution_context_none_does_not_crash`, `test_null_safety_context_envelope_none_does_not_crash`, `test_null_safety_facade_resolution_none_explicit_guard`.
+
 ## 2. Current system architecture
 
 - Phase 2.8 facade and Phase 2.9 routing remain unchanged as the input layer.
@@ -42,6 +50,7 @@
 
 - Phase 3.1 remains pre-execution readiness only; no runtime/public activation, order placement, wallet interaction, or capital movement is enabled.
 - Async pytest config warning (`Unknown config option: asyncio_mode`) remains in this container environment.
+- Three existing path-based import regression tests (`test_phase3_1_gateway_boundary_has_no_direct_core_import_regression`, `test_phase2_9_gateway_has_no_direct_core_import_regression`, `test_phase2_gateway_has_no_direct_core_imports`) use hardcoded `/workspace/walker-ai-team/` paths from the original Codex execution environment; they fail in non-workspace environments but are not regressions introduced by this fix. The 31 logic tests and 3 new null-safety tests all pass.
 - Broader Phase 3 lifecycle wiring (post-readiness activation workflow) remains out of scope for this task.
 
 ## 6. What is next
@@ -51,7 +60,12 @@
 
 ## Validation commands run
 
+### Original Phase 3.1 validation (Codex environment)
+
 - `python -m py_compile /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/execution_readiness_gate.py /workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/__init__.py /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase3_1_execution_safe_mvp_boundary_20260412.py`
-- `PYTHONPATH=/workspace/walker-ai-team pytest -q /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase3_1_execution_safe_mvp_boundary_20260412.py /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_9_dual_mode_routing_foundation_20260412.py /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_7_public_app_gateway_skeleton_20260411.py /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase2_legacy_core_facade_adapter_foundation_20260411.py`
-- `PYTHONPATH=/workspace/walker-ai-team python - <<'PY' ... import checks for ExecutionSafeReadinessGate + gateway factory ... PY`
-- `find /workspace/walker-ai-team -type d -name 'phase*'`
+- `PYTHONPATH=/workspace/walker-ai-team pytest -q ... → 31 passed, 1 warning`
+
+### Null-safety fix validation (fix_execution_readiness_null_safety_final_pr427)
+
+- `python -m py_compile projects/polymarket/polyquantbot/platform/gateway/execution_readiness_gate.py projects/polymarket/polyquantbot/platform/gateway/__init__.py projects/polymarket/polyquantbot/tests/test_phase3_1_execution_safe_mvp_boundary_20260412.py` → OK
+- `PYTHONPATH=/home/user/walker-ai-team python3 -m pytest -q test_phase3_1_execution_safe_mvp_boundary_20260412.py test_phase2_9_... test_phase2_7_... test_phase2_legacy_... → 34 passed (31 logic + 3 new null-safety), 3 pre-existing path failures (outside scope), 1 warning`

@@ -177,6 +177,81 @@ def test_phase3_1_disabled_mode_is_not_safe_for_readiness_gate() -> None:
     assert readiness.block_reason == READINESS_BLOCK_ROUTING_NOT_SAFE
 
 
+def test_null_safety_execution_context_none_does_not_crash() -> None:
+    """Null safety: context_envelope present but execution_context is None — must block, not crash."""
+    from unittest.mock import MagicMock
+
+    mock_envelope = MagicMock()
+    mock_envelope.execution_context = None
+    mock_resolution = MagicMock()
+    mock_resolution.context_envelope = mock_envelope
+
+    gate = ExecutionSafeReadinessGate(facade=build_legacy_core_facade(mode="legacy-context-resolver"))
+    readiness = gate.evaluate(
+        routing_trace=PublicAppGatewayRoutingTrace(
+            selected_mode=PUBLIC_APP_GATEWAY_LEGACY_ONLY,
+            selected_path=PUBLIC_APP_GATEWAY_LEGACY_ONLY,
+            platform_participated=False,
+            adapter_enforced=True,
+            runtime_activation_remained_disabled=True,
+        ),
+        facade_resolution=mock_resolution,
+        signal_data=_signal_data(),
+        decision_data=_decision_data(),
+        risk_state=_risk_state(),
+    )
+
+    assert readiness.block_reason == READINESS_BLOCK_MISSING_EXECUTION_CONTEXT
+    assert readiness.can_execute is False
+
+
+def test_null_safety_context_envelope_none_does_not_crash() -> None:
+    """Null safety: facade_resolution present but context_envelope is None — must block, not crash."""
+    from unittest.mock import MagicMock
+
+    mock_resolution = MagicMock()
+    mock_resolution.context_envelope = None
+
+    gate = ExecutionSafeReadinessGate(facade=build_legacy_core_facade(mode="legacy-context-resolver"))
+    readiness = gate.evaluate(
+        routing_trace=PublicAppGatewayRoutingTrace(
+            selected_mode=PUBLIC_APP_GATEWAY_LEGACY_ONLY,
+            selected_path=PUBLIC_APP_GATEWAY_LEGACY_ONLY,
+            platform_participated=False,
+            adapter_enforced=True,
+            runtime_activation_remained_disabled=True,
+        ),
+        facade_resolution=mock_resolution,
+        signal_data=_signal_data(),
+        decision_data=_decision_data(),
+        risk_state=_risk_state(),
+    )
+
+    assert readiness.block_reason == READINESS_BLOCK_MISSING_EXECUTION_CONTEXT
+    assert readiness.can_execute is False
+
+
+def test_null_safety_facade_resolution_none_explicit_guard() -> None:
+    """Null safety: facade_resolution is None — explicit regression guard, must block, not crash."""
+    gate = ExecutionSafeReadinessGate(facade=build_legacy_core_facade(mode="legacy-context-resolver"))
+    readiness = gate.evaluate(
+        routing_trace=PublicAppGatewayRoutingTrace(
+            selected_mode=PUBLIC_APP_GATEWAY_LEGACY_ONLY,
+            selected_path=PUBLIC_APP_GATEWAY_LEGACY_ONLY,
+            platform_participated=False,
+            adapter_enforced=True,
+            runtime_activation_remained_disabled=True,
+        ),
+        facade_resolution=None,
+        signal_data=_signal_data(),
+        decision_data=_decision_data(),
+        risk_state=_risk_state(),
+    )
+
+    assert readiness.block_reason == READINESS_BLOCK_MISSING_EXECUTION_CONTEXT
+    assert readiness.can_execute is False
+
+
 def test_phase3_1_gateway_boundary_has_no_direct_core_import_regression() -> None:
     gateway_boundary_files = (
         "/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/gateway/public_app_gateway.py",

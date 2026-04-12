@@ -1,7 +1,8 @@
-📅 Last Updated : 2026-04-12 10:00
-🔄 Status       : Phase 3.1 execution-safe MVP boundary implemented at gateway scope (MAJOR / NARROW INTEGRATION); pre-execution readiness is observable, deterministic, and explicitly non-activating.
+📅 Last Updated : 2026-04-12 12:00
+🔄 Status       : Phase 3.1 null-safety hardened (fix_execution_readiness_null_safety_final_pr427): staged extraction pattern enforced, all null paths return missing_execution_context deterministically, 3 regression tests added. SENTINEL validation remains required before merge.
 
 ✅ COMPLETED
+- Phase 3.1 null-safety hardened (no exception path in readiness boundary): staged extraction pattern enforced in `execution_readiness_gate.py`; `asdict()` never called without prior null guard; all null scenarios (`facade_resolution=None`, `context_envelope=None`, `execution_context=None`) return `missing_execution_context` deterministically; 3 explicit regression tests added and passing.
 - Phase 3.1 execution-safe readiness contract added with explicit fields: can_execute, block_reason, readiness_checks, runtime_activation_allowed.
 - Added deterministic pre-execution gate at platform gateway boundary with explicit block reasons: routing_not_safe, missing_execution_context, risk_validation_blocked, activation_not_allowed_in_phase3_1, unsupported_mode.
 - Added Phase 3.1 focused tests for non-activation guarantee, unsupported mode handling, missing context handling, risk-validator surfacing, activation request blocking, and gateway direct-core-import regression checks.
