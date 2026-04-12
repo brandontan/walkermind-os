@@ -369,6 +369,20 @@ During strategy review:
 ---
 
 ## BRANCH FORMAT (FINAL)
+### BRANCH NAMING ENFORCEMENT (HARD)
+
+- FORGE-X MUST use the exact branch name defined in the task
+- Any deviation from task-defined branch name = VIOLATION
+- COMMANDER must mark PR as NEEDS-FIX if branch name does not match task
+
+SOURCE OF TRUTH:
+- Branch name defined in FORGE-X TASK is authoritative
+- PR branch must exactly match (case-sensitive)
+
+NO AUTO-RENAMING:
+- Do not generate “similar” names
+- Do not paraphrase purpose
+- Do not shorten or expand wording
 
 ```
 {prefix}/{area}-{purpose}-{date}
@@ -502,6 +516,9 @@ Template (the code block wrapper goes around this entire block):
   ============
   Repo      : https://github.com/bayuewalker/walker-ai-team
   Branch    : {prefix}/{area}-{purpose}-{date}
+  BRANCH RULE:
+  - Branch MUST be used exactly as declared
+  - Deviation from declared branch name = task failure
   Env       : dev / staging / prod
 
   OBJECTIVE:
@@ -915,6 +932,7 @@ A thin adapter may NOT:
 ### 6. PRE-REVIEW DRIFT CHECK (MANDATORY)
 Before COMMANDER approves a PR touching integration or routing surfaces, check:
 
+- Does PR branch name EXACTLY match the task-defined branch?
 - Does every new import resolve to a real repo symbol?
 - Does the adapter/facade wrap real existing logic?
 - Is any new abstraction being invented without explicit approval?
