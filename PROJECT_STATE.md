@@ -2,12 +2,17 @@
 ## Walker AI DevOps
 
 ## 📅 Last Updated
-2026-04-12 17:55
+2026-04-12 18:40
 
 ## 🔄 Status
-✅ **Phase 3.6 COMPLETE (STANDARD, NARROW INTEGRATION)** deterministic non-activating execution decision aggregation layer added (Intent + Plan + Risk → Final Decision contract), with deterministic upstream mismatch/block propagation and no runtime activation path.
+✅ **SENTINEL APPROVED — Phase 3.8 (MAJOR, NARROW INTEGRATION)** rerun validation confirms deterministic default-off controlled readiness unlock only; no order/wallet/signing/capital/runtime side-effect path introduced.
 
 ## ✅ COMPLETED
+- **SENTINEL rerun validation complete (PR #439, Phase 3.8)** in `projects/polymarket/polyquantbot/reports/sentinel/24_77_phase3_8_execution_activation_gate_validation_rerun.md` with verdict **APPROVED (98/100)**, zero critical findings, deterministic default-off gating confirmed, and execution boundary preserved as controlled-readiness only.
+- **Phase 3.8 execution activation gate (controlled unlock layer)** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_activation_gate.py` with deterministic explicit activation contracts (`ExecutionActivationDecision`, `ExecutionActivationTrace`, `ExecutionActivationBuildResult`) and deterministic blocked outcomes for invalid contracts/inputs, upstream blocked decisions, disabled activation policy, disallowed activation mode, already-ready source, non-activating enforcement, and simulation-only enforcement.
+- Added `ExecutionActivationGate` (`evaluate`, `evaluate_with_trace`) and typed activation inputs (`ExecutionActivationDecisionInput`, `ExecutionActivationPolicyInput`) with explicit default-off policy semantics and deterministic local-only policy evaluation.
+- **Phase 3.8 tests added** in `projects/polymarket/polyquantbot/tests/test_phase3_8_execution_activation_gate_20260412.py` covering valid deterministic activation, contract/field blocking paths, upstream propagation, policy gating, deterministic equality, no wallet/signing/network/order/capital fields, and None/dict/wrong-object safety.
+- **Phase 3.6 baseline remains green** in `projects/polymarket/polyquantbot/tests/test_phase3_6_execution_decision_aggregation_20260412.py`.
 - **Phase 3.6 execution decision aggregation layer** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_decision.py` with explicit deterministic `ExecutionDecision` final pre-execution contract, deterministic `ExecutionDecisionTrace`, and deterministic blocked outcomes for invalid top-level contracts, upstream mismatch, and upstream blocked risk decisions.
 - Added `ExecutionDecisionAggregator` (`aggregate`, `aggregate_with_trace`) and typed aggregation inputs (`ExecutionDecisionIntentInput`, `ExecutionDecisionPlanInput`, `ExecutionDecisionRiskInput`) with strict identity consistency checks and non-activating finalization (`ready_for_execution=False`, `non_activating=True`).
 - **Phase 3.6 tests added** in `projects/polymarket/polyquantbot/tests/test_phase3_6_execution_decision_aggregation_20260412.py` covering valid path, invalid contract blocking, upstream mismatch blocking, blocked-risk propagation, deterministic equality, non-activating constraints, and None/dict/wrong-object safety.
@@ -35,10 +40,10 @@
 ## 📋 NOT STARTED
 - **Phase 2 task 2.10:** Fly.io staging deploy.
 - **Phase 2 tasks 2.11–2.13:** multi-user DB schema, audit/event log schema, wallet context abstraction.
-- **Phase 3 remaining tasks (3.7–3.11), Phase 4 Multi-User Public Architecture (4.1–4.11), and Phases 5–6** remain not started.
+- **Phase 3 remaining tasks (3.7, 3.9–3.11), Phase 4 Multi-User Public Architecture (4.1–4.11), and Phases 5–6** remain not started.
 
 ## 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/24_74_phase3_6_execution_decision_aggregation.md. Tier: STANDARD
+- COMMANDER merge decision on PR #439 (SENTINEL APPROVED). Source: projects/polymarket/polyquantbot/reports/sentinel/24_77_phase3_8_execution_activation_gate_validation_rerun.md. Tier: MAJOR
 
 ## ⚠️ KNOWN ISSUES
 - Path-based test portability issues (manual port override required in CI).
@@ -48,7 +53,8 @@
 - Execution plan layer remains intentionally pre-execution only (no gateway/execution engine/order object/runtime orchestration wiring yet).
 - Execution risk layer remains intentionally pre-execution only (no gateway/execution/order/wallet/signing/capital wiring yet).
 - Execution decision aggregation layer remains intentionally pre-execution only (`ready_for_execution=False`; no gateway/execution/order/wallet/signing/capital wiring yet).
-- Async pytest plugin unavailable in current container; async adapter assertions covered via `asyncio.run(...)` in focused tests.
+- Execution activation gate remains controlled-readiness only (`ready_for_execution=True` authorization contract under local policy); real order/wallet/signing/capital/runtime execution remains intentionally unavailable.
+- Pytest warns about unknown `asyncio_mode` config in this container environment.
 - ContextResolver remains read-only by design; persistence-side ensure/write behavior is explicit-call only.
 - `execution_context_repository` and `audit_event_repository` bundle fields remain unused in current bridge/facade path.
 - P17 proof lifecycle still uses lazy expiration enforcement at execution boundary; background expired-row cleanup remains deferred.
