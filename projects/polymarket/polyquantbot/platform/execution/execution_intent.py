@@ -5,6 +5,7 @@ from typing import Any
 
 INTENT_BLOCK_READINESS_FAILED = "readiness_failed"
 INTENT_BLOCK_RISK_VALIDATION_FAILED = "risk_validation_failed"
+INTENT_BLOCK_INVALID_READINESS_CONTRACT = "invalid_readiness_contract"
 INTENT_BLOCK_INVALID_ROUTING_CONTRACT = "invalid_routing_contract"
 INTENT_BLOCK_INVALID_SIGNAL_CONTRACT = "invalid_signal_contract"
 
@@ -91,6 +92,27 @@ class ExecutionIntentBuilder:
         routing_input: ExecutionIntentRoutingInput,
         signal_input: ExecutionIntentSignalInput,
     ) -> ExecutionIntentBuildResult:
+        if not isinstance(readiness_input, ExecutionIntentReadinessInput):
+            return _blocked_invalid_contract_result(
+                blocked_reason=INTENT_BLOCK_INVALID_READINESS_CONTRACT,
+                contract_name="readiness",
+                contract_input=readiness_input,
+            )
+
+        if not isinstance(routing_input, ExecutionIntentRoutingInput):
+            return _blocked_invalid_contract_result(
+                blocked_reason=INTENT_BLOCK_INVALID_ROUTING_CONTRACT,
+                contract_name="routing",
+                contract_input=routing_input,
+            )
+
+        if not isinstance(signal_input, ExecutionIntentSignalInput):
+            return _blocked_invalid_contract_result(
+                blocked_reason=INTENT_BLOCK_INVALID_SIGNAL_CONTRACT,
+                contract_name="signal",
+                contract_input=signal_input,
+            )
+
         upstream_trace_refs: dict[str, Any] = {
             "readiness": {
                 "can_execute": readiness_input.can_execute,
@@ -195,3 +217,40 @@ def _validate_signal_contract(signal_input: ExecutionIntentSignalInput) -> str |
     if signal_input.size < 0:
         return "size_must_be_non_negative"
     return None
+
+
+def _blocked_invalid_contract_result(
+    *,
+    blocked_reason: str,
+    contract_name: str,
+    contract_input: Any,
+) -> ExecutionIntentBuildResult:
+    return ExecutionIntentBuildResult(
+        intent=None,
+        trace=ExecutionIntentTrace(
+            intent_created=False,
+            blocked_reason=blocked_reason,
+            upstream_trace_refs={
+                "contract_errors": {
+                    contract_name: "invalid_contract_object",
+                },
+                "invalid_contract_input": {
+                    contract_name: _describe_contract_input(contract_input),
+                },
+            },
+        ),
+    )
+
+
+def _describe_contract_input(contract_input: Any) -> dict[str, Any]:
+    if contract_input is None:
+        return {"type": "NoneType", "value": None}
+    if isinstance(contract_input, dict):
+        return {
+            "type": "dict",
+            "keys": sorted([str(key) for key in contract_input.keys()]),
+        }
+    return {
+        "type": type(contract_input).__name__,
+        "repr": repr(contract_input),
+    }

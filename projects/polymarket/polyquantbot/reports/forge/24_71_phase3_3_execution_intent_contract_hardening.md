@@ -1,4 +1,4 @@
-# Forge Report — Phase 3.3 Execution Intent Contract Hardening
+# Forge Report — Phase 3.3 Execution Intent Contract Hardening (PR #434 Rerun)
 
 **Validation Tier:** STANDARD  
 **Claim Level:** NARROW INTEGRATION  
@@ -9,56 +9,50 @@
 ---
 
 ## 1) What was built
-- Hardened the Phase 3.2 intent builder by replacing weak `Any`-based method inputs with explicit typed input contracts:
-  - `ExecutionIntentSignalInput`
-  - `ExecutionIntentRoutingInput`
-  - `ExecutionIntentReadinessInput`
-- Added deterministic contract validation for critical fields:
-  - `market_id` non-empty
-  - `outcome` non-empty
-  - `side` explicitly allowed (`BUY`/`SELL`)
-  - `size` non-negative
-  - `routing_mode` explicitly allowed (`disabled`, `legacy-only`, `platform-gateway-shadow`, `platform-gateway-primary`)
-- Removed weak fallback behavior for critical contract fields (no implicit BUY default, no unknown routing drift, no empty string market/outcome acceptance).
-- Kept readiness and risk decisions authoritative and evaluated before downstream contract validation.
+- Patched `ExecutionIntentBuilder` top-level runtime contract validation so malformed top-level inputs no longer crash.
+- Added deterministic blocked outcomes for invalid top-level contract objects:
+  - `INTENT_BLOCK_INVALID_READINESS_CONTRACT`
+  - `INTENT_BLOCK_INVALID_ROUTING_CONTRACT`
+  - `INTENT_BLOCK_INVALID_SIGNAL_CONTRACT`
+- Implemented runtime `isinstance(...)` checks for `readiness_input`, `routing_input`, and `signal_input` before any attribute access.
+- Added deterministic trace payload for invalid contract objects (`contract_errors` + `invalid_contract_input`) to preserve non-raising behavior and reproducibility.
 
 ## 2) Current system architecture
-- Execution-intent layer remains standalone and non-activating within the existing safe boundary:
-  1. Readiness contract decision (`can_execute` + risk decision)
-  2. Routing contract validation
-  3. Signal contract validation
-  4. Deterministic `ExecutionIntent` materialization (or deterministic blocked result)
-- No runtime wiring, gateway coupling, or execution engine introduction was added.
+- Execution-intent layer remains standalone and non-activating within the safe boundary:
+  1. Top-level contract object validation (runtime type enforcement)
+  2. Readiness/risk authoritative gating
+  3. Routing field validation
+  4. Signal field validation
+  5. Deterministic `ExecutionIntent` materialization (or deterministic blocked result)
+- No runtime wiring, gateway coupling, order execution, wallet path, or capital movement was added.
 
 ## 3) Files created / modified (full paths)
 - Modified: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/execution/execution_intent.py`
 - Modified: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/execution/__init__.py`
-- Modified: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase3_2_execution_intent_modeling_20260412.py`
-- Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase3_3_execution_intent_contract_hardening_20260412.py`
-- Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_71_phase3_3_execution_intent_contract_hardening.md`
+- Modified: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase3_3_execution_intent_contract_hardening_20260412.py`
+- Modified: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_71_phase3_3_execution_intent_contract_hardening.md`
 - Modified: `/workspace/walker-ai-team/PROJECT_STATE.md`
 
 ## 4) What is working
-- Valid typed contracts now produce deterministic intent output.
-- Invalid routing contracts are rejected deterministically.
-- Invalid signal contracts (market, outcome, side, size) are rejected deterministically.
-- Readiness false still blocks authoritatively.
-- Risk decision not equal to `ALLOW` still blocks authoritatively.
-- Deterministic equality is preserved for repeated identical valid input.
-- No activation fields were introduced in `ExecutionIntent`.
-- Phase 3.2 baseline assertions remain green with typed contract updates.
+- Invalid top-level readiness/routing/signal objects now return deterministic blocked results instead of raising `AttributeError`.
+- `None`, dict, and wrong object type inputs are deterministically rejected in tests.
+- Existing typed valid path still builds intent deterministically.
+- Readiness false and risk decision != `ALLOW` remain authoritative.
+- Deterministic equality for identical valid input remains preserved.
+- No activation fields or runtime integration were introduced.
+- Phase 3.2 baseline tests remain green.
 
 ## 5) Known issues
 - Pytest environment still emits warning for unknown `asyncio_mode` config option in this container.
 - Phase 3.3 remains intentionally NARROW INTEGRATION and not wired to runtime execution paths.
 
 ## 6) What is next
-- COMMANDER review for STANDARD tier completion and scope compliance.
+- COMMANDER re-review for STANDARD tier completion and deterministic contract hardening verification.
 - Optional auto PR review on changed files/contracts for additional confidence.
 - Proceed to next Phase 3 task without changing non-activation boundary.
 
 ---
 
-**Report Timestamp:** 2026-04-12 16:18 UTC  
+**Report Timestamp:** 2026-04-12 16:27 UTC  
 **Role:** FORGE-X (NEXUS)  
-**Task:** Phase 3.3 — Execution Intent Contract Hardening
+**Task:** Phase 3.3 — Execution Intent Contract Hardening (PR #434 fix rerun)

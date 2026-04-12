@@ -2,16 +2,16 @@
 ## Walker AI DevOps
 
 ## 📅 Last Updated
-2026-04-12 16:18
+2026-04-12 16:27
 
 ## 🔄 Status
-✅ **Phase 3.3 COMPLETE (STANDARD, NARROW INTEGRATION)** execution-intent contracts hardened with explicit typed inputs and deterministic contract validation. Non-activating boundary remains enforced (no runtime execution/order/wallet/capital activation).
+✅ **Phase 3.3 COMPLETE (STANDARD, NARROW INTEGRATION)** execution-intent contracts hardened with deterministic top-level runtime contract validation (None/dict/wrong-object blocked without crash). Non-activating boundary remains enforced.
 
 ## ✅ COMPLETED
-- **Phase 3.3 execution intent contract hardening** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_intent.py` with explicit typed input contracts (`ExecutionIntentSignalInput`, `ExecutionIntentRoutingInput`, `ExecutionIntentReadinessInput`), deterministic routing/signal validation, and authoritative readiness/risk blocking precedence.
-- **Phase 3.3 tests added** in `projects/polymarket/polyquantbot/tests/test_phase3_3_execution_intent_contract_hardening_20260412.py` covering valid contract path, invalid market/outcome/side/size rejection, invalid routing rejection, readiness/risk authoritative blocking, deterministic equality, and activation-field absence.
-- **Phase 3.2 baseline tests updated and preserved green** in `projects/polymarket/polyquantbot/tests/test_phase3_2_execution_intent_modeling_20260412.py` using typed contract inputs while retaining deterministic non-activation assertions.
-- **Phase 3.2 execution intent modeling** remains implemented with deterministic `ExecutionIntent`, `ExecutionIntentTrace`, and `ExecutionIntentBuilder` structure under non-activating scope.
+- **Phase 3.3 execution intent contract hardening rerun (PR #434 fix)** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_intent.py` with explicit runtime validation for top-level builder contracts (`readiness_input`, `routing_input`, `signal_input`) returning deterministic blocked results instead of exceptions.
+- Added explicit top-level contract block constant `INTENT_BLOCK_INVALID_READINESS_CONTRACT` and preserved deterministic routing/signal contract block paths.
+- **Phase 3.3 tests expanded** in `projects/polymarket/polyquantbot/tests/test_phase3_3_execution_intent_contract_hardening_20260412.py` covering `None`, dict, and wrong-object top-level contract rejection (no exceptions), plus valid path/readiness/risk/determinism/activation constraints.
+- **Phase 3.2 baseline tests remain green** in `projects/polymarket/polyquantbot/tests/test_phase3_2_execution_intent_modeling_20260412.py`.
 - **Phase 3.1 null-safety hardening** remains in place in `execution_readiness_gate.py` with deterministic blocked behavior on missing execution context.
 - **Phase 2.9 dual-mode routing contract** remains implemented with explicit modes: disabled, legacy-only, platform-gateway-shadow, and platform-gateway-primary (structural-only).
 
