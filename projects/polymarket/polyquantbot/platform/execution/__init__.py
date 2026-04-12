@@ -1,5 +1,17 @@
 """Deterministic pre-execution intent modeling contracts."""
 
+from .execution_adapter import (
+    ADAPTER_BLOCK_DECISION_NOT_READY,
+    ADAPTER_BLOCK_INVALID_DECISION_CONTRACT,
+    ADAPTER_BLOCK_INVALID_DECISION_INPUT,
+    ADAPTER_BLOCK_NON_ACTIVATING_REQUIRED,
+    ADAPTER_BLOCK_UPSTREAM_NOT_ALLOWED,
+    ExecutionAdapter,
+    ExecutionAdapterDecisionInput,
+    ExecutionOrderBuildResult,
+    ExecutionOrderSpec,
+    ExecutionOrderTrace,
+)
 from .execution_activation_gate import (
     ACTIVATION_BLOCK_ACTIVATION_DISABLED,
     ACTIVATION_BLOCK_ACTIVATION_MODE_NOT_ALLOWED,
@@ -81,6 +93,16 @@ from .execution_plan import (
 )
 
 __all__ = [
+    "ADAPTER_BLOCK_DECISION_NOT_READY",
+    "ADAPTER_BLOCK_INVALID_DECISION_CONTRACT",
+    "ADAPTER_BLOCK_INVALID_DECISION_INPUT",
+    "ADAPTER_BLOCK_NON_ACTIVATING_REQUIRED",
+    "ADAPTER_BLOCK_UPSTREAM_NOT_ALLOWED",
+    "ExecutionAdapter",
+    "ExecutionAdapterDecisionInput",
+    "ExecutionOrderBuildResult",
+    "ExecutionOrderSpec",
+    "ExecutionOrderTrace",
     "ACTIVATION_BLOCK_ACTIVATION_DISABLED",
     "ACTIVATION_BLOCK_ACTIVATION_MODE_NOT_ALLOWED",
     "ACTIVATION_BLOCK_ALREADY_READY_FOR_EXECUTION",
