@@ -20,8 +20,8 @@
 - Phase 3 Execution-Safe MVP (3.1–3.11), Phase 4 Multi-User Public Architecture (4.1–4.11), and Phases 5–6 remain not started.
 
 🎯 NEXT PRIORITY
-1. SENTINEL validation required for Phase 2.9 dual-mode routing before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_67_phase2_9_dual_mode_routing_foundation_rerun.md. Tier: MAJOR
-2. Auto PR review (Codex/Gemini/Copilot) + COMMANDER review for AGENTS.md branch enforcement PR. Source: projects/polymarket/polyquantbot/reports/forge/24_68_agents_branch_enforcement.md. Tier: MINOR
+- SENTINEL validation required for Phase 2.9 dual-mode routing before merge. Source: projects/polymarket/polyquantbot/reports/forge/24_67_phase2_9_dual_mode_routing_foundation_rerun.md. Tier: MAJOR
+- Auto PR review (Codex/Gemini/Copilot) + COMMANDER review for AGENTS.md branch enforcement PR. Source: projects/polymarket/polyquantbot/reports/forge/24_68_agents_branch_enforcement.md. Tier: MINOR
 
 ⚠️ KNOWN ISSUES
 - Phase 2.9 routing remains structural foundation only; no live/public activation, runtime traffic switching, or execution-path enablement is delivered.
