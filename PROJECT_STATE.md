@@ -1,13 +1,16 @@
 # PROJECT_STATE.md
 
 ## 📅 Last Updated
-2026-04-12 21:32
+2026-04-12 21:45
 
 ## 🔄 Status
-— **FORGE-X COMPLETE — Phase 4.3 (STANDARD, NARROW INTEGRATION)**
-Deterministic execution gateway now orchestrates non-executing decision → adapter → exchange request → mocked response flow with explicit blocked propagation and no runtime/network side effects.
+— **FORGE-X COMPLETE — Phase 4.4 (STANDARD, NARROW INTEGRATION)**
+Deterministic execution mode controller now authoritatively enforces SIMULATION/DRY_RUN policy gating, explicit LIVE recognition with deterministic block, and non-executing-safe defaults without runtime/network side effects.
 
 ## ✅ COMPLETED
+- **Phase 4.4 execution mode controller (authoritative non-executing mode-control layer)** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_mode_controller.py` with explicit deterministic contracts (`ExecutionModeGatewayInput`, `ExecutionModePolicyInput`, `ExecutionModeDecision`, `ExecutionModeTrace`, `ExecutionModeBuildResult`) and deterministic blocked outcomes for invalid gateway input contract, invalid policy input contract, invalid gateway result, invalid policy input, gateway-not-accepted, unknown mode, disabled mode flags, LIVE-mode block, and non-executing enforcement.
+- Added `ExecutionModeController` (`evaluate_mode`, `evaluate_mode_with_trace`) to provide deterministic authoritative mode outcomes for SIMULATION and DRY_RUN allow paths (explicit policy only), explicit LIVE recognition with deterministic block, and safe-default block behavior.
+- **Phase 4.4 tests added** in `projects/polymarket/polyquantbot/tests/test_phase4_4_execution_mode_controller_20260412.py` covering allowed SIMULATION/DRY_RUN paths, LIVE block, deterministic contract/policy block paths, determinism equality, field safety, and None/dict/wrong-object safety.
 - **Phase 4.3 execution gateway (controlled orchestration layer)** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_gateway.py` with explicit deterministic contracts (`ExecutionGatewayDecisionInput`, `ExecutionGatewayResult`, `ExecutionGatewayTrace`, `ExecutionGatewayBuildResult`) and deterministic blocked outcomes for invalid gateway input, invalid decision contract, adapter blocked, exchange interface blocked, and mocked response rejection.
 - Added `ExecutionGateway` (`simulate_execution`, `simulate_execution_with_trace`) to orchestrate deterministic simulated flow without bypassing adapter/interface validation and without introducing execution/network/wallet/signing/capital side effects.
 - **Phase 4.3 tests added** in `projects/polymarket/polyquantbot/tests/test_phase4_3_execution_gateway_20260412.py` covering valid full path, all blocked/rejected propagation paths, determinism equality, client order id preservation, field safety, and None/dict/wrong-object input safety.
@@ -29,12 +32,13 @@ Deterministic execution gateway now orchestrates non-executing decision → adap
 ## 📋 NOT STARTED
 - **Phase 2 task 2.10:** Fly.io staging deploy.
 - **Phase 2 tasks 2.11–2.13:** multi-user DB schema, audit/event log schema, wallet context abstraction.
-- **Phase 3 remaining tasks (3.7, 3.9–3.11), Phase 4 Multi-User Public Architecture (4.4–4.11), and Phases 5–6** remain not started.
+- **Phase 3 remaining tasks (3.7, 3.9–3.11), Phase 4 Multi-User Public Architecture (4.5–4.11), and Phases 5–6** remain not started.
 
 ## 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/24_80_phase4_3_execution_gateway.md. Tier: STANDARD
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/24_81_phase4_4_execution_mode_controller.md. Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
+- Execution mode controller remains intentionally non-executing and default-safe (`live_capable=False`, `simulated=True`, `non_executing=True` enforced); LIVE is recognized but blocked deterministically in Phase 4.4.
 - Execution gateway remains intentionally simulated-only and non-executing (`simulated=True`, `non_executing=True` enforced); no execution engine/order submission/wallet/signing/capital/network wiring.
 - Exchange client interface remains intentionally non-executing and mocked-only (`SIMULATED_TRANSPORT` + deterministic mock response); no gateway/execution engine/order submission/wallet/signing/capital/network wiring.
 - Execution adapter remains intentionally non-executing and mapping-only (`non_executing=True` enforced); no gateway/execution engine/order submission/wallet/signing/capital/network wiring yet.
