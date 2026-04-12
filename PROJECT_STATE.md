@@ -1,13 +1,15 @@
 # PROJECT_STATE.md
-## Walker AI DevOps
-
 ## 📅 Last Updated
-2026-04-12 18:40
+2026-04-12 20:34
 
 ## 🔄 Status
-✅ **SENTINEL APPROVED — Phase 3.8 (MAJOR, NARROW INTEGRATION)** rerun validation confirms deterministic default-off controlled readiness unlock only; no order/wallet/signing/capital/runtime side-effect path introduced.
+✅ **FORGE-X COMPLETE — Phase 4.1 (STANDARD, NARROW INTEGRATION)** deterministic execution adapter now maps activated internal decisions into explicit external-order-ready non-executing order contracts with deterministic blocking and no runtime side effects.
 
 ## ✅ COMPLETED
+- **Phase 4.1 execution adapter (mapping-only boundary)** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_adapter.py` with explicit deterministic contracts (`ExecutionOrderSpec`, `ExecutionOrderTrace`, `ExecutionOrderBuildResult`) and deterministic blocked outcomes for invalid top-level input, invalid decision contract, upstream not allowed, decision not ready, and non-activating enforcement.
+- Added `ExecutionAdapter` (`build_order`, `build_order_with_trace`) and typed adapter input (`ExecutionAdapterDecisionInput`) with explicit deterministic side/routing/symbol mapping to external-order-ready fields and hard `non_executing=True` enforcement.
+- **Phase 4.1 tests added** in `projects/polymarket/polyquantbot/tests/test_phase4_1_execution_adapter_20260412.py` covering valid mapping, deterministic blocking paths, mapping correctness, deterministic equality, non-execution field safety, and None/dict/wrong-object input safety.
+- **Phase 3.8 baseline remains green** in `projects/polymarket/polyquantbot/tests/test_phase3_8_execution_activation_gate_20260412.py`.
 - **SENTINEL rerun validation complete (PR #439, Phase 3.8)** in `projects/polymarket/polyquantbot/reports/sentinel/24_77_phase3_8_execution_activation_gate_validation_rerun.md` with verdict **APPROVED (98/100)**, zero critical findings, deterministic default-off gating confirmed, and execution boundary preserved as controlled-readiness only.
 - **Phase 3.8 execution activation gate (controlled unlock layer)** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_activation_gate.py` with deterministic explicit activation contracts (`ExecutionActivationDecision`, `ExecutionActivationTrace`, `ExecutionActivationBuildResult`) and deterministic blocked outcomes for invalid contracts/inputs, upstream blocked decisions, disabled activation policy, disallowed activation mode, already-ready source, non-activating enforcement, and simulation-only enforcement.
 - Added `ExecutionActivationGate` (`evaluate`, `evaluate_with_trace`) and typed activation inputs (`ExecutionActivationDecisionInput`, `ExecutionActivationPolicyInput`) with explicit default-off policy semantics and deterministic local-only policy evaluation.
@@ -40,12 +42,13 @@
 ## 📋 NOT STARTED
 - **Phase 2 task 2.10:** Fly.io staging deploy.
 - **Phase 2 tasks 2.11–2.13:** multi-user DB schema, audit/event log schema, wallet context abstraction.
-- **Phase 3 remaining tasks (3.7, 3.9–3.11), Phase 4 Multi-User Public Architecture (4.1–4.11), and Phases 5–6** remain not started.
+- **Phase 3 remaining tasks (3.7, 3.9–3.11), Phase 4 Multi-User Public Architecture (4.2–4.11), and Phases 5–6** remain not started.
 
 ## 🎯 NEXT PRIORITY
-- COMMANDER merge decision on PR #439 (SENTINEL APPROVED). Source: projects/polymarket/polyquantbot/reports/sentinel/24_77_phase3_8_execution_activation_gate_validation_rerun.md. Tier: MAJOR
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/24_78_phase4_1_execution_adapter.md. Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
+- Execution adapter remains intentionally non-executing and mapping-only (`non_executing=True` enforced); no gateway/execution engine/order submission/wallet/signing/capital/network wiring yet.
 - Path-based test portability issues (manual port override required in CI).
 - Non-activating constraint remains in place.
 - Dual-mode routing remains non-runtime and structural-only.
