@@ -14,6 +14,20 @@ from .execution_intent import (
     ExecutionIntentSignalInput,
     ExecutionIntentTrace,
 )
+from .execution_plan import (
+    PLAN_BLOCK_INVALID_INTENT_CONTRACT,
+    PLAN_BLOCK_INVALID_INTENT_INPUT,
+    PLAN_BLOCK_INVALID_MARKET_CONTEXT,
+    PLAN_BLOCK_INVALID_MARKET_CONTEXT_CONTRACT,
+    PLAN_BLOCK_MARKET_CONTEXT_MISMATCH,
+    PLAN_BLOCK_MARKET_NOT_PLANNABLE,
+    ExecutionPlan,
+    ExecutionPlanBuilder,
+    ExecutionPlanBuildResult,
+    ExecutionPlanIntentInput,
+    ExecutionPlanMarketContextInput,
+    ExecutionPlanTrace,
+)
 
 __all__ = [
     "INTENT_BLOCK_INVALID_ROUTING_CONTRACT",
@@ -28,4 +42,16 @@ __all__ = [
     "ExecutionIntentRoutingInput",
     "ExecutionIntentSignalInput",
     "ExecutionIntentTrace",
+    "PLAN_BLOCK_INVALID_INTENT_CONTRACT",
+    "PLAN_BLOCK_INVALID_INTENT_INPUT",
+    "PLAN_BLOCK_INVALID_MARKET_CONTEXT",
+    "PLAN_BLOCK_INVALID_MARKET_CONTEXT_CONTRACT",
+    "PLAN_BLOCK_MARKET_CONTEXT_MISMATCH",
+    "PLAN_BLOCK_MARKET_NOT_PLANNABLE",
+    "ExecutionPlan",
+    "ExecutionPlanBuilder",
+    "ExecutionPlanBuildResult",
+    "ExecutionPlanIntentInput",
+    "ExecutionPlanMarketContextInput",
+    "ExecutionPlanTrace",
 ]
