@@ -1,13 +1,16 @@
 # PROJECT_STATE.md
 
 ## 📅 Last Updated
-2026-04-12 21:15
+2026-04-12 21:32
 
 ## 🔄 Status
-— **FORGE-X COMPLETE — Phase 4.2 (STANDARD, NARROW INTEGRATION)**
-Deterministic exchange client interface now maps non-executing order specs into transport-ready requests with deterministic mocked responses and no network/runtime side effects.
+— **FORGE-X COMPLETE — Phase 4.3 (STANDARD, NARROW INTEGRATION)**
+Deterministic execution gateway now orchestrates non-executing decision → adapter → exchange request → mocked response flow with explicit blocked propagation and no runtime/network side effects.
 
 ## ✅ COMPLETED
+- **Phase 4.3 execution gateway (controlled orchestration layer)** implemented in `projects/polymarket/polyquantbot/platform/execution/execution_gateway.py` with explicit deterministic contracts (`ExecutionGatewayDecisionInput`, `ExecutionGatewayResult`, `ExecutionGatewayTrace`, `ExecutionGatewayBuildResult`) and deterministic blocked outcomes for invalid gateway input, invalid decision contract, adapter blocked, exchange interface blocked, and mocked response rejection.
+- Added `ExecutionGateway` (`simulate_execution`, `simulate_execution_with_trace`) to orchestrate deterministic simulated flow without bypassing adapter/interface validation and without introducing execution/network/wallet/signing/capital side effects.
+- **Phase 4.3 tests added** in `projects/polymarket/polyquantbot/tests/test_phase4_3_execution_gateway_20260412.py` covering valid full path, all blocked/rejected propagation paths, determinism equality, client order id preservation, field safety, and None/dict/wrong-object input safety.
 - **Phase 4.2 exchange client interface (transport-boundary-only)** implemented in `projects/polymarket/polyquantbot/platform/execution/exchange_client_interface.py` with explicit deterministic contracts (`ExchangeRequest`, `ExchangeResponse`, `ExchangeRequestTrace`, `ExchangeRequestBuildResult`) and deterministic blocked outcomes for invalid top-level input, invalid order contract, non-executing boundary violations, and invalid transport fields.
 - Added `ExchangeClientInterface` (`build_request`, `build_request_with_trace`) and typed transport input (`ExchangeClientOrderInput`) with explicit deterministic mapping from `ExecutionOrderSpec` external transport fields into `ExchangeRequest` and deterministic client_order_id generation from stable fields only.
 - **Phase 4.2 tests added** in `projects/polymarket/polyquantbot/tests/test_phase4_2_exchange_client_interface_20260412.py` covering valid request/response path, deterministic blocking paths, deterministic `client_order_id`, deterministic request equality, mapping correctness, no network/API field introduction, and None/dict/wrong-object safety.
@@ -26,12 +29,13 @@ Deterministic exchange client interface now maps non-executing order specs into 
 ## 📋 NOT STARTED
 - **Phase 2 task 2.10:** Fly.io staging deploy.
 - **Phase 2 tasks 2.11–2.13:** multi-user DB schema, audit/event log schema, wallet context abstraction.
-- **Phase 3 remaining tasks (3.7, 3.9–3.11), Phase 4 Multi-User Public Architecture (4.3–4.11), and Phases 5–6** remain not started.
+- **Phase 3 remaining tasks (3.7, 3.9–3.11), Phase 4 Multi-User Public Architecture (4.4–4.11), and Phases 5–6** remain not started.
 
 ## 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/24_79_phase4_2_exchange_client_interface.md. Tier: STANDARD
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/24_80_phase4_3_execution_gateway.md. Tier: STANDARD
 
 ## ⚠️ KNOWN ISSUES
+- Execution gateway remains intentionally simulated-only and non-executing (`simulated=True`, `non_executing=True` enforced); no execution engine/order submission/wallet/signing/capital/network wiring.
 - Exchange client interface remains intentionally non-executing and mocked-only (`SIMULATED_TRANSPORT` + deterministic mock response); no gateway/execution engine/order submission/wallet/signing/capital/network wiring.
 - Execution adapter remains intentionally non-executing and mapping-only (`non_executing=True` enforced); no gateway/execution engine/order submission/wallet/signing/capital/network wiring yet.
 - Path-based test portability issues (manual port override required in CI).
