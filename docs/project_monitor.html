@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>CRUSADER — Project Monitor</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #07090f;
@@ -21,7 +21,7 @@
   --muted: #3d5570;
   --mid: #6a8aaa;
   --mono: 'JetBrains Mono', monospace;
-  --sans: 'Syne', sans-serif;
+  --sans: 'Outfit', sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -82,7 +82,7 @@ header {
 }
 
 .brand-name {
-  font-size: 20px; font-weight: 800; letter-spacing: -.5px;
+  font-size: 20px; font-weight: 700; letter-spacing: -.3px;
   background: linear-gradient(90deg, var(--text) 60%, var(--blue));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
@@ -127,7 +127,8 @@ header {
 
 /* ── HEADER INFO STRIP ── */
 .header-strip {
-  display: flex; align-items: stretch;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   border: 1px solid var(--border);
   border-radius: 10px; overflow: hidden;
   margin-bottom: 0;
@@ -135,21 +136,30 @@ header {
 }
 
 .strip-item {
-  flex: 1; padding: 9px 12px;
+  padding: 9px 10px;
   border-right: 1px solid var(--border);
-  min-width: 0;
+  min-width: 0; overflow: hidden;
 }
 
-.strip-item:last-child { border-right: none; }
+.strip-item:last-child  { border-right: none; }
+.strip-item:nth-child(4),
+.strip-item:nth-child(5) { display: none; }
+
+@media(min-width: 520px) {
+  .header-strip { grid-template-columns: repeat(5, 1fr); }
+  .strip-item:nth-child(4),
+  .strip-item:nth-child(5) { display: block; }
+}
 
 .strip-label {
   font-family: var(--mono); font-size: 8px;
-  color: var(--muted); letter-spacing: .1em;
-  text-transform: uppercase; margin-bottom: 3px;
+  color: var(--muted); letter-spacing: .08em;
+  text-transform: uppercase; margin-bottom: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .strip-val {
-  font-family: var(--mono); font-size: 12px; font-weight: 500;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
@@ -191,15 +201,9 @@ header {
   gap: 10px; margin-bottom: 18px;
 }
 
-@media (min-width: 720px) {
-  .hero { grid-template-columns: repeat(4, 1fr); }
-  .brand-name { font-size: 22px; }
-  .strip-val  { font-size: 13px; }
-}
-
 .hero-card {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 16px 14px;
+  border-radius: 12px; padding: 12px;
   position: relative; overflow: hidden;
 }
 
@@ -210,20 +214,34 @@ header {
 }
 
 .hero-label {
-  font-family: var(--mono); font-size: 9px;
-  color: var(--muted); letter-spacing: .1em;
-  text-transform: uppercase; margin-bottom: 10px;
+  font-family: var(--mono); font-size: 8px;
+  color: var(--muted); letter-spacing: .08em;
+  text-transform: uppercase; margin-bottom: 8px;
 }
 
 .hero-val {
-  font-size: 28px; font-weight: 800;
-  letter-spacing: -1px; line-height: 1;
-  color: var(--accent, var(--green)); margin-bottom: 6px;
+  font-size: 20px; font-weight: 700;
+  letter-spacing: -.5px; line-height: 1.1;
+  color: var(--accent, var(--green)); margin-bottom: 5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 .hero-sub {
   font-family: var(--mono); font-size: 9px;
-  color: var(--muted); line-height: 1.6;
+  color: var(--muted); line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+@media (min-width: 520px) {
+  .hero-val { font-size: 26px; }
+}
+
+@media (min-width: 720px) {
+  .hero       { grid-template-columns: repeat(4, 1fr); }
+  .brand-name { font-size: 22px; }
+  .strip-val  { font-size: 13px; }
+  .hero-val   { font-size: 30px; letter-spacing: -1px; }
+  .hero-card  { padding: 16px 14px; }
 }
 
 /* ── SUMMARY / FOCUS CARDS ── */
@@ -236,12 +254,14 @@ header {
 .summary-label, .focus-label {
   font-family: var(--mono); font-size: 9px;
   color: var(--green); text-transform: uppercase;
-  letter-spacing: .1em; margin-bottom: 8px;
+  letter-spacing: .12em; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
 }
 
 .summary-text, .focus-text {
-  font-size: 13px; line-height: 1.7;
+  font-size: 13px; line-height: 1.65;
   color: var(--text); overflow-wrap: anywhere;
+  font-weight: 300;
 }
 
 /* ── GRID ── */
@@ -292,13 +312,15 @@ header {
 }
 
 .row-left { flex: 1; min-width: 0; }
-.row-main { font-size: 12.5px; line-height: 1.5; color: var(--text); word-break: break-word; }
-.row-sub  { margin-top: 4px; font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.6; word-break: break-word; }
+.row-main { font-size: 12.5px; line-height: 1.5; color: var(--text); word-break: break-word; font-weight: 400; }
+.row-sub  { margin-top: 3px; font-size: 11px; color: var(--muted); line-height: 1.5; word-break: break-word; font-weight: 300; }
 
 /* ── BADGES ── */
 .badge {
   flex-shrink: 0; font-family: var(--mono); font-size: 9px;
-  padding: 2px 8px; border-radius: 10px;
+  padding: 2px 7px; border-radius: 10px;
+  white-space: nowrap; max-width: 90px;
+  overflow: hidden; text-overflow: ellipsis;
 }
 
 .ok   { color: var(--green);  background: rgba(0,245,160,.08);  border: 1px solid rgba(0,245,160,.2); }
@@ -326,8 +348,9 @@ header {
 }
 
 .cap-sub {
-  margin-top: 4px; font-family: var(--mono); font-size: 9px;
-  color: var(--muted); line-height: 1.6; word-break: break-word;
+  margin-top: 4px; font-size: 11px;
+  color: var(--muted); line-height: 1.5;
+  word-break: break-word; font-weight: 300;
 }
 
 .cap-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
@@ -395,8 +418,8 @@ header {
 
 .target-row:last-child { border-bottom: none; }
 
-.target-label { flex: 1; color: var(--mid); font-size: 12px; }
-.target-val   { font-family: var(--mono); font-size: 11px; text-align: right; }
+.target-label { flex: 1; color: var(--mid); font-size: 12px; font-weight: 400; }
+.target-val   { font-family: var(--mono); font-size: 10px; text-align: right; flex-shrink: 0; white-space: nowrap; }
 .beta   { color: var(--yellow); }
 .launch { color: var(--green);  }
 
@@ -457,7 +480,7 @@ footer {
     <!-- Info strip: key metrics always visible -->
     <div class="header-strip">
       <div class="strip-item">
-        <div class="strip-label">Active Phase</div>
+        <div class="strip-label">Phase</div>
         <div class="strip-val green" id="stripPhase">—</div>
       </div>
       <div class="strip-item">
@@ -465,12 +488,12 @@ footer {
         <div class="strip-val blue" id="stripPRs">—</div>
       </div>
       <div class="strip-item">
-        <div class="strip-label">In Progress</div>
-        <div class="strip-val yellow" id="stripProgress">—</div>
+        <div class="strip-label">Bot</div>
+        <div class="strip-val mid" id="stripBot">BUILD</div>
       </div>
       <div class="strip-item">
-        <div class="strip-label">Bot Status</div>
-        <div class="strip-val mid" id="stripBot">🔨 BUILD</div>
+        <div class="strip-label">In Progress</div>
+        <div class="strip-val yellow" id="stripProgress">—</div>
       </div>
       <div class="strip-item">
         <div class="strip-label">Last Commit</div>
@@ -1095,11 +1118,14 @@ function render() {
 
   // Update header strip
   const active = state.phases.find(p => p.status === '🚧') || state.phases[state.phases.length - 1];
-  document.getElementById('stripPhase').textContent   = active ? active.num.replace('Phase ', 'P') + ' — ' + active.name : '—';
-  document.getElementById('stripPRs').textContent     = String(state.prs.length);
-  document.getElementById('stripProgress').textContent = String(state.inProgress.length) + ' tasks';
+  const pNum = active ? active.num.replace('Phase ', 'P') : '—';
+  const pShort = active ? pNum + ' · ' + active.name.split(' ').slice(0,3).join(' ') : '—';
+  document.getElementById('stripPhase').textContent    = pShort;
+  document.getElementById('stripPRs').textContent      = state.prs.length + ' open';
+  document.getElementById('stripProgress').textContent = state.inProgress.length + ' tasks';
+  document.getElementById('stripBot').textContent      = 'BUILD MODE';
   const lastCommit = state.commits[0];
-  document.getElementById('stripCommit').textContent  = lastCommit ? lastCommit.when : '—';
+  document.getElementById('stripCommit').textContent   = lastCommit ? lastCommit.when : '—';
 
   document.getElementById('summaryLabel').textContent   = data.summaryLabel;
   document.getElementById('summaryText').textContent    = data.summaryText;
