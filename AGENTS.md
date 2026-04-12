@@ -2050,6 +2050,33 @@ Done ⚠️ — GO-LIVE: [verdict]. Write failed. Report in chat for manual push
 📱 TELEGRAM PREVIEW
 [dashboard + alert format + commands]
 ```
+SENTINEL BRANCH / PR RULE
+
+SENTINEL must never open a direct PR to main.
+
+SENTINEL validates the active source PR or exact working branch.
+If SENTINEL must save a report or PROJECT_STATE update, it must do so without bypassing the original delivery path.
+
+Allowed:
+- validate the existing source PR
+- update/report against the exact validated branch
+- return findings to COMMANDER
+
+Not allowed:
+- direct PR from SENTINEL to main
+- bypassing the FORGE-X delivery branch
+- creating a separate merge path that breaks audit continuity
+
+SENTINEL final output must include:
+Done ✅ — GO-LIVE: [verdict]. Score: [X]/100. Critical: [N].
+Branch: [exact validated branch]
+PR target: [source working branch], never main
+Report: {PROJECT_ROOT}/reports/sentinel/[filename].md
+State: PROJECT_STATE.md updated
+
+NEXT GATE:
+Return to COMMANDER for final decision on the validated source PR.
+SENTINEL must not merge or route directly to main.
 
 ### SENTINEL NEVER
 
