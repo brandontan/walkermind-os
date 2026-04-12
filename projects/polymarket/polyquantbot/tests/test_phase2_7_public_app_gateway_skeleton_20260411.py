@@ -3,12 +3,15 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
+import pytest
+
 from projects.polymarket.polyquantbot.api import build_api_gateway_boundary
 from projects.polymarket.polyquantbot.legacy.adapters.context_bridge import LegacyContextBridge
 from projects.polymarket.polyquantbot.platform.context.resolver import LegacySessionSeed
 from projects.polymarket.polyquantbot.platform.gateway import (
     LEGACY_CORE_FACADE_CONTEXT_RESOLVER,
     PUBLIC_APP_GATEWAY_DISABLED,
+    PUBLIC_APP_GATEWAY_LEGACY_ONLY,
     PUBLIC_APP_GATEWAY_LEGACY_FACADE,
     PublicAppGatewayDisabled,
     PublicAppGatewayLegacyFacade,
@@ -37,6 +40,7 @@ def test_phase2_7_gateway_import_export_continuity() -> None:
     assert isinstance(gateway, PublicAppGatewayDisabled)
     assert PUBLIC_APP_GATEWAY_DISABLED == "disabled"
     assert PUBLIC_APP_GATEWAY_LEGACY_FACADE == "legacy-facade"
+    assert PUBLIC_APP_GATEWAY_LEGACY_ONLY == "legacy-only"
 
 
 def test_phase2_7_gateway_default_mode_is_deterministic_non_activating() -> None:
@@ -52,13 +56,13 @@ def test_phase2_7_gateway_default_mode_is_deterministic_non_activating() -> None
 
 
 def test_phase2_7_gateway_explicit_legacy_facade_construction_is_available() -> None:
-    gateway = build_public_app_gateway(mode=PUBLIC_APP_GATEWAY_LEGACY_FACADE)
+    gateway = build_public_app_gateway(mode=PUBLIC_APP_GATEWAY_LEGACY_ONLY)
     resolution = gateway.resolve(_seed())
 
     assert isinstance(gateway, PublicAppGatewayLegacyFacade)
     assert resolution.activated is False
     assert resolution.runtime_routing_active is False
-    assert resolution.mode == PUBLIC_APP_GATEWAY_LEGACY_FACADE
+    assert resolution.mode == PUBLIC_APP_GATEWAY_LEGACY_ONLY
     assert resolution.facade_resolution is not None
     assert resolution.facade_resolution.activated is True
 
@@ -72,11 +76,12 @@ def test_phase2_7_legacy_facade_mode_composes_via_phase2_8_factory_constant() ->
         mocked.assert_called_once()
         assert mocked.call_args.kwargs["mode"] == LEGACY_CORE_FACADE_CONTEXT_RESOLVER
 
-def test_phase2_7_gateway_mode_parser_uses_safe_default_for_unknown_values() -> None:
+def test_phase2_7_gateway_mode_parser_fails_closed_for_unknown_values() -> None:
     os.environ["PLATFORM_PUBLIC_APP_GATEWAY_MODE"] = "unknown-mode"
     try:
-        assert parse_public_app_gateway_mode() == PUBLIC_APP_GATEWAY_DISABLED
-        assert parse_public_app_gateway_mode("legacy-facade") == PUBLIC_APP_GATEWAY_LEGACY_FACADE
+        with pytest.raises(ValueError, match="invalid_gateway_mode"):
+            parse_public_app_gateway_mode()
+        assert parse_public_app_gateway_mode("legacy-facade") == PUBLIC_APP_GATEWAY_LEGACY_ONLY
         assert parse_public_app_gateway_mode(" DISABLED ") == PUBLIC_APP_GATEWAY_DISABLED
     finally:
         os.environ.pop("PLATFORM_PUBLIC_APP_GATEWAY_MODE", None)
