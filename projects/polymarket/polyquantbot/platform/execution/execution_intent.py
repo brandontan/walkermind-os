@@ -5,6 +5,41 @@ from typing import Any
 
 INTENT_BLOCK_READINESS_FAILED = "readiness_failed"
 INTENT_BLOCK_RISK_VALIDATION_FAILED = "risk_validation_failed"
+INTENT_BLOCK_INVALID_ROUTING_CONTRACT = "invalid_routing_contract"
+INTENT_BLOCK_INVALID_SIGNAL_CONTRACT = "invalid_signal_contract"
+
+_ALLOWED_SIDES: frozenset[str] = frozenset({"BUY", "SELL"})
+_ALLOWED_ROUTING_MODES: frozenset[str] = frozenset(
+    {
+        "disabled",
+        "legacy-only",
+        "platform-gateway-shadow",
+        "platform-gateway-primary",
+    }
+)
+
+
+@dataclass(frozen=True)
+class ExecutionIntentSignalInput:
+    market_id: str
+    outcome: str
+    side: str
+    size: float
+    price: float | None
+    confidence: float | None
+    source_signal_id: str | None
+
+
+@dataclass(frozen=True)
+class ExecutionIntentRoutingInput:
+    routing_mode: str
+
+
+@dataclass(frozen=True)
+class ExecutionIntentReadinessInput:
+    can_execute: bool
+    block_reason: str | None
+    risk_validation_decision: str | None
 
 
 @dataclass(frozen=True)
@@ -35,57 +70,52 @@ class ExecutionIntentBuildResult:
 
 
 class ExecutionIntentBuilder:
-    """Phase 3.2 deterministic, non-activating intent modeling builder."""
+    """Phase 3.3 deterministic, non-activating intent contract builder."""
 
     def build_from_readiness(
         self,
-        readiness_result: Any,
-        routing_result: Any,
-        signal: Any,
+        readiness_input: ExecutionIntentReadinessInput,
+        routing_input: ExecutionIntentRoutingInput,
+        signal_input: ExecutionIntentSignalInput,
     ) -> ExecutionIntent | None:
         return self.build_with_trace(
-            readiness_result=readiness_result,
-            routing_result=routing_result,
-            signal=signal,
+            readiness_input=readiness_input,
+            routing_input=routing_input,
+            signal_input=signal_input,
         ).intent
 
     def build_with_trace(
         self,
         *,
-        readiness_result: Any,
-        routing_result: Any,
-        signal: Any,
+        readiness_input: ExecutionIntentReadinessInput,
+        routing_input: ExecutionIntentRoutingInput,
+        signal_input: ExecutionIntentSignalInput,
     ) -> ExecutionIntentBuildResult:
-        readiness_can_execute = bool(_extract_field(readiness_result, "can_execute", False))
-        readiness_block_reason = _extract_field(readiness_result, "block_reason", None)
-        risk_decision = _extract_risk_decision(readiness_result)
-        risk_validated = risk_decision == "ALLOW"
-
         upstream_trace_refs: dict[str, Any] = {
             "readiness": {
-                "can_execute": readiness_can_execute,
-                "block_reason": readiness_block_reason,
-                "risk_validation_decision": risk_decision,
+                "can_execute": readiness_input.can_execute,
+                "block_reason": readiness_input.block_reason,
+                "risk_validation_decision": readiness_input.risk_validation_decision,
             },
             "routing": {
-                "selected_mode": _extract_routing_mode(routing_result),
+                "selected_mode": routing_input.routing_mode,
             },
             "signal": {
-                "source_signal_id": _extract_field(signal, "source_signal_id", None),
+                "source_signal_id": signal_input.source_signal_id,
             },
         }
 
-        if not readiness_can_execute:
+        if not readiness_input.can_execute:
             return ExecutionIntentBuildResult(
                 intent=None,
                 trace=ExecutionIntentTrace(
                     intent_created=False,
-                    blocked_reason=str(readiness_block_reason or INTENT_BLOCK_READINESS_FAILED),
+                    blocked_reason=str(readiness_input.block_reason or INTENT_BLOCK_READINESS_FAILED),
                     upstream_trace_refs=upstream_trace_refs,
                 ),
             )
 
-        if not risk_validated:
+        if readiness_input.risk_validation_decision != "ALLOW":
             return ExecutionIntentBuildResult(
                 intent=None,
                 trace=ExecutionIntentTrace(
@@ -95,17 +125,45 @@ class ExecutionIntentBuilder:
                 ),
             )
 
+        routing_error = _validate_routing_contract(routing_input)
+        if routing_error is not None:
+            return ExecutionIntentBuildResult(
+                intent=None,
+                trace=ExecutionIntentTrace(
+                    intent_created=False,
+                    blocked_reason=INTENT_BLOCK_INVALID_ROUTING_CONTRACT,
+                    upstream_trace_refs={
+                        **upstream_trace_refs,
+                        "contract_errors": {"routing": routing_error},
+                    },
+                ),
+            )
+
+        signal_error = _validate_signal_contract(signal_input)
+        if signal_error is not None:
+            return ExecutionIntentBuildResult(
+                intent=None,
+                trace=ExecutionIntentTrace(
+                    intent_created=False,
+                    blocked_reason=INTENT_BLOCK_INVALID_SIGNAL_CONTRACT,
+                    upstream_trace_refs={
+                        **upstream_trace_refs,
+                        "contract_errors": {"signal": signal_error},
+                    },
+                ),
+            )
+
         intent = ExecutionIntent(
-            market_id=str(_extract_field(signal, "market_id", "")),
-            outcome=str(_extract_field(signal, "outcome", "")),
-            side=str(_extract_field(signal, "side", "BUY")),
-            size=float(_extract_field(signal, "size", 0.0)),
-            price=_coerce_optional_float(_extract_field(signal, "price", None)),
-            confidence=_coerce_optional_float(_extract_field(signal, "confidence", None)),
-            source_signal_id=_coerce_optional_str(_extract_field(signal, "source_signal_id", None)),
-            routing_mode=_extract_routing_mode(routing_result),
-            risk_validated=risk_validated,
-            readiness_passed=readiness_can_execute,
+            market_id=signal_input.market_id,
+            outcome=signal_input.outcome,
+            side=signal_input.side,
+            size=signal_input.size,
+            price=signal_input.price,
+            confidence=signal_input.confidence,
+            source_signal_id=signal_input.source_signal_id,
+            routing_mode=routing_input.routing_mode,
+            risk_validated=True,
+            readiness_passed=True,
         )
 
         return ExecutionIntentBuildResult(
@@ -118,39 +176,22 @@ class ExecutionIntentBuilder:
         )
 
 
-def _extract_field(source: Any, key: str, default: Any) -> Any:
-    if source is None:
-        return default
-    if isinstance(source, dict):
-        return source.get(key, default)
-    return getattr(source, key, default)
-
-
-def _extract_routing_mode(routing_result: Any) -> str:
-    return str(
-        _extract_field(routing_result, "selected_mode", None)
-        or _extract_field(routing_result, "routing_mode", None)
-        or "unknown"
-    )
-
-
-def _extract_risk_decision(readiness_result: Any) -> str | None:
-    readiness_checks = _extract_field(readiness_result, "readiness_checks", None)
-    if isinstance(readiness_checks, dict):
-        decision = readiness_checks.get("risk_validation_decision")
-        if decision is None:
-            return None
-        return str(decision)
+def _validate_routing_contract(routing_input: ExecutionIntentRoutingInput) -> str | None:
+    routing_mode = routing_input.routing_mode.strip()
+    if not routing_mode:
+        return "routing_mode_required"
+    if routing_mode not in _ALLOWED_ROUTING_MODES:
+        return "routing_mode_not_allowed"
     return None
 
 
-def _coerce_optional_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    return float(value)
-
-
-def _coerce_optional_str(value: Any) -> str | None:
-    if value is None:
-        return None
-    return str(value)
+def _validate_signal_contract(signal_input: ExecutionIntentSignalInput) -> str | None:
+    if not signal_input.market_id.strip():
+        return "market_id_required"
+    if not signal_input.outcome.strip():
+        return "outcome_required"
+    if signal_input.side not in _ALLOWED_SIDES:
+        return "side_not_allowed"
+    if signal_input.size < 0:
+        return "size_must_be_non_negative"
+    return None
