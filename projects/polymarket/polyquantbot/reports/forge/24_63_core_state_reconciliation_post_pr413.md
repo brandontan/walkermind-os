@@ -10,7 +10,7 @@
 
 ## 1. What was built
 
-- Reconciled repository state files after PR #413 merge by updating root `PROJECT_STATE.md` and `ROADMAP.md`.
+- Reconciled repository state files after PR #413 merge by updating root `PROJECT_STATE.md` while preserving still-valid active context and unresolved issue ledger details, with ROADMAP changes preserved.
 - Removed stale “COMMANDER merge decision required for PR #413” state and replaced with merged/closed truth:
   - PR #413 merged (squash)
   - PR #420 closed (redundant)
@@ -20,7 +20,7 @@
 ## 2. Current system architecture
 
 - Runtime architecture is unchanged in this task.
-- Project governance and planning truth is now synchronized across state and roadmap artifacts.
+- Project governance and planning artifacts were reconciled for PR #413/#420 without claiming full system closure.
 - Phase 2.7 remains documented as seam/foundation status only, with no runtime/public activation claim.
 
 ## 3. Files created / modified (full paths)
@@ -31,14 +31,14 @@
 
 ## 4. What is working
 
-- State references now align with post-merge truth for PR #413 and PR #420.
+- State references reflect post-merge truth for PR #413 and PR #420 while retaining unresolved context that remains active.
 - Phase 2.7 status is consistently represented as complete FOUNDATION-only scaffolding.
 - Phase 2.8 is consistently represented as the immediate next priority.
 - Phase 2.9 remains explicitly not started and out of scope.
 
 ## 5. Known issues
 
-- This task is documentation/state synchronization only; no runtime behavior changes were introduced.
+- This task is documentation/state reconciliation only; no runtime behavior changes were introduced.
 - Phase 2.8 and Phase 2.9 implementation remains pending by design.
 
 ## 6. What is next
