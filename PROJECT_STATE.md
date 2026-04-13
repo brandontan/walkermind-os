@@ -1,12 +1,10 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-13 03:25
-
+2026-04-13 04:05
 ## Status
-— **FORGE-X COMPLETE (PENDING SENTINEL) — Phase 6.1 execution ledger and read-only reconciliation foundation implemented (MAJOR, FOUNDATION)**
-Deterministic append-only in-memory execution traceability is now available across transport → exchange → signing → capital → settlement with strict blocking constants and deterministic reconciliation checks; no persistence, correction logic, or automation path introduced.
-
+— **FORGE-X COMPLETE (PENDING SENTINEL) — Phase 6.2 persistent ledger and audit trail foundation implemented (MAJOR, FOUNDATION)**
+Persistent append-only local-file execution history is now available with deterministic reload and read-only audit querying; no correction logic, background automation, or external DB infrastructure introduced.
 ## COMPLETED
 - **Phase 5.2 execution transport layer** implemented with deterministic gating for real submission vs simulated submission.
 - **Phase 5.2 transport policy gates** enforce transport enablement, explicit real submission permission, LIVE-mode requirement, dry-run forcing, single-order limits, idempotency, audit log, and operator confirmation requirements.
@@ -23,23 +21,19 @@ Deterministic append-only in-memory execution traceability is now available acro
 - **SENTINEL validation (PR #457)** completed with APPROVED verdict (96/100) for MAJOR-tier NARROW INTEGRATION scope.
 - **Phase 6.1 execution ledger & reconciliation foundation** implemented with deterministic append-only in-memory ledger records and read-only reconciliation checks (no persistence, no correction logic, no automation).
 - **Phase 6.1 reconciliation input hardening** added deterministic invalid-input handling for malformed capital snapshots (`invalid_capital_snapshot`) to preserve non-crashing read-only reconciliation behavior.
-
+- **Phase 6.2 persistent ledger & audit trail foundation** implemented with append-only local-file persistence, deterministic reload into `LedgerEntry` tuples, deterministic audit filtering, and strict block reasons for malformed records/hash mismatches (no correction logic, no background automation, no external DB).
 ## IN PROGRESS
-- Awaiting SENTINEL validation for Phase 6.1 execution ledger & reconciliation foundation (MAJOR, FOUNDATION).
+- Awaiting SENTINEL validation for Phase 6.2 persistent ledger & audit trail foundation (MAJOR, FOUNDATION).
 - Awaiting COMMANDER final merge decision for PR #457 after SENTINEL approval.
-
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
 - Portfolio management logic and multi-wallet orchestration.
 - Automation/retry/batching for settlement and wallet operations.
-- External persistence for settlement and execution-ledger lifecycle.
-- Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1).
-
+- Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 ## NEXT PRIORITY
-SENTINEL validation required for Phase 6.1 execution ledger & reconciliation foundation before merge.
-Source: reports/forge/24_96_phase6_1_execution_ledger.md
+SENTINEL validation required for Phase 6.2 persistent ledger & audit trail foundation before merge.
+Source: reports/forge/24_97_phase6_2_persistent_ledger.md
 Tier: MAJOR
-
 ## KNOWN ISSUES
 - Pytest emits `PytestConfigWarning: Unknown config option: asyncio_mode` in this container.
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.
@@ -48,4 +42,5 @@ Tier: MAJOR
 - Phase 5.5 introduces wallet boundary and capital control layer only; no real fund movement, no portfolio logic, and no automation are implemented in this phase.
 - Phase 5.6 introduces first real settlement boundary only; still single-shot with no retry, no batching, no async automation, and no portfolio lifecycle management.
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, no correction logic, and no background automation are implemented.
+- Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation/correction logic, no background automation, and no external DB are implemented.
 - Pytest import collection requires `PYTHONPATH=.` in this container for `projects.*` test module imports.
