@@ -1,4 +1,4 @@
-# Forge Report — Phase 6.4.1 Monitoring & Circuit Breaker Spec Fix (MAJOR)
+# Forge Report — Phase 6.4.1 Monitoring & Circuit Breaker Spec Fix + PR #470 Cleanup (MAJOR)
 
 **Validation Tier:** MAJOR  
 **Claim Level:** FOUNDATION  
@@ -20,7 +20,8 @@
   - kill-switch/policy anomalies
 - Completed typed input contract so every listed anomaly is evaluable directly from explicit fields (no inferred data).
 - Updated `PROJECT_STATE.md` to preserve unresolved Phase 6.3 SENTINEL-required truth while adding Phase 6.4.1 fix completion and MAJOR pending handoff.
-- Updated `ROADMAP.md` to remove roadmap-level contradiction with repo truth and current unresolved MAJOR validation state.
+- Cleaned `ROADMAP.md` to remove malformed/stale leftover lines and keep only synchronized planning truth for active milestone state.
+- Normalized forge report file-path references to repo-root format (removed `/workspace/...` prefixes).
 
 ## 2) Current system architecture
 - This task is **spec and repo-truth synchronization only**.
@@ -37,10 +38,10 @@
   - no anomalies -> ALLOW
 
 ## 3) Files created / modified (full paths)
-- Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_98_phase6_4_1_monitoring_circuit_breaker_foundation.md`
-- Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/24_99_phase6_4_1_monitoring_circuit_breaker_spec_fix.md`
-- Modified: `/workspace/walker-ai-team/PROJECT_STATE.md`
-- Modified: `/workspace/walker-ai-team/ROADMAP.md`
+- Created: `projects/polymarket/polyquantbot/reports/forge/24_98_phase6_4_1_monitoring_circuit_breaker_foundation.md`
+- Created: `projects/polymarket/polyquantbot/reports/forge/24_99_phase6_4_1_monitoring_circuit_breaker_spec_fix.md`
+- Modified: `PROJECT_STATE.md`
+- Modified: `ROADMAP.md`
 
 ## 4) What is working
 - Exposure threshold boundary ambiguity is removed and explicitly aligned to repo risk constant max position `<= 10%`.
@@ -65,6 +66,6 @@
 1. `python -m py_compile PROJECT_STATE.md ROADMAP.md` -> Not applicable (non-Python files)
 2. `rg -n "6\.3|6\.4\.1|SENTINEL|10%|0\.10|exposure_ratio" PROJECT_STATE.md ROADMAP.md projects/polymarket/polyquantbot/reports/forge/24_98_phase6_4_1_monitoring_circuit_breaker_foundation.md` -> PASS
 
-**Report Timestamp:** 2026-04-13 18:45 UTC  
+**Report Timestamp:** 2026-04-13 19:05 UTC  
 **Role:** FORGE-X (NEXUS)  
-**Task:** Phase 6.4.1 monitoring circuit breaker spec contract fix (MAJOR, FOUNDATION)
+**Task:** Phase 6.4.1 roadmap/report cleanup for PR #470 (MAJOR, FOUNDATION)

@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-13 18:45
+2026-04-13 19:05
 
 ## Status
-— **FORGE-X COMPLETE (PENDING SENTINEL) — Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix (MAJOR, FOUNDATION)**
-Deterministic typed-contract mapping for monitoring/circuit-breaker decisions is now explicitly defined (including 10% exposure boundary behavior and anomaly precedence), while runtime monitoring/execution wiring remains intentionally out of scope.
+— **FORGE-X COMPLETE (PENDING SENTINEL) — Phase 6.4.1 roadmap/report cleanup for PR #470 (MAJOR, FOUNDATION)**
+Roadmap planning truth is now cleaned and synchronized, and forge report path references are normalized to repo-root format while keeping the accepted Phase 6.4.1 spec-contract logic unchanged.
 
 ## COMPLETED
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
@@ -19,6 +19,7 @@ Deterministic typed-contract mapping for monitoring/circuit-breaker decisions is
 - **Phase 6.2 persistent ledger & audit trail** implemented with append-only local-file persistence, deterministic reload, and read-only audit filtering.
 - **Phase 6.3 kill-switch & execution-halt foundation** implemented with deterministic `KillSwitchController` arm/disarm/evaluate contracts, explicit operator/system halt triggers, fail-closed contract validation for pre-execution progression blocking, and side-effect-free `evaluate()` behavior.
 - **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** completed with deterministic 10% exposure boundary semantics (`<= 10%` allowed, `> 10%` breach), explicit anomaly taxonomy, typed evaluable inputs, and fixed anomaly-to-decision precedence.
+- **Phase 6.4.1 PR #470 roadmap/report cleanup** completed with clean ROADMAP planning truth and repo-root path normalization in forge report artifacts; runtime scope remains unchanged.
 
 ## IN PROGRESS
 - Awaiting SENTINEL validation for Phase 6.3 kill-switch & execution-halt foundation (MAJOR, FOUNDATION).
