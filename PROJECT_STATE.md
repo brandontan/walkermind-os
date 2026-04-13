@@ -1,7 +1,7 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-13 03:16
+2026-04-13 03:25
 
 ## Status
 — **FORGE-X COMPLETE (PENDING SENTINEL) — Phase 6.1 execution ledger and read-only reconciliation foundation implemented (MAJOR, FOUNDATION)**
@@ -22,6 +22,7 @@ Deterministic append-only in-memory execution traceability is now available acro
 - **Phase 5.6 fund settlement boundary** implemented with strict policy-gated real settlement, deterministic single-shot transfer interface, and explicit simulated-safe settlement mode.
 - **SENTINEL validation (PR #457)** completed with APPROVED verdict (96/100) for MAJOR-tier NARROW INTEGRATION scope.
 - **Phase 6.1 execution ledger & reconciliation foundation** implemented with deterministic append-only in-memory ledger records and read-only reconciliation checks (no persistence, no correction logic, no automation).
+- **Phase 6.1 reconciliation input hardening** added deterministic invalid-input handling for malformed capital snapshots (`invalid_capital_snapshot`) to preserve non-crashing read-only reconciliation behavior.
 
 ## IN PROGRESS
 - Awaiting SENTINEL validation for Phase 6.1 execution ledger & reconciliation foundation (MAJOR, FOUNDATION).

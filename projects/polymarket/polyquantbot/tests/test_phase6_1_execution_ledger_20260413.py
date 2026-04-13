@@ -322,6 +322,20 @@ def test_phase6_1_invalid_inputs_do_not_crash() -> None:
         )
     )
     invalid_reconciliation = reconciliation.check_consistency(None)  # type: ignore[arg-type]
+    invalid_capital_snapshot = reconciliation.check_consistency(
+        ReconciliationInput(
+            execution_id="exec-err-2",
+            capital_snapshot="not-a-dict",  # type: ignore[arg-type]
+            settlement_result=_sample_settlement_result(),
+        )
+    )
+    missing_settlement_result = reconciliation.check_consistency(
+        ReconciliationInput(
+            execution_id="exec-err-3",
+            capital_snapshot={"balance_before": 1000.0},
+            settlement_result=None,
+        )
+    )
 
     assert invalid_record_input.entry is None
     assert invalid_record_input.trace.blocked_reason == LEDGER_BLOCK_MISSING_SNAPSHOT
@@ -329,3 +343,7 @@ def test_phase6_1_invalid_inputs_do_not_crash() -> None:
     assert invalid_upstream_refs.trace.blocked_reason == LEDGER_BLOCK_INVALID_UPSTREAM_REFS
     assert invalid_reconciliation.consistent is False
     assert invalid_reconciliation.mismatch_reason == "invalid_reconciliation_input"
+    assert invalid_capital_snapshot.consistent is False
+    assert invalid_capital_snapshot.mismatch_reason == "invalid_capital_snapshot"
+    assert missing_settlement_result.consistent is False
+    assert missing_settlement_result.mismatch_reason == "missing_settlement_result"

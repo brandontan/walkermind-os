@@ -80,6 +80,7 @@
 - Execution-id filtering is validated through deterministic retrieval from ledger state.
 - Reconciliation success and mismatch branches are both validated.
 - Invalid ledger/reconciliation inputs fail safely and do not crash.
+- Reconciliation input contract hardening now explicitly blocks non-dict `capital_snapshot` with deterministic `invalid_capital_snapshot` output (no crash path).
 - No persistence side effects were introduced in implementation.
 
 ## 5) Known issues
@@ -102,8 +103,8 @@
 1. `python -m py_compile projects/polymarket/polyquantbot/platform/safety/execution_ledger.py projects/polymarket/polyquantbot/platform/safety/__init__.py projects/polymarket/polyquantbot/tests/test_phase6_1_execution_ledger_20260413.py` → PASS
 2. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase6_1_execution_ledger_20260413.py` → PASS
 3. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase5_6_fund_settlement_20260413.py` → PASS
-4. `rg -n "sqlite|postgres|redis|open\(|write\(|persist|background|thread|asyncio.create_task" projects/polymarket/polyquantbot/platform/safety/execution_ledger.py projects/polymarket/polyquantbot/tests/test_phase6_1_execution_ledger_20260413.py` → PASS (no matches)
+4. `rg -n "sqlite|postgres|redis|open\(|write\(|persist|background|thread|asyncio.create_task" projects/polymarket/polyquantbot/platform/safety/execution_ledger.py projects/polymarket/polyquantbot/tests/test_phase6_1_execution_ledger_20260413.py || true` → PASS (no matches)
 
-**Report Timestamp:** 2026-04-13 03:16 UTC  
+**Report Timestamp:** 2026-04-13 03:25 UTC  
 **Role:** FORGE-X (NEXUS)  
 **Task:** Phase 6.1 — Execution Ledger & Reconciliation Foundation (MAJOR)

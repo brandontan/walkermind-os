@@ -184,6 +184,18 @@ class ReconciliationEngine:
                 reconciliation_notes={"execution_id": reconciliation_input.execution_id},
             )
 
+        if not isinstance(reconciliation_input.capital_snapshot, dict):
+            return ReconciliationCheckResult(
+                consistent=False,
+                mismatch_reason="invalid_capital_snapshot",
+                expected_balance=None,
+                observed_balance=None,
+                reconciliation_notes={
+                    "execution_id": reconciliation_input.execution_id,
+                    "actual_type": type(reconciliation_input.capital_snapshot).__name__,
+                },
+            )
+
         balance_before = _to_float(reconciliation_input.capital_snapshot.get("balance_before"))
         if balance_before is None:
             balance_before = _to_float(reconciliation_input.capital_snapshot.get("available"))
