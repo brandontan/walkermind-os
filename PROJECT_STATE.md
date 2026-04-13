@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-13 03:25
+2026-04-13 15:58
 
 ## Status
-— **FORGE-X COMPLETE (PENDING SENTINEL) — Phase 6.1 execution ledger and read-only reconciliation foundation implemented (MAJOR, FOUNDATION)**
-Deterministic append-only in-memory execution traceability is now available across transport → exchange → signing → capital → settlement with strict blocking constants and deterministic reconciliation checks; no persistence, correction logic, or automation path introduced.
+— **FORGE-X COMPLETE (PENDING SENTINEL) — Phase 6.3 kill-switch and deterministic execution-halt foundation implemented (MAJOR, FOUNDATION)**
+Deterministic policy-driven halt decisions are now available to block execution/transport/settlement progression with explicit operator/system halt paths, typed contracts, and auditable trace output; runtime orchestration integration remains intentionally out of scope.
 
 ## COMPLETED
 - **Phase 5.2 execution transport layer** implemented with deterministic gating for real submission vs simulated submission.
@@ -23,10 +23,11 @@ Deterministic append-only in-memory execution traceability is now available acro
 - **SENTINEL validation (PR #457)** completed with APPROVED verdict (96/100) for MAJOR-tier NARROW INTEGRATION scope.
 - **Phase 6.1 execution ledger & reconciliation foundation** implemented with deterministic append-only in-memory ledger records and read-only reconciliation checks (no persistence, no correction logic, no automation).
 - **Phase 6.1 reconciliation input hardening** added deterministic invalid-input handling for malformed capital snapshots (`invalid_capital_snapshot`) to preserve non-crashing read-only reconciliation behavior.
+- **Phase 6.3 kill-switch & execution-halt foundation** implemented with deterministic `KillSwitchController` arm/disarm/evaluate contracts, explicit operator/system halt triggers, and fail-closed contract validation for pre-execution progression blocking.
 
 ## IN PROGRESS
+- Awaiting SENTINEL validation for Phase 6.3 kill-switch & execution-halt foundation (MAJOR, FOUNDATION).
 - Awaiting SENTINEL validation for Phase 6.1 execution ledger & reconciliation foundation (MAJOR, FOUNDATION).
-- Awaiting COMMANDER final merge decision for PR #457 after SENTINEL approval.
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
@@ -36,8 +37,8 @@ Deterministic append-only in-memory execution traceability is now available acro
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1).
 
 ## NEXT PRIORITY
-SENTINEL validation required for Phase 6.1 execution ledger & reconciliation foundation before merge.
-Source: reports/forge/24_96_phase6_1_execution_ledger.md
+SENTINEL validation required for Phase 6.3 kill-switch & execution-halt foundation before merge.
+Source: reports/forge/24_97_phase6_3_kill_switch.md
 Tier: MAJOR
 
 ## KNOWN ISSUES
@@ -48,4 +49,5 @@ Tier: MAJOR
 - Phase 5.5 introduces wallet boundary and capital control layer only; no real fund movement, no portfolio logic, and no automation are implemented in this phase.
 - Phase 5.6 introduces first real settlement boundary only; still single-shot with no retry, no batching, no async automation, and no portfolio lifecycle management.
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, no correction logic, and no background automation are implemented.
+- Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope in this phase.
 - Pytest import collection requires `PYTHONPATH=.` in this container for `projects.*` test module imports.
