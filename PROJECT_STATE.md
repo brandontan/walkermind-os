@@ -1,11 +1,13 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 10:35
+2026-04-13 22:00
+
 
 ## Status
-— **SENTINEL APPROVED — Phase 6.3 kill-switch & execution-halt foundation (MAJOR, FOUNDATION)**
-All declared kill-switch behaviors validated: operator arm/disarm policy gating, system halt override, fail-closed invalid contract handling, side-effect-free evaluate(), and deterministic typed-contract state machine. 18/18 tests pass (8 forge + 10 SENTINEL challenges). Score 100/100.
+— **SENTINEL APPROVED — Phase 6.3 kill-switch & execution-halt FOUNDATION revalidation (MAJOR, FOUNDATION).**
+Deterministic typed-contract halt controls revalidated with command evidence: compile PASS, forge suite PASS (8/8), SENTINEL challenge probes PASS (S1-S5), and repo-truth sync updated.
+
 
 ## COMPLETED
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
@@ -21,6 +23,8 @@ All declared kill-switch behaviors validated: operator arm/disarm policy gating,
 - **SENTINEL validation for Phase 6.3** completed with **APPROVED** verdict (score 100/100): all 18 tests pass (8 forge + 10 SENTINEL challenges); operator arm/disarm, system halt, policy-disabled reset, fail-closed invalid contracts, and side-effect-free evaluate() all verified.
 - **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** completed with deterministic 10% exposure boundary semantics (`<= 10%` allowed, `> 10%` breach), explicit anomaly taxonomy, typed evaluable inputs, and fixed anomaly-to-decision precedence.
 - **SENTINEL validation for Phase 6.4.1** completed with **APPROVED** verdict (score 100/100): spec-contract target, roadmap/state synchronization, and monitoring test evidence (20/20 passed) all validated.
+- **SENTINEL revalidation for Phase 6.3 (task replay)** completed with **APPROVED** verdict (score 96/100); evidence recorded in `projects/polymarket/polyquantbot/reports/sentinel/24_102_phase6_3_kill_switch_execution_halt_revalidation.md`.
+
 
 ## IN PROGRESS
 - None.
@@ -32,12 +36,10 @@ All declared kill-switch behaviors validated: operator arm/disarm policy gating,
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-COMMANDER review required on SENTINEL APPROVED verdict for Phase 6.3 before merge decision.
-Source: reports/sentinel/24_101_phase6_3_kill_switch_halt_validation.md
+COMMANDER review required on latest SENTINEL Phase 6.3 APPROVED revalidation before merge decision.
+Source: projects/polymarket/polyquantbot/reports/sentinel/24_102_phase6_3_kill_switch_execution_halt_revalidation.md
 Tier: MAJOR
-COMMANDER review also required on Phase 6.4.1 APPROVED verdict (PR #470) for merge decision.
-Source: reports/sentinel/24_100_phase6_4_1_monitoring_circuit_breaker_spec_validation.md
-Tier: MAJOR
+
 
 ## KNOWN ISSUES
 - Pytest emits `PytestConfigWarning: Unknown config option: asyncio_mode` in some containers; does not affect test correctness when `pytest-asyncio` is installed.
