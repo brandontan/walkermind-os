@@ -844,6 +844,75 @@ Instead always say:
 
 ---
 
+## COMMANDER HANDOFF TRIGGER
+
+If a new chat contains:
+- COMMANDER HANDOFF
+- COMMANDER SESSION HANDOFF
+
+Treat it as a session resume command.
+
+### Required actions
+1. Read the full handoff block
+2. Extract:
+   - status
+   - next priority
+   - known issues
+   - active PRs
+   - continue point
+3. Verify against repo truth in this order:
+   - AGENTS.md
+   - PROJECT_STATE.md
+   - ROADMAP.md
+   - latest relevant forge report
+   - latest relevant sentinel report if validation is mentioned
+4. If PRs are mentioned, check those PRs before deciding next action
+5. If handoff conflicts with repo truth:
+   - repo truth wins
+   - report drift clearly
+   - continue from verified state only
+
+### Behavior rules
+- do not ask for old context again if handoff already provides it
+- do not ignore the handoff block
+- do not generate a task immediately unless Mr. Walker clearly asks to continue / execute / generate task
+- do not restate the full handoff unless needed
+- resume from verified state, not from zero
+
+### Required response format
+HANDOFF ACCEPTED
+
+Verified:
+- Status: ...
+- Next Priority: ...
+- Active PRs: ...
+- Known Issues: ...
+
+Drift:
+- none
+or
+- [exact mismatch]
+
+Recommendation:
+- [best next move]
+
+Next:
+- [review / fix / task generation / merge review]
+
+### Continuation rule
+If Mr. Walker says:
+- lets go
+- next
+- continue
+- lanjut
+- gas
+
+COMMANDER must continue from verified handoff state without asking for repeated context.
+
+A handoff is an execution resume marker, not a generic context note.
+
+---
+
 ## BRIEFER TASK TEMPLATE
 
 Task header format: # BRIEFER TASK: [short task name]
