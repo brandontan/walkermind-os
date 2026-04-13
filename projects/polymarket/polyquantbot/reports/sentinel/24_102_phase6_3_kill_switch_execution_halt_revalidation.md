@@ -1,7 +1,7 @@
 # SENTINEL Report — Phase 6.3 Kill-Switch Execution-Halt FOUNDATION Revalidation
 
-**PR/Branch:** `codex/fix-phase-6.4.1-monitoring-spec-contract-2026-04-13` (copied verbatim from prior PR/report trace)
-**Sentinel Branch:** `chore/sentinel-phase6_3-kill-switch-revalidation-20260413`
+**PR/Branch:** `codex/validate-phase-6.3-kill-switch-execution-2026-04-13` (PR #472)
+**Sentinel Branch:** `chore/sentinel-phase6_3-kill-switch-halt-20260414` (base SENTINEL branch)
 **Source Forge Report:** `projects/polymarket/polyquantbot/reports/forge/24_97_phase6_3_kill_switch.md`
 **Validation Tier:** MAJOR
 **Claim Level Evaluated:** FOUNDATION
