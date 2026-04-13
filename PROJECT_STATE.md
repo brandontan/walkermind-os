@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 10:10
+2026-04-14 10:15
 
 ## Status
-— **FORGE-X COMPLETE (PENDING SENTINEL) — Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix (MAJOR, FOUNDATION)**
-Deterministic typed-contract mapping for monitoring/circuit-breaker decisions is explicitly defined, roadmap planning truth is synchronized, and forge report paths are normalized to repo-root format; runtime monitoring/execution wiring remains intentionally out of scope.
+— **SENTINEL CONDITIONAL — Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix (MAJOR, FOUNDATION)**
+Validation target for deterministic spec-contract correctness and PROJECT_STATE/ROADMAP synchronization is satisfied, but forge monitoring-test evidence is not reproducible in this container due async pytest plugin/config mismatch.
 
 ## COMPLETED
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
@@ -19,10 +19,11 @@ Deterministic typed-contract mapping for monitoring/circuit-breaker decisions is
 - **Phase 6.2 persistent ledger & audit trail** implemented with append-only local-file persistence, deterministic reload, and read-only audit filtering.
 - **Phase 6.3 kill-switch & execution-halt foundation** implemented with deterministic `KillSwitchController` arm/disarm/evaluate contracts, explicit operator/system halt triggers, fail-closed contract validation for pre-execution progression blocking, and side-effect-free `evaluate()` behavior.
 - **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** completed with deterministic 10% exposure boundary semantics (`<= 10%` allowed, `> 10%` breach), explicit anomaly taxonomy, typed evaluable inputs, and fixed anomaly-to-decision precedence.
+- **SENTINEL validation for Phase 6.4.1** completed with **CONDITIONAL** verdict (score 82/100): spec-contract target and roadmap/state synchronization validated; monitoring pytest evidence reproducibility gap remains.
 
 ## IN PROGRESS
 - Awaiting SENTINEL validation for Phase 6.3 kill-switch & execution-halt foundation (MAJOR, FOUNDATION).
-- Awaiting SENTINEL validation for Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix (MAJOR, FOUNDATION).
+- Phase 6.4.1 conditional follow-up: normalize async pytest plugin/config so monitoring suite evidence is reproducible in the active container/CI contract.
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
@@ -31,15 +32,16 @@ Deterministic typed-contract mapping for monitoring/circuit-breaker decisions is
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-SENTINEL validation required for Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix before merge.
-Source: reports/forge/24_99_phase6_4_1_monitoring_circuit_breaker_spec_fix.md
+COMMANDER review required on SENTINEL CONDITIONAL verdict for Phase 6.4.1 before merge decision.
+Source: reports/sentinel/24_100_phase6_4_1_monitoring_circuit_breaker_spec_validation.md
 Tier: MAJOR
-After 6.4.1 verdict, unresolved MAJOR handoff for Phase 6.3 remains required before merge.
+After 6.4.1 disposition, unresolved MAJOR handoff for Phase 6.3 remains required before merge.
 Source: reports/forge/24_97_phase6_3_kill_switch.md
 Tier: MAJOR
 
 ## KNOWN ISSUES
 - Pytest emits `PytestConfigWarning: Unknown config option: asyncio_mode` in this container.
+- Async monitoring tests currently fail in this container without a recognized async pytest plugin/runtime configuration; forge claimed pass is not reproducible under current local test contract.
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.
 - Phase 5.3 network path is intentionally narrow (single request, no retry, no batching, no async workers).
 - Phase 5.4 introduces secure signing boundary only; wallet lifecycle and capital movement remain intentionally unimplemented.
