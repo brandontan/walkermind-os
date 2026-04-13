@@ -28,16 +28,18 @@
 | 6.1 | Execution Ledger (In-memory) | Done |
 | 6.2 | Persistent Ledger & Audit Trail | Done |
 | 6.3 | Kill Switch & Execution Halt Foundation | FORGE complete; SENTINEL required before merge |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | FORGE complete; SENTINEL required before merge |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | SENTINEL APPROVED (score 100/100) |
 
 ### Anchor State
 - Real execution enabled.
 - Persistent audit trail foundation present.
-- Kill-switch foundation and monitoring/circuit-breaker spec are complete at FORGE layer and both remain pending SENTINEL validation before merge.
+- Kill-switch foundation (6.3) is FORGE complete and remains pending SENTINEL validation before merge.
+- Monitoring/circuit-breaker spec (6.4.1) is SENTINEL APPROVED (score 100/100); awaiting COMMANDER merge decision.
 
 ### Next Milestone
-- Complete SENTINEL validation for unresolved MAJOR Phase 6 items (6.3 and 6.4.1).
-- COMMANDER decides merge sequencing after required MAJOR validations.
+- COMMANDER merge decision on PR #470 (Phase 6.4.1 — SENTINEL APPROVED).
+- Complete SENTINEL validation for Phase 6.3 kill-switch (unresolved MAJOR handoff).
+- COMMANDER decides merge sequencing after Phase 6.3 validation.
 
 ---
 
