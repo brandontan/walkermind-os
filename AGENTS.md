@@ -96,6 +96,31 @@ projects/mt5/ea/
 projects/mt5/indicators/
 ```
 
+## ROADMAP RULE (LOCKED)
+
+ROADMAP.md exists at repo root and is the planning / milestone truth.
+
+ROADMAP.md must be updated when ANY of the following changes:
+- active phase
+- milestone status
+- next milestone
+- completed phase status
+- roadmap sequencing
+- project delivery state at roadmap level
+
+ROADMAP.md does NOT need update for:
+- small code-only fixes
+- report-only fixes
+- PROJECT_STATE-only wording sync
+- minor repo cleanup with no roadmap impact
+
+Hard rule:
+- PROJECT_STATE.md = current operational truth
+- ROADMAP.md = current planning / milestone truth
+- they must remain synchronized when roadmap-level truth changes
+
+---
+
 ## PROJECT_STATE TIMESTAMP RULE
 
 `PROJECT_STATE.md` must use full timestamp, not date only.
@@ -884,6 +909,20 @@ If task changes repository files in any meaningful way:
 
 If task is planning / analysis only and does not change repo:
 - no report required
+
+## ROADMAP COMPLETION GATE
+
+If a task changes roadmap-level truth but ROADMAP.md is not updated:
+- task is incomplete
+- report is incomplete
+- final approval is not allowed
+
+If PROJECT_STATE.md and ROADMAP.md conflict on active phase or next milestone:
+- treat as drift
+- stop merge path
+- sync both before approval
+
+---
 
 ### HARD COMPLETION RULE (CRITICAL)
 

@@ -1,11 +1,12 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-13 04:05
+2026-04-13 10:00
 ## Status
-— **FORGE-X COMPLETE (PENDING SENTINEL) — Phase 6.2 persistent ledger and audit trail foundation implemented (MAJOR, FOUNDATION)**
-Persistent append-only local-file execution history is now available with deterministic reload and read-only audit querying; no correction logic, background automation, or external DB infrastructure introduced.
+— **FORGE-X COMPLETE (MINOR) — AGENTS.md roadmap rules inserted (MINOR, FOUNDATION)**
+Two new rule sections inserted into AGENTS.md: ROADMAP RULE (LOCKED) and ROADMAP COMPLETION GATE. Insertion-only; no existing content modified. Phase 6.2 persistent ledger SENTINEL validation still pending.
 ## COMPLETED
+- **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
 - **Phase 5.2 execution transport layer** implemented with deterministic gating for real submission vs simulated submission.
 - **Phase 5.2 transport policy gates** enforce transport enablement, explicit real submission permission, LIVE-mode requirement, dry-run forcing, single-order limits, idempotency, audit log, and operator confirmation requirements.
 - **Phase 5.1 live execution authorizer** remains required upstream authorization dependency and is not bypassed.
@@ -25,14 +26,19 @@ Persistent append-only local-file execution history is now available with determ
 ## IN PROGRESS
 - Awaiting SENTINEL validation for Phase 6.2 persistent ledger & audit trail foundation (MAJOR, FOUNDATION).
 - Awaiting COMMANDER final merge decision for PR #457 after SENTINEL approval.
+- AGENTS.md roadmap rules insertion — awaiting COMMANDER review and merge decision (MINOR).
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
 - Portfolio management logic and multi-wallet orchestration.
 - Automation/retry/batching for settlement and wallet operations.
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 ## NEXT PRIORITY
+Auto PR review (Codex/Gemini/Copilot) + COMMANDER review required for AGENTS.md roadmap rules insertion.
+Source: projects/polymarket/polyquantbot/reports/forge/25_9_agents_roadmap_rules.md
+Tier: MINOR
+
 SENTINEL validation required for Phase 6.2 persistent ledger & audit trail foundation before merge.
-Source: reports/forge/24_97_phase6_2_persistent_ledger.md
+Source: projects/polymarket/polyquantbot/reports/forge/24_97_phase6_2_persistent_ledger.md
 Tier: MAJOR
 ## KNOWN ISSUES
 - Pytest emits `PytestConfigWarning: Unknown config option: asyncio_mode` in this container.
