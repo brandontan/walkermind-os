@@ -23,18 +23,18 @@ Deterministic policy-driven halt decisions are now available to block execution/
 - **SENTINEL validation (PR #457)** completed with APPROVED verdict (96/100) for MAJOR-tier NARROW INTEGRATION scope.
 - **Phase 6.1 execution ledger & reconciliation foundation** implemented with deterministic append-only in-memory ledger records and read-only reconciliation checks (no persistence, no correction logic, no automation).
 - **Phase 6.1 reconciliation input hardening** added deterministic invalid-input handling for malformed capital snapshots (`invalid_capital_snapshot`) to preserve non-crashing read-only reconciliation behavior.
+- **Phase 6.2 persistent ledger & audit trail foundation** implemented with append-only local-file persistence, deterministic reload into `LedgerEntry` tuples, deterministic audit filtering, and strict block reasons for malformed records/hash mismatches (no correction logic, no background automation, no external DB).
 - **Phase 6.3 kill-switch & execution-halt foundation** implemented with deterministic `KillSwitchController` arm/disarm/evaluate contracts, explicit operator/system halt triggers, fail-closed contract validation for pre-execution progression blocking, and side-effect-free `evaluate()` behavior (including policy-disabled probe path).
 
 ## IN PROGRESS
 - Awaiting SENTINEL validation for Phase 6.3 kill-switch & execution-halt foundation (MAJOR, FOUNDATION).
-- Awaiting SENTINEL validation for Phase 6.1 execution ledger & reconciliation foundation (MAJOR, FOUNDATION).
+- Awaiting SENTINEL validation for Phase 6.2 persistent ledger & audit trail foundation (MAJOR, FOUNDATION).
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
 - Portfolio management logic and multi-wallet orchestration.
 - Automation/retry/batching for settlement and wallet operations.
-- External persistence for settlement and execution-ledger lifecycle.
-- Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1).
+- Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
 SENTINEL validation required for Phase 6.3 kill-switch & execution-halt foundation before merge.
@@ -49,5 +49,6 @@ Tier: MAJOR
 - Phase 5.5 introduces wallet boundary and capital control layer only; no real fund movement, no portfolio logic, and no automation are implemented in this phase.
 - Phase 5.6 introduces first real settlement boundary only; still single-shot with no retry, no batching, no async automation, and no portfolio lifecycle management.
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, no correction logic, and no background automation are implemented.
+- Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation/correction logic, no background automation, and no external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope in this phase.
 - Pytest import collection requires `PYTHONPATH=.` in this container for `projects.*` test module imports.
