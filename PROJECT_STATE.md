@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-13 02:10
+2026-04-13 02:42
 
 ## Status
-— **FORGE-X COMPLETE — Phase 5.5 wallet-capital boundary implemented (MAJOR, NARROW INTEGRATION)**
-Controlled wallet and capital authorization layer added with deterministic policy gates and explicit simulated vs real-capital paths, with no fund movement or portfolio automation.
+— **SENTINEL VALIDATED — Phase 5.5 wallet-capital boundary APPROVED (MAJOR, NARROW INTEGRATION)**
+Controlled wallet and capital authorization layer validated as deterministic authorization-only scope, with no fund movement, wallet API execution, portfolio logic, or automation drift.
 
 ## COMPLETED
 - **Phase 5.2 execution transport layer** implemented with deterministic gating for real submission vs simulated submission.
@@ -18,9 +18,10 @@ Controlled wallet and capital authorization layer added with deterministic polic
 - **Phase 5.4 secure signing boundary** implemented with strict real-signing policy checks, simulated-safe signing path, deterministic gating, and abstracted key reference handling.
 - **SENTINEL validation (PR #453)** completed with APPROVED verdict (95/100) for MAJOR-tier NARROW INTEGRATION scope.
 - **Phase 5.5 wallet-capital boundary** implemented with strict signing-dependent capital gating, controlled wallet access checks, simulated-safe capital mode, and strict real-capital authorization mode without transfers.
+- **SENTINEL validation (PR #455)** completed with APPROVED verdict (93/100) for MAJOR-tier NARROW INTEGRATION scope.
 
 ## IN PROGRESS
-- SENTINEL validation preparation for Phase 5.5 wallet-capital boundary (MAJOR).
+- Awaiting COMMANDER final merge decision for PR #455.
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
@@ -29,7 +30,7 @@ Controlled wallet and capital authorization layer added with deterministic polic
 - Automation/retry/batching for capital operations.
 
 ## NEXT PRIORITY
-SENTINEL validation required for phase5_5_wallet_capital before merge. Source: reports/forge/24_92_phase5_5_wallet_capital.md. Tier: MAJOR
+COMMANDER merge review for PR #455 using SENTINEL report. Source: projects/polymarket/polyquantbot/reports/sentinel/24_93_phase5_5_wallet_capital_validation_pr455.md. Tier: MAJOR
 
 ## KNOWN ISSUES
 - Pytest emits `PytestConfigWarning: Unknown config option: asyncio_mode` in this container.
