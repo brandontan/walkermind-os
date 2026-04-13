@@ -1,12 +1,10 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-13 02:42
-
+2026-04-13 02:52
 ## Status
-— **SENTINEL VALIDATED — Phase 5.5 wallet-capital boundary APPROVED (MAJOR, NARROW INTEGRATION)**
-Controlled wallet and capital authorization layer validated as deterministic authorization-only scope, with no fund movement, wallet API execution, portfolio logic, or automation drift.
-
+— **FORGE-X COMPLETE — Phase 5.6 fund settlement boundary implemented (MAJOR, NARROW INTEGRATION)**
+Real fund movement is now possible only through strict one-shot settlement gates with explicit confirmations and audit requirements; no retry/batching/automation/portfolio behavior was introduced.
 ## COMPLETED
 - **Phase 5.2 execution transport layer** implemented with deterministic gating for real submission vs simulated submission.
 - **Phase 5.2 transport policy gates** enforce transport enablement, explicit real submission permission, LIVE-mode requirement, dry-run forcing, single-order limits, idempotency, audit log, and operator confirmation requirements.
@@ -19,23 +17,23 @@ Controlled wallet and capital authorization layer validated as deterministic aut
 - **SENTINEL validation (PR #453)** completed with APPROVED verdict (95/100) for MAJOR-tier NARROW INTEGRATION scope.
 - **Phase 5.5 wallet-capital boundary** implemented with strict signing-dependent capital gating, controlled wallet access checks, simulated-safe capital mode, and strict real-capital authorization mode without transfers.
 - **SENTINEL validation (PR #455)** completed with APPROVED verdict (93/100) for MAJOR-tier NARROW INTEGRATION scope.
-
+- **Phase 5.6 fund settlement boundary** implemented with strict policy-gated real settlement, deterministic single-shot transfer interface, and explicit simulated-safe settlement mode.
 ## IN PROGRESS
-- Awaiting COMMANDER final merge decision for PR #455.
-
+- Awaiting SENTINEL validation for Phase 5.6 fund settlement boundary before merge.
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
-- Real fund transfer, deduction, and settlement integration.
 - Portfolio management logic and multi-wallet orchestration.
-- Automation/retry/batching for capital operations.
-
+- Automation/retry/batching for settlement and wallet operations.
+- Reconciliation and external persistence for settlement lifecycle.
 ## NEXT PRIORITY
-COMMANDER merge review for PR #455 using SENTINEL report. Source: projects/polymarket/polyquantbot/reports/sentinel/24_93_phase5_5_wallet_capital_validation_pr455.md. Tier: MAJOR
-
+SENTINEL validation required for Phase 5.6 fund settlement boundary before merge.
+Source: reports/forge/24_94_phase5_6_fund_settlement.md
+Tier: MAJOR
 ## KNOWN ISSUES
 - Pytest emits `PytestConfigWarning: Unknown config option: asyncio_mode` in this container.
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.
 - Phase 5.3 network path is intentionally narrow (single request, no retry, no batching, no async workers).
 - Phase 5.4 introduces secure signing boundary only; wallet lifecycle and capital movement remain intentionally unimplemented.
 - Phase 5.5 introduces wallet boundary and capital control layer only; no real fund movement, no portfolio logic, and no automation are implemented in this phase.
+- Phase 5.6 introduces first real settlement boundary only; still single-shot with no retry, no batching, no async automation, and no portfolio lifecycle management.
 - Pytest import collection requires `PYTHONPATH=.` in this container for `projects.*` test module imports.
