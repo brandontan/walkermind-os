@@ -1,0 +1,566 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Walker AI — GitHub Full Access",
+    "description": "Full read/write/review access to walker-ai-team repo. Read files, write files, manage branches, create and merge PRs, fetch PR details and file diffs.",
+    "version": "2.2.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.github.com"
+    }
+  ],
+  "paths": {
+    "/repos/bayuewalker/walker-ai-team/contents/{path}": {
+      "get": {
+        "operationId": "getRepoContents",
+        "summary": "Read file or list directory from walker-ai-team repo",
+        "description": "If path is a file, returns base64-encoded content. If path is a directory, returns array of files. Use for PROJECT_STATE.md, reports/forge/, reports/sentinel/, reports/briefer/, docs/, etc.",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "File or directory path from repo root. Examples: PROJECT_STATE.md | projects/polymarket/polyquantbot/reports/forge | docs/CLAUDE.md"
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch name. Default: main"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File content (base64) or directory listing (array)"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "writeRepoFile",
+        "summary": "Create or update a file in walker-ai-team repo",
+        "description": "Creates a new file or updates existing file. Content must be base64-encoded. Use to save FORGE-X reports, SENTINEL reports, BRIEFER HTML reports, or update PROJECT_STATE.md.",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Full file path from repo root. Example: projects/polymarket/polyquantbot/reports/briefer/23_1_report.html"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message",
+                  "content"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "Commit message. Example: briefer: phase 23.1 client update"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Base64-encoded file content"
+                  },
+                  "sha": {
+                    "type": "string",
+                    "description": "Required when UPDATING existing file. Get SHA from getRepoContents first."
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": "Target branch. Default: main"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File updated successfully"
+          },
+          "201": {
+            "description": "File created successfully"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walker-ai-team/git/refs": {
+      "post": {
+        "operationId": "createBranch",
+        "summary": "Create a new branch in walker-ai-team repo",
+        "description": "Creates a new branch from a base SHA. Use before writing files for FORGE-X, BRIEFER, or SENTINEL tasks.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ref",
+                  "sha"
+                ],
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "description": "New branch ref. Format: refs/heads/feature/briefer/task-name"
+                  },
+                  "sha": {
+                    "type": "string",
+                    "description": "SHA of the base commit (usually latest main). Get from getRepoBranch."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Branch created"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walker-ai-team/git/ref/heads/{branch}": {
+      "get": {
+        "operationId": "getRepoBranch",
+        "summary": "Get branch info including latest commit SHA",
+        "description": "Use to get the latest commit SHA before creating a new branch.",
+        "parameters": [
+          {
+            "name": "branch",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch name. Example: main"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Branch info with latest commit SHA"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walker-ai-team/pulls": {
+      "get": {
+        "operationId": "listPullRequests",
+        "summary": "List pull requests in walker-ai-team repo",
+        "description": "Returns open or all PRs. Use to check FORGE-X PR status and Copilot review results.",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "default": "open"
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of pull requests"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPullRequest",
+        "summary": "Create a pull request",
+        "description": "Opens a new PR from a feature branch to main. Use after FORGE-X or BRIEFER task completes writing files to their branch.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "head",
+                  "base"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "PR title. Example: FORGE-X: phase 23.1 ui v3 paper activation"
+                  },
+                  "head": {
+                    "type": "string",
+                    "description": "Source branch. Example: feature/forge/23-1-ui-v3"
+                  },
+                  "base": {
+                    "type": "string",
+                    "description": "Target branch. Always: main"
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "PR description. Include task summary, files changed, and report link."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "PR created"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walker-ai-team/pulls/{pull_number}/merge": {
+      "put": {
+        "operationId": "mergePullRequest",
+        "summary": "Merge a pull request",
+        "description": "Merges a PR into main. Use only after Copilot review APPROVED and founder confirms merge.",
+        "parameters": [
+          {
+            "name": "pull_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "PR number from listPullRequests"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "commit_title": {
+                    "type": "string",
+                    "description": "Merge commit title"
+                  },
+                  "merge_method": {
+                    "type": "string",
+                    "enum": [
+                      "merge",
+                      "squash",
+                      "rebase"
+                    ],
+                    "default": "squash"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PR merged successfully"
+          },
+          "405": {
+            "description": "PR not mergeable — check Copilot review status"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walker-ai-team/issues/{issue_number}/comments": {
+      "post": {
+        "operationId": "addPRComment",
+        "summary": "Add a comment to a PR",
+        "description": "Adds a comment to a PR or issue. Use to post SENTINEL verdict, COMMANDER QC notes, or task completion status.",
+        "parameters": [
+          {
+            "name": "issue_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "PR number (PRs use the issues endpoint for comments)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "body"
+                ],
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "description": "Comment text. Use markdown."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Comment added"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getPRComments",
+        "summary": "Get all comments on a PR",
+        "description": "Returns all comments including bot review summaries (NEXUS Gate, Gemini, Copilot). Use to read full review context without needing screenshots.",
+        "parameters": [
+          {
+            "name": "issue_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "PR number (GitHub uses issues endpoint for PR comments)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of comments with user, body, created_at"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walker-ai-team/pulls/{pull_number}": {
+      "patch": {
+        "operationId": "updatePullRequest",
+        "summary": "Update or close a pull request",
+        "description": "Update PR state, title, or description. To CLOSE a PR: set state to 'closed'. To REOPEN: set state to 'open'. To update title or body: pass the new values. Use when COMMANDER decides to close a stale PR, reject a FORGE-X task, or reopen a previously closed PR.",
+        "parameters": [
+          {
+            "name": "pull_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "PR number. Extract from URL e.g. /pull/357 → 357"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "closed"
+                    ],
+                    "description": "Set to 'closed' to close PR, 'open' to reopen"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "New PR title (optional)"
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "New PR description (optional)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PR updated — returns updated PR object"
+          },
+          "422": {
+            "description": "Validation error — check state value"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walker-ai-team/pulls/{pull_number}/files": {
+      "get": {
+        "operationId": "getPRFiles",
+        "summary": "Get list of files changed in a PR",
+        "description": "Returns all files changed in the PR with their status (added/modified/removed), additions, deletions, and patch diff. Use to verify scope hygiene — check that only expected files were touched. Replaces the need for Mr. Walker to send a Files Changed screenshot.",
+        "parameters": [
+          {
+            "name": "pull_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "PR number"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            },
+            "description": "Max files to return. Default 100 is sufficient for most PRs."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of changed files with filename, status, additions, deletions, patch"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walker-ai-team/pulls/{pull_number}/reviews": {
+      "get": {
+        "operationId": "getPRReviews",
+        "summary": "Get all review results for a PR",
+        "description": "Returns reviews from all bots and reviewers (Gemini, Copilot, Codex, COMMANDER). Use to check if auto-reviews passed before making merge decision. Shows reviewer name, state (APPROVED/CHANGES_REQUESTED/COMMENTED), and review body.",
+        "parameters": [
+          {
+            "name": "pull_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "PR number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of reviews with reviewer, state, submitted_at, body"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walker-ai-team/issues/{issue_number}/labels": {
+      "post": {
+        "operationId": "addPRLabel",
+        "summary": "Add labels to a PR",
+        "description": "Add one or more labels to a PR. Use to trigger review bots: 'gemini-review' → triggers Gemini Code Assist, 'copilot-review' → triggers Copilot review. Also use to mark PR status: 'ready-for-merge', 'on-hold', 'needs-fix'.",
+        "parameters": [
+          {
+            "name": "issue_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "PR number"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "labels"
+                ],
+                "properties": {
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Label names. Examples: ['gemini-review'], ['ready-for-merge'], ['on-hold']"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Labels added"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removePRLabel",
+        "summary": "Remove a label from a PR",
+        "description": "Remove a specific label from a PR. Use to clean up after review is done.",
+        "parameters": [
+          {
+            "name": "issue_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "PR number"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "labels"
+                ],
+                "properties": {
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Label names to remove"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Label removed"
+          }
+        }
+      }
+    }
+  }
+}
