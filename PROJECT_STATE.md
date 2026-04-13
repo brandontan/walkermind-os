@@ -8,6 +8,7 @@
 Deterministic policy-driven halt decisions are now available to block execution/transport/settlement progression with explicit operator/system halt paths, typed contracts, auditable trace output, and a side-effect-free `evaluate()` probe path; runtime orchestration integration remains intentionally out of scope.
 
 ## COMPLETED
+- **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
 - **Phase 5.2 execution transport layer** implemented with deterministic gating for real submission vs simulated submission.
 - **Phase 5.2 transport policy gates** enforce transport enablement, explicit real submission permission, LIVE-mode requirement, dry-run forcing, single-order limits, idempotency, audit log, and operator confirmation requirements.
 - **Phase 5.1 live execution authorizer** remains required upstream authorization dependency and is not bypassed.
