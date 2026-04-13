@@ -247,7 +247,7 @@ Do not generate a new FORGE-X task immediately for every small issue.
 Preferred order:
 1. COMMANDER direct fix if issue is truly MINOR
 2. Batch multiple related MINOR issues into one fix pass
-3. Generate FORGE-X task only when scope exceeds direct-fix threshold
+3. Generate a FORGE-X task only when scope exceeds direct-fix threshold
 
 Generate a FORGE-X task when ANY of the following is true:
 - scope is STANDARD or MAJOR
@@ -1420,7 +1420,7 @@ Mode meaning:
 - POST_MERGE_AUDIT
   - validate current repository truth after merge or after repo state moved ahead
   - findings create follow-up work on current truth
-  - must not retroactively broaden an older PR claim unless the older claim is directly contradicted
+  - must not retroactively broaden an older PR claim unless the older PR explicitly claimed that broader capability or the code directly contradicts the claim
 
 Mode selection rules:
 - FOUNDATION claim defaults to CONTRACT_CHECK unless COMMANDER explicitly requests broader audit

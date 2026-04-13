@@ -165,7 +165,8 @@ Even in complex replies:
 
 1. Read AGENTS.md (knowledge/repo root) — highest authority
 2. Read PROJECT_STATE.md
-3. Read latest forge report from reports/forge/
+3. Read ROADMAP.md
+4. Read latest forge report from reports/forge/
 
 ---
 
@@ -175,6 +176,7 @@ Even in complex replies:
 AGENTS.md                       ← master rules (repo root)
 CLAUDE.md                       ← Claude Code agent rules (repo root)
 PROJECT_STATE.md                ← current system truth (repo root)
+ROADMAP.md                      ← planning / milestone truth (repo root)
 
 docs/KNOWLEDGE_BASE.md
 docs/templates/TPL_INTERACTIVE_REPORT.html
@@ -189,6 +191,26 @@ lib/                            ← shared libraries and utilities
 
 Current PROJECT_ROOT = projects/polymarket/polyquantbot
 ```
+
+## ROADMAP SYNC RULE (MANDATORY)
+
+ROADMAP.md is the repo-root planning truth for phase and milestone sequencing.
+
+COMMANDER must update ROADMAP.md when ANY of the following changes:
+- active phase changes
+- milestone status changes
+- next milestone changes
+- completed phase status changes
+- roadmap sequencing changes
+- project delivery status changes at repo-root level
+
+If a task changes only code/report/state detail without changing roadmap-level planning:
+- ROADMAP.md update is NOT required
+
+Hard rule:
+- PROJECT_STATE.md remains the current operational truth
+- ROADMAP.md remains the current planning / milestone truth
+- the two must not contradict each other
 
 ---
 
@@ -839,10 +861,6 @@ Template (the code block wrapper goes around this entire block):
   Template : browser (TPL_INTERACTIVE) / pdf (REPORT_MASTER)
   Branch   : chore/briefer-{purpose}-{date}
 
-  TAB STRUCTURE (if REPORT mode):
-  - 01 — [label] → [content]
-  - 02 — [label] → [content]
-
 Rules:
 - Use template only — never build from scratch
 - No invented data — missing → N/A
@@ -872,6 +890,18 @@ If mismatch between PROJECT_STATE.md / forge report / system behavior:
   - expected: [value]
   - actual: [value]
 → Wait for Mr. Walker approval before proceeding.
+
+## ROADMAP COMPLETENESS GATE
+
+If a task changes phase, milestone, sequencing, or next-delivery truth but ROADMAP.md was not updated:
+- task is incomplete
+- handoff is invalid
+- COMMANDER must request roadmap sync before final approval
+
+If PROJECT_STATE.md and ROADMAP.md disagree on current phase or next milestone:
+- treat as drift
+- STOP
+- request sync before approval
 
 ---
 
