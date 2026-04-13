@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-13 16:25
+2026-04-13 16:58
 
 ## Status
-— **SENTINEL COMPLETE — Phase 6.3 kill-switch and deterministic execution-halt foundation validated (APPROVED, MAJOR, FOUNDATION)**
-Deterministic policy-driven halt decisions were validated as fail-closed decision-layer controls that block execution/transport/settlement progression under halted or invalid conditions; runtime orchestration integration remains intentionally out of scope.
+— **SENTINEL RE-RUN COMPLETE — Phase 6.3 kill-switch and deterministic execution-halt foundation reconfirmed (APPROVED, MAJOR, FOUNDATION)**
+Re-run validation reconfirmed deterministic fail-closed halt-control behavior with no bypass path, no side-effect execution triggers, and no automation; scope remains FOUNDATION-only decision-layer control.
 
 ## COMPLETED
 - **Phase 5.2 execution transport layer** implemented with deterministic gating for real submission vs simulated submission.
@@ -25,6 +25,7 @@ Deterministic policy-driven halt decisions were validated as fail-closed decisio
 - **Phase 6.1 reconciliation input hardening** added deterministic invalid-input handling for malformed capital snapshots (`invalid_capital_snapshot`) to preserve non-crashing read-only reconciliation behavior.
 - **Phase 6.3 kill-switch & execution-halt foundation** implemented with deterministic `KillSwitchController` arm/disarm/evaluate contracts, explicit operator/system halt triggers, and fail-closed contract validation for pre-execution progression blocking.
 - **SENTINEL validation (PR #462)** completed with APPROVED verdict (95/100) for MAJOR-tier FOUNDATION scope.
+- **SENTINEL re-run validation (PR #462)** completed with APPROVED verdict (95/100) and reaffirmed MAJOR-tier FOUNDATION scope.
 
 ## IN PROGRESS
 - Awaiting SENTINEL validation for Phase 6.1 execution ledger & reconciliation foundation (MAJOR, FOUNDATION).
