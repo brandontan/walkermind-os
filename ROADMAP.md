@@ -1,36 +1,45 @@
-**Updated: 2026-04-13 19:05 UTC (sync cleanup for PR #470)**
+# Walker AI Trading Team — Project Roadmap
 
-## Active Project
+**Updated: 2026-04-14 10:10 UTC (COMMANDER cleanup sync for PR #470)**
 
-## Crusader Phase Board
+## Active Projects
+
+| Project | Platform | Status | Current Phase |
+|---|---|---|---|
+| Crusader | Polymarket | Active | Phase 6 — Production Safety & Stabilization |
+
+## PROJECT: CRUSADER
+
+### Board Overview
+
+| Phase | Name | Status | Target |
+|---|---|---|---|
 | 1 | Core Hardening | Done | Internal |
 | 2 | Platform Foundation | Done | Internal |
 | 3 | Execution-Safe MVP | Done | Closed Beta |
 | 4 | Execution Formalization & Boundaries | Done | Internal |
 | 5 | Real Execution & Capital System | Done | Internal |
 | 6 | Production Safety & Stabilization | In Progress | Public Preparation |
-## Phase 6 Milestone Truth
-| Sub-Phase | Name | Planning Status |
-| 6.2 | Persistent Ledger & Audit Trail | Done |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | FORGE complete; SENTINEL required before merge |
-## Next Milestone Gate
-- Complete SENTINEL validation for unresolved MAJOR Phase 6 items (6.3 and 6.4.1).
-- COMMANDER re-reviews PR #470 after cleanup confirmation.
-PROJECT_STATE.md is operational truth.
-ROADMAP.md is planning/milestone truth and is synchronized to current repo state.
-| 6.2 | Persistent Ledger & Audit Trail | ðŸš§ In Progress (PR #461)  |
-| 6.3 | Kill Switch & Execution Halt | âŒ Next |
 
-Anchor State:
-- Real execution enabled
-- Persistent audit trail introduced
-- Kill switch pending implementation
+### Phase 6 — Detailed Status
+
+| Sub-Phase | Name | Status |
+|---|---|---|
+| 6.1 | Execution Ledger (In-memory) | Done |
+| 6.2 | Persistent Ledger & Audit Trail | Done |
+| 6.3 | Kill Switch & Execution Halt Foundation | FORGE complete; SENTINEL required before merge |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | FORGE complete; SENTINEL required before merge |
+
+### Anchor State
+- Real execution enabled.
+- Persistent audit trail foundation present.
+- Kill-switch foundation and monitoring/circuit-breaker spec are complete at FORGE layer and both remain pending SENTINEL validation before merge.
+
+### Next Milestone
+- Complete SENTINEL validation for unresolved MAJOR Phase 6 items (6.3 and 6.4.1).
+- COMMANDER decides merge sequencing after required MAJOR validations.
 
 ---
 
-## COMMANDUR NOTE
-
-PROJECT_STATE.md remains source of truth.
-ROADMAP.md is aligned to repo state as of last merge.
-
-*Build. Deploy. Profit. Repeat.*
+PROJECT_STATE.md remains source of operational truth.
+ROADMAP.md remains planning / milestone truth synchronized to current repository state.
