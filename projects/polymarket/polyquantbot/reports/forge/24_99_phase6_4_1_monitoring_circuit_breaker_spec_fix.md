@@ -95,12 +95,12 @@ projects/polymarket/polyquantbot/tests/test_monitoring.py
 Commands run:
 
 1. python -m py_compile projects/polymarket/polyquantbot/core/circuit_breaker.py
-2. PYTHONPATH=/home/user/walker-ai-team python -m pytest projects/polymarket/polyquantbot/tests/test_monitoring.py -q --tb=short
+2. PYTHONPATH=. python -m pytest projects/polymarket/polyquantbot/tests/test_monitoring.py -q --tb=short
 
 Results:
 
 - py_compile: PASS
-- pytest: PASS (20 passed in 0.79s)
+- pytest: PASS (20 passed in 0.66s)
 
 Final output lines present:
 
@@ -128,17 +128,18 @@ Result: **PASS** — no syntax errors.
 
 **Command 2 — pytest**
 ```
-PYTHONPATH=/home/user/walker-ai-team \
-  python -m pytest projects/polymarket/polyquantbot/tests/test_monitoring.py -q --tb=short
+PYTHONPATH=. python -m pytest projects/polymarket/polyquantbot/tests/test_monitoring.py -q --tb=short
 ```
 Target: `projects/polymarket/polyquantbot/tests/test_monitoring.py`
 Coverage: 20 scenarios (OBS-01 through OBS-20) covering monitoring schema, metrics
 exporter, and metrics server — the existing runtime layer closest to Phase 6.4.1 domain.
-Result: **PASS** — 20 passed in 0.79s.
+Result: **PASS** — 20 passed in 0.66s.
 
-Note: `PytestConfigWarning: Unknown config option: asyncio_mode` is a known container
-environment warning (logged in KNOWN ISSUES since Phase 5.x). It does not affect test
-correctness.
+Requirement: `pytest-asyncio` must be installed (`pip install pytest-asyncio`).
+The repo root `pytest.ini` sets `asyncio_mode = auto`; async tests fail silently without
+this plugin. The SENTINEL conditional gap was caused by a missing `pytest-asyncio` package
+in the Codex validation container — not a test design defect. Both `PYTHONPATH=.` and
+`PYTHONPATH=/home/user/walker-ai-team` produce `20 passed` when the plugin is present.
 
 ### Structure validation (pre-SENTINEL checklist)
 
