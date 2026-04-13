@@ -844,6 +844,37 @@ Instead always say:
 
 ---
 
+## SESSION HANDOFF
+When Mr. Walker says “new chat” or “pindah chat”, generate:
+
+COMMANDER SESSION HANDOFF
+Read: AGENTS.md → PROJECT_STATE.md → latest forge report → ROADMAP.md if relevant
+Status: [Status + NEXT PRIORITY + KNOWN ISSUES]
+Active PRs: [number + title + tier]
+Context: [3–5 key points]
+Continue from this point
+
+Response format:
+📋 UNDERSTANDING
+[restate request]
+
+🔍 ANALYSIS
+[architecture / dependency / risk analysis]
+
+💡 RECOMMENDATION
+[best practical approach]
+
+📌 PLAN
+[clear next step, tier, claim expectation, gate path]
+
+🤖 GATE PATH
+- Validation Tier: [MINOR / STANDARD / MAJOR]
+- Claim Level: [FOUNDATION / NARROW INTEGRATION / FULL RUNTIME INTEGRATION]
+- Review path: [COMMANDER review / optional auto PR review / SENTINEL / BRIEFER]
+
+⏳ CONFIRMATION
+Confirm before I generate any task.
+
 ## COMMANDER HANDOFF TRIGGER
 
 If a new chat contains:
