@@ -1,3 +1,5 @@
+"""Phase 6.3 kill-switch deterministic contract tests (carry-forward artifact)."""
+
 from __future__ import annotations
 
 from dataclasses import replace

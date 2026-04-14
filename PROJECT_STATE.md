@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 12:00
+2026-04-14 12:20
 
 ## Status
-— **SENTINEL APPROVED — Phase 6.3 kill-switch carry-forward truth preserved with aligned Phase 6.4.1 state (MAJOR, FOUNDATION)**
-Phase 6.3 remains treated as SENTINEL-approved carry-forward truth in this PR path, while Phase 6.4.1 remains SENTINEL APPROVED (score 100/100); this update is governance-only and does not expand runtime scope.
+— **SENTINEL APPROVED — Phase 6.3 carry-forward artifacts now included for real PR #479 replacement path (MAJOR, FOUNDATION)**
+Phase 6.3 remains SENTINEL-approved truth and PR #479 now carries actual Phase 6.3 artifact files (safety module exports, kill-switch module artifact, and deterministic tests) alongside aligned Phase 6.4.1 approved truth.
 
 ## COMPLETED
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
@@ -18,8 +18,8 @@ Phase 6.3 remains treated as SENTINEL-approved carry-forward truth in this PR pa
 - **Phase 6.1 execution ledger & read-only reconciliation** implemented with deterministic append-only in-memory ledger records and reconciliation checks.
 - **Phase 6.2 persistent ledger & audit trail** implemented with append-only local-file persistence, deterministic reload, and read-only audit filtering.
 - **Phase 6.3 kill-switch & execution-halt foundation** preserved as SENTINEL-approved carry-forward truth for clean replacement PR #479.
+- **Phase 6.3 real carry-forward artifact inclusion** completed in PR #479 by carrying forward the approved safety module files and deterministic test artifact into the replacement diff path.
 - **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** remains SENTINEL APPROVED (score 100/100) with deterministic 10% boundary semantics and fixed anomaly-to-decision precedence.
-- **Phase 6.3 / 6.4.1 clean carry-forward package** normalized for PR #479 by restoring approved-truth wording and removing report/path drift.
 
 ## IN PROGRESS
 - COMMANDER re-review of PR #479 as the single clean replacement carry-forward path to `main`.
@@ -31,7 +31,7 @@ Phase 6.3 remains treated as SENTINEL-approved carry-forward truth in this PR pa
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-COMMANDER re-review required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_13_phase6_3_clean_carry_forward_to_main.md. Tier: MAJOR
+SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_13_phase6_3_clean_carry_forward_to_main.md. Tier: MAJOR
 
 ## KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.

@@ -2,46 +2,54 @@
 
 **Validation Tier:** MAJOR  
 **Claim Level:** FOUNDATION  
-**Validation Target:** Truth-preserving clean carry-forward PR #479 content for approved Phase 6.3 artifacts and aligned Phase 6.4.1 truth, with synchronized `PROJECT_STATE.md` and `ROADMAP.md`.  
-**Not in Scope:** New validation work, runtime implementation edits, speculative cleanup, unrelated roadmap changes, or verdict/score changes.  
-**Suggested Next Step:** COMMANDER re-review of PR #479 before merge to `main`.
+**Validation Target:** Real Phase 6.3 carry-forward completeness in PR #479 while preserving aligned Phase 6.4.1 approved truth and synchronized `PROJECT_STATE.md` / `ROADMAP.md`.  
+**Not in Scope:** New validation work, runtime expansion beyond approved carry-forward content, speculative cleanup, or unrelated repository changes.  
+**Suggested Next Step:** COMMANDER re-review of PR #479, then SENTINEL validation before merge.
 
 ---
 
 ## 1) What was built
-- Corrected carry-forward governance truth in PR #479 so Phase 6.3 remains SENTINEL-approved wording (not forge-only carry-forward wording).
-- Re-aligned roadmap wording with project state wording for Phase 6.3 and Phase 6.4.1.
-- Normalized this report to repo-root paths only.
+- Converted PR #479 from governance-only to real carry-forward completeness by including approved Phase 6.3 artifact files in the PR diff.
+- Preserved corrected state/roadmap truth wording and Phase 6.4.1 alignment.
+- Kept scope constrained to truthful carry-forward content only.
 
 ## 2) Current system architecture
-- No runtime architecture changes were made.
-- No execution/risk/strategy/infrastructure code paths were expanded.
-- This task only corrects carry-forward truth presentation for PR merge readiness.
+- No new runtime behavior was introduced.
+- This task carries forward approved Phase 6.3 artifacts only:
+  - safety package export surface
+  - kill-switch foundation module artifact
+  - deterministic kill-switch test artifact
+- No strategy/risk/execution lifecycle expansion was added.
 
 ## 3) Files created / modified (full paths)
 - Modified: `PROJECT_STATE.md`
 - Modified: `ROADMAP.md`
 - Modified: `projects/polymarket/polyquantbot/reports/forge/25_13_phase6_3_clean_carry_forward_to_main.md`
+- Modified: `projects/polymarket/polyquantbot/platform/safety/__init__.py`
+- Modified: `projects/polymarket/polyquantbot/platform/safety/kill_switch.py`
+- Modified: `projects/polymarket/polyquantbot/tests/test_phase6_3_kill_switch_20260413.py`
 
 ## 4) What is working
-- Phase 6.3 is explicitly restored as SENTINEL-approved truth in both state and roadmap artifacts.
+- PR #479 now includes actual approved Phase 6.3 artifacts in addition to governance files.
+- Phase 6.3 remains clearly expressed as SENTINEL-approved carry-forward truth.
 - Phase 6.4.1 remains aligned as SENTINEL APPROVED (score 100/100) with unchanged scope.
-- Carry-forward PR scope remains clean and governance-only for PR #479.
+- State/roadmap/report remain synchronized for the same carry-forward milestone.
 
 ## 5) Known issues
-- No new issues introduced in this carry-forward truth correction task.
+- No new issues introduced by this carry-forward completeness update.
 
 ## 6) What is next
 - COMMANDER re-review of PR #479.
-- After approval, merge PR #479 as the single clean replacement carry-forward path to `main`.
+- SENTINEL validation required before merge due MAJOR tier.
 
 ---
 
 **Validation commands run (scope checks):**
 1. `git status --short --branch`
 2. `find . -type d -name 'phase*'`
-3. `git diff -- PROJECT_STATE.md ROADMAP.md projects/polymarket/polyquantbot/reports/forge/25_13_phase6_3_clean_carry_forward_to_main.md`
+3. `python -m py_compile projects/polymarket/polyquantbot/platform/safety/kill_switch.py projects/polymarket/polyquantbot/tests/test_phase6_3_kill_switch_20260413.py`
+4. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase6_3_kill_switch_20260413.py`
 
-**Report Timestamp:** 2026-04-14 12:00 UTC  
+**Report Timestamp:** 2026-04-14 12:20 UTC  
 **Role:** FORGE-X (NEXUS)  
-**Task:** fix clean carry-forward truth in pr 479
+**Task:** add real phase 6.3 carry-forward artifacts to pr 479

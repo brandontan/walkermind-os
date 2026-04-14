@@ -1,6 +1,6 @@
 # Walker AI Trading Team — Project Roadmap
 
-**Updated: 2026-04-14 12:00 UTC (FORGE-X PR #479 carry-forward truth correction)**
+**Updated: 2026-04-14 12:20 UTC (FORGE-X PR #479 real Phase 6.3 carry-forward artifact inclusion)**
 
 ## Active Projects
 
@@ -27,18 +27,18 @@
 |---|---|---|
 | 6.1 | Execution Ledger (In-memory) | Done |
 | 6.2 | Persistent Ledger & Audit Trail | Done |
-| 6.3 | Kill Switch & Execution Halt Foundation | SENTINEL APPROVED carry-forward truth (PR #479 replacement path) |
+| 6.3 | Kill Switch & Execution Halt Foundation | SENTINEL APPROVED carry-forward truth with real artifacts included in PR #479 |
 | 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | SENTINEL APPROVED (score 100/100) |
 
 ### Anchor State
 - Real execution enabled.
 - Persistent audit trail foundation present.
-- Phase 6.3 kill-switch FOUNDATION remains SENTINEL-approved truth in the clean replacement carry-forward path.
+- Phase 6.3 kill-switch FOUNDATION remains SENTINEL-approved truth and now includes real approved artifact files in the PR #479 carry-forward diff.
 - Phase 6.4.1 monitoring/circuit-breaker FOUNDATION spec remains SENTINEL APPROVED (score 100/100) with unchanged scope.
 
 ### Next Milestone
 - COMMANDER re-review of PR #479 as the single clean replacement carry-forward path to `main`.
-- Merge approved Phase 6.3 carry-forward truth with aligned Phase 6.4.1 truth to `main`.
+- Complete merge path for approved Phase 6.3 carry-forward truth and aligned Phase 6.4.1 truth to `main`.
 
 ---
 

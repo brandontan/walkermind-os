@@ -1,3 +1,5 @@
+"""Phase 6.3 kill-switch foundation carry-forward artifact."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
