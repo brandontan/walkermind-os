@@ -344,7 +344,29 @@ class LiveExecutionAuthorizer:
                     upstream_trace_refs=upstream_trace_refs,
                     authorization_notes={"monitoring_required": True},
                 )
-            breaker = readiness_input.monitoring_circuit_breaker or MonitoringCircuitBreaker()
+            breaker = readiness_input.monitoring_circuit_breaker
+            if breaker is None:
+                breaker = MonitoringCircuitBreaker()
+            elif not isinstance(breaker, MonitoringCircuitBreaker):
+                return _blocked_result(
+                    selected_mode=selected_mode,
+                    authorization_scope=authorization_scope,
+                    blocked_reason=LIVE_AUTH_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    kill_switch_armed=readiness_input.readiness_decision.kill_switch_armed,
+                    audit_required=policy_input.audit_required,
+                    audit_attached=policy_input.audit_attached,
+                    authorization_evaluated=True,
+                    upstream_trace_refs={
+                        **upstream_trace_refs,
+                        "contract_errors": {
+                            "monitoring_circuit_breaker": {
+                                "expected_type": "MonitoringCircuitBreaker",
+                                "actual_type": type(readiness_input.monitoring_circuit_breaker).__name__,
+                            }
+                        },
+                    },
+                    authorization_notes={"contract_name": "monitoring_circuit_breaker"},
+                )
             monitoring_result = breaker.evaluate(readiness_input.monitoring_input)
             upstream_trace_refs["monitoring"] = {
                 "decision": monitoring_result.decision,

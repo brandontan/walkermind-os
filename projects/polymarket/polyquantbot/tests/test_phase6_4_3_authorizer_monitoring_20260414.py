@@ -98,6 +98,24 @@ def test_phase6_4_3_invalid_monitoring_input_blocks_authorizer_path() -> None:
     assert result.decision.blocked_reason == LIVE_AUTH_BLOCK_MONITORING_EVALUATION_REQUIRED
 
 
+def test_phase6_4_3_invalid_monitoring_breaker_contract_blocks_authorizer_path() -> None:
+    authorizer = LiveExecutionAuthorizer()
+
+    result = authorizer.authorize_with_trace(
+        readiness_input=replace(  # type: ignore[arg-type]
+            VALID_READINESS_INPUT,
+            monitoring_circuit_breaker="not-a-breaker",
+        ),
+        policy_input=VALID_POLICY_INPUT,
+    )
+
+    assert result.decision is not None
+    assert result.decision.allowed is False
+    assert result.decision.blocked_reason == LIVE_AUTH_BLOCK_MONITORING_EVALUATION_REQUIRED
+    assert result.trace.authorization_notes is not None
+    assert result.trace.authorization_notes["contract_name"] == "monitoring_circuit_breaker"
+
+
 def test_phase6_4_3_authorizer_monitoring_anomaly_blocks_execution_authorization() -> None:
     authorizer = LiveExecutionAuthorizer()
     breaker = MonitoringCircuitBreaker()
@@ -211,3 +229,19 @@ def test_phase6_4_3_transport_path_regression_remains_intact() -> None:
     assert submit_result.result.submitted is True
     assert submit_result.result.success is True
     assert submit_result.result.blocked_reason is None
+
+
+def test_phase6_4_3_allow_path_propagates_monitoring_trace_refs() -> None:
+    authorizer = LiveExecutionAuthorizer()
+    result = authorizer.authorize_with_trace(
+        readiness_input=replace(
+            VALID_READINESS_INPUT,
+            monitoring_circuit_breaker=MonitoringCircuitBreaker(),
+        ),
+        policy_input=VALID_POLICY_INPUT,
+    )
+
+    assert result.decision is not None
+    assert result.decision.execution_authorized is True
+    assert result.trace.upstream_trace_refs["monitoring"]["decision"] == "ALLOW"
+    assert result.trace.upstream_trace_refs["monitoring"]["primary_anomaly"] is None
