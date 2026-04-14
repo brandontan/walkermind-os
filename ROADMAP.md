@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-14 21:14
+**Last Updated:** 2026-04-14 21:40
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-14 21:14
+**Last Updated:** 2026-04-14 21:40
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -54,6 +54,7 @@
 | 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for ExecutionTransport.submit_with_trace narrow integration after SENTINEL APPROVED (95/100). |
 | 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED (99/100). Narrow scope: LiveExecutionAuthorizer.authorize_with_trace + ExecutionTransport.submit_with_trace preserved. No platform-wide rollout. |
 | 6.4.4 | Gateway-Path Monitoring Narrow Integration Expansion | ✅ Done | Runtime/code path merged via PR #493. SENTINEL APPROVED validation path recorded in PR #495 (97/100). Accepted narrow three-path execution monitoring baseline: ExecutionTransport.submit_with_trace + LiveExecutionAuthorizer.authorize_with_trace + ExecutionGateway.simulate_execution_with_trace. No platform-wide rollout. |
+| 6.4.5 | Exchange-Path Monitoring Narrow Integration Expansion | 🚧 In Progress | FORGE-X runtime/code implementation completed on source branch for ExchangeIntegration.execute_with_trace with deterministic ALLOW/BLOCK/HALT integration and focused tests; SENTINEL MAJOR validation required before merge. Accepted baseline paths (6.4.2/6.4.3/6.4.4) preserved. |
 
 ---
 
