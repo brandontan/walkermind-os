@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-14 13:55
+**Last Updated:** 2026-04-14 17:09
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-14 13:55
+**Last Updated:** 2026-04-14 17:09
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -52,7 +52,7 @@
 | 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479 and preserved as approved carry-forward truth. |
 | 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | 🚧 In Progress | Approved at spec level only; runtime-wide delivery is not claimed. |
 | 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for ExecutionTransport.submit_with_trace narrow integration after SENTINEL APPROVED (95/100). |
-| 6.4.3 | Next Execution Path Monitoring Expansion | 🚧 In Progress | FORGE-X expanded narrow monitoring enforcement to LiveExecutionAuthorizer.authorize_with_trace; SENTINEL gate required. |
+| 6.4.3 | Next Execution Path Monitoring Expansion | 🚧 In Progress | SENTINEL APPROVED (94/100) for narrow expansion on LiveExecutionAuthorizer.authorize_with_trace; awaiting COMMANDER merge decision. |
 
 ---
 
