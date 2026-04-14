@@ -5,6 +5,12 @@ from typing import Any
 
 from .execution_mode_controller import MODE_FUTURE_LIVE, MODE_LIVE
 from .live_execution_guardrails import LiveExecutionReadinessDecision
+from .monitoring_circuit_breaker import (
+    MONITORING_DECISION_BLOCK,
+    MONITORING_DECISION_HALT,
+    MonitoringCircuitBreaker,
+    MonitoringContractInput,
+)
 
 LIVE_AUTH_BLOCK_INVALID_READINESS_INPUT_CONTRACT = "invalid_readiness_input_contract"
 LIVE_AUTH_BLOCK_INVALID_POLICY_INPUT_CONTRACT = "invalid_policy_input_contract"
@@ -20,11 +26,16 @@ LIVE_AUTH_BLOCK_WALLET_BINDING_MISSING = "wallet_binding_missing"
 LIVE_AUTH_BLOCK_AUDIT_ATTACHMENT_MISSING = "audit_attachment_missing"
 LIVE_AUTH_BLOCK_OPERATOR_APPROVAL_MISSING = "operator_approval_missing"
 LIVE_AUTH_BLOCK_KILL_SWITCH_NOT_ARMED = "kill_switch_not_armed"
+LIVE_AUTH_BLOCK_MONITORING_EVALUATION_REQUIRED = "monitoring_evaluation_required"
+LIVE_AUTH_BLOCK_MONITORING_ANOMALY = "monitoring_anomaly_block"
+LIVE_AUTH_HALT_MONITORING_ANOMALY = "monitoring_anomaly_halt"
 
 
 @dataclass(frozen=True)
 class LiveExecutionReadinessInput:
     readiness_decision: LiveExecutionReadinessDecision
+    monitoring_input: MonitoringContractInput | None = None
+    monitoring_circuit_breaker: MonitoringCircuitBreaker | None = None
     source_trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -42,6 +53,7 @@ class LiveExecutionAuthorizationPolicyInput:
     operator_approval_required: bool
     operator_approval_present: bool
     kill_switch_must_remain_armed: bool = True
+    monitoring_required: bool = False
     policy_trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -318,6 +330,81 @@ class LiveExecutionAuthorizer:
                 },
             )
 
+        monitoring_result = None
+        if policy_input.monitoring_required:
+            if not isinstance(readiness_input.monitoring_input, MonitoringContractInput):
+                return _blocked_result(
+                    selected_mode=selected_mode,
+                    authorization_scope=authorization_scope,
+                    blocked_reason=LIVE_AUTH_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    kill_switch_armed=readiness_input.readiness_decision.kill_switch_armed,
+                    audit_required=policy_input.audit_required,
+                    audit_attached=policy_input.audit_attached,
+                    authorization_evaluated=True,
+                    upstream_trace_refs=upstream_trace_refs,
+                    authorization_notes={"monitoring_required": True},
+                )
+            breaker = readiness_input.monitoring_circuit_breaker
+            if breaker is None:
+                breaker = MonitoringCircuitBreaker()
+            elif not isinstance(breaker, MonitoringCircuitBreaker):
+                return _blocked_result(
+                    selected_mode=selected_mode,
+                    authorization_scope=authorization_scope,
+                    blocked_reason=LIVE_AUTH_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    kill_switch_armed=readiness_input.readiness_decision.kill_switch_armed,
+                    audit_required=policy_input.audit_required,
+                    audit_attached=policy_input.audit_attached,
+                    authorization_evaluated=True,
+                    upstream_trace_refs={
+                        **upstream_trace_refs,
+                        "contract_errors": {
+                            "monitoring_circuit_breaker": {
+                                "expected_type": "MonitoringCircuitBreaker",
+                                "actual_type": type(readiness_input.monitoring_circuit_breaker).__name__,
+                            }
+                        },
+                    },
+                    authorization_notes={"contract_name": "monitoring_circuit_breaker"},
+                )
+            monitoring_result = breaker.evaluate(readiness_input.monitoring_input)
+            upstream_trace_refs["monitoring"] = {
+                "decision": monitoring_result.decision,
+                "primary_anomaly": monitoring_result.primary_anomaly,
+                "anomalies": list(monitoring_result.anomalies),
+                "eval_ref": monitoring_result.event.eval_ref,
+            }
+            if monitoring_result.decision == MONITORING_DECISION_HALT:
+                return _blocked_result(
+                    selected_mode=selected_mode,
+                    authorization_scope=authorization_scope,
+                    blocked_reason=LIVE_AUTH_HALT_MONITORING_ANOMALY,
+                    kill_switch_armed=readiness_input.readiness_decision.kill_switch_armed,
+                    audit_required=policy_input.audit_required,
+                    audit_attached=policy_input.audit_attached,
+                    authorization_evaluated=True,
+                    upstream_trace_refs=upstream_trace_refs,
+                    authorization_notes={
+                        "monitoring_decision": monitoring_result.decision,
+                        "primary_anomaly": monitoring_result.primary_anomaly,
+                    },
+                )
+            if monitoring_result.decision == MONITORING_DECISION_BLOCK:
+                return _blocked_result(
+                    selected_mode=selected_mode,
+                    authorization_scope=authorization_scope,
+                    blocked_reason=LIVE_AUTH_BLOCK_MONITORING_ANOMALY,
+                    kill_switch_armed=readiness_input.readiness_decision.kill_switch_armed,
+                    audit_required=policy_input.audit_required,
+                    audit_attached=policy_input.audit_attached,
+                    authorization_evaluated=True,
+                    upstream_trace_refs=upstream_trace_refs,
+                    authorization_notes={
+                        "monitoring_decision": monitoring_result.decision,
+                        "primary_anomaly": monitoring_result.primary_anomaly,
+                    },
+                )
+
         decision = LiveExecutionAuthorizationDecision(
             execution_authorized=True,
             allowed=True,
@@ -394,6 +481,8 @@ def _validate_policy_input(
         errors["operator_approval_present"] = "must_be_bool"
     if not isinstance(policy_input.kill_switch_must_remain_armed, bool):
         errors["kill_switch_must_remain_armed"] = "must_be_bool"
+    if not isinstance(policy_input.monitoring_required, bool):
+        errors["monitoring_required"] = "must_be_bool"
     if not isinstance(policy_input.policy_trace_refs, dict):
         errors["policy_trace_refs"] = "must_be_dict"
 
