@@ -1,6 +1,6 @@
 # Walker AI Trading Team — Project Roadmap
 
-**Updated: 2026-04-14 10:10 UTC (COMMANDER cleanup sync for PR #470)**
+**Updated: 2026-04-14 13:10 UTC (FORGE-X final Phase 6.3 carry-forward reset to clean replacement PR)**
 
 ## Active Projects
 
@@ -27,19 +27,18 @@
 |---|---|---|
 | 6.1 | Execution Ledger (In-memory) | Done |
 | 6.2 | Persistent Ledger & Audit Trail | Done |
-| 6.3 | Kill Switch & Execution Halt Foundation | FORGE complete; SENTINEL required before merge |
+| 6.3 | Kill Switch & Execution Halt Foundation | Approved carry-forward truth in final replacement PR scope |
 | 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | SENTINEL APPROVED (score 100/100) |
 
 ### Anchor State
 - Real execution enabled.
 - Persistent audit trail foundation present.
-- Kill-switch foundation (6.3) is FORGE complete and remains pending SENTINEL validation before merge.
-- Monitoring/circuit-breaker spec (6.4.1) is SENTINEL APPROVED (score 100/100); awaiting COMMANDER merge decision.
+- Phase 6.3 kill-switch FOUNDATION is preserved as approved carry-forward truth in one governance/state-only replacement PR path.
+- Phase 6.4.1 monitoring/circuit-breaker FOUNDATION spec remains SENTINEL APPROVED (score 100/100) with unchanged scope.
 
 ### Next Milestone
-- COMMANDER merge decision on PR #470 (Phase 6.4.1 — SENTINEL APPROVED).
-- Complete SENTINEL validation for Phase 6.3 kill-switch (unresolved MAJOR handoff).
-- COMMANDER decides merge sequencing after Phase 6.3 validation.
+- COMMANDER final review of replacement PR branch `regen/final-phase6_3-carry-forward-clean-20260414`.
+- Merge final clean carry-forward truth package to `main` after COMMANDER approval.
 
 ---
 
