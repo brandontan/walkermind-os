@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 11:10
+2026-04-14 12:00
 
 ## Status
-— **FORGE-X CARRY-FORWARD READY — Phase 6.3 / Phase 6.4.1 truth regeneration for clean PR to `main` (MAJOR, FOUNDATION)**
-Approved carry-forward artifacts are aligned for a fresh merge path: Phase 6.3 kill-switch FOUNDATION artifacts are preserved without scope expansion, and Phase 6.4.1 SENTINEL APPROVED spec-contract truth (score 100/100) remains unchanged.
+— **SENTINEL APPROVED — Phase 6.3 kill-switch carry-forward truth preserved with aligned Phase 6.4.1 state (MAJOR, FOUNDATION)**
+Phase 6.3 remains treated as SENTINEL-approved carry-forward truth in this PR path, while Phase 6.4.1 remains SENTINEL APPROVED (score 100/100); this update is governance-only and does not expand runtime scope.
 
 ## COMPLETED
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
@@ -17,13 +17,12 @@ Approved carry-forward artifacts are aligned for a fresh merge path: Phase 6.3 k
 - **SENTINEL validation (PR #449, #451, #453, #455, #457)** completed with APPROVED verdicts for Phase 5.2–5.6 major-gated work.
 - **Phase 6.1 execution ledger & read-only reconciliation** implemented with deterministic append-only in-memory ledger records and reconciliation checks.
 - **Phase 6.2 persistent ledger & audit trail** implemented with append-only local-file persistence, deterministic reload, and read-only audit filtering.
-- **Phase 6.3 kill-switch & execution-halt foundation** implemented with deterministic `KillSwitchController` arm/disarm/evaluate contracts, explicit operator/system halt triggers, fail-closed contract validation for pre-execution progression blocking, and side-effect-free `evaluate()` behavior.
-- **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** completed with deterministic 10% exposure boundary semantics (`<= 10%` allowed, `> 10%` breach), explicit anomaly taxonomy, typed evaluable inputs, and fixed anomaly-to-decision precedence.
-- **SENTINEL validation for Phase 6.4.1** completed with **APPROVED** verdict (score 100/100): spec-contract target, roadmap/state synchronization, and monitoring test evidence (20/20 passed) all validated.
-- **Phase 6.3 / 6.4.1 clean carry-forward package** regenerated for a fresh PR branch to `main` without closed PR #474 merge-base dependency.
+- **Phase 6.3 kill-switch & execution-halt foundation** preserved as SENTINEL-approved carry-forward truth for clean replacement PR #479.
+- **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** remains SENTINEL APPROVED (score 100/100) with deterministic 10% boundary semantics and fixed anomaly-to-decision precedence.
+- **Phase 6.3 / 6.4.1 clean carry-forward package** normalized for PR #479 by restoring approved-truth wording and removing report/path drift.
 
 ## IN PROGRESS
-- COMMANDER final review for clean carry-forward PR to `main` (Phase 6.3 artifacts + aligned Phase 6.4.1 truth).
+- COMMANDER re-review of PR #479 as the single clean replacement carry-forward path to `main`.
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
@@ -32,11 +31,9 @@ Approved carry-forward artifacts are aligned for a fresh merge path: Phase 6.3 k
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-COMMANDER review required before merge. Auto PR review: optional if used. Source: projects/polymarket/polyquantbot/reports/forge/25_13_phase6_3_clean_carry_forward_to_main.md. Tier: MAJOR
+COMMANDER re-review required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_13_phase6_3_clean_carry_forward_to_main.md. Tier: MAJOR
 
 ## KNOWN ISSUES
-- Pytest emits `PytestConfigWarning: Unknown config option: asyncio_mode` in some containers; does not affect test correctness when `pytest-asyncio` is installed.
-- `pytest-asyncio` must be installed for monitoring suite async tests to run (`pip install pytest-asyncio`); absence causes silent async test collection failures in minimal containers.
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.
 - Phase 5.3 network path is intentionally narrow (single request, no retry, no batching, no async workers).
 - Phase 5.4 introduces secure signing boundary only; wallet lifecycle and capital movement remain intentionally unimplemented.
@@ -46,4 +43,3 @@ COMMANDER review required before merge. Auto PR review: optional if used. Source
 - Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation/correction logic, no background automation, and no external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope.
 - Phase 6.4.1 is spec-contract only; runtime monitoring, persistence, alerting, scheduler wiring, and execution halting behavior remain intentionally out of scope.
-- Pytest import collection requires `PYTHONPATH=.` in this container for `projects.*` test module imports.
