@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 10:30
+**Last Updated:** 2026-04-14 20:41
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 10:30
+**Last Updated:** 2026-04-14 20:41
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -53,6 +53,7 @@
 | 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | 🚧 In Progress | Approved at spec level only; runtime-wide delivery is not claimed. |
 | 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for ExecutionTransport.submit_with_trace narrow integration after SENTINEL APPROVED (95/100). |
 | 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED (99/100). Narrow scope: LiveExecutionAuthorizer.authorize_with_trace + ExecutionTransport.submit_with_trace preserved. No platform-wide rollout. |
+| 6.4.4 | Gateway-Path Monitoring Narrow Integration Expansion | 🚧 In Progress | Source-branch implementation complete for ExecutionGateway.simulate_execution_with_trace with deterministic ALLOW/BLOCK/HALT contract; SENTINEL required before merge. |
 
 ---
 
