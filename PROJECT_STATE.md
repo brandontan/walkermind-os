@@ -1,13 +1,16 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 10:25
+
+2026-04-14 07:09
 
 ## Status
-— **SENTINEL APPROVED — Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix (MAJOR, FOUNDATION)**
-Deterministic typed-contract mapping for monitoring/circuit-breaker decisions is validated and approved; monitoring test evidence is reproducible (20/20 passed) with `pytest-asyncio` installed; runtime monitoring/execution wiring remains intentionally out of scope.
+
+— **FORGE-X refresh pass complete — PR #474 mergeability carry-forward prepared (MAJOR, FOUNDATION)**
+Phase 6.3 kill-switch foundation truth and Phase 6.4.1 SENTINEL-approved spec truth were preserved during branch refresh reconciliation for merge carry-forward.
 
 ## COMPLETED
+
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
 - **Phase 5.2 execution transport layer** implemented with deterministic gating for real submission vs simulated submission.
 - **Phase 5.3 exchange integration boundary** implemented with deterministic real-network gates and explicit signing boundary contracts.
@@ -20,9 +23,11 @@ Deterministic typed-contract mapping for monitoring/circuit-breaker decisions is
 - **Phase 6.3 kill-switch & execution-halt foundation** implemented with deterministic `KillSwitchController` arm/disarm/evaluate contracts, explicit operator/system halt triggers, fail-closed contract validation for pre-execution progression blocking, and side-effect-free `evaluate()` behavior.
 - **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** completed with deterministic 10% exposure boundary semantics (`<= 10%` allowed, `> 10%` breach), explicit anomaly taxonomy, typed evaluable inputs, and fixed anomaly-to-decision precedence.
 - **SENTINEL validation for Phase 6.4.1** completed with **APPROVED** verdict (score 100/100): spec-contract target, roadmap/state synchronization, and monitoring test evidence (20/20 passed) all validated. Reproducibility gap (Finding F1) resolved — root cause was missing `pytest-asyncio` in Codex containers.
+- **PR #474 mergeability restoration pass** prepared on `chore/sentinel-phase6_3-kill-switch-halt-20260414` with conflict-free carry-forward and preservation of existing Phase 6.3 / Phase 6.4.1 truth.
 
 ## IN PROGRESS
-- Awaiting SENTINEL validation for Phase 6.3 kill-switch & execution-halt foundation (MAJOR, FOUNDATION).
+
+- COMMANDER re-attempt merge of PR #474 after refreshed branch push and mergeability check on GitHub.
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
@@ -31,11 +36,9 @@ Deterministic typed-contract mapping for monitoring/circuit-breaker decisions is
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-COMMANDER review required on SENTINEL APPROVED verdict for Phase 6.4.1 before PR #470 merge decision.
-Source: reports/sentinel/24_100_phase6_4_1_monitoring_circuit_breaker_spec_validation.md
-Tier: MAJOR
-After 6.4.1 merge decision, unresolved MAJOR handoff for Phase 6.3 remains required before merge.
-Source: reports/forge/24_97_phase6_3_kill_switch.md
+
+SENTINEL validation required for PR #474 mergeability restoration before merge.
+Source: reports/forge/25_12_pr474_mergeability_restored.md
 Tier: MAJOR
 
 ## KNOWN ISSUES
