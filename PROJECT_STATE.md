@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-15 00:10
-🔄 Status       : Phase 6.4.6 SENTINEL validation completed as APPROVED (99/100, 0 critical) for narrow signing-boundary monitoring integration on the source branch; COMMANDER final decision is the next gate.
+📅 Last Updated : 2026-04-15 00:45
+🔄 Status       : Post-merge truth sync completed after PR #501 and PR #502; Phase 6.4.6 is now merged on main as a narrow five-path monitoring baseline with explicit scope exclusions preserved.
 
 ✅ COMPLETED
 - AGENTS.md roadmap rules insertion completed as MINOR FOUNDATION sync work.
@@ -10,7 +10,8 @@
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
 - Phase 6.4.4 gateway-path monitoring narrow integration expansion merged via PR #493 with SENTINEL validation path recorded in PR #495 (97/100).
 - Phase 6.4.5 exchange-path monitoring narrow integration merged after PR #497 and PR #498 with accepted four-path baseline: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, and ExchangeIntegration.execute_with_trace.
-- Phase 6.4.6 signing-boundary monitoring narrow integration validated by SENTINEL as APPROVED (99/100, 0 critical) on `SecureSigningEngine.sign_with_trace`.
+- Phase 6.4.6 signing-boundary monitoring narrow integration merged after PR #501 and PR #502 with accepted five-path runtime baseline: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, and SecureSigningEngine.sign_with_trace.
+- Post-merge repo-truth sync completed for PROJECT_STATE.md and ROADMAP.md to align merged-main status for Phase 6.4.6.
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
@@ -23,7 +24,7 @@
 - Platform-wide monitoring rollout beyond the current five narrow Phase 6.4 target paths (transport, authorizer, gateway, exchange integration, signing boundary).
 
 🎯 NEXT PRIORITY
-- COMMANDER final decision required on MAJOR validation result for source branch `feature/monitoring-phase6-4-signing-path-expansion-20260415`. Source: projects/polymarket/polyquantbot/reports/sentinel/25_24_phase6_4_6_signing_monitoring_validation.md. Tier: MAJOR.
+- COMMANDER review required for MINOR post-merge truth sync on branch `chore/core-post-pr501-502-truth-sync-20260415`. Source: projects/polymarket/polyquantbot/reports/forge/25_29_post_pr501_502_truth_sync.md. Tier: MINOR.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

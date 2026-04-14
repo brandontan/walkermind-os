@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 00:10
+**Last Updated:** 2026-04-15 00:45
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 00:10
+**Last Updated:** 2026-04-15 00:45
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -55,7 +55,7 @@
 | 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED (99/100). Narrow scope: LiveExecutionAuthorizer.authorize_with_trace + ExecutionTransport.submit_with_trace preserved. No platform-wide rollout. |
 | 6.4.4 | Gateway-Path Monitoring Narrow Integration Expansion | ✅ Done | Runtime/code path merged via PR #493. SENTINEL APPROVED validation path recorded in PR #495 (97/100). Accepted narrow three-path execution monitoring baseline: ExecutionTransport.submit_with_trace + LiveExecutionAuthorizer.authorize_with_trace + ExecutionGateway.simulate_execution_with_trace. No platform-wide rollout. |
 | 6.4.5 | Exchange-Path Monitoring Narrow Integration Expansion | ✅ Done | Merged truth confirmed after PR #497 and PR #498 at declared narrow scope. Accepted four execution-related runtime paths: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace. Explicit exclusions preserved: no platform-wide rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, or settlement automation. |
-| 6.4.6 | Signing-Boundary Monitoring Narrow Integration Expansion | 🚧 In Progress | FORGE-X runtime/code implementation completed on source branch for `SecureSigningEngine.sign_with_trace` with deterministic ALLOW/BLOCK/HALT integration and focused tests; SENTINEL MAJOR validation APPROVED (99/100, 0 critical); COMMANDER final merge decision required. Accepted baseline paths (6.4.2/6.4.3/6.4.4/6.4.5) preserved. |
+| 6.4.6 | Signing-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth confirmed after PR #501 and PR #502 at declared narrow scope. Accepted five execution-related runtime paths: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, SecureSigningEngine.sign_with_trace. Explicit exclusions preserved: no platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, or settlement automation. |
 
 ---
 
