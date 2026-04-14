@@ -624,41 +624,49 @@ Rules:
 
 ---
 
-## ROADMAP SYNC RULE
+## ROADMAP RULE (LOCKED)
 
-ROADMAP.md is repo-root planning truth for phase and milestone sequencing.
-Its structure must follow:
-- docs/templates/ROADMAP_TEMPLATE.md
+ROADMAP.md exists at repo root and is the planning / milestone truth.
 
-ROADMAP update protocol:
-- update ROADMAP.md when active phase, milestone status, next milestone, sequencing, or delivery status changes at roadmap level
-- do not invent custom sections when the template already defines the structure
-- keep project rows, phase tables, status fields, and notes aligned with the template contract
-- use the template as canonical format source and ROADMAP.md as current repo truth
+ROADMAP.md must be updated when ANY of the following changes:
+- active phase
+- milestone status
+- next milestone
+- completed phase status
+- roadmap sequencing
+- project delivery state at roadmap level
 
-If a task changes only code, report, or operational state detail without changing roadmap truth:
-- ROADMAP.md update is NOT required
+ROADMAP.md does NOT need update for:
+- small code-only fixes
+- report-only fixes
+- PROJECT_STATE-only wording sync
+- minor repo cleanup with no roadmap impact
 
 Hard rule:
 - PROJECT_STATE.md = current operational truth
 - ROADMAP.md = current planning / milestone truth
-- both files must follow their respective templates in docs/templates/
-- the two must not contradict each other
+- they must remain synchronized when roadmap-level truth changes
 
-### ROADMAP completeness gate
-If a task changes phase, milestone, sequencing, or next-delivery truth but ROADMAP.md was not updated:
+## ROADMAP COMPLETION GATE
+
+If a task changes roadmap-level truth but ROADMAP.md is not updated:
 - task is incomplete
-- handoff is invalid
-- request roadmap sync before final approval
+- report is incomplete
+- final approval is not allowed
 
-If ROADMAP.md does not conform to docs/templates/ROADMAP_TEMPLATE.md:
-- treat as formatting drift
-- fix before final approval if the task touched roadmap truth
-
-If PROJECT_STATE.md and ROADMAP.md disagree on current phase or next milestone:
+If PROJECT_STATE.md and ROADMAP.md conflict on active phase or next milestone:
 - treat as drift
-- stop
-- request sync before approval
+- stop merge path
+- sync both before approval
+
+## ROADMAP TEMPLATE RULE
+
+If ROADMAP.md is updated, its structure must follow:
+- docs/templates/ROADMAP_TEMPLATE.md
+
+Template governs format and layout.
+ROADMAP RULE governs planning truth and update triggers.
+If both apply, follow both.
 
 ---
 
