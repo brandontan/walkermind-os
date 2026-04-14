@@ -21,7 +21,7 @@
 # 🟢 PROJECT: CRUSADER
 **Description:** Non-Custodial Polymarket Trading Platform — Multi-User, Closed Beta First
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
-**Last Updated:** 2026-04-14 14:58
+**Last Updated:** 2026-04-14 12:43
 
 ## Board Overview
 
@@ -39,14 +39,15 @@
 ## ✅ Phase 6 — Production Safety & Stabilization
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-14 14:58
+**Last Updated:** 2026-04-14 12:43
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
-| 6.1 | Execution Ledger (In-Memory) | ✅ Done | Deterministic append-only records, read-only reconciliation |
-| 6.2 | Persistent Ledger & Audit Trail | ✅ Done | Append-only local-file persistence, deterministic reload |
-| 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479, preserved approved carry-forward truth |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | 🚧 In Progress | SENTINEL APPROVED 100/100, spec-level only (runtime not claimed) |
+| 6.1 | Execution Core | ✅ Done | Execution ledger in-memory path delivered and validated |
+| 6.2 | Audit Layer | ✅ Done | Persistent append-only ledger + audit trail delivered and validated |
+| 6.3 | Kill Switch | ✅ Done | Foundation delivered, validated, and merged (PR #479) |
+| 6.4 | Runtime Monitoring (Narrow Integration) | ✅ Done | SENTINEL APPROVED via `projects/polymarket/polyquantbot/reports/sentinel/25_17_phase6_4_runtime_monitoring_validation.md` |
+| 6.5 | Broader Monitoring Rollout | ❌ Not Started | Planned expansion beyond narrow runtime path |
 
 ---
 
