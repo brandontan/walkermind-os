@@ -1,6 +1,6 @@
 # Walker AI Trading Team — Project Roadmap
 
-**Updated: 2026-04-14 13:10 UTC (FORGE-X final Phase 6.3 carry-forward reset to clean replacement PR)**
+**Updated: 2026-04-14 14:58 UTC (FORGE-X post-merge truth sync after PR #479)**
 
 ## Active Projects
 
@@ -27,18 +27,18 @@
 |---|---|---|
 | 6.1 | Execution Ledger (In-memory) | Done |
 | 6.2 | Persistent Ledger & Audit Trail | Done |
-| 6.3 | Kill Switch & Execution Halt Foundation | Approved carry-forward truth in final replacement PR scope |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | SENTINEL APPROVED (score 100/100) |
+| 6.3 | Kill Switch & Execution Halt Foundation | Preserved approved carry-forward truth merged to `main` (PR #479) |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | Aligned approved/spec-level truth only (SENTINEL APPROVED 100/100); runtime delivery not claimed |
 
 ### Anchor State
 - Real execution enabled.
 - Persistent audit trail foundation present.
-- Phase 6.3 kill-switch FOUNDATION is preserved as approved carry-forward truth in one governance/state-only replacement PR path.
-- Phase 6.4.1 monitoring/circuit-breaker FOUNDATION spec remains SENTINEL APPROVED (score 100/100) with unchanged scope.
+- Phase 6.3 kill-switch FOUNDATION remains preserved approved carry-forward truth after merged PR #479.
+- Phase 6.4.1 remains aligned approved/spec-level truth only with unchanged non-runtime scope.
 
 ### Next Milestone
-- COMMANDER final review of replacement PR branch `regen/final-phase6_3-carry-forward-clean-20260414`.
-- Merge final clean carry-forward truth package to `main` after COMMANDER approval.
+- COMMANDER review of this post-merge repo-truth sync update.
+- Continue Phase 6 planning/execution from merged-main truth baseline without expanding 6.4.1 into runtime claims.
 
 ---
 
