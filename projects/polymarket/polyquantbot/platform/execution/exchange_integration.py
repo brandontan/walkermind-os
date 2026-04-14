@@ -4,6 +4,13 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 from urllib import error, parse, request
 
+from .monitoring_circuit_breaker import (
+    MONITORING_DECISION_ALLOW,
+    MONITORING_DECISION_BLOCK,
+    MONITORING_DECISION_HALT,
+    MonitoringCircuitBreaker,
+    MonitoringContractInput,
+)
 from .execution_transport import ExecutionTransportResult
 
 EXCHANGE_NETWORK_MODE_REAL = "REAL"
@@ -19,6 +26,9 @@ EXCHANGE_EXECUTION_BLOCK_INVALID_ENDPOINT = "invalid_endpoint"
 EXCHANGE_EXECUTION_BLOCK_INVALID_HTTP_METHOD = "invalid_http_method"
 EXCHANGE_EXECUTION_BLOCK_SIGNING_REQUIRED_MISSING = "signing_required_missing"
 EXCHANGE_EXECUTION_BLOCK_ENVIRONMENT_NOT_ALLOWED = "environment_not_allowed"
+EXCHANGE_EXECUTION_BLOCK_MONITORING_EVALUATION_REQUIRED = "monitoring_evaluation_required"
+EXCHANGE_EXECUTION_BLOCK_MONITORING_ANOMALY = "monitoring_anomaly_block"
+EXCHANGE_EXECUTION_HALT_MONITORING_ANOMALY = "monitoring_anomaly_halt"
 
 _ALLOWED_HTTP_METHODS = {"POST", "PUT"}
 
@@ -26,6 +36,9 @@ _ALLOWED_HTTP_METHODS = {"POST", "PUT"}
 @dataclass(frozen=True)
 class ExchangeExecutionTransportInput:
     transport_result: ExecutionTransportResult
+    monitoring_input: MonitoringContractInput | None = None
+    monitoring_circuit_breaker: MonitoringCircuitBreaker | None = None
+    monitoring_required: bool = False
     upstream_trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -173,6 +186,65 @@ class ExchangeIntegration:
                 upstream_trace_refs=upstream_trace_refs,
             )
 
+        monitoring_result = None
+        if transport_input.monitoring_required:
+            if not isinstance(transport_input.monitoring_input, MonitoringContractInput):
+                return _blocked_build_result(
+                    blocked_reason=EXCHANGE_EXECUTION_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    execution_attempted=False,
+                    network_used=EXCHANGE_NETWORK_MODE_SIMULATED,
+                    upstream_trace_refs={
+                        **upstream_trace_refs,
+                        "contract_errors": {
+                            "monitoring_input": {
+                                "expected_type": "MonitoringContractInput",
+                                "actual_type": type(transport_input.monitoring_input).__name__,
+                            }
+                        },
+                    },
+                )
+            if transport_input.monitoring_circuit_breaker is not None and not isinstance(
+                transport_input.monitoring_circuit_breaker,
+                MonitoringCircuitBreaker,
+            ):
+                return _blocked_build_result(
+                    blocked_reason=EXCHANGE_EXECUTION_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    execution_attempted=False,
+                    network_used=EXCHANGE_NETWORK_MODE_SIMULATED,
+                    upstream_trace_refs={
+                        **upstream_trace_refs,
+                        "contract_errors": {
+                            "monitoring_circuit_breaker": {
+                                "expected_type": "MonitoringCircuitBreaker",
+                                "actual_type": type(transport_input.monitoring_circuit_breaker).__name__,
+                            }
+                        },
+                    },
+                )
+
+            breaker = transport_input.monitoring_circuit_breaker or MonitoringCircuitBreaker()
+            monitoring_result = breaker.evaluate(transport_input.monitoring_input)
+            upstream_trace_refs["monitoring"] = {
+                "decision": monitoring_result.decision,
+                "primary_anomaly": monitoring_result.primary_anomaly,
+                "anomalies": list(monitoring_result.anomalies),
+                "eval_ref": monitoring_result.event.eval_ref,
+            }
+            if monitoring_result.decision == MONITORING_DECISION_HALT:
+                return _blocked_build_result(
+                    blocked_reason=EXCHANGE_EXECUTION_HALT_MONITORING_ANOMALY,
+                    execution_attempted=False,
+                    network_used=EXCHANGE_NETWORK_MODE_SIMULATED,
+                    upstream_trace_refs=upstream_trace_refs,
+                )
+            if monitoring_result.decision == MONITORING_DECISION_BLOCK:
+                return _blocked_build_result(
+                    blocked_reason=EXCHANGE_EXECUTION_BLOCK_MONITORING_ANOMALY,
+                    execution_attempted=False,
+                    network_used=EXCHANGE_NETWORK_MODE_SIMULATED,
+                    upstream_trace_refs=upstream_trace_refs,
+                )
+
         if policy_input.network_enabled is not True:
             return _blocked_build_result(
                 blocked_reason=EXCHANGE_EXECUTION_BLOCK_NETWORK_DISABLED,
@@ -253,7 +325,14 @@ class ExchangeIntegration:
                     execution_attempted=True,
                     blocked_reason=None,
                     upstream_trace_refs=upstream_trace_refs,
-                    exchange_notes={"network_mode": EXCHANGE_NETWORK_MODE_SIMULATED},
+                    exchange_notes={
+                        "network_mode": EXCHANGE_NETWORK_MODE_SIMULATED,
+                        "monitoring_decision": (
+                            monitoring_result.decision
+                            if monitoring_result is not None
+                            else MONITORING_DECISION_ALLOW
+                        ),
+                    },
                 ),
             )
 
@@ -282,7 +361,14 @@ class ExchangeIntegration:
                 execution_attempted=True,
                 blocked_reason=None,
                 upstream_trace_refs=upstream_trace_refs,
-                exchange_notes={"network_mode": EXCHANGE_NETWORK_MODE_REAL},
+                exchange_notes={
+                    "network_mode": EXCHANGE_NETWORK_MODE_REAL,
+                    "monitoring_decision": (
+                        monitoring_result.decision
+                        if monitoring_result is not None
+                        else MONITORING_DECISION_ALLOW
+                    ),
+                },
             ),
         )
 
@@ -330,6 +416,30 @@ def _validate_transport_input(transport_input: ExchangeExecutionTransportInput) 
             "field": "upstream_trace_refs",
             "expected_type": "dict",
             "actual_type": type(transport_input.upstream_trace_refs).__name__,
+        }
+    if transport_input.monitoring_input is not None and not isinstance(
+        transport_input.monitoring_input,
+        MonitoringContractInput,
+    ):
+        return {
+            "field": "monitoring_input",
+            "expected_type": "MonitoringContractInput|None",
+            "actual_type": type(transport_input.monitoring_input).__name__,
+        }
+    if transport_input.monitoring_circuit_breaker is not None and not isinstance(
+        transport_input.monitoring_circuit_breaker,
+        MonitoringCircuitBreaker,
+    ):
+        return {
+            "field": "monitoring_circuit_breaker",
+            "expected_type": "MonitoringCircuitBreaker|None",
+            "actual_type": type(transport_input.monitoring_circuit_breaker).__name__,
+        }
+    if not isinstance(transport_input.monitoring_required, bool):
+        return {
+            "field": "monitoring_required",
+            "expected_type": "bool",
+            "actual_type": type(transport_input.monitoring_required).__name__,
         }
 
     return None
