@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-14 20:25
-🔄 Status       : Phase 6.4 runtime monitoring narrow integration has been SENTINEL-validated with APPROVED verdict; next gate is COMMANDER review before merge.
+📅 Last Updated : 2026-04-14 13:55
+🔄 Status       : Phase 6.4.3 monitoring expansion is implemented as MAJOR NARROW INTEGRATION on LiveExecutionAuthorizer.authorize_with_trace and is awaiting SENTINEL validation.
 
 ✅ COMPLETED
 - AGENTS.md roadmap rules insertion completed as MINOR FOUNDATION sync work.
@@ -11,24 +11,21 @@
 - SENTINEL validation completed for Phase 5.2–5.6 major-gated work.
 - Phase 6.1 execution ledger and read-only reconciliation implemented with deterministic append-only in-memory ledger records and reconciliation checks.
 - Phase 6.2 persistent ledger and audit trail implemented with append-only local-file persistence, deterministic reload, and read-only audit filtering.
-- Phase 6.3 kill-switch and execution-halt foundation merged via PR #479 and preserved as approved carry-forward truth.
+- Phase 6.4.2 runtime monitoring narrow integration on ExecutionTransport.submit_with_trace is merged carry-forward truth.
 
 🔧 IN PROGRESS
-- COMMANDER merge decision and PR review flow for Phase 6.4 runtime monitoring narrow integration.
-- Phase 6.4 runtime monitoring and circuit-breaker path delivered as NARROW INTEGRATION on ExecutionTransport.submit_with_trace.
-- SENTINEL validation completed for Phase 6.4 runtime monitoring narrow integration with APPROVED verdict (95/100).
+- Phase 6.4.3 runtime monitoring and circuit-breaker expansion delivered on LiveExecutionAuthorizer.authorize_with_trace as the second explicit runtime target path.
+- COMMANDER merge decision remains pending for current Phase 6.4.3 delivery after required SENTINEL gate.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secret loading, storage, and rotation.
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
 - Reconciliation mutation and correction workflow excluded from Phase 6.1 and Phase 6.2.
-- Platform-wide monitoring rollout beyond the current Phase 6.4 narrow integration path.
+- Platform-wide monitoring rollout beyond the current two narrow Phase 6.4 target paths.
 
 🎯 NEXT PRIORITY
-- COMMANDER review required before merge.
-- Source: projects/polymarket/polyquantbot/reports/sentinel/25_17_phase6_4_runtime_monitoring_validation.md
-- Tier: MAJOR
+- SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_18_phase6_4_3_authorizer_monitoring_expansion.md. Tier: MAJOR
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
@@ -39,4 +36,4 @@
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, correction logic, or background automation are implemented.
 - Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation or correction logic, background automation, or external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope.
-- Phase 6.4 runtime delivery is intentionally narrow to ExecutionTransport.submit_with_trace and does not yet provide platform-wide monitoring rollout, scheduler generalization, wallet lifecycle, portfolio orchestration, or settlement automation.
+- Phase 6.4 delivery remains intentionally narrow to two explicit paths (ExecutionTransport.submit_with_trace and LiveExecutionAuthorizer.authorize_with_trace), with no platform-wide monitoring rollout, scheduler generalization, wallet lifecycle, portfolio orchestration, or settlement automation.
