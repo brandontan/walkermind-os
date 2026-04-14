@@ -72,7 +72,7 @@
 
 ## PR Gate Result
 - **PASS (SENTINEL APPROVED)**
-- PR target remains source branch path only: `codex/expand-runtime-monitoring-for-authorization-path-2026-04-14` (never `main`).
+- PR target updated per COMMANDER instruction: base branch `main` from source branch `codex/expand-runtime-monitoring-for-authorization-path-2026-04-14`.
 
 ## Broader Audit Finding
 - Non-blocking: pytest emits a pre-existing `PytestConfigWarning` for unknown `asyncio_mode` option.
