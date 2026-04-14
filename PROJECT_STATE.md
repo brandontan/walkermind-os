@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 12:20
+2026-04-13 22:43
 
 ## Status
 — **SENTINEL APPROVED — Phase 6.3 kill-switch & execution-halt foundation (MAJOR, FOUNDATION)**
-Phase 6.3 and Phase 6.4.1 are both recorded as SENTINEL-APPROVED completed truth for PR #474 carry-forward synchronization.
+Phase 6.3 and Phase 6.4.1 remain recorded as SENTINEL-APPROVED completed truth for PR #474 carry-forward synchronization; mergeability refresh is currently blocked by remote fetch connectivity in this environment.
 
 ## COMPLETED
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
@@ -22,6 +22,7 @@ Phase 6.3 and Phase 6.4.1 are both recorded as SENTINEL-APPROVED completed truth
 - **SENTINEL revalidation for Phase 6.3 (task replay)** completed with **APPROVED** verdict (score 96/100). Report: `reports/sentinel/24_102_phase6_3_kill_switch_execution_halt_revalidation.md`.
 - **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** completed with deterministic 10% exposure boundary semantics (`<= 10%` allowed, `> 10%` breach), explicit anomaly taxonomy, typed evaluable inputs, and fixed anomaly-to-decision precedence.
 - **SENTINEL validation for Phase 6.4.1** completed with **APPROVED** verdict (score 100/100): spec-contract target, roadmap/state synchronization, and monitoring test evidence (20/20 passed) all validated. Report: `reports/sentinel/24_100_phase6_4_1_monitoring_circuit_breaker_spec_validation.md`.
+- **PR #474 mergeability restoration attempt** executed as git-state refresh task only; approved Phase 6.3/6.4.1 truth preserved with no verdict/score/scope edits. Attempt is blocked in current environment because GitHub remote fetch returns HTTP tunnel 403. Report: `projects/polymarket/polyquantbot/reports/forge/25_11_pr474_mergeability_refresh_attempt.md`.
 
 ## IN PROGRESS
 - None.
@@ -33,8 +34,8 @@ Phase 6.3 and Phase 6.4.1 are both recorded as SENTINEL-APPROVED completed truth
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-COMMANDER final re-review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/25_10_phase6_3_final_carry_forward_truth_sync_pr474.md
+SENTINEL validation required for pr474-mergeability-refresh-attempt before merge.
+Source: reports/forge/25_11_pr474_mergeability_refresh_attempt.md
 Tier: MAJOR
 
 ## KNOWN ISSUES
@@ -51,3 +52,4 @@ Tier: MAJOR
 - Phase 6.4.1 is spec-contract only; runtime monitoring, persistence, alerting, scheduler wiring, and execution halting behavior remain intentionally out of scope.
 - Pytest import collection requires `PYTHONPATH=.` in this container for `projects.*` test module imports.
 - Phase 6.3 advisory: `allowed_to_proceed` is True if all three `*_requested` flags are False even with an active halt. Future runtime integration should ensure at least one request flag is set when evaluating execution progression.
+- GitHub remote fetch from this container currently fails with `CONNECT tunnel failed, response 403`; branch rebase/refresh onto current `main` and authoritative PR mergeability verification cannot be completed until connectivity is restored.
