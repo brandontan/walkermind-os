@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 00:35
+**Last Updated:** 2026-04-15 02:24
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 00:35
+**Last Updated:** 2026-04-15 02:24
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -52,7 +52,7 @@
 | 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479 and preserved as approved carry-forward truth. |
 | 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | 🚧 In Progress | Approved at spec level only; runtime-wide delivery is not claimed. |
 | 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for ExecutionTransport.submit_with_trace narrow integration after SENTINEL APPROVED (95/100). |
-| 6.4.3 | Next Execution Path Monitoring Expansion | 🚧 In Progress | FORGE remediation delivered for authorizer monitoring blockers; SENTINEL rerun required before merge decision. |
+| 6.4.3 | Next Execution Path Monitoring Expansion | 🚧 In Progress | SENTINEL APPROVED rerun final (99/100) for authorizer-path narrow integration; pending COMMANDER merge decision. |
 
 ---
 
