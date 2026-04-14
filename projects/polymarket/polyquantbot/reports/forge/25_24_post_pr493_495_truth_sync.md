@@ -2,7 +2,7 @@
 
 **Validation Tier:** MINOR  
 **Claim Level:** FOUNDATION  
-**Validation Target:** Repo-root operational and roadmap truth synchronization after merged PR #495 and PR #493, reflecting Phase 6.4.4 as merged at accepted narrow scope.  
+**Validation Target:** PR #496 repo-root truth correction only, aligning Phase 6.4.4 attribution to runtime/code merge path PR #493 and SENTINEL approval path PR #495 at accepted narrow scope.  
 **Not in Scope:** Any runtime code change, monitoring expansion beyond the accepted three paths, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, settlement automation, validation rerun, or new execution-path integration.  
 **Suggested Next Step:** COMMANDER review for MINOR FOUNDATION truth sync. No SENTINEL required. Source: `projects/polymarket/polyquantbot/reports/forge/25_24_post_pr493_495_truth_sync.md`. Tier: MINOR.
 
@@ -10,11 +10,11 @@
 
 ## 1) What was built
 
-Repo-root truth was synchronized to the merged-main state after PR #495 and PR #493. No runtime code files were modified.
+Repo-root truth attribution was corrected for Phase 6.4.4. Runtime/code merge path is PR #493, while SENTINEL approval path is PR #495. No runtime code files were modified.
 
 Updates applied:
-- `PROJECT_STATE.md` updated to remove pre-merge wording for Phase 6.4.4 and record merged three-path narrow execution monitoring baseline truth.
-- `ROADMAP.md` updated so sub-phase 6.4.4 is marked `✅ Done` with merged-note wording at declared narrow scope.
+- `PROJECT_STATE.md` updated to remove incorrect merge attribution and record corrected Phase 6.4.4 truth: runtime/code merge path PR #493, SENTINEL approval path PR #495.
+- `ROADMAP.md` updated so sub-phase 6.4.4 keeps `✅ Done` while correcting merge attribution wording to PR #493 (runtime/code) and PR #495 (SENTINEL approval path).
 - This forge report added to document the truth-sync operation.
 
 Accepted narrow runtime scope preserved explicitly:
@@ -56,8 +56,8 @@ Broader monitoring integration and orchestration remain intentionally excluded a
 
 ## 4) What is working
 
-- `PROJECT_STATE.md` now reflects merged truth for Phase 6.4.4 and accepted three-path narrow baseline.
-- `ROADMAP.md` now marks 6.4.4 as `✅ Done` and states the merged narrow-scope baseline explicitly.
+- `PROJECT_STATE.md` now reflects corrected 6.4.4 attribution truth (PR #493 merge path; PR #495 SENTINEL approval path) and accepted three-path narrow baseline.
+- `ROADMAP.md` now marks 6.4.4 as `✅ Done` with corrected attribution and explicit narrow-scope baseline wording.
 - Repo-root operational truth (`PROJECT_STATE.md`) and roadmap truth (`ROADMAP.md`) are aligned for this scope.
 
 ## 5) Known issues
@@ -94,7 +94,7 @@ PRE-FLIGHT CHECKLIST
 [✓] Files changed: 3 total (report + PROJECT_STATE.md + ROADMAP.md)
 ```
 
-**Report Timestamp:** 2026-04-14 21:09 UTC  
+**Report Timestamp:** 2026-04-14 21:14 UTC  
 **Role:** FORGE-X (NEXUS)  
-**Task:** sync post-merge truth after PR #493 and #495  
-**Branch:** `chore/core-post-pr493-495-truth-sync-20260415`
+**Task:** correct PR #496 truth attribution for Phase 6.4.4 merge path  
+**Branch:** `fix/core-pr496-phase644-merge-truth-20260415`

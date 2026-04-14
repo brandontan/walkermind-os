@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-14 21:09
-🔄 Status       : Post-merge truth synced after PR #495 and PR #493; Phase 6.4.4 gateway-path monitoring narrow expansion is merged on main with accepted three-path narrow execution baseline preserved (transport, authorizer, gateway).
+📅 Last Updated : 2026-04-14 21:14
+🔄 Status       : Post-merge truth corrected for Phase 6.4.4 attribution: runtime/code path merged on main via PR #493 and SENTINEL approval path recorded via PR #495; accepted three-path narrow execution baseline remains preserved.
 
 ✅ COMPLETED
 - AGENTS.md roadmap rules insertion completed as MINOR FOUNDATION sync work.
@@ -12,7 +12,7 @@
 - Phase 6.1 execution ledger and read-only reconciliation implemented with deterministic append-only in-memory ledger records and reconciliation checks.
 - Phase 6.2 persistent ledger and audit trail implemented with append-only local-file persistence, deterministic reload, and read-only audit filtering.
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
-- Phase 6.4.4 gateway-path monitoring narrow integration expansion merged via PR #495 (SENTINEL APPROVED 97/100). Accepted three-path narrow execution baseline preserved: ExecutionTransport.submit_with_trace (6.4.2), LiveExecutionAuthorizer.authorize_with_trace (6.4.3), and ExecutionGateway.simulate_execution_with_trace (6.4.4).
+- Phase 6.4.4 gateway-path monitoring narrow integration expansion merged via PR #493 (runtime/code path) with SENTINEL APPROVED validation recorded in PR #495 (97/100). Accepted three-path narrow execution baseline preserved: ExecutionTransport.submit_with_trace (6.4.2), LiveExecutionAuthorizer.authorize_with_trace (6.4.3), and ExecutionGateway.simulate_execution_with_trace (6.4.4).
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
