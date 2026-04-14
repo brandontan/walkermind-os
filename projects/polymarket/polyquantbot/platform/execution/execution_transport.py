@@ -3,6 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from projects.polymarket.polyquantbot.platform.execution.monitoring_circuit_breaker import (
+    MONITORING_DECISION_ALLOW,
+    MONITORING_DECISION_BLOCK,
+    MONITORING_DECISION_HALT,
+    MonitoringCircuitBreaker,
+    MonitoringContractInput,
+)
+
 from .execution_gateway import ExecutionGatewayResult
 from .execution_mode_controller import MODE_LIVE
 from .live_execution_authorizer import LiveExecutionAuthorizationDecision
@@ -21,12 +29,17 @@ EXECUTION_TRANSPORT_BLOCK_MULTIPLE_ORDERS_NOT_ALLOWED = "multiple_orders_not_all
 EXECUTION_TRANSPORT_BLOCK_IDEMPOTENCY_REQUIRED = "idempotency_required"
 EXECUTION_TRANSPORT_BLOCK_AUDIT_LOG_MISSING = "audit_log_missing"
 EXECUTION_TRANSPORT_BLOCK_OPERATOR_CONFIRMATION_MISSING = "operator_confirmation_missing"
+EXECUTION_TRANSPORT_BLOCK_MONITORING_EVALUATION_REQUIRED = "monitoring_evaluation_required"
+EXECUTION_TRANSPORT_BLOCK_MONITORING_ANOMALY = "monitoring_anomaly_block"
+EXECUTION_TRANSPORT_HALT_MONITORING_ANOMALY = "monitoring_anomaly_halt"
 
 
 @dataclass(frozen=True)
 class ExecutionTransportAuthorizationInput:
     authorization: LiveExecutionAuthorizationDecision
     gateway_result: ExecutionGatewayResult
+    monitoring_input: MonitoringContractInput | None = None
+    monitoring_circuit_breaker: MonitoringCircuitBreaker | None = None
     source_trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -44,6 +57,7 @@ class ExecutionTransportPolicyInput:
     audit_log_attached: bool
     operator_confirm_required: bool
     operator_confirm_present: bool
+    monitoring_required: bool = False
     policy_trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -253,6 +267,50 @@ class ExecutionTransport:
                 transport_notes={"operator_confirm_required": policy_input.operator_confirm_required},
             )
 
+        monitoring_result = None
+        if policy_input.monitoring_required:
+            if not isinstance(authorization_input.monitoring_input, MonitoringContractInput):
+                return _blocked_build_result(
+                    blocked_reason=EXECUTION_TRANSPORT_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    execution_authorized=True,
+                    transport_mode=EXECUTION_TRANSPORT_MODE_SIMULATED,
+                    transport_attempted=False,
+                    upstream_trace_refs=upstream_trace_refs,
+                    transport_notes={"monitoring_required": True},
+                )
+            breaker = authorization_input.monitoring_circuit_breaker or MonitoringCircuitBreaker()
+            monitoring_result = breaker.evaluate(authorization_input.monitoring_input)
+            upstream_trace_refs["monitoring"] = {
+                "decision": monitoring_result.decision,
+                "primary_anomaly": monitoring_result.primary_anomaly,
+                "anomalies": list(monitoring_result.anomalies),
+                "eval_ref": monitoring_result.event.eval_ref,
+            }
+            if monitoring_result.decision == MONITORING_DECISION_HALT:
+                return _blocked_build_result(
+                    blocked_reason=EXECUTION_TRANSPORT_HALT_MONITORING_ANOMALY,
+                    execution_authorized=True,
+                    transport_mode=EXECUTION_TRANSPORT_MODE_SIMULATED,
+                    transport_attempted=False,
+                    upstream_trace_refs=upstream_trace_refs,
+                    transport_notes={
+                        "monitoring_decision": monitoring_result.decision,
+                        "primary_anomaly": monitoring_result.primary_anomaly,
+                    },
+                )
+            if monitoring_result.decision == MONITORING_DECISION_BLOCK:
+                return _blocked_build_result(
+                    blocked_reason=EXECUTION_TRANSPORT_BLOCK_MONITORING_ANOMALY,
+                    execution_authorized=True,
+                    transport_mode=EXECUTION_TRANSPORT_MODE_SIMULATED,
+                    transport_attempted=False,
+                    upstream_trace_refs=upstream_trace_refs,
+                    transport_notes={
+                        "monitoring_decision": monitoring_result.decision,
+                        "primary_anomaly": monitoring_result.primary_anomaly,
+                    },
+                )
+
         request_payload = self._build_request_payload(authorization_input)
 
         if policy_input.dry_run_force:
@@ -276,7 +334,14 @@ class ExecutionTransport:
                     transport_attempted=True,
                     blocked_reason=EXECUTION_TRANSPORT_BLOCK_DRY_RUN_FORCED,
                     upstream_trace_refs=upstream_trace_refs,
-                    transport_notes={"dry_run_force": True},
+                    transport_notes={
+                        "dry_run_force": True,
+                        "monitoring_decision": (
+                            monitoring_result.decision
+                            if monitoring_result is not None
+                            else MONITORING_DECISION_ALLOW
+                        ),
+                    },
                 ),
             )
 
@@ -298,7 +363,14 @@ class ExecutionTransport:
                 transport_attempted=True,
                 blocked_reason=None if success else EXECUTION_TRANSPORT_BLOCK_REAL_SUBMISSION_NOT_ALLOWED,
                 upstream_trace_refs=upstream_trace_refs,
-                transport_notes={"exchange_stub_called": True},
+                transport_notes={
+                    "exchange_stub_called": True,
+                    "monitoring_decision": (
+                        monitoring_result.decision
+                        if monitoring_result is not None
+                        else MONITORING_DECISION_ALLOW
+                    ),
+                },
             ),
         )
 
@@ -329,6 +401,14 @@ def _validate_authorization_input(authorization_input: ExecutionTransportAuthori
         return "authorization_decision_required"
     if not isinstance(authorization_input.gateway_result, ExecutionGatewayResult):
         return "gateway_result_required"
+    if authorization_input.monitoring_input is not None and not isinstance(
+        authorization_input.monitoring_input, MonitoringContractInput
+    ):
+        return "monitoring_input_contract_required"
+    if authorization_input.monitoring_circuit_breaker is not None and not isinstance(
+        authorization_input.monitoring_circuit_breaker, MonitoringCircuitBreaker
+    ):
+        return "monitoring_circuit_breaker_required"
     if not isinstance(authorization_input.source_trace_refs, dict):
         return "source_trace_refs_must_be_dict"
     return None
@@ -346,6 +426,7 @@ def _validate_policy_input(policy_input: ExecutionTransportPolicyInput) -> str |
         "audit_log_attached": policy_input.audit_log_attached,
         "operator_confirm_required": policy_input.operator_confirm_required,
         "operator_confirm_present": policy_input.operator_confirm_present,
+        "monitoring_required": policy_input.monitoring_required,
     }
     for name, value in bool_fields.items():
         if not isinstance(value, bool):

@@ -1,6 +1,6 @@
 # Walker AI Trading Team — Project Roadmap
 
-**Updated: 2026-04-14 14:58 UTC (FORGE-X post-merge truth sync after PR #479)**
+**Updated: 2026-04-14 08:17 UTC (FORGE-X Phase 6.4 runtime monitoring narrow integration update)**
 
 ## Active Projects
 
@@ -28,17 +28,19 @@
 | 6.1 | Execution Ledger (In-memory) | Done |
 | 6.2 | Persistent Ledger & Audit Trail | Done |
 | 6.3 | Kill Switch & Execution Halt Foundation | Preserved approved carry-forward truth merged to `main` (PR #479) |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | Aligned approved/spec-level truth only (SENTINEL APPROVED 100/100); runtime delivery not claimed |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | Done — approved/spec contract remains baseline (SENTINEL APPROVED 100/100) |
+| 6.4.2 | Runtime Monitoring & Circuit Breaker (Single Path) | In Progress — narrow integration on execution-control path (`ExecutionTransport.submit_with_trace`) with SENTINEL gate pending |
 
 ### Anchor State
 - Real execution enabled.
 - Persistent audit trail foundation present.
 - Phase 6.3 kill-switch FOUNDATION remains preserved approved carry-forward truth after merged PR #479.
-- Phase 6.4.1 remains aligned approved/spec-level truth only with unchanged non-runtime scope.
+- Phase 6.4.1 spec contract remains authoritative baseline.
+- Phase 6.4.2 now introduces first runtime monitoring/circuit-breaker narrow integration on one declared execution-control path only.
 
 ### Next Milestone
-- COMMANDER review of this post-merge repo-truth sync update.
-- Continue Phase 6 planning/execution from merged-main truth baseline without expanding 6.4.1 into runtime claims.
+- SENTINEL validation of Phase 6.4 runtime narrow integration before merge.
+- After SENTINEL verdict, continue staged rollout for broader monitoring coverage only if explicitly approved.
 
 ---
 
