@@ -862,27 +862,44 @@ function parseNextPriority(md) {
 function parsePhases(md) {
   const phases = [];
   const lines = md.split('\n');
-  let inCrusader = false;
-  let activePhaseNum = null;
+  let inCrusader  = false;
+  let activeTopNum = null;
+  let inSubTable   = false;
 
   for (const line of lines) {
+    // Enter CRUSADER section
     if (line.includes('PROJECT: CRUSADER')) { inCrusader = true; continue; }
-    if (inCrusader && line.match(/^## ⚪ PROJECT:/) ) break;
+    // Exit when another PROJECT block starts
+    if (inCrusader && /^##\s+[^\w]*PROJECT:/u.test(line) && !line.includes('CRUSADER')) break;
     if (!inCrusader) continue;
 
-    // Top-level phases: | Phase 6 | Production Safety & Stabilization | 🚧 In Progress | Public Preparation |
-    const mTop = line.match(/^\|\s*(Phase \d+)\s*\|\s*([^|]+?)\s*\|\s*(✅|🚧|❌)[^|]*\|/);
-    if (mTop) {
-      const status = mTop[3];
-      activePhaseNum = mTop[1];
-      phases.push({ num: mTop[1], name: mTop[2].trim(), status, isSub: false });
+    // Phase sub-section header: "## 🚧 Phase 6 — Production Safety..."
+    const mHdr = line.match(/^##\s+.*Phase\s+(\d+)\s*[—-]/);
+    if (mHdr) { activeTopNum = 'Phase ' + mHdr[1]; inSubTable = false; continue; }
+
+    // Skip separator rows
+    if (/^\|\s*[-:]+\s*\|/.test(line)) continue;
+
+    // Detect sub-phase table header: "| Sub-Phase | ..."
+    if (/^\|\s*Sub-Phase\s*\|/i.test(line)) { inSubTable = true; continue; }
+
+    // Top-level Board Overview row: "| Phase N | Name | emoji ..."
+    const mTop = line.match(/^\|\s*(Phase \d+)\s*\|\s*([^|]+?)\s*\|\s*([\u2705\u{1F6A7}\u274C])/u);
+    if (mTop && !inSubTable) {
+      activeTopNum = mTop[1];
+      phases.push({ num: mTop[1], name: mTop[2].trim(), status: mTop[3], isSub: false });
       continue;
     }
 
-    // Sub-phases: | 6.1 | Execution Ledger (In-Memory) | ✅ Done | ... |
-    const mSub = line.match(/^\|\s*(\d+\.\d+)\s*\|\s*([^|]+?)\s*\|\s*(✅|🚧|❌)[^|]*\|/);
-    if (mSub && activePhaseNum) {
-      phases.push({ num: mSub[1], name: mSub[2].trim(), status: mSub[3], isSub: true, parentPhase: activePhaseNum });
+    // Sub-phase row: "| 6.1 | Name | emoji ..." (handles 6.4.1 too)
+    if (inSubTable && activeTopNum) {
+      const mSub = line.match(/^\|\s*(\d+\.\d+(?:\.\d+)?)\s*\|\s*([^|]+?)\s*\|\s*([\u2705\u{1F6A7}\u274C])/u);
+      if (mSub) {
+        phases.push({ num: mSub[1], name: mSub[2].trim(), status: mSub[3], isSub: true, parentPhase: activeTopNum });
+        continue;
+      }
+      // Non-table line exits sub-table
+      if (!line.startsWith('|')) inSubTable = false;
     }
   }
   return phases;
