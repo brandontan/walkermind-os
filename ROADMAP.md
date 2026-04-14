@@ -1,13 +1,14 @@
 # Walker AI Trading Team — Project Roadmap
+
 **Repo:** https://github.com/bayuewalker/walker-ai-team
 **Team:** COMMANDER · FORGE-X · SENTINEL · BRIEFER
 
 > **COMMANDER:** Update status fields (`✅` / `🚧` / `❌`) and Last Updated after every merge or phase milestone.
-> This file covers ALL active projects. Add new project section when a new project starts.
+> This file covers all active projects. Add a new project section when a new project starts.
 
 ---
 
-## 🗂️ Active Projects
+## Active Projects
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
@@ -18,10 +19,12 @@
 
 ---
 
-# 🟢 PROJECT: CRUSADER
-**Description:** Non-Custodial Polymarket Trading Platform — Multi-User, Closed Beta First
+# PROJECT: CRUSADER
+
+**Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
-**Last Updated:** 2026-04-14 14:58
+**Status:** 🚧 In Progress
+**Last Updated:** 2026-04-14 20:25
 
 ## Board Overview
 
@@ -36,22 +39,25 @@
 
 ---
 
-## ✅ Phase 6 — Production Safety & Stabilization
+## 🚧 Phase 6 — Production Safety & Stabilization
+
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-14 14:58
+**Last Updated:** 2026-04-14 20:25
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
-| 6.1 | Execution Ledger (In-Memory) | ✅ Done | Deterministic append-only records, read-only reconciliation |
-| 6.2 | Persistent Ledger & Audit Trail | ✅ Done | Append-only local-file persistence, deterministic reload |
-| 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479, preserved approved carry-forward truth |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | 🚧 In Progress | SENTINEL APPROVED 100/100, spec-level only (runtime not claimed) |
+| 6.1 | Execution Ledger (In-Memory) | ✅ Done | Deterministic append-only records and read-only reconciliation delivered. |
+| 6.2 | Persistent Ledger & Audit Trail | ✅ Done | Append-only local-file persistence and deterministic reload delivered. |
+| 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479 and preserved as approved carry-forward truth. |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | 🚧 In Progress | Approved at spec level only; runtime-wide delivery is not claimed. |
+| 6.4.2 | Runtime Monitoring Narrow Integration | 🚧 In Progress | SENTINEL APPROVED (95/100) on ExecutionTransport.submit_with_trace; awaiting COMMANDER merge decision. |
 
 ---
 
 ## ⚪ PROJECT: TRADINGVIEW INDICATORS
-**Description:** Custom indicators for TradingView using Pine Script v5
+
+**Description:** Custom indicators for TradingView using Pine Script v5.
 **Tech Stack:** Pine Script v5
 **Status:** ❌ Not Started
 **Last Updated:** —
@@ -66,7 +72,8 @@
 ---
 
 ## ⚪ PROJECT: MT5 EXPERT ADVISORS
-**Description:** MetaTrader 4/5 Expert Advisors for automated trading
+
+**Description:** MetaTrader 4/5 Expert Advisors for automated trading.
 **Tech Stack:** MQL5 · MQL4
 **Status:** ❌ Not Started
 **Last Updated:** —
@@ -82,7 +89,8 @@
 ---
 
 ## ⚪ PROJECT: KALSHI BOT
-**Description:** Algorithmic trading bot for Kalshi prediction market
+
+**Description:** Algorithmic trading bot for Kalshi prediction market.
 **Tech Stack:** Python · Kalshi API
 **Status:** ❌ Not Started
 **Last Updated:** —
@@ -97,7 +105,7 @@
 
 ---
 
-## 🔄 COMMANDER — Roadmap Maintenance
+## COMMANDER — Roadmap Maintenance
 
 ### Status Legend
 - ✅ = Done (merged + validated)
@@ -105,31 +113,16 @@
 - ❌ = Not Started
 
 ### Update Triggers
+
 | Event | Action |
 |---|---|
-| FORGE-X PR merged | Task ❌/🚧 → ✅, add PR # + date in Notes |
-| SENTINEL APPROVED | Confirm ✅, add score in Notes |
-| Phase complete | Update Phase header + Active Projects table at top |
-| New task scoped | Add row with ❌ |
-| New project activated | Fill phases/tasks, update Active Projects table |
+| FORGE-X PR merged | Task `❌` / `🚧` → `✅`, add PR # and date in notes |
+| SENTINEL APPROVED | Confirm status truthfully and add score in notes when relevant |
+| Phase complete | Update phase header and Active Projects table |
+| New task scoped | Add row with `❌` or `🚧` as appropriate |
+| New project activated | Fill phases/tasks and update Active Projects table |
 
 ### Commit Format
-```
+
+```text
 docs: update ROADMAP.md — [project] [task or phase name]
-```
-
-### Adding a New Project
-1. Copy a ⚪ PROJECT template block
-2. Change color to 🟢 and status to 🚧 Active
-3. Fill in Description, Tech Stack, Board Overview, and Phase tasks
-4. Update Active Projects table at top of file
-5. Commit: `docs: update ROADMAP.md — add [project name]`
-
-### Drift Control
-If ROADMAP.md contradicts PROJECT_STATE.md:
-→ STOP → report to Mr. Walker → PROJECT_STATE.md = source of truth → sync ROADMAP.md → wait approval
-
----
-
-*Walker AI Trading Team — Build. Deploy. Profit. Repeat.*
-*Bayue Walker © 2026*
