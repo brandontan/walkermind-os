@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 14:58
+2026-04-14 08:27
 
 ## Status
-— **POST-MERGE TRUTH SYNC COMPLETE — Phase 6.3 carry-forward reset merged via PR #479 (MINOR, FOUNDATION)**
-Repository truth is now synchronized to merged-main reality: Phase 6.3 approved carry-forward truth remains preserved, and Phase 6.4.1 remains aligned approved/spec-level only with no runtime delivery claim.
+— **PHASE 6.4 RUNTIME MONITORING PATH SENTINEL-VALIDATED (MAJOR, NARROW INTEGRATION)**
+SENTINEL validated deterministic anomaly evaluation plus halt/block enforcement on `ExecutionTransport.submit_with_trace` and issued APPROVED verdict for the declared narrow runtime target.
 
 ## COMPLETED
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
@@ -20,9 +20,11 @@ Repository truth is now synchronized to merged-main reality: Phase 6.3 approved 
 - **Phase 6.3 kill-switch & execution-halt foundation** preserved as approved carry-forward truth and merged to `main` via PR #479.
 - **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** remains aligned approved/spec-level truth (SENTINEL APPROVED 100/100) and is not claimed as runtime delivered.
 - **Post-merge repo truth sync** completed for `PROJECT_STATE.md` and `ROADMAP.md` to reflect merged PR #479 reality only.
+- **Phase 6.4 runtime monitoring and circuit-breaker path** implemented as NARROW INTEGRATION on `ExecutionTransport.submit_with_trace`, including deterministic anomaly precedence, exposure-breach block behavior, kill-switch anomaly halt enforcement, and monitoring event recording.
+- **SENTINEL validation for Phase 6.4 runtime monitoring narrow integration** completed with **APPROVED** verdict (report: `projects/polymarket/polyquantbot/reports/sentinel/25_17_phase6_4_runtime_monitoring_validation.md`).
 
 ## IN PROGRESS
-- None.
+- COMMANDER merge decision and PR review flow for Phase 6.4 runtime monitoring narrow integration.
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
@@ -31,7 +33,7 @@ Repository truth is now synchronized to merged-main reality: Phase 6.3 approved 
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/25_15_post_merge_truth_sync.md. Tier: MINOR
+COMMANDER review required before merge. Source: projects/polymarket/polyquantbot/reports/sentinel/25_17_phase6_4_runtime_monitoring_validation.md. Tier: MAJOR
 
 ## KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.
@@ -42,4 +44,4 @@ COMMANDER review required before merge. Auto PR review optional if used. Source:
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, no correction logic, and no background automation are implemented.
 - Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation/correction logic, no background automation, and no external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope.
-- Phase 6.4.1 remains spec-contract only; runtime monitoring, persistence, alerting, scheduler wiring, and execution-halting behavior remain intentionally out of scope.
+- Phase 6.4 runtime delivery is intentionally narrow to one execution-control path (`ExecutionTransport.submit_with_trace`) and does not yet provide platform-wide monitoring rollout, scheduler generalization, wallet lifecycle, portfolio orchestration, or settlement automation.
