@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 12:50
+2026-04-14 13:10
 
 ## Status
-— **SENTINEL APPROVED — Phase 6.3 carry-forward truth normalized to governance/state path for PR #479 (MAJOR, FOUNDATION)**
-Artificial file-touch drift was removed; PR #479 now follows one honest carry-forward path (governance/state truth alignment only) while preserving Phase 6.3 already-approved carry-forward truth and aligned Phase 6.4.1 approved truth.
+— **CARRY-FORWARD READY — Final clean replacement PR path for Phase 6.3 / aligned Phase 6.4.1 truth (MAJOR, FOUNDATION)**
+Phase 6.3 approved carry-forward truth and Phase 6.4.1 SENTINEL APPROVED truth are synchronized for one governance/state-only replacement PR path to `main`, with no runtime or validation-scope expansion.
 
 ## COMPLETED
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
@@ -17,12 +17,12 @@ Artificial file-touch drift was removed; PR #479 now follows one honest carry-fo
 - **SENTINEL validation (PR #449, #451, #453, #455, #457)** completed with APPROVED verdicts for Phase 5.2–5.6 major-gated work.
 - **Phase 6.1 execution ledger & read-only reconciliation** implemented with deterministic append-only in-memory ledger records and reconciliation checks.
 - **Phase 6.2 persistent ledger & audit trail** implemented with append-only local-file persistence, deterministic reload, and read-only audit filtering.
-- **Phase 6.3 kill-switch & execution-halt foundation** preserved as already-approved carry-forward truth for clean replacement PR #479.
-- **PR #479 scope normalization** completed by removing artificial Phase 6.3 file-touch drift and restoring truthful governance/state carry-forward claims.
-- **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** remains SENTINEL APPROVED (score 100/100) with deterministic 10% boundary semantics and fixed anomaly-to-decision precedence.
+- **Phase 6.3 kill-switch & execution-halt foundation** remains approved carry-forward truth for final replacement PR scope.
+- **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** remains SENTINEL APPROVED (score 100/100) with deterministic 10% exposure boundary semantics and fixed anomaly-to-decision precedence.
+- **Final reset carry-forward package** prepared as governance/state-only path with synchronized state/roadmap/report truth.
 
 ## IN PROGRESS
-- COMMANDER re-review of PR #479 as the single clean replacement carry-forward path to `main`.
+- COMMANDER final review of the replacement PR branch `regen/final-phase6_3-carry-forward-clean-20260414`.
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
@@ -31,7 +31,7 @@ Artificial file-touch drift was removed; PR #479 now follows one honest carry-fo
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-COMMANDER re-review required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_13_phase6_3_clean_carry_forward_to_main.md. Tier: MAJOR
+COMMANDER final review required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_14_final_phase6_3_carry_forward_reset.md. Tier: MAJOR
 
 ## KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.
