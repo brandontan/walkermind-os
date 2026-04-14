@@ -1,13 +1,14 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 12:20
+2026-04-14 12:55
 
 ## Status
-— **SENTINEL APPROVED — Phase 6.3 kill-switch & execution-halt foundation (MAJOR, FOUNDATION)**
-Phase 6.3 and Phase 6.4.1 are both recorded as SENTINEL-APPROVED completed truth for PR #474 carry-forward synchronization.
+— **FORGE-X BLOCKED — PR #474 mergeability refresh requires GitHub `main` access not available in this container (HTTP 403 on fetch).**
+Phase 6.3 and Phase 6.4.1 remain preserved as SENTINEL-APPROVED completed truth.
 
 ## COMPLETED
+- **PR #474 mergeability restore attempt (environment-gated)** documented: branch context switched to `chore/sentinel-phase6_3-kill-switch-halt-20260414`, fetch/rebase step blocked by GitHub tunnel 403, no Phase 6.3/6.4.1 truth changes applied.
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
 - **Phase 5.2 execution transport layer** implemented with deterministic gating for real submission vs simulated submission.
 - **Phase 5.3 exchange integration boundary** implemented with deterministic real-network gates and explicit signing boundary contracts.
@@ -24,7 +25,7 @@ Phase 6.3 and Phase 6.4.1 are both recorded as SENTINEL-APPROVED completed truth
 - **SENTINEL validation for Phase 6.4.1** completed with **APPROVED** verdict (score 100/100): spec-contract target, roadmap/state synchronization, and monitoring test evidence (20/20 passed) all validated. Report: `reports/sentinel/24_100_phase6_4_1_monitoring_circuit_breaker_spec_validation.md`.
 
 ## IN PROGRESS
-- None.
+- PR #474 mergeability refresh/rebase awaiting execution in GitHub-accessible environment (blocked in current container).
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
@@ -33,11 +34,12 @@ Phase 6.3 and Phase 6.4.1 are both recorded as SENTINEL-APPROVED completed truth
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-COMMANDER final re-review required before merge.
-Source: projects/polymarket/polyquantbot/reports/forge/25_10_phase6_3_final_carry_forward_truth_sync_pr474.md
+SENTINEL validation required for pr 474 mergeability restoration carry-forward before merge.
+Source: reports/forge/25_11_pr474_mergeability_restore_attempt.md
 Tier: MAJOR
 
 ## KNOWN ISSUES
+- Current container cannot reach GitHub remote (`git fetch origin` returns `CONNECT tunnel failed, response 403`), blocking direct rebase/mergeability restoration for PR #474.
 - Pytest emits `PytestConfigWarning: Unknown config option: asyncio_mode` in some containers; does not affect test correctness when `pytest-asyncio` is installed.
 - `pytest-asyncio` must be installed for monitoring suite async tests to run (`pip install pytest-asyncio`); absence causes silent async test collection failures.
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.
