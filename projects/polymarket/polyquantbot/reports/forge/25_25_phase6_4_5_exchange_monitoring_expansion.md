@@ -16,6 +16,7 @@
   - `BLOCK` → execution is prevented with `monitoring_anomaly_block`.
   - `HALT` → execution is prevented with `monitoring_anomaly_halt`.
 - Added focused Phase 6.4.5 tests covering ALLOW/BLOCK/HALT behavior on exchange integration and a regression test confirming accepted monitored paths (6.4.2 transport, 6.4.3 authorizer, 6.4.4 gateway) remain intact.
+- Corrected PR #497 state regression by restoring previously completed Phase 6.1 and Phase 6.2 entries in `PROJECT_STATE.md` while preserving 6.4.5 in-progress/SENTINEL-next-gate truth.
 
 ## 2) Current system architecture
 - Narrow monitoring integration now spans four execution-related runtime paths:
@@ -31,6 +32,8 @@
 - Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/25_25_phase6_4_5_exchange_monitoring_expansion.md`
 - Modified: `/workspace/walker-ai-team/PROJECT_STATE.md`
 - Modified: `/workspace/walker-ai-team/ROADMAP.md`
+- Modified (PR #497 regression correction pass): `/workspace/walker-ai-team/PROJECT_STATE.md`
+- Modified (PR #497 regression correction pass): `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/25_25_phase6_4_5_exchange_monitoring_expansion.md`
 
 ## 4) What is working
 - Exchange execution path now enforces deterministic monitoring ALLOW/BLOCK/HALT contract on `execute_with_trace`.
@@ -41,6 +44,7 @@
   - authorizer path still authorizes correctly on valid ALLOW input,
   - gateway path still accepts simulated execution on valid ALLOW input,
   - transport path still submits correctly on valid ALLOW input.
+- `PROJECT_STATE.md` now preserves completed-truth continuity for Phase 6.1 and Phase 6.2 alongside the intended 6.4.5 pending-SENTINEL state.
 
 ## 5) Known issues
 - Integration is intentionally narrow to the named exchange path; platform-wide rollout is still out of scope.
@@ -58,7 +62,7 @@
 2. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase6_4_5_exchange_monitoring_20260415.py projects/polymarket/polyquantbot/tests/test_phase6_4_4_gateway_monitoring_20260415.py projects/polymarket/polyquantbot/tests/test_phase6_4_3_authorizer_monitoring_20260414.py projects/polymarket/polyquantbot/tests/test_phase5_2_execution_transport_20260412.py`
 3. `find . -type d -name 'phase*'`
 
-**Report Timestamp:** 2026-04-14 21:40 UTC  
+**Report Timestamp:** 2026-04-14 22:05 UTC  
 **Role:** FORGE-X (NEXUS)  
-**Task:** expand phase 6.4 runtime monitoring to exchange execution path
-**Branch:** `feature/monitoring-phase6-4-exchange-path-expansion-20260415`
+**Task:** expand phase 6.4 runtime monitoring to exchange execution path + restore PR #497 PROJECT_STATE truth regression
+**Branch:** `fix/core-pr497-project-state-regression-20260415`

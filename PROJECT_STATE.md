@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-14 21:40
-🔄 Status       : Phase 6.4.5 FORGE-X implementation completed for exchange-path narrow monitoring integration at ExchangeIntegration.execute_with_trace; deterministic ALLOW/BLOCK/HALT contract now extends to one additional execution path pending required SENTINEL MAJOR validation.
+📅 Last Updated : 2026-04-14 22:05
+🔄 Status       : Phase 6.4.5 FORGE-X implementation remains complete on source branch with SENTINEL required before merge; PR #497 state truth regression corrected by restoring completed Phase 6.1 and Phase 6.2 entries.
 
 ✅ COMPLETED
 - AGENTS.md roadmap rules insertion completed as MINOR FOUNDATION sync work.
@@ -9,6 +9,8 @@
 - Phase 5.5 wallet-capital boundary implemented with strict capital gating and controlled wallet access without fund transfer.
 - Phase 5.6 fund settlement boundary implemented with strict policy-gated real settlement and deterministic single-shot transfer interface.
 - SENTINEL validation completed for Phase 5.2–5.6 major-gated work.
+- Phase 6.1 execution ledger and read-only reconciliation implemented with deterministic append-only in-memory ledger records and reconciliation checks.
+- Phase 6.2 persistent ledger and audit trail implemented with append-only local-file persistence, deterministic reload, and read-only audit filtering.
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
 - Phase 6.4.4 gateway-path monitoring narrow integration expansion merged via PR #493 (runtime/code path) with SENTINEL APPROVED validation recorded in PR #495 (97/100).
 - Phase 6.4.5 exchange-path monitoring narrow integration implemented in FORGE-X scope at ExchangeIntegration.execute_with_trace with focused ALLOW/BLOCK/HALT tests and three-path regression preservation; awaiting SENTINEL gate.
