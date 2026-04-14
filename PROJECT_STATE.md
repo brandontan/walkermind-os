@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-14 22:37
-🔄 Status       : PR #498 state-truth regression fixed by restoring merged 6.4.3/6.4.4 completed entries while preserving Phase 6.4.5 SENTINEL-approved status pending COMMANDER final merge decision.
+📅 Last Updated : 2026-04-14 22:47
+🔄 Status       : Phase 6.4.6 FORGE-X narrow signing-boundary monitoring integration is complete on source branch with deterministic ALLOW/BLOCK/HALT behavior and focused regression coverage; SENTINEL MAJOR validation is the required next gate.
 
 ✅ COMPLETED
 - AGENTS.md roadmap rules insertion completed as MINOR FOUNDATION sync work.
@@ -13,17 +13,17 @@
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
-- COMMANDER decision gate pending for Phase 6.4.5 post-SENTINEL approval.
+- Phase 6.4.6 signing-boundary monitoring narrow integration implemented on `SecureSigningEngine.sign_with_trace` and pending SENTINEL MAJOR validation before merge.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secret loading, storage, and rotation.
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
 - Reconciliation mutation and correction workflow excluded from Phase 6.1 and Phase 6.2.
-- Platform-wide monitoring rollout beyond the current four narrow Phase 6.4 target paths (transport, authorizer, gateway, exchange integration).
+- Platform-wide monitoring rollout beyond the current five narrow Phase 6.4 target paths (transport, authorizer, gateway, exchange integration, signing boundary).
 
 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_26_pr498_project_state_truth_regression_fix.md. Tier: MINOR.
+- SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_28_phase6_4_6_signing_monitoring_expansion.md. Tier: MAJOR.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
@@ -34,5 +34,5 @@
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, correction logic, or background automation are implemented.
 - Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation or correction logic, background automation, or external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope.
-- Phase 6.4 narrow monitoring remains intentionally scoped to four execution-related paths only (transport, authorizer, gateway, exchange integration) and excludes platform-wide rollout, scheduler generalization, wallet lifecycle, portfolio orchestration, and settlement automation.
+- Phase 6.4 narrow monitoring remains intentionally scoped to five execution-related paths only (transport, authorizer, gateway, exchange integration, signing boundary) and excludes platform-wide rollout, scheduler generalization, wallet lifecycle, portfolio orchestration, and settlement automation.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning — carried forward as non-runtime hygiene backlog.
