@@ -6,6 +6,12 @@ import json
 from typing import Any, Callable
 
 from .exchange_integration import ExchangeExecutionResult
+from .monitoring_circuit_breaker import (
+    MONITORING_DECISION_BLOCK,
+    MONITORING_DECISION_HALT,
+    MonitoringCircuitBreaker,
+    MonitoringContractInput,
+)
 
 SIGNING_METHOD_REAL = "REAL_SIGNING"
 SIGNING_METHOD_SIMULATED = "SIMULATED_SIGNING"
@@ -19,11 +25,17 @@ SIGNING_BLOCK_KEY_NOT_REGISTERED = "key_not_registered"
 SIGNING_BLOCK_KEY_ACCESS_DENIED = "key_access_denied"
 SIGNING_BLOCK_AUDIT_MISSING = "audit_missing"
 SIGNING_BLOCK_OPERATOR_APPROVAL_MISSING = "operator_approval_missing"
+SIGNING_BLOCK_MONITORING_EVALUATION_REQUIRED = "monitoring_evaluation_required"
+SIGNING_BLOCK_MONITORING_ANOMALY = "monitoring_anomaly_block"
+SIGNING_HALT_MONITORING_ANOMALY = "monitoring_anomaly_halt"
 
 
 @dataclass(frozen=True)
 class SigningExecutionInput:
     exchange_result: ExchangeExecutionResult
+    monitoring_input: MonitoringContractInput | None = None
+    monitoring_circuit_breaker: MonitoringCircuitBreaker | None = None
+    monitoring_required: bool = False
     upstream_trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -149,6 +161,69 @@ class SecureSigningEngine:
                 key_reference=policy_input.key_reference,
                 upstream_trace_refs={**upstream_trace_refs, "validation_error": validation_error},
             )
+
+        if signing_input.monitoring_required:
+            if not isinstance(signing_input.monitoring_input, MonitoringContractInput):
+                return _blocked_build_result(
+                    blocked_reason=SIGNING_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    signing_attempted=False,
+                    signing_scheme=policy_input.signing_scheme,
+                    key_reference=policy_input.key_reference,
+                    upstream_trace_refs={
+                        **upstream_trace_refs,
+                        "contract_errors": {
+                            "monitoring_input": {
+                                "expected_type": "MonitoringContractInput",
+                                "actual_type": type(signing_input.monitoring_input).__name__,
+                            }
+                        },
+                    },
+                )
+            if signing_input.monitoring_circuit_breaker is not None and not isinstance(
+                signing_input.monitoring_circuit_breaker,
+                MonitoringCircuitBreaker,
+            ):
+                return _blocked_build_result(
+                    blocked_reason=SIGNING_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    signing_attempted=False,
+                    signing_scheme=policy_input.signing_scheme,
+                    key_reference=policy_input.key_reference,
+                    upstream_trace_refs={
+                        **upstream_trace_refs,
+                        "contract_errors": {
+                            "monitoring_circuit_breaker": {
+                                "expected_type": "MonitoringCircuitBreaker",
+                                "actual_type": type(signing_input.monitoring_circuit_breaker).__name__,
+                            }
+                        },
+                    },
+                )
+
+            breaker = signing_input.monitoring_circuit_breaker or MonitoringCircuitBreaker()
+            monitoring_result = breaker.evaluate(signing_input.monitoring_input)
+            upstream_trace_refs["monitoring"] = {
+                "decision": monitoring_result.decision,
+                "primary_anomaly": monitoring_result.primary_anomaly,
+                "anomalies": list(monitoring_result.anomalies),
+                "eval_ref": monitoring_result.event.eval_ref,
+            }
+
+            if monitoring_result.decision == MONITORING_DECISION_HALT:
+                return _blocked_build_result(
+                    blocked_reason=SIGNING_HALT_MONITORING_ANOMALY,
+                    signing_attempted=False,
+                    signing_scheme=policy_input.signing_scheme,
+                    key_reference=policy_input.key_reference,
+                    upstream_trace_refs=upstream_trace_refs,
+                )
+            if monitoring_result.decision == MONITORING_DECISION_BLOCK:
+                return _blocked_build_result(
+                    blocked_reason=SIGNING_BLOCK_MONITORING_ANOMALY,
+                    signing_attempted=False,
+                    signing_scheme=policy_input.signing_scheme,
+                    key_reference=policy_input.key_reference,
+                    upstream_trace_refs=upstream_trace_refs,
+                )
 
         block_reason = _determine_blocked_reason(signing_input.exchange_result, policy_input)
         if block_reason is not None:
