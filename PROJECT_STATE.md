@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-15 10:30
-🔄 Status       : Phase 6.4 two-path narrow monitoring baseline merged on main (PR #491). Accepted narrow scope: ExecutionTransport.submit_with_trace and LiveExecutionAuthorizer.authorize_with_trace. No further SENTINEL required for this baseline.
+📅 Last Updated : 2026-04-15 03:55
+🔄 Status       : SENTINEL Phase 6.4.4 gateway monitoring expansion validation is BLOCKED at Phase 0 because the declared FORGE source report is missing; MAJOR runtime validation did not start.
 
 ✅ COMPLETED
 - AGENTS.md roadmap rules insertion completed as MINOR FOUNDATION sync work.
@@ -11,20 +11,21 @@
 - SENTINEL validation completed for Phase 5.2–5.6 major-gated work.
 - Phase 6.1 execution ledger and read-only reconciliation implemented with deterministic append-only in-memory ledger records and reconciliation checks.
 - Phase 6.2 persistent ledger and audit trail implemented with append-only local-file persistence, deterministic reload, and read-only audit filtering.
-- Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100). Accepted two-path narrow baseline: ExecutionTransport.submit_with_trace (6.4.2) and LiveExecutionAuthorizer.authorize_with_trace (6.4.3).
+- Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
 
 🔧 IN PROGRESS
-- None.
+- SENTINEL phase 6.4.4 validation handoff is blocked pending FORGE source report availability at the declared path.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secret loading, storage, and rotation.
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
 - Reconciliation mutation and correction workflow excluded from Phase 6.1 and Phase 6.2.
-- Platform-wide monitoring rollout beyond the current two narrow Phase 6.4 target paths.
+- Platform-wide monitoring rollout beyond accepted narrow monitoring integration paths.
+- SENTINEL behavioral validation of gateway monitoring ALLOW/BLOCK/HALT path for Phase 6.4.4.
 
 🎯 NEXT PRIORITY
-- COMMANDER review for MINOR FOUNDATION repo-root truth sync after PR #491 merge. Source: projects/polymarket/polyquantbot/reports/forge/25_22_post_pr491_truth_sync.md. Tier: MINOR.
+- FORGE-X to publish missing source report at projects/polymarket/polyquantbot/reports/forge/25_23_phase6_4_4_gateway_monitoring_expansion.md with required sections, metadata, and py_compile/pytest evidence, then re-trigger SENTINEL MAJOR validation.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
@@ -35,5 +36,5 @@
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, correction logic, or background automation are implemented.
 - Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation or correction logic, background automation, or external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope.
-- Phase 6.4 two-path narrow monitoring baseline excludes platform-wide rollout, scheduler generalization, wallet lifecycle, portfolio orchestration, and settlement automation.
+- Phase 6.4 narrow monitoring work cannot be validated for 6.4.4 until the declared FORGE source report artifact exists.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning — carried forward as non-runtime hygiene backlog.
