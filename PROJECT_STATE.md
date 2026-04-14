@@ -1,11 +1,11 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 08:17
+2026-04-14 08:27
 
 ## Status
-— **PHASE 6.4 RUNTIME MONITORING PATH IMPLEMENTED (MAJOR, NARROW INTEGRATION)**
-Deterministic anomaly evaluation now gates one explicit execution-control runtime path (`ExecutionTransport.submit_with_trace`) and can block/halt submission based on Phase 6.4 policy contract outcomes.
+— **PHASE 6.4 RUNTIME MONITORING PATH SENTINEL-VALIDATED (MAJOR, NARROW INTEGRATION)**
+SENTINEL validated deterministic anomaly evaluation plus halt/block enforcement on `ExecutionTransport.submit_with_trace` and issued APPROVED verdict for the declared narrow runtime target.
 
 ## COMPLETED
 - **AGENTS.md roadmap rules insertion** — `## ROADMAP RULE (LOCKED)` and `## ROADMAP COMPLETION GATE` inserted at correct locations; insertion-only, no existing content modified (MINOR, FOUNDATION).
@@ -21,9 +21,10 @@ Deterministic anomaly evaluation now gates one explicit execution-control runtim
 - **Phase 6.4.1 monitoring & circuit breaker FOUNDATION spec contract fix** remains aligned approved/spec-level truth (SENTINEL APPROVED 100/100) and is not claimed as runtime delivered.
 - **Post-merge repo truth sync** completed for `PROJECT_STATE.md` and `ROADMAP.md` to reflect merged PR #479 reality only.
 - **Phase 6.4 runtime monitoring and circuit-breaker path** implemented as NARROW INTEGRATION on `ExecutionTransport.submit_with_trace`, including deterministic anomaly precedence, exposure-breach block behavior, kill-switch anomaly halt enforcement, and monitoring event recording.
+- **SENTINEL validation for Phase 6.4 runtime monitoring narrow integration** completed with **APPROVED** verdict (report: `projects/polymarket/polyquantbot/reports/sentinel/25_17_phase6_4_runtime_monitoring_validation.md`).
 
 ## IN PROGRESS
-- SENTINEL validation handoff for Phase 6.4 runtime monitoring and circuit-breaker path (MAJOR).
+- COMMANDER merge decision and PR review flow for Phase 6.4 runtime monitoring narrow integration.
 
 ## NOT STARTED
 - Full wallet lifecycle implementation (secret loading/storage/rotation).
@@ -32,7 +33,7 @@ Deterministic anomaly evaluation now gates one explicit execution-control runtim
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-SENTINEL validation required before merge. Source: reports/forge/25_16_phase6_4_runtime_circuit_breaker.md. Tier: MAJOR
+COMMANDER review required before merge. Source: projects/polymarket/polyquantbot/reports/sentinel/25_17_phase6_4_runtime_monitoring_validation.md. Tier: MAJOR
 
 ## KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.
