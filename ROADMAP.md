@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-14 21:05
+**Last Updated:** 2026-04-14 19:18
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-14 21:05
+**Last Updated:** 2026-04-14 19:18
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -52,7 +52,7 @@
 | 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479 and preserved as approved carry-forward truth. |
 | 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | 🚧 In Progress | Approved at spec level only; runtime-wide delivery is not claimed. |
 | 6.4.2 | Runtime Monitoring Narrow Integration | 🚧 In Progress | Prior SENTINEL validation on ExecutionTransport.submit_with_trace remains preserved; merge decision pending broader 6.4.x resolution. |
-| 6.4.3 | Authorizer Path Monitoring Enforcement | 🚧 In Progress | SENTINEL rerun BLOCKED (37/100, 2 critical); FORGE-X remediation required on LiveExecutionAuthorizer.authorize_with_trace. |
+| 6.4.3 | Authorizer Path Monitoring Enforcement | 🚧 In Progress | SENTINEL remediation validation BLOCKED (28/100, 2 critical); missing source artifact and missing target-path monitoring wiring on LiveExecutionAuthorizer.authorize_with_trace. |
 
 ---
 

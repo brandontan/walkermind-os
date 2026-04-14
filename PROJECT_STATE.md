@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-14 21:05
-🔄 Status       : Phase 6.4.3 authorizer-path monitoring SENTINEL rerun is BLOCKED (37/100, 2 critical); FORGE-X remediation is required before merge consideration.
+📅 Last Updated : 2026-04-14 19:18
+🔄 Status       : Phase 6.4.3 authorizer-path monitoring SENTINEL remediation validation is BLOCKED (28/100, 2 critical); FORGE-X must deliver target-path wiring and source artifact before merge consideration.
 
 ✅ COMPLETED
 - AGENTS.md roadmap rules insertion completed as MINOR FOUNDATION sync work.
@@ -15,8 +15,8 @@
 
 🔧 IN PROGRESS
 - Phase 6.4.2 runtime monitoring narrow integration on ExecutionTransport.submit_with_trace remains active and preserved.
-- Phase 6.4.3 authorizer-path monitoring enforcement validation is blocked pending FORGE-X implementation and artifact remediation.
-- COMMANDER merge decision remains gated by successful MAJOR rerun after remediation.
+- Phase 6.4.3 authorizer-path monitoring enforcement remediation validation is blocked on missing source artifact and missing target-path monitoring wiring.
+- COMMANDER merge decision remains gated by successful MAJOR rerun after FORGE-X remediation.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secret loading, storage, and rotation.
@@ -27,7 +27,7 @@
 
 🎯 NEXT PRIORITY
 - FORGE-X remediation required before merge.
-- Source: projects/polymarket/polyquantbot/reports/sentinel/25_18_phase6_4_3_authorizer_path_monitoring_validation_rerun.md
+- Source: projects/polymarket/polyquantbot/reports/sentinel/25_19_phase6_4_3_authorizer_monitoring_remediation_validation.md
 - Tier: MAJOR
 
 ⚠️ KNOWN ISSUES
@@ -39,5 +39,5 @@
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, correction logic, or background automation are implemented.
 - Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation or correction logic, background automation, or external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope.
-- [DEFERRED] Phase 6.4.3 Forge source artifact path provided to SENTINEL was missing at validation time.
+- [DEFERRED] Phase 6.4.3 declared Forge source artifact path remains missing at validation time.
 - [DEFERRED] PytestConfigWarning persists for unknown asyncio_mode config option.
