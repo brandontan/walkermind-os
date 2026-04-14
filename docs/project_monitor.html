@@ -423,6 +423,20 @@ header {
 .beta   { color: var(--yellow); }
 .launch { color: var(--green);  }
 
+/* ── SUB-PHASE ROW INDENT ── */
+.row.sub-row {
+  margin-left: 16px;
+  background: rgba(16,22,31,.7);
+  border-color: var(--border);
+}
+.row.sub-row .row-main {
+  font-size: 11.5px;
+  color: var(--mid);
+}
+.row.sub-row .row-sub {
+  font-size: 10px;
+}
+
 /* ── UTILITIES ── */
 .mode-hidden { display: none !important; }
 
@@ -645,7 +659,7 @@ const state = {
 // ── AUTO-PARSED: PROJECT STRUCTURE & STRATEGY ────────────
 
 function buildStructureItems(view) {
-  const phases = state.phases;
+  const phases = state.phases.filter(p => !p.isSub);
   const done   = phases.filter(p => p.status === '✅').length;
   const total  = phases.length || 1;
   const pct    = Math.round((done / total) * 100);
@@ -849,12 +863,27 @@ function parsePhases(md) {
   const phases = [];
   const lines = md.split('\n');
   let inCrusader = false;
+  let activePhaseNum = null;
+
   for (const line of lines) {
     if (line.includes('PROJECT: CRUSADER')) { inCrusader = true; continue; }
-    if (inCrusader && line.match(/^# [🟢⚪] PROJECT:/) && !line.includes('CRUSADER')) break;
+    if (inCrusader && line.match(/^## ⚪ PROJECT:/) ) break;
     if (!inCrusader) continue;
-    const m = line.match(/^\|\s*(Phase \d+)\s*\|\s*([^|]+?)\s*\|\s*(✅|🚧|❌)[^|]*\|/);
-    if (m) phases.push({ num: m[1], name: m[2].trim(), status: m[3] });
+
+    // Top-level phases: | Phase 6 | Production Safety & Stabilization | 🚧 In Progress | Public Preparation |
+    const mTop = line.match(/^\|\s*(Phase \d+)\s*\|\s*([^|]+?)\s*\|\s*(✅|🚧|❌)[^|]*\|/);
+    if (mTop) {
+      const status = mTop[3];
+      activePhaseNum = mTop[1];
+      phases.push({ num: mTop[1], name: mTop[2].trim(), status, isSub: false });
+      continue;
+    }
+
+    // Sub-phases: | 6.1 | Execution Ledger (In-Memory) | ✅ Done | ... |
+    const mSub = line.match(/^\|\s*(\d+\.\d+)\s*\|\s*([^|]+?)\s*\|\s*(✅|🚧|❌)[^|]*\|/);
+    if (mSub && activePhaseNum) {
+      phases.push({ num: mSub[1], name: mSub[2].trim(), status: mSub[3], isSub: true, parentPhase: activePhaseNum });
+    }
   }
   return phases;
 }
@@ -907,24 +936,37 @@ function deriveWorkstreams(prs, inProg) {
 function buildData(view) {
   const openPRs      = state.prs.length;
   const inProgCount  = state.inProgress.length;
-  const phaseDone    = state.phases.filter(p => p.status === '✅').length;
-  const phaseTotal   = state.phases.length || 1;
-  const activePhase  = state.phases.find(p => p.status === '🚧') || state.phases[state.phases.length - 1];
+  const topPhases    = state.phases.filter(p => !p.isSub);
+  const subPhases    = state.phases.filter(p => p.isSub);
+  const phaseDone    = topPhases.filter(p => p.status === '✅').length;
+  const phaseTotal   = topPhases.length || 1;
+  const activePhase  = topPhases.find(p => p.status === '🚧') || topPhases[topPhases.length - 1];
   const phaseLabel   = activePhase ? activePhase.num : '—';
   const phaseName    = activePhase ? activePhase.name : 'Awaiting sync';
   const progressPct  = Math.round((phaseDone / phaseTotal) * 100);
   const majorGate    = /sentinel|major/i.test(state.next + ' ' + state.status + ' ' + state.issues.join(' ')) ? 'MAJOR' : 'Review';
   const confidence   = state.issues.length >= 3 ? 'Watch' : state.issues.length >= 1 ? 'Good' : 'Strong';
 
-  const progressItems = state.phases.map(p => {
+  const progressItems = [];
+  topPhases.forEach(p => {
     const [badge, cls] = phaseBadge(p.status);
-    return {
+    progressItems.push({
       main: p.num + ' — ' + p.name,
       sub: p.status === '✅' ? 'Completed phase milestone.'
          : p.status === '🚧' ? 'Current active build and validation phase.'
          : 'Pending phase milestone.',
       badge, cls
-    };
+    });
+    subPhases.filter(s => s.parentPhase === p.num).forEach(s => {
+      const [sbadge, scls] = phaseBadge(s.status);
+      progressItems.push({
+        main: '↳ ' + s.num + ' — ' + s.name,
+        sub: s.status === '✅' ? 'Sub-phase complete.'
+           : s.status === '🚧' ? 'Active sub-phase.'
+           : 'Pending.',
+        badge: sbadge, cls: scls, isSub: true
+      });
+    });
   });
 
   const feedItems = state.commits.slice(0, 5).map(c => ({
@@ -1010,7 +1052,7 @@ function buildData(view) {
     progressItems: progressItems.map(x => ({
       main:  x.main.replace(/^Phase \d+ — /, ''),
       sub:   x.sub,
-      badge: x.badge === 'Done' ? 'Complete' : x.badge === 'In Progress' ? 'Active' : 'Upcoming',
+      badge: x.badge === 'Done' ? 'Complete' : x.badge === 'In Progress' ? 'Active' : x.badge === 'Pending' ? 'Upcoming' : x.badge,
       cls:   x.cls
     })),
     rightIcon:  '📈',
@@ -1055,7 +1097,7 @@ function renderHero(data) {
 
 function rows(items) {
   return '<div class="list">' + items.map(item => `
-    <div class="row">
+    <div class="row${item.isSub ? ' sub-row' : ''}">
       <div class="row-left">
         <div class="row-main">${esc(item.main)}</div>
         <div class="row-sub">${esc(item.sub || '')}</div>
@@ -1117,7 +1159,8 @@ function render() {
   renderHero(data);
 
   // Update header strip
-  const active = state.phases.find(p => p.status === '🚧') || state.phases[state.phases.length - 1];
+  const topP = state.phases.filter(p => !p.isSub);
+  const active = topP.find(p => p.status === '🚧') || topP[topP.length - 1];
   const pNum = active ? active.num.replace('Phase ', 'P') : '—';
   const pShort = active ? pNum + ' · ' + active.name.split(' ').slice(0,3).join(' ') : '—';
   document.getElementById('stripPhase').textContent    = pShort;
