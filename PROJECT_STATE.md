@@ -1,7 +1,7 @@
 # PROJECT_STATE.md
 
 ## Last Updated
-2026-04-14 12:20
+2026-04-14 12:35
 
 ## Status
 — **SENTINEL APPROVED — Phase 6.3 carry-forward artifacts now included for real PR #479 replacement path (MAJOR, FOUNDATION)**
@@ -31,7 +31,7 @@ Phase 6.3 remains SENTINEL-approved truth and PR #479 now carries actual Phase 6
 - Reconciliation mutation/correction workflow (intentionally excluded from Phase 6.1 and Phase 6.2).
 
 ## NEXT PRIORITY
-SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_13_phase6_3_clean_carry_forward_to_main.md. Tier: MAJOR
+COMMANDER re-review required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_13_phase6_3_clean_carry_forward_to_main.md. Tier: MAJOR
 
 ## KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry/batching/async workers.

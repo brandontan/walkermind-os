@@ -4,7 +4,7 @@
 **Claim Level:** FOUNDATION  
 **Validation Target:** Real Phase 6.3 carry-forward completeness in PR #479 while preserving aligned Phase 6.4.1 approved truth and synchronized `PROJECT_STATE.md` / `ROADMAP.md`.  
 **Not in Scope:** New validation work, runtime expansion beyond approved carry-forward content, speculative cleanup, or unrelated repository changes.  
-**Suggested Next Step:** COMMANDER re-review of PR #479, then SENTINEL validation before merge.
+**Suggested Next Step:** COMMANDER re-review of PR #479 as the next gate before merge path decision.
 
 ---
 
@@ -40,7 +40,7 @@
 
 ## 6) What is next
 - COMMANDER re-review of PR #479.
-- SENTINEL validation required before merge due MAJOR tier.
+- COMMANDER re-review remains the next gate for PR #479 carry-forward path.
 
 ---
 
@@ -50,6 +50,6 @@
 3. `python -m py_compile projects/polymarket/polyquantbot/platform/safety/kill_switch.py projects/polymarket/polyquantbot/tests/test_phase6_3_kill_switch_20260413.py`
 4. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase6_3_kill_switch_20260413.py`
 
-**Report Timestamp:** 2026-04-14 12:20 UTC  
+**Report Timestamp:** 2026-04-14 12:35 UTC  
 **Role:** FORGE-X (NEXUS)  
 **Task:** add real phase 6.3 carry-forward artifacts to pr 479
