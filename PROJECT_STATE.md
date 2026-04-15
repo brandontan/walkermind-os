@@ -1,7 +1,8 @@
-📅 Last Updated : 2026-04-15 18:00
-🔄 Status       : SENTINEL validation completed for Phase 6.5.1 wallet secret-loading contract (NARROW INTEGRATION target: WalletSecretLoader.load_secret) with APPROVED verdict (98/100, 0 critical); awaiting COMMANDER final decision. docs/commander_knowledge.md updated with 3 new rule sections (MINOR doc patch, branch: update/core-commander-rules-20260415).
+📅 Last Updated : 2026-04-15 18:10
+🔄 Status       : SENTINEL validation completed for Phase 6.5.1 wallet secret-loading contract (NARROW INTEGRATION target: WalletSecretLoader.load_secret) with APPROVED verdict (98/100, 0 critical); awaiting COMMANDER final decision. AGENTS.md updated with POST-MERGE SYNC RULE section (MINOR doc patch, branch: update/core-agents-post-merge-sync-20260415).
 
 ✅ COMPLETED
+- AGENTS.md patched with POST-MERGE SYNC RULE section after ## PROJECT_STATE RULE (Validation Tier: MINOR, Claim Level: FOUNDATION).
 - docs/commander_knowledge.md patched with 3 new rule sections: COMMANDER AUTO PR ACTION RULE, expanded COMMANDER DIRECT-FIX MODE, POST-MERGE SYNC RULE (Validation Tier: MINOR, Claim Level: FOUNDATION).
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
 - Phase 6.1 execution ledger and read-only reconciliation implemented with deterministic append-only in-memory records.
@@ -26,7 +27,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review of docs/commander_knowledge.md diff (branch: update/core-commander-rules-20260415) — confirm 3 patches landed at correct positions, no existing content altered. Then: review and merge decision for Phase 6.5.1 SENTINEL output. Source: projects/polymarket/polyquantbot/reports/sentinel/25_29_phase6_5_1_wallet_secret_loading_validation.md. Tier: MAJOR.
+- COMMANDER review of AGENTS.md diff (branch: update/core-agents-post-merge-sync-20260415) — confirm POST-MERGE SYNC RULE landed at correct position, no existing content altered. Then: review and merge decision for Phase 6.5.1 SENTINEL output. Source: projects/polymarket/polyquantbot/reports/sentinel/25_29_phase6_5_1_wallet_secret_loading_validation.md. Tier: MAJOR.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

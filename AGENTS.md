@@ -288,6 +288,30 @@ Strict formatting rules:
   - NEXT PRIORITY ≤ 3
   - KNOWN ISSUES ≤ 10
 
+## POST-MERGE SYNC RULE
+
+After every PR merge by COMMANDER, verify before opening the next task:
+
+Check 1 — PROJECT_STATE.md:
+- Does it still reflect pre-merge wording (pending / IN PROGRESS / pending-COMMANDER)?
+- If yes → trigger post-merge sync immediately
+
+Check 2 — ROADMAP.md:
+- Does it still show a milestone as pending/open that is now completed?
+- If yes → trigger post-merge sync immediately
+
+Check 3 — Next task gate:
+- Do not open a new phase or new FORGE-X task until post-merge sync is confirmed clean
+
+Post-merge sync task rules:
+- Validation Tier: MINOR
+- COMMANDER may direct-fix if within 2-file / 30-line threshold
+- No FORGE-X task needed if within direct-fix threshold
+- No PR required for pure state/roadmap wording sync
+- Must complete before next task is opened
+
+Failure to sync before next task = repo state drift = violates single source of truth rule.
+
 ## NEXUS ORCHESTRATION ENGINE
 
 NEXUS is not just a role switcher.
