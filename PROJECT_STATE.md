@@ -1,4 +1,4 @@
-📅 Last Updated : 2026-04-15 12:00
+📅 Last Updated : 2026-04-15 12:57
 🔄 Status       : Phase 6.4.10 adapter-boundary monitoring narrow integration is implemented on source branch and now requires SENTINEL validation before merge/promotion.
 
 ✅ COMPLETED
@@ -23,7 +23,7 @@
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
 - Reconciliation mutation and correction workflow excluded from Phase 6.1 and Phase 6.2.
-- Platform-wide monitoring rollout beyond the current narrow target paths.
+- Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no wallet lifecycle expansion, no portfolio orchestration, and no settlement automation beyond the exact named boundary method.
 
 🎯 NEXT PRIORITY
 - SENTINEL validation required before merge. Source: projects/polymarket/polyquantbot/reports/forge/25_37_phase6_4_next_candidate_evaluation.md. Tier: MAJOR.
