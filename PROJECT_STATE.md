@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-15 10:25
-🔄 Status       : Phase 6.4.8 SENTINEL validation is complete with APPROVED verdict for narrow settlement-boundary monitoring integration and is ready for COMMANDER final decision.
+📅 Last Updated : 2026-04-15 11:00
+🔄 Status       : Phase 6.4.8 settlement-boundary monitoring narrow integration merged on main (PR #507 and PR #508). Accepted seven-path narrow monitoring baseline is complete: all execution-related runtime paths covered at declared narrow scope.
 
 ✅ COMPLETED
 - AGENTS.md roadmap rules insertion completed as MINOR FOUNDATION sync work.
@@ -12,20 +12,20 @@
 - Phase 6.4.5 exchange-path monitoring narrow integration merged after PR #497 and PR #498 with accepted four-path baseline: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, and ExchangeIntegration.execute_with_trace.
 - Phase 6.4.6 signing-boundary monitoring narrow integration merged after PR #501 and PR #502 with accepted five-path runtime baseline: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, and SecureSigningEngine.sign_with_trace.
 - Phase 6.4.7 capital-boundary monitoring narrow integration merged after PR #504 and PR #505 with accepted six-path runtime baseline: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, SecureSigningEngine.sign_with_trace, and WalletCapitalController.authorize_capital_with_trace.
+- Phase 6.4.8 settlement-boundary monitoring narrow integration merged via PR #507 and PR #508 (SENTINEL APPROVED 100/100). Accepted seven-path narrow baseline: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, SecureSigningEngine.sign_with_trace, WalletCapitalController.authorize_capital_with_trace, and FundSettlementEngine.settle_with_trace.
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
-- Phase 6.4.8 settlement-boundary monitoring narrow integration has completed SENTINEL validation as APPROVED (100/100) and is awaiting COMMANDER merge/hold decision.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secret loading, storage, and rotation.
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
 - Reconciliation mutation and correction workflow excluded from Phase 6.1 and Phase 6.2.
-- Platform-wide monitoring rollout beyond the current Phase 6.4 narrow target paths (transport, authorizer, gateway, exchange integration, signing boundary, capital boundary, settlement boundary).
+- Platform-wide monitoring rollout beyond the current Phase 6.4 seven-path narrow execution monitoring baseline.
 
 🎯 NEXT PRIORITY
-- COMMANDER final decision required on Phase 6.4.8 SENTINEL verdict. Source: projects/polymarket/polyquantbot/reports/sentinel/25_26_phase6_4_8_settlement_monitoring_validation.md. Tier: MAJOR.
+- COMMANDER review for MINOR FOUNDATION repo-root truth sync after PR #507 and PR #508 merge. Source: projects/polymarket/polyquantbot/reports/forge/25_34_post_pr508_507_truth_sync.md. Tier: MINOR.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
@@ -36,5 +36,5 @@
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, correction logic, or background automation are implemented.
 - Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation or correction logic, background automation, or external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope.
-- Phase 6.4 narrow monitoring remains intentionally scoped to execution-adjacent paths only and explicitly excludes platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, and settlement automation.
+- Phase 6.4 seven-path narrow monitoring baseline excludes platform-wide rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, and settlement automation beyond the exact named boundary method (FundSettlementEngine.settle_with_trace).
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning — carried forward as non-runtime hygiene backlog.
