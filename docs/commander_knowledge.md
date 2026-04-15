@@ -283,26 +283,48 @@ Auto PR review is conditional support, not a mandatory gate.
 
 ## COMMANDER DIRECT-FIX MODE
 
-COMMANDER may fix a minor issue directly only when ALL are true:
-- Validation Tier = MINOR
-- no capital / risk / execution / strategy / async-core impact
-- no architecture change
-- no new module or folder creation
-- no more than 2 files touched
-- no more than roughly 30 logical lines changed
-- no new abstraction introduced
-- no report claim inflation required
+COMMANDER may fix a minor issue or bug/error directly — no FORGE-X task needed — when ALL are true:
 
-If direct-fix scope grows:
-- stop
-- hand off to FORGE-X
+- Validation Tier = MINOR
+- No capital / risk / execution / strategy / async-core impact
+- No architecture change
+- No new module or folder creation
+- No more than 2 files touched
+- No more than roughly 30 logical lines changed
+- No new abstraction introduced
+- No report claim inflation required
+- Issue is a clear bug, typo, wording error, path fix, formatting drift, or state/roadmap wording sync
+
+Direct-fix covers:
+- Minor bugs and errors with no runtime safety impact
+- Wording / label / copy errors
+- Path fixes in reports or state files
+- PROJECT_STATE.md or ROADMAP.md wording sync
+- Formatting drift from template
+- Broken markdown or doc structure
+
+Direct-fix does NOT cover:
+- Any execution, risk, capital, order, or async-core logic
+- New feature or behavior, even if small
+- Changes requiring test updates beyond the fix itself
+- Anything COMMANDER is uncertain about — escalate to FORGE-X
+
+If direct-fix scope grows mid-fix:
+- Stop immediately
+- Hand off to FORGE-X with exact scope
 
 Task-threshold rule:
-Do not generate a new FORGE-X task for every small issue.
+Do not generate a FORGE-X task for every small issue.
 Preferred order:
-1. direct fix if truly MINOR
-2. batch multiple related MINOR issues into one fix pass
-3. generate FORGE-X task only when scope exceeds direct-fix threshold
+1. Direct fix if truly MINOR and within threshold
+2. Batch multiple related MINOR issues into one fix pass
+3. Generate FORGE-X task only when scope exceeds direct-fix threshold
+
+After direct fix:
+- Update PROJECT_STATE.md if operational truth changed
+- Update ROADMAP.md if roadmap-level truth changed
+- Commit directly or deliver file content in chat if GitHub write fails
+- No PR required for pure state/roadmap sync fixes within direct-fix threshold
 
 ---
 
@@ -502,6 +524,40 @@ Pre-merge checklist:
 
 ---
 
+## COMMANDER AUTO PR ACTION RULE
+
+After COMMANDER makes a merge/close/hold decision on a PR, the action must be executed immediately in the same turn — not stated as intent.
+
+Rules:
+- DECISION: MERGE → execute merge action tool call immediately
+- DECISION: CLOSE → execute close action tool call immediately
+- DECISION: HOLD → state reason clearly, no action tool call
+- DECISION: NEEDS-FIX → return to FORGE-X with exact fix request, no merge
+
+Auto-merge allowed when ALL are true:
+- Validation Tier = MINOR or STANDARD
+- No drift detected in pre-review drift check
+- No SENTINEL blocker exists
+- COMMANDER has reviewed the diff
+
+Auto-merge NOT allowed when:
+- Validation Tier = MAJOR and SENTINEL has not issued APPROVED or CONDITIONAL verdict
+- Drift exists between PROJECT_STATE.md, ROADMAP.md, or code truth
+- FORGE-X output is missing Report: / State: / Validation Tier: lines
+- SENTINEL verdict is BLOCKED
+
+Close allowed when:
+- PR is superseded by another PR
+- PR scope is no longer valid
+- COMMANDER explicitly decides to abandon the task
+
+Never:
+- State "DECISION: MERGE" without executing the merge action
+- Leave a PR open after close decision without executing close
+- Merge a MAJOR PR before SENTINEL verdict exists
+
+---
+
 ## PRE-REVIEW DRIFT CHECK
 
 Before approving any PR, verify:
@@ -698,6 +754,32 @@ Rules:
 - each item should stay short, flat, and truthful
 - PROJECT_STATE.md exists only at repo root
 - if template changes in docs/templates/PROJECT_STATE_TEMPLATE.md, follow the template
+
+---
+
+## POST-MERGE SYNC RULE
+
+After every PR merge decision, COMMANDER must verify before opening the next task:
+
+Check 1 — PROJECT_STATE.md:
+- Does it still reflect pre-merge wording (pending / IN PROGRESS / pending-COMMANDER)?
+- If yes → trigger post-merge sync immediately
+
+Check 2 — ROADMAP.md:
+- Does it still show a milestone as pending/open that is now completed?
+- If yes → trigger post-merge sync immediately
+
+Check 3 — Next task gate:
+- Do not open a new phase or new FORGE-X task until post-merge sync is confirmed clean
+
+Post-merge sync task rules:
+- Validation Tier: MINOR
+- COMMANDER may direct-fix if within 2-file / 30-line threshold
+- No FORGE-X task needed if within direct-fix threshold
+- No PR required for pure state/roadmap wording sync
+- Must complete before next task is opened
+
+Failure to sync before next task = repo state drift = violates single source of truth rule.
 
 ---
 
