@@ -29,6 +29,7 @@
   - `monitoring_circuit_breaker`
   - `monitoring_required`
 - Added focused tests for ALLOW pass-through order build, BLOCK prevention, and HALT stop behavior on the adapter boundary.
+- Applied PR #512 repo-truth regression fix by restoring non-regressed repo-root timestamps and preserving explicit merged truth wording for 6.4.5–6.4.9 in `PROJECT_STATE.md` and `ROADMAP.md`.
 
 ## 2) Current system architecture
 - Monitoring remains execution-adjacent and narrow, with no platform-wide rollout claim.
@@ -57,6 +58,7 @@
 - Adapter-boundary BLOCK monitoring contract deterministically prevents order build with `monitoring_anomaly_block`.
 - Adapter-boundary HALT monitoring contract deterministically prevents order build with `monitoring_anomaly_halt`.
 - Integration remains exact-method scoped and does not introduce multi-method rollout.
+- Repo-root truth rollback is corrected: timestamps are restored and explicit merged baseline wording for 6.4.5–6.4.9 remains preserved.
 
 ## 5) Known issues
 - Existing pytest warning persists: `Unknown config option: asyncio_mode` (non-runtime hygiene backlog).
@@ -80,7 +82,7 @@
 2. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase6_4_10_adapter_monitoring_20260415.py`
 3. `find . -type d -name 'phase*'`
 
-**Report Timestamp:** 2026-04-15 05:42 UTC  
+**Report Timestamp:** 2026-04-15 12:00 UTC  
 **Role:** FORGE-X (NEXUS)  
 **Task:** evaluate next exact narrow execution-adjacent monitoring candidate after merged Phase 6.4.9 and integrate only if justified  
 **Branch:** `feature/monitoring-phase6-4-next-candidate-evaluation-20260415`

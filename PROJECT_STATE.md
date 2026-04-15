@@ -1,4 +1,4 @@
-📅 Last Updated : 2026-04-15 05:42
+📅 Last Updated : 2026-04-15 12:00
 🔄 Status       : Phase 6.4.10 adapter-boundary monitoring narrow integration is implemented on source branch and now requires SENTINEL validation before merge/promotion.
 
 ✅ COMPLETED
@@ -8,10 +8,11 @@
 - Phase 6.2 persistent ledger and audit trail implemented with append-only local-file persistence and deterministic reload.
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
 - Phase 6.4.4 gateway-path monitoring narrow integration expansion merged via PR #493 with SENTINEL validation path recorded in PR #495 (97/100).
-- Phase 6.4.5 exchange-path monitoring narrow integration merged after PR #497 and PR #498.
-- Phase 6.4.6 signing-boundary monitoring narrow integration merged after PR #501 and PR #502.
-- Phase 6.4.7 capital-boundary monitoring narrow integration merged after PR #504 and PR #505.
-- Phase 6.4.8 settlement-boundary monitoring narrow integration and Phase 6.4.9 orchestration-entry monitoring narrow integration are merged, establishing the accepted eight-path execution-adjacent monitoring baseline.
+- Phase 6.4.5 exchange-path monitoring narrow integration merged after PR #497 and PR #498 with accepted four-path runtime baseline: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, and ExchangeIntegration.execute_with_trace.
+- Phase 6.4.6 signing-boundary monitoring narrow integration merged after PR #501 and PR #502 with accepted five-path runtime baseline: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, and SecureSigningEngine.sign_with_trace.
+- Phase 6.4.7 capital-boundary monitoring narrow integration merged after PR #504 and PR #505 with accepted six-path runtime baseline: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, SecureSigningEngine.sign_with_trace, and WalletCapitalController.authorize_capital_with_trace.
+- Phase 6.4.8 settlement-boundary monitoring narrow integration merged with accepted seven-path runtime baseline by adding FundSettlementEngine.settle_with_trace while preserving the prior six accepted monitored paths.
+- Phase 6.4.9 orchestration-entry monitoring narrow integration merged with accepted eight-path runtime baseline by adding ExecutionActivationGate.evaluate_with_trace while preserving the prior seven accepted monitored paths.
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
