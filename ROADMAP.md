@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 14:45
+**Last Updated:** 2026-04-15 15:44
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 14:45
+**Last Updated:** 2026-04-15 15:44
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -60,6 +60,7 @@
 | 6.4.8 | Settlement-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth accepted for narrow settlement boundary at FundSettlementEngine.settle_with_trace with deterministic ALLOW/BLOCK/HALT monitoring decisions. Seven-path baseline preserved through settlement boundary; no platform-wide monitoring rollout claimed. |
 | 6.4.9 | Orchestration-Entry Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth accepted for narrow orchestration-entry boundary at ExecutionActivationGate.evaluate_with_trace with deterministic ALLOW/BLOCK/HALT monitoring decisions. Accepted eight-path baseline now includes transport, authorizer, gateway, exchange, signing, capital, settlement, and orchestration-entry boundaries. No platform-wide monitoring rollout claimed. |
 | 6.4.10 | Adapter-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth accepted after PR #513 and PR #514 at declared narrow scope. Accepted nine execution-related runtime paths: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, SecureSigningEngine.sign_with_trace, WalletCapitalController.authorize_capital_with_trace, FundSettlementEngine.settle_with_trace, ExecutionActivationGate.evaluate_with_trace, ExecutionAdapter.build_order_with_trace. Explicit exclusions preserved: no platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, and no settlement automation beyond exact named boundary methods. |
+| 6.5.1 | Wallet Lifecycle Foundation — Secret Loading Contract | 🚧 In Progress | New execution-adjacent non-monitoring lane opened at narrow scope: deterministic wallet secret loading contract with ownership + activation constraints only. Explicit exclusions preserved: no secret rotation automation, multi-wallet orchestration, portfolio management, scheduler generalization, settlement automation, or broad lifecycle rollout. |
 
 ---
 
