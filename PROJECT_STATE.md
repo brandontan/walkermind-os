@@ -1,9 +1,9 @@
-📅 Last Updated : 2026-04-15 22:06
-🔄 Status       : Post-merge sync complete: PR #524 is merged-main accepted truth and Phase 6.5.2 WalletStateStorageBoundary.store_state is now recorded as done across repo-root state files, with excluded wallet-lifecycle expansions explicitly preserved.
+📅 Last Updated : 2026-04-15 23:14
+🔄 Status       : Branch-drift guard patch complete for AGENTS.md and docs/commander_knowledge.md with PROJECT_STATE synchronized for COMMANDER MINOR review.
 
 ✅ COMPLETED
-- AGENTS.md patched with POST-MERGE SYNC RULE section after ## PROJECT_STATE RULE (Validation Tier: MINOR, Claim Level: FOUNDATION).
-- docs/commander_knowledge.md patched with 3 new rule sections: COMMANDER AUTO PR ACTION RULE, expanded COMMANDER DIRECT-FIX MODE, POST-MERGE SYNC RULE (Validation Tier: MINOR, Claim Level: FOUNDATION).
+- AGENTS.md FORGE-X pre-flight checklist patched with 4 branch-drift guard checks inserted immediately after forge report path check line (Validation Tier: MINOR, Claim Level: FOUNDATION).
+- docs/commander_knowledge.md PRE-REVIEW DRIFT CHECK patched with 3 branch-drift guard checks inserted immediately after report-claims line (Validation Tier: MINOR, Claim Level: FOUNDATION).
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
 - Phase 6.1 execution ledger and read-only reconciliation implemented with deterministic append-only in-memory records.
 - Phase 6.2 persistent ledger and audit trail implemented with append-only local-file persistence and deterministic reload.
@@ -11,7 +11,6 @@
 - Phase 6.4.4 gateway-path monitoring narrow integration expansion merged via PR #493 with SENTINEL validation path recorded in PR #495 (97/100).
 - Phase 6.4.5 exchange-path monitoring narrow integration merged after PR #497 and PR #498 with accepted four-path runtime baseline.
 - Phase 6.4.8 settlement-boundary monitoring narrow integration merged with accepted seven-path runtime baseline by adding FundSettlementEngine.settle_with_trace.
-- Phase 6.5.1 wallet lifecycle secret-loading contract is merged-main accepted truth (done).
 - Phase 6.5.2 wallet lifecycle state/storage boundary contract is merged-main accepted truth (done) via PR #524 at WalletStateStorageBoundary.store_state, preserving narrow-scope exclusions (no rotation, vault integration, multi-wallet orchestration, portfolio rollout, scheduler generalization, or settlement automation).
 
 🔧 IN PROGRESS
@@ -25,7 +24,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/25_43_post_merge_sync_phase6_5_2_merged_truth.md. Tier: MINOR. Next slice after 6.5.2 must remain narrow and preserve exclusions for rotation, vault integration, multi-wallet orchestration, portfolio rollout, scheduler generalization, and settlement automation.
+- COMMANDER review required before merge. Auto PR review optional if used. Source: no forge report required for this MINOR doc patch task (branch-drift-guard-patch-20260415). Tier: MINOR.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

@@ -674,6 +674,11 @@ PRE-FLIGHT CHECKLIST
 [ ] No full Kelly α=1.0
 [ ] ENABLE_LIVE_TRADING guard not bypassed
 [ ] Forge report exists at correct path with all required sections
+[ ] Branch name in forge report matches actual git branch —
+    verify with: git rev-parse --abbrev-ref HEAD
+[ ] Branch name follows format: {prefix}/{area}-{purpose}-{YYYYMMDD}
+[ ] Branch prefix is one of: feature/ fix/ update/ hotfix/ refactor/ chore/
+[ ] Date in branch name uses YYYYMMDD format — no dashes in date segment
 [ ] PROJECT_STATE.md updated to current truth
 [ ] ROADMAP.md updated if roadmap-level truth changed
 [ ] Max 5 files per commit preferred; split if needed

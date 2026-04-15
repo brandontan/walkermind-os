@@ -565,6 +565,9 @@ Before approving any PR, verify:
 - adapter / facade wraps real logic
 - no fake abstraction introduced
 - report claims match implementation reality
+- Branch name in forge report matches actual PR head branch exactly
+- Branch name follows format {prefix}/{area}-{purpose}-{YYYYMMDD}
+- If branch name mismatch exists → NEEDS-FIX before merge, report the exact drift
 - PROJECT_STATE.md does not lose unresolved truth
 - ROADMAP.md does not contradict phase / milestone truth when roadmap-level state changed
 - Validation Tier exists
