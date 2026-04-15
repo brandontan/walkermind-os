@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-15 21:09
-🔄 Status       : FORGE-X follow-up for PR #524 completed on branch fix/core-pr524-wallet-state-storage-followup-20260415 with roadmap truth sync (6.5.1 done, 6.5.2 active) and hardened wallet state/storage validation in WalletStateStorageBoundary.store_state; awaiting COMMANDER review.
+📅 Last Updated : 2026-04-15 21:16
+🔄 Status       : FORGE-X traceability cleanup for PR #524 completed: PROJECT_STATE/report branch references now align to the actual open PR #524 source branch feature/core-wallet-state-storage-boundary-20260415; PR #524 remains the active STANDARD review item for Phase 6.5.2 WalletStateStorageBoundary.store_state.
 
 ✅ COMPLETED
 - AGENTS.md patched with POST-MERGE SYNC RULE section after ## PROJECT_STATE RULE (Validation Tier: MINOR, Claim Level: FOUNDATION).
@@ -15,7 +15,7 @@
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
-- Phase 6.5.2 wallet lifecycle state/storage boundary remains the active narrow slice pending COMMANDER review for PR #524 follow-up.
+- Phase 6.5.2 wallet lifecycle state/storage boundary remains the active narrow slice pending COMMANDER review on PR #524 source branch feature/core-wallet-state-storage-boundary-20260415.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -25,7 +25,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/25_42_phase6_5_2_wallet_state_storage_boundary.md. Tier: STANDARD. Branch: fix/core-pr524-wallet-state-storage-followup-20260415.
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/25_42_phase6_5_2_wallet_state_storage_boundary.md. Tier: STANDARD. Branch: feature/core-wallet-state-storage-boundary-20260415 (PR #524).
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
