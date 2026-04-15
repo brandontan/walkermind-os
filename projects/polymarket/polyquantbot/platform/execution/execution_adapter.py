@@ -4,12 +4,21 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .execution_decision import ExecutionDecision
+from .monitoring_circuit_breaker import (
+    MONITORING_DECISION_BLOCK,
+    MONITORING_DECISION_HALT,
+    MonitoringCircuitBreaker,
+    MonitoringContractInput,
+)
 
 ADAPTER_BLOCK_INVALID_DECISION_INPUT = "invalid_decision_input"
 ADAPTER_BLOCK_INVALID_DECISION_CONTRACT = "invalid_decision_contract"
 ADAPTER_BLOCK_UPSTREAM_NOT_ALLOWED = "upstream_not_allowed"
 ADAPTER_BLOCK_DECISION_NOT_READY = "decision_not_ready"
 ADAPTER_BLOCK_NON_ACTIVATING_REQUIRED = "non_activating_required"
+ADAPTER_BLOCK_MONITORING_EVALUATION_REQUIRED = "monitoring_evaluation_required"
+ADAPTER_BLOCK_MONITORING_ANOMALY = "monitoring_anomaly_block"
+ADAPTER_HALT_MONITORING_ANOMALY = "monitoring_anomaly_halt"
 
 
 _SIDE_TO_EXTERNAL_SIDE: dict[str, str] = {
@@ -30,6 +39,9 @@ _ROUTING_MODE_TO_EXECUTION_MODE: dict[str, str] = {
 @dataclass(frozen=True)
 class ExecutionAdapterDecisionInput:
     decision: ExecutionDecision
+    monitoring_input: MonitoringContractInput | None = None
+    monitoring_circuit_breaker: MonitoringCircuitBreaker | None = None
+    monitoring_required: bool = False
     source_trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -101,6 +113,70 @@ class ExecutionAdapter:
             )
 
         decision = decision_input.decision
+        monitoring_trace: dict[str, Any] | None = None
+        if decision_input.monitoring_required:
+            if not isinstance(decision_input.monitoring_input, MonitoringContractInput):
+                return _blocked_result(
+                    blocked_reason=ADAPTER_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    upstream_trace_refs={"decision_input": dict(decision_input.source_trace_refs)},
+                    mapping_notes={
+                        "monitoring_required": True,
+                        "contract_errors": {
+                            "monitoring_input": {
+                                "expected_type": "MonitoringContractInput",
+                                "actual_type": type(decision_input.monitoring_input).__name__,
+                            }
+                        },
+                    },
+                )
+
+            if decision_input.monitoring_circuit_breaker is not None and not isinstance(
+                decision_input.monitoring_circuit_breaker,
+                MonitoringCircuitBreaker,
+            ):
+                return _blocked_result(
+                    blocked_reason=ADAPTER_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    upstream_trace_refs={"decision_input": dict(decision_input.source_trace_refs)},
+                    mapping_notes={
+                        "monitoring_required": True,
+                        "contract_errors": {
+                            "monitoring_circuit_breaker": {
+                                "expected_type": "MonitoringCircuitBreaker",
+                                "actual_type": type(decision_input.monitoring_circuit_breaker).__name__,
+                            }
+                        },
+                    },
+                )
+
+            breaker = decision_input.monitoring_circuit_breaker or MonitoringCircuitBreaker()
+            monitoring_result = breaker.evaluate(decision_input.monitoring_input)
+            monitoring_trace = {
+                "decision": monitoring_result.decision,
+                "anomaly_count": len(monitoring_result.anomalies),
+                "primary_anomaly": (
+                    monitoring_result.anomalies[0] if monitoring_result.anomalies else None
+                ),
+            }
+
+            if monitoring_result.decision == MONITORING_DECISION_HALT:
+                return _blocked_result(
+                    blocked_reason=ADAPTER_HALT_MONITORING_ANOMALY,
+                    upstream_trace_refs={
+                        "decision_input": dict(decision_input.source_trace_refs),
+                        "monitoring": monitoring_trace,
+                    },
+                    mapping_notes={"monitoring_required": True},
+                )
+            if monitoring_result.decision == MONITORING_DECISION_BLOCK:
+                return _blocked_result(
+                    blocked_reason=ADAPTER_BLOCK_MONITORING_ANOMALY,
+                    upstream_trace_refs={
+                        "decision_input": dict(decision_input.source_trace_refs),
+                        "monitoring": monitoring_trace,
+                    },
+                    mapping_notes={"monitoring_required": True},
+                )
+
         if not decision.allowed:
             return _blocked_result(
                 blocked_reason=ADAPTER_BLOCK_UPSTREAM_NOT_ALLOWED,
@@ -147,7 +223,10 @@ class ExecutionAdapter:
             trace=ExecutionOrderTrace(
                 order_created=True,
                 blocked_reason=None,
-                upstream_trace_refs={"decision_input": dict(decision_input.source_trace_refs)},
+                upstream_trace_refs={
+                    "decision_input": dict(decision_input.source_trace_refs),
+                    **({"monitoring": monitoring_trace} if monitoring_trace is not None else {}),
+                },
                 mapping_notes={
                     "side_to_external_side": {decision.side: external_side},
                     "routing_mode_to_execution_mode": {decision.routing_mode: mapped_execution_mode},
