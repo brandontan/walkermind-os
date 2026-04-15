@@ -423,6 +423,29 @@ header {
 .beta   { color: var(--yellow); }
 .launch { color: var(--green);  }
 
+/* ── PROGRESS TABS ── */
+.ptab-bar {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.ptab {
+  flex: 1; border: none; background: transparent;
+  color: var(--muted); cursor: pointer;
+  padding: 8px 12px;
+  font-family: var(--mono); font-size: 9px;
+  text-transform: uppercase; letter-spacing: .1em;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all .2s;
+}
+.ptab:hover { color: var(--mid); }
+.ptab.active {
+  color: var(--green);
+  border-bottom-color: var(--green);
+  background: rgba(0,245,160,.04);
+}
+
 /* ── SUB-PHASE ROW INDENT ── */
 .row.sub-row {
   margin-left: 16px;
@@ -542,7 +565,14 @@ footer {
         <span class="ch-badge" id="progressBadge">Live</span>
         <span class="ch-chev">▼</span>
       </div>
-      <div class="card-body" id="progressBody"><div class="loading">Loading...</div></div>
+      <div class="card-body" id="progressBody">
+        <div class="ptab-bar">
+          <button class="ptab active" id="ptab-phases" onclick="switchProgressTab('phases')">Phases</button>
+          <button class="ptab" id="ptab-sub" onclick="switchProgressTab('sub')">Sub-phases</button>
+        </div>
+        <div id="ptab-phases-body"><div class="loading">Loading...</div></div>
+        <div id="ptab-sub-body" class="hidden"><div class="loading">Loading...</div></div>
+      </div>
     </div>
 
     <div class="card">
@@ -808,6 +838,15 @@ function tog(head) {
   const isHidden = body.classList.contains('hidden');
   body.classList.toggle('hidden', !isHidden);
   head.classList.toggle('closed', !isHidden);
+}
+
+let currentProgressTab = 'phases';
+function switchProgressTab(tab) {
+  currentProgressTab = tab;
+  document.getElementById('ptab-phases').classList.toggle('active', tab === 'phases');
+  document.getElementById('ptab-sub').classList.toggle('active', tab === 'sub');
+  document.getElementById('ptab-phases-body').classList.toggle('hidden', tab !== 'phases');
+  document.getElementById('ptab-sub-body').classList.toggle('hidden', tab !== 'sub');
 }
 
 function setTs() {
@@ -1192,7 +1231,17 @@ function render() {
   document.getElementById('focusText').textContent      = data.focusText;
   document.getElementById('progressTitle').textContent  = data.progressTitle;
   document.getElementById('progressBadge').textContent  = data.progressBadge;
-  document.getElementById('progressBody').innerHTML     = rows(data.progressItems);
+  // Split progressItems into top-level phases and sub-phases
+  const _topItems = data.progressItems.filter(x => !x.isSub);
+  const _subItems = data.progressItems.filter(x => x.isSub);
+  document.getElementById('ptab-phases-body').innerHTML = rows(_topItems);
+  document.getElementById('ptab-sub-body').innerHTML    = _subItems.length
+    ? rows(_subItems)
+    : '<div class="row-sub" style="padding:12px 4px;color:var(--muted)">No sub-phases for current view.</div>';
+  // Update sub-tab label with active phase
+  const _activeTop = state.phases.filter(p => !p.isSub).find(p => p.status === '\u{1F6A7}');
+  const _subLabel  = _activeTop ? _activeTop.num.replace('Phase ','P') + ' Sub-phases' : 'Sub-phases';
+  document.getElementById('ptab-sub').textContent = _subLabel;
   document.getElementById('rightCardIcon').textContent  = data.rightIcon;
   document.getElementById('rightCardTitle').textContent = data.rightTitle;
   document.getElementById('rightCardBadge').textContent = data.rightBadge;
