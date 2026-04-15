@@ -272,6 +272,8 @@ class CommandHandler:
             return await self._handle_rediscover()
         if cmd == "alpha":
             return await self._handle_alpha()
+        if cmd == "plan":
+            return await self._handle_plan()
         if cmd == "trade":
             return await self._handle_trade_with_observability(value=value, cid=cid)
 
@@ -1063,3 +1065,18 @@ class CommandHandler:
         by_edge = breakdown.get("by_edge", {}) if isinstance(breakdown, dict) else {}
 
         lines = ["📊 PERFORMANCE BREAKDOWN", ""]
+
+    async def _handle_plan(self) -> CommandResult:
+        """Return Fast Plan Bot advisory trade plans via /plan command."""
+        log.info("command_plan_invoked", mode=self._mode)
+        try:
+            from .handlers.plan import handle_plan  # noqa: PLC0415
+            text, keyboard = await handle_plan()
+            payload: dict = {"_keyboard": keyboard} if keyboard else {}
+            return CommandResult(success=True, message=text, payload=payload)
+        except Exception as exc:
+            log.error("command_plan_error", error=str(exc))
+            return CommandResult(
+                success=False,
+                message=f"⚠️ *Fast Plan Bot error*\n_{exc}_",
+            )
