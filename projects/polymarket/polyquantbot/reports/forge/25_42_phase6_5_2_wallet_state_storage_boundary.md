@@ -14,7 +14,7 @@
 - Defined deterministic wallet state/storage contract behavior:
   - valid contract + active wallet + valid state snapshot => success and deterministic revision increment,
   - inactive wallet => deterministic block `wallet_not_active`,
-  - invalid state snapshot => deterministic block `invalid_state` with explicit `state_error` detail.
+  - invalid state snapshot => deterministic block `invalid_state` with explicit `state_error` detail, including explicit bool rejection for numeric fields and NaN rejection for `available_balance`.
 - Kept state handling local to this boundary with no orchestration or vault expansion.
 
 ## 2) Current system architecture
@@ -34,7 +34,7 @@
 
 ## 4) What is working
 - `WalletStateStorageBoundary.store_state` stores valid wallet state and increments deterministic per-wallet revision numbers.
-- Deterministic failure contracts are implemented for inactive wallet and invalid state conditions.
+- Deterministic failure contracts are implemented for inactive wallet and invalid state conditions, including bool/NaN invalid numeric state handling.
 - Focused tests prove deterministic success and failure behavior for the single named runtime surface.
 - No plaintext secret output or wallet lifecycle claim inflation was introduced.
 
@@ -63,7 +63,7 @@
 2. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase6_5_1_wallet_lifecycle_secret_loading_20260415.py projects/polymarket/polyquantbot/tests/test_phase6_5_2_wallet_state_storage_boundary_20260415.py`
 3. `find . -type d -name 'phase*'`
 
-**Report Timestamp:** 2026-04-15 20:52 (Asia/Jakarta)  
+**Report Timestamp:** 2026-04-15 21:09 (Asia/Jakarta)  
 **Role:** FORGE-X (NEXUS)  
-**Task:** expand wallet lifecycle foundation to wallet state/storage boundary on one named runtime surface  
-**Branch:** `feature/core-wallet-state-storage-boundary-20260415`
+**Task:** correct PR 524 traceability, roadmap truth, and numeric state validation follow-up for wallet state/storage boundary  
+**Branch:** `fix/core-pr524-wallet-state-storage-followup-20260415`

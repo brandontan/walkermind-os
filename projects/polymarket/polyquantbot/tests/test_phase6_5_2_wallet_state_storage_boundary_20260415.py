@@ -77,3 +77,59 @@ def test_phase6_5_2_blocks_invalid_wallet_state_snapshot() -> None:
     assert result.state_stored is False
     assert result.stored_revision is None
     assert result.notes == {"state_error": "available_balance_negative"}
+
+
+def test_phase6_5_2_blocks_bool_numeric_fields_in_state_snapshot() -> None:
+    boundary = WalletStateStorageBoundary()
+    bool_balance_policy = WalletStateStoragePolicy(
+        wallet_binding_id="wb-phase6-5-2",
+        owner_user_id="user-1",
+        wallet_active=True,
+        state_snapshot={
+            "wallet_status": "ready",
+            "available_balance": True,
+            "nonce": 1,
+        },
+    )
+    bool_nonce_policy = WalletStateStoragePolicy(
+        wallet_binding_id="wb-phase6-5-2",
+        owner_user_id="user-1",
+        wallet_active=True,
+        state_snapshot={
+            "wallet_status": "ready",
+            "available_balance": 25.0,
+            "nonce": False,
+        },
+    )
+
+    balance_result = boundary.store_state(bool_balance_policy)
+    nonce_result = boundary.store_state(bool_nonce_policy)
+
+    assert balance_result.success is False
+    assert balance_result.blocked_reason == WALLET_STATE_STORAGE_BLOCK_INVALID_STATE
+    assert balance_result.notes == {"state_error": "available_balance_invalid_type"}
+    assert nonce_result.success is False
+    assert nonce_result.blocked_reason == WALLET_STATE_STORAGE_BLOCK_INVALID_STATE
+    assert nonce_result.notes == {"state_error": "nonce_invalid"}
+
+
+def test_phase6_5_2_blocks_nan_available_balance() -> None:
+    boundary = WalletStateStorageBoundary()
+    policy = WalletStateStoragePolicy(
+        wallet_binding_id="wb-phase6-5-2",
+        owner_user_id="user-1",
+        wallet_active=True,
+        state_snapshot={
+            "wallet_status": "ready",
+            "available_balance": float("nan"),
+            "nonce": 2,
+        },
+    )
+
+    result = boundary.store_state(policy)
+
+    assert result.success is False
+    assert result.blocked_reason == WALLET_STATE_STORAGE_BLOCK_INVALID_STATE
+    assert result.state_stored is False
+    assert result.stored_revision is None
+    assert result.notes == {"state_error": "available_balance_nan"}

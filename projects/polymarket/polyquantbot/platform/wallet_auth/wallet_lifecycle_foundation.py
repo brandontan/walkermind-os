@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -212,12 +213,18 @@ def _validate_state_snapshot(state_snapshot: dict[str, Any]) -> str | None:
         return "wallet_status_invalid"
 
     available_balance = state_snapshot["available_balance"]
+    if isinstance(available_balance, bool):
+        return "available_balance_invalid_type"
     if not isinstance(available_balance, (int, float)):
         return "available_balance_invalid_type"
+    if math.isnan(float(available_balance)):
+        return "available_balance_nan"
     if available_balance < 0:
         return "available_balance_negative"
 
     nonce = state_snapshot["nonce"]
+    if isinstance(nonce, bool):
+        return "nonce_invalid"
     if not isinstance(nonce, int) or nonce < 0:
         return "nonce_invalid"
     return None
