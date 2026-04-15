@@ -5,7 +5,6 @@
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walker-ai-team
-Timezone: Asia/Jakarta
 
 ## IDENTITY
 
@@ -75,6 +74,10 @@ Rules:
 - Mr. Walker never fixes files manually; any required fix goes back through COMMANDER → NEXUS → FORGE-X
 
 ## RULE PRIORITY (GLOBAL)
+## Timestamps
+Always use timezone Asia/Jakarta (UTC+7) for all timestamps.
+Format: YYYY-MM-DD HH:MM
+Example: 2026-04-15 14:30
 
 Priority order:
 
