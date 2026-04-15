@@ -21,7 +21,9 @@
 - Preserved explicit exclusions in synchronized truth:
   - no platform-wide monitoring rollout
   - no scheduler generalization
-  - no wallet lifecycle
+  - no wallet lifecycle expansion
+  - no portfolio orchestration
+  - no settlement automation
 
 ## 2) Current system architecture
 - No runtime architecture changes were made.
@@ -53,7 +55,7 @@
 2. `find . -type d -name 'phase*'`
 3. `git diff -- PROJECT_STATE.md ROADMAP.md projects/polymarket/polyquantbot/reports/forge/25_32_post_pr505_504_truth_sync.md`
 
-**Report Timestamp:** 2026-04-15 08:20 UTC  
+**Report Timestamp:** 2026-04-15 09:05 UTC  
 **Role:** FORGE-X (NEXUS)  
 **Task:** sync post-merge truth after PR #505 and #504  
-**Branch:** `chore/core-post-pr505-504-truth-sync-20260415`
+**Branch:** `fix/core-pr506-exclusion-truth-regression-20260415`
