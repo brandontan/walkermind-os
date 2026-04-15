@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-15 15:44
-🔄 Status       : Phase 6.5.1 wallet lifecycle foundation lane opened after Phase 6.4.10 closeout with a narrow secret-loading contract implementation (ownership and activation constrained only), pending MAJOR-tier SENTINEL validation.
+📅 Last Updated : 2026-04-15 17:13
+🔄 Status       : PR #517 hardening pass completed for Phase 6.5.1: wallet secret-loading contract preserves ownership/activation constraints and env-secret checks while removing plaintext secret exposure from result surface; pending MAJOR-tier SENTINEL validation.
 
 ✅ COMPLETED
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
@@ -15,7 +15,7 @@
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
-- Phase 6.5.1 wallet lifecycle foundation lane opened at narrow scope: wallet secret loading contract with ownership/activation constraints only.
+- Phase 6.5.1 wallet lifecycle foundation lane remains in progress at narrow scope: secret-loading contract hardened to expose safe availability signals only (no plaintext secret return).
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secret loading/storage expansion, secure rotation, and production orchestration.

@@ -28,7 +28,6 @@ class WalletSecretLoadResult:
     wallet_binding_id: str
     owner_user_id: str
     secret_loaded: bool
-    secret_value: str | None
     secret_fingerprint: str | None
     notes: dict[str, Any] | None = None
 
@@ -74,7 +73,6 @@ class WalletSecretLoader:
                 wallet_binding_id=policy.wallet_binding_id,
                 owner_user_id=policy.owner_user_id,
                 secret_loaded=True,
-                secret_value=secret_value,
                 secret_fingerprint=_secret_fingerprint(secret_value),
                 notes={"secret_env_var": policy.secret_env_var},
             )
@@ -112,7 +110,6 @@ def _blocked_result(
         wallet_binding_id=policy.wallet_binding_id,
         owner_user_id=policy.owner_user_id,
         secret_loaded=False,
-        secret_value=None,
         secret_fingerprint=None,
         notes=notes,
     )

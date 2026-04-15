@@ -28,8 +28,8 @@ def test_phase6_5_1_secret_loading_success(monkeypatch) -> None:
     assert result.success is True
     assert result.blocked_reason is None
     assert result.secret_loaded is True
-    assert result.secret_value == "secret-value-123"
     assert result.secret_fingerprint == "282768175c21798f"
+    assert hasattr(result, "secret_value") is False
 
 
 def test_phase6_5_1_blocks_ownership_mismatch(monkeypatch) -> None:
@@ -48,7 +48,7 @@ def test_phase6_5_1_blocks_ownership_mismatch(monkeypatch) -> None:
     assert result.success is False
     assert result.blocked_reason == WALLET_SECRET_LOAD_BLOCK_OWNERSHIP_MISMATCH
     assert result.secret_loaded is False
-    assert result.secret_value is None
+    assert hasattr(result, "secret_value") is False
 
 
 def test_phase6_5_1_blocks_inactive_wallet(monkeypatch) -> None:
