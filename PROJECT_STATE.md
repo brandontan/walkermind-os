@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-15 18:10
-🔄 Status       : SENTINEL validation completed for Phase 6.5.1 wallet secret-loading contract (NARROW INTEGRATION target: WalletSecretLoader.load_secret) with APPROVED verdict (98/100, 0 critical); awaiting COMMANDER final decision. AGENTS.md updated with POST-MERGE SYNC RULE section (MINOR doc patch, branch: update/core-agents-post-merge-sync-20260415).
+📅 Last Updated : 2026-04-15 21:29
+🔄 Status       : FORGE-X traceability cleanup for PR #524 completed: PROJECT_STATE/report branch references now align to the actual open PR #524 source branch feature/extend-wallet-lifecycle-to-state-storage-boundary-2026-04-15; PR #524 remains the active STANDARD review item for Phase 6.5.2 WalletStateStorageBoundary.store_state.
 
 ✅ COMPLETED
 - AGENTS.md patched with POST-MERGE SYNC RULE section after ## PROJECT_STATE RULE (Validation Tier: MINOR, Claim Level: FOUNDATION).
@@ -10,24 +10,22 @@
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
 - Phase 6.4.4 gateway-path monitoring narrow integration expansion merged via PR #493 with SENTINEL validation path recorded in PR #495 (97/100).
 - Phase 6.4.5 exchange-path monitoring narrow integration merged after PR #497 and PR #498 with accepted four-path runtime baseline.
-- Phase 6.4.6 signing-boundary monitoring narrow integration merged after PR #501 and PR #502 with accepted five-path runtime baseline.
-- Phase 6.4.7 capital-boundary monitoring narrow integration merged after PR #504 and PR #505 with accepted six-path runtime baseline.
 - Phase 6.4.8 settlement-boundary monitoring narrow integration merged with accepted seven-path runtime baseline by adding FundSettlementEngine.settle_with_trace.
-- Phase 6.5.1 wallet lifecycle foundation secret-loading contract narrow validation completed with SENTINEL APPROVED verdict (source: projects/polymarket/polyquantbot/reports/sentinel/25_29_phase6_5_1_wallet_secret_loading_validation.md).
+- Phase 6.5.1 wallet lifecycle secret-loading contract is merged-main accepted truth (done) and PR #524 follow-up now hardens bool/NaN invalid-state rejection for the 6.5.2 state/storage boundary.
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
-- Phase 6.5 wallet lifecycle foundation remains in staged narrow delivery mode; only secret-loading contract slice has completed MAJOR validation.
+- Phase 6.5.2 wallet lifecycle state/storage boundary remains the active narrow slice pending COMMANDER review on PR #524 source branch feature/extend-wallet-lifecycle-to-state-storage-boundary-2026-04-15.
 
 📋 NOT STARTED
-- Full wallet lifecycle implementation including secret loading/storage expansion, secure rotation, and production orchestration.
+- Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
 - Reconciliation mutation and correction workflow excluded from Phase 6.1 and Phase 6.2.
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review of AGENTS.md diff (branch: update/core-agents-post-merge-sync-20260415) — confirm POST-MERGE SYNC RULE landed at correct position, no existing content altered. Then: review and merge decision for Phase 6.5.1 SENTINEL output. Source: projects/polymarket/polyquantbot/reports/sentinel/25_29_phase6_5_1_wallet_secret_loading_validation.md. Tier: MAJOR.
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/25_42_phase6_5_2_wallet_state_storage_boundary.md. Tier: STANDARD. Branch: feature/extend-wallet-lifecycle-to-state-storage-boundary-2026-04-15 (PR #524).
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
