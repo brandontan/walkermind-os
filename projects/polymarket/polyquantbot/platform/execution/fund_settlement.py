@@ -4,6 +4,12 @@ from dataclasses import dataclass, field
 import hashlib
 from typing import Any, Callable
 
+from .monitoring_circuit_breaker import (
+    MONITORING_DECISION_BLOCK,
+    MONITORING_DECISION_HALT,
+    MonitoringCircuitBreaker,
+    MonitoringContractInput,
+)
 from .wallet_capital import WalletCapitalResult
 
 FUND_SETTLEMENT_STATUS_BLOCKED = "BLOCKED"
@@ -21,11 +27,17 @@ FUND_SETTLEMENT_BLOCK_INSUFFICIENT_BALANCE = "insufficient_balance"
 FUND_SETTLEMENT_BLOCK_FINAL_CONFIRMATION_MISSING = "final_confirmation_missing"
 FUND_SETTLEMENT_BLOCK_IRREVERSIBLE_ACK_MISSING = "irreversible_ack_missing"
 FUND_SETTLEMENT_BLOCK_AUDIT_MISSING = "audit_missing"
+FUND_SETTLEMENT_BLOCK_MONITORING_EVALUATION_REQUIRED = "monitoring_evaluation_required"
+FUND_SETTLEMENT_BLOCK_MONITORING_ANOMALY = "monitoring_anomaly_block"
+FUND_SETTLEMENT_HALT_MONITORING_ANOMALY = "monitoring_anomaly_halt"
 
 
 @dataclass(frozen=True)
 class FundSettlementExecutionInput:
     wallet_capital_result: WalletCapitalResult
+    monitoring_input: MonitoringContractInput | None = None
+    monitoring_circuit_breaker: MonitoringCircuitBreaker | None = None
+    monitoring_required: bool = False
     upstream_trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -159,6 +171,57 @@ class FundSettlementEngine:
                 currency=policy_input.currency,
                 upstream_trace_refs=upstream_trace_refs,
             )
+
+        monitoring_result = None
+        if execution_input.monitoring_required:
+            if not isinstance(execution_input.monitoring_input, MonitoringContractInput):
+                return _blocked_build_result(
+                    blocked_reason=FUND_SETTLEMENT_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    settlement_attempted=False,
+                    wallet_id=policy_input.wallet_id,
+                    amount=policy_input.amount,
+                    currency=policy_input.currency,
+                    upstream_trace_refs=upstream_trace_refs,
+                )
+            if execution_input.monitoring_circuit_breaker is not None and not isinstance(
+                execution_input.monitoring_circuit_breaker,
+                MonitoringCircuitBreaker,
+            ):
+                return _blocked_build_result(
+                    blocked_reason=FUND_SETTLEMENT_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    settlement_attempted=False,
+                    wallet_id=policy_input.wallet_id,
+                    amount=policy_input.amount,
+                    currency=policy_input.currency,
+                    upstream_trace_refs=upstream_trace_refs,
+                )
+
+            breaker = execution_input.monitoring_circuit_breaker or MonitoringCircuitBreaker()
+            monitoring_result = breaker.evaluate(execution_input.monitoring_input)
+            upstream_trace_refs["monitoring"] = {
+                "decision": monitoring_result.decision,
+                "primary_anomaly": monitoring_result.primary_anomaly,
+                "anomalies": list(monitoring_result.anomalies),
+                "eval_ref": monitoring_result.event.eval_ref,
+            }
+            if monitoring_result.decision == MONITORING_DECISION_HALT:
+                return _blocked_build_result(
+                    blocked_reason=FUND_SETTLEMENT_HALT_MONITORING_ANOMALY,
+                    settlement_attempted=False,
+                    wallet_id=policy_input.wallet_id,
+                    amount=policy_input.amount,
+                    currency=policy_input.currency,
+                    upstream_trace_refs=upstream_trace_refs,
+                )
+            if monitoring_result.decision == MONITORING_DECISION_BLOCK:
+                return _blocked_build_result(
+                    blocked_reason=FUND_SETTLEMENT_BLOCK_MONITORING_ANOMALY,
+                    settlement_attempted=False,
+                    wallet_id=policy_input.wallet_id,
+                    amount=policy_input.amount,
+                    currency=policy_input.currency,
+                    upstream_trace_refs=upstream_trace_refs,
+                )
 
         block_reason = _determine_blocked_reason(
             wallet_capital=execution_input.wallet_capital_result,

@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 09:05
+**Last Updated:** 2026-04-15 09:32
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 09:05
+**Last Updated:** 2026-04-15 09:32
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -57,6 +57,7 @@
 | 6.4.5 | Exchange-Path Monitoring Narrow Integration Expansion | ✅ Done | Merged truth confirmed after PR #497 and PR #498 at declared narrow scope. Accepted four execution-related runtime paths: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace. Explicit exclusions preserved: no platform-wide rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, or settlement automation. |
 | 6.4.6 | Signing-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth confirmed after PR #501 and PR #502 at declared narrow scope. Accepted five execution-related runtime paths: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, SecureSigningEngine.sign_with_trace. Explicit exclusions preserved: no platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, or settlement automation. |
 | 6.4.7 | Capital-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth confirmed after PR #504 and PR #505 at declared narrow scope. Accepted six execution-related runtime paths: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, SecureSigningEngine.sign_with_trace, WalletCapitalController.authorize_capital_with_trace. Explicit exclusions preserved: no platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, or settlement automation. |
+| 6.4.8 | Settlement-Boundary Monitoring Narrow Integration Expansion | 🚧 In Progress | FORGE-X scope active for narrow integration at FundSettlementEngine.settle_with_trace with deterministic ALLOW/BLOCK/HALT monitoring decisions. Existing six execution-related monitoring paths remain preserved; no platform-wide monitoring rollout is claimed. |
 
 ---
 
