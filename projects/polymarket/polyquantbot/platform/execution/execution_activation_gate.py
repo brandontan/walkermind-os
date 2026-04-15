@@ -3,12 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .monitoring_circuit_breaker import (
+    MONITORING_DECISION_BLOCK,
+    MONITORING_DECISION_HALT,
+    MonitoringCircuitBreaker,
+    MonitoringContractInput,
+)
 from .execution_decision import ExecutionDecision
 
 ACTIVATION_BLOCK_INVALID_DECISION_INPUT_CONTRACT = "invalid_decision_input_contract"
 ACTIVATION_BLOCK_INVALID_POLICY_INPUT_CONTRACT = "invalid_policy_input_contract"
 ACTIVATION_BLOCK_INVALID_DECISION_INPUT = "invalid_decision_input"
 ACTIVATION_BLOCK_INVALID_POLICY_INPUT = "invalid_policy_input"
+ACTIVATION_BLOCK_MONITORING_EVALUATION_REQUIRED = "monitoring_evaluation_required"
+ACTIVATION_BLOCK_MONITORING_ANOMALY = "monitoring_anomaly_block"
+ACTIVATION_HALT_MONITORING_ANOMALY = "monitoring_anomaly_halt"
 ACTIVATION_BLOCK_UPSTREAM_DECISION_BLOCKED = "upstream_decision_blocked"
 ACTIVATION_BLOCK_ACTIVATION_DISABLED = "activation_disabled"
 ACTIVATION_BLOCK_ACTIVATION_MODE_NOT_ALLOWED = "activation_mode_not_allowed"
@@ -21,6 +30,9 @@ ACTIVATION_BLOCK_SIMULATION_ONLY_REQUIRED = "simulation_only_required"
 class ExecutionActivationDecisionInput:
     decision: ExecutionDecision
     activation_mode: str
+    monitoring_input: MonitoringContractInput | None = None
+    monitoring_circuit_breaker: MonitoringCircuitBreaker | None = None
+    monitoring_required: bool = False
     source_trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -118,6 +130,48 @@ class ExecutionActivationGate:
                 },
                 activation_notes={"policy_input_error": policy_error},
             )
+
+        if decision_input.monitoring_required:
+            if not isinstance(decision_input.monitoring_input, MonitoringContractInput):
+                return _blocked_result(
+                    blocked_reason=ACTIVATION_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    activation_mode=decision_input.activation_mode,
+                    upstream_trace_refs=upstream_trace_refs,
+                    activation_notes={"monitoring_required": True},
+                )
+            if decision_input.monitoring_circuit_breaker is not None and not isinstance(
+                decision_input.monitoring_circuit_breaker,
+                MonitoringCircuitBreaker,
+            ):
+                return _blocked_result(
+                    blocked_reason=ACTIVATION_BLOCK_MONITORING_EVALUATION_REQUIRED,
+                    activation_mode=decision_input.activation_mode,
+                    upstream_trace_refs=upstream_trace_refs,
+                    activation_notes={"monitoring_required": True},
+                )
+
+            breaker = decision_input.monitoring_circuit_breaker or MonitoringCircuitBreaker()
+            monitoring_result = breaker.evaluate(decision_input.monitoring_input)
+            upstream_trace_refs["monitoring"] = {
+                "decision": monitoring_result.decision,
+                "primary_anomaly": monitoring_result.primary_anomaly,
+                "anomalies": list(monitoring_result.anomalies),
+                "eval_ref": monitoring_result.event.eval_ref,
+            }
+            if monitoring_result.decision == MONITORING_DECISION_HALT:
+                return _blocked_result(
+                    blocked_reason=ACTIVATION_HALT_MONITORING_ANOMALY,
+                    activation_mode=decision_input.activation_mode,
+                    upstream_trace_refs=upstream_trace_refs,
+                    activation_notes={"monitoring_decision": MONITORING_DECISION_HALT},
+                )
+            if monitoring_result.decision == MONITORING_DECISION_BLOCK:
+                return _blocked_result(
+                    blocked_reason=ACTIVATION_BLOCK_MONITORING_ANOMALY,
+                    activation_mode=decision_input.activation_mode,
+                    upstream_trace_refs=upstream_trace_refs,
+                    activation_notes={"monitoring_decision": MONITORING_DECISION_BLOCK},
+                )
 
         source_decision = decision_input.decision
         if not source_decision.allowed:
