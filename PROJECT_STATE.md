@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-15 09:32
-🔄 Status       : Phase 6.4.8 FORGE-X scope is in progress to add deterministic ALLOW/BLOCK/HALT runtime monitoring on the settlement-boundary method while preserving the accepted six-path baseline.
+📅 Last Updated : 2026-04-15 10:04
+🔄 Status       : Phase 6.4.8 FORGE-X implementation is complete on source branch at narrow scope (settlement-boundary monitoring path) and now awaits SENTINEL MAJOR validation.
 
 ✅ COMPLETED
 - AGENTS.md roadmap rules insertion completed as MINOR FOUNDATION sync work.
@@ -15,7 +15,7 @@
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
-- Phase 6.4.8 settlement-boundary monitoring narrow integration is in progress for FundSettlementEngine.settle_with_trace with deterministic ALLOW/BLOCK/HALT decision handling.
+- Phase 6.4.8 settlement-boundary monitoring narrow integration is FORGE-complete on source branch for FundSettlementEngine.settle_with_trace with deterministic ALLOW/BLOCK/HALT decision handling; SENTINEL validation is pending.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secret loading, storage, and rotation.
@@ -36,5 +36,5 @@
 - Phase 6.1 introduces in-memory execution ledger and read-only reconciliation only; no external persistence, correction logic, or background automation are implemented.
 - Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation or correction logic, background automation, or external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope.
-- Phase 6.4 narrow monitoring remains intentionally scoped to execution-adjacent paths only and explicitly excludes platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, and portfolio orchestration.
+- Phase 6.4 narrow monitoring remains intentionally scoped to execution-adjacent paths only and explicitly excludes platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, and settlement automation.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning — carried forward as non-runtime hygiene backlog.

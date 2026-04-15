@@ -3,7 +3,7 @@
 **Validation Tier:** MAJOR  
 **Claim Level:** NARROW INTEGRATION  
 **Validation Target:** `projects/polymarket/polyquantbot/platform/execution/fund_settlement.py::FundSettlementEngine.settle_with_trace`  
-**Not in Scope:** Platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, settlement automation beyond the exact named boundary method, and refactor of existing 6.4.2/6.4.3/6.4.4/6.4.5/6.4.6/6.4.7 paths.  
+**Not in Scope:** no platform-wide monitoring rollout, no scheduler generalization, no wallet lifecycle expansion, no portfolio orchestration, no settlement automation, and no refactor of existing 6.4.2/6.4.3/6.4.4/6.4.5/6.4.6/6.4.7 paths.  
 **Suggested Next Step:** SENTINEL validation required before merge. Source: `projects/polymarket/polyquantbot/reports/forge/25_33_phase6_4_8_settlement_monitoring_expansion.md`. Tier: MAJOR.
 
 ---
@@ -24,7 +24,7 @@
 ## 2) Current system architecture
 - Monitoring circuit-breaker evaluation now applies to seven narrow execution-adjacent methods, with this task adding exactly one: settlement boundary.
 - The new integration point is pre-policy settlement decisioning inside `FundSettlementEngine.settle_with_trace`, using the existing `MonitoringCircuitBreaker` and decision contract (`ALLOW`, `BLOCK`, `HALT`).
-- No scheduler/orchestration/generalized monitoring rollout was introduced.
+- Explicit exclusions preserved: no platform-wide monitoring rollout, no scheduler generalization, no wallet lifecycle expansion, no portfolio orchestration, and no settlement automation.
 
 ## 3) Files created / modified (full paths)
 - Modified: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/execution/fund_settlement.py`
@@ -52,10 +52,10 @@
 
 ## Validation commands run
 1. `python -m py_compile projects/polymarket/polyquantbot/platform/execution/fund_settlement.py projects/polymarket/polyquantbot/platform/execution/__init__.py projects/polymarket/polyquantbot/tests/test_phase6_4_8_settlement_monitoring_20260415.py`
-2. `pytest -q projects/polymarket/polyquantbot/tests/test_phase6_4_8_settlement_monitoring_20260415.py`
+2. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase6_4_8_settlement_monitoring_20260415.py`
 3. `find . -type d -name 'phase*'`
 
-**Report Timestamp:** 2026-04-15 09:32 UTC  
+**Report Timestamp:** 2026-04-15 10:04 UTC  
 **Role:** FORGE-X (NEXUS)  
 **Task:** expand phase 6.4 settlement monitoring to settlement-boundary path  
-**Branch:** `feature/monitoring-phase6-4-settlement-path-expansion-20260415`
+**Branch:** `fix/core-pr507-handoff-truth-validation-consistency-20260415`
