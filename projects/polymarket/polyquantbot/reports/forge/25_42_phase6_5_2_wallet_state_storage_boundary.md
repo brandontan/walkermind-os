@@ -63,4 +63,5 @@
 **Report Timestamp:** 2026-04-15 20:35 (Asia/Jakarta)  
 **Role:** FORGE-X (NEXUS)  
 **Task:** expand wallet lifecycle foundation to wallet state storage boundary  
+**PR Source Branch:** `feature/core-wallet-state-storage-boundary-20260415` (PR #523)  
 **Branch:** `feature/core-wallet-state-storage-boundary-20260415`

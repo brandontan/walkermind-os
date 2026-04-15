@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-15 20:35
-🔄 Status       : FORGE-X completed Phase 6.5.2 wallet lifecycle narrow expansion to wallet state/storage boundary (`WalletStateStorageBoundary.store_state`) with deterministic success/failure contract behavior and focused tests; awaiting COMMANDER review (STANDARD tier).
+📅 Last Updated : 2026-04-15 20:53
+🔄 Status       : FORGE-X completed PR #523 traceability sync (MINOR/FOUNDATION): ROADMAP truth aligned to merged 6.5.1 baseline while keeping 6.5.2 active, and forge report branch traceability corrected for PR source continuity; awaiting COMMANDER review.
 
 ✅ COMPLETED
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
@@ -11,11 +11,11 @@
 - Phase 6.4.6 signing-boundary monitoring narrow integration merged after PR #501 and PR #502 with accepted five-path runtime baseline.
 - Phase 6.4.7 capital-boundary monitoring narrow integration merged after PR #504 and PR #505 with accepted six-path runtime baseline.
 - Phase 6.5.1 wallet lifecycle foundation secret-loading contract narrow validation completed with SENTINEL APPROVED verdict (source: projects/polymarket/polyquantbot/reports/sentinel/25_29_phase6_5_1_wallet_secret_loading_validation.md).
-- Phase 6.5.2 wallet lifecycle state/storage boundary narrow integration completed for `WalletStateStorageBoundary.store_state` with deterministic contract gating and focused tests (source: projects/polymarket/polyquantbot/reports/forge/25_42_phase6_5_2_wallet_state_storage_boundary.md).
+- PR #523 traceability sync applied: ROADMAP marks 6.5.1 as merged-main baseline done while 6.5.2 remains active; forge report 25_42 branch traceability now explicitly records the PR #523 source branch.
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
-- Phase 6.5 wallet lifecycle foundation remains in staged narrow delivery mode; secret-loading and state/storage boundary slices are implemented while broader lifecycle rollout remains out of scope.
+- Phase 6.5 wallet lifecycle foundation remains in staged narrow delivery mode; 6.5.1 baseline is merged and 6.5.2 state/storage boundary remains the active slice while broader lifecycle rollout stays out of scope.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -25,7 +25,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/25_42_phase6_5_2_wallet_state_storage_boundary.md. Tier: STANDARD.
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/25_42_phase6_5_2_wallet_state_storage_boundary.md. Tier: MINOR.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
