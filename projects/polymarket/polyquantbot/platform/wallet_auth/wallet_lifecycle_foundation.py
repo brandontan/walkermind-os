@@ -35,6 +35,8 @@ WALLET_STATE_METADATA_EXACT_BLOCK_NOT_FOUND = "not_found"
 WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_INVALID_CONTRACT = "invalid_contract"
 WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
 WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_TOO_MANY = "wallet_binding_ids_too_many"
+WALLET_STATE_METADATA_EXACT_BATCH_MAX_SIZE = 100
 
 
 @dataclass(frozen=True)
@@ -579,9 +581,12 @@ class WalletStateStorageBoundary:
         Output remains metadata-only (wallet_binding_id + stored_revision) and never exposes snapshots."""
         contract_error = _validate_state_exact_batch_metadata_policy(policy)
         if contract_error is not None:
+            blocked_reason = WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_INVALID_CONTRACT
+            if contract_error == WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_TOO_MANY:
+                blocked_reason = WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_TOO_MANY
             return _blocked_state_exact_batch_metadata_result(
                 policy=policy,
-                blocked_reason=WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_INVALID_CONTRACT,
+                blocked_reason=blocked_reason,
                 notes={"contract_error": contract_error},
             )
 
@@ -818,6 +823,8 @@ def _validate_state_exact_batch_metadata_policy(policy: WalletStateExactBatchMet
         return "wallet_binding_ids_must_be_list"
     if len(policy.wallet_binding_ids) == 0:
         return "wallet_binding_ids_required"
+    if len(policy.wallet_binding_ids) > WALLET_STATE_METADATA_EXACT_BATCH_MAX_SIZE:
+        return "wallet_binding_ids_too_many"
     for wallet_binding_id in policy.wallet_binding_ids:
         if not isinstance(wallet_binding_id, str) or not wallet_binding_id.strip():
             return "wallet_binding_id_required"
@@ -867,10 +874,13 @@ def _blocked_state_exact_batch_metadata_result(
     blocked_reason: str,
     notes: dict[str, Any] | None,
 ) -> WalletStateExactBatchMetadataResult:
+    entries: list[WalletStateExactBatchMetadataEntry] | None = None
+    if blocked_reason == WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_TOO_MANY:
+        entries = []
     return WalletStateExactBatchMetadataResult(
         success=False,
         blocked_reason=blocked_reason,
         owner_user_id=policy.owner_user_id,
-        entries=None,
+        entries=entries,
         notes=notes,
     )

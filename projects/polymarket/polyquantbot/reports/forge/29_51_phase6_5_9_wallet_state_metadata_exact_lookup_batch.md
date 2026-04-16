@@ -78,4 +78,6 @@ Validation commands run:
 **Report Timestamp:** 2026-04-17 04:35 (Asia/Jakarta)  
 **Role:** FORGE-X (NEXUS)  
 **Task:** Phase 6.5.9 wallet state metadata exact lookup batch  
-**Branch:** `feature/wallet-metadata-exact-batch-2026-04-17`
+**Branch:** `feature/add-batch-exact-metadata-lookup-for-wallets-2026-04-16`
+
+Known Deferred: Branch naming note: current PR head uses "add" as area segment (verb) instead of a noun area per AGENTS.md branch rule. Kept for 6.5.9 to avoid re-submit churn. Future wallet-metadata slices must use a noun area (e.g., data, core).

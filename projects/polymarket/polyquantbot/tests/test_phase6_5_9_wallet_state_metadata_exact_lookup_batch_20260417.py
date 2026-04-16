@@ -3,10 +3,12 @@ from __future__ import annotations
 from projects.polymarket.polyquantbot.platform.wallet_auth.wallet_lifecycle_foundation import (
     WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_INVALID_CONTRACT,
     WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_OWNERSHIP_MISMATCH,
+    WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_TOO_MANY,
     WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_WALLET_NOT_ACTIVE,
     WalletStateExactBatchMetadataPolicy,
     WalletStateStorageBoundary,
     WalletStateStoragePolicy,
+    _validate_state_exact_batch_metadata_policy,
 )
 
 
@@ -143,3 +145,23 @@ def test_phase6_5_9_exact_metadata_batch_blocks_wallet_not_active() -> None:
     assert result.success is False
     assert result.blocked_reason == WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_WALLET_NOT_ACTIVE
     assert result.entries is None
+
+
+def test_phase6_5_9_exact_metadata_batch_blocks_too_many_wallet_binding_ids() -> None:
+    boundary = WalletStateStorageBoundary()
+    wallet_binding_ids = [f"wb-phase6-5-9-{index}" for index in range(101)]
+    policy = WalletStateExactBatchMetadataPolicy(
+        wallet_binding_ids=wallet_binding_ids,
+        owner_user_id="user-1",
+        requested_by_user_id="user-1",
+        wallet_active=True,
+    )
+
+    assert _validate_state_exact_batch_metadata_policy(policy) == "wallet_binding_ids_too_many"
+
+    result = boundary.get_state_metadata_batch(policy)
+
+    assert result.success is False
+    assert result.blocked_reason == WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_TOO_MANY
+    assert result.entries == []
+    assert result.owner_user_id == "user-1"
