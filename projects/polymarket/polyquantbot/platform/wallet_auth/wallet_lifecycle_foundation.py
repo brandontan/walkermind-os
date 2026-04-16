@@ -25,6 +25,9 @@ WALLET_STATE_CLEAR_BLOCK_NOT_FOUND = "not_found"
 WALLET_STATE_EXISTS_BLOCK_INVALID_CONTRACT = "invalid_contract"
 WALLET_STATE_EXISTS_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
 WALLET_STATE_EXISTS_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_STATE_LIST_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_STATE_LIST_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_STATE_LIST_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
 
 
 @dataclass(frozen=True)
@@ -188,6 +191,28 @@ class WalletStateExistsResult:
     wallet_binding_id: str
     owner_user_id: str
     state_exists: bool
+    notes: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class WalletStateMetadataEntry:
+    wallet_binding_id: str
+    stored_revision: int
+
+
+@dataclass(frozen=True)
+class WalletStateListMetadataPolicy:
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+
+
+@dataclass(frozen=True)
+class WalletStateListMetadataResult:
+    success: bool
+    blocked_reason: str | None
+    owner_user_id: str
+    entries: list[WalletStateMetadataEntry] | None
     notes: dict[str, Any] | None = None
 
 
@@ -377,6 +402,45 @@ class WalletStateStorageBoundary:
             notes={"wallet_binding_id": policy.wallet_binding_id},
         )
 
+    def list_state_metadata(self, policy: WalletStateListMetadataPolicy) -> WalletStateListMetadataResult:
+        """Phase 6.5.6 narrow wallet lifecycle boundary: list wallet state metadata for one owner scope only."""
+        contract_error = _validate_state_list_metadata_policy(policy)
+        if contract_error is not None:
+            return _blocked_state_list_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_LIST_BLOCK_INVALID_CONTRACT,
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_state_list_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_LIST_BLOCK_OWNERSHIP_MISMATCH,
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_state_list_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_LIST_BLOCK_WALLET_NOT_ACTIVE,
+                notes={"wallet_active": False},
+            )
+
+        entries = [
+            WalletStateMetadataEntry(
+                wallet_binding_id=wbid,
+                stored_revision=int(record["revision"]),
+            )
+            for wbid, record in sorted(self._store.items())
+        ]
+        return WalletStateListMetadataResult(
+            success=True,
+            blocked_reason=None,
+            owner_user_id=policy.owner_user_id,
+            entries=entries,
+            notes={"entry_count": len(entries)},
+        )
+
 
 def _validate_state_storage_policy(policy: WalletStateStoragePolicy) -> str | None:
     if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
@@ -518,5 +582,30 @@ def _blocked_state_exists_result(
         wallet_binding_id=policy.wallet_binding_id,
         owner_user_id=policy.owner_user_id,
         state_exists=False,
+        notes=notes,
+    )
+
+
+def _validate_state_list_metadata_policy(policy: WalletStateListMetadataPolicy) -> str | None:
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    return None
+
+
+def _blocked_state_list_metadata_result(
+    *,
+    policy: WalletStateListMetadataPolicy,
+    blocked_reason: str,
+    notes: dict[str, Any] | None,
+) -> WalletStateListMetadataResult:
+    return WalletStateListMetadataResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        owner_user_id=policy.owner_user_id,
+        entries=None,
         notes=notes,
     )

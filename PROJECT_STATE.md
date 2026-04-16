@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-16 17:43
-🔄 Status       : docs/commander_knowledge.md patched with mandatory confirmation gate for direct-fix mode (MINOR) — Phase 6.5.5 wallet state exists boundary still pending COMMANDER review (STANDARD, narrow scope).
+📅 Last Updated : 2026-04-16 17:49
+🔄 Status       : Phase 6.5.6 wallet state list metadata boundary implemented at WalletStateStorageBoundary.list_state_metadata — pending COMMANDER review (STANDARD, narrow scope).
 
 ✅ COMPLETED
 - AGENTS.md patched with Asia/Jakarta timezone enforcement: PATCH 1 (Timestamps section — Enforcement block after Format/Example lines), PATCH 2 (FORGE-X pre-flight checklist — 3 new timestamp/non-regression checks after forge report path check) - Validation Tier: MINOR, Claim Level: FOUNDATION.
@@ -15,6 +15,7 @@
 - Phase 6.5.3 wallet state read boundary narrow slice is merged-main accepted truth via PR #536 at WalletStateStorageBoundary.read_state, preserving narrow-scope exclusions (no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, or settlement automation).
 - Phase 6.5.4 wallet state clear boundary is merged-main accepted truth via PR #537 at WalletStateStorageBoundary.clear_state, preserving narrow-scope exclusions (no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, or settlement automation).
 - Phase 6.5.5 wallet state exists boundary implemented at WalletStateStorageBoundary.has_state with deterministic success true/false and block contracts for invalid contract, ownership mismatch, and wallet not active (pending COMMANDER review).
+- Phase 6.5.6 wallet state list metadata boundary implemented at WalletStateStorageBoundary.list_state_metadata with deterministic success (sorted metadata entries, wallet_binding_id + stored_revision only) and block contracts for invalid contract, ownership mismatch, and wallet not active (pending COMMANDER review).
 - docs/commander_knowledge.md patched with PATCH 1 (COMMANDER DIRECT-FIX MODE — mandatory confirmation gate block before condition list) and PATCH 2 (CORE RULES — no direct fix before confirmation line after no-task-before-confirmation) — Validation Tier: MINOR, Claim Level: FOUNDATION.
 
 🔧 IN PROGRESS
@@ -30,6 +31,7 @@
 🎯 NEXT PRIORITY
 - COMMANDER review required for confirmation gate patch (docs/commander_knowledge.md). Branch: feature/commander-direct-fix-confirmation-gate-2026-04-16. Tier: MINOR
 - COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/26_44_phase6_5_5_wallet_state_exists_boundary.md. Tier: STANDARD
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/27_45_phase6_5_6_wallet_state_list_metadata_boundary.md. Tier: STANDARD
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
