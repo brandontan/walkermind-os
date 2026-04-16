@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-16 13:12
-🔄 Status       : Phase 6.5.4 wallet state clear boundary implemented on feature branch with deterministic clear contract for one wallet binding only; pending COMMANDER review.
+📅 Last Updated : 2026-04-16 15:10
+🔄 Status       : PR #537 project-state drift corrected for pre-merge truth on feature branch; Phase 6.5.3 merged-main accepted truth preserved and Phase 6.5.4 remains pending COMMANDER review.
 
 ✅ COMPLETED
 - AGENTS.md and docs/commander_knowledge.md patched with branch verification gate: FORGE-X task process step 8 (branch verify before report/state write), pre-flight checklist +2 checks (PROJECT_STATE branch ref + drift report gate), PRE-REVIEW DRIFT CHECK +2 checks (PROJECT_STATE branch ref + NEEDS-FIX on mismatch) — Validation Tier: MINOR, Claim Level: FOUNDATION.
@@ -11,10 +11,11 @@
 - Phase 6.1 execution ledger and read-only reconciliation implemented with deterministic append-only in-memory records.
 - Phase 6.2 persistent ledger and audit trail implemented with append-only local-file persistence and deterministic reload.
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
-- Phase 6.5.4 wallet state clear boundary implemented at WalletStateStorageBoundary.clear_state with deterministic clear contracts for invalid contract, ownership mismatch, wallet not active, and not found, plus one-wallet-binding-only clear success behavior.
+- Phase 6.5.3 wallet state read boundary narrow slice is merged-main accepted truth via PR #536 at WalletStateStorageBoundary.read_state, preserving narrow-scope exclusions (no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, or settlement automation).
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
+- Phase 6.5.4 wallet state clear boundary implementation exists on feature branch for PR #537 and remains pending COMMANDER review; merged-main acceptance is not yet claimed.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -24,7 +25,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/26_43_phase6_5_4_wallet_state_clear_boundary.md. Tier: STANDARD.
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/27_44_phase6_5_4_project_state_drift_fix.md. Tier: MINOR.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
