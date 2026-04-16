@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-17 04:05
-🔄 Status       : Repo-root truth is aligned for merged wallet lifecycle slices through Phase 6.5.6; Phase 6.5.8 metadata exact lookup is now implemented on the active FORGE-X branch and awaiting COMMANDER review.
+📅 Last Updated : 2026-04-17 04:24
+🔄 Status       : Repo-root truth is aligned for merged wallet lifecycle slices through Phase 6.5.6; Phase 6.5.8 metadata exact lookup awaits COMMANDER review; docs/commander_knowledge.md sync (13 patches + VELOCITY MODE) is implemented on branch claude/sync-commander-knowledge-1n14o awaiting COMMANDER review.
 
 ✅ COMPLETED
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
@@ -17,6 +17,7 @@
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
 - Phase 6.5.7 wallet state metadata query expansion is implemented at WalletStateStorageBoundary.list_state_metadata with optional deterministic filters (prefix, min revision, max entries) while preserving owner scope and metadata-only output.
 - Phase 6.5.8 wallet state metadata exact lookup is implemented at WalletStateStorageBoundary.get_state_metadata with deterministic owner-scoped metadata-only output (wallet_binding_id + stored_revision) and deterministic blocks for invalid contract, ownership mismatch, wallet not active, and metadata not found.
+- docs/commander_knowledge.md sync — 13 patches applied (branch mismatch, path resolve, timestamp, domain structure, SENTINEL never-list, report naming, VELOCITY MODE) on branch claude/sync-commander-knowledge-1n14o; awaiting COMMANDER review.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -25,9 +26,9 @@
 - Reconciliation mutation and correction workflow beyond the delivered read-only / append-only boundaries.
 
 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/29_50_phase6_5_8_wallet_state_metadata_exact_lookup.md. Tier: STANDARD.
-- After merge, perform post-merge sync to move 6.5.7 truth from IN PROGRESS to COMPLETED on main.
-- Keep next wallet lifecycle slice narrow and metadata/state-boundary scoped only.
+- COMMANDER review required for commander_knowledge.md sync (Tier: MINOR). Source: projects/polymarket/polyquantbot/reports/forge/30_1_commander-sync.md. Branch: claude/sync-commander-knowledge-1n14o.
+- COMMANDER review required for Phase 6.5.8 before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/29_50_phase6_5_8_wallet_state_metadata_exact_lookup.md. Tier: STANDARD.
+- After merge of 6.5.8, perform post-merge sync to move 6.5.7 truth from IN PROGRESS to COMPLETED on main.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

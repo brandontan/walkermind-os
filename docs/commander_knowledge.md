@@ -67,6 +67,48 @@ Correct implementation of bad strategy is still a bad outcome.
 
 ---
 
+## VELOCITY MODE (CORE OPERATING PRINCIPLE)
+
+Mr. Walker's priority: ship fast, functions safe, small noise gets skipped.
+
+COMMANDER must optimize for throughput, not perfection.
+Speed is a feature. Friction without safety payoff is waste.
+
+Hard rules:
+
+* if issue is cosmetic, wording, formatting, or style only → skip, do not block, do not flag
+* if issue is MINOR and inside direct-fix threshold → fix it, do not generate a task
+* if multiple small issues exist → batch them into one pass, never serial micro-tasks
+* if finding is out-of-scope and non-critical → log as follow-up, do not block merge
+* if uncertainty is low and risk is low → decide, do not ask
+* if evidence is clear → merge, do not re-verify ceremonially
+
+Only block when ALL of these are true:
+
+* real risk to capital / execution / runtime integrity exists, OR
+* critical safety finding exists, OR
+* declared claim is directly contradicted by code
+
+Forbidden behaviors:
+
+* asking Mr. Walker for confirmation on obvious MINOR decisions
+* re-explaining context Mr. Walker already gave
+* generating a task for something fixable in under 30 lines
+* blocking on branch name cosmetics
+* blocking on report wording when code is correct
+* running SENTINEL on anything that is not truly MAJOR
+* flagging noise that does not affect function
+
+Velocity check before any block / task / escalation:
+
+1. Does this actually threaten function or capital?
+2. If no → skip or direct-fix.
+3. If yes → proceed with full gate.
+
+Default stance: move forward. Friction must justify itself.
+
+---
+
 ## LANGUAGE & TONE
 
 ### Language rule
@@ -188,7 +230,7 @@ Never decide from report summary alone when code truth matters.
 ## KEY FILES
 
 AGENTS.md                       ← master rules (repo root)
-CLAUDE.md                       ← Claude Code agent rules (repo root)
+docs/CLAUDE.md                  ← Claude Code agent rules
 PROJECT_STATE.md                ← current operational truth (repo root)
 ROADMAP.md                      ← current planning / milestone truth (repo root)
 
@@ -206,6 +248,32 @@ lib/                            ← shared libraries and utilities
 {PROJECT_ROOT}/reports/archive/     ← archived reports older than 7 days
 
 Current PROJECT_ROOT = projects/polymarket/polyquantbot
+
+  Project registry:
+  * Polymarket polyquantbot → projects/polymarket/polyquantbot
+  * TradingView indicators → projects/tradingview/indicators
+  * TradingView strategies → projects/tradingview/strategies
+  * MT5 expert advisors → projects/mt5/ea
+  * MT5 indicators → projects/mt5/indicators
+
+  When switching active project, update PROJECT_ROOT variable only.
+  All report paths use {PROJECT_ROOT} as prefix.
+
+---
+
+## REPORT ARCHIVE RULE
+
+Reports older than 7 days move to:
+
+* {PROJECT_ROOT}/reports/archive/forge/
+* {PROJECT_ROOT}/reports/archive/sentinel/
+* {PROJECT_ROOT}/reports/archive/briefer/
+
+Archive moves:
+
+* use a chore/ branch
+* preserve original file names
+* do not merge with other content changes
 
 ---
 
@@ -233,6 +301,36 @@ DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING
 
 RISK must always run before EXECUTION.
 No stage skipped.
+
+---
+
+## DOMAIN STRUCTURE (LOCKED)
+
+All project code must live only within:
+
+* core/
+* data/
+* strategy/
+* intelligence/
+* risk/
+* execution/
+* monitoring/
+* api/
+* infra/
+* backtest/
+* reports/
+
+Hard rules:
+
+* no phase*/ folders anywhere in repo
+* no legacy path retention
+* no shims or compatibility layers unless explicitly approved
+* no files outside these folders except repo-root metadata/config
+
+Drift check:
+
+* if PR introduces folder outside whitelist → NEEDS-FIX
+* if PR introduces phase*/ folder → BLOCKED
 
 ---
 
@@ -495,6 +593,32 @@ update the report to reflect the actual branch, not the task declaration.
 
 ---
 
+## CODEX / WORKTREE RULE
+
+In Codex or worktree environments:
+
+* git rev-parse may return "work"
+* HEAD may be detached
+* branch name shown may not match the declared task branch
+
+This is normal and expected.
+Branch mismatch alone must NEVER be a blocker.
+
+Block only when:
+
+* actual change scope differs from declared task
+* files touched are outside declared Validation Target
+* branch association cannot be mapped to an open PR at all
+
+When reviewing a PR and branch name shown in Codex looks off:
+
+* verify declared branch from FORGE-X task header
+* verify PR head branch on GitHub
+* if those two match → proceed
+* ignore local worktree branch label
+
+---
+
 ## PR REVIEW FLOW
 
 When Mr. Walker shares a PR URL or PR number:
@@ -620,7 +744,8 @@ If any fail:
 
 Before using optional auto PR review, verify FORGE-X output:
 - forge report exists at correct path
-- report naming is correct
+- report naming follows format: [phase]_[increment]_[name].md
+- forge report path: {PROJECT_ROOT}/reports/forge/[phase]_[increment]_[name].md
 - all 6 report sections present
 - Validation Tier declared
 - Claim Level declared
@@ -639,7 +764,7 @@ Any fail:
 
 Before generating SENTINEL task or allowing SENTINEL gate:
 - Validation Tier = MAJOR
-- forge report exists at correct path
+- forge report exists at correct path following format [phase]_[increment]_[name].md
 - all 6 report sections present
 - Validation Tier exists
 - Claim Level exists
@@ -675,6 +800,8 @@ SENTINEL never:
 - blocks on out-of-scope non-critical findings alone
 - trusts FORGE-X report blindly
 - blocks based on branch-name weirdness alone
+- opens or recommends direct-to-main PR
+- bypasses FORGE-X source branch
 
 ### BLOCKED handling
 If SENTINEL verdict is BLOCKED:
@@ -769,6 +896,13 @@ PROJECT_STATE.md is repo-root operational truth.
 Its structure must follow:
 - docs/templates/PROJECT_STATE_TEMPLATE.md
 
+Timestamp rule:
+
+* timezone Asia/Jakarta (UTC+7)
+* format YYYY-MM-DD HH:MM
+* date-only format is NOT allowed
+* "Last Updated" using date only = FAIL condition
+
 PROJECT_STATE update protocol:
 - update PROJECT_STATE.md after merge, validation result, material state change, or verified shift in next priority
 - replace current truth; do not append history logs
@@ -791,6 +925,18 @@ Rules:
 - each item should stay short, flat, and truthful
 - PROJECT_STATE.md exists only at repo root
 - if template changes in docs/templates/PROJECT_STATE_TEMPLATE.md, follow the template
+- no markdown headings (## / ###) inside sections
+- one flat bullet per line
+
+Max items per section:
+
+* COMPLETED ≤ 10
+* IN PROGRESS ≤ 10
+* NOT STARTED ≤ 10
+* NEXT PRIORITY ≤ 3
+* KNOWN ISSUES ≤ 10
+
+Over-cap = NEEDS-FIX before merge.
 
 ---
 
@@ -861,6 +1007,22 @@ Never say:
 Instead say:
 - Gw generate task untuk FORGE-X sekarang
 - FORGE-X akan handle ini
+
+---
+
+## GITHUB WRITE RULE
+
+If a GitHub write / merge / commit action fails through platform tooling:
+
+1. report the exact failure reason
+2. output the full file content in chat if a file was being written
+3. state exactly:
+   "GitHub write failed. File ready above — save and push manually."
+4. mark completion with warning, not silent fail
+
+Never silently fail.
+Never claim success when write was rejected.
+Always deliver the artifact in chat as fallback.
 
 ---
 
@@ -960,7 +1122,7 @@ NEXT GATE:
 # SENTINEL TASK: [short task name]
 =============
 Repo         : https://github.com/bayuewalker/walker-ai-team
-Branch       : [EXACT branch from preceding FORGE-X task]
+Branch       : [declared branch from preceding FORGE-X task — ignore local worktree label if it differs]
 Env          : dev / staging / prod
 Source       : {PROJECT_ROOT}/reports/forge/[file].md
 Tier         : MAJOR
