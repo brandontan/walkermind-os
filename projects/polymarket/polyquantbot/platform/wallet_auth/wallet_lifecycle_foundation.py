@@ -22,6 +22,9 @@ WALLET_STATE_CLEAR_BLOCK_INVALID_CONTRACT = "invalid_contract"
 WALLET_STATE_CLEAR_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
 WALLET_STATE_CLEAR_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
 WALLET_STATE_CLEAR_BLOCK_NOT_FOUND = "not_found"
+WALLET_STATE_EXISTS_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_STATE_EXISTS_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_STATE_EXISTS_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
 
 
 @dataclass(frozen=True)
@@ -167,6 +170,24 @@ class WalletStateClearResult:
     owner_user_id: str
     state_cleared: bool
     cleared_revision: int | None
+    notes: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class WalletStateExistsPolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+
+
+@dataclass(frozen=True)
+class WalletStateExistsResult:
+    success: bool
+    blocked_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    state_exists: bool
     notes: dict[str, Any] | None = None
 
 
@@ -323,6 +344,39 @@ class WalletStateStorageBoundary:
             notes={"cleared": True},
         )
 
+    def has_state(self, policy: WalletStateExistsPolicy) -> WalletStateExistsResult:
+        """Phase 6.5.5 narrow wallet lifecycle boundary: check if one wallet state exists."""
+        contract_error = _validate_state_exists_policy(policy)
+        if contract_error is not None:
+            return _blocked_state_exists_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_EXISTS_BLOCK_INVALID_CONTRACT,
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_state_exists_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_EXISTS_BLOCK_OWNERSHIP_MISMATCH,
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_state_exists_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_EXISTS_BLOCK_WALLET_NOT_ACTIVE,
+                notes={"wallet_active": False},
+            )
+
+        return WalletStateExistsResult(
+            success=True,
+            blocked_reason=None,
+            wallet_binding_id=policy.wallet_binding_id,
+            owner_user_id=policy.owner_user_id,
+            state_exists=policy.wallet_binding_id in self._store,
+            notes={"wallet_binding_id": policy.wallet_binding_id},
+        )
+
 
 def _validate_state_storage_policy(policy: WalletStateStoragePolicy) -> str | None:
     if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
@@ -422,6 +476,18 @@ def _validate_state_read_policy(policy: WalletStateReadPolicy) -> str | None:
     return None
 
 
+def _validate_state_exists_policy(policy: WalletStateExistsPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    return None
+
+
 def _blocked_state_read_result(
     *,
     policy: WalletStateReadPolicy,
@@ -436,5 +502,21 @@ def _blocked_state_read_result(
         state_found=False,
         state_snapshot=None,
         stored_revision=None,
+        notes=notes,
+    )
+
+
+def _blocked_state_exists_result(
+    *,
+    policy: WalletStateExistsPolicy,
+    blocked_reason: str,
+    notes: dict[str, Any] | None,
+) -> WalletStateExistsResult:
+    return WalletStateExistsResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        wallet_binding_id=policy.wallet_binding_id,
+        owner_user_id=policy.owner_user_id,
+        state_exists=False,
         notes=notes,
     )
