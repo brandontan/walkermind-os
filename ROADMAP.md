@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-16 15:00
+**Last Updated:** 2026-04-16 15:20
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-16 15:00
+**Last Updated:** 2026-04-16 15:20
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -63,6 +63,7 @@
 | 6.5.1 | Wallet Lifecycle Foundation — Secret Loading Contract | ✅ Done | Merged-main accepted truth: deterministic wallet secret loading contract at `WalletSecretLoader.load_secret` with ownership + activation constraints and no plaintext secret output. Explicit exclusions preserved: no secret rotation automation, multi-wallet orchestration, portfolio management, scheduler generalization, settlement automation, or broad lifecycle rollout. |
 | 6.5.2 | Wallet Lifecycle Foundation — State/Storage Boundary Contract | ✅ Done | Merged-main accepted truth after PR #524 at `WalletStateStorageBoundary.store_state` with deterministic success and block contracts for active/inactive and valid/invalid wallet state snapshots (including bool/NaN invalid-state rejection). Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
 | 6.5.3 | Wallet Lifecycle Foundation — State Read Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #536 at `WalletStateStorageBoundary.read_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found reads, returning snapshot copy and stored revision. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
+| 6.5.4 | Wallet Lifecycle Foundation — State Clear Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #537 at `WalletStateStorageBoundary.clear_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found clears, removing exactly one named wallet binding only. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
 
 ---
 
