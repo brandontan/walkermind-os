@@ -562,6 +562,9 @@ Rules:
 - external calls require timeout + retry + backoff
 - operations should be idempotent where possible
 - use full repo-root paths in reports / instructions / outputs
+- repo-root path = relative path from repo root, no leading slash
+  correct : projects/polymarket/polyquantbot/core/wallet.py
+  wrong   : /workspace/walker-ai-team/projects/polymarket/polyquantbot/core/wallet.py
 - do not invent data
 - do not self-initiate tasks
 - do not expand scope without approval
@@ -613,6 +616,24 @@ Areas:
 - `strategy`
 - `sentinel`
 - `briefer`
+
+Extended areas (use when base areas do not fit):
+- wallet
+- lifecycle
+- signal
+- pipeline
+- backtest
+- report
+
+Area rules:
+- area must be a noun — never a verb (e.g. use `core` not `implement`, use `wallet` not `create`)
+- if no existing area fits, pick the closest noun that describes the subsystem
+- do not invent verb-based areas
+
+Date rules:
+- date segment must be YYYYMMDD format — no dashes, no dots
+- correct: 20260416
+- wrong: 2026-04-16 / 2026.04.16
 
 Rules:
 - lowercase only
@@ -674,6 +695,9 @@ PRE-FLIGHT CHECKLIST
 [ ] No full Kelly α=1.0
 [ ] ENABLE_LIVE_TRADING guard not bypassed
 [ ] Forge report exists at correct path with all required sections
+[ ] All file paths in report use repo-root format — no workspace absolute paths
+    correct : projects/polymarket/polyquantbot/core/wallet.py
+    wrong   : /workspace/walker-ai-team/projects/polymarket/...
 [ ] Branch name in forge report matches actual git branch —
     verify with: git rev-parse --abbrev-ref HEAD
 [ ] Branch name follows format: {prefix}/{area}-{purpose}-{YYYYMMDD}
@@ -912,6 +936,12 @@ In Codex environments:
 This is normal.
 Branch mismatch alone must NEVER be a blocker.
 Block only when actual scope / branch association / change intent is wrong.
+
+Branch name in reports when running in Codex / worktree:
+- if git rev-parse returns `work` — do NOT write Branch: work in the forge report
+- use the branch name declared in the COMMANDER task instead
+- if PR already exists, use the actual PR head branch name
+- `work` must never appear as branch value in any report or state file
 
 ## REPORT ARCHIVE RULE
 
