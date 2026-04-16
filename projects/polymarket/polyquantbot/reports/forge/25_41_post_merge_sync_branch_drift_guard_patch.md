@@ -10,8 +10,8 @@
 - This change is documentation/state synchronization only, scoped to operational truth tracking in `PROJECT_STATE.md`.
 
 ## 3) Files created / modified (full paths)
-- Modified: `/workspace/walker-ai-team/PROJECT_STATE.md`
-- Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/25_41_post_merge_sync_branch_drift_guard_patch.md`
+- Modified: `PROJECT_STATE.md`
+- Created: `projects/polymarket/polyquantbot/reports/forge/25_41_post_merge_sync_branch_drift_guard_patch.md`
 
 ## 4) What is working
 - `PROJECT_STATE.md` now reflects merged-main truth for the branch-drift guard patch.
@@ -35,4 +35,4 @@
 
 ## Traceability
 - Task: `post-merge-sync-branch-drift-guard-patch`
-- Branch context provided by COMMANDER: `chore/core-project-state-sync-20260415`
+- Branch (actual `git rev-parse --abbrev-ref HEAD`): `work`
