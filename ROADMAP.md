@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | 🚧 Active | Phase 6 — Production Safety & Stabilization |
+| Crusader | Polymarket | Active | Phase 6 — Production Safety & Stabilization |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -21,10 +21,10 @@
 
 # PROJECT: CRUSADER
 
-**Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
-**Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
-**Status:** 🚧 In Progress
-**Last Updated:** 2026-04-17 03:16
+**Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
+**Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
+**Status:** In Progress  
+**Last Updated:** 2026-04-17 03:22
 
 ## Board Overview
 
@@ -35,22 +35,22 @@
 | Phase 3 | Execution-Safe MVP | ✅ Done | Closed Beta |
 | Phase 4 | Execution Formalization & Boundaries | ✅ Done | Internal |
 | Phase 5 | Real Execution & Capital System | ✅ Done | Internal |
-| Phase 6 | Production Safety & Stabilization | 🚧 In Progress | Public Preparation |
+| Phase 6 | Production Safety & Stabilization | In Progress | Public Preparation |
 
 ---
 
-## 🚧 Phase 6 — Production Safety & Stabilization
+## Phase 6 — Production Safety & Stabilization
 
-**Goal:** Ensure production-grade safety, stability, and operational truth.
-**Status:** 🚧 In Progress
-**Last Updated:** 2026-04-17 03:16
+**Goal:** Ensure production-grade safety, stability, and operational truth.  
+**Status:** In Progress  
+**Last Updated:** 2026-04-17 03:22
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
 | 6.1 | Execution Ledger (In-Memory) | ✅ Done | Deterministic append-only records and read-only reconciliation delivered. |
 | 6.2 | Persistent Ledger & Audit Trail | ✅ Done | Append-only local-file persistence and deterministic reload delivered. |
 | 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479 and preserved as approved carry-forward truth. |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | 🚧 In Progress | Approved at spec level only; runtime-wide delivery is not claimed. |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | In Progress | Approved at spec level only; runtime-wide delivery is not claimed. |
 | 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for ExecutionTransport.submit_with_trace narrow integration after SENTINEL APPROVED (95/100). |
 | 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED (99/100). Narrow scope: LiveExecutionAuthorizer.authorize_with_trace + ExecutionTransport.submit_with_trace preserved. No platform-wide rollout. |
 | 6.4.4 | Gateway-Path Monitoring Narrow Integration Expansion | ✅ Done | Runtime/code path merged via PR #493. SENTINEL APPROVED validation path recorded in PR #495 (97/100). Accepted narrow three-path execution monitoring baseline: ExecutionTransport.submit_with_trace + LiveExecutionAuthorizer.authorize_with_trace + ExecutionGateway.simulate_execution_with_trace. No platform-wide rollout. |
@@ -65,8 +65,7 @@
 | 6.5.3 | Wallet Lifecycle Foundation — State Read Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #536 at `WalletStateStorageBoundary.read_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found reads, returning snapshot copy and stored revision. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
 | 6.5.4 | Wallet Lifecycle Foundation — State Clear Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #537 at `WalletStateStorageBoundary.clear_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found clears, removing exactly one named wallet binding only. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
 | 6.5.5 | Wallet Lifecycle Foundation — State Exists Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #539 at `WalletStateStorageBoundary.has_state` with deterministic success true/false and block contracts for invalid contract, ownership mismatch, and inactive wallet. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
-| 6.5.6 | Wallet Lifecycle Foundation — State List Metadata Boundary Narrow Slice | ✅ Done | Merged-main accepted truth on main after PR #541 at `WalletStateStorageBoundary.list_state_metadata` with deterministic metadata-only output (wallet_binding_id + stored_revision), per-entry owner_user_id filtering, wallet_binding_id ascending ordering, and block contracts for invalid contract, ownership mismatch, and inactive wallet. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
-| 6.5.7 | Wallet Lifecycle Foundation — Next Narrow Slice Candidate | ❌ Not Started | Next candidate after 6.5.6 merged-main accepted truth: scope-only definition for the next narrow wallet lifecycle boundary slice, with no runtime expansion or broader lifecycle rollout claims. |
+| 6.5.6 | Wallet Lifecycle Foundation — State List Metadata Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #541 at `WalletStateStorageBoundary.list_state_metadata` with real per-entry owner-scoped filtering, deterministic success (sorted metadata-only entries: wallet_binding_id + stored_revision), and block contracts for invalid contract, ownership mismatch, and inactive wallet. No full snapshot exposure. |
 
 ---
 
@@ -138,7 +137,12 @@
 | New project activated | Fill phases/tasks and update Active Projects table |
 
 ### Commit Format
-
 ```text
 docs: update ROADMAP.md — [project] [task or phase name]
+
+Assistant: (FORGE-X / SENTINEL / BRIEFER / COMMANDER)
 ```
+
+---
+
+*Maintained by COMMANDER. FORGE-X / SENTINEL / BRIEFER update ROADMAP.md in the same commit as their primary deliverable.*
