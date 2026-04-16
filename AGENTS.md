@@ -79,6 +79,14 @@ Always use timezone Asia/Jakarta (UTC+7) for all timestamps.
 Format: YYYY-MM-DD HH:MM
 Example: 2026-04-15 14:30
 
+Enforcement:
+- never use system local time or server time directly
+- always derive Jakarta time explicitly using:
+  python3 -c "from datetime import datetime; import pytz;
+  print(datetime.now(pytz.timezone('Asia/Jakarta')).strftime('%Y-%m-%d %H:%M'))"
+- a timestamp earlier than the current PROJECT_STATE.md Last Updated
+  value is a pre-flight failure — do not commit
+
 Priority order:
 
 1. `AGENTS.md` → system behavior and role behavior
@@ -730,6 +738,13 @@ PRE-FLIGHT CHECKLIST
 [ ] No full Kelly α=1.0
 [ ] ENABLE_LIVE_TRADING guard not bypassed
 [ ] Forge report exists at correct path with all required sections
+[ ] All timestamps in PROJECT_STATE.md and forge report use
+    Asia/Jakarta (UTC+7) — never use system or server local time
+[ ] Derive correct Jakarta time explicitly before writing any timestamp:
+    python3 -c "from datetime import datetime; import pytz;
+    print(datetime.now(pytz.timezone('Asia/Jakarta')).strftime('%Y-%m-%d %H:%M'))"
+[ ] Timestamp in PROJECT_STATE.md Last Updated must not be earlier
+    than the previous Last Updated value — timestamps cannot go backward
 [ ] All file paths in report use repo-root format — no workspace absolute paths
     correct : projects/polymarket/polyquantbot/core/wallet.py
     wrong   : /workspace/walker-ai-team/projects/polymarket/...
