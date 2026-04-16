@@ -1,7 +1,8 @@
-📅 Last Updated : 2026-04-16 15:10
-🔄 Status       : PR #537 project-state drift corrected for pre-merge truth on feature branch; Phase 6.5.3 merged-main accepted truth preserved and Phase 6.5.4 remains pending COMMANDER review.
+📅 Last Updated : 2026-04-16 13:24
+🔄 Status       : AGENTS.md patched with Asia/Jakarta timezone enforcement (PATCH 1: Timestamps section, PATCH 2: FORGE-X pre-flight checklist); Phase 6.5.4 remains pending COMMANDER review.
 
 ✅ COMPLETED
+- AGENTS.md patched with Asia/Jakarta timezone enforcement: PATCH 1 (Timestamps section — Enforcement block after Format/Example lines), PATCH 2 (FORGE-X pre-flight checklist — 3 new timestamp/non-regression checks after forge report path check) — Validation Tier: MINOR, Claim Level: FOUNDATION.
 - AGENTS.md and docs/commander_knowledge.md patched with branch verification gate: FORGE-X task process step 8 (branch verify before report/state write), pre-flight checklist +2 checks (PROJECT_STATE branch ref + drift report gate), PRE-REVIEW DRIFT CHECK +2 checks (PROJECT_STATE branch ref + NEEDS-FIX on mismatch) — Validation Tier: MINOR, Claim Level: FOUNDATION.
 - AGENTS.md patched with PATCH 1 (extended areas + area/date rules after briefer), PATCH 2A (repo-root path format check in pre-flight checklist), PATCH 2B (repo-root path definition in GLOBAL HARD RULES), PATCH 3 (Codex worktree branch fallback rule) — Validation Tier: MINOR, Claim Level: FOUNDATION.
 - AGENTS.md patched with PATCH 1 (BRANCH NAMING — purpose segment rules, correct/wrong examples, hard no-dots/underscores rule) and PATCH 2 (PROJECT_STATE RULE — scope-bound update rule after REPLACE NEVER APPEND line) — Validation Tier: MINOR, Claim Level: FOUNDATION.
@@ -25,7 +26,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/27_44_phase6_5_4_project_state_drift_fix.md. Tier: MINOR.
+- COMMANDER review required before merge. Auto PR review optional if used. Source: AGENTS.md diff — agents-timestamp-timezone-enforcement-20260416. Tier: MINOR.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
