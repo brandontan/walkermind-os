@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-17 04:49
-🔄 Status       : Repo-root truth is aligned for merged wallet lifecycle slices through Phase 6.5.6; Phase 6.5.8 metadata exact lookup and Phase 6.5.9 metadata exact batch lookup (with deferred cleanup guard + report correction) await COMMANDER review; docs/commander_knowledge.md sync (13 patches + VELOCITY MODE) is implemented on branch claude/sync-commander-knowledge-1n14o awaiting COMMANDER review.
+📅 Last Updated : 2026-04-17 05:24
+🔄 Status       : Repo-root truth is aligned for merged wallet lifecycle slices through Phase 6.5.9 (including cleanup guard); post-merge state/roadmap sync + forge branch traceability correction is implemented on branch chore/report-post-merge-sync-20260417 awaiting COMMANDER review; docs/commander_knowledge.md sync (13 patches + VELOCITY MODE) remains awaiting COMMANDER review.
 
 ✅ COMPLETED
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
@@ -10,15 +10,14 @@
 - Phase 6.5.4 wallet state clear boundary is merged-main accepted truth via PR #537 at WalletStateStorageBoundary.clear_state, preserving narrow-scope exclusions.
 - Phase 6.5.5 wallet state exists boundary is merged-main accepted truth via PR #539 at WalletStateStorageBoundary.has_state with deterministic success true/false and block contracts for invalid contract, ownership mismatch, and wallet not active.
 - Phase 6.5.6 wallet state list metadata boundary is merged-main accepted truth via PR #541 at WalletStateStorageBoundary.list_state_metadata with real per-entry owner-scoped filtering, deterministic sort by wallet_binding_id ascending, metadata-only output (wallet_binding_id + stored_revision), and block contracts for invalid contract, ownership mismatch, and wallet not active.
+- Phase 6.5.7 wallet state metadata query expansion is merged-main accepted truth via PR #543 at WalletStateStorageBoundary.list_state_metadata with deterministic optional filters (prefix, min revision, max entries) while preserving owner scope and metadata-only output.
+- Phase 6.5.8 wallet state metadata exact lookup is merged-main accepted truth via PR #544 at WalletStateStorageBoundary.get_state_metadata with deterministic owner-scoped metadata-only output and deterministic blocks for invalid contract, ownership mismatch, wallet not active, and metadata not found.
+- Phase 6.5.9 wallet state metadata exact batch lookup is merged-main accepted truth via PR #546 at WalletStateStorageBoundary.get_state_metadata_batch with deterministic owner-scoped metadata-only output, input-order deterministic responses, deterministic missing-ID handling, and cleanup max-size guard (wallet_binding_ids_too_many).
 - AGENTS.md and docs/commander_knowledge.md direct-fix confirmation gate patch is accepted truth on main.
 - Branch verification / repo-truth drift guard patches in AGENTS.md and docs/commander_knowledge.md are accepted truth on main.
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
-- Phase 6.5.7 wallet state metadata query expansion is implemented at WalletStateStorageBoundary.list_state_metadata with optional deterministic filters (prefix, min revision, max entries) while preserving owner scope and metadata-only output.
-- Phase 6.5.8 wallet state metadata exact lookup is implemented at WalletStateStorageBoundary.get_state_metadata with deterministic owner-scoped metadata-only output (wallet_binding_id + stored_revision) and deterministic blocks for invalid contract, ownership mismatch, wallet not active, and metadata not found.
-- Phase 6.5.9 wallet state metadata exact batch lookup is implemented at WalletStateStorageBoundary.get_state_metadata_batch with deterministic owner-scoped metadata-only output (wallet_binding_id + stored_revision), input-order deterministic responses, and deterministic handling for invalid contract, ownership mismatch, wallet not active, and missing wallet_binding_id entries.
-- Phase 6.5.9 cleanup adds a defensive max-size guard for exact batch metadata lookup input validation (`wallet_binding_ids_too_many`) and aligns forge report 29_51 branch traceability metadata.
 - docs/commander_knowledge.md sync — 13 patches applied (branch mismatch, path resolve, timestamp, domain structure, SENTINEL never-list, report naming, VELOCITY MODE) on branch claude/sync-commander-knowledge-1n14o; awaiting COMMANDER review.
 
 📋 NOT STARTED
@@ -28,9 +27,8 @@
 - Reconciliation mutation and correction workflow beyond the delivered read-only / append-only boundaries.
 
 🎯 NEXT PRIORITY
+- COMMANDER review required for post-merge sync replacement PR (Tier: MINOR). Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/30_2_post_merge_state_sync.md. Branch: chore/report-post-merge-sync-20260417.
 - COMMANDER review required for commander_knowledge.md sync (Tier: MINOR). Source: projects/polymarket/polyquantbot/reports/forge/30_1_commander-sync.md. Branch: claude/sync-commander-knowledge-1n14o.
-- COMMANDER review required for Phase 6.5.8 before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/29_50_phase6_5_8_wallet_state_metadata_exact_lookup.md. Tier: STANDARD.
-- COMMANDER review required for Phase 6.5.9 cleanup before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/29_52_phase6_5_9_wallet_metadata_cleanup.md. Tier: STANDARD.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
