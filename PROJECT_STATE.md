@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-16 11:00
-🔄 Status       : AGENTS.md patched with PATCH 1 (branch naming — purpose segment rules, wrong examples, hard no-dots/underscores rule) and PATCH 2 (PROJECT_STATE RULE — scope-bound update rule) (Validation Tier: MINOR, Claim Level: FOUNDATION).
+📅 Last Updated : 2026-04-16 12:00
+🔄 Status       : docs/commander_knowledge.md patched — ## BRANCH FORMAT (FINAL) replaced with ## BRANCH FORMAT (standard + Codex formats, traceability rule, COMMANDER task generation rule) (Validation Tier: MINOR, Claim Level: FOUNDATION).
 
 ✅ COMPLETED
 - AGENTS.md patched with PATCH 1 (extended areas + area/date rules after briefer), PATCH 2A (repo-root path format check in pre-flight checklist), PATCH 2B (repo-root path definition in GLOBAL HARD RULES), PATCH 3 (Codex worktree branch fallback rule) — Validation Tier: MINOR, Claim Level: FOUNDATION.
@@ -26,7 +26,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review of AGENTS.md diff — confirm PATCH 1 (branch naming purpose segment rules + wrong examples + hard no-dots/underscores rule) and PATCH 2 (scope-bound PROJECT_STATE update rule) landed at correct positions with no existing content altered; merge after confirmation (Validation Tier: MINOR, SENTINEL not required).
+- COMMANDER review of docs/commander_knowledge.md diff — confirm ## BRANCH FORMAT (FINAL) replaced cleanly with ## BRANCH FORMAT (standard + Codex formats) and no other content altered; merge after confirmation (Validation Tier: MINOR, SENTINEL not required).
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

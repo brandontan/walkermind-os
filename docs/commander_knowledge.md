@@ -430,37 +430,50 @@ If SENTINEL reports broader findings outside declared task scope:
 
 ---
 
-## BRANCH FORMAT (FINAL)
+## BRANCH FORMAT
 
-{prefix}/{area}-{purpose}-{date}
+Two valid formats depending on execution environment:
 
-Prefixes:
-- feature/
-- fix/
-- update/
-- hotfix/
-- refactor/
-- chore/
+### Standard format (manual / non-Codex execution)
+{prefix}/{area}-{purpose}-{YYYYMMDD}
 
-Areas:
-- ui
-- ux
-- execution
-- risk
-- monitoring
-- data
-- infra
-- core
-- strategy
-- sentinel
-- briefer
+Prefixes: feature/ fix/ update/ hotfix/ refactor/ chore/
+Areas: ui, ux, execution, risk, monitoring, data, infra, core,
+       strategy, sentinel, briefer, wallet, lifecycle, signal,
+       pipeline, backtest, report
+Date: YYYYMMDD — no dashes, no dots
 
 Examples:
-- feature/execution-order-engine-20260406
-- fix/risk-drawdown-circuit-20260406
-- update/infra-redis-config-20260406
-- hotfix/execution-kill-switch-20260406
-- chore/briefer-investor-report-20260406
+- feature/wallet-state-read-boundary-20260416
+- fix/risk-drawdown-circuit-20260416
+- update/core-agents-naming-20260416
+
+### Codex format (tasks executed via Codex platform)
+feature/{area}-{purpose}-{YYYY-MM-DD}
+
+Rules for Codex tasks:
+- prefix is always feature/ — Codex does not support other prefixes
+- date uses YYYY-MM-DD with dashes — this is Codex platform default
+- area must still be a valid noun from the areas list above
+- purpose must still be short — max 4 words hyphen-separated
+- no dots anywhere — phase tokens use hyphens (phase-6-5-3 not 6.5.3)
+
+Examples:
+- feature/wallet-state-read-boundary-2026-04-16
+- feature/core-agents-branch-patch-2026-04-16
+- feature/risk-drawdown-circuit-2026-04-16
+
+### COMMANDER task generation rule
+When generating a task for Codex execution:
+- declare branch using Codex format in the Branch: field
+- do not use update/ fix/ chore/ prefixes — Codex will override to feature/
+- FORGE-X report and PROJECT_STATE must record the actual Codex branch,
+  not the declared standard format
+
+### Traceability rule
+Branch name in forge report must match actual PR head branch exactly.
+If Codex generates a different branch than declared → FORGE-X must
+update the report to reflect the actual branch, not the task declaration.
 
 ---
 
