@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-16 15:00
-🔄 Status       : Phase 6.5.3 wallet state read boundary narrow slice merged via PR #536 — WalletStateStorageBoundary.read_state is now merged-main accepted truth, post-merge sync complete.
+📅 Last Updated : 2026-04-16 15:10
+🔄 Status       : PR #537 project-state drift corrected for pre-merge truth on feature branch; Phase 6.5.3 merged-main accepted truth preserved and Phase 6.5.4 remains pending COMMANDER review.
 
 ✅ COMPLETED
 - AGENTS.md and docs/commander_knowledge.md patched with branch verification gate: FORGE-X task process step 8 (branch verify before report/state write), pre-flight checklist +2 checks (PROJECT_STATE branch ref + drift report gate), PRE-REVIEW DRIFT CHECK +2 checks (PROJECT_STATE branch ref + NEEDS-FIX on mismatch) — Validation Tier: MINOR, Claim Level: FOUNDATION.
@@ -15,6 +15,7 @@
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
+- Phase 6.5.4 wallet state clear boundary implementation exists on feature branch for PR #537 and remains pending COMMANDER review; merged-main acceptance is not yet claimed.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -24,7 +25,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- Confirm with Mr. Walker whether to open Phase 6.5.4 or the next narrow wallet lifecycle slice after PR #536 post-merge sync.
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/27_44_phase6_5_4_project_state_drift_fix.md. Tier: MINOR.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
