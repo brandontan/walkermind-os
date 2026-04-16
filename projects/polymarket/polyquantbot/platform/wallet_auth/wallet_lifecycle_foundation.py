@@ -269,6 +269,7 @@ class WalletStateStorageBoundary:
         next_revision = 1 if prior_record is None else int(prior_record["revision"]) + 1
         self._store[policy.wallet_binding_id] = {
             "revision": next_revision,
+            "owner_user_id": policy.owner_user_id,
             "state_snapshot": dict(policy.state_snapshot),
         }
 
@@ -403,10 +404,10 @@ class WalletStateStorageBoundary:
         )
 
     def list_state_metadata(self, policy: WalletStateListMetadataPolicy) -> WalletStateListMetadataResult:
-        """Phase 6.5.6 narrow wallet lifecycle boundary: list wallet state metadata from boundary store;
-        access is owner-gated at policy level (requested_by must match owner_user_id).
-        Returns all entries present in the in-memory store sorted deterministically by wallet_binding_id.
-        No per-entry owner filtering is applied; the store is logically scoped to this boundary instance."""
+        """Phase 6.5.6 narrow wallet lifecycle boundary: list wallet state metadata for the named owner scope.
+        Access requires owner identity match at policy level (requested_by_user_id must equal owner_user_id).
+        Returns only entries whose stored owner_user_id matches policy.owner_user_id,
+        sorted by wallet_binding_id ascending. No full state snapshot is exposed."""
         contract_error = _validate_state_list_metadata_policy(policy)
         if contract_error is not None:
             return _blocked_state_list_metadata_result(
@@ -435,6 +436,7 @@ class WalletStateStorageBoundary:
                 stored_revision=int(record["revision"]),
             )
             for wbid, record in sorted(self._store.items())
+            if record.get("owner_user_id") == policy.owner_user_id
         ]
         return WalletStateListMetadataResult(
             success=True,

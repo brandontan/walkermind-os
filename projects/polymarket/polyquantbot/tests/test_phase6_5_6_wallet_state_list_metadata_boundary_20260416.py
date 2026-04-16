@@ -165,6 +165,27 @@ def test_phase6_5_6_list_state_metadata_blocks_invalid_contract_non_bool_active(
     assert result.notes == {"contract_error": "wallet_active_must_be_bool"}
 
 
+def test_phase6_5_6_list_state_metadata_returns_only_named_owner_entries() -> None:
+    """Entries stored under a different owner_user_id must not appear in the listing."""
+    boundary = WalletStateStorageBoundary()
+    # user-1 stores two entries
+    _store_entry(boundary, "wb-phase6-5-6-a", owner_user_id="user-1")
+    _store_entry(boundary, "wb-phase6-5-6-b", owner_user_id="user-1")
+    # user-2 stores one entry (different owner — must not appear when user-1 lists)
+    _store_entry(boundary, "wb-phase6-5-6-c", owner_user_id="user-2")
+
+    result = boundary.list_state_metadata(_base_list_policy())  # user-1 listing
+
+    assert result.success is True
+    assert result.entries is not None
+    assert len(result.entries) == 2
+    binding_ids = [e.wallet_binding_id for e in result.entries]
+    assert "wb-phase6-5-6-a" in binding_ids
+    assert "wb-phase6-5-6-b" in binding_ids
+    assert "wb-phase6-5-6-c" not in binding_ids
+    assert result.notes == {"entry_count": 2}
+
+
 def test_phase6_5_6_list_state_metadata_blocks_ownership_mismatch() -> None:
     boundary = WalletStateStorageBoundary()
     _store_entry(boundary, "wb-phase6-5-6-a")
