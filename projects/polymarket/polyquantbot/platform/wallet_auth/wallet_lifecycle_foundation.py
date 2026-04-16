@@ -205,6 +205,9 @@ class WalletStateListMetadataPolicy:
     owner_user_id: str
     requested_by_user_id: str
     wallet_active: bool
+    wallet_binding_prefix: str | None = None
+    min_stored_revision: int | None = None
+    max_entries: int | None = None
 
 
 @dataclass(frozen=True)
@@ -430,20 +433,49 @@ class WalletStateStorageBoundary:
                 notes={"wallet_active": False},
             )
 
-        entries = [
-            WalletStateMetadataEntry(
-                wallet_binding_id=wbid,
-                stored_revision=int(record["revision"]),
+        entries: list[WalletStateMetadataEntry] = []
+        for wallet_binding_id, record in sorted(self._store.items()):
+            if record.get("owner_user_id") != policy.owner_user_id:
+                continue
+            if (
+                policy.wallet_binding_prefix is not None
+                and not wallet_binding_id.startswith(policy.wallet_binding_prefix)
+            ):
+                continue
+            stored_revision = int(record["revision"])
+            if (
+                policy.min_stored_revision is not None
+                and stored_revision < policy.min_stored_revision
+            ):
+                continue
+            entries.append(
+                WalletStateMetadataEntry(
+                    wallet_binding_id=wallet_binding_id,
+                    stored_revision=stored_revision,
+                ),
             )
-            for wbid, record in sorted(self._store.items())
-            if record.get("owner_user_id") == policy.owner_user_id
-        ]
+
+        if policy.max_entries is not None:
+            entries = entries[: policy.max_entries]
+
+        applied_filters: dict[str, Any] = {}
+        if policy.wallet_binding_prefix is not None:
+            applied_filters["wallet_binding_prefix"] = policy.wallet_binding_prefix
+        if policy.min_stored_revision is not None:
+            applied_filters["min_stored_revision"] = policy.min_stored_revision
+        if policy.max_entries is not None:
+            applied_filters["max_entries"] = policy.max_entries
+
+        notes: dict[str, Any] = {"entry_count": len(entries)}
+        if applied_filters:
+            notes["applied_filters"] = applied_filters
+
         return WalletStateListMetadataResult(
             success=True,
             blocked_reason=None,
             owner_user_id=policy.owner_user_id,
             entries=entries,
-            notes={"entry_count": len(entries)},
+            notes=notes,
         )
 
 
@@ -598,6 +630,21 @@ def _validate_state_list_metadata_policy(policy: WalletStateListMetadataPolicy) 
         return "requested_by_user_id_required"
     if not isinstance(policy.wallet_active, bool):
         return "wallet_active_must_be_bool"
+    if policy.wallet_binding_prefix is not None:
+        if not isinstance(policy.wallet_binding_prefix, str):
+            return "wallet_binding_prefix_must_be_str_or_none"
+        if not policy.wallet_binding_prefix.strip():
+            return "wallet_binding_prefix_required_when_provided"
+    if policy.min_stored_revision is not None:
+        if isinstance(policy.min_stored_revision, bool) or not isinstance(policy.min_stored_revision, int):
+            return "min_stored_revision_must_be_int_or_none"
+        if policy.min_stored_revision < 1:
+            return "min_stored_revision_must_be_positive"
+    if policy.max_entries is not None:
+        if isinstance(policy.max_entries, bool) or not isinstance(policy.max_entries, int):
+            return "max_entries_must_be_int_or_none"
+        if policy.max_entries < 1:
+            return "max_entries_must_be_positive"
     return None
 
 

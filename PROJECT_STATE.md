@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-17 03:41
-🔄 Status       : Repo-root truth is aligned for merged wallet lifecycle slices through Phase 6.5.6; next work should open only after this clean post-merge state is written on main.
+📅 Last Updated : 2026-04-17 03:53
+🔄 Status       : Repo-root truth is aligned for merged wallet lifecycle slices through Phase 6.5.6; Phase 6.5.7 metadata query expansion is now implemented on the active FORGE-X branch and awaiting COMMANDER review.
 
 ✅ COMPLETED
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
@@ -15,6 +15,7 @@
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
+- Phase 6.5.7 wallet state metadata query expansion is implemented at WalletStateStorageBoundary.list_state_metadata with optional deterministic filters (prefix, min revision, max entries) while preserving owner scope and metadata-only output.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -23,9 +24,9 @@
 - Reconciliation mutation and correction workflow beyond the delivered read-only / append-only boundaries.
 
 🎯 NEXT PRIORITY
-- Confirm the next narrow wallet lifecycle slice after 6.5.6 and open one scoped FORGE-X task only after repo-root truth is clean on main.
-- Recommended next slice: wallet state metadata query expansion only if it stays narrow and does not expand into orchestration, vault, or portfolio rollout.
-- Source: projects/polymarket/polyquantbot/reports/forge/27_48_phase6_5_6_final_truth_alignment.md. Tier: STANDARD.
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/28_49_phase6_5_7_wallet_state_metadata_query_expansion.md. Tier: STANDARD.
+- After merge, perform post-merge sync to move 6.5.7 truth from IN PROGRESS to COMPLETED on main.
+- Keep next wallet lifecycle slice narrow and metadata/state-boundary scoped only.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
