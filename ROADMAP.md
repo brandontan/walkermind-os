@@ -3,7 +3,7 @@
 **Repo:** https://github.com/bayuewalker/walker-ai-team
 **Team:** COMMANDER · FORGE-X · SENTINEL · BRIEFER
 
-> **COMMANDER:** Update status fields (`✅` / `🚧` / `❌`) and Last Updated after every merge or phase milestone.
+> **COMMANDER:** Update status fields (`✅` / 🚧 / ❌) and Last Updated after every merge or phase milestone.
 > This file covers all active projects. Add a new project section when a new project starts.
 
 ---
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 22:06
+**Last Updated:** 2026-04-16 15:00
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-15 22:06
+**Last Updated:** 2026-04-16 15:00
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -62,6 +62,7 @@
 | 6.4.10 | Adapter-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth accepted after PR #513 and PR #514 at declared narrow scope. Accepted nine execution-related runtime paths: ExecutionTransport.submit_with_trace, LiveExecutionAuthorizer.authorize_with_trace, ExecutionGateway.simulate_execution_with_trace, ExchangeIntegration.execute_with_trace, SecureSigningEngine.sign_with_trace, WalletCapitalController.authorize_capital_with_trace, FundSettlementEngine.settle_with_trace, ExecutionActivationGate.evaluate_with_trace, ExecutionAdapter.build_order_with_trace. Explicit exclusions preserved: no platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, and no settlement automation beyond exact named boundary methods. |
 | 6.5.1 | Wallet Lifecycle Foundation — Secret Loading Contract | ✅ Done | Merged-main accepted truth: deterministic wallet secret loading contract at `WalletSecretLoader.load_secret` with ownership + activation constraints and no plaintext secret output. Explicit exclusions preserved: no secret rotation automation, multi-wallet orchestration, portfolio management, scheduler generalization, settlement automation, or broad lifecycle rollout. |
 | 6.5.2 | Wallet Lifecycle Foundation — State/Storage Boundary Contract | ✅ Done | Merged-main accepted truth after PR #524 at `WalletStateStorageBoundary.store_state` with deterministic success and block contracts for active/inactive and valid/invalid wallet state snapshots (including bool/NaN invalid-state rejection). Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
+| 6.5.3 | Wallet Lifecycle Foundation — State Read Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #536 at `WalletStateStorageBoundary.read_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found reads, returning snapshot copy and stored revision. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
 
 ---
 
@@ -136,3 +137,4 @@
 
 ```text
 docs: update ROADMAP.md — [project] [task or phase name]
+```
