@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-16 18:26
-🔄 Status       : Phase 6.5.6 wallet state list metadata boundary complete — per-entry owner filter, report traceability, and 6.5.5 merged truth all aligned. Pending COMMANDER review (STANDARD, narrow scope).
+📅 Last Updated : 2026-04-17 03:05
+🔄 Status       : Phase 6.5.6 wallet state list metadata boundary is merged-main accepted truth after PR #541; PROJECT_STATE.md and ROADMAP.md are synchronized to post-merge truth.
 
 ✅ COMPLETED
 - AGENTS.md patched with Asia/Jakarta timezone enforcement: PATCH 1 (Timestamps section — Enforcement block after Format/Example lines), PATCH 2 (FORGE-X pre-flight checklist — 3 new timestamp/non-regression checks after forge report path check) - Validation Tier: MINOR, Claim Level: FOUNDATION.
@@ -15,7 +15,7 @@
 - Phase 6.5.3 wallet state read boundary narrow slice is merged-main accepted truth via PR #536 at WalletStateStorageBoundary.read_state, preserving narrow-scope exclusions (no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, or settlement automation).
 - Phase 6.5.4 wallet state clear boundary is merged-main accepted truth via PR #537 at WalletStateStorageBoundary.clear_state, preserving narrow-scope exclusions (no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, or settlement automation).
 - Phase 6.5.5 wallet state exists boundary is merged-main accepted truth via PR #539 at WalletStateStorageBoundary.has_state with deterministic success true/false and block contracts for invalid contract, ownership mismatch, and wallet not active.
-- Phase 6.5.6 wallet state list metadata boundary implemented at WalletStateStorageBoundary.list_state_metadata with real per-entry owner-scoped filtering (only entries matching owner_user_id are returned), deterministic sort by wallet_binding_id ascending, metadata-only output (wallet_binding_id + stored_revision), and block contracts for invalid contract, ownership mismatch, and wallet not active (pending COMMANDER review).
+- Phase 6.5.6 wallet state list metadata boundary is merged-main accepted truth via PR #541 at WalletStateStorageBoundary.list_state_metadata with per-entry owner-scoped filtering, deterministic wallet_binding_id sort order, metadata-only output (wallet_binding_id + stored_revision), and block contracts for invalid contract, ownership mismatch, and wallet not active.
 - docs/commander_knowledge.md patched with PATCH 1 (COMMANDER DIRECT-FIX MODE — mandatory confirmation gate block before condition list) and PATCH 2 (CORE RULES — no direct fix before confirmation line after no-task-before-confirmation) — Validation Tier: MINOR, Claim Level: FOUNDATION.
 
 🔧 IN PROGRESS
@@ -30,7 +30,8 @@
 
 🎯 NEXT PRIORITY
 - COMMANDER review required for confirmation gate patch (docs/commander_knowledge.md). Branch: feature/commander-direct-fix-confirmation-gate-2026-04-16. Tier: MINOR
-- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/27_48_phase6_5_6_final_truth_alignment.md. Tier: STANDARD
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/27_49_post_merge_sync_6_5_6_main_truth.md. Tier: MINOR
+- Next candidate slice after 6.5.6: Phase 6.5.7 wallet lifecycle narrow boundary scoping and implementation planning (no runtime expansion claimed).
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
