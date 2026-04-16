@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-16 14:00
-🔄 Status       : AGENTS.md and docs/commander_knowledge.md patched with branch verification gate — FORGE-X task process step 8 inserted, pre-flight checklist expanded with 2 PROJECT_STATE branch checks, PRE-REVIEW DRIFT CHECK expanded with 2 branch traceability checks (Validation Tier: MINOR, Claim Level: FOUNDATION).
+📅 Last Updated : 2026-04-16 14:30
+🔄 Status       : Phase 6.5.3 wallet state read boundary narrow slice implemented — WalletStateStorageBoundary.read_state added, 7 tests passing, pending COMMANDER review (Validation Tier: STANDARD, Claim Level: NARROW INTEGRATION, Branch: claude/wallet-state-read-boundary-4w3mp).
 
 ✅ COMPLETED
 - AGENTS.md and docs/commander_knowledge.md patched with branch verification gate: FORGE-X task process step 8 (branch verify before report/state write), pre-flight checklist +2 checks (PROJECT_STATE branch ref + drift report gate), PRE-REVIEW DRIFT CHECK +2 checks (PROJECT_STATE branch ref + NEEDS-FIX on mismatch) — Validation Tier: MINOR, Claim Level: FOUNDATION.
@@ -15,6 +15,7 @@
 - Phase 6.4.5 exchange-path monitoring narrow integration merged after PR #497 and PR #498 with accepted four-path runtime baseline.
 - Phase 6.4.8 settlement-boundary monitoring narrow integration merged with accepted seven-path runtime baseline by adding FundSettlementEngine.settle_with_trace.
 - Phase 6.5.2 wallet lifecycle state/storage boundary contract is merged-main accepted truth (done) via PR #524 at WalletStateStorageBoundary.store_state, preserving narrow-scope exclusions (no rotation, vault integration, multi-wallet orchestration, portfolio rollout, scheduler generalization, or settlement automation).
+- Phase 6.5.3 wallet state read boundary narrow slice implemented at WalletStateStorageBoundary.read_state — pending COMMANDER review on branch claude/wallet-state-read-boundary-4w3mp (Validation Tier: STANDARD, Claim Level: NARROW INTEGRATION).
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
@@ -27,7 +28,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review of AGENTS.md and docs/commander_knowledge.md diff — confirm PATCH 1 (task process step 8 inserted, steps 8–14 renumbered to 9–15), PATCH 2 (2 new pre-flight checklist lines after branch-verify block), PATCH 3 (2 new PRE-REVIEW DRIFT CHECK lines after branch traceability line) all landed at correct positions with zero existing content altered; merge after confirmation (Validation Tier: MINOR, SENTINEL not required).
+- COMMANDER review of Phase 6.5.3 PR on branch claude/wallet-state-read-boundary-4w3mp — confirm read_state narrow slice diff, verify all 7 tests pass, merge after confirmation (Validation Tier: STANDARD, SENTINEL not required).
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
