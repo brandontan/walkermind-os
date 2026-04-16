@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-16 12:00
-🔄 Status       : docs/commander_knowledge.md patched — ## BRANCH FORMAT (FINAL) replaced with ## BRANCH FORMAT (standard + Codex formats, traceability rule, COMMANDER task generation rule) (Validation Tier: MINOR, Claim Level: FOUNDATION).
+📅 Last Updated : 2026-04-16 19:37
+🔄 Status       : Phase 6.5.3 wallet state read boundary recreated on branch feature/core-wallet-state-read-boundary-20260416 with owner-aware storage/read contract and deterministic gates/results (Validation Tier: STANDARD, Claim Level: NARROW INTEGRATION).
 
 ✅ COMPLETED
 - AGENTS.md patched with PATCH 1 (extended areas + area/date rules after briefer), PATCH 2A (repo-root path format check in pre-flight checklist), PATCH 2B (repo-root path definition in GLOBAL HARD RULES), PATCH 3 (Codex worktree branch fallback rule) — Validation Tier: MINOR, Claim Level: FOUNDATION.
@@ -26,7 +26,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review of docs/commander_knowledge.md diff — confirm ## BRANCH FORMAT (FINAL) replaced cleanly with ## BRANCH FORMAT (standard + Codex formats) and no other content altered; merge after confirmation (Validation Tier: MINOR, SENTINEL not required).
+- COMMANDER review required before merge. Auto PR review support optional if used. Source: reports/forge/25_42_phase6_5_3_wallet_state_read_boundary.md. Tier: STANDARD.
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
