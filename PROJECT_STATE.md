@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-16 08:10
-🔄 Status       : Phase 6.5.3 wallet state retrieval/read boundary is implemented at narrow scope on the wallet auth lifecycle foundation surface and is now ready for COMMANDER STANDARD review.
+📅 Last Updated : 2026-04-16 08:22
+🔄 Status       : Phase 6.5.3 wallet state retrieval/read boundary implementation remains open on replacement branch feature/core-wallet-state-read-boundary-20260416 and is pending COMMANDER STANDARD review.
 
 ✅ COMPLETED
 - AGENTS.md FORGE-X pre-flight checklist patched with 4 branch-drift guard checks inserted immediately after forge report path check line (Validation Tier: MINOR, Claim Level: FOUNDATION).
@@ -11,10 +11,11 @@
 - Phase 6.4.4 gateway-path monitoring narrow integration expansion merged via PR #493 with SENTINEL validation path recorded in PR #495 (97/100).
 - Phase 6.4.5 exchange-path monitoring narrow integration merged after PR #497 and PR #498 with accepted four-path runtime baseline.
 - Phase 6.4.8 settlement-boundary monitoring narrow integration merged with accepted seven-path runtime baseline by adding FundSettlementEngine.settle_with_trace.
-- Phase 6.5.3 wallet lifecycle state retrieval/read boundary is now implemented at narrow integration scope via WalletStateReadBoundary.read_state complementing WalletStateStorageBoundary.store_state (COMMANDER review pending).
+- Phase 6.5.2 wallet lifecycle state/storage boundary contract is merged-main accepted truth (done) via PR #524 at WalletStateStorageBoundary.store_state, preserving narrow-scope exclusions.
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
+- Phase 6.5.3 wallet lifecycle state retrieval/read boundary implementation is complete in code on branch feature/core-wallet-state-read-boundary-20260416, but remains in-progress until replacement PR review and merge.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.

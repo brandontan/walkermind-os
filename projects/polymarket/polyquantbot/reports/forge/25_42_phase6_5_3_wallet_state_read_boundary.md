@@ -26,10 +26,10 @@
 - Narrow integration remains limited to the named read path on wallet auth lifecycle foundation surfaces; no broader lifecycle rollout is claimed.
 
 ## 3) Files created / modified (full paths)
-- Modified: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/platform/wallet_auth/wallet_lifecycle_foundation.py`
-- Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/test_phase6_5_3_wallet_state_read_boundary_20260416.py`
-- Created: `/workspace/walker-ai-team/projects/polymarket/polyquantbot/reports/forge/25_42_phase6_5_3_wallet_state_read_boundary.md`
-- Modified: `/workspace/walker-ai-team/PROJECT_STATE.md`
+- Modified: `projects/polymarket/polyquantbot/platform/wallet_auth/wallet_lifecycle_foundation.py`
+- Created: `projects/polymarket/polyquantbot/tests/test_phase6_5_3_wallet_state_read_boundary_20260416.py`
+- Created: `projects/polymarket/polyquantbot/reports/forge/25_42_phase6_5_3_wallet_state_read_boundary.md`
+- Modified: `PROJECT_STATE.md`
 
 ## 4) What is working
 - Explicit read boundary exists and is callable through `WalletStateReadBoundary.read_state`.
@@ -65,4 +65,4 @@
 **Report Timestamp:** 2026-04-16 08:10 (Asia/Jakarta)  
 **Role:** FORGE-X (NEXUS)  
 **Task:** phase-6-5-3-wallet-state-read-boundary  
-**Branch:** `work`
+**Branch:** `feature/core-wallet-state-read-boundary-20260416`
