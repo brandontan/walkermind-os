@@ -137,5 +137,4 @@
 | New project activated | Fill phases/tasks and update Active Projects table |
 
 ### Commit Format
-```text
 docs: update ROADMAP.md — [project] [task or phase name]
