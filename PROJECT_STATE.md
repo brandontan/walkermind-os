@@ -1,8 +1,9 @@
-📅 Last Updated : 2026-04-16 00:00
-🔄 Status       : AGENTS.md patched with 4 insertions: extended area list, area/date rules, repo-root path format check, and Codex worktree branch name fallback rule (Validation Tier: MINOR, Claim Level: FOUNDATION).
+📅 Last Updated : 2026-04-16 11:00
+🔄 Status       : AGENTS.md patched with PATCH 1 (branch naming — purpose segment rules, wrong examples, hard no-dots/underscores rule) and PATCH 2 (PROJECT_STATE RULE — scope-bound update rule) (Validation Tier: MINOR, Claim Level: FOUNDATION).
 
 ✅ COMPLETED
 - AGENTS.md patched with PATCH 1 (extended areas + area/date rules after briefer), PATCH 2A (repo-root path format check in pre-flight checklist), PATCH 2B (repo-root path definition in GLOBAL HARD RULES), PATCH 3 (Codex worktree branch fallback rule) — Validation Tier: MINOR, Claim Level: FOUNDATION.
+- AGENTS.md patched with PATCH 1 (BRANCH NAMING — purpose segment rules, correct/wrong examples, hard no-dots/underscores rule) and PATCH 2 (PROJECT_STATE RULE — scope-bound update rule after REPLACE NEVER APPEND line) — Validation Tier: MINOR, Claim Level: FOUNDATION.
 - AGENTS.md FORGE-X pre-flight checklist patched with 4 branch-drift guard checks inserted immediately after forge report path check line (Validation Tier: MINOR, Claim Level: FOUNDATION).
 - docs/commander_knowledge.md PRE-REVIEW DRIFT CHECK patched with 3 branch-drift guard checks inserted immediately after report-claims line (Validation Tier: MINOR, Claim Level: FOUNDATION).
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
@@ -25,7 +26,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review of AGENTS.md diff — confirm all 4 patches landed at correct positions with no existing content altered; merge after confirmation (Validation Tier: MINOR, SENTINEL not required).
+- COMMANDER review of AGENTS.md diff — confirm PATCH 1 (branch naming purpose segment rules + wrong examples + hard no-dots/underscores rule) and PATCH 2 (scope-bound PROJECT_STATE update rule) landed at correct positions with no existing content altered; merge after confirmation (Validation Tier: MINOR, SENTINEL not required).
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

@@ -279,6 +279,15 @@ Strict formatting rules:
 - Emoji labels are fixed
 - Update ONLY these 7 sections
 - REPLACE, NEVER APPEND section content
+
+Scope-bound update rule:
+- FORGE-X may only add, update, or remove items directly within scope of the current task
+- Do NOT collapse, merge, or reword existing COMPLETED items unrelated to the current task
+- Do NOT remove existing KNOWN ISSUES entries unless the issue is explicitly resolved by the current task
+- Do NOT generalize or summarize multiple existing entries into one line
+- Preserving unrelated truth is mandatory — scope gate applies to PROJECT_STATE.md edits the same as to code changes
+- If current task only changes one milestone → only that milestone entry changes in PROJECT_STATE.md
+
 - No markdown headings (`##` / `###`) inside sections
 - One flat bullet per line
 - Max items per section:
@@ -643,6 +652,25 @@ Rules:
 - do not use `feature/{feature}-{date}` as a generic catch-all
 - `{date}` is required (`YYYYMMDD`)
 - pick the most specific area
+
+Purpose segment rules:
+- must be short and noun/adjective based — not a sentence or description
+- max 4 words hyphen-separated
+- no dots, no underscores anywhere in branch name
+- no phase tokens with dots (e.g. never use 6.5.3 — use phase6-5-3 instead)
+- correct : feature/wallet-state-read-boundary-20260416
+- correct : update/core-agents-naming-state-scope-20260416
+- correct : fix/risk-drawdown-circuit-20260416
+
+Wrong examples (never use):
+- feature/recreate-phase-6.5.3-on-compliant-branch-2026-04-16
+  reason: dots in phase token, dashed date, purpose is a sentence
+- feature/implement-wallet-state-read-boundary-2026-04-16
+  reason: verb as area, dashed date
+- feature/sync-project_state-and-roadmap-for-6.5.2-2026-04-15
+  reason: underscore in purpose, dashed date, dots in phase token
+
+Hard rule: branch name must never contain dots or underscores anywhere
 
 ## REPORT TRACEABILITY
 
