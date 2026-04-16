@@ -14,6 +14,10 @@ WALLET_SECRET_LOAD_BLOCK_RUNTIME_ERROR = "runtime_error"
 WALLET_STATE_STORAGE_BLOCK_INVALID_CONTRACT = "invalid_contract"
 WALLET_STATE_STORAGE_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
 WALLET_STATE_STORAGE_BLOCK_INVALID_STATE = "invalid_state"
+WALLET_STATE_READ_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_STATE_READ_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_STATE_READ_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_STATE_READ_BLOCK_NOT_FOUND = "not_found"
 
 
 @dataclass(frozen=True)
@@ -124,6 +128,26 @@ def _secret_fingerprint(secret_value: str) -> str:
 
 
 @dataclass(frozen=True)
+class WalletStateReadPolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+
+
+@dataclass(frozen=True)
+class WalletStateReadResult:
+    success: bool
+    blocked_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    state_found: bool
+    state_snapshot: dict[str, Any] | None
+    stored_revision: int | None
+    notes: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
 class WalletStateStoragePolicy:
     wallet_binding_id: str
     owner_user_id: str
@@ -189,6 +213,49 @@ class WalletStateStorageBoundary:
             notes={"stored_keys": sorted(policy.state_snapshot.keys())},
         )
 
+    def read_state(self, policy: WalletStateReadPolicy) -> WalletStateReadResult:
+        """Phase 6.5.3 narrow wallet lifecycle boundary: read stored wallet state only."""
+        contract_error = _validate_state_read_policy(policy)
+        if contract_error is not None:
+            return _blocked_state_read_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_READ_BLOCK_INVALID_CONTRACT,
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_state_read_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_READ_BLOCK_OWNERSHIP_MISMATCH,
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_state_read_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_READ_BLOCK_WALLET_NOT_ACTIVE,
+                notes={"wallet_active": False},
+            )
+
+        record = self._store.get(policy.wallet_binding_id)
+        if record is None:
+            return _blocked_state_read_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_READ_BLOCK_NOT_FOUND,
+                notes={"wallet_binding_id": policy.wallet_binding_id},
+            )
+
+        return WalletStateReadResult(
+            success=True,
+            blocked_reason=None,
+            wallet_binding_id=policy.wallet_binding_id,
+            owner_user_id=policy.owner_user_id,
+            state_found=True,
+            state_snapshot=dict(record["state_snapshot"]),
+            stored_revision=int(record["revision"]),
+            notes={"stored_keys": sorted(record["state_snapshot"].keys())},
+        )
+
 
 def _validate_state_storage_policy(policy: WalletStateStoragePolicy) -> str | None:
     if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
@@ -242,6 +309,36 @@ def _blocked_state_storage_result(
         wallet_binding_id=policy.wallet_binding_id,
         owner_user_id=policy.owner_user_id,
         state_stored=False,
+        stored_revision=None,
+        notes=notes,
+    )
+
+
+def _validate_state_read_policy(policy: WalletStateReadPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    return None
+
+
+def _blocked_state_read_result(
+    *,
+    policy: WalletStateReadPolicy,
+    blocked_reason: str,
+    notes: dict[str, Any] | None,
+) -> WalletStateReadResult:
+    return WalletStateReadResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        wallet_binding_id=policy.wallet_binding_id,
+        owner_user_id=policy.owner_user_id,
+        state_found=False,
+        state_snapshot=None,
         stored_revision=None,
         notes=notes,
     )
