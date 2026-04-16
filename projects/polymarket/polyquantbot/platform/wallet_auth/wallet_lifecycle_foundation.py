@@ -28,6 +28,10 @@ WALLET_STATE_EXISTS_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
 WALLET_STATE_LIST_BLOCK_INVALID_CONTRACT = "invalid_contract"
 WALLET_STATE_LIST_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
 WALLET_STATE_LIST_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_STATE_METADATA_EXACT_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_STATE_METADATA_EXACT_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_STATE_METADATA_EXACT_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_STATE_METADATA_EXACT_BLOCK_NOT_FOUND = "not_found"
 
 
 @dataclass(frozen=True)
@@ -216,6 +220,24 @@ class WalletStateListMetadataResult:
     blocked_reason: str | None
     owner_user_id: str
     entries: list[WalletStateMetadataEntry] | None
+    notes: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class WalletStateExactMetadataPolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+
+
+@dataclass(frozen=True)
+class WalletStateExactMetadataResult:
+    success: bool
+    blocked_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    entry: WalletStateMetadataEntry | None
     notes: dict[str, Any] | None = None
 
 
@@ -478,6 +500,50 @@ class WalletStateStorageBoundary:
             notes=notes,
         )
 
+    def get_state_metadata(self, policy: WalletStateExactMetadataPolicy) -> WalletStateExactMetadataResult:
+        """Phase 6.5.8 narrow wallet lifecycle boundary: fetch one wallet metadata entry only."""
+        contract_error = _validate_state_exact_metadata_policy(policy)
+        if contract_error is not None:
+            return _blocked_state_exact_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_METADATA_EXACT_BLOCK_INVALID_CONTRACT,
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_state_exact_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_METADATA_EXACT_BLOCK_OWNERSHIP_MISMATCH,
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_state_exact_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_METADATA_EXACT_BLOCK_WALLET_NOT_ACTIVE,
+                notes={"wallet_active": False},
+            )
+
+        record = self._store.get(policy.wallet_binding_id)
+        if record is None or record.get("owner_user_id") != policy.owner_user_id:
+            return _blocked_state_exact_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_METADATA_EXACT_BLOCK_NOT_FOUND,
+                notes={"wallet_binding_id": policy.wallet_binding_id},
+            )
+
+        return WalletStateExactMetadataResult(
+            success=True,
+            blocked_reason=None,
+            wallet_binding_id=policy.wallet_binding_id,
+            owner_user_id=policy.owner_user_id,
+            entry=WalletStateMetadataEntry(
+                wallet_binding_id=policy.wallet_binding_id,
+                stored_revision=int(record["revision"]),
+            ),
+            notes={"wallet_binding_id": policy.wallet_binding_id},
+        )
+
 
 def _validate_state_storage_policy(policy: WalletStateStoragePolicy) -> str | None:
     if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
@@ -648,6 +714,18 @@ def _validate_state_list_metadata_policy(policy: WalletStateListMetadataPolicy) 
     return None
 
 
+def _validate_state_exact_metadata_policy(policy: WalletStateExactMetadataPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    return None
+
+
 def _blocked_state_list_metadata_result(
     *,
     policy: WalletStateListMetadataPolicy,
@@ -659,5 +737,21 @@ def _blocked_state_list_metadata_result(
         blocked_reason=blocked_reason,
         owner_user_id=policy.owner_user_id,
         entries=None,
+        notes=notes,
+    )
+
+
+def _blocked_state_exact_metadata_result(
+    *,
+    policy: WalletStateExactMetadataPolicy,
+    blocked_reason: str,
+    notes: dict[str, Any] | None,
+) -> WalletStateExactMetadataResult:
+    return WalletStateExactMetadataResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        wallet_binding_id=policy.wallet_binding_id,
+        owner_user_id=policy.owner_user_id,
+        entry=None,
         notes=notes,
     )
