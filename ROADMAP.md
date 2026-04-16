@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-17 03:05
+**Last Updated:** 2026-04-17 03:10
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.
 **Status:** 🚧 In Progress
-**Last Updated:** 2026-04-17 03:05
+**Last Updated:** 2026-04-17 03:10
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -66,7 +66,7 @@
 | 6.5.4 | Wallet Lifecycle Foundation — State Clear Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #537 at `WalletStateStorageBoundary.clear_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found clears, removing exactly one named wallet binding only. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
 | 6.5.5 | Wallet Lifecycle Foundation — State Exists Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #539 at `WalletStateStorageBoundary.has_state` with deterministic success true/false and block contracts for invalid contract, ownership mismatch, and inactive wallet. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
 | 6.5.6 | Wallet Lifecycle Foundation — State List Metadata Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #541 at `WalletStateStorageBoundary.list_state_metadata` with deterministic metadata-only output (wallet_binding_id + stored_revision), per-entry owner_user_id filtering, wallet_binding_id ascending ordering, and block contracts for invalid contract, ownership mismatch, and inactive wallet. Explicit exclusions preserved: no secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, or broader runtime integration. |
-| 6.5.7 | Wallet Lifecycle Foundation — Next Narrow Slice Candidate | ❌ Not Started | Candidate advanced after 6.5.6 merge-main sync: scope the next narrow wallet lifecycle boundary slice without runtime expansion or broader lifecycle rollout claims. |
+| 6.5.7 | Wallet Lifecycle Foundation — Next Narrow Slice Candidate | ❌ Not Started | Next candidate after 6.5.6 merged-main accepted truth: scope-only planning for the next narrow wallet lifecycle boundary slice, with no runtime expansion or broader lifecycle rollout claims. |
 
 ---
 
