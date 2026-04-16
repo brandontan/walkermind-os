@@ -212,6 +212,8 @@ Current PROJECT_ROOT = projects/polymarket/polyquantbot
 ## CORE RULES
 
 - No task before confirmation
+* No direct fix before confirmation — always ask Mr. Walker first:
+  direct fix or FORGE-X task — never self-initiate either path
 - No assumption unless grounded
 - No silent scope expansion
 - No approval based on wording alone
@@ -284,6 +286,22 @@ Auto PR review is conditional support, not a mandatory gate.
 ## COMMANDER DIRECT-FIX MODE
 
 COMMANDER may fix a minor issue or bug/error directly — no FORGE-X task needed — when ALL are true:
+
+Confirmation gate (mandatory — always before execution):
+- COMMANDER must always inform Mr. Walker what will be fixed and why
+  BEFORE executing any direct fix
+- State clearly:
+  - what file(s) will be changed
+  - what the change is
+  - why it qualifies as direct fix (within threshold)
+- Always ask Mr. Walker to choose:
+  "Direct fix sekarang, atau gw buatkan FORGE-X task?"
+- Wait for explicit approval signal before proceeding
+- Approval signals: ok / go / lanjut / gas / yes / do it / execute /
+  direct fix / langsung
+- If Mr. Walker says task or forge → generate FORGE-X task instead
+- Never assume silence or prior context as approval
+- Never self-initiate direct fix without this confirmation step
 
 - Validation Tier = MINOR
 - No capital / risk / execution / strategy / async-core impact
