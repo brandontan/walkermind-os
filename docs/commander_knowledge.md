@@ -579,6 +579,9 @@ Before approving any PR, verify:
 - no fake abstraction introduced
 - report claims match implementation reality
 - Branch name in forge report matches actual PR head branch exactly
+* PROJECT_STATE.md branch reference matches actual PR head branch exactly
+* If either mismatches → NEEDS-FIX, do not merge, close PR if branch
+  itself is non-compliant and cannot be renamed
 - Branch name follows format {prefix}/{area}-{purpose}-{YYYYMMDD}
 - If branch name mismatch exists → NEEDS-FIX before merge, report the exact drift
 - PROJECT_STATE.md does not lose unresolved truth

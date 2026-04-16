@@ -1,7 +1,8 @@
-📅 Last Updated : 2026-04-16 12:00
-🔄 Status       : docs/commander_knowledge.md patched — ## BRANCH FORMAT (FINAL) replaced with ## BRANCH FORMAT (standard + Codex formats, traceability rule, COMMANDER task generation rule) (Validation Tier: MINOR, Claim Level: FOUNDATION).
+📅 Last Updated : 2026-04-16 14:00
+🔄 Status       : AGENTS.md and docs/commander_knowledge.md patched with branch verification gate — FORGE-X task process step 8 inserted, pre-flight checklist expanded with 2 PROJECT_STATE branch checks, PRE-REVIEW DRIFT CHECK expanded with 2 branch traceability checks (Validation Tier: MINOR, Claim Level: FOUNDATION).
 
 ✅ COMPLETED
+- AGENTS.md and docs/commander_knowledge.md patched with branch verification gate: FORGE-X task process step 8 (branch verify before report/state write), pre-flight checklist +2 checks (PROJECT_STATE branch ref + drift report gate), PRE-REVIEW DRIFT CHECK +2 checks (PROJECT_STATE branch ref + NEEDS-FIX on mismatch) — Validation Tier: MINOR, Claim Level: FOUNDATION.
 - AGENTS.md patched with PATCH 1 (extended areas + area/date rules after briefer), PATCH 2A (repo-root path format check in pre-flight checklist), PATCH 2B (repo-root path definition in GLOBAL HARD RULES), PATCH 3 (Codex worktree branch fallback rule) — Validation Tier: MINOR, Claim Level: FOUNDATION.
 - AGENTS.md patched with PATCH 1 (BRANCH NAMING — purpose segment rules, correct/wrong examples, hard no-dots/underscores rule) and PATCH 2 (PROJECT_STATE RULE — scope-bound update rule after REPLACE NEVER APPEND line) — Validation Tier: MINOR, Claim Level: FOUNDATION.
 - AGENTS.md FORGE-X pre-flight checklist patched with 4 branch-drift guard checks inserted immediately after forge report path check line (Validation Tier: MINOR, Claim Level: FOUNDATION).
@@ -26,7 +27,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review of docs/commander_knowledge.md diff — confirm ## BRANCH FORMAT (FINAL) replaced cleanly with ## BRANCH FORMAT (standard + Codex formats) and no other content altered; merge after confirmation (Validation Tier: MINOR, SENTINEL not required).
+- COMMANDER review of AGENTS.md and docs/commander_knowledge.md diff — confirm PATCH 1 (task process step 8 inserted, steps 8–14 renumbered to 9–15), PATCH 2 (2 new pre-flight checklist lines after branch-verify block), PATCH 3 (2 new PRE-REVIEW DRIFT CHECK lines after branch traceability line) all landed at correct positions with zero existing content altered; merge after confirmation (Validation Tier: MINOR, SENTINEL not required).
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
