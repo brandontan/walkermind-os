@@ -32,6 +32,9 @@ WALLET_STATE_METADATA_EXACT_BLOCK_INVALID_CONTRACT = "invalid_contract"
 WALLET_STATE_METADATA_EXACT_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
 WALLET_STATE_METADATA_EXACT_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
 WALLET_STATE_METADATA_EXACT_BLOCK_NOT_FOUND = "not_found"
+WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
 
 
 @dataclass(frozen=True)
@@ -238,6 +241,29 @@ class WalletStateExactMetadataResult:
     wallet_binding_id: str
     owner_user_id: str
     entry: WalletStateMetadataEntry | None
+    notes: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class WalletStateExactBatchMetadataPolicy:
+    wallet_binding_ids: list[str]
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+
+
+@dataclass(frozen=True)
+class WalletStateExactBatchMetadataEntry:
+    wallet_binding_id: str
+    stored_revision: int | None
+
+
+@dataclass(frozen=True)
+class WalletStateExactBatchMetadataResult:
+    success: bool
+    blocked_reason: str | None
+    owner_user_id: str
+    entries: list[WalletStateExactBatchMetadataEntry] | None
     notes: dict[str, Any] | None = None
 
 
@@ -544,6 +570,67 @@ class WalletStateStorageBoundary:
             notes={"wallet_binding_id": policy.wallet_binding_id},
         )
 
+    def get_state_metadata_batch(
+        self,
+        policy: WalletStateExactBatchMetadataPolicy,
+    ) -> WalletStateExactBatchMetadataResult:
+        """Phase 6.5.9 narrow wallet lifecycle boundary: fetch metadata for explicit wallet_binding_ids.
+        Deterministic ordering is preserved by iterating wallet_binding_ids in the exact input order.
+        Output remains metadata-only (wallet_binding_id + stored_revision) and never exposes snapshots."""
+        contract_error = _validate_state_exact_batch_metadata_policy(policy)
+        if contract_error is not None:
+            return _blocked_state_exact_batch_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_INVALID_CONTRACT,
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_state_exact_batch_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_OWNERSHIP_MISMATCH,
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_state_exact_batch_metadata_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_WALLET_NOT_ACTIVE,
+                notes={"wallet_active": False},
+            )
+
+        entries: list[WalletStateExactBatchMetadataEntry] = []
+        missing_wallet_binding_ids: list[str] = []
+        for wallet_binding_id in policy.wallet_binding_ids:
+            record = self._store.get(wallet_binding_id)
+            if record is None or record.get("owner_user_id") != policy.owner_user_id:
+                entries.append(
+                    WalletStateExactBatchMetadataEntry(
+                        wallet_binding_id=wallet_binding_id,
+                        stored_revision=None,
+                    ),
+                )
+                missing_wallet_binding_ids.append(wallet_binding_id)
+                continue
+
+            entries.append(
+                WalletStateExactBatchMetadataEntry(
+                    wallet_binding_id=wallet_binding_id,
+                    stored_revision=int(record["revision"]),
+                ),
+            )
+
+        return WalletStateExactBatchMetadataResult(
+            success=True,
+            blocked_reason=None,
+            owner_user_id=policy.owner_user_id,
+            entries=entries,
+            notes={
+                "entry_count": len(entries),
+                "missing_wallet_binding_ids": missing_wallet_binding_ids,
+            },
+        )
+
 
 def _validate_state_storage_policy(policy: WalletStateStoragePolicy) -> str | None:
     if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
@@ -726,6 +813,23 @@ def _validate_state_exact_metadata_policy(policy: WalletStateExactMetadataPolicy
     return None
 
 
+def _validate_state_exact_batch_metadata_policy(policy: WalletStateExactBatchMetadataPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_ids, list):
+        return "wallet_binding_ids_must_be_list"
+    if len(policy.wallet_binding_ids) == 0:
+        return "wallet_binding_ids_required"
+    for wallet_binding_id in policy.wallet_binding_ids:
+        if not isinstance(wallet_binding_id, str) or not wallet_binding_id.strip():
+            return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    return None
+
+
 def _blocked_state_list_metadata_result(
     *,
     policy: WalletStateListMetadataPolicy,
@@ -753,5 +857,20 @@ def _blocked_state_exact_metadata_result(
         wallet_binding_id=policy.wallet_binding_id,
         owner_user_id=policy.owner_user_id,
         entry=None,
+        notes=notes,
+    )
+
+
+def _blocked_state_exact_batch_metadata_result(
+    *,
+    policy: WalletStateExactBatchMetadataPolicy,
+    blocked_reason: str,
+    notes: dict[str, Any] | None,
+) -> WalletStateExactBatchMetadataResult:
+    return WalletStateExactBatchMetadataResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        owner_user_id=policy.owner_user_id,
+        entries=None,
         notes=notes,
     )
