@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-16 00:00
-🔄 Status       : AGENTS.md patched with 4 insertions: extended area list, area/date rules, repo-root path format check, and Codex worktree branch name fallback rule (Validation Tier: MINOR, Claim Level: FOUNDATION).
+📅 Last Updated : 2026-04-16 08:43
+🔄 Status       : Phase 6.5.3 wallet state read boundary replacement PR is open from feature/core-wallet-state-read-boundary-20260416 after PR #530 was closed; pending COMMANDER review (Validation Tier: STANDARD, Claim Level: NARROW INTEGRATION).
 
 ✅ COMPLETED
 - AGENTS.md patched with PATCH 1 (extended areas + area/date rules after briefer), PATCH 2A (repo-root path format check in pre-flight checklist), PATCH 2B (repo-root path definition in GLOBAL HARD RULES), PATCH 3 (Codex worktree branch fallback rule) — Validation Tier: MINOR, Claim Level: FOUNDATION.
@@ -16,6 +16,7 @@
 
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
+- Phase 6.5.3 wallet state read boundary replacement PR is open from feature/core-wallet-state-read-boundary-20260416; PR #530 is closed and superseded, pending COMMANDER review.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -25,7 +26,7 @@
 - Platform-wide monitoring rollout remains out of scope; no scheduler generalization, no portfolio orchestration, and no settlement automation beyond exact named boundary methods.
 
 🎯 NEXT PRIORITY
-- COMMANDER review of AGENTS.md diff — confirm all 4 patches landed at correct positions with no existing content altered; merge after confirmation (Validation Tier: MINOR, SENTINEL not required).
+- COMMANDER review of replacement PR from feature/core-wallet-state-read-boundary-20260416 for Phase 6.5.3 wallet state read boundary narrow integration (Validation Tier: STANDARD, SENTINEL not required unless reclassified MAJOR).
 
 ⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
