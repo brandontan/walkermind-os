@@ -3,7 +3,7 @@
 **Repo:** https://github.com/bayuewalker/walker-ai-team
 **Team:** COMMANDER · FORGE-X · SENTINEL · BRIEFER
 
-> **COMMANDER:** Update status fields (`✅` / `` / `❌`) and Last Updated after every merge or phase milestone.
+> **COMMANDER:** Update status fields (`✅` / `🚧` / `❌`) and Last Updated after every merge or phase milestone.
 > This file covers all active projects. Add a new project section when a new project starts.
 
 ---
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 03:41
+**Last Updated:** 2026-04-17 05:10
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 03:41
+**Last Updated:** 2026-04-17 05:10
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -66,6 +66,9 @@
 | 6.5.4 | Wallet Lifecycle Foundation — State Clear Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #537 at `WalletStateStorageBoundary.clear_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found clears. |
 | 6.5.5 | Wallet Lifecycle Foundation — State Exists Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #539 at `WalletStateStorageBoundary.has_state` with deterministic success true/false and block contracts for invalid contract, ownership mismatch, and inactive wallet. |
 | 6.5.6 | Wallet Lifecycle Foundation — State List Metadata Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #541 at `WalletStateStorageBoundary.list_state_metadata` with real per-entry owner-scoped filtering, deterministic success (sorted metadata-only entries: wallet_binding_id + stored_revision), and block contracts for invalid contract, ownership mismatch, and inactive wallet. No full snapshot exposure. |
+| 6.5.7 | Wallet Lifecycle Foundation — State Metadata Query Expansion | ✅ Done | Merged-main truth accepted after PR #543 for deterministic optional metadata filters (prefix, min revision, max entries) while preserving owner scope and metadata-only output. |
+| 6.5.8 | Wallet Lifecycle Foundation — State Metadata Exact Lookup Single | ✅ Done | Merged-main truth accepted after PR #544 at `WalletStateStorageBoundary.get_state_metadata` with deterministic owner-scoped metadata-only output and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found metadata. |
+| 6.5.9 | Wallet Lifecycle Foundation — State Metadata Exact Lookup Batch + Guard | ✅ Done | Merged-main truth accepted after PR #546 at `WalletStateStorageBoundary.get_state_metadata_batch` with deterministic input-order metadata-only output and defensive max-size validation guard (`wallet_binding_ids_too_many`). |
 
 ---
 
@@ -123,17 +126,17 @@
 
 ### Status Legend
 - ✅ = Done (merged + validated)
--  = In Progress
+- 🚧 = In Progress
 - ❌ = Not Started
 
 ### Update Triggers
 
 | Event | Action |
 |---|---|
-| FORGE-X PR merged | Task `❌` / `` → `✅`, add PR # and date in notes |
+| FORGE-X PR merged | Task `❌` / `🚧` → `✅`, add PR # and date in notes |
 | SENTINEL APPROVED | Confirm status truthfully and add score in notes when relevant |
 | Phase complete | Update phase header and Active Projects table |
-| New task scoped | Add row with `❌` or `` as appropriate |
+| New task scoped | Add row with `❌` or `🚧` as appropriate |
 | New project activated | Fill phases/tasks and update Active Projects table |
 
 ### Commit Format
