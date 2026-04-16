@@ -22,7 +22,8 @@
   - invalid contract → block `invalid_contract`
   - ownership mismatch → block `ownership_mismatch`
   - wallet not active → block `wallet_not_active`
-  - valid contract + owner match + active wallet → success with sorted metadata entries (by wallet_binding_id, ascending); empty list when store has no entries
+  - valid contract + owner match + active wallet → success with all entries in the boundary's in-memory store, sorted by wallet_binding_id ascending; empty list when store has no entries
+- Access is owner-gated at policy level (requested_by_user_id must equal owner_user_id); no per-entry owner filtering is applied. The in-memory store is logically scoped to the boundary instance, consistent with all other Phase 6.5.x boundary methods.
 - Output is metadata-only: each entry carries only `wallet_binding_id` and `stored_revision`; no state snapshot is exposed.
 - Added `_validate_state_list_metadata_policy` and `_blocked_state_list_metadata_result` helpers to keep list behavior deterministic and local.
 
@@ -97,4 +98,4 @@
 **Report Timestamp:** 2026-04-16 17:49 (Asia/Jakarta)
 **Role:** FORGE-X (NEXUS)
 **Task:** Phase 6.5.6 wallet state list metadata boundary
-**Branch:** `feature/wallet-state-list-metadata-boundary-20260416`
+**Branch:** `claude/wallet-state-metadata-listing-6Ixc8`

@@ -403,7 +403,10 @@ class WalletStateStorageBoundary:
         )
 
     def list_state_metadata(self, policy: WalletStateListMetadataPolicy) -> WalletStateListMetadataResult:
-        """Phase 6.5.6 narrow wallet lifecycle boundary: list wallet state metadata for one owner scope only."""
+        """Phase 6.5.6 narrow wallet lifecycle boundary: list wallet state metadata from boundary store;
+        access is owner-gated at policy level (requested_by must match owner_user_id).
+        Returns all entries present in the in-memory store sorted deterministically by wallet_binding_id.
+        No per-entry owner filtering is applied; the store is logically scoped to this boundary instance."""
         contract_error = _validate_state_list_metadata_policy(policy)
         if contract_error is not None:
             return _blocked_state_list_metadata_result(
