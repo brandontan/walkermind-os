@@ -2,7 +2,7 @@
 
 **Validation Tier:** STANDARD
 **Claim Level:** NARROW INTEGRATION
-**Validation Target:** `WalletStateStorageBoundary.list_state_metadata` in `projects/polymarket/polyquantbot/platform/wallet_auth/wallet_lifecycle_foundation.py` only.
+**Validation Target:** `WalletStateStorageBoundary.list_state_metadata` and `store_state` internal owner record in `projects/polymarket/polyquantbot/platform/wallet_auth/wallet_lifecycle_foundation.py` only.
 **Not in Scope:** full snapshot batch reads, secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, broader wallet runtime integration.
 **Suggested Next Step:** COMMANDER review required before merge. Auto PR review support optional. Source: `projects/polymarket/polyquantbot/reports/forge/27_45_phase6_5_6_wallet_state_list_metadata_boundary.md`. Tier: STANDARD.
 
@@ -22,8 +22,8 @@
   - invalid contract → block `invalid_contract`
   - ownership mismatch → block `ownership_mismatch`
   - wallet not active → block `wallet_not_active`
-  - valid contract + owner match + active wallet → success with all entries in the boundary's in-memory store, sorted by wallet_binding_id ascending; empty list when store has no entries
-- Access is owner-gated at policy level (requested_by_user_id must equal owner_user_id); no per-entry owner filtering is applied. The in-memory store is logically scoped to the boundary instance, consistent with all other Phase 6.5.x boundary methods.
+  - valid contract + owner match + active wallet → success with only entries whose stored `owner_user_id` matches `policy.owner_user_id`, sorted by wallet_binding_id ascending; empty list when no matching entries exist
+- Ownership enforced at two levels: (1) policy level — `requested_by_user_id` must equal `owner_user_id`; (2) entry level — `store_state` persists `owner_user_id` in the `_store` record, and `list_state_metadata` filters by `record.get("owner_user_id") == policy.owner_user_id`. Entries from other owners are excluded.
 - Output is metadata-only: each entry carries only `wallet_binding_id` and `stored_revision`; no state snapshot is exposed.
 - Added `_validate_state_list_metadata_policy` and `_blocked_state_list_metadata_result` helpers to keep list behavior deterministic and local.
 
@@ -45,7 +45,8 @@
   - Added `WalletStateMetadataEntry` dataclass
   - Added `WalletStateListMetadataPolicy` dataclass
   - Added `WalletStateListMetadataResult` dataclass
-  - Added `WalletStateStorageBoundary.list_state_metadata`
+  - Modified `store_state` internal record: added `"owner_user_id": policy.owner_user_id` to `_store` entry for per-entry filtering
+  - Added `WalletStateStorageBoundary.list_state_metadata` with per-entry `owner_user_id` filter
   - Added `_validate_state_list_metadata_policy`
   - Added `_blocked_state_list_metadata_result`
 - Created: `projects/polymarket/polyquantbot/tests/test_phase6_5_6_wallet_state_list_metadata_boundary_20260416.py`
@@ -62,20 +63,19 @@
 - Output exposes metadata fields only; `state_snapshot` is not accessible through the result type.
 - Deterministic block behavior enforced for invalid contract, ownership mismatch, and inactive wallet.
 - Blocked results carry `entries=None` and a populated `notes` dict with block context.
-- Focused pytest coverage passes (10/10): empty result, populated result, metadata-only assertion, deterministic ordering, revision tracking, and all deterministic block paths.
+- Focused pytest coverage passes (11/11): empty result, populated result, metadata-only assertion, deterministic ordering, revision tracking, owner-scope isolation (user-2 entries excluded from user-1 listing), and all deterministic block paths.
 - `py_compile` passes on touched files.
 
 ## 5) Known issues
 
 - Wallet lifecycle boundaries remain intentionally narrow and in-memory only; no vault integration, rotation workflow, or multi-wallet orchestration in this slice.
-- The in-memory store does not persist owner_user_id per entry, so list_state_metadata returns all entries in the boundary instance regardless of stored owner context. Ownership enforcement is applied at the policy-request level (requested_by == owner), consistent with all other boundary methods (read_state, clear_state, has_state). Per-entry owner filtering is not required by the narrow scope of this slice.
 - Existing deferred warning remains: pytest `Unknown config option: asyncio_mode`.
 
 ## 6) What is next
 
 - Validation Tier: **STANDARD**
 - Claim Level: **NARROW INTEGRATION**
-- Validation Target: **`WalletStateStorageBoundary.list_state_metadata` only**
+- Validation Target: **`WalletStateStorageBoundary.list_state_metadata` and `store_state` internal owner record only**
 - Not in Scope: **full snapshot batch reads, secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, broader wallet runtime integration**
 - Suggested Next Step: **COMMANDER review required before merge (auto PR review optional support)**
 
@@ -85,15 +85,16 @@
 
 - Validation Tier: STANDARD
 - Claim Level: NARROW INTEGRATION
-- Validation Target: `WalletStateStorageBoundary.list_state_metadata` only
+- Validation Target: `WalletStateStorageBoundary.list_state_metadata` and `store_state` internal owner record only
 - Not in Scope: full snapshot batch reads, secret rotation, vault integration, multi-wallet orchestration, portfolio management rollout, scheduler generalization, settlement automation, broader wallet runtime integration
 - Suggested Next Step: COMMANDER review
 
 ## Validation commands run
 
-1. `python -m py_compile projects/polymarket/polyquantbot/platform/wallet_auth/wallet_lifecycle_foundation.py projects/polymarket/polyquantbot/tests/test_phase6_5_6_wallet_state_list_metadata_boundary_20260416.py`
-2. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase6_5_6_wallet_state_list_metadata_boundary_20260416.py` — 10 passed, 1 warning (asyncio_mode deferred backlog)
-3. `find . -type d -name 'phase*'` — zero results
+1. `python -m py_compile projects/polymarket/polyquantbot/platform/wallet_auth/wallet_lifecycle_foundation.py projects/polymarket/polyquantbot/tests/test_phase6_5_6_wallet_state_list_metadata_boundary_20260416.py` — OK
+2. `PYTHONPATH=. pytest -q projects/polymarket/polyquantbot/tests/test_phase6_5_6_wallet_state_list_metadata_boundary_20260416.py` — **11 passed**, 1 warning (asyncio_mode deferred backlog)
+3. `PYTHONPATH=. pytest -q test_phase6_5_2 test_phase6_5_3 test_phase6_5_4 test_phase6_5_5` — **22 passed** (store_state change backward-compatible)
+4. `find . -type d -name 'phase*'` — zero results
 
 **Report Timestamp:** 2026-04-16 17:49 (Asia/Jakarta)
 **Role:** FORGE-X (NEXUS)
