@@ -700,13 +700,20 @@ Missing linkage:
 5. Clarify with COMMANDER if materially unclear
 6. Design architecture before code
 7. Implement in small batches (`≤ 5` files per commit preferred)
-8. Run structure validation
-9. Run FORGE-X pre-flight self-check
-10. Generate forge report
-11. Update `PROJECT_STATE.md`
-12. Update `ROADMAP.md` if roadmap-level truth changed
-13. Commit code + report + state together in one task context
-14. Create PR
+8. Verify actual branch name before writing any report or state:
+   - run: git rev-parse --abbrev-ref HEAD
+   - if result is `work` → use branch name from COMMANDER task declaration
+   - if result is a real branch name → use that exact name in all reports and state
+   - if actual branch name does not match task declaration → STOP
+     report drift to COMMANDER before proceeding
+   - do NOT write forge report or PROJECT_STATE until branch is confirmed
+9. Run structure validation
+10. Run FORGE-X pre-flight self-check
+11. Generate forge report
+12. Update `PROJECT_STATE.md`
+13. Update `ROADMAP.md` if roadmap-level truth changed
+14. Commit code + report + state together in one task context
+15. Create PR
 
 ### FORGE-X pre-flight self-check (mandatory)
 
@@ -728,6 +735,10 @@ PRE-FLIGHT CHECKLIST
     wrong   : /workspace/walker-ai-team/projects/polymarket/...
 [ ] Branch name in forge report matches actual git branch —
     verify with: git rev-parse --abbrev-ref HEAD
+[ ] PROJECT_STATE.md branch reference matches actual git branch —
+    not task declaration, not memory
+[ ] If actual branch differs from task declaration → drift reported
+    to COMMANDER before commit proceeds
 [ ] Branch name follows format: {prefix}/{area}-{purpose}-{YYYYMMDD}
 [ ] Branch prefix is one of: feature/ fix/ update/ hotfix/ refactor/ chore/
 [ ] Date in branch name uses YYYYMMDD format — no dashes in date segment
