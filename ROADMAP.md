@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 09:23
+**Last Updated:** 2026-04-17 14:18
 
 ## Board Overview
 
@@ -43,14 +43,14 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 09:23
+**Last Updated:** 2026-04-17 14:18
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
 | 6.1 | Execution Ledger (In-Memory) | ✅ Done | Deterministic append-only records and read-only reconciliation delivered. |
 | 6.2 | Persistent Ledger & Audit Trail | ✅ Done | Append-only local-file persistence and deterministic reload delivered. |
 | 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479 and preserved as approved carry-forward truth. |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | In Progress | Approved at spec level only; runtime-wide delivery is not claimed. |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | ✅ Done | Foundation contract completion is codified with fixed taxonomy/precedence and deterministic exposure boundary tests on source branch (STANDARD). |
 | 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for ExecutionTransport.submit_with_trace narrow integration after SENTINEL APPROVED (95/100). |
 | 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED (99/100). Narrow scope preserved: LiveExecutionAuthorizer.authorize_with_trace + ExecutionTransport.submit_with_trace only. |
 | 6.4.4 | Gateway-Path Monitoring Narrow Integration Expansion | ✅ Done | Runtime/code path merged via PR #493. SENTINEL APPROVED validation path recorded in PR #495 (97/100). Accepted narrow three-path execution monitoring baseline preserved. |

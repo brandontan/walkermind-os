@@ -8,6 +8,8 @@ MONITORING_DECISION_ALLOW = "ALLOW"
 MONITORING_DECISION_BLOCK = "BLOCK"
 MONITORING_DECISION_HALT = "HALT"
 
+MONITORING_MAX_EXPOSURE_RATIO = 0.10
+
 ANOMALY_EXPOSURE_THRESHOLD_BREACH = "EXPOSURE_THRESHOLD_BREACH"
 ANOMALY_EXPOSURE_INPUT_INCONSISTENT = "EXPOSURE_INPUT_INCONSISTENT"
 ANOMALY_DATA_STALENESS_BREACH = "DATA_STALENESS_BREACH"
@@ -17,7 +19,18 @@ ANOMALY_KILL_SWITCH_TRIGGERED = "KILL_SWITCH_TRIGGERED"
 ANOMALY_MONITORING_DISABLED = "MONITORING_DISABLED"
 ANOMALY_INVALID_CONTRACT_INPUT = "INVALID_CONTRACT_INPUT"
 
-_ANOMALY_PRECEDENCE: tuple[str, ...] = (
+MONITORING_ANOMALY_TAXONOMY: tuple[str, ...] = (
+    ANOMALY_INVALID_CONTRACT_INPUT,
+    ANOMALY_EXPOSURE_THRESHOLD_BREACH,
+    ANOMALY_EXPOSURE_INPUT_INCONSISTENT,
+    ANOMALY_DATA_STALENESS_BREACH,
+    ANOMALY_QUALITY_SCORE_BREACH,
+    ANOMALY_SIGNAL_DEDUP_FAILURE,
+    ANOMALY_KILL_SWITCH_TRIGGERED,
+    ANOMALY_MONITORING_DISABLED,
+)
+
+MONITORING_ANOMALY_PRECEDENCE: tuple[str, ...] = (
     ANOMALY_INVALID_CONTRACT_INPUT,
     ANOMALY_MONITORING_DISABLED,
     ANOMALY_KILL_SWITCH_TRIGGERED,
@@ -153,7 +166,7 @@ def _validate_contract_input(contract_input: MonitoringContractInput) -> dict[st
 
     if not isinstance(contract_input.exposure_ratio, (int, float)) or contract_input.exposure_ratio < 0:
         errors["exposure_ratio"] = "must_be_non_negative"
-    if not isinstance(contract_input.max_exposure_ratio, (int, float)) or contract_input.max_exposure_ratio != 0.10:
+    if not isinstance(contract_input.max_exposure_ratio, (int, float)) or contract_input.max_exposure_ratio != MONITORING_MAX_EXPOSURE_RATIO:
         errors["max_exposure_ratio"] = "must_equal_0_10"
 
     if not isinstance(contract_input.data_freshness_ms, int) or contract_input.data_freshness_ms < 0:
@@ -186,9 +199,9 @@ def _validate_contract_input(contract_input: MonitoringContractInput) -> dict[st
 
 def _precedence_index(anomaly: str) -> int:
     try:
-        return _ANOMALY_PRECEDENCE.index(anomaly)
+        return MONITORING_ANOMALY_PRECEDENCE.index(anomaly)
     except ValueError:
-        return len(_ANOMALY_PRECEDENCE)
+        return len(MONITORING_ANOMALY_PRECEDENCE)
 
 
 def _first_precedence_anomaly(anomalies: tuple[str, ...]) -> str | None:
