@@ -1,5 +1,5 @@
-Last Updated : 2026-04-18 04:41
-Status       : Phase 6.6.4 wallet reconciliation retry/worker foundation contract is implemented on feature/wallet-reconciliation-retry-worker-foundation-2026-04-18 and pending COMMANDER review. Phase 6.6.3 wallet reconciliation mutation/correction foundation is merged-main truth via PR #560. Phase 6.6.2 wallet lifecycle batch reconciliation is merged-main truth via PR #559. Phase 6.6.1 reconciliation foundation is merged-main truth. Phase 6.5.10 wallet state exact batch read boundary is merged-main truth via PR #557. Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
+Last Updated : 2026-04-18 04:43
+Status       : Phase 6.6.4 wallet reconciliation retry/worker foundation is merged-main truth via PR #561. Phase 6.6.3 wallet reconciliation mutation/correction foundation is merged-main truth via PR #560. Phase 6.6.2 wallet lifecycle batch reconciliation is merged-main truth via PR #559. Phase 6.6.1 reconciliation foundation is merged-main truth. Phase 6.5.10 wallet state exact batch read boundary is merged-main truth via PR #557. Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
 
 [COMPLETED]
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
@@ -14,9 +14,10 @@ Status       : Phase 6.6.4 wallet reconciliation retry/worker foundation contrac
 - Phase 6.6.1 wallet lifecycle state reconciliation foundation merged-via PR #558 at WalletLifecycleReconciliationBoundary.reconcile_wallet_state.
 - Phase 6.6.2 wallet lifecycle batch reconciliation merged-via PR #559 at WalletLifecycleReconciliationBoundary.reconcile_wallet_state_batch.
 - Phase 6.6.3 wallet reconciliation mutation/correction foundation merged-via PR #560 at WalletReconciliationCorrectionBoundary.apply_correction.
+- Phase 6.6.4 wallet reconciliation retry/worker foundation merged-via PR #561 at WalletReconciliationRetryWorkerBoundary.decide_retry_work_item.
 
 [IN PROGRESS]
-- Phase 6.6.4 wallet reconciliation retry/worker foundation contract is in progress on feature/wallet-reconciliation-retry-worker-foundation-2026-04-18 (FOUNDATION scope only; no scheduler daemon or automation mesh).
+- None.
 
 [NOT STARTED]
 - Phase 6.6.5 and subsequent public-readiness slices have not been opened.
@@ -27,7 +28,7 @@ Status       : Phase 6.6.4 wallet reconciliation retry/worker foundation contrac
 - Reconciliation mutation and correction workflow beyond the read-only and append-only boundaries.
 
 [NEXT PRIORITY]
-- COMMANDER review for Phase 6.6.4 wallet reconciliation retry/worker foundation contract (STANDARD / FOUNDATION).
+- Open Phase 6.6.5 as the next public-readiness slice.
 - Keep Phase 6.4.1 out of active-lane wording until implementation is explicitly resumed.
 
 [KNOWN ISSUES]
