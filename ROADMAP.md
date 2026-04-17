@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 03:41
+**Last Updated:** 2026-04-17 09:23
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 03:41
+**Last Updated:** 2026-04-17 09:23
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -66,6 +66,9 @@
 | 6.5.4 | Wallet Lifecycle Foundation — State Clear Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #537 at `WalletStateStorageBoundary.clear_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found clears. |
 | 6.5.5 | Wallet Lifecycle Foundation — State Exists Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #539 at `WalletStateStorageBoundary.has_state` with deterministic success true/false and block contracts for invalid contract, ownership mismatch, and inactive wallet. |
 | 6.5.6 | Wallet Lifecycle Foundation — State List Metadata Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #541 at `WalletStateStorageBoundary.list_state_metadata` with real per-entry owner-scoped filtering, deterministic success (sorted metadata-only entries: wallet_binding_id + stored_revision), and block contracts for invalid contract, ownership mismatch, and inactive wallet. No full snapshot exposure. |
+| 6.5.7 | Wallet Lifecycle Foundation — State Metadata Query Expansion | ✅ Done | Merged-main truth accepted via PR #543 at `WalletStateStorageBoundary.list_state_metadata` with optional deterministic filters (prefix, min revision, max entries) while preserving owner-scope metadata-only output. |
+| 6.5.8 | Wallet Lifecycle Foundation — State Metadata Exact Lookup | ✅ Done | Merged-main truth accepted via PR #544 at `WalletStateStorageBoundary.get_state_metadata` with deterministic metadata-only exact lookup and deterministic block contracts for invalid contract, ownership mismatch, inactive wallet, and not found. |
+| 6.5.9 | Wallet Lifecycle Foundation — State Metadata Exact Batch Lookup | ✅ Done | Merged-main truth accepted via PR #546 at `WalletStateStorageBoundary.get_state_metadata_batch` with owner-scoped metadata-only output, deterministic input-order preservation, and explicit missing-wallet handling via `stored_revision=None`. |
 
 ---
 

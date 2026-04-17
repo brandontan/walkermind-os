@@ -83,7 +83,7 @@ Hard rules:
 * if uncertainty is low and risk is low → decide, do not ask
 * if evidence is clear → merge, do not re-verify ceremonially
 
-Only block when ALL of these are true:
+Only block when ANY of these are true:
 
 * real risk to capital / execution / runtime integrity exists, OR
 * critical safety finding exists, OR
