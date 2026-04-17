@@ -1,26 +1,26 @@
-📅 Last Updated : [YYYY-MM-DD HH:MM]
-🔄 Status       : [Brief status summary, e.g., "Post-merge reconciliation completed for PR #413 and #420"]
+Last Updated : [YYYY-MM-DD HH:MM]
+Status       : [Brief status summary, e.g., "Post-merge reconciliation completed for PR #413 and #420"]
 
 ---
 
-✅ COMPLETED
+[COMPLETED]
 - [Task/PR/Phase] [description, e.g., "PR #413 merged via squash: Phase 2.7 public/app gateway seam"]
 
-🔧 IN PROGRESS
+[IN PROGRESS]
 - [Task/PR/Phase] [description, e.g., "Phase 2 task 2.8: internal routing / execution preparation layer"]
 
-📋 NOT STARTED
+[NOT STARTED]
 - [Task/PR/Phase] [description, e.g., "Phase 2 task 2.9: dual-mode routing"]
 
-🎯 NEXT PRIORITY
-[Description of next priority, e.g., "Auto PR review + COMMANDER review required. Source: [report path]. Tier: MINOR"]
+[NEXT PRIORITY]
+- [Description of next priority, e.g., "Auto PR review + COMMANDER review required. Source: [report path]. Tier: MINOR"]
 
-⚠️ KNOWN ISSUES
+[KNOWN ISSUES]
 - [Issue] [description, e.g., "Phase 2 | Backtesting & Validation | ❌ Not Started"]
 
 ---
 ---
-## ⚪ PROJECT: [PROJECT NAME]
+## PROJECT: [PROJECT NAME]
 **Description:** [Brief project description]
 **Tech Stack:** [Tech stack, e.g., "Python · FastAPI · PostgreSQL"]
 **Status:** [✅/🚧/❌] [Status, e.g., "Not Started"]
@@ -34,7 +34,7 @@
 
 ---
 ---
-## 🔄 COMMANDER — Roadmap Maintenance
+## COMMANDER — Roadmap Maintenance
 
 ### Status Legend
 - ✅ = Done (merged + validated)
