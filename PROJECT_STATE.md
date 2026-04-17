@@ -1,8 +1,8 @@
-📅 Last Updated : 2026-04-17 09:23
-🔄 Status       : Repo-root truth is aligned with merged Phase 6.5.8 exact metadata lookup (PR #544) and Phase 6.5.9 exact batch metadata lookup (PR #546) on main; docs/commander_knowledge.md sync patches are merged on main, and this branch applies the remaining VELOCITY MODE blocker wording clarification.
+📅 Last Updated : 2026-04-17 14:06
+🔄 Status       : Repo-root truth is aligned with merged Phase 6.5.8 exact metadata lookup (PR #544), Phase 6.5.9 exact batch metadata lookup (PR #546), and the merged VELOCITY MODE blocker wording clarification from PR #549 on main.
 
 ✅ COMPLETED
-- Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
+- Phase 5.2–3.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
 - Phase 6.1 execution ledger and read-only reconciliation implemented with deterministic append-only in-memory records.
 - Phase 6.2 persistent ledger and audit trail implemented with append-only local-file persistence and deterministic reload.
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED.99/100).
@@ -16,7 +16,6 @@
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
 - Phase 6.5.7 wallet state metadata query expansion is implemented at WalletStateStorageBoundary.list_state_metadata with optional deterministic filters (prefix, min revision, max entries) while preserving owner scope and metadata-only output.
-- Repo-truth sync pass: PROJECT_STATE.md and ROADMAP.md merge-truth alignment for merged Phase 6.5.8 / 6.5.9 plus VELOCITY MODE blocker wording clarification in docs/commander_knowledge.md.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -24,10 +23,10 @@
 - Automation, retry, and batching for settlement and wallet operations.
 - Reconciliation mutation and correction workflow beyond the delivered read-only / append-only boundaries.
 
-🎯 NEXT PRIORITY
-- COMMANDER review required for repo-truth sync after merged Phase 6.5.x (Tier: MINOR). Source: projects/polymarket/polyquantbot/reports/forge/30_2_repo_truth_sync_after_merged_phase6_5_x.md. Branch: update/core-repo-truth-sync-20260417.
+⟎� NEXT PRIORITY
+- Continue Phase 6 by resolving the active Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION work or opening the next approved Production Safety & Stabilization slice.
 
-⚠️ KNOWN ISSUES
+⚐️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 5.3 network path is intentionally narrow with no retry, batching, and async workers.
 - Phase 5.4 introduces secure signing boundary only; wallet lifecycle and capital movement remain intentionally unimplemented.
