@@ -2,12 +2,12 @@
 
 **Validation Tier:** MINOR  
 **Claim Level:** FOUNDATION  
-**Validation Target:** `PROJECT_STATE.md` section-order/template integrity, UTF-8 emoji integrity, and truthful Phase 6.4.1 state synchronization only.  
+**Validation Target:** Full `PROJECT_STATE.md` rewrite integrity only — UTF-8, template order, truthful current state, and Phase 6.4.1 sync.  
 **Not in Scope:** Monitoring runtime logic, monitoring tests, previous Phase 6.4.1 code/report scope changes, ROADMAP redesign, SENTINEL validation, or new feature work.  
 **Suggested Next Step:** COMMANDER review required before merge. Auto PR review optional if used. Source: `projects/polymarket/polyquantbot/reports/forge/30_4_phase6_4_1_project_state_template_repair.md`. Tier: MINOR.
 
 ## 1) What was built
-- Repaired `PROJECT_STATE.md` for PR #552 with the exact 7-section order and canonical UTF-8 emoji headers.
+- Fully rewrote `PROJECT_STATE.md` from clean UTF-8 source for PR #552 with the exact 7-section order and canonical UTF-8 emoji headers (no line-by-line patch on corrupted bytes).
 - Kept Phase 6.4.1 truth internally consistent (completed in FOUNDATION scope, not listed in progress, runtime-wide rollout still not claimed).
 - Kept monitoring code, tests, and the previous forge completion report unchanged.
 
