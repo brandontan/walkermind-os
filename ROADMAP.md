@@ -3,7 +3,7 @@
 **Repo:** https://github.com/bayuewalker/walker-ai-team
 **Team:** COMMANDER · FORGE-X · SENTINEL · BRIEFER
 
-> **COMMANDER:** Update status fields (`✅ / 🚧 / ❌`) and Last Updated after every merge or phase milestone.
+> **COMMANDER:** Update status fields (`✅` / `🚧` / `❌`) and Last Updated after every merge or phase milestone.
 > This file covers all active projects. Add a new project section when a new project starts.
 
 ---
@@ -11,7 +11,7 @@
 ## Active Projects
 
 | Project | Platform | Status | Current Phase |
-|---|----|---|---|
+|---|---|---|---|
 | Crusader | Polymarket | Active | Phase 6 — Production Safety & Stabilization |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 03:41
+**Last Updated:** 2026-04-18 03:52
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 03:41
+**Last Updated:** 2026-04-18 03:52
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -70,8 +70,9 @@
 | 6.5.8 | Wallet Lifecycle Foundation — State Metadata Exact Lookup | ✅ Done | Merged-main truth accepted via PR #544 at `WalletStateStorageBoundary.get_state_metadata` with deterministic metadata-only exact lookup and deterministic block contracts for invalid contract, ownership mismatch, inactive wallet, and not found. |
 | 6.5.9 | Wallet Lifecycle Foundation — State Metadata Exact Batch Lookup | ✅ Done | Merged-main truth accepted via PR #546 at `WalletStateStorageBoundary.get_state_metadata_batch` with owner-scoped metadata-only output, deterministic input-order preservation, and explicit missing-wallet handling via `stored_revision=None`. |
 | 6.5.10 | Wallet Lifecycle Foundation — State Exact Batch Read Boundary | ✅ Done | Merged-main truth accepted via PR #557 at `WalletStateStorageBoundary.read_state_batch` with owner-scoped full snapshot output, deterministic input-order preservation, and explicit missing-wallet handling via `state_found=False`. |
-| 6.6.1 | Wallet Lifecycle State Reconciliation Foundation | ✅ Done | Narrow read/evaluate reconciliation foundation at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state` with deterministic outcome categories: match, state_missing, revision_mismatch, snapshot_mismatch. Merged-main truth on branch claude/wallet-reconciliation-foundation-Atfev. |
-| 6.6.2 | Wallet Lifecycle Batch Reconciliation | 🚧 In Progress | Owner-scoped batch read/evaluate reconciliation at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state_batch` with deterministic per-entry outcomes in exact input order. Pending COMMANDER review on branch claude/wallet-batch-reconciliation-Oe4uk. |
+| 6.6.1 | Wallet Lifecycle State Reconciliation Foundation | ✅ Done | Merged-main truth accepted via PR #558 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state` with deterministic outcome categories: match, state_missing, revision_mismatch, snapshot_mismatch. |
+| 6.6.2 | Wallet Lifecycle Batch Reconciliation | ✅ Done | Merged-main truth accepted via PR #559 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state_batch` with deterministic per-entry outcomes in exact input order. |
+| 6.6.3 | Wallet Reconciliation Mutation Correction Foundation | ❌ Not Started | Next forward reconciliation slice after 6.6.2; introduce narrow correction contract without automation or retry. |
 
 ---
 
@@ -125,7 +126,7 @@
 
 ---
 
-## COMMANDER `- Roadmap Maintenance
+## COMMANDER — Roadmap Maintenance
 
 ### Status Legend
 - ✅ = Done (merged + validated)
