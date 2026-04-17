@@ -35,4 +35,4 @@
 - Phase 6.2 introduces append-only local-file persistent ledger and audit trail query only; no mutation or correction logic, background automation, or external DB are implemented.
 - Phase 6.3 introduces deterministic kill-switch halt state control only; runtime orchestration wiring and selective scope routing remain intentionally out of scope.
 - Phase 6.4 narrow monitoring remains intentionally scoped to execution-adjacent paths only and explicitly excludes platform-wide monitoring rollout, scheduler generalization, wallet lifecycle expansion, portfolio orchestration, and settlement automation.
-- [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning â€” carried forward as non-runtime hygiene backlog.
+- [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning — carried forward as non-runtime hygiene backlog.
