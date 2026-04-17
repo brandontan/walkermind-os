@@ -1,10 +1,10 @@
 # Forge Report — PR #552 PROJECT_STATE Template Repair (Phase 6.4.1 Sync)
 
-**Validation Tier:** MINOR  
+**Validation Tier:** STANDARD  
 **Claim Level:** FOUNDATION  
 **Validation Target:** Full `PROJECT_STATE.md` rewrite integrity only — UTF-8, template order, truthful current state, and Phase 6.4.1 sync.  
 **Not in Scope:** Monitoring runtime logic, monitoring tests, previous Phase 6.4.1 code/report scope changes, ROADMAP redesign, SENTINEL validation, or new feature work.  
-**Suggested Next Step:** COMMANDER review required before merge. Auto PR review optional if used. Source: `projects/polymarket/polyquantbot/reports/forge/30_4_phase6_4_1_project_state_template_repair.md`. Tier: MINOR.
+**Suggested Next Step:** COMMANDER review required before merge. Auto PR review optional if used. Source: `projects/polymarket/polyquantbot/reports/forge/30_4_phase6_4_1_project_state_template_repair.md`. Tier: STANDARD.
 
 ## 1) What was built
 - Fully rewrote `PROJECT_STATE.md` from clean UTF-8 source for PR #552 with the exact 7-section order and canonical UTF-8 emoji headers (no line-by-line patch on corrupted bytes).
@@ -29,4 +29,4 @@
 - Existing deferred pytest warning backlog remains unchanged.
 
 ## 6) What is next
-- COMMANDER review on PR #552 (MINOR gate, no SENTINEL).
+- COMMANDER review on PR #552 (STANDARD gate, no SENTINEL).
