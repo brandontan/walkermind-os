@@ -22,7 +22,7 @@
 - Automation, retry, and batching for settlement and wallet operations.
 - Reconciliation mutation and correction workflow beyond the delivered read-only / append-only boundaries.
 
-âŸŽ¯ NEXT PRIORITY
+🎯 NEXT PRIORITY
 - Continue Phase 6 by resolving the active Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION work or opening the next approved Production Safety & Stabilization slice.
 
 âšï¸ KNOWN ISSUES
