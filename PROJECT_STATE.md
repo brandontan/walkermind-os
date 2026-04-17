@@ -1,5 +1,5 @@
-Last Updated : 2026-04-18 03:52
-Status       : Phase 6.6.2 wallet lifecycle batch reconciliation is merged-main truth via PR #559. Phase 6.6.1 reconciliation foundation is merged-main truth. Phase 6.5.10 wallet state exact batch read boundary is merged-main truth via PR #557. Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
+Last Updated : 2026-04-18 03:53
+Status       : Phase 6.6.3 wallet reconciliation mutation/correction foundation is in progress on branch claude/wallet-reconciliation-correction-foundation-9Dnr6. Phase 6.6.2 wallet lifecycle batch reconciliation is merged-main truth via PR #559. Phase 6.6.1 reconciliation foundation is merged-main truth. Phase 6.5.10 wallet state exact batch read boundary is merged-main truth via PR #557. Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
 
 [COMPLETED]
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
@@ -15,11 +15,10 @@ Status       : Phase 6.6.2 wallet lifecycle batch reconciliation is merged-main 
 - Phase 6.6.2 wallet lifecycle batch reconciliation merged-via PR #559 at WalletLifecycleReconciliationBoundary.reconcile_wallet_state_batch.
 
 [IN PROGRESS]
-- None.
+- Phase 6.6.3 wallet reconciliation mutation/correction foundation: WalletReconciliationCorrectionBoundary.apply_correction contract with deterministic correction decision categories and block reasons. Branch: claude/wallet-reconciliation-correction-foundation-9Dnr6. Pending COMMANDER review.
 
 [NOT STARTED]
-- Phase 6.6.3 wallet reconciliation mutation correction foundation has not been opened.
-- Phase 6.6.4 and subsequent reconciliation slices (retry workers and automation) have not been opened.
+- Phase 6.6.4 and subsequent reconciliation slices (correction paths for state_missing and revision_mismatch outcomes, retry workers, automation) have not been opened.
 - Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation has not started; prior spec approval does not claim runtime delivery.
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
 - Portfolio management logic and multi-wallet orchestration.
@@ -27,7 +26,7 @@ Status       : Phase 6.6.2 wallet lifecycle batch reconciliation is merged-main 
 - Reconciliation mutation and correction workflow beyond the read-only and append-only boundaries.
 
 [NEXT PRIORITY]
-- Open Phase 6.6.3 wallet reconciliation mutation correction foundation as the next forward reconciliation slice.
+- COMMANDER review of Phase 6.6.3 wallet reconciliation mutation/correction foundation PR on branch claude/wallet-reconciliation-correction-foundation-9Dnr6.
 - Keep Phase 6.4.1 out of active-lane wording until implementation is explicitly resumed.
 
 [KNOWN ISSUES]

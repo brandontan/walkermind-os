@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 03:52
+**Last Updated:** 2026-04-18 03:53
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 03:52
+**Last Updated:** 2026-04-18 03:53
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -72,7 +72,7 @@
 | 6.5.10 | Wallet Lifecycle Foundation — State Exact Batch Read Boundary | ✅ Done | Merged-main truth accepted via PR #557 at `WalletStateStorageBoundary.read_state_batch` with owner-scoped full snapshot output, deterministic input-order preservation, and explicit missing-wallet handling via `state_found=False`. |
 | 6.6.1 | Wallet Lifecycle State Reconciliation Foundation | ✅ Done | Merged-main truth accepted via PR #558 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state` with deterministic outcome categories: match, state_missing, revision_mismatch, snapshot_mismatch. |
 | 6.6.2 | Wallet Lifecycle Batch Reconciliation | ✅ Done | Merged-main truth accepted via PR #559 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state_batch` with deterministic per-entry outcomes in exact input order. |
-| 6.6.3 | Wallet Reconciliation Mutation Correction Foundation | ❌ Not Started | Next forward reconciliation slice after 6.6.2; introduce narrow correction contract without automation or retry. |
+| 6.6.3 | Wallet Reconciliation Mutation Correction Foundation | 🚧 In Progress | WalletReconciliationCorrectionBoundary.apply_correction delivered; deterministic correction decision contract with allowed/blocked/not-required paths. Pending COMMANDER review on branch claude/wallet-reconciliation-correction-foundation-9Dnr6. |
 
 ---
 
