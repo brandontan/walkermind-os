@@ -25,7 +25,7 @@
 🎯 NEXT PRIORITY
 - Continue Phase 6 by resolving the active Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION work or opening the next approved Production Safety & Stabilization slice.
 
-âšï¸ KNOWN ISSUES
+⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 5.3 network path is intentionally narrow with no retry, batching, and async workers.
 - Phase 5.4 introduces secure signing boundary only; wallet lifecycle and capital movement remain intentionally unimplemented.
