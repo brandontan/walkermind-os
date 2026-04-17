@@ -12,7 +12,7 @@
 - AGENTS.md and docs/commander_knowledge.md direct-fix confirmation gate patch is accepted truth on main.
 - Branch verification / repo-truth drift guard patches in AGENTS.md and docs/commander_knowledge.md are accepted truth on main.
 
-ðŸ”§ IN PROGRESS
+🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
 - Phase 6.5.7 wallet state metadata query expansion is implemented at WalletStateStorageBoundary.list_state_metadata with optional deterministic filters (prefix, min revision, max entries) while preserving owner scope and metadata-only output.
 
