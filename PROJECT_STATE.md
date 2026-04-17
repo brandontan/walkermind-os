@@ -1,5 +1,5 @@
-📅 Last Updated : 2026-04-17 05:38
-🔄 Status       : Repo-root truth is aligned for merged wallet lifecycle slices through Phase 6.5.6 and Phase 6.5.9 exact batch metadata lookup on main; Phase 6.5.8 metadata exact lookup still awaits COMMANDER review; docs/commander_knowledge.md sync (13 patches + VELOCITY MODE) is implemented on branch claude/sync-commander-knowledge-1n14o awaiting COMMANDER review.
+📅 Last Updated : 2026-04-17 09:23
+🔄 Status       : Repo-root truth is aligned with merged Phase 6.5.8 exact metadata lookup (PR #544) and Phase 6.5.9 exact batch metadata lookup (PR #546) on main; docs/commander_knowledge.md sync patches are merged on main, and this branch applies the remaining VELOCITY MODE blocker wording clarification.
 
 ✅ COMPLETED
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
@@ -12,11 +12,11 @@
 - Phase 6.5.6 wallet state list metadata boundary is merged-main accepted truth via PR #541 at WalletStateStorageBoundary.list_state_metadata with real per-entry owner-scoped filtering, deterministic sort by wallet_binding_id ascending, metadata-only output (wallet_binding_id + stored_revision), and block contracts for invalid contract, ownership mismatch, and wallet not active.
 - AGENTS.md and docs/commander_knowledge.md direct-fix confirmation gate patch is accepted truth on main.
 - Branch verification / repo-truth drift guard patches in AGENTS.md and docs/commander_knowledge.md are accepted truth on main.
+
 🔧 IN PROGRESS
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
 - Phase 6.5.7 wallet state metadata query expansion is implemented at WalletStateStorageBoundary.list_state_metadata with optional deterministic filters (prefix, min revision, max entries) while preserving owner scope and metadata-only output.
-- Phase 6.5.8 wallet state metadata exact lookup is implemented at WalletStateStorageBoundary.get_state_metadata with deterministic owner-scoped metadata-only output (wallet_binding_id + stored_revision) and deterministic blocks for invalid contract, ownership mismatch, wallet not active, and metadata not found.
-- docs/commander_knowledge.md sync — 13 patches applied (branch mismatch, path resolve, timestamp, domain structure, SENTINEL never-list, report naming, VELOCITY MODE) on branch claude/sync-commander-knowledge-1n14o; awaiting COMMANDER review.
+- Repo-truth sync pass: PROJECT_STATE.md and ROADMAP.md merge-truth alignment for merged Phase 6.5.8 / 6.5.9 plus VELOCITY MODE blocker wording clarification in docs/commander_knowledge.md.
 
 📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -25,10 +25,9 @@
 - Reconciliation mutation and correction workflow beyond the delivered read-only / append-only boundaries.
 
 🎯 NEXT PRIORITY
-- COMMANDER review required for commander_knowledge.md sync (Tier: MINOR). Source: projects/polymarket/polyquantbot/reports/forge/30_1_commander-sync.md. Branch: claude/sync-commander-knowledge-1n14o.
-- COMMANDER review required for Phase 6.5.8 before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/29_50_phase6_5_8_wallet_state_metadata_exact_lookup.md. Tier: STANDARD.
+- COMMANDER review required for repo-truth sync after merged Phase 6.5.x (Tier: MINOR). Source: projects/polymarket/polyquantbot/reports/forge/30_2_repo_truth_sync_after_merged_phase6_5_x.md. Branch: update/core-repo-truth-sync-20260417.
 
-蚀️ KNOWN ISSUES
+⚠️ KNOWN ISSUES
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 5.3 network path is intentionally narrow with no retry, batching, and async workers.
 - Phase 5.4 introduces secure signing boundary only; wallet lifecycle and capital movement remain intentionally unimplemented.
