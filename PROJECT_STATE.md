@@ -1,5 +1,5 @@
-Last Updated : 2026-04-18 02:47
-Status       : Phase 6.5.10 wallet state exact batch read boundary delivered via read_state_batch on WalletStateStorageBoundary. Branch claude/wallet-state-batch-read-X9ivi open, pending COMMANDER review. Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
+Last Updated : 2026-04-18 03:19
+Status       : Phase 6.5.10 wallet state exact batch read boundary is merged-main truth via PR #557. Phase 6.4.1 remains spec-approved only and is not the active implementation lane. Next forward slice should continue in the Phase 6.5 wallet lifecycle lane.
 
 [COMPLETED]
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
@@ -15,9 +15,10 @@ Status       : Phase 6.5.10 wallet state exact batch read boundary delivered via
 - Phase 6.5.10 wallet state exact batch read boundary delivered at WalletStateStorageBoundary.read_state_batch with owner-scoped full snapshot output, deterministic input-order preservation, and explicit missing-wallet handling via state_found=False and state_snapshot=None.
 
 [IN PROGRESS]
-- Phase 6.5.10 wallet state exact batch read boundary — PR open on claude/wallet-state-batch-read-X9ivi, pending COMMANDER review.
+- None.
 
 [NOT STARTED]
+- Phase 6.5.11 wallet state batch read query expansion is the next forward wallet lifecycle slice and has not been opened yet.
 - Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation has not started; prior spec approval does not claim runtime delivery.
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
 - Portfolio management logic and multi-wallet orchestration.
@@ -25,7 +26,7 @@ Status       : Phase 6.5.10 wallet state exact batch read boundary delivered via
 - Reconciliation mutation and correction workflow beyond the delivered read-only and append-only boundaries.
 
 [NEXT PRIORITY]
-- COMMANDER review of Phase 6.5.10 wallet state exact batch read boundary on claude/wallet-state-batch-read-X9ivi before merge.
+- Open Phase 6.5.11 wallet state batch read query expansion as the next wallet lifecycle slice.
 - Keep Phase 6.4.1 out of active-lane wording until implementation is explicitly resumed.
 
 [KNOWN ISSUES]
