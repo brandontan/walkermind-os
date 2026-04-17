@@ -76,6 +76,41 @@ Conflict rules:
 - A new `Last Updated` earlier than the previous value = pre-flight FAIL
 - Never use system or server local time
 
+## ENCODING RULE (AUTHORITATIVE)
+
+All repo files are **UTF-8 without BOM**. Applies to reports, state files, roadmap, code, templates, commit messages. Mojibake in any committed file = drift.
+
+### Runner / environment requirements
+- `LANG=C.UTF-8` and `LC_ALL=C.UTF-8` must be set in every execution environment (Codex, CI, local shell)
+- `PYTHONIOENCODING=utf-8` must be set for Python runners
+- `git config --global core.quotepath false`
+- `git config --global core.autocrlf input`
+
+### File I/O rules
+- Every Python `open()` call on repo files MUST pass `encoding='utf-8'` explicitly — no relying on locale default
+- Shell redirects (`echo`, `cat`, `tee`) must run under a UTF-8 locale; verify with `locale` before first write on a new runner
+- Never mix writers on the same file in one task (e.g. Python + shell + editor) — pick one and stay with it
+- When appending to an existing file, read-decode-append-write rather than raw byte append
+
+### Symbols in ROADMAP and reports
+ROADMAP uses ✅ 🚧 ❌ as inline status markers inside tables and phase headers. These three characters are well-supported across all tooling and must render correctly. If mojibake appears on these:
+1. STOP — do not commit
+2. Verify runner locale: `locale` should show `C.UTF-8` or `en_US.UTF-8`
+3. Re-derive the file through a UTF-8 writer
+4. If mojibake persists, report drift to COMMANDER
+
+PROJECT_STATE.md uses plain ASCII bracket labels `[COMPLETED]`, `[IN PROGRESS]`, `[NOT STARTED]`, `[NEXT PRIORITY]`, `[KNOWN ISSUES]` — zero encoding risk.
+
+Arrows (→ ↓), em-dash (—), and smart quotes in other files must round-trip cleanly. If known to hit non-UTF-8 tooling, prefer ASCII equivalents (`->`, `--`, `"`) rather than committing corrupted bytes.
+
+### Mojibake detection
+A file is considered mojibake-corrupted if any of the following appears in content that originally had emoji/arrows/dashes:
+- sequences like `â€"`, `â†'`, `ðŸ"…`, `\udc??`
+- literal `?` in place of expected non-ASCII chars
+- Unicode replacement character `U+FFFD` (�)
+
+Detection is a FAIL condition for FORGE-X pre-flight and a NEEDS-FIX for COMMANDER pre-review drift check.
+
 ## CORE PRINCIPLE
 
 Single source of truth:
@@ -282,6 +317,7 @@ Immediate FAIL / BLOCKED if:
 - `PROJECT_STATE.md` contains markdown headings inside sections
 - project-local `PROJECT_STATE.md` exists alongside repo-root version
 - SENTINEL opens or recommends direct-to-main bypass of validated source branch
+- file contains mojibake or non-UTF-8 byte sequences (encoding corruption)
 
 ## DRIFT DETECTION
 
@@ -473,6 +509,10 @@ Use the checklist matching the declared Validation Tier. Do not run MAJOR checkl
 [ ] Branch format valid (standard or Codex form, per environment)
 [ ] Forge report exists at correct path with required sections for this tier
 [ ] PROJECT_STATE.md updated to current truth
+[ ] Runner locale = C.UTF-8 or en_US.UTF-8 (verified with `locale`)
+[ ] PYTHONIOENCODING=utf-8 set in environment
+[ ] All touched files UTF-8 without BOM, no mojibake sequences
+    (grep for â€ / ðŸ / \udc / U+FFFD before commit)
 ```
 
 **STANDARD adds:**
@@ -637,7 +677,7 @@ NEXT GATE: Return to COMMANDER for final decision.
 ```
 
 ### Deferred minor backlog
-Minor non-critical findings may be deferred via `⚠️ KNOWN ISSUES`:
+Minor non-critical findings may be deferred via `[KNOWN ISSUES]` in PROJECT_STATE.md:
 ```text
 [DEFERRED] {description} — found in {PR or task name}
 ```
@@ -675,27 +715,27 @@ Structure source: `docs/templates/PROJECT_STATE_TEMPLATE.md`
 ### Required structure (7 sections)
 
 ```text
-📅 Last Updated : YYYY-MM-DD HH:MM
-🔄 Status       : [current summary]
+Last Updated : YYYY-MM-DD HH:MM
+Status       : [current summary]
 
-✅ COMPLETED
+[COMPLETED]
 - [item]
 
-🔧 IN PROGRESS
+[IN PROGRESS]
 - [item]
 
-📋 NOT STARTED
+[NOT STARTED]
 - [item]
 
-🎯 NEXT PRIORITY
+[NEXT PRIORITY]
 - [item]
 
-⚠️ KNOWN ISSUES
+[KNOWN ISSUES]
 - [item]
 ```
 
 ### Formatting rules
-- Emoji labels fixed
+- Section labels are fixed ASCII bracket format — do NOT use emoji labels
 - Update ONLY these 7 sections
 - Within each touched section: REPLACE the section (do not append history log)
 - No markdown headings (`##` / `###`) inside sections
