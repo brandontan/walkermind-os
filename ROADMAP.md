@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 02:25
+**Last Updated:** 2026-04-18 02:47
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 02:25
+**Last Updated:** 2026-04-18 02:47
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -69,7 +69,7 @@
 | 6.5.7 | Wallet Lifecycle Foundation — State Metadata Query Expansion | ✅ Done | Merged-main truth accepted via PR #543 at `WalletStateStorageBoundary.list_state_metadata` with optional deterministic filters (prefix, min revision, max entries) while preserving owner-scope metadata-only output. |
 | 6.5.8 | Wallet Lifecycle Foundation — State Metadata Exact Lookup | ✅ Done | Merged-main truth accepted via PR #544 at `WalletStateStorageBoundary.get_state_metadata` with deterministic metadata-only exact lookup and deterministic block contracts for invalid contract, ownership mismatch, inactive wallet, and not found. |
 | 6.5.9 | Wallet Lifecycle Foundation — State Metadata Exact Batch Lookup | ✅ Done | Merged-main truth accepted via PR #546 at `WalletStateStorageBoundary.get_state_metadata_batch` with owner-scoped metadata-only output, deterministic input-order preservation, and explicit missing-wallet handling via `stored_revision=None`. |
-| 6.5.10 | Wallet Lifecycle Foundation — State Exact Batch Read Boundary | ❌ Not Started | Next forward wallet lifecycle slice after 6.5.9; deliver exact batch state reads without reopening 6.4 as the active lane. |
+| 6.5.10 | Wallet Lifecycle Foundation — State Exact Batch Read Boundary | 🚧 In Progress | Delivered WalletStateStorageBoundary.read_state_batch with owner-scoped full snapshot output, deterministic input-order preservation, and explicit missing-wallet handling via state_found=False. Pending COMMANDER review on claude/wallet-state-batch-read-X9ivi. |
 
 ---
 

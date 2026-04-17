@@ -1,5 +1,5 @@
-Last Updated : 2026-04-18 02:25
-Status       : Repo baseline is aligned with merged Phase 6.5.9 wallet state exact batch metadata lookup truth via PR #546. Phase 6.4.1 remains spec-approved only and is not the active implementation lane. Next forward slice should continue in the Phase 6.5 wallet lifecycle lane.
+Last Updated : 2026-04-18 02:47
+Status       : Phase 6.5.10 wallet state exact batch read boundary delivered via read_state_batch on WalletStateStorageBoundary. Branch claude/wallet-state-batch-read-X9ivi open, pending COMMANDER review. Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
 
 [COMPLETED]
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
@@ -12,12 +12,12 @@ Status       : Repo baseline is aligned with merged Phase 6.5.9 wallet state exa
 - Phase 6.5.7 wallet state metadata query expansion merged via PR #543 at WalletStateStorageBoundary.list_state_metadata with optional deterministic filters while preserving owner-scope metadata-only output.
 - Phase 6.5.8 wallet state metadata exact lookup merged via PR #544 at WalletStateStorageBoundary.get_state_metadata with deterministic metadata-only exact lookup and block contracts for invalid contract, ownership mismatch, inactive wallet, and not found.
 - Phase 6.5.9 wallet state metadata exact batch lookup merged via PR #546 at WalletStateStorageBoundary.get_state_metadata_batch with owner-scoped metadata-only output, deterministic input-order preservation, and explicit missing-wallet handling via stored_revision=None.
+- Phase 6.5.10 wallet state exact batch read boundary delivered at WalletStateStorageBoundary.read_state_batch with owner-scoped full snapshot output, deterministic input-order preservation, and explicit missing-wallet handling via state_found=False and state_snapshot=None.
 
 [IN PROGRESS]
-- None.
+- Phase 6.5.10 wallet state exact batch read boundary — PR open on claude/wallet-state-batch-read-X9ivi, pending COMMANDER review.
 
 [NOT STARTED]
-- Phase 6.5.10 wallet state exact batch read boundary is the next forward wallet lifecycle slice and has not been opened yet.
 - Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation has not started; prior spec approval does not claim runtime delivery.
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
 - Portfolio management logic and multi-wallet orchestration.
@@ -25,7 +25,7 @@ Status       : Repo baseline is aligned with merged Phase 6.5.9 wallet state exa
 - Reconciliation mutation and correction workflow beyond the delivered read-only and append-only boundaries.
 
 [NEXT PRIORITY]
-- Open Phase 6.5.10 wallet state exact batch read boundary as the next wallet lifecycle slice.
+- COMMANDER review of Phase 6.5.10 wallet state exact batch read boundary on claude/wallet-state-batch-read-X9ivi before merge.
 - Keep Phase 6.4.1 out of active-lane wording until implementation is explicitly resumed.
 
 [KNOWN ISSUES]

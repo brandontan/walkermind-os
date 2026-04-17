@@ -37,6 +37,11 @@ WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch
 WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
 WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_TOO_MANY = "wallet_binding_ids_too_many"
 WALLET_STATE_METADATA_EXACT_BATCH_MAX_SIZE = 100
+WALLET_STATE_READ_BATCH_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_STATE_READ_BATCH_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_STATE_READ_BATCH_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_STATE_READ_BATCH_BLOCK_TOO_MANY = "wallet_binding_ids_too_many"
+WALLET_STATE_READ_BATCH_MAX_SIZE = 100
 
 
 @dataclass(frozen=True)
@@ -266,6 +271,31 @@ class WalletStateExactBatchMetadataResult:
     blocked_reason: str | None
     owner_user_id: str
     entries: list[WalletStateExactBatchMetadataEntry] | None
+    notes: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class WalletStateReadBatchPolicy:
+    wallet_binding_ids: list[str]
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+
+
+@dataclass(frozen=True)
+class WalletStateReadBatchEntry:
+    wallet_binding_id: str
+    state_found: bool
+    state_snapshot: dict[str, Any] | None
+    stored_revision: int | None
+
+
+@dataclass(frozen=True)
+class WalletStateReadBatchResult:
+    success: bool
+    blocked_reason: str | None
+    owner_user_id: str
+    entries: list[WalletStateReadBatchEntry] | None
     notes: dict[str, Any] | None = None
 
 
@@ -636,6 +666,74 @@ class WalletStateStorageBoundary:
             },
         )
 
+    def read_state_batch(
+        self,
+        policy: WalletStateReadBatchPolicy,
+    ) -> WalletStateReadBatchResult:
+        """Phase 6.5.10 narrow wallet lifecycle boundary: fetch full state for explicit wallet_binding_ids.
+        Deterministic ordering is preserved by iterating wallet_binding_ids in the exact input order.
+        Missing or owner-mismatch entries return state_found=False with state_snapshot=None and stored_revision=None."""
+        contract_error = _validate_state_read_batch_policy(policy)
+        if contract_error is not None:
+            blocked_reason = WALLET_STATE_READ_BATCH_BLOCK_INVALID_CONTRACT
+            if contract_error == WALLET_STATE_READ_BATCH_BLOCK_TOO_MANY:
+                blocked_reason = WALLET_STATE_READ_BATCH_BLOCK_TOO_MANY
+            return _blocked_state_read_batch_result(
+                policy=policy,
+                blocked_reason=blocked_reason,
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_state_read_batch_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_READ_BATCH_BLOCK_OWNERSHIP_MISMATCH,
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_state_read_batch_result(
+                policy=policy,
+                blocked_reason=WALLET_STATE_READ_BATCH_BLOCK_WALLET_NOT_ACTIVE,
+                notes={"wallet_active": False},
+            )
+
+        entries: list[WalletStateReadBatchEntry] = []
+        missing_wallet_binding_ids: list[str] = []
+        for wallet_binding_id in policy.wallet_binding_ids:
+            record = self._store.get(wallet_binding_id)
+            if record is None or record.get("owner_user_id") != policy.owner_user_id:
+                entries.append(
+                    WalletStateReadBatchEntry(
+                        wallet_binding_id=wallet_binding_id,
+                        state_found=False,
+                        state_snapshot=None,
+                        stored_revision=None,
+                    ),
+                )
+                missing_wallet_binding_ids.append(wallet_binding_id)
+                continue
+
+            entries.append(
+                WalletStateReadBatchEntry(
+                    wallet_binding_id=wallet_binding_id,
+                    state_found=True,
+                    state_snapshot=dict(record["state_snapshot"]),
+                    stored_revision=int(record["revision"]),
+                ),
+            )
+
+        return WalletStateReadBatchResult(
+            success=True,
+            blocked_reason=None,
+            owner_user_id=policy.owner_user_id,
+            entries=entries,
+            notes={
+                "entry_count": len(entries),
+                "missing_wallet_binding_ids": missing_wallet_binding_ids,
+            },
+        )
+
 
 def _validate_state_storage_policy(policy: WalletStateStoragePolicy) -> str | None:
     if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
@@ -878,6 +976,43 @@ def _blocked_state_exact_batch_metadata_result(
     if blocked_reason == WALLET_STATE_METADATA_EXACT_BATCH_BLOCK_TOO_MANY:
         entries = []
     return WalletStateExactBatchMetadataResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        owner_user_id=policy.owner_user_id,
+        entries=entries,
+        notes=notes,
+    )
+
+
+def _validate_state_read_batch_policy(policy: WalletStateReadBatchPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_ids, list):
+        return "wallet_binding_ids_must_be_list"
+    if len(policy.wallet_binding_ids) == 0:
+        return "wallet_binding_ids_required"
+    if len(policy.wallet_binding_ids) > WALLET_STATE_READ_BATCH_MAX_SIZE:
+        return WALLET_STATE_READ_BATCH_BLOCK_TOO_MANY
+    for wallet_binding_id in policy.wallet_binding_ids:
+        if not isinstance(wallet_binding_id, str) or not wallet_binding_id.strip():
+            return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    return None
+
+
+def _blocked_state_read_batch_result(
+    *,
+    policy: WalletStateReadBatchPolicy,
+    blocked_reason: str,
+    notes: dict[str, Any] | None,
+) -> WalletStateReadBatchResult:
+    entries: list[WalletStateReadBatchEntry] | None = None
+    if blocked_reason == WALLET_STATE_READ_BATCH_BLOCK_TOO_MANY:
+        entries = []
+    return WalletStateReadBatchResult(
         success=False,
         blocked_reason=blocked_reason,
         owner_user_id=policy.owner_user_id,
