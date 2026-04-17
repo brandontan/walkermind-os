@@ -16,7 +16,7 @@
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION spec contract remains in progress; runtime-wide monitoring rollout is not claimed.
 - Phase 6.5.7 wallet state metadata query expansion is implemented at WalletStateStorageBoundary.list_state_metadata with optional deterministic filters (prefix, min revision, max entries) while preserving owner scope and metadata-only output.
 
-ðŸ“‹ NOT STARTED
+📋 NOT STARTED
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
