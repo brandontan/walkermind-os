@@ -42,6 +42,13 @@ WALLET_STATE_READ_BATCH_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
 WALLET_STATE_READ_BATCH_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
 WALLET_STATE_READ_BATCH_BLOCK_TOO_MANY = "wallet_binding_ids_too_many"
 WALLET_STATE_READ_BATCH_MAX_SIZE = 100
+WALLET_RECONCILIATION_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_RECONCILIATION_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_RECONCILIATION_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_RECONCILIATION_OUTCOME_MATCH = "match"
+WALLET_RECONCILIATION_OUTCOME_STATE_MISSING = "state_missing"
+WALLET_RECONCILIATION_OUTCOME_REVISION_MISMATCH = "revision_mismatch"
+WALLET_RECONCILIATION_OUTCOME_SNAPSHOT_MISMATCH = "snapshot_mismatch"
 
 
 @dataclass(frozen=True)
@@ -1017,5 +1024,175 @@ def _blocked_state_read_batch_result(
         blocked_reason=blocked_reason,
         owner_user_id=policy.owner_user_id,
         entries=entries,
+        notes=notes,
+    )
+
+
+@dataclass(frozen=True)
+class WalletReconciliationPolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+    expected_state_snapshot: dict[str, Any]
+    expected_revision: int | None = None
+
+
+@dataclass(frozen=True)
+class WalletReconciliationResult:
+    success: bool
+    blocked_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    reconciliation_outcome: str | None
+    stored_revision: int | None
+    expected_revision: int | None
+    notes: dict[str, Any] | None = None
+
+
+class WalletLifecycleReconciliationBoundary:
+    """Phase 6.6.1 narrow reconciliation foundation: compare expected vs stored wallet lifecycle state.
+    Read and evaluate only — no mutation, correction, retry, or automation."""
+
+    def __init__(self, storage_boundary: WalletStateStorageBoundary) -> None:
+        self._storage = storage_boundary
+
+    def reconcile_wallet_state(
+        self, policy: WalletReconciliationPolicy
+    ) -> WalletReconciliationResult:
+        contract_error = _validate_reconciliation_policy(policy)
+        if contract_error is not None:
+            return _blocked_reconciliation_result(
+                policy=policy,
+                blocked_reason=WALLET_RECONCILIATION_BLOCK_INVALID_CONTRACT,
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_reconciliation_result(
+                policy=policy,
+                blocked_reason=WALLET_RECONCILIATION_BLOCK_OWNERSHIP_MISMATCH,
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_reconciliation_result(
+                policy=policy,
+                blocked_reason=WALLET_RECONCILIATION_BLOCK_WALLET_NOT_ACTIVE,
+                notes={"wallet_active": False},
+            )
+
+        batch_result = self._storage.read_state_batch(
+            WalletStateReadBatchPolicy(
+                wallet_binding_ids=[policy.wallet_binding_id],
+                owner_user_id=policy.owner_user_id,
+                requested_by_user_id=policy.requested_by_user_id,
+                wallet_active=policy.wallet_active,
+            )
+        )
+
+        if not batch_result.success or batch_result.entries is None:
+            return _blocked_reconciliation_result(
+                policy=policy,
+                blocked_reason=WALLET_RECONCILIATION_BLOCK_INVALID_CONTRACT,
+                notes={"storage_block": batch_result.blocked_reason},
+            )
+
+        entry = batch_result.entries[0]
+        if not entry.state_found:
+            return WalletReconciliationResult(
+                success=True,
+                blocked_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                reconciliation_outcome=WALLET_RECONCILIATION_OUTCOME_STATE_MISSING,
+                stored_revision=None,
+                expected_revision=policy.expected_revision,
+                notes={"wallet_binding_id": policy.wallet_binding_id},
+            )
+
+        stored_revision = entry.stored_revision
+        stored_snapshot = entry.state_snapshot
+
+        if (
+            policy.expected_revision is not None
+            and stored_revision != policy.expected_revision
+        ):
+            return WalletReconciliationResult(
+                success=True,
+                blocked_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                reconciliation_outcome=WALLET_RECONCILIATION_OUTCOME_REVISION_MISMATCH,
+                stored_revision=stored_revision,
+                expected_revision=policy.expected_revision,
+                notes={
+                    "stored_revision": stored_revision,
+                    "expected_revision": policy.expected_revision,
+                },
+            )
+
+        if stored_snapshot != policy.expected_state_snapshot:
+            mismatched_keys = sorted(
+                k
+                for k in set(list(stored_snapshot.keys()) + list(policy.expected_state_snapshot.keys()))
+                if stored_snapshot.get(k) != policy.expected_state_snapshot.get(k)
+            )
+            return WalletReconciliationResult(
+                success=True,
+                blocked_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                reconciliation_outcome=WALLET_RECONCILIATION_OUTCOME_SNAPSHOT_MISMATCH,
+                stored_revision=stored_revision,
+                expected_revision=policy.expected_revision,
+                notes={"mismatch_keys": mismatched_keys},
+            )
+
+        return WalletReconciliationResult(
+            success=True,
+            blocked_reason=None,
+            wallet_binding_id=policy.wallet_binding_id,
+            owner_user_id=policy.owner_user_id,
+            reconciliation_outcome=WALLET_RECONCILIATION_OUTCOME_MATCH,
+            stored_revision=stored_revision,
+            expected_revision=policy.expected_revision,
+            notes={"stored_revision": stored_revision},
+        )
+
+
+def _validate_reconciliation_policy(policy: WalletReconciliationPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    if not isinstance(policy.expected_state_snapshot, dict):
+        return "expected_state_snapshot_must_be_dict"
+    if policy.expected_revision is not None:
+        if isinstance(policy.expected_revision, bool) or not isinstance(policy.expected_revision, int):
+            return "expected_revision_must_be_int_or_none"
+        if policy.expected_revision < 1:
+            return "expected_revision_must_be_positive"
+    return None
+
+
+def _blocked_reconciliation_result(
+    *,
+    policy: WalletReconciliationPolicy,
+    blocked_reason: str,
+    notes: dict[str, Any] | None,
+) -> WalletReconciliationResult:
+    return WalletReconciliationResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        wallet_binding_id=policy.wallet_binding_id,
+        owner_user_id=policy.owner_user_id,
+        reconciliation_outcome=None,
+        stored_revision=None,
+        expected_revision=policy.expected_revision if hasattr(policy, "expected_revision") else None,
         notes=notes,
     )
