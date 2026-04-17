@@ -1,10 +1,10 @@
-📅 Last Updated : 2026-04-17 14:18
-🔄 Status       : Repo-root truth aligned with merged Phase 6.5.8 exact metadata lookup (PR #544), Phase 6.5.9 exact batch metadata lookup (PR #546), VELOCITY MODE blocker wording clarification (PR #549), and Phase 6.4.1 FOUNDATION monitoring contract completion on the active source branch.
+📅 Last Updated : 2026-04-17 14:23
+🔄 Status       : Repo-root truth aligned with merged Phase 6.5.8 exact metadata lookup (PR #544), Phase 6.5.9 exact batch metadata lookup (PR #546), VELOCITY MODE blocker wording clarification (PR #549), and a PR #550 PROJECT_STATE template/encoding repair for Phase 6.4.1 FOUNDATION wording consistency.
 
 - Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION contract is concretely codified and test-covered with fixed anomaly taxonomy, deterministic precedence, and explicit exposure boundary constant.
 - AGENTS.md and docs/commander_knowledge.md direct-fix confirmation gate patch plus branch verification / repo-truth drift guard patches are accepted truth on main.
 🎯 NEXT PRIORITY
-- COMMANDER review required before merge. Auto PR review optional if used. Source: reports/forge/30_3_phase6_4_1_monitoring_circuit_foundation_completion.md. Tier: STANDARD.
+- COMMANDER review required before merge. Auto PR review optional if used. Source: reports/forge/30_4_phase6_4_1_project_state_repair.md. Tier: MINOR.
 ⚠️ KNOWN ISSUES
 - Phase 6.5.4 wallet state clear boundary is merged-main accepted truth via PR #537 at WalletStateStorageBoundary.clear_state, preserving narrow-scope exclusions.
 - Phase 6.5.5 wallet state exists boundary is merged-main accepted truth via PR #539 at WalletStateStorageBoundary.has_state with deterministic success true/false and block contracts for invalid contract, ownership mismatch, and wallet not active.
