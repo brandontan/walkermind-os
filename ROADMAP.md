@@ -3,7 +3,7 @@
 **Repo:** https://github.com/bayuewalker/walker-ai-team
 **Team:** COMMANDER · FORGE-X · SENTINEL · BRIEFER
 
-> **COMMANDER:** Update status fields (`✅` / `` / `❌`) and Last Updated after every merge or phase milestone.
+> **COMMANDER:** Update status fields (`✅ / 🚧 / ❌`) and Last Updated after every merge or phase milestone.
 > This file covers all active projects. Add a new project section when a new project starts.
 
 ---
@@ -11,7 +11,7 @@
 ## Active Projects
 
 | Project | Platform | Status | Current Phase |
-|---|---|---|---|
+|---|----|---|---|
 | Crusader | Polymarket | Active | Phase 6 — Production Safety & Stabilization |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 19:28
+**Last Updated:** 2026-04-18 02:13
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 19:28
+**Last Updated:** 2026-04-18 02:13
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -126,17 +126,17 @@
 
 ### Status Legend
 - ✅ = Done (merged + validated)
--  = In Progress
+- 🚧 = In Progress
 - ❌ = Not Started
 
 ### Update Triggers
 
 | Event | Action |
 |---|---|
-| FORGE-X PR merged | Task `❌` / `` → `✅`, add PR # and date in notes |
+| FORGE-X PR merged | Task `❌` / `🚧` → `✅`, add PR # and date in notes |
 | SENTINEL APPROVED | Confirm status truthfully and add score in notes when relevant |
 | Phase complete | Update phase header and Active Projects table |
-| New task scoped | Add row with `❌` or `` as appropriate |
+| New task scoped | Add row with `❌` or `🚧` as appropriate |
 | New project activated | Fill phases/tasks and update Active Projects table |
 
 ### Commit Format
