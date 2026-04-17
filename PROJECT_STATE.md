@@ -1,9 +1,8 @@
-📅 Last Updated : 2026-04-17 17:03
+📅 Last Updated : 2026-04-17 17:08
 - Phase 5.2–5.6 execution, signing, wallet-capital, and settlement boundaries implemented and major-gated SENTINEL validation completed.
-- Phase 6.4.1 Monitoring & Circuit Breaker FOUNDATION contract codified with deterministic taxonomy, precedence, and exposure boundary constant; runtime-wide rollout NOT claimed.
-
+- AGENTS.md and docs/commander_knowledge.md confirmation gate + branch verification / repo-truth drift guard patches are accepted truth on main.
 🎯 NEXT PRIORITY
-- COMMANDER review of PR for Phase 6.4.1 FOUNDATION. Tier: STANDARD. Source: projects/polymarket/polyquantbot/reports/forge/30_3_phase6_4_1_monitoring_circuit_foundation_completion.md
+- COMMANDER review required before merge. Auto PR review optional if used. Source: projects/polymarket/polyquantbot/reports/forge/30_4_phase6_4_1_project_state_template_repair.md. Tier: MINOR
 ⚠️ KNOWN ISSUES
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED.99/100).
 - Phase 6.5.3 wallet state read boundary narrow slice is merged-main accepted truth via PR #536 at WalletStateStorageBoundary.read_state, preserving narrow-scope exclusions.
