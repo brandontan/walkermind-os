@@ -65,6 +65,18 @@ WALLET_CORRECTION_RESULT_ACCEPTED = "correction_accepted"
 WALLET_CORRECTION_RESULT_BLOCKED = "correction_blocked"
 WALLET_CORRECTION_RESULT_PATH_BLOCKED = "correction_path_blocked"
 WALLET_CORRECTION_RESULT_NOT_REQUIRED = "correction_not_required"
+WALLET_RETRY_WORK_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_RETRY_WORK_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_RETRY_WORK_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_RETRY_WORK_BLOCK_NON_RETRYABLE_RESULT = "non_retryable_correction_result"
+WALLET_RETRY_WORK_BLOCK_RETRY_BUDGET_EXHAUSTED = "retry_budget_exhausted"
+WALLET_RETRY_WORK_DECISION_ACCEPTED = "retry_accepted"
+WALLET_RETRY_WORK_DECISION_SKIPPED = "retry_skipped"
+WALLET_RETRY_WORK_DECISION_BLOCKED = "retry_blocked"
+WALLET_RETRY_WORK_DECISION_EXHAUSTED = "retry_exhausted"
+WALLET_RETRY_WORKER_ACTION_RETRY = "retry"
+WALLET_RETRY_WORKER_ACTION_SKIP = "skip"
+WALLET_RETRY_WORK_MAX_BUDGET = 10
 
 
 @dataclass(frozen=True)
@@ -1624,5 +1636,200 @@ def _blocked_correction_result(
         owner_user_id=policy.owner_user_id,
         correction_result_category=correction_result_category,
         applied_revision=None,
+        notes=notes,
+    )
+
+
+@dataclass(frozen=True)
+class WalletReconciliationRetryWorkPolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+    correction_result_category: str
+    correction_blocked_reason: str | None
+    retry_attempt: int
+    retry_budget: int
+    worker_action: str
+
+
+@dataclass(frozen=True)
+class WalletReconciliationRetryWorkResult:
+    success: bool
+    blocked_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    retry_result_category: str
+    accepted_for_retry: bool
+    retry_attempt: int
+    retry_budget: int
+    next_retry_attempt: int | None
+    notes: dict[str, Any] | None = None
+
+
+_WALLET_RETRY_VALID_CORRECTION_RESULT_CATEGORIES: frozenset[str] = frozenset({
+    WALLET_CORRECTION_RESULT_ACCEPTED,
+    WALLET_CORRECTION_RESULT_BLOCKED,
+    WALLET_CORRECTION_RESULT_PATH_BLOCKED,
+    WALLET_CORRECTION_RESULT_NOT_REQUIRED,
+})
+_WALLET_RETRY_RETRYABLE_CORRECTION_BLOCKS: frozenset[str] = frozenset({
+    WALLET_CORRECTION_BLOCK_REVISION_CONFLICT,
+})
+_WALLET_RETRY_VALID_WORKER_ACTIONS: frozenset[str] = frozenset({
+    WALLET_RETRY_WORKER_ACTION_RETRY,
+    WALLET_RETRY_WORKER_ACTION_SKIP,
+})
+
+
+class WalletReconciliationRetryWorkerBoundary:
+    """Phase 6.6.4 narrow reconciliation retry/worker foundation.
+    Accept deterministic owner-scoped retry work items from correction outcomes.
+    Foundation only: no scheduler daemon, no background orchestration mesh."""
+
+    def decide_retry_work_item(
+        self,
+        policy: WalletReconciliationRetryWorkPolicy,
+    ) -> WalletReconciliationRetryWorkResult:
+        contract_error = _validate_retry_work_policy(policy)
+        if contract_error is not None:
+            return _blocked_retry_work_result(
+                policy=policy,
+                blocked_reason=WALLET_RETRY_WORK_BLOCK_INVALID_CONTRACT,
+                retry_result_category=WALLET_RETRY_WORK_DECISION_BLOCKED,
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_retry_work_result(
+                policy=policy,
+                blocked_reason=WALLET_RETRY_WORK_BLOCK_OWNERSHIP_MISMATCH,
+                retry_result_category=WALLET_RETRY_WORK_DECISION_BLOCKED,
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_retry_work_result(
+                policy=policy,
+                blocked_reason=WALLET_RETRY_WORK_BLOCK_WALLET_NOT_ACTIVE,
+                retry_result_category=WALLET_RETRY_WORK_DECISION_BLOCKED,
+                notes={"wallet_active": False},
+            )
+
+        if policy.worker_action == WALLET_RETRY_WORKER_ACTION_SKIP:
+            return WalletReconciliationRetryWorkResult(
+                success=True,
+                blocked_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                retry_result_category=WALLET_RETRY_WORK_DECISION_SKIPPED,
+                accepted_for_retry=False,
+                retry_attempt=policy.retry_attempt,
+                retry_budget=policy.retry_budget,
+                next_retry_attempt=None,
+                notes={"worker_action": policy.worker_action},
+            )
+
+        if not _is_retryable_correction_path(policy):
+            return _blocked_retry_work_result(
+                policy=policy,
+                blocked_reason=WALLET_RETRY_WORK_BLOCK_NON_RETRYABLE_RESULT,
+                retry_result_category=WALLET_RETRY_WORK_DECISION_BLOCKED,
+                notes={
+                    "correction_result_category": policy.correction_result_category,
+                    "correction_blocked_reason": policy.correction_blocked_reason,
+                },
+            )
+
+        if policy.retry_attempt > policy.retry_budget:
+            return _blocked_retry_work_result(
+                policy=policy,
+                blocked_reason=WALLET_RETRY_WORK_BLOCK_RETRY_BUDGET_EXHAUSTED,
+                retry_result_category=WALLET_RETRY_WORK_DECISION_EXHAUSTED,
+                notes={
+                    "retry_attempt": policy.retry_attempt,
+                    "retry_budget": policy.retry_budget,
+                },
+            )
+
+        next_retry_attempt = (
+            policy.retry_attempt + 1
+            if policy.retry_attempt < policy.retry_budget
+            else None
+        )
+        return WalletReconciliationRetryWorkResult(
+            success=True,
+            blocked_reason=None,
+            wallet_binding_id=policy.wallet_binding_id,
+            owner_user_id=policy.owner_user_id,
+            retry_result_category=WALLET_RETRY_WORK_DECISION_ACCEPTED,
+            accepted_for_retry=True,
+            retry_attempt=policy.retry_attempt,
+            retry_budget=policy.retry_budget,
+            next_retry_attempt=next_retry_attempt,
+            notes={
+                "worker_action": policy.worker_action,
+                "retry_budget_remaining": policy.retry_budget - policy.retry_attempt,
+            },
+        )
+
+
+def _validate_retry_work_policy(policy: WalletReconciliationRetryWorkPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    if (
+        not isinstance(policy.correction_result_category, str)
+        or policy.correction_result_category not in _WALLET_RETRY_VALID_CORRECTION_RESULT_CATEGORIES
+    ):
+        return "correction_result_category_invalid"
+    if policy.correction_blocked_reason is not None and not isinstance(policy.correction_blocked_reason, str):
+        return "correction_blocked_reason_must_be_str_or_none"
+    if isinstance(policy.retry_attempt, bool) or not isinstance(policy.retry_attempt, int):
+        return "retry_attempt_must_be_int"
+    if policy.retry_attempt < 1:
+        return "retry_attempt_must_be_positive"
+    if isinstance(policy.retry_budget, bool) or not isinstance(policy.retry_budget, int):
+        return "retry_budget_must_be_int"
+    if policy.retry_budget < 1:
+        return "retry_budget_must_be_positive"
+    if policy.retry_budget > WALLET_RETRY_WORK_MAX_BUDGET:
+        return "retry_budget_exceeds_max"
+    if not isinstance(policy.worker_action, str) or policy.worker_action not in _WALLET_RETRY_VALID_WORKER_ACTIONS:
+        return "worker_action_invalid"
+    return None
+
+
+def _is_retryable_correction_path(policy: WalletReconciliationRetryWorkPolicy) -> bool:
+    if policy.correction_result_category == WALLET_CORRECTION_RESULT_PATH_BLOCKED:
+        return True
+    return (
+        policy.correction_result_category == WALLET_CORRECTION_RESULT_BLOCKED
+        and policy.correction_blocked_reason in _WALLET_RETRY_RETRYABLE_CORRECTION_BLOCKS
+    )
+
+
+def _blocked_retry_work_result(
+    *,
+    policy: WalletReconciliationRetryWorkPolicy,
+    blocked_reason: str,
+    retry_result_category: str,
+    notes: dict[str, Any] | None,
+) -> WalletReconciliationRetryWorkResult:
+    return WalletReconciliationRetryWorkResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        wallet_binding_id=policy.wallet_binding_id,
+        owner_user_id=policy.owner_user_id,
+        retry_result_category=retry_result_category,
+        accepted_for_retry=False,
+        retry_attempt=policy.retry_attempt,
+        retry_budget=policy.retry_budget,
+        next_retry_attempt=None,
         notes=notes,
     )
