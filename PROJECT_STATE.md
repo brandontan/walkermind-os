@@ -1,4 +1,4 @@
-Last Updated : 2026-04-17 19:28
+Last Updated : 2026-04-17 20:01
 Status       : Repo baseline clean after AGENTS.md encoding rules update and PROJECT_STATE template revision. Phase 6.5.9 wallet state exact batch lookup is merged-main truth via PR #546. Phase 6.4.1 Monitoring spec remains in progress.
 
 [COMPLETED]
@@ -23,7 +23,7 @@ Status       : Repo baseline clean after AGENTS.md encoding rules update and PRO
 - Reconciliation mutation and correction workflow beyond the delivered read-only and append-only boundaries.
 
 [NEXT PRIORITY]
-- COMMANDER review required. Source: projects/polymarket/polyquantbot/reports/forge/30_3_state-roadmap-sync.md. Tier: MINOR.
+- COMMANDER review required. Source: projects/polymarket/polyquantbot/reports/forge/phase6-5-9_01_state-roadmap-sync.md. Tier: MINOR.
 - Resolve active Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION work or plan next Phase 6 module after baseline is clean.
 
 [KNOWN ISSUES]

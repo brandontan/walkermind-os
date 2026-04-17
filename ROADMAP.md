@@ -3,7 +3,7 @@
 **Repo:** https://github.com/bayuewalker/walker-ai-team
 **Team:** COMMANDER · FORGE-X · SENTINEL · BRIEFER
 
-> **COMMANDER:** Update status fields (`✅` / `` / `❌`) and Last Updated after every merge or phase milestone.
+> **COMMANDER:** Update status fields (`✅` / `🚧` / `❌`) and Last Updated after every merge or phase milestone.
 > This file covers all active projects. Add a new project section when a new project starts.
 
 ---
@@ -126,14 +126,14 @@
 
 ### Status Legend
 - ✅ = Done (merged + validated)
--  = In Progress
+- 🚧 = In Progress
 - ❌ = Not Started
 
 ### Update Triggers
 
 | Event | Action |
 |---|---|
-| FORGE-X PR merged | Task `❌` / `` → `✅`, add PR # and date in notes |
+| FORGE-X PR merged | Task `❌` / `🚧` → `✅`, add PR # and date in notes |
 | SENTINEL APPROVED | Confirm status truthfully and add score in notes when relevant |
 | Phase complete | Update phase header and Active Projects table |
 | New task scoped | Add row with `❌` or `` as appropriate |
