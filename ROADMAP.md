@@ -3,7 +3,7 @@
 **Repo:** https://github.com/bayuewalker/walker-ai-team
 **Team:** COMMANDER · FORGE-X · SENTINEL · BRIEFER
 
-> **COMMANDER:** Update status fields (`✅` / `` / `❌`) and Last Updated after every merge or phase milestone.
+> **COMMANDER:** Update status fields (`✅` / `🚧` / `❌`) and Last Updated after every merge or phase milestone.
 > This file covers all active projects. Add a new project section when a new project starts.
 
 ---
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 09:23
+**Last Updated:** 2026-04-18 02:25
 
 ## Board Overview
 
@@ -43,16 +43,16 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-17 09:23
+**Last Updated:** 2026-04-18 02:25
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
 | 6.1 | Execution Ledger (In-Memory) | ✅ Done | Deterministic append-only records and read-only reconciliation delivered. |
 | 6.2 | Persistent Ledger & Audit Trail | ✅ Done | Append-only local-file persistence and deterministic reload delivered. |
 | 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479 and preserved as approved carry-forward truth. |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | In Progress | Approved at spec level only; runtime-wide delivery is not claimed. |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Spec Contract | ❌ Not Started | Spec approved only; runtime implementation has not started and is not the active delivery lane. |
 | 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for ExecutionTransport.submit_with_trace narrow integration after SENTINEL APPROVED (95/100). |
-| 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED (99/100). Narrow scope preserved: LiveExecutionAuthorizer.authorize_with_trace + ExecutionTransport.submit_with_trace only. |
+| 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED(99/100). Narrow scope preserved: LiveExecutionAuthorizer.authorize_with_trace + ExecutionTransport.submit_with_trace only. |
 | 6.4.4 | Gateway-Path Monitoring Narrow Integration Expansion | ✅ Done | Runtime/code path merged via PR #493. SENTINEL APPROVED validation path recorded in PR #495 (97/100). Accepted narrow three-path execution monitoring baseline preserved. |
 | 6.4.5 | Exchange-Path Monitoring Narrow Integration Expansion | ✅ Done | Merged truth confirmed after PR #497 and PR #498 at declared narrow scope. Explicit exclusions preserved. |
 | 6.4.6 | Signing-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth confirmed after PR #501 and PR #502 at declared narrow scope. Explicit exclusions preserved. |
@@ -69,6 +69,7 @@
 | 6.5.7 | Wallet Lifecycle Foundation — State Metadata Query Expansion | ✅ Done | Merged-main truth accepted via PR #543 at `WalletStateStorageBoundary.list_state_metadata` with optional deterministic filters (prefix, min revision, max entries) while preserving owner-scope metadata-only output. |
 | 6.5.8 | Wallet Lifecycle Foundation — State Metadata Exact Lookup | ✅ Done | Merged-main truth accepted via PR #544 at `WalletStateStorageBoundary.get_state_metadata` with deterministic metadata-only exact lookup and deterministic block contracts for invalid contract, ownership mismatch, inactive wallet, and not found. |
 | 6.5.9 | Wallet Lifecycle Foundation — State Metadata Exact Batch Lookup | ✅ Done | Merged-main truth accepted via PR #546 at `WalletStateStorageBoundary.get_state_metadata_batch` with owner-scoped metadata-only output, deterministic input-order preservation, and explicit missing-wallet handling via `stored_revision=None`. |
+| 6.5.10 | Wallet Lifecycle Foundation — State Exact Batch Read Boundary | ❌ Not Started | Next forward wallet lifecycle slice after 6.5.9; deliver exact batch state reads without reopening 6.4 as the active lane. |
 
 ---
 
@@ -126,17 +127,17 @@
 
 ### Status Legend
 - ✅ = Done (merged + validated)
--  = In Progress
+- 🚧 = In Progress
 - ❌ = Not Started
 
 ### Update Triggers
 
 | Event | Action |
 |---|---|
-| FORGE-X PR merged | Task `❌` / `` → `✅`, add PR # and date in notes |
+| FORGE-X PR merged | Task `❌` / `🚧` → `✅`, add PR # and date in notes |
 | SENTINEL APPROVED | Confirm status truthfully and add score in notes when relevant |
 | Phase complete | Update phase header and Active Projects table |
-| New task scoped | Add row with `❌` or `` as appropriate |
+| New task scoped | Add row with `❌` or `🚧` as appropriate |
 | New project activated | Fill phases/tasks and update Active Projects table |
 
 ### Commit Format
