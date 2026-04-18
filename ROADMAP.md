@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 11:52
+**Last Updated:** 2026-04-18 16:58
 
 ## Board Overview
 
@@ -87,12 +87,13 @@
 
 **Goal:** Add thin deterministic orchestration contracts over the completed 6.6 baseline without broad automation rollout.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 11:52
+**Last Updated:** 2026-04-18 16:58
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
 | 7.0 | Orchestration and Automation Foundation (Single Public Cycle) | ✅ Done | Deterministic single-cycle orchestration entrypoint `run_public_activation_cycle` merged and preserved as thin synchronous chaining over 6.6.5 -> 6.6.6 -> 6.6.7 -> 6.6.8 -> 6.6.9. |
-| 7.1 | Public Activation Trigger Surface (Single Entrypoint) | 🚧 In Progress | Active on feature/public-activation-trigger-surface-2026-04-18 with one synchronous CLI trigger path invoking `run_public_activation_cycle(...)` and explicit completed/stopped_hold/stopped_blocked mapping; excludes scheduler daemons, async workers, settlement automation, portfolio orchestration, and live trading rollout. |
+| 7.1 | Public Activation Trigger Surface (Single Entrypoint) | ✅ Done | Merged with one synchronous CLI trigger path invoking `run_public_activation_cycle(...)` and explicit completed/stopped_hold/stopped_blocked mapping; excludes scheduler daemons, async workers, settlement automation, portfolio orchestration, and live trading rollout. |
+| 7.2 | Lightweight Automation Scheduler (Single Invocation Cycle) | 🚧 In Progress | Active on feature/lightweight-automation-scheduler-2026-04-18 with deterministic triggered/skipped/blocked scheduler result categories and explicit skip reasons (already_running, window_not_open, quota_reached) and block reasons (schedule_disabled, invalid_contract); one synchronous invocation cycle only; excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
 
 ---
 

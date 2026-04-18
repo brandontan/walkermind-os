@@ -1,15 +1,7 @@
-Last Updated : 2026-04-18 11:52
-Status       : Phase 7.1 public activation trigger surface is now in progress with one synchronous CLI invocation path over the completed 7.0 deterministic cycle contract. Scope remains narrow integration only (no scheduler/worker/live rollout). Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
+Last Updated : 2026-04-18 16:58
+Status       : Phase 7.2 lightweight automation scheduler is now in progress with one synchronous invocation decision cycle over the completed 7.1 trigger surface. Scheduler result categories triggered/skipped/blocked are defined with deterministic skip and block reasons. Scope remains narrow integration only (no distributed schedulers, async workers, or live rollout). Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
 
 [COMPLETED]
-- Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
-- Phase 6.5.3 wallet state read boundary merged via PR #536.
-- Phase 6.5.4 wallet state clear boundary merged via PR #537.
-- Phase 6.5.5 wallet state exists boundary merged via PR #539.
-- Phase 6.5.6 wallet state list metadata boundary merged via PR #541.
-- Phase 6.5.7 wallet state metadata query expansion merged via PR #543.
-- Phase 6.5.8 wallet state metadata exact lookup merged via PR #544.
-- Phase 6.5.9 wallet state metadata exact batch lookup merged via PR #546.
 - Phase 6.5.10 wallet state exact batch read boundary merged via PR #557.
 - Phase 6.6.1 wallet lifecycle state reconciliation foundation merged via PR #558.
 - Phase 6.6.2 wallet lifecycle batch reconciliation merged via PR #559.
@@ -20,9 +12,11 @@ Status       : Phase 7.1 public activation trigger surface is now in progress wi
 - Phase 6.6.7 minimal public activation flow merged via PR #564.
 - Phase 6.6.8 public safety hardening merged via PR #565.
 - Phase 6.6.9 minimal execution hook merged via PR #566.
+- Phase 7.0 deterministic public activation cycle orchestration foundation merged and preserved.
+- Phase 7.1 public activation trigger surface merged with one synchronous CLI invocation path mapping run_public_activation_cycle outcomes to explicit completed/stopped_hold/stopped_blocked trigger results.
 
 [IN PROGRESS]
-- Phase 7.1 public activation trigger surface is active with one synchronous CLI invocation path that maps `run_public_activation_cycle(...)` outcomes to explicit completed/stopped_hold/stopped_blocked trigger results.
+- Phase 7.2 lightweight automation scheduler is active with one synchronous invocation decision cycle over the 7.1 trigger surface; defines triggered/skipped/blocked result categories with deterministic skip reasons (already_running, window_not_open, quota_reached) and block reasons (schedule_disabled, invalid_contract).
 
 [NOT STARTED]
 - Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation has not started; prior spec approval does not claim runtime delivery.
@@ -31,7 +25,7 @@ Status       : Phase 7.1 public activation trigger surface is now in progress wi
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review for Phase 7.1 public activation trigger surface (thin CLI invocation path only).
+- COMMANDER review for Phase 7.2 lightweight automation scheduler (single synchronous invocation cycle over 7.1 trigger surface only).
 - Keep Phase 6.4.1 out of active-lane wording until implementation is explicitly resumed.
 
 [KNOWN ISSUES]
