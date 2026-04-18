@@ -1,12 +1,28 @@
-# fly.toml app configuration file generated for crusaderbot on 2026-04-18T19:41:58Z
+# fly.toml — CrusaderBot on Fly.io
+# App: crusaderbot | Primary region: iad (Virginia)
 #
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+# Entry point:  scripts/run_api.py  (FastAPI, binds $PORT)
+# Health check: GET /health         (always 200 when process is alive)
+# Readiness:    GET /ready          (503 if required env vars missing)
 #
+# Required secrets (set via `fly secrets set`):
+#   DB_DSN   — PostgreSQL connection DSN
+#
+# Optional secrets (see configs/env.example for full list):
+#   REDIS_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, MARKET_IDS
 
 app = 'crusaderbot'
 primary_region = 'iad'
 
 [build]
+  # Build context is projects/polymarket/polyquantbot/ (location of this file).
+  # Dockerfile scaffolds /workspace/projects/polymarket/polyquantbot/ and sets
+  # PYTHONPATH=/workspace so absolute imports resolve correctly.
+
+[env]
+  PORT = "8080"
+  TRADING_MODE = "PAPER"
+  PYTHONPATH = "/workspace"
 
 [http_service]
   internal_port = 8080
@@ -15,6 +31,19 @@ primary_region = 'iad'
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+[[http_service.checks]]
+  grace_period = "30s"
+  interval = "15s"
+  method = "GET"
+  path = "/health"
+  port = 8080
+  timeout = "10s"
 
 [[vm]]
   memory = '1gb'

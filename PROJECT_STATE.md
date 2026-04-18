@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 04:15
-Status       : Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577; post-merge state sync complete; all Phase 7 sub-phases through 7.7 are merged and truthfully reflected; COMMANDER to decide next scoped phase.
+Last Updated : 2026-04-19 11:45
+Status       : Phase 8.1 CrusaderBot Fly.io deploy readiness complete; PR open on claude/crusaderbot-fly-readiness-f2MkV; SENTINEL validation required before merge (Tier: MAJOR).
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -14,7 +14,7 @@ Status       : Phase 7.7 recovery / resume FOUNDATION safety semantics fix merge
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 
 [IN PROGRESS]
-- None.
+- Phase 8.1 CrusaderBot Fly.io deploy readiness — PR open, awaiting SENTINEL validation before merge.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -22,7 +22,7 @@ Status       : Phase 7.7 recovery / resume FOUNDATION safety semantics fix merge
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER to decide next scoped phase after Phase 7.7 post-merge sync; Phase 7.7 recovery/resume FOUNDATION merged via PR #577 and state is truthfully synced.
+- SENTINEL validation required for Phase 8.1 CrusaderBot Fly.io deploy readiness before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8_1_crusaderbot_fly_readiness.md. Tier: MAJOR.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

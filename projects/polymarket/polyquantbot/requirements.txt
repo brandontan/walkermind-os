@@ -1,4 +1,6 @@
 aiohttp
+fastapi
+httpx
 numpy
 pandas
 python-telegram-bot

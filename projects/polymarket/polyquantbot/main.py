@@ -1,13 +1,18 @@
-"""PolyQuantBot — Production entrypoint.
+"""CrusaderBot — Legacy monolithic entrypoint (compatibility shim).
 
-Starts the full trading pipeline with an optional dashboard control panel.
+This file is preserved for backwards compatibility only.
+New deployments should use scripts/run_api.py as the primary Fly.io entry point.
+
+    Fly.io primary:   python scripts/run_api.py   (FastAPI, /health, /ready)
+    Bot standalone:   python scripts/run_bot.py
+    Worker standalone: python scripts/run_worker.py
 
 Environment variables:
     TRADING_MODE          — "PAPER" | "LIVE"  (default: "PAPER")
     ENABLE_LIVE_TRADING   — "true" required for LIVE mode
     DASHBOARD_ENABLED     — "true" to start the dashboard server
     DASHBOARD_API_KEY     — Bearer token for dashboard auth
-    PORT                  — TCP port for dashboard (Railway injects this)
+    PORT                  — TCP port (Fly.io injects this)
     REDIS_URL             — Redis connection URL
     DB_DSN                — PostgreSQL DSN
     TELEGRAM_BOT_TOKEN    — Telegram bot token (optional)
@@ -45,8 +50,8 @@ log = structlog.get_logger(__name__)
 if __package__ in (None, ""):
     sys.path.append(str(Path(__file__).resolve().parents[3]))
 
-# ── Startup log (emitted before any imports so Railway sees it early) ──────────
-print("🚀 PolyQuantBot starting (Railway)")
+# ── Startup log (emitted before any imports so Fly.io sees it early) ──────────
+print("🛡️ CrusaderBot starting (legacy entrypoint — prefer scripts/run_api.py for Fly.io)")
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -56,7 +61,7 @@ async def main() -> None:
     """Async entrypoint — initialise all components and run the pipeline."""
     start_ts = time.time()
 
-    log.info("polyquantbot_startup", ts=start_ts)
+    log.info("crusaderbot_startup", ts=start_ts, entrypoint="main.py", note="legacy shim — prefer scripts/run_api.py")
 
     from projects.polymarket.polyquantbot.core.startup_phase import (
         StartupPhase,

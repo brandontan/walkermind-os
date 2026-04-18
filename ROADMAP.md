@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active | Phase 7 — Orchestration & Automation Foundation |
+| Crusader | Polymarket | Active | Phase 8 — Fly.io Deploy Readiness & CrusaderBot Runtime Surface |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 02:24
+**Last Updated:** 2026-04-19 11:45
 
 ## Board Overview
 
@@ -36,7 +36,8 @@
 | Phase 4 | Execution Formalization & Boundaries | ✅ Done | Internal |
 | Phase 5 | Real Execution & Capital System | ✅ Done | Internal |
 | Phase 6 | Production Safety & Stabilization | ✅ Done | Public Preparation |
-| Phase 7 | Orchestration & Automation Foundation | In Progress | Public Activation Orchestration |
+| Phase 7 | Orchestration & Automation Foundation | ✅ Done | Public Activation Orchestration |
+| Phase 8 | Fly.io Deploy Readiness & CrusaderBot Runtime Surface | 🚧 In Progress | Production Deployment |
 
 ---
 
@@ -86,7 +87,7 @@
 ## Phase 7 — Orchestration & Automation Foundation
 
 **Goal:** Add thin deterministic orchestration contracts over the completed 6.6 baseline without broad automation rollout.  
-**Status:** In Progress  
+**Status:** ✅ Done  
 **Last Updated:** 2026-04-19 04:15
 
 | Sub-Phase | Name | Status | Notes |
@@ -99,6 +100,18 @@
 | 7.5 | Operator Control / Manual Override | ✅ Done | Merged to main via PR #575. Deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation via pure OperatorSchedulerGate and OperatorLoopGate in core/operator_control.py; 49 targeted tests; 181 total phase 7 suite passing. |
 | 7.6 | State Persistence / Execution Memory Foundation | ✅ Done | Completed baseline preserved in core/execution_memory_foundation.py with deterministic local-file load/store/clear boundary for minimal last-run context and explicit invalid_contract blocked behavior; excludes database rollout, Redis, distributed state, replay engine, and broad recovery orchestration claims. |
 | 7.7 | Recovery / Resume Foundation | ✅ Done | Merged via PR #577. Deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision. |
+
+---
+
+## Phase 8 — Fly.io Deploy Readiness & CrusaderBot Runtime Surface
+
+**Goal:** Prepare a real, coherent Fly.io deployment surface. Apply CrusaderBot runtime naming. Split monolithic entrypoint into dedicated API/bot/worker runners. Align structure with Crusader multi-user blueprint.  
+**Status:** 🚧 In Progress  
+**Last Updated:** 2026-04-19 11:45
+
+| Sub-Phase | Name | Status | Notes |
+|---|---|---|---|
+| 8.1 | CrusaderBot Fly.io Deploy Readiness | 🚧 In Progress | PR open on claude/crusaderbot-fly-readiness-f2MkV. SENTINEL validation required (Tier: MAJOR) before merge. 43 tests passing. FastAPI /health + /ready, Dockerfile path fix, scripts/run_api.py as Fly.io CMD. |
 
 ---
 
