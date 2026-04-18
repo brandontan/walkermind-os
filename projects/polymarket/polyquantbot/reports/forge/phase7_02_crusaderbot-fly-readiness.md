@@ -45,8 +45,9 @@ Modified:
 - Runtime-facing branding on the new API and bootstrap surfaces uses `CrusaderBot`
 - FastAPI control-plane surface exists and is launchable via `projects/polymarket/polyquantbot/scripts/run_api.py`
 - `/health` and `/ready` are implemented on the new API surface
-- API startup validates `PORT`, `TRADING_MODE`, `CRUSADER_STARTUP_MODE`, and the live-trading guard contract
+- API startup validates `PORT`, `TRADING_MODE`, the strict-only `CRUSADER_STARTUP_MODE` contract, and the live-trading guard contract
 - Docker healthcheck and Fly health check both target `/health`
+- `/ready` is exposed for application lifecycle visibility, but Fly does not currently probe it
 - Docker default command no longer points at the monolithic root `main.py`
 - Telegram runtime can now be launched independently from the API runtime surface
 - The current-to-target mapping and explicit legacy boundary are documented
@@ -59,12 +60,12 @@ Modified:
 
 # What is next
 
-- Run SENTINEL validation on the new Fly.io deploy path, FastAPI lifecycle contract, and startup validation behavior
+- Re-run SENTINEL validation on the new Fly.io deploy path, FastAPI lifecycle contract, and startup validation behavior
 - Decide the next extraction pass for reducing root `main.py` into a true compatibility shim
 - Continue gradual normalization of legacy API and Telegram layers into the Crusader multi-user blueprint
 
 Validation Tier   : MAJOR
-Claim Level       : FULL RUNTIME INTEGRATION
+Claim Level      : FULL RUNTIME INTEGRATION
 Validation Target : CrusaderBot Fly.io API control-plane runtime, deploy entrypoints, Docker/Fly runtime contract, and startup/health lifecycle surfaces inside `projects/polymarket/polyquantbot/`
 Not in Scope      : legacy root `main.py` extraction, multi-user storage rollout, Telegram handler migration, worker orchestration, database/websocket runtime relocation, and broad folder renames
-Suggested Next    : SENTINEL review required before merge
+Suggested Next    : SENTINEL re-review required before merge
