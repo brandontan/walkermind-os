@@ -87,7 +87,7 @@
 
 **Goal:** Add thin deterministic orchestration contracts over the completed 6.6 baseline without broad automation rollout.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 22:58
+**Last Updated:** 2026-04-19 00:54
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -95,7 +95,8 @@
 | 7.1 | Public Activation Trigger Surface (Single Entrypoint) | ✅ Done | Merged with one synchronous CLI trigger path invoking `run_public_activation_cycle(...)` and explicit completed/stopped_hold/stopped_blocked mapping; excludes scheduler daemons, async workers, settlement automation, portfolio orchestration, and live trading rollout. |
 | 7.2 | Lightweight Automation Scheduler (Single Invocation Cycle) | ✅ Done | Deterministic triggered/skipped/blocked result categories delivered; blocked(invalid_contract) for negative quota; one synchronous invocation cycle only; excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
 | 7.3 | Runtime Auto-Run Loop Foundation (Bounded Synchronous Loop) | 🚧 In Progress | Bounded deterministic loop over the 7.2 scheduler boundary active on claude/runtime-auto-run-loop-cBVTs; loop result categories: completed/stopped_hold/stopped_blocked/exhausted; deterministic stop reasons; excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
-| 7.4 | Observability / Visibility Foundation | 🚧 In Progress | Narrow deterministic visibility layer over 6.4.1 monitoring evaluations, 7.2 scheduler decisions, and 7.3 loop outcomes; visibility categories: visible/partial/blocked; per-iteration records; pure functions only; active on claude/add-observability-visibility-tydYW; pending COMMANDER review (STANDARD tier). |
+| 7.4 | Observability / Visibility Foundation | ✅ Done | Merged to main. Deterministic visibility records (visible/partial/blocked) over Phase 6.4.1 monitoring evaluations, Phase 7.2 scheduler decisions, and Phase 7.3 loop outcomes in monitoring/observability_foundation.py; 45 passing tests; pure functions only; excludes alert delivery, dashboards, distributed monitoring mesh, async workers, cron daemon rollout. |
+| 7.5 | Operator Control / Manual Override | 🚧 In Progress | Active on branch claude/operator-control-override-q2r4g (PR #574). Deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation via pure OperatorSchedulerGate and OperatorLoopGate in core/operator_control.py; 49 targeted tests; 181 total phase 7 suite passing; pending COMMANDER review (STANDARD tier). |
 
 ---
 
