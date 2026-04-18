@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 01:51
-Status       : Phase 7.6 state persistence / execution memory FOUNDATION active on branch feature/phase7-6-state-persistence-execution-memory-foundation-2026-04-18 with deterministic local-file load/store/clear boundary for last-run context; Phase 7.5 operator control / manual override remains active on branch claude/operator-control-override-q2r4g (PR #574); pending COMMANDER review (STANDARD tier).
+Last Updated : 2026-04-19 02:00
+Status       : Phase 7.5 operator control / manual override is merged-main truth via PR #575; Phase 7.6 state persistence / execution memory FOUNDATION remains active on branch feature/phase7-6-state-persistence-execution-memory-foundation-2026-04-18 with deterministic local-file load/store/clear boundary for last-run context; pending COMMANDER review (MINOR tier repo-truth fix).
 
 [COMPLETED]
 - Phase 6.4.1 monitoring and circuit-breaker FOUNDATION implementation merged via PR #572 at monitoring/foundation.py with deterministic ALLOW/BLOCK/HALT contract and 26 targeted tests.
@@ -14,10 +14,10 @@ Status       : Phase 7.6 state persistence / execution memory FOUNDATION active 
 - Phase 7.1 public activation trigger surface merged with one synchronous CLI invocation path mapping run_public_activation_cycle outcomes to explicit completed/stopped_hold/stopped_blocked trigger results.
 - Phase 7.2 lightweight automation scheduler merged with deterministic triggered/skipped/blocked result categories and invalid_contract blocked path for negative quota.
 - Phase 7.4 observability / visibility foundation merged to main; deterministic visibility records (visible/partial/blocked) over Phase 6.4.1 monitoring evaluations, Phase 7.2 scheduler decisions, and Phase 7.3 loop outcomes in monitoring/observability_foundation.py with 45 passing tests.
+- Phase 7.5 operator control / manual override merged to main via PR #575 with deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation through OperatorSchedulerGate + OperatorLoopGate.
 
 [IN PROGRESS]
 - Phase 7.3 runtime auto-run loop foundation is active over the 7.2 scheduler boundary; executes bounded synchronous loop with result categories (completed/stopped_hold/stopped_blocked/exhausted) and deterministic stop reasons; no distributed schedulers, async workers, or cron daemon rollout.
-- Phase 7.5 operator control / manual override active on branch claude/operator-control-override-q2r4g (PR #574); deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation via pure OperatorSchedulerGate and OperatorLoopGate in core/operator_control.py with 49 targeted tests; 181 total phase 7 suite passing; pending COMMANDER review (STANDARD tier).
 - Phase 7.6 state persistence / execution memory FOUNDATION active on branch feature/phase7-6-state-persistence-execution-memory-foundation-2026-04-18 with deterministic local-file boundary in core/execution_memory_foundation.py for explicit load/store/clear of last_run_result, last_scheduler_decision, last_loop_outcome, optional last_operator_control_decision, and last_observability_trace_summary; excludes database/Redis/distributed state/replay/recovery orchestration.
 
 [NOT STARTED]
@@ -27,7 +27,6 @@ Status       : Phase 7.6 state persistence / execution memory FOUNDATION active 
 
 [NEXT PRIORITY]
 - COMMANDER review for Phase 7.3 runtime auto-run loop foundation (STANDARD tier; loop over 7.2 scheduler with completed/stopped_hold/stopped_blocked/exhausted result categories).
-- COMMANDER review and merge for Phase 7.5 operator control / manual override (STANDARD tier; core/operator_control.py with OperatorSchedulerGate + OperatorLoopGate + OperatorControlledLoopBoundary; 49 passing tests; 181 total phase 7 suite passing; PR #574).
 - COMMANDER review for Phase 7.6 state persistence / execution memory FOUNDATION (STANDARD tier; deterministic local-file load/store/clear boundary with invalid_contract blocked behavior and targeted tests).
 
 [KNOWN ISSUES]
