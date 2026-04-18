@@ -1,5 +1,5 @@
-Last Updated : 2026-04-18 18:21
-Status       : Phase 7.3 runtime auto-run loop foundation is active. Bounded deterministic loop over the 7.2 scheduler boundary executes repeated synchronous scheduler cycles with explicit loop result categories (completed/stopped_hold/stopped_blocked/exhausted) and deterministic stop reasons. Scope remains narrow integration only (no distributed schedulers, async workers, or live rollout). Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
+Last Updated : 2026-04-18 22:26
+Status       : Phase 7.3 runtime auto-run loop foundation is active. Phase 6.4.1 monitoring and circuit-breaker FOUNDATION implementation delivered on branch claude/phase6-4-1-monitoring-foundation-5CVsL — deterministic MonitoringDecision (ALLOW/BLOCK/HALT) and MonitoringAnomalyCategory contracts implemented in monitoring/foundation.py with 26 targeted tests; pending COMMANDER review (STANDARD tier).
 
 [COMPLETED]
 - Phase 6.6.3 wallet reconciliation mutation/correction foundation merged via PR #560.
@@ -14,17 +14,17 @@ Status       : Phase 7.3 runtime auto-run loop foundation is active. Bounded det
 - Phase 7.2 lightweight automation scheduler merged with deterministic triggered/skipped/blocked result categories and invalid_contract blocked path for negative quota.
 
 [IN PROGRESS]
+- Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation delivered on branch claude/phase6-4-1-monitoring-foundation-5CVsL; deterministic evaluation contract in monitoring/foundation.py with 26 targeted tests; pending COMMANDER review (STANDARD tier).
 - Phase 7.3 runtime auto-run loop foundation is active over the 7.2 scheduler boundary; executes bounded synchronous loop with result categories (completed/stopped_hold/stopped_blocked/exhausted) and deterministic stop reasons; no distributed schedulers, async workers, or cron daemon rollout.
 
 [NOT STARTED]
-- Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation has not started; prior spec approval does not claim runtime delivery.
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
+- COMMANDER review for Phase 6.4.1 monitoring & circuit-breaker FOUNDATION (STANDARD tier; monitoring/foundation.py with deterministic ALLOW/BLOCK/HALT decision contract and 26 passing tests).
 - COMMANDER review for Phase 7.3 runtime auto-run loop foundation (STANDARD tier; loop over 7.2 scheduler with completed/stopped_hold/stopped_blocked/exhausted result categories).
-- Keep Phase 6.4.1 out of active-lane wording until implementation is explicitly resumed.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
