@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 06:02
-Status       : SENTINEL re-validation after PR #585 blocker patch is CONDITIONAL (no blocker-level mismatch remains); startup and readiness contracts are aligned and pending final COMMANDER gate with environment-complete test evidence.
+Last Updated : 2026-04-19 06:26
+Status       : SENTINEL post-patch verdict for PR #585 is CONDITIONAL with prior blocker classes closed; startup and readiness contracts are aligned, with only environment-limited pytest evidence remaining for COMMANDER gate.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -14,7 +14,7 @@ Status       : SENTINEL re-validation after PR #585 blocker patch is CONDITIONAL
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 
 [IN PROGRESS]
-- SENTINEL re-validation on PR #585 returned CONDITIONAL with blocker closure confirmed and one environment-limited test-evidence follow-up.
+- SENTINEL post-patch re-validation (phase7_03) on PR #585 confirmed blocker closure and retained CONDITIONAL status solely due runner dependency limits.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -22,7 +22,7 @@ Status       : SENTINEL re-validation after PR #585 blocker patch is CONDITIONAL
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER to decide merge gate for PR #585 under CONDITIONAL SENTINEL verdict and request environment-complete runtime test evidence attachment.
+- COMMANDER to decide merge gate for PR #585 under latest CONDITIONAL SENTINEL verdict and require dependency-complete pytest evidence attachment.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
