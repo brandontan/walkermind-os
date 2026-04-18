@@ -446,7 +446,6 @@ header {
   background: rgba(0,245,160,.04);
 }
 
-
 /* ── COLLAPSIBLE SUB-PHASES ── */
 .row.phase-row {
   cursor: pointer;
@@ -542,7 +541,6 @@ footer {
       </div>
     </div>
 
-    <!-- Info strip: key metrics always visible -->
     <div class="header-strip">
       <div class="strip-item">
         <div class="strip-label">Phase</div>
@@ -566,7 +564,6 @@ footer {
       </div>
     </div>
 
-    <!-- View switch at bottom of header -->
     <div class="view-switch">
       <button class="view-btn active" data-view="internal" onclick="setView('internal')">Engineering</button>
       <button class="view-btn" data-view="client" onclick="setView('client')">Executive</button>
@@ -598,8 +595,8 @@ footer {
           <button class="ptab active" id="ptab-phases" onclick="switchProgressTab('phases')">Phases</button>
           <button class="ptab" id="ptab-sub" onclick="switchProgressTab('sub')">Sub-phases</button>
         </div>
-        <div id="ptab-phases-body"><div class="loading">Loading...</div></div>
-        <div id="ptab-sub-body" class="hidden"><div class="loading">Loading...</div></div>
+        <div id="ptab-phases-body"><div class="loading">Syncing phases…</div></div>
+        <div id="ptab-sub-body" class="hidden"><div class="loading">Syncing sub-phases…</div></div>
       </div>
     </div>
 
@@ -607,52 +604,38 @@ footer {
       <div class="card-head" onclick="tog(this)">
         <span id="rightCardIcon">⚡</span>
         <span class="ch-title" id="rightCardTitle">Activity Feed</span>
-        <span class="ch-badge" id="rightCardBadge">Live</span>
+        <span class="ch-badge" id="rightCardBadge">0</span>
         <span class="ch-chev">▼</span>
       </div>
-      <div class="card-body" id="rightCardBody"><div class="loading">Loading...</div></div>
+      <div class="card-body" id="rightCardBody">
+        <div class="loading">Syncing activity…</div>
+      </div>
     </div>
-  </div>
-
-  <div class="card" id="prCard">
-    <div class="card-head" onclick="tog(this)">
-      <span>🔀</span>
-      <span class="ch-title">Open Pull Requests</span>
-      <span class="ch-badge" id="prCount">—</span>
-      <span class="ch-chev">▼</span>
-    </div>
-    <div class="card-body" id="prBody"><div class="loading">Loading...</div></div>
-  </div>
-
-  <div class="card mode-hidden" id="workstreamCard">
-    <div class="card-head" onclick="tog(this)">
-      <span>🧩</span>
-      <span class="ch-title">Active Workstreams</span>
-      <span class="ch-badge">Client View</span>
-      <span class="ch-chev">▼</span>
-    </div>
-    <div class="card-body" id="workstreamBody"><div class="loading">Loading...</div></div>
   </div>
 
   <div class="grid-2">
     <div class="card">
       <div class="card-head" onclick="tog(this)">
-        <span>🏗️</span>
+        <span>🧩</span>
         <span class="ch-title" id="structureTitle">Project Structure</span>
-        <span class="ch-badge" id="structureBadge">Snapshot</span>
+        <span class="ch-badge" id="structureBadge">Live</span>
         <span class="ch-chev">▼</span>
       </div>
-      <div class="card-body" id="structureBody"><div class="loading">Loading...</div></div>
+      <div class="card-body" id="structureBody">
+        <div class="loading">Syncing…</div>
+      </div>
     </div>
 
     <div class="card">
       <div class="card-head" onclick="tog(this)">
-        <span>🧠</span>
-        <span class="ch-title" id="strategyTitle">Strategy Model Status</span>
-        <span class="ch-badge" id="strategyBadge">Snapshot</span>
+        <span>🎯</span>
+        <span class="ch-title" id="strategyTitle">Strategy & Capability Status</span>
+        <span class="ch-badge" id="strategyBadge">Engineering</span>
         <span class="ch-chev">▼</span>
       </div>
-      <div class="card-body" id="strategyBody"><div class="loading">Loading...</div></div>
+      <div class="card-body" id="strategyBody">
+        <div class="loading">Syncing…</div>
+      </div>
     </div>
   </div>
 
@@ -661,7 +644,7 @@ footer {
       <div class="card-head" onclick="tog(this)">
         <span>🛡️</span>
         <span class="ch-title" id="riskTitle">Risk Controls</span>
-        <span class="ch-badge">Fixed</span>
+        <span class="ch-badge">Live</span>
         <span class="ch-chev">▼</span>
       </div>
       <div class="card-body" id="riskBody"></div>
@@ -669,7 +652,7 @@ footer {
 
     <div class="card">
       <div class="card-head" onclick="tog(this)">
-        <span>🎯</span>
+        <span>🏁</span>
         <span class="ch-title" id="targetTitle">Performance Targets</span>
         <span class="ch-badge">Beta → Launch</span>
         <span class="ch-chev">▼</span>
@@ -678,20 +661,47 @@ footer {
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-head closed" onclick="tog(this)">
-      <span>⚠️</span>
-      <span class="ch-title" id="issuesTitle">Known Issues</span>
-      <span class="ch-badge" id="issuesBadge">—</span>
+  <!-- PR card (Engineering) / Workstream card (Executive) -->
+  <div class="card" id="prCard">
+    <div class="card-head" onclick="tog(this)">
+      <span>🔀</span>
+      <span class="ch-title">Open Pull Requests</span>
+      <span class="ch-badge" id="prCount">0</span>
       <span class="ch-chev">▼</span>
     </div>
-    <div class="card-body hidden" id="issuesBody"><div class="loading">Loading...</div></div>
+    <div class="card-body" id="prBody">
+      <div class="loading">Syncing PRs…</div>
+    </div>
+  </div>
+
+  <div class="card mode-hidden" id="workstreamCard">
+    <div class="card-head" onclick="tog(this)">
+      <span>🔁</span>
+      <span class="ch-title">Active Workstreams</span>
+      <span class="ch-badge">Live</span>
+      <span class="ch-chev">▼</span>
+    </div>
+    <div class="card-body" id="workstreamBody">
+      <div class="loading">Syncing…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head" onclick="tog(this)">
+      <span>⚠️</span>
+      <span class="ch-title" id="issuesTitle">Known Issues</span>
+      <span class="ch-badge" id="issuesBadge">0</span>
+      <span class="ch-chev">▼</span>
+    </div>
+    <div class="card-body" id="issuesBody">
+      <div class="loading">Syncing…</div>
+    </div>
   </div>
 
   <footer>
     <div class="footer-text">
-      Walker AI Trading Team · Project Monitor<br>
-      Internal + Client view · <span>LIVE</span> data from GitHub
+      Walker AI Trading Team — CRUSADER Project Monitor<br>
+      Repo: <span>bayuewalker/walker-ai-team</span> · Auto-sync every 5 min
     </div>
     <div class="agent-row">
       <span class="atag at-c">COMMANDER</span>
@@ -733,9 +743,9 @@ function buildStructureItems(view) {
       },
       {
         main: 'Platform layer',
-        sub: 'platform / gateway / accounts / wallet_auth — Phase 2 in progress',
+        sub: 'platform / gateway / accounts / wallet_auth — ' + (active ? active.name + ' in progress' : 'complete'),
         badge: active ? 'Building' : 'Done', cls: active ? 'prog' : 'ok',
-        progress: active ? 40 : 100, meta: 'Multi-user architecture'
+        progress: active ? 55 : 100, meta: 'Multi-user architecture'
       },
       {
         main: 'Phase completion',
@@ -759,8 +769,8 @@ function buildStructureItems(view) {
     },
     {
       main: 'Platform and multi-user layer is being built',
-      sub: 'Currently building the user-facing platform layer on top of the hardened trading core.',
-      badge: 'Active', cls: 'prog', progress: 40, meta: 'Phase 2 in progress'
+      sub: 'Currently building orchestration and automation layer on top of the hardened trading core.',
+      badge: 'Active', cls: 'prog', progress: 55, meta: 'Phase 7 in progress'
     },
     {
       main: 'Overall project progress: ' + pct + '%',
@@ -772,47 +782,33 @@ function buildStructureItems(view) {
 }
 
 function buildStrategyItems(view) {
-  const completed = state.inProgress.length === 0 && state.phases.length > 0;
-  const strategies = ['S1', 'S2', 'S3', 'S4', 'S5'];
-  const pSeries    = ['P7', 'P8', 'P9', 'P10', 'P11', 'P12', 'P13', 'P14', 'P15', 'P16', 'P17'];
-
-  // Detect which are done from completed section of state
-  const completedText = state.phases
-    .filter(p => p.status === '✅')
-    .map(p => p.name).join(' ').toLowerCase();
-
-  const strategiesDone = state.phases.some(p => p.status === '✅');
-  const phase1Done     = state.phases.find(p => p.num === 'Phase 1' && p.status === '✅');
+  const phase6Done = state.phases.some(p => p.num === 'Phase 6' && p.status === '✅');
+  const phase7Active = state.phases.some(p => p.num === 'Phase 7' && p.status === '🚧');
 
   if (view === 'internal') {
     return [
       {
         main: 'Signal strategies (S1–S5)',
         sub: 'Momentum (S1) · Cross-exchange arb (S2) · Smart-money copy (S3) · Aggregation (S4) · Settlement-gap (S5)',
-        badge: phase1Done ? 'Complete' : 'Building',
-        cls:   phase1Done ? 'ok' : 'prog',
-        progress: phase1Done ? 100 : 60,
-        meta: '5 strategies built'
+        badge: 'Complete', cls: 'ok', progress: 100, meta: '5 strategies built'
       },
       {
-        main: 'Execution & risk pipeline (P7–P17)',
+        main: 'Execution & risk pipeline',
         sub: 'Capital sizing · Exposure guard · Feedback loop · Regime detection · Timing · Analytics · Proof lifecycle',
-        badge: phase1Done ? 'Complete' : 'Building',
-        cls:   phase1Done ? 'ok' : 'prog',
-        progress: phase1Done ? 100 : 75,
-        meta: '11 modules built'
+        badge: 'Complete', cls: 'ok', progress: 100, meta: 'P1–P6 hardened'
+      },
+      {
+        main: 'Orchestration & Automation (Phase 7)',
+        sub: 'P7.0 ✅ activation cycle · P7.1 ✅ trigger surface · P7.2 🚧 scheduler contract fix active',
+        badge: phase7Active ? 'Building' : 'Complete',
+        cls:   phase7Active ? 'prog' : 'ok',
+        progress: phase7Active ? 65 : 100,
+        meta: '7.2 contract fix'
       },
       {
         main: 'Validation layer (SENTINEL)',
         sub: 'Pre-flight checks · Max 2 runs per task · Fix-batch protocol · Anti-loop enforced',
-        badge: 'Active', cls: 'ok', progress: 100,
-        meta: 'Quality gate active'
-      },
-      {
-        main: 'Platform strategy rollout',
-        sub: 'Per-user strategy subscriptions · conservative / balanced / aggressive risk profiles · Live/paper mode',
-        badge: 'Planned', cls: 'warn', progress: 0,
-        meta: 'Phase 4 scope'
+        badge: 'Active', cls: 'ok', progress: 100, meta: 'Quality gate active'
       }
     ];
   }
@@ -821,29 +817,20 @@ function buildStrategyItems(view) {
     {
       main: 'Core trading strategy framework is complete',
       sub: 'Five independent strategy models are built and validated — covering momentum, arbitrage, smart-money, and more.',
-      badge: phase1Done ? 'Delivered' : 'In Progress',
-      cls:   phase1Done ? 'ok' : 'prog',
-      progress: phase1Done ? 100 : 65,
-      meta: 'Strategy foundation'
+      badge: 'Delivered', cls: 'ok', progress: 100, meta: 'Strategy foundation'
     },
     {
       main: 'Execution and risk controls are hardened',
       sub: 'A full execution pipeline with capital guardrails, position limits, drawdown protection, and kill-switch is active.',
-      badge: phase1Done ? 'Validated' : 'Building',
-      cls:   phase1Done ? 'ok' : 'prog',
-      progress: phase1Done ? 100 : 75,
-      meta: 'Risk enforcement'
+      badge: 'Validated', cls: 'ok', progress: 100, meta: 'Risk enforcement'
     },
     {
-      main: 'Platform rollout capability is on track',
-      sub: 'The system is being prepared to support multiple users with individual strategies, risk profiles, and wallets.',
-      badge: 'In Progress', cls: 'prog', progress: 35,
-      meta: 'Multi-user phase'
+      main: 'Orchestration automation is being finalized',
+      sub: 'Building lightweight automation scheduler to manage public activation cycles in a controlled, deterministic way.',
+      badge: 'In Progress', cls: 'prog', progress: 65, meta: 'Phase 7 active'
     }
   ];
 }
-
-
 
 // ── UTILS ────────────────────────────────────────────────
 function esc(s) {
@@ -890,10 +877,11 @@ async function fetchRaw(path) {
 
 // ── PARSERS ──────────────────────────────────────────────
 function parseStatus(md) {
+  // Support both "Status : ..." and "Status: ..."
   const patterns = [
+    /^Status\s*[:：]\s*(.+)/m,
     /\* Status\s*[:：]\s*(.+)/,
-    /🔄\s*Status\s*[:：]\s*(.+)/,
-    /Status\s*[:：]\s*(.+)/
+    /🔄\s*Status\s*[:：]\s*(.+)/
   ];
   for (const p of patterns) {
     const m = md.match(p);
@@ -902,6 +890,27 @@ function parseStatus(md) {
   return '—';
 }
 
+// Parses bracket-header sections like [IN PROGRESS], [KNOWN ISSUES], [NEXT PRIORITY]
+function parseBracketSection(md, header) {
+  const lines = md.split('\n');
+  const items = [];
+  let inside = false;
+  const headerPattern = new RegExp('^\\[' + header + '\\]', 'i');
+  const anyHeader = /^\[([A-Z ]+)\]/;
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (headerPattern.test(t)) { inside = true; continue; }
+    if (inside) {
+      if (anyHeader.test(t) && !headerPattern.test(t)) break;
+      const m = line.match(/^[-*]\s+(.+)/);
+      if (m) items.push(m[1].trim());
+    }
+  }
+  return items;
+}
+
+// Legacy emoji-based section parser (fallback)
 function parseSection(md, emoji) {
   const lines = md.split('\n');
   const items = [];
@@ -920,52 +929,78 @@ function parseSection(md, emoji) {
 }
 
 function parseNextPriority(md) {
-  const items = parseSection(md, '🎯');
+  // Try bracket-style [NEXT PRIORITY] first
+  let items = parseBracketSection(md, 'NEXT PRIORITY');
+  if (!items.length) items = parseSection(md, '🎯');
   const text = items.join(' ').trim();
   if (!text) return '—';
   return text.length > 200 ? text.slice(0, 197) + '…' : text;
 }
 
+function parseInProgress(md) {
+  // Try bracket-style [IN PROGRESS] first
+  let items = parseBracketSection(md, 'IN PROGRESS');
+  if (!items.length) items = parseSection(md, '🔧');
+  return items;
+}
+
+function parseIssues(md) {
+  // Try bracket-style [KNOWN ISSUES] first
+  let items = parseBracketSection(md, 'KNOWN ISSUES');
+  if (!items.length) items = parseSection(md, '⚠️');
+  return items;
+}
+
+// ── PHASE PARSER — handles emoji 🚧/✅/❌ AND text "In Progress"/"Done"/"Not Started" ──
 function parsePhases(md) {
   const phases = [];
   const lines = md.split('\n');
-  let inCrusader  = false;
+  let inCrusader   = false;
   let activeTopNum = null;
   let inSubTable   = false;
 
+  // Normalise a status cell to canonical emoji
+  function normaliseStatus(raw) {
+    const s = raw.trim();
+    if (s === '✅' || /done/i.test(s))                    return '✅';
+    if (s === '🚧' || /in.?progress|active/i.test(s))     return '🚧';
+    if (s === '❌' || /not.?started/i.test(s))            return '❌';
+    return s; // keep as-is (e.g. unknown)
+  }
+
   for (const line of lines) {
-    // Enter CRUSADER section
     if (line.includes('PROJECT: CRUSADER')) { inCrusader = true; continue; }
-    // Exit when another PROJECT block starts
     if (inCrusader && /^##\s+[^\w]*PROJECT:/u.test(line) && !line.includes('CRUSADER')) break;
     if (!inCrusader) continue;
 
-    // Phase sub-section header: "## 🚧 Phase 6 — Production Safety..."
+    // Phase section header: "## Phase 7 — Name"
     const mHdr = line.match(/^##\s+.*Phase\s+(\d+)\s*[—-]/);
     if (mHdr) { activeTopNum = 'Phase ' + mHdr[1]; inSubTable = false; continue; }
 
     // Skip separator rows
     if (/^\|\s*[-:]+\s*\|/.test(line)) continue;
 
-    // Detect sub-phase table header: "| Sub-Phase | ..."
+    // Sub-phase table header
     if (/^\|\s*Sub-Phase\s*\|/i.test(line)) { inSubTable = true; continue; }
 
-    // Top-level Board Overview row: "| Phase N | Name | emoji ..."
-    const mTop = line.match(/^\|\s*(Phase \d+)\s*\|\s*([^|]+?)\s*\|\s*([\u2705\u{1F6A7}\u274C])/u);
+    // Top-level Board Overview row: "| Phase N | Name | status | ..."
+    // Status can be emoji OR text like "In Progress" / "Done" / "✅ Done"
+    const mTop = line.match(/^\|\s*(Phase \d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/);
     if (mTop && !inSubTable) {
+      const status = normaliseStatus(mTop[3]);
       activeTopNum = mTop[1];
-      phases.push({ num: mTop[1], name: mTop[2].trim(), status: mTop[3], isSub: false });
+      phases.push({ num: mTop[1], name: mTop[2].trim(), status, isSub: false });
       continue;
     }
 
-    // Sub-phase row: "| 6.1 | Name | emoji ..." (handles 6.4.1 too)
+    // Sub-phase row: "| 7.2 | Name | status | ..."
     if (inSubTable && activeTopNum) {
-      const mSub = line.match(/^\|\s*(\d+\.\d+(?:\.\d+)?)\s*\|\s*([^|]+?)\s*\|\s*([\u2705\u{1F6A7}\u274C])/u);
+      const mSub = line.match(/^\|\s*(\d+\.\d+(?:\.\d+)?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/);
       if (mSub) {
-        phases.push({ num: mSub[1], name: mSub[2].trim(), status: mSub[3], isSub: true, parentPhase: activeTopNum });
+        const status = normaliseStatus(mSub[3]);
+        phases.push({ num: mSub[1], name: mSub[2].trim(), status, isSub: true, parentPhase: activeTopNum });
         continue;
       }
-      // Non-table line exits sub-table
       if (!line.startsWith('|')) inSubTable = false;
     }
   }
@@ -981,9 +1016,9 @@ function phaseBadge(status) {
 
 function feedDot(msg) {
   const m = msg.toLowerCase();
-  if (m.includes('sentinel'))                             return 'fd-y';
-  if (m.includes('merge'))                               return 'fd-g';
-  if (m.includes('fix') || m.includes('feature/'))       return 'fd-b';
+  if (m.includes('sentinel'))                       return 'fd-y';
+  if (m.includes('merge'))                          return 'fd-g';
+  if (m.includes('fix') || m.includes('feature/')) return 'fd-b';
   return 'fd-b';
 }
 
@@ -1000,15 +1035,13 @@ function deriveWorkstreams(prs, inProg) {
   prs.slice(0, 3).forEach(pr => out.push({
     main: pr.title.replace(/^#\d+\s*[—-]\s*/, ''),
     sub: 'Active review or implementation workstream.',
-    badge: 'Active',
-    cls: 'prog'
+    badge: 'Active', cls: 'prog'
   }));
   if (!out.length) {
     inProg.slice(0, 3).forEach(item => out.push({
       main: item,
       sub: 'Current active project focus.',
-      badge: 'Active',
-      cls: 'prog'
+      badge: 'Active', cls: 'prog'
     }));
   }
   return out.length
@@ -1082,9 +1115,9 @@ function buildData(view) {
   if (view === 'internal') {
     return {
       hero: [
-        { label: 'Build Phase',      value: phaseLabel.replace('Phase ', 'P'), sub: phaseName,                   accent: 'var(--green)'  },
-        { label: 'Open PRs',         value: String(openPRs),                    sub: 'Awaiting merge or review',   accent: 'var(--blue)'   },
-        { label: 'In Progress',      value: String(inProgCount),                sub: 'Active tasks',               accent: 'var(--yellow)' },
+        { label: 'Build Phase',      value: phaseLabel.replace('Phase ', 'P'), sub: phaseName,                    accent: 'var(--green)'  },
+        { label: 'Open PRs',         value: String(openPRs),                    sub: 'Awaiting merge or review',    accent: 'var(--blue)'   },
+        { label: 'In Progress',      value: String(inProgCount),                sub: 'Active tasks',                accent: 'var(--yellow)' },
         { label: 'Validation Gate',  value: majorGate,                          sub: state.next || 'Awaiting sync', accent: 'var(--purple)' }
       ],
       summaryLabel: 'Internal Summary',
@@ -1100,8 +1133,8 @@ function buildData(view) {
       prs: prRows,
       riskTitle: 'Risk Controls',
       riskGrid: [
-        ['Kelly α', '0.25'],    ['Max Position', '≤10%'],  ['Daily Loss', '−$2K'],   ['Drawdown Halt', '8%'],
-        ['Max Concurrent', '5'], ['Min Liquidity', '$10K'], ['Kill Switch', 'ON'],    ['Validation Gate', majorGate]
+        ['Kelly α', '0.25'],      ['Max Position', '≤10%'],   ['Daily Loss', '−$2K'],   ['Drawdown Halt', '8%'],
+        ['Max Concurrent', '5'],  ['Min Liquidity', '$10K'],  ['Kill Switch', 'ON'],     ['Validation Gate', majorGate]
       ],
       targetTitle: 'Performance Targets',
       targets: [
@@ -1119,10 +1152,10 @@ function buildData(view) {
 
   return {
     hero: [
-      { label: 'Current Phase',        value: phaseLabel || '—',                   sub: phaseName,                               accent: 'var(--green)'  },
-      { label: 'Progress',             value: progressPct + '%',                    sub: 'Project milestones completed',           accent: 'var(--blue)'   },
-      { label: 'Current Focus',        value: inProgCount ? 'Active' : 'Review',    sub: 'Validation, stability, and delivery',    accent: 'var(--yellow)' },
-      { label: 'Delivery Confidence',  value: confidence,                           sub: 'Controlled progress',                    accent: 'var(--purple)' }
+      { label: 'Current Phase',        value: phaseLabel || '—',                sub: phaseName,                               accent: 'var(--green)'  },
+      { label: 'Progress',             value: progressPct + '%',                  sub: 'Project milestones completed',           accent: 'var(--blue)'   },
+      { label: 'Current Focus',        value: inProgCount ? 'Active' : 'Review', sub: 'Validation, stability, and delivery',    accent: 'var(--yellow)' },
+      { label: 'Delivery Confidence',  value: confidence,                         sub: 'Controlled progress',                    accent: 'var(--purple)' }
     ],
     summaryLabel: 'Executive Summary',
     summaryText: state.status && state.status !== '—'
@@ -1137,7 +1170,8 @@ function buildData(view) {
       main:  x.main.replace(/^Phase \d+ — /, ''),
       sub:   x.sub,
       badge: x.badge === 'Done' ? 'Complete' : x.badge === 'In Progress' ? 'Active' : x.badge === 'Pending' ? 'Upcoming' : x.badge,
-      cls:   x.cls
+      cls:   x.cls,
+      isSub: x.isSub
     })),
     rightIcon:  '📈',
     rightTitle: 'Recent Progress',
@@ -1152,8 +1186,8 @@ function buildData(view) {
     workstreams: deriveWorkstreams(state.prs, state.inProgress),
     riskTitle: 'Risk & Quality Controls',
     riskGrid: [
-      ['Position Limit', 'Controlled'], ['Loss Limit', 'Hard Stop'],    ['Kill Switch', 'Active'],      ['Validation', 'Required'],
-      ['Execution Guard', 'Enabled'],   ['Data Checks', 'Enabled'],     ['Review Path', 'Controlled'],  ['Release Gate', 'Strict']
+      ['Position Limit', 'Controlled'], ['Loss Limit', 'Hard Stop'],   ['Kill Switch', 'Active'],     ['Validation', 'Required'],
+      ['Execution Guard', 'Enabled'],   ['Data Checks', 'Enabled'],    ['Review Path', 'Controlled'], ['Release Gate', 'Strict']
     ],
     targetTitle: 'Target Outcomes',
     targets: [
@@ -1180,7 +1214,6 @@ function renderHero(data) {
 }
 
 function rows(items) {
-  // Group: collect top-level rows, attach sub-rows to their parent
   const out = [];
   let lastParentIdx = -1;
   items.forEach((item, i) => {
@@ -1194,10 +1227,10 @@ function rows(items) {
   });
 
   const html = out.map(({ item, subs, hasSubs }, idx) => {
-    const groupId = 'sg-' + idx;
+    const groupId   = 'sg-' + idx;
     const phaseClass = hasSubs ? ' phase-row' : '';
-    const chevron = hasSubs ? '<span class="phase-chevron">▶</span>' : '';
-    const onclick  = hasSubs ? `onclick="toggleSubs('${groupId}', this)"` : '';
+    const chevron   = hasSubs ? '<span class="phase-chevron">▶</span>' : '';
+    const onclick   = hasSubs ? `onclick="toggleSubs('${groupId}', this)"` : '';
 
     const subHtml = subs.length ? `
     <div class="sub-group" id="${groupId}">
@@ -1283,11 +1316,11 @@ function render() {
   const data = buildData(currentView);
   renderHero(data);
 
-  // Update header strip
-  const topP = state.phases.filter(p => !p.isSub);
+  // Header strip
+  const topP   = state.phases.filter(p => !p.isSub);
   const active = topP.find(p => p.status === '🚧') || topP[topP.length - 1];
-  const pNum = active ? active.num.replace('Phase ', 'P') : '—';
-  const pShort = active ? pNum + ' · ' + active.name.split(' ').slice(0,3).join(' ') : '—';
+  const pNum   = active ? active.num.replace('Phase ', 'P') : '—';
+  const pShort = active ? pNum + ' · ' + active.name.split(' ').slice(0, 3).join(' ') : '—';
   document.getElementById('stripPhase').textContent    = pShort;
   document.getElementById('stripPRs').textContent      = state.prs.length + ' open';
   document.getElementById('stripProgress').textContent = state.inProgress.length + ' tasks';
@@ -1300,23 +1333,23 @@ function render() {
   document.getElementById('focusText').textContent      = data.focusText;
   document.getElementById('progressTitle').textContent  = data.progressTitle;
   document.getElementById('progressBadge').textContent  = data.progressBadge;
-  // Split progressItems into top-level phases and sub-phases
+
   const _topItems = data.progressItems.filter(x => !x.isSub);
   const _subItems = data.progressItems.filter(x => x.isSub);
   document.getElementById('ptab-phases-body').innerHTML = rows(_topItems);
   document.getElementById('ptab-sub-body').innerHTML    = _subItems.length
     ? rows(_subItems)
     : '<div class="row-sub" style="padding:12px 4px;color:var(--muted)">No sub-phases for current view.</div>';
-  // Update sub-tab label with active phase
-  const _activeTop = state.phases.filter(p => !p.isSub).find(p => p.status === '\u{1F6A7}');
-  const _subLabel  = _activeTop ? _activeTop.num.replace('Phase ','P') + ' Sub-phases' : 'Sub-phases';
+
+  const _activeTop = state.phases.filter(p => !p.isSub).find(p => p.status === '🚧');
+  const _subLabel  = _activeTop ? _activeTop.num.replace('Phase ', 'P') + ' Sub-phases' : 'Sub-phases';
   document.getElementById('ptab-sub').textContent = _subLabel;
+
   document.getElementById('rightCardIcon').textContent  = data.rightIcon;
   document.getElementById('rightCardTitle').textContent = data.rightTitle;
   document.getElementById('rightCardBadge').textContent = data.rightBadge;
   document.getElementById('rightCardBody').innerHTML    = feed(data.rightItems);
 
-  // Auto-parsed structure + strategy
   const isInternal = currentView === 'internal';
   document.getElementById('structureTitle').textContent  = isInternal ? 'Project Structure' : 'System Architecture';
   document.getElementById('structureBadge').textContent  = isInternal ? 'Live' : 'Overview';
@@ -1353,8 +1386,8 @@ async function loadState() {
   const md = await fetchRaw('PROJECT_STATE.md');
   state.status     = parseStatus(md);
   state.next       = parseNextPriority(md);
-  state.inProgress = parseSection(md, '🔧');
-  state.issues     = parseSection(md, '⚠️');
+  state.inProgress = parseInProgress(md);
+  state.issues     = parseIssues(md);
 }
 
 async function loadRoadmap() {
@@ -1364,8 +1397,8 @@ async function loadRoadmap() {
 
 async function loadPRs() {
   const [prRes, commitRes] = await Promise.all([
-    fetch(API + '/pulls?state=open&per_page=20&t='   + Date.now(), { headers: { Accept: 'application/vnd.github.v3+json' } }),
-    fetch(API + '/commits?per_page=15&t=' + Date.now(), { headers: { Accept: 'application/vnd.github.v3+json' } })
+    fetch(API + '/pulls?state=open&per_page=20&t='  + Date.now(), { headers: { Accept: 'application/vnd.github.v3+json' } }),
+    fetch(API + '/commits?per_page=15&t=' + Date.now(),           { headers: { Accept: 'application/vnd.github.v3+json' } })
   ]);
 
   if (!prRes.ok)     throw new Error('PR API '     + prRes.status);
@@ -1377,7 +1410,7 @@ async function loadPRs() {
   state.prs = prs.map(pr => {
     const labels = (pr.labels || []).map(l => l.name).join(', ');
     let sub = labels ? labels : 'Open review item';
-    if (/needs-fix|blocked/i.test(labels))              sub = 'Blocked · ' + labels;
+    if (/needs-fix|blocked/i.test(labels))             sub = 'Blocked · ' + labels;
     else if (/major/i.test(pr.title + ' ' + labels))   sub = 'Major review item';
     return {
       number: pr.number,
