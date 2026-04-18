@@ -316,6 +316,9 @@ Immediate FAIL / BLOCKED if:
 - `PROJECT_STATE.md` appended instead of section-replaced
 - `PROJECT_STATE.md` contains markdown headings inside sections
 - project-local `PROJECT_STATE.md` exists alongside repo-root version
+- COMMANDER merged a PR but did not sync PROJECT_STATE.md to reflect merged state
+- COMMANDER merged a PR but did not sync ROADMAP.md when roadmap-level truth changed
+- COMMANDER proceeded to the next build task before post-merge sync was completed
 - SENTINEL opens or recommends direct-to-main bypass of validated source branch
 - file contains mojibake or non-UTF-8 byte sequences (encoding corruption)
 
@@ -533,6 +536,7 @@ Use the checklist matching the declared Validation Tier. Do not run MAJOR checkl
 [ ] Runtime or behavior evidence attached
 [ ] Negative / break-attempt considered for risk-execution paths
 [ ] Max 5 files per commit preferred; split if needed
+[ ] ROADMAP.md updated if roadmap-level truth changed (active phase, milestone, task status)
 ```
 
 If any check fails: fix in same branch, re-run, only open PR after required checks pass.
@@ -819,6 +823,37 @@ Post-merge sync rules:
 - Must complete before next task is opened
 
 Failure to sync before next task = repo state drift.
+
+## POST-MERGE SYNC RULE (COMMANDER — MANDATORY)
+
+After every PR merge, COMMANDER must complete post-merge sync before proceeding.
+
+COMMANDER owns post-merge truth. FORGE-X and SENTINEL update state inside their branches.
+After merge to main, COMMANDER is responsible for verifying that PROJECT_STATE.md and ROADMAP.md
+on main reflect actual merged state.
+
+Post-merge checklist (run after every merge):
+- Read PROJECT_STATE.md on main — verify STATUS, COMPLETED, IN PROGRESS, NEXT PRIORITY are current
+- Read ROADMAP.md on main — verify active phase (🚧), completed phases (✅), and Board Overview are current
+- Verify PROJECT_STATE.md and ROADMAP.md are in sync on active phase and next milestone
+- If any file is stale → generate chore/core-state-sync-{date} fix immediately
+
+When to update PROJECT_STATE.md after merge:
+- FORGE-X PR → verify accuracy, fix if stale
+- SENTINEL PR → update IN PROGRESS and NEXT PRIORITY to reflect verdict
+- Any PR that changes delivery state → update COMPLETED if milestone reached
+
+When to update ROADMAP.md after merge:
+- Phase milestone completed → mark phase ✅, update Board Overview
+- Task within active phase merged → update task status in phase table
+- New tasks added → add rows with ❌
+- Code-only fix with no roadmap impact → no update needed
+- Report-only with no milestone change → no update needed
+
+Hard rule:
+- COMMANDER must not generate the next build task until post-merge sync is verified complete
+- Post-merge state sync qualifies as COMMANDER direct-fix (no FORGE-X task needed)
+- Commit message for sync: chore: post-merge state sync — [task/PR name]
 
 ## REPORT ARCHIVE RULE
 
