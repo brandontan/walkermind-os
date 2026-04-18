@@ -14,10 +14,10 @@ Status       : Phase 7.3 runtime auto-run loop foundation is active. Phase 6.4.1
 - Phase 7.2 lightweight automation scheduler merged with deterministic triggered/skipped/blocked result categories and invalid_contract blocked path for negative quota.
 
 [IN PROGRESS]
+- Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation delivered on branch claude/phase6-4-1-monitoring-foundation-5CVsL; deterministic evaluation contract in monitoring/foundation.py with 26 targeted tests; pending COMMANDER review (STANDARD tier).
 - Phase 7.3 runtime auto-run loop foundation is active over the 7.2 scheduler boundary; executes bounded synchronous loop with result categories (completed/stopped_hold/stopped_blocked/exhausted) and deterministic stop reasons; no distributed schedulers, async workers, or cron daemon rollout.
 
 [NOT STARTED]
-- Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation delivered on branch claude/phase6-4-1-monitoring-foundation-5CVsL; deterministic evaluation contract in monitoring/foundation.py with 26 targeted tests; pending COMMANDER review (STANDARD tier).
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
