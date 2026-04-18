@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 05:32
-Status       : SENTINEL validation for PR #585 (branch `refactor/infra-crusaderbot-fly-readiness-20260419`) is BLOCKED pending startup-mode contract fix and Fly readiness-contract documentation alignment.
+Last Updated : 2026-04-19 05:39
+Status       : PR #585 blocker patch is applied on branch `refactor/infra-crusaderbot-fly-readiness-20260419`; startup-mode contract is now strict-only and Fly readiness documentation is aligned to `/health` checks before SENTINEL re-validation.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -14,7 +14,7 @@ Status       : SENTINEL validation for PR #585 (branch `refactor/infra-crusaderb
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 
 [IN PROGRESS]
-- SENTINEL validation for PR #585 completed with BLOCKED verdict on startup-mode contract semantics and `/ready` readiness-contract documentation mismatch.
+- PR #585 blocker patch pass completed: strict-only startup contract and readiness contract wording now match deployed Fly `/health` checks.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -22,10 +22,9 @@ Status       : SENTINEL validation for PR #585 (branch `refactor/infra-crusaderb
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- FORGE-X to patch PR #585 startup-mode contract semantics and align readiness contract documentation/config, then return to SENTINEL for re-validation.
+- SENTINEL to re-run MAJOR validation on PR #585 after startup-mode contract and readiness-doc alignment patch.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 6.4 narrow monitoring remains intentionally scoped and not yet the active implementation lane.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning -- carried forward as non-runtime higiene backlog.
-- [DEFERRED] Fly readiness contract doc currently overstates `/ready` as active Fly check path in PR #585.

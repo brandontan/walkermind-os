@@ -5,7 +5,7 @@ CrusaderBot now has explicit runtime surfaces inside `projects/polymarket/polyqu
 - Telegram bootstrap at `client/telegram/bot.py`
 - deploy/run scripts at `scripts/run_api.py`, `scripts/run_bot.py`, and `scripts/run_worker.py`
 
-Fly.io and Docker now target the FastAPI runtime surface instead of the monolithic root `main.py`. The new API surface exposes `/health` and `/ready`, binds Fly-injected `PORT`, performs deterministic startup validation, and logs graceful shutdown lifecycle events. The runtime-facing service name is `CrusaderBot`.
+Fly.io and Docker now target the FastAPI runtime surface instead of the monolithic root `main.py`. The new API surface exposes `/health` and `/ready`, binds Fly-injected `PORT`, enforces a strict-only startup mode contract, and logs graceful shutdown lifecycle events. The runtime-facing service name is `CrusaderBot`.
 
 # Current system architecture
 
@@ -45,7 +45,7 @@ Modified:
 - Runtime-facing branding on the new API and bootstrap surfaces uses `CrusaderBot`
 - FastAPI control-plane surface exists and is launchable via `projects/polymarket/polyquantbot/scripts/run_api.py`
 - `/health` and `/ready` are implemented on the new API surface
-- API startup validates `PORT`, `TRADING_MODE`, `CRUSADER_STARTUP_MODE`, and the live-trading guard contract
+- API startup validates `PORT`, `TRADING_MODE`, strict-only `CRUSADER_STARTUP_MODE`, and the live-trading guard contract
 - Docker healthcheck and Fly health check both target `/health`
 - Docker default command no longer points at the monolithic root `main.py`
 - Telegram runtime can now be launched independently from the API runtime surface
@@ -59,7 +59,7 @@ Modified:
 
 # What is next
 
-- Run SENTINEL validation on the new Fly.io deploy path, FastAPI lifecycle contract, and startup validation behavior
+- Re-run SENTINEL validation on the Fly.io deploy path, FastAPI lifecycle contract, startup-mode contract, and readiness documentation alignment
 - Decide the next extraction pass for reducing root `main.py` into a true compatibility shim
 - Continue gradual normalization of legacy API and Telegram layers into the Crusader multi-user blueprint
 
@@ -67,4 +67,4 @@ Validation Tier   : MAJOR
 Claim Level       : FULL RUNTIME INTEGRATION
 Validation Target : CrusaderBot Fly.io API control-plane runtime, deploy entrypoints, Docker/Fly runtime contract, and startup/health lifecycle surfaces inside `projects/polymarket/polyquantbot/`
 Not in Scope      : legacy root `main.py` extraction, multi-user storage rollout, Telegram handler migration, worker orchestration, database/websocket runtime relocation, and broad folder renames
-Suggested Next    : SENTINEL review required before merge
+Suggested Next    : SENTINEL re-validation required before merge
