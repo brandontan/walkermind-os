@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 04:41
+**Last Updated:** 2026-04-18 05:10
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 04:41
+**Last Updated:** 2026-04-18 05:10
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -73,7 +73,8 @@
 | 6.6.1 | Wallet Lifecycle State Reconciliation Foundation | ✅ Done | Merged-main truth accepted via PR #558 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state` with deterministic outcome categories: match, state_missing, revision_mismatch, snapshot_mismatch. |
 | 6.6.2 | Wallet Lifecycle Batch Reconciliation | ✅ Done | Merged-main truth accepted via PR #559 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state_batch` with deterministic per-entry outcomes in exact input order. |
 | 6.6.3 | Wallet Reconciliation Mutation Correction Foundation | ✅ Done | Merged-main truth accepted via PR #560 at `WalletReconciliationCorrectionBoundary.apply_correction` with deterministic correction decision categories and block reasons. |
-| 6.6.4 | Wallet Reconciliation Retry/Worker Foundation | 🚧 In Progress | Narrow retry/worker foundation contract implemented on feature/wallet-reconciliation-retry-worker-foundation-2026-04-18; pending COMMANDER review. Explicit exclusions preserved: no scheduler daemon, no background orchestration mesh, no broad automation rollout. |
+| 6.6.4 | Wallet Reconciliation Retry/Worker Foundation | ✅ Done | Merged-main truth accepted via PR #561 at `WalletReconciliationRetryWorkerBoundary.decide_retry_work_item` with deterministic accepted/skipped/blocked/exhausted retry preparation outcomes and explicit block contracts. |
+| 6.6.5 | Public Readiness Slice Opener Foundation | 🚧 In Progress | Active on feature/public-readiness-slice-opener-2026-04-18 for evaluation-only go/hold/blocked preparation contract using declared 6.5.x/6.6.x readiness inputs; no live activation, scheduler rollout, settlement automation, or portfolio orchestration claimed. |
 
 ---
 
