@@ -2177,3 +2177,170 @@ def _blocked_activation_gate_result(
         activation_notes=activation_notes,
         notes=notes,
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 6.6.7 -- Minimal Public Activation Flow
+# ---------------------------------------------------------------------------
+
+ACTIVATION_FLOW_STOP_INVALID_CONTRACT = "invalid_contract"
+ACTIVATION_FLOW_STOP_GATE_DENIED_HOLD = "gate_denied_hold"
+ACTIVATION_FLOW_STOP_GATE_DENIED_BLOCKED = "gate_denied_blocked"
+ACTIVATION_FLOW_RESULT_COMPLETED = "completed"
+ACTIVATION_FLOW_RESULT_STOPPED_HOLD = "stopped_hold"
+ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED = "stopped_blocked"
+
+_ACTIVATION_FLOW_VALID_READINESS_RESULTS: frozenset[str] = frozenset({
+    WALLET_PUBLIC_READINESS_RESULT_GO,
+    WALLET_PUBLIC_READINESS_RESULT_HOLD,
+    WALLET_PUBLIC_READINESS_RESULT_BLOCKED,
+})
+_ACTIVATION_FLOW_VALID_GATE_RESULTS: frozenset[str] = frozenset({
+    WALLET_ACTIVATION_GATE_RESULT_ALLOWED,
+    WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD,
+    WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED,
+})
+
+
+@dataclass(frozen=True)
+class MinimalPublicActivationFlowPolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requester_user_id: str
+    wallet_active: bool
+    readiness_result_category: str
+    readiness_notes: list[str]
+    activation_result_category: str
+    activation_notes: list[str]
+
+
+@dataclass(frozen=True)
+class MinimalPublicActivationFlowResult:
+    flow_completed: bool
+    stop_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    flow_result_category: str
+    flow_notes: list[str]
+    notes: dict[str, Any] | None
+
+
+class MinimalPublicActivationFlowBoundary:
+    """Phase 6.6.7 thin orchestration slice.
+    Consumes declared 6.6.5 readiness and 6.6.6 gate outputs and routes
+    deterministically to completed / stopped_hold / stopped_blocked.
+    No scheduler, no automation, no live trading enablement.
+    """
+
+    def run_activation_flow(
+        self, policy: MinimalPublicActivationFlowPolicy
+    ) -> MinimalPublicActivationFlowResult:
+        contract_error = _validate_activation_flow_policy(policy)
+        if contract_error is not None:
+            return _stopped_activation_flow_result(
+                policy=policy,
+                stop_reason=ACTIVATION_FLOW_STOP_INVALID_CONTRACT,
+                flow_result_category=ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED,
+                flow_notes=["contract_error"],
+                notes={"contract_error": contract_error},
+            )
+        if policy.requester_user_id != policy.owner_user_id:
+            return _stopped_activation_flow_result(
+                policy=policy,
+                stop_reason=ACTIVATION_FLOW_STOP_INVALID_CONTRACT,
+                flow_result_category=ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED,
+                flow_notes=["owner_mismatch"],
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+        if not policy.wallet_active:
+            return _stopped_activation_flow_result(
+                policy=policy,
+                stop_reason=ACTIVATION_FLOW_STOP_INVALID_CONTRACT,
+                flow_result_category=ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED,
+                flow_notes=["wallet_not_active"],
+                notes={"wallet_active": False},
+            )
+
+        if policy.activation_result_category == WALLET_ACTIVATION_GATE_RESULT_ALLOWED:
+            return MinimalPublicActivationFlowResult(
+                flow_completed=True,
+                stop_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                flow_result_category=ACTIVATION_FLOW_RESULT_COMPLETED,
+                flow_notes=list(policy.activation_notes) + ["activation_gate_allowed"],
+                notes={
+                    "readiness_result_category": policy.readiness_result_category,
+                    "activation_result_category": policy.activation_result_category,
+                },
+            )
+
+        if policy.activation_result_category == WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD:
+            return _stopped_activation_flow_result(
+                policy=policy,
+                stop_reason=ACTIVATION_FLOW_STOP_GATE_DENIED_HOLD,
+                flow_result_category=ACTIVATION_FLOW_RESULT_STOPPED_HOLD,
+                flow_notes=list(policy.activation_notes) + ["activation_gate_denied_hold"],
+                notes={
+                    "readiness_result_category": policy.readiness_result_category,
+                    "activation_result_category": policy.activation_result_category,
+                },
+            )
+
+        return _stopped_activation_flow_result(
+            policy=policy,
+            stop_reason=ACTIVATION_FLOW_STOP_GATE_DENIED_BLOCKED,
+            flow_result_category=ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED,
+            flow_notes=list(policy.activation_notes) + ["activation_gate_denied_blocked"],
+            notes={
+                "readiness_result_category": policy.readiness_result_category,
+                "activation_result_category": policy.activation_result_category,
+            },
+        )
+
+
+def _validate_activation_flow_policy(
+    policy: MinimalPublicActivationFlowPolicy,
+) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requester_user_id, str) or not policy.requester_user_id.strip():
+        return "requester_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    if (
+        not isinstance(policy.readiness_result_category, str)
+        or policy.readiness_result_category not in _ACTIVATION_FLOW_VALID_READINESS_RESULTS
+    ):
+        return "readiness_result_category_invalid"
+    if not isinstance(policy.readiness_notes, list):
+        return "readiness_notes_must_be_list"
+    if (
+        not isinstance(policy.activation_result_category, str)
+        or policy.activation_result_category not in _ACTIVATION_FLOW_VALID_GATE_RESULTS
+    ):
+        return "activation_result_category_invalid"
+    if not isinstance(policy.activation_notes, list):
+        return "activation_notes_must_be_list"
+    return None
+
+
+def _stopped_activation_flow_result(
+    *,
+    policy: MinimalPublicActivationFlowPolicy,
+    stop_reason: str,
+    flow_result_category: str,
+    flow_notes: list[str],
+    notes: dict[str, Any] | None,
+) -> MinimalPublicActivationFlowResult:
+    return MinimalPublicActivationFlowResult(
+        flow_completed=False,
+        stop_reason=stop_reason,
+        wallet_binding_id=policy.wallet_binding_id,
+        owner_user_id=policy.owner_user_id,
+        flow_result_category=flow_result_category,
+        flow_notes=flow_notes,
+        notes=notes,
+    )
