@@ -1,4 +1,4 @@
-Last Updated : 2026-04-19 05:03
+Last Updated : 2026-04-19 06:37
 Status       : CrusaderBot Fly.io deploy-readiness runtime split is in progress on branch `refactor/infra-crusaderbot-fly-readiness-20260419`; new FastAPI, Telegram, and worker runtime surfaces are added under `projects/polymarket/polyquantbot/` and Fly/Docker now target the API surface instead of the monolithic root `main.py`.
 
 [COMPLETED]
@@ -14,7 +14,7 @@ Status       : CrusaderBot Fly.io deploy-readiness runtime split is in progress 
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 
 [IN PROGRESS]
-- CrusaderBot Fly.io deploy-readiness refactor is in progress on branch `refactor/infra-crusaderbot-fly-readiness-20260419` with new `server/main.py`, `client/telegram/bot.py`, and `scripts/run_api.py` runtime surfaces plus Docker/Fly contract updates.
+- SENTINEL final re-validation completed for PR #585 patched head `0bedfa4c6266ced725f74234cc79a91ae53157fa`; blocker themes on startup-mode contract truth and /ready health-probe claim are cleared with APPROVED gate recommendation to COMMANDER.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -22,7 +22,7 @@ Status       : CrusaderBot Fly.io deploy-readiness runtime split is in progress 
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL to validate the CrusaderBot Fly.io deploy path, FastAPI lifecycle contract, startup validation behavior, and the documented legacy boundary before merge.
+- COMMANDER to decide merge/hold for PR #585 using the new SENTINEL APPROVED verdict and evidence at `projects/polymarket/polyquantbot/reports/sentinel/phase7_02_crusaderbot-fly-readiness-revalidation.md`.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
