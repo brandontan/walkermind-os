@@ -2581,3 +2581,224 @@ def _validate_hardening_policy(policy: PublicSafetyHardeningPolicy) -> str | Non
     ):
         return "flow_result_category_invalid"
     return None
+
+
+# ---------------------------------------------------------------------------
+# Phase 6.6.9 -- Minimal Execution Hook
+# ---------------------------------------------------------------------------
+
+EXECUTION_HOOK_STOP_INVALID_CONTRACT = "invalid_contract"
+EXECUTION_HOOK_STOP_HARDENING_BLOCKED = "hardening_blocked"
+EXECUTION_HOOK_STOP_HARDENING_HOLD = "hardening_hold"
+EXECUTION_HOOK_STOP_FLOW_NOT_COMPLETED = "flow_not_completed"
+EXECUTION_HOOK_STOP_GATE_NOT_ALLOWED = "gate_not_allowed"
+
+EXECUTION_HOOK_RESULT_EXECUTED = "executed"
+EXECUTION_HOOK_RESULT_STOPPED_HOLD = "stopped_hold"
+EXECUTION_HOOK_RESULT_STOPPED_BLOCKED = "stopped_blocked"
+
+_EXECUTION_HOOK_VALID_HARDENING_OUTCOMES: frozenset[str] = frozenset({
+    PUBLIC_SAFETY_HARDENING_OUTCOME_PASS,
+    PUBLIC_SAFETY_HARDENING_OUTCOME_HOLD,
+    PUBLIC_SAFETY_HARDENING_OUTCOME_BLOCKED,
+})
+_EXECUTION_HOOK_VALID_FLOW_RESULTS: frozenset[str] = frozenset({
+    ACTIVATION_FLOW_RESULT_COMPLETED,
+    ACTIVATION_FLOW_RESULT_STOPPED_HOLD,
+    ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED,
+})
+_EXECUTION_HOOK_VALID_GATE_RESULTS: frozenset[str] = frozenset({
+    WALLET_ACTIVATION_GATE_RESULT_ALLOWED,
+    WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD,
+    WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED,
+})
+
+
+@dataclass(frozen=True)
+class MinimalExecutionHookPolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requester_user_id: str
+    wallet_active: bool
+    hardening_outcome: str
+    flow_result_category: str
+    activation_result_category: str
+
+
+@dataclass(frozen=True)
+class MinimalExecutionHookResult:
+    hook_executed: bool
+    stop_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    hook_result_category: str
+    execution_hook_notes: list[str]
+    notes: dict[str, Any] | None = None
+
+
+class MinimalExecutionHookBoundary:
+    """Phase 6.6.9 minimal execution hook.
+    Executes only when the cross-boundary path is explicitly safe and completed.
+    Consumes declared outputs from 6.6.6 gate, 6.6.7 flow, and 6.6.8 hardening.
+    Hook-only: no scheduler daemon, no live trading rollout, no portfolio orchestration."""
+
+    def execute_hook(
+        self, policy: MinimalExecutionHookPolicy
+    ) -> MinimalExecutionHookResult:
+        contract_error = _validate_execution_hook_policy(policy)
+        if contract_error is not None:
+            return _stopped_execution_hook_result(
+                policy=policy,
+                stop_reason=EXECUTION_HOOK_STOP_INVALID_CONTRACT,
+                hook_result_category=EXECUTION_HOOK_RESULT_STOPPED_BLOCKED,
+                execution_hook_notes=["contract_error"],
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requester_user_id != policy.owner_user_id:
+            return _stopped_execution_hook_result(
+                policy=policy,
+                stop_reason=EXECUTION_HOOK_STOP_INVALID_CONTRACT,
+                hook_result_category=EXECUTION_HOOK_RESULT_STOPPED_BLOCKED,
+                execution_hook_notes=["owner_mismatch"],
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if not policy.wallet_active:
+            return _stopped_execution_hook_result(
+                policy=policy,
+                stop_reason=EXECUTION_HOOK_STOP_INVALID_CONTRACT,
+                hook_result_category=EXECUTION_HOOK_RESULT_STOPPED_BLOCKED,
+                execution_hook_notes=["wallet_not_active"],
+                notes={"wallet_active": False},
+            )
+
+        if policy.hardening_outcome == PUBLIC_SAFETY_HARDENING_OUTCOME_BLOCKED:
+            return _stopped_execution_hook_result(
+                policy=policy,
+                stop_reason=EXECUTION_HOOK_STOP_HARDENING_BLOCKED,
+                hook_result_category=EXECUTION_HOOK_RESULT_STOPPED_BLOCKED,
+                execution_hook_notes=["hardening_blocked"],
+                notes={"hardening_outcome": policy.hardening_outcome},
+            )
+
+        if policy.hardening_outcome == PUBLIC_SAFETY_HARDENING_OUTCOME_HOLD:
+            return _stopped_execution_hook_result(
+                policy=policy,
+                stop_reason=EXECUTION_HOOK_STOP_HARDENING_HOLD,
+                hook_result_category=EXECUTION_HOOK_RESULT_STOPPED_HOLD,
+                execution_hook_notes=["hardening_hold"],
+                notes={"hardening_outcome": policy.hardening_outcome},
+            )
+
+        # hardening_outcome == PASS from here
+        if policy.flow_result_category == ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED:
+            return _stopped_execution_hook_result(
+                policy=policy,
+                stop_reason=EXECUTION_HOOK_STOP_FLOW_NOT_COMPLETED,
+                hook_result_category=EXECUTION_HOOK_RESULT_STOPPED_BLOCKED,
+                execution_hook_notes=["flow_stopped_blocked"],
+                notes={
+                    "hardening_outcome": policy.hardening_outcome,
+                    "flow_result_category": policy.flow_result_category,
+                },
+            )
+
+        if policy.flow_result_category == ACTIVATION_FLOW_RESULT_STOPPED_HOLD:
+            return _stopped_execution_hook_result(
+                policy=policy,
+                stop_reason=EXECUTION_HOOK_STOP_FLOW_NOT_COMPLETED,
+                hook_result_category=EXECUTION_HOOK_RESULT_STOPPED_HOLD,
+                execution_hook_notes=["flow_stopped_hold"],
+                notes={
+                    "hardening_outcome": policy.hardening_outcome,
+                    "flow_result_category": policy.flow_result_category,
+                },
+            )
+
+        # flow_result_category == COMPLETED from here
+        if policy.activation_result_category == WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED:
+            return _stopped_execution_hook_result(
+                policy=policy,
+                stop_reason=EXECUTION_HOOK_STOP_GATE_NOT_ALLOWED,
+                hook_result_category=EXECUTION_HOOK_RESULT_STOPPED_BLOCKED,
+                execution_hook_notes=["gate_denied_blocked"],
+                notes={
+                    "hardening_outcome": policy.hardening_outcome,
+                    "flow_result_category": policy.flow_result_category,
+                    "activation_result_category": policy.activation_result_category,
+                },
+            )
+
+        if policy.activation_result_category == WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD:
+            return _stopped_execution_hook_result(
+                policy=policy,
+                stop_reason=EXECUTION_HOOK_STOP_GATE_NOT_ALLOWED,
+                hook_result_category=EXECUTION_HOOK_RESULT_STOPPED_HOLD,
+                execution_hook_notes=["gate_denied_hold"],
+                notes={
+                    "hardening_outcome": policy.hardening_outcome,
+                    "flow_result_category": policy.flow_result_category,
+                    "activation_result_category": policy.activation_result_category,
+                },
+            )
+
+        return MinimalExecutionHookResult(
+            hook_executed=True,
+            stop_reason=None,
+            wallet_binding_id=policy.wallet_binding_id,
+            owner_user_id=policy.owner_user_id,
+            hook_result_category=EXECUTION_HOOK_RESULT_EXECUTED,
+            execution_hook_notes=["hardening_pass", "flow_completed", "gate_allowed"],
+            notes={
+                "hardening_outcome": policy.hardening_outcome,
+                "flow_result_category": policy.flow_result_category,
+                "activation_result_category": policy.activation_result_category,
+            },
+        )
+
+
+def _validate_execution_hook_policy(policy: MinimalExecutionHookPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requester_user_id, str) or not policy.requester_user_id.strip():
+        return "requester_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    if (
+        not isinstance(policy.hardening_outcome, str)
+        or policy.hardening_outcome not in _EXECUTION_HOOK_VALID_HARDENING_OUTCOMES
+    ):
+        return "hardening_outcome_invalid"
+    if (
+        not isinstance(policy.flow_result_category, str)
+        or policy.flow_result_category not in _EXECUTION_HOOK_VALID_FLOW_RESULTS
+    ):
+        return "flow_result_category_invalid"
+    if (
+        not isinstance(policy.activation_result_category, str)
+        or policy.activation_result_category not in _EXECUTION_HOOK_VALID_GATE_RESULTS
+    ):
+        return "activation_result_category_invalid"
+    return None
+
+
+def _stopped_execution_hook_result(
+    *,
+    policy: MinimalExecutionHookPolicy,
+    stop_reason: str,
+    hook_result_category: str,
+    execution_hook_notes: list[str],
+    notes: dict[str, Any] | None,
+) -> MinimalExecutionHookResult:
+    return MinimalExecutionHookResult(
+        hook_executed=False,
+        stop_reason=stop_reason,
+        wallet_binding_id=policy.wallet_binding_id,
+        owner_user_id=policy.owner_user_id,
+        hook_result_category=hook_result_category,
+        execution_hook_notes=execution_hook_notes,
+        notes=notes,
+    )
