@@ -3,7 +3,7 @@
 **Repo:** https://github.com/bayuewalker/walker-ai-team
 **Team:** COMMANDER · FORGE-X · SENTINEL · BRIEFER
 
-> **COMMANDER:** Update status fields (`✅` / `🚧` / `❌`) and Last Updated after every merge or phase milestone.
+> **COMMANDER:** Update status fields (`✅` / `` / `❌`) and Last Updated after every merge or phase milestone.
 > This file covers all active projects. Add a new project section when a new project starts.
 
 ---
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 02:24
+**Last Updated:** 2026-04-19 11:45
 
 ## Board Overview
 
@@ -40,6 +40,125 @@
 
 ---
 
+## CrusaderBot — Fly.io Deploy Readiness Checklist
+
+**Goal:** Prepare CrusaderBot for Fly.io deployment while keeping the project rooted at `projects/polymarket/polyquantbot/` and aligning the structure toward the Crusader multi-user blueprint.  
+**Status:** In Progress  
+**Last Updated:** 2026-04-19 11:45
+
+### Scope Lock
+- [x] Keep the working root at `projects/polymarket/polyquantbot/`
+- [x] Use `CrusaderBot` as the runtime-facing product name
+- [x] Keep the task scoped to deploy-readiness + structural cleanup
+- [x] Keep the folder name `polyquantbot` for now
+- [x] Treat validation as `MAJOR`
+- [x] Require SENTINEL before merge
+
+### Baseline Audit
+- [x] Read `PROJECT_STATE.md`
+- [x] Read `ROADMAP.md`
+- [x] Inspect `projects/polymarket/polyquantbot/` structure
+- [x] Confirm deploy artifacts exist:
+  - [x] `projects/polymarket/polyquantbot/Dockerfile`
+  - [x] `projects/polymarket/polyquantbot/fly.toml`
+- [x] Inspect current primary runtime entrypoint:
+  - [x] `projects/polymarket/polyquantbot/main.py`
+- [x] Confirm the current structure is still polyquantbot-centric
+- [x] Confirm the current structure is not yet aligned with the Crusader multi-user blueprint
+- [x] Confirm `main.py` is oversized and acting as an orchestration sink
+- [x] Confirm overlapping / mixed layers exist:
+  - [x] `api`
+  - [x] `interface`
+  - [x] `telegram`
+  - [x] `ui`
+  - [x] `views`
+  - [x] `legacy`
+- [ ] Inventory active import paths that must remain compatible
+- [ ] Inventory legacy-only modules
+- [ ] Inventory Fly-critical versus optional runtime surfaces
+
+### Target Structure Planning
+- [x] Define target structural direction:
+  - [x] `client/telegram/`
+  - [x] `client/web/`
+  - [x] `server/api/`
+  - [x] `server/services/`
+  - [x] `server/utils/`
+  - [x] `configs/`
+  - [x] `scripts/`
+- [x] Confirm cleanup strategy is structural normalization, not a rewrite
+- [x] Confirm `main.py` should become a thin bootstrap or compatibility shim
+- [x] Confirm Telegram handlers should become thinner
+- [x] Confirm FastAPI should become the clear control-plane runtime surface
+- [ ] Produce exact mapping from current directories to target directories
+- [ ] Decide what moves now vs later
+- [ ] Decide what becomes explicit legacy
+- [ ] Decide which compatibility shims are required
+
+### Entrypoints and Runtime Surfaces
+- [ ] Create `projects/polymarket/polyquantbot/server/main.py`
+- [ ] Create `projects/polymarket/polyquantbot/client/telegram/bot.py`
+- [ ] Create `projects/polymarket/polyquantbot/scripts/run_api.py`
+- [ ] Create `projects/polymarket/polyquantbot/scripts/run_bot.py`
+- [ ] Create `projects/polymarket/polyquantbot/scripts/run_worker.py`
+- [ ] Reduce root `main.py` to a thin compatibility wrapper if needed
+- [ ] Remove oversized startup responsibility from root `main.py`
+- [ ] Ensure new entrypoints resolve imports cleanly
+
+### FastAPI Control Plane
+- [ ] Implement minimal FastAPI app in `server/main.py`
+- [ ] Add `/health`
+- [ ] Add `/ready` if truthful and useful
+- [ ] Bind to Fly-injected `PORT`
+- [ ] Add deterministic startup validation for required env
+- [ ] Add graceful shutdown behavior
+- [ ] Make CrusaderBot the runtime-facing app name
+
+### Telegram Bootstrap Cleanup
+- [ ] Move Telegram bootstrap responsibility into `client/telegram/bot.py`
+- [ ] Keep Telegram runtime independently launchable
+- [ ] Keep Telegram handlers thin
+- [ ] Remove deploy-critical logic from Telegram handler layer
+- [ ] Ensure Telegram runtime does not block the API runtime path
+
+### Fly.io Deployment Contract
+- [ ] Update `projects/polymarket/polyquantbot/fly.toml`
+- [ ] Ensure Fly config matches the actual runtime process model
+- [ ] Ensure internal port matches app binding
+- [ ] Ensure health check path matches implemented route
+- [ ] Ensure machine/process command points to the correct entrypoint
+- [ ] Update `projects/polymarket/polyquantbot/Dockerfile`
+- [ ] Ensure Docker startup command is coherent
+- [ ] Ensure no stale command still points at the old monolithic runtime path
+
+### Config, Compatibility, and Proof
+- [ ] Define minimum deploy-critical environment variables
+- [ ] Separate required vs optional env
+- [ ] Document what stayed, what moved, and what is now legacy
+- [ ] Avoid fake abstraction and dead imports
+- [ ] Add startup/import tests
+- [ ] Add `/health` test
+- [ ] Add deploy-critical config validation tests
+- [ ] Add deploy notes under project docs
+- [ ] Create a FORGE report under `projects/polymarket/polyquantbot/reports/forge/`
+- [ ] Update `PROJECT_STATE.md` truthfully when execution starts
+- [ ] Open PR from `refactor/infra-crusaderbot-fly-readiness-20260419`
+- [ ] Request SENTINEL review before merge
+
+### Final Acceptance Gate
+- [ ] Runtime-facing name is `CrusaderBot`
+- [ ] Project remains under `projects/polymarket/polyquantbot/`
+- [ ] Fly.io deploy surface is real and coherent
+- [ ] FastAPI health path works
+- [ ] Entrypoints are cleaner than baseline
+- [ ] Structure is materially closer to the Crusader blueprint
+- [ ] No fake abstraction introduced
+- [ ] FORGE report exists
+- [ ] State files are truthful
+- [ ] PR is ready for COMMANDER + SENTINEL
+
+---
+
 ## Phase 6 — Production Safety & Stabilization
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
@@ -51,30 +170,30 @@
 | 6.1 | Execution Ledger (In-Memory) | ✅ Done | Deterministic append-only records and read-only reconciliation delivered. |
 | 6.2 | Persistent Ledger & Audit Trail | ✅ Done | Append-only local-file persistence and deterministic reload delivered. |
 | 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479 and preserved as approved carry-forward truth. |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Implementation | ✅ Done | Merged via PR #572 with deterministic contract in monitoring/foundation.py — MonitoringDecision (ALLOW/BLOCK/HALT), MonitoringAnomalyCategory (8 types), evaluate_monitoring_contract() pure evaluator, 26 passing tests. |
-| 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for ExecutionTransport.submit_with_trace narrow integration after SENTINEL APPROVED (95/100). |
-| 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED(99/100). Narrow scope preserved: LiveExecutionAuthorizer.authorize_with_trace + ExecutionTransport.submit_with_trace only. |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Implementation | ✅ Done | Merged via PR #572 with deterministic contract in `monitoring/foundation.py`. |
+| 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for `ExecutionTransport.submit_with_trace` narrow integration after SENTINEL APPROVED (95/100). |
+| 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED (99/100). Narrow scope preserved: `LiveExecutionAuthorizer.authorize_with_trace` + `ExecutionTransport.submit_with_trace` only. |
 | 6.4.4 | Gateway-Path Monitoring Narrow Integration Expansion | ✅ Done | Runtime/code path merged via PR #493. SENTINEL APPROVED validation path recorded in PR #495 (97/100). Accepted narrow three-path execution monitoring baseline preserved. |
 | 6.4.5 | Exchange-Path Monitoring Narrow Integration Expansion | ✅ Done | Merged truth confirmed after PR #497 and PR #498 at declared narrow scope. Explicit exclusions preserved. |
 | 6.4.6 | Signing-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth confirmed after PR #501 and PR #502 at declared narrow scope. Explicit exclusions preserved. |
 | 6.4.7 | Capital-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth confirmed after PR #504 and PR #505 at declared narrow scope. Explicit exclusions preserved. |
-| 6.4.8 | Settlement-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth accepted for narrow settlement boundary at FundSettlementEngine.settle_with_trace with deterministic ALLOW/BLOCK/HALT monitoring decisions. |
-| 6.4.9 | Orchestration-Entry Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth accepted for narrow orchestration-entry boundary at ExecutionActivationGate.evaluate_with_trace with deterministic ALLOW/BLOCK/HALT monitoring decisions. |
+| 6.4.8 | Settlement-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth accepted for narrow settlement boundary at `FundSettlementEngine.settle_with_trace` with deterministic ALLOW/BLOCK/HALT monitoring decisions. |
+| 6.4.9 | Orchestration-Entry Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth accepted for narrow orchestration-entry boundary at `ExecutionActivationGate.evaluate_with_trace` with deterministic ALLOW/BLOCK/HALT monitoring decisions. |
 | 6.4.10 | Adapter-Boundary Monitoring Narrow Integration Expansion | ✅ Done | Merged-main truth accepted after PR #513 and PR #514 at declared narrow scope. |
-| 6.5.1 | Wallet Lifecycle Foundation — Secret Loading Contract | ✅ Done | Merged-main accepted truth: deterministic wallet secret loading contract at `WalletSecretLoader.load_secret` with ownership + activation constraints and no plaintext secret output. |
-| 6.5.2 | Wallet Lifecycle Foundation — State/Storage Boundary Contract | ✅ Done | Merged-main accepted truth after PR #524 at `WalletStateStorageBoundary.store_state` with deterministic success and block contracts for active/inactive and valid/invalid wallet state snapshots. |
-| 6.5.3 | Wallet Lifecycle Foundation — State Read Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #536 at `WalletStateStorageBoundary.read_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found reads. |
-| 6.5.4 | Wallet Lifecycle Foundation — State Clear Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #537 at `WalletStateStorageBoundary.clear_state` with deterministic success and block contracts for invalid contract, ownership mismatch, inactive wallet, and not-found clears. |
-| 6.5.5 | Wallet Lifecycle Foundation — State Exists Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #539 at `WalletStateStorageBoundary.has_state` with deterministic success true/false and block contracts for invalid contract, ownership mismatch, and inactive wallet. |
-| 6.5.6 | Wallet Lifecycle Foundation — State List Metadata Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #541 at `WalletStateStorageBoundary.list_state_metadata` with real per-entry owner-scoped filtering, deterministic success (sorted metadata-only entries: wallet_binding_id + stored_revision), and block contracts for invalid contract, ownership mismatch, and inactive wallet. No full snapshot exposure. |
-| 6.5.7 | Wallet Lifecycle Foundation — State Metadata Query Expansion | ✅ Done | Merged-main truth accepted via PR #543 at `WalletStateStorageBoundary.list_state_metadata` with optional deterministic filters (prefix, min revision, max entries) while preserving owner-scope metadata-only output. |
-| 6.5.8 | Wallet Lifecycle Foundation — State Metadata Exact Lookup | ✅ Done | Merged-main truth accepted via PR #544 at `WalletStateStorageBoundary.get_state_metadata` with deterministic metadata-only exact lookup and deterministic block contracts for invalid contract, ownership mismatch, inactive wallet, and not found. |
-| 6.5.9 | Wallet Lifecycle Foundation — State Metadata Exact Batch Lookup | ✅ Done | Merged-main truth accepted via PR #546 at `WalletStateStorageBoundary.get_state_metadata_batch` with owner-scoped metadata-only output, deterministic input-order preservation, and explicit missing-wallet handling via `stored_revision=None`. |
-| 6.5.10 | Wallet Lifecycle Foundation — State Exact Batch Read Boundary | ✅ Done | Merged-main truth accepted via PR #557 at `WalletStateStorageBoundary.read_state_batch` with owner-scoped full snapshot output, deterministic input-order preservation, and explicit missing-wallet handling via `state_found=False`. |
-| 6.6.1 | Wallet Lifecycle State Reconciliation Foundation | ✅ Done | Merged-main truth accepted via PR #558 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state` with deterministic outcome categories: match, state_missing, revision_mismatch, snapshot_mismatch. |
-| 6.6.2 | Wallet Lifecycle Batch Reconciliation | ✅ Done | Merged-main truth accepted via PR #559 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state_batch` with deterministic per-entry outcomes in exact input order. |
-| 6.6.3 | Wallet Reconciliation Mutation Correction Foundation | ✅ Done | Merged-main truth accepted via PR #560 at `WalletReconciliationCorrectionBoundary.apply_correction` with deterministic correction decision categories and block reasons. |
-| 6.6.4 | Wallet Reconciliation Retry/Worker Foundation | ✅ Done | Merged-main truth accepted via PR #561 at `WalletReconciliationRetryWorkerBoundary.decide_retry_work_item` with deterministic accepted/skipped/blocked/exhausted retry preparation outcomes and explicit block contracts. |
+| 6.5.1 | Wallet Lifecycle Foundation — Secret Loading Contract | ✅ Done | Merged-main accepted truth at `WalletSecretLoader.load_secret` with ownership + activation constraints and no plaintext secret output. |
+| 6.5.2 | Wallet Lifecycle Foundation — State/Storage Boundary Contract | ✅ Done | Merged-main accepted truth after PR #524 at `WalletStateStorageBoundary.store_state`. |
+| 6.5.3 | Wallet Lifecycle Foundation — State Read Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #536 at `WalletStateStorageBoundary.read_state`. |
+| 6.5.4 | Wallet Lifecycle Foundation — State Clear Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #537 at `WalletStateStorageBoundary.clear_state`. |
+| 6.5.5 | Wallet Lifecycle Foundation — State Exists Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #539 at `WalletStateStorageBoundary.has_state`. |
+| 6.5.6 | Wallet Lifecycle Foundation — State List Metadata Boundary Narrow Slice | ✅ Done | Merged-main accepted truth after PR #541 at `WalletStateStorageBoundary.list_state_metadata`. |
+| 6.5.7 | Wallet Lifecycle Foundation — State Metadata Query Expansion | ✅ Done | Merged-main truth accepted via PR #543 at `WalletStateStorageBoundary.list_state_metadata`. |
+| 6.5.8 | Wallet Lifecycle Foundation — State Metadata Exact Lookup | ✅ Done | Merged-main truth accepted via PR #544 at `WalletStateStorageBoundary.get_state_metadata`. |
+| 6.5.9 | Wallet Lifecycle Foundation — State Metadata Exact Batch Lookup | ✅ Done | Merged-main truth accepted via PR #546 at `WalletStateStorageBoundary.get_state_metadata_batch`. |
+| 6.5.10 | Wallet Lifecycle Foundation — State Exact Batch Read Boundary | ✅ Done | Merged-main truth accepted via PR #557 at `WalletStateStorageBoundary.read_state_batch`. |
+| 6.6.1 | Wallet Lifecycle State Reconciliation Foundation | ✅ Done | Merged-main truth accepted via PR #558 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state`. |
+| 6.6.2 | Wallet Lifecycle Batch Reconciliation | ✅ Done | Merged-main truth accepted via PR #559 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state_batch`. |
+| 6.6.3 | Wallet Reconciliation Mutation Correction Foundation | ✅ Done | Merged-main truth accepted via PR #560 at `WalletReconciliationCorrectionBoundary.apply_correction`. |
+| 6.6.4 | Wallet Reconciliation Retry/Worker Foundation | ✅ Done | Merged-main truth accepted via PR #561 at `WalletReconciliationRetryWorkerBoundary.decide_retry_work_item`. |
 | 6.6.5 | Public Readiness Slice Opener Foundation | ✅ Done | Merged via PR #562 with deterministic go/hold/blocked readiness evaluation contract. |
 | 6.6.6 | Public Activation Gate Foundation | ✅ Done | Merged via PR #563 with deterministic allowed/denied_hold/denied_blocked gate outcomes. |
 | 6.6.7 | Minimal Public Activation Flow Foundation | ✅ Done | Merged via PR #564 with deterministic completed/stopped_hold/stopped_blocked thin flow routing. |
@@ -92,13 +211,13 @@
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
 | 7.0 | Orchestration and Automation Foundation (Single Public Cycle) | ✅ Done | Deterministic single-cycle orchestration entrypoint `run_public_activation_cycle` merged and preserved as thin synchronous chaining over 6.6.5 -> 6.6.6 -> 6.6.7 -> 6.6.8 -> 6.6.9. |
-| 7.1 | Public Activation Trigger Surface (Single Entrypoint) | ✅ Done | Merged with one synchronous CLI trigger path invoking `run_public_activation_cycle(...)` and explicit completed/stopped_hold/stopped_blocked mapping; excludes scheduler daemons, async workers, settlement automation, portfolio orchestration, and live trading rollout. |
-| 7.2 | Lightweight Automation Scheduler (Single Invocation Cycle) | ✅ Done | Deterministic triggered/skipped/blocked result categories delivered; blocked(invalid_contract) for negative quota; one synchronous invocation cycle only; excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
-| 7.3 | Runtime Auto-Run Loop Foundation (Bounded Synchronous Loop) | ✅ Done | Finalized as merged-main truth with preserved bounded synchronous loop behavior over the 7.2 scheduler boundary and unchanged loop result categories (completed/stopped_hold/stopped_blocked/exhausted); excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
-| 7.4 | Observability / Visibility Foundation | ✅ Done | Merged to main. Deterministic visibility records (visible/partial/blocked) over Phase 6.4.1 monitoring evaluations, Phase 7.2 scheduler decisions, and Phase 7.3 loop outcomes in monitoring/observability_foundation.py; 45 passing tests; pure functions only; excludes alert delivery, dashboards, distributed monitoring mesh, async workers, cron daemon rollout. |
-| 7.5 | Operator Control / Manual Override | ✅ Done | Merged to main via PR #575. Deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation via pure OperatorSchedulerGate and OperatorLoopGate in core/operator_control.py; 49 targeted tests; 181 total phase 7 suite passing. |
-| 7.6 | State Persistence / Execution Memory Foundation | ✅ Done | Completed baseline preserved in core/execution_memory_foundation.py with deterministic local-file load/store/clear boundary for minimal last-run context and explicit invalid_contract blocked behavior; excludes database rollout, Redis, distributed state, replay engine, and broad recovery orchestration claims. |
-| 7.7 | Recovery / Resume Foundation | ✅ Done | Merged via PR #577. Deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision. |
+| 7.1 | Public Activation Trigger Surface (Single Entrypoint) | ✅ Done | Merged with one synchronous CLI trigger path invoking `run_public_activation_cycle(...)` and explicit completed/stopped_hold/stopped_blocked mapping. |
+| 7.2 | Lightweight Automation Scheduler (Single Invocation Cycle) | ✅ Done | Deterministic triggered/skipped/blocked result categories delivered; blocked(`invalid_contract`) for negative quota; one synchronous invocation cycle only. |
+| 7.3 | Runtime Auto-Run Loop Foundation (Bounded Synchronous Loop) | ✅ Done | Finalized as merged-main truth with preserved bounded synchronous loop behavior over the 7.2 scheduler boundary and unchanged loop result categories. |
+| 7.4 | Observability / Visibility Foundation | ✅ Done | Merged to main. Deterministic visibility records (visible/partial/blocked) over Phase 6.4.1 monitoring evaluations, Phase 7.2 scheduler decisions, and Phase 7.3 loop outcomes in `monitoring/observability_foundation.py`; 45 passing tests. |
+| 7.5 | Operator Control / Manual Override | ✅ Done | Merged to main via PR #575. Deterministic `OperatorControlDecision` injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation. |
+| 7.6 | State Persistence / Execution Memory Foundation | ✅ Done | Completed baseline preserved in `core/execution_memory_foundation.py` with deterministic local-file load/store/clear boundary for minimal last-run context and explicit invalid_contract blocked behavior. |
+| 7.7 | Recovery / Resume Foundation | ✅ Done | Merged via PR #577. Deterministic `force_block -> blocked`, `hold -> restart_fresh`, and closed terminal loop outcomes (`completed`/`stopped_hold`/`exhausted`) -> `restart_fresh` over Phase 7.6 execution memory only. |
 
 ---
 
@@ -156,18 +275,18 @@
 
 ### Status Legend
 - ✅ = Done (merged + validated)
-- 🚧 = In Progress
+-  = In Progress
 - ❌ = Not Started
 
 ### Update Triggers
 
 | Event | Action |
 |---|---|
-| FORGE-X PR merged | Task `❌` / `🚧` → `✅`, add PR # and date in notes |
+| FORGE-X PR merged | Task `❌` / `` → `✅`, add PR # and date in notes |
 | SENTINEL APPROVED | Confirm status truthfully and add score in notes when relevant |
 | Phase complete | Update phase header and Active Projects table |
-| New task scoped | Add row with `❌` or `🚧` as appropriate |
+| New task scoped | Add row with `❌` or `` as appropriate |
 | New project activated | Fill phases/tasks and update Active Projects table |
 
 ### Commit Format
-docs: update ROADMAP.md — [project] [task or phase name]
+`docs: update ROADMAP.md — [project] [task or phase name]`
