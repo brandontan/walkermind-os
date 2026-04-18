@@ -2,7 +2,7 @@ app = "crusaderbot"
 primary_region = "iad"
 
 [build]
-  dockerfile = "projects/polymarket/polyquantbot/Dockerfile"
+  dockerfile = "Dockerfile"
 
 [env]
   ENV = "production"
