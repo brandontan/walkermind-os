@@ -77,6 +77,14 @@ WALLET_RETRY_WORK_DECISION_EXHAUSTED = "retry_exhausted"
 WALLET_RETRY_WORKER_ACTION_RETRY = "retry"
 WALLET_RETRY_WORKER_ACTION_SKIP = "skip"
 WALLET_RETRY_WORK_MAX_BUDGET = 10
+WALLET_PUBLIC_READINESS_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_PUBLIC_READINESS_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_PUBLIC_READINESS_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_PUBLIC_READINESS_BLOCK_STATE_READ_NOT_READY = "state_read_not_ready"
+WALLET_PUBLIC_READINESS_BLOCK_RECONCILIATION_UNRESOLVED = "reconciliation_unresolved"
+WALLET_PUBLIC_READINESS_RESULT_GO = "go"
+WALLET_PUBLIC_READINESS_RESULT_HOLD = "hold"
+WALLET_PUBLIC_READINESS_RESULT_BLOCKED = "blocked"
 
 
 @dataclass(frozen=True)
@@ -1831,5 +1839,201 @@ def _blocked_retry_work_result(
         retry_attempt=policy.retry_attempt,
         retry_budget=policy.retry_budget,
         next_retry_attempt=None,
+        notes=notes,
+    )
+
+
+@dataclass(frozen=True)
+class WalletPublicReadinessPolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+    state_read_batch_ready: bool
+    reconciliation_outcome: str
+    correction_result_category: str
+    retry_result_category: str
+
+
+@dataclass(frozen=True)
+class WalletPublicReadinessResult:
+    success: bool
+    blocked_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    readiness_result_category: str
+    readiness_notes: list[str]
+    notes: dict[str, Any] | None = None
+
+
+_WALLET_PUBLIC_READINESS_VALID_RECONCILIATION_OUTCOMES: frozenset[str] = frozenset({
+    WALLET_RECONCILIATION_OUTCOME_MATCH,
+    WALLET_RECONCILIATION_OUTCOME_STATE_MISSING,
+    WALLET_RECONCILIATION_OUTCOME_REVISION_MISMATCH,
+    WALLET_RECONCILIATION_OUTCOME_SNAPSHOT_MISMATCH,
+})
+_WALLET_PUBLIC_READINESS_VALID_CORRECTION_RESULTS: frozenset[str] = frozenset({
+    WALLET_CORRECTION_RESULT_ACCEPTED,
+    WALLET_CORRECTION_RESULT_BLOCKED,
+    WALLET_CORRECTION_RESULT_PATH_BLOCKED,
+    WALLET_CORRECTION_RESULT_NOT_REQUIRED,
+})
+_WALLET_PUBLIC_READINESS_VALID_RETRY_RESULTS: frozenset[str] = frozenset({
+    WALLET_RETRY_WORK_DECISION_ACCEPTED,
+    WALLET_RETRY_WORK_DECISION_SKIPPED,
+    WALLET_RETRY_WORK_DECISION_BLOCKED,
+    WALLET_RETRY_WORK_DECISION_EXHAUSTED,
+})
+
+
+class WalletPublicReadinessBoundary:
+    """Phase 6.6.5 narrow public-readiness slice opener.
+    Evaluate deterministic go-live preparation status from existing 6.5.x/6.6.x inputs only.
+    Evaluation-only contract: no activation, scheduler, or orchestration rollout."""
+
+    def evaluate_public_readiness(self, policy: WalletPublicReadinessPolicy) -> WalletPublicReadinessResult:
+        contract_error = _validate_public_readiness_policy(policy)
+        if contract_error is not None:
+            return _blocked_public_readiness_result(
+                policy=policy,
+                blocked_reason=WALLET_PUBLIC_READINESS_BLOCK_INVALID_CONTRACT,
+                readiness_notes=["contract_error"],
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_public_readiness_result(
+                policy=policy,
+                blocked_reason=WALLET_PUBLIC_READINESS_BLOCK_OWNERSHIP_MISMATCH,
+                readiness_notes=["owner_mismatch"],
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_public_readiness_result(
+                policy=policy,
+                blocked_reason=WALLET_PUBLIC_READINESS_BLOCK_WALLET_NOT_ACTIVE,
+                readiness_notes=["wallet_not_active"],
+                notes={"wallet_active": False},
+            )
+
+        if policy.state_read_batch_ready is not True:
+            return _blocked_public_readiness_result(
+                policy=policy,
+                blocked_reason=WALLET_PUBLIC_READINESS_BLOCK_STATE_READ_NOT_READY,
+                readiness_notes=["state_read_batch_not_ready"],
+                notes={"state_read_batch_ready": False},
+            )
+
+        if policy.reconciliation_outcome != WALLET_RECONCILIATION_OUTCOME_MATCH:
+            return _blocked_public_readiness_result(
+                policy=policy,
+                blocked_reason=WALLET_PUBLIC_READINESS_BLOCK_RECONCILIATION_UNRESOLVED,
+                readiness_notes=["reconciliation_unresolved"],
+                notes={"reconciliation_outcome": policy.reconciliation_outcome},
+            )
+
+        readiness_notes = [
+            "state_boundary_ready",
+            "reconciliation_match",
+        ]
+
+        if policy.correction_result_category == WALLET_CORRECTION_RESULT_NOT_REQUIRED:
+            readiness_notes.append("correction_not_required")
+        elif policy.correction_result_category == WALLET_CORRECTION_RESULT_ACCEPTED:
+            readiness_notes.append("correction_applied")
+        else:
+            return WalletPublicReadinessResult(
+                success=True,
+                blocked_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                readiness_result_category=WALLET_PUBLIC_READINESS_RESULT_HOLD,
+                readiness_notes=readiness_notes + ["correction_resolution_pending"],
+                notes={
+                    "correction_result_category": policy.correction_result_category,
+                    "retry_result_category": policy.retry_result_category,
+                },
+            )
+
+        if policy.retry_result_category == WALLET_RETRY_WORK_DECISION_EXHAUSTED:
+            return WalletPublicReadinessResult(
+                success=True,
+                blocked_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                readiness_result_category=WALLET_PUBLIC_READINESS_RESULT_HOLD,
+                readiness_notes=readiness_notes + ["retry_budget_exhausted"],
+                notes={"retry_result_category": policy.retry_result_category},
+            )
+
+        if policy.retry_result_category in {
+            WALLET_RETRY_WORK_DECISION_ACCEPTED,
+            WALLET_RETRY_WORK_DECISION_BLOCKED,
+        }:
+            return WalletPublicReadinessResult(
+                success=True,
+                blocked_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                readiness_result_category=WALLET_PUBLIC_READINESS_RESULT_HOLD,
+                readiness_notes=readiness_notes + ["retry_resolution_pending"],
+                notes={"retry_result_category": policy.retry_result_category},
+            )
+
+        return WalletPublicReadinessResult(
+            success=True,
+            blocked_reason=None,
+            wallet_binding_id=policy.wallet_binding_id,
+            owner_user_id=policy.owner_user_id,
+            readiness_result_category=WALLET_PUBLIC_READINESS_RESULT_GO,
+            readiness_notes=readiness_notes + ["retry_lane_clear"],
+            notes={"retry_result_category": policy.retry_result_category},
+        )
+
+
+def _validate_public_readiness_policy(policy: WalletPublicReadinessPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    if not isinstance(policy.state_read_batch_ready, bool):
+        return "state_read_batch_ready_must_be_bool"
+    if (
+        not isinstance(policy.reconciliation_outcome, str)
+        or policy.reconciliation_outcome not in _WALLET_PUBLIC_READINESS_VALID_RECONCILIATION_OUTCOMES
+    ):
+        return "reconciliation_outcome_invalid"
+    if (
+        not isinstance(policy.correction_result_category, str)
+        or policy.correction_result_category not in _WALLET_PUBLIC_READINESS_VALID_CORRECTION_RESULTS
+    ):
+        return "correction_result_category_invalid"
+    if (
+        not isinstance(policy.retry_result_category, str)
+        or policy.retry_result_category not in _WALLET_PUBLIC_READINESS_VALID_RETRY_RESULTS
+    ):
+        return "retry_result_category_invalid"
+    return None
+
+
+def _blocked_public_readiness_result(
+    *,
+    policy: WalletPublicReadinessPolicy,
+    blocked_reason: str,
+    readiness_notes: list[str],
+    notes: dict[str, Any] | None,
+) -> WalletPublicReadinessResult:
+    return WalletPublicReadinessResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        wallet_binding_id=policy.wallet_binding_id,
+        owner_user_id=policy.owner_user_id,
+        readiness_result_category=WALLET_PUBLIC_READINESS_RESULT_BLOCKED,
+        readiness_notes=readiness_notes,
         notes=notes,
     )
