@@ -70,18 +70,7 @@ class RuntimeState:
 
 
 async def run_startup_validation(settings: ApiSettings, state: RuntimeState) -> None:
-    _ = settings
-    validation_errors: list[str] = []
-    state.validation_errors = validation_errors
-
-    if validation_errors:
-        log.error(
-            "crusaderbot_api_startup_validation_failed",
-            errors=validation_errors,
-            startup_mode=settings.startup_mode,
-        )
-        raise RuntimeError("; ".join(validation_errors))
-
+    state.validation_errors = []
     await asyncio.sleep(0)
     state.mark_started()
     log.info(

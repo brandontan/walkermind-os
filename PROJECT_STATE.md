@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 05:49
-Status       : PR #585 blocker patch is finalized on branch `refactor/infra-crusaderbot-fly-readiness-20260419`; strict-only startup contract and Fly `/health` documentation alignment are applied with focused test updates before SENTINEL re-validation.
+Last Updated : 2026-04-19 06:02
+Status       : SENTINEL re-validation after PR #585 blocker patch is CONDITIONAL (no blocker-level mismatch remains); startup and readiness contracts are aligned and pending final COMMANDER gate with environment-complete test evidence.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -14,7 +14,7 @@ Status       : PR #585 blocker patch is finalized on branch `refactor/infra-crus
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 
 [IN PROGRESS]
-- PR #585 blocker patch pass finalized: strict-only startup contract is enforced without fake warn abstraction and readiness wording matches deployed Fly `/health` checks.
+- SENTINEL re-validation on PR #585 returned CONDITIONAL with blocker closure confirmed and one environment-limited test-evidence follow-up.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -22,7 +22,7 @@ Status       : PR #585 blocker patch is finalized on branch `refactor/infra-crus
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL to re-run MAJOR validation on PR #585 after startup-mode contract and readiness-doc alignment patch.
+- COMMANDER to decide merge gate for PR #585 under CONDITIONAL SENTINEL verdict and request environment-complete runtime test evidence attachment.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
