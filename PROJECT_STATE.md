@@ -1,5 +1,5 @@
-Last Updated : 2026-04-18 09:10
-Status       : Phase 6.6.9 minimal execution hook is merged-main truth via PR #566. Phases 6.6.5-6.6.9 are no longer in progress and are treated as completed baseline. Next forward lane is Phase 7.0 orchestration & automation. Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
+Last Updated : 2026-04-18 11:42
+Status       : Phase 7.0 orchestration & automation foundation is now opened with a deterministic single-cycle entrypoint (`run_public_activation_cycle`) over the completed 6.6 public-ready baseline. This remains narrow integration only (no scheduler/worker/live rollout). Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
 
 [COMPLETED]
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
@@ -22,17 +22,16 @@ Status       : Phase 6.6.9 minimal execution hook is merged-main truth via PR #5
 - Phase 6.6.9 minimal execution hook merged via PR #566.
 
 [IN PROGRESS]
-- None.
+- Phase 7.0 orchestration & automation foundation is active with one deterministic public activation cycle contract (readiness -> gate -> flow -> hardening -> execution hook).
 
 [NOT STARTED]
-- Phase 7.0 orchestration & automation lane has not been opened.
 - Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation has not started; prior spec approval does not claim runtime delivery.
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
 - Portfolio management logic and multi-wallet orchestration.
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Open Phase 7.0 orchestration & automation lane as the next forward slice.
+- COMMANDER review for Phase 7.0 deterministic single-cycle orchestration foundation scope.
 - Keep Phase 6.4.1 out of active-lane wording until implementation is explicitly resumed.
 
 [KNOWN ISSUES]

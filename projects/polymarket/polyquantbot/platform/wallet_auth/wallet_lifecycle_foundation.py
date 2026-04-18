@@ -2802,3 +2802,254 @@ def _stopped_execution_hook_result(
         execution_hook_notes=execution_hook_notes,
         notes=notes,
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 7.0 -- Public Activation Cycle Orchestration Foundation
+# ---------------------------------------------------------------------------
+
+PUBLIC_ACTIVATION_CYCLE_RESULT_COMPLETED = "completed"
+PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_HOLD = "stopped_hold"
+PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_BLOCKED = "stopped_blocked"
+
+PUBLIC_ACTIVATION_CYCLE_STOP_INVALID_CONTRACT = "invalid_contract"
+PUBLIC_ACTIVATION_CYCLE_STOP_READINESS_HOLD = "readiness_hold"
+PUBLIC_ACTIVATION_CYCLE_STOP_READINESS_BLOCKED = "readiness_blocked"
+PUBLIC_ACTIVATION_CYCLE_STOP_GATE_DENIED_HOLD = "gate_denied_hold"
+PUBLIC_ACTIVATION_CYCLE_STOP_GATE_DENIED_BLOCKED = "gate_denied_blocked"
+PUBLIC_ACTIVATION_CYCLE_STOP_FLOW_STOPPED_HOLD = "flow_stopped_hold"
+PUBLIC_ACTIVATION_CYCLE_STOP_FLOW_STOPPED_BLOCKED = "flow_stopped_blocked"
+PUBLIC_ACTIVATION_CYCLE_STOP_HARDENING_HOLD = "hardening_hold"
+PUBLIC_ACTIVATION_CYCLE_STOP_HARDENING_BLOCKED = "hardening_blocked"
+PUBLIC_ACTIVATION_CYCLE_STOP_HOOK_STOPPED_HOLD = "hook_stopped_hold"
+PUBLIC_ACTIVATION_CYCLE_STOP_HOOK_STOPPED_BLOCKED = "hook_stopped_blocked"
+
+
+@dataclass(frozen=True)
+class PublicActivationCyclePolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requester_user_id: str
+    wallet_active: bool
+    state_read_batch_ready: bool
+    reconciliation_outcome: str
+    correction_result_category: str
+    retry_result_category: str
+
+
+@dataclass(frozen=True)
+class PublicActivationCycleResult:
+    cycle_completed: bool
+    cycle_result_category: str
+    cycle_stop_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    cycle_notes: list[str]
+    readiness_result: WalletPublicReadinessResult
+    activation_gate_result: WalletPublicActivationGateResult
+    activation_flow_result: MinimalPublicActivationFlowResult
+    hardening_result: PublicSafetyHardeningResult
+    execution_hook_result: MinimalExecutionHookResult
+    notes: dict[str, Any] | None = None
+
+
+class PublicActivationCycleOrchestrationBoundary:
+    """Phase 7.0 thin deterministic public activation cycle orchestration.
+    Runs one synchronous pass through readiness -> gate -> flow -> hardening -> execution hook.
+    No scheduler daemon, no async worker mesh, and no live-trading rollout."""
+
+    def run_public_activation_cycle(
+        self, policy: PublicActivationCyclePolicy
+    ) -> PublicActivationCycleResult:
+        readiness_result = WalletPublicReadinessBoundary().evaluate_public_readiness(
+            WalletPublicReadinessPolicy(
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                requested_by_user_id=policy.requester_user_id,
+                wallet_active=policy.wallet_active,
+                state_read_batch_ready=policy.state_read_batch_ready,
+                reconciliation_outcome=policy.reconciliation_outcome,
+                correction_result_category=policy.correction_result_category,
+                retry_result_category=policy.retry_result_category,
+            )
+        )
+
+        activation_gate_result = WalletPublicActivationGateBoundary().evaluate_activation_gate(
+            WalletPublicActivationGatePolicy(
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                requested_by_user_id=policy.requester_user_id,
+                wallet_active=policy.wallet_active,
+                readiness_result_category=readiness_result.readiness_result_category,
+                readiness_notes=readiness_result.readiness_notes,
+            )
+        )
+
+        activation_flow_result = MinimalPublicActivationFlowBoundary().run_activation_flow(
+            MinimalPublicActivationFlowPolicy(
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                requester_user_id=policy.requester_user_id,
+                wallet_active=policy.wallet_active,
+                readiness_result_category=readiness_result.readiness_result_category,
+                readiness_notes=readiness_result.readiness_notes,
+                activation_result_category=activation_gate_result.activation_result_category,
+                activation_notes=activation_gate_result.activation_notes,
+            )
+        )
+
+        hardening_result = PublicSafetyHardeningBoundary().check_hardening(
+            PublicSafetyHardeningPolicy(
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                requester_user_id=policy.requester_user_id,
+                wallet_active=policy.wallet_active,
+                readiness_result_category=readiness_result.readiness_result_category,
+                activation_result_category=activation_gate_result.activation_result_category,
+                flow_result_category=activation_flow_result.flow_result_category,
+            )
+        )
+
+        execution_hook_result = MinimalExecutionHookBoundary().execute_hook(
+            MinimalExecutionHookPolicy(
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                requester_user_id=policy.requester_user_id,
+                wallet_active=policy.wallet_active,
+                hardening_outcome=hardening_result.hardening_outcome,
+                flow_result_category=activation_flow_result.flow_result_category,
+                activation_result_category=activation_gate_result.activation_result_category,
+            )
+        )
+
+        cycle_result_category, cycle_stop_reason = _determine_public_activation_cycle_outcome(
+            readiness_result=readiness_result,
+            activation_gate_result=activation_gate_result,
+            activation_flow_result=activation_flow_result,
+            hardening_result=hardening_result,
+            execution_hook_result=execution_hook_result,
+        )
+        cycle_completed = cycle_result_category == PUBLIC_ACTIVATION_CYCLE_RESULT_COMPLETED
+        cycle_notes = _compose_public_activation_cycle_notes(
+            readiness_result=readiness_result,
+            activation_gate_result=activation_gate_result,
+            activation_flow_result=activation_flow_result,
+            hardening_result=hardening_result,
+            execution_hook_result=execution_hook_result,
+            cycle_stop_reason=cycle_stop_reason,
+        )
+
+        return PublicActivationCycleResult(
+            cycle_completed=cycle_completed,
+            cycle_result_category=cycle_result_category,
+            cycle_stop_reason=cycle_stop_reason,
+            wallet_binding_id=policy.wallet_binding_id,
+            owner_user_id=policy.owner_user_id,
+            cycle_notes=cycle_notes,
+            readiness_result=readiness_result,
+            activation_gate_result=activation_gate_result,
+            activation_flow_result=activation_flow_result,
+            hardening_result=hardening_result,
+            execution_hook_result=execution_hook_result,
+            notes={
+                "readiness_result_category": readiness_result.readiness_result_category,
+                "activation_result_category": activation_gate_result.activation_result_category,
+                "flow_result_category": activation_flow_result.flow_result_category,
+                "hardening_outcome": hardening_result.hardening_outcome,
+                "hook_result_category": execution_hook_result.hook_result_category,
+            },
+        )
+
+
+def run_public_activation_cycle(policy: PublicActivationCyclePolicy) -> PublicActivationCycleResult:
+    """Deterministic public activation cycle entrypoint for one synchronous run."""
+    return PublicActivationCycleOrchestrationBoundary().run_public_activation_cycle(policy)
+
+
+def _determine_public_activation_cycle_outcome(
+    *,
+    readiness_result: WalletPublicReadinessResult,
+    activation_gate_result: WalletPublicActivationGateResult,
+    activation_flow_result: MinimalPublicActivationFlowResult,
+    hardening_result: PublicSafetyHardeningResult,
+    execution_hook_result: MinimalExecutionHookResult,
+) -> tuple[str, str | None]:
+    if readiness_result.blocked_reason == WALLET_PUBLIC_READINESS_BLOCK_INVALID_CONTRACT:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_BLOCKED,
+            PUBLIC_ACTIVATION_CYCLE_STOP_INVALID_CONTRACT,
+        )
+    if readiness_result.readiness_result_category == WALLET_PUBLIC_READINESS_RESULT_BLOCKED:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_BLOCKED,
+            PUBLIC_ACTIVATION_CYCLE_STOP_READINESS_BLOCKED,
+        )
+    if readiness_result.readiness_result_category == WALLET_PUBLIC_READINESS_RESULT_HOLD:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_HOLD,
+            PUBLIC_ACTIVATION_CYCLE_STOP_READINESS_HOLD,
+        )
+    if activation_gate_result.activation_result_category == WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_BLOCKED,
+            PUBLIC_ACTIVATION_CYCLE_STOP_GATE_DENIED_BLOCKED,
+        )
+    if activation_gate_result.activation_result_category == WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_HOLD,
+            PUBLIC_ACTIVATION_CYCLE_STOP_GATE_DENIED_HOLD,
+        )
+    if activation_flow_result.flow_result_category == ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_BLOCKED,
+            PUBLIC_ACTIVATION_CYCLE_STOP_FLOW_STOPPED_BLOCKED,
+        )
+    if activation_flow_result.flow_result_category == ACTIVATION_FLOW_RESULT_STOPPED_HOLD:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_HOLD,
+            PUBLIC_ACTIVATION_CYCLE_STOP_FLOW_STOPPED_HOLD,
+        )
+    if hardening_result.hardening_outcome == PUBLIC_SAFETY_HARDENING_OUTCOME_BLOCKED:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_BLOCKED,
+            PUBLIC_ACTIVATION_CYCLE_STOP_HARDENING_BLOCKED,
+        )
+    if hardening_result.hardening_outcome == PUBLIC_SAFETY_HARDENING_OUTCOME_HOLD:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_HOLD,
+            PUBLIC_ACTIVATION_CYCLE_STOP_HARDENING_HOLD,
+        )
+    if execution_hook_result.hook_result_category == EXECUTION_HOOK_RESULT_STOPPED_BLOCKED:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_BLOCKED,
+            PUBLIC_ACTIVATION_CYCLE_STOP_HOOK_STOPPED_BLOCKED,
+        )
+    if execution_hook_result.hook_result_category == EXECUTION_HOOK_RESULT_STOPPED_HOLD:
+        return (
+            PUBLIC_ACTIVATION_CYCLE_RESULT_STOPPED_HOLD,
+            PUBLIC_ACTIVATION_CYCLE_STOP_HOOK_STOPPED_HOLD,
+        )
+    return (PUBLIC_ACTIVATION_CYCLE_RESULT_COMPLETED, None)
+
+
+def _compose_public_activation_cycle_notes(
+    *,
+    readiness_result: WalletPublicReadinessResult,
+    activation_gate_result: WalletPublicActivationGateResult,
+    activation_flow_result: MinimalPublicActivationFlowResult,
+    hardening_result: PublicSafetyHardeningResult,
+    execution_hook_result: MinimalExecutionHookResult,
+    cycle_stop_reason: str | None,
+) -> list[str]:
+    notes: list[str] = [
+        f"readiness:{readiness_result.readiness_result_category}",
+        f"activation_gate:{activation_gate_result.activation_result_category}",
+        f"activation_flow:{activation_flow_result.flow_result_category}",
+        f"hardening:{hardening_result.hardening_outcome}",
+        f"execution_hook:{execution_hook_result.hook_result_category}",
+    ]
+    if cycle_stop_reason is None:
+        notes.append("cycle_completed")
+    else:
+        notes.append(f"cycle_stop_reason:{cycle_stop_reason}")
+    return notes
