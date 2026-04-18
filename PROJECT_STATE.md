@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 05:03
-Status       : CrusaderBot Fly.io deploy-readiness runtime split is in progress on branch `refactor/infra-crusaderbot-fly-readiness-20260419`; new FastAPI, Telegram, and worker runtime surfaces are added under `projects/polymarket/polyquantbot/` and Fly/Docker now target the API surface instead of the monolithic root `main.py`.
+Last Updated : 2026-04-19 05:32
+Status       : SENTINEL validation for PR #585 (branch `refactor/infra-crusaderbot-fly-readiness-20260419`) is BLOCKED pending startup-mode contract fix and Fly readiness-contract documentation alignment.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -14,7 +14,7 @@ Status       : CrusaderBot Fly.io deploy-readiness runtime split is in progress 
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 
 [IN PROGRESS]
-- CrusaderBot Fly.io deploy-readiness refactor is in progress on branch `refactor/infra-crusaderbot-fly-readiness-20260419` with new `server/main.py`, `client/telegram/bot.py`, and `scripts/run_api.py` runtime surfaces plus Docker/Fly contract updates.
+- SENTINEL validation for PR #585 completed with BLOCKED verdict on startup-mode contract semantics and `/ready` readiness-contract documentation mismatch.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -22,9 +22,10 @@ Status       : CrusaderBot Fly.io deploy-readiness runtime split is in progress 
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL to validate the CrusaderBot Fly.io deploy path, FastAPI lifecycle contract, startup validation behavior, and the documented legacy boundary before merge.
+- FORGE-X to patch PR #585 startup-mode contract semantics and align readiness contract documentation/config, then return to SENTINEL for re-validation.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 6.4 narrow monitoring remains intentionally scoped and not yet the active implementation lane.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning -- carried forward as non-runtime higiene backlog.
+- [DEFERRED] Fly readiness contract doc currently overstates `/ready` as active Fly check path in PR #585.
