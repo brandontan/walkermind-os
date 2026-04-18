@@ -1,0 +1,72 @@
+"""Telegram bootstrap surface for CrusaderBot."""
+from __future__ import annotations
+
+import asyncio
+import os
+from dataclasses import dataclass
+
+import structlog
+
+log = structlog.get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class TelegramBotSettings:
+    app_name: str = "CrusaderBot"
+    startup_mode: str = "strict"
+    telegram_token: str = ""
+    telegram_chat_id: str = ""
+
+    @classmethod
+    def from_env(cls) -> "TelegramBotSettings":
+        startup_mode = os.getenv("CRUSADER_STARTUP_MODE", "strict").strip().lower() or "strict"
+        if startup_mode != "strict":
+            raise RuntimeError(
+                "CRUSADER_STARTUP_MODE must be 'strict' for the current Telegram bootstrap contract."
+            )
+
+        token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+        chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+
+        return cls(
+            startup_mode=startup_mode,
+            telegram_token=token,
+            telegram_chat_id=chat_id,
+        )
+
+
+def validate_bot_environment(settings: TelegramBotSettings) -> list[str]:
+    errors: list[str] = []
+    if not settings.telegram_token:
+        errors.append("TELEGRAM_BOT_TOKEN is required for the Telegram runtime surface.")
+    return errors
+
+
+async def run_bot() -> None:
+    settings = TelegramBotSettings.from_env()
+    validation_errors = validate_bot_environment(settings)
+
+    if validation_errors:
+        log.error(
+            "crusaderbot_telegram_startup_validation_failed",
+            errors=validation_errors,
+            startup_mode=settings.startup_mode,
+        )
+        raise RuntimeError("; ".join(validation_errors))
+
+    log.info(
+        "crusaderbot_telegram_bootstrap_ready",
+        runtime="client.telegram.bot",
+        app_name=settings.app_name,
+        chat_id_configured=bool(settings.telegram_chat_id),
+    )
+
+    await asyncio.sleep(0)
+
+
+def main() -> None:
+    asyncio.run(run_bot())
+
+
+if __name__ == "__main__":
+    main()
