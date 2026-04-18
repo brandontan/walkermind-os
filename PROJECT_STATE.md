@@ -1,7 +1,15 @@
-Last Updated : 2026-04-18 16:58
-Status       : Phase 7.2 lightweight automation scheduler is now in progress with one synchronous invocation decision cycle over the completed 7.1 trigger surface. Scheduler result categories triggered/skipped/blocked are defined with deterministic skip and block reasons. Scope remains narrow integration only (no distributed schedulers, async workers, or live rollout). Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
+Last Updated : 2026-04-18 18:01
+Status       : Phase 7.2 lightweight automation scheduler contract fix is active. Scheduler boundary now returns deterministic blocked(invalid_contract) for negative quota instead of raising. All scheduler result categories (triggered/skipped/blocked) are returned as SchedulerInvocationResult. Historical completed entries restored. Scope remains narrow integration only (no distributed schedulers, async workers, or live rollout). Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
 
 [COMPLETED]
+- Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
+- Phase 6.5.3 wallet state read boundary merged via PR #536.
+- Phase 6.5.4 wallet state clear boundary merged via PR #537.
+- Phase 6.5.5 wallet state exists boundary merged via PR #539.
+- Phase 6.5.6 wallet state list metadata boundary merged via PR #541.
+- Phase 6.5.7 wallet state metadata query expansion merged via PR #543.
+- Phase 6.5.8 wallet state metadata exact lookup merged via PR #544.
+- Phase 6.5.9 wallet state metadata exact batch lookup merged via PR #546.
 - Phase 6.5.10 wallet state exact batch read boundary merged via PR #557.
 - Phase 6.6.1 wallet lifecycle state reconciliation foundation merged via PR #558.
 - Phase 6.6.2 wallet lifecycle batch reconciliation merged via PR #559.
@@ -25,7 +33,7 @@ Status       : Phase 7.2 lightweight automation scheduler is now in progress wit
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review for Phase 7.2 lightweight automation scheduler (single synchronous invocation cycle over 7.1 trigger surface only).
+- COMMANDER re-review for Phase 7.2 contract fix (scheduler invalid_contract path returns blocked result; historical PROJECT_STATE.md entries restored).
 - Keep Phase 6.4.1 out of active-lane wording until implementation is explicitly resumed.
 
 [KNOWN ISSUES]

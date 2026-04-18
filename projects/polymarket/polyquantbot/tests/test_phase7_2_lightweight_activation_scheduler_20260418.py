@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import pytest
-
 from projects.polymarket.polyquantbot.core.lightweight_activation_scheduler import (
+    SCHEDULER_BLOCK_INVALID_CONTRACT,
     SCHEDULER_BLOCK_SCHEDULE_DISABLED,
     SCHEDULER_RESULT_BLOCKED,
     SCHEDULER_RESULT_SKIPPED,
@@ -124,9 +123,24 @@ def test_scheduler_window_skips_before_quota_check() -> None:
     assert result.skip_reason == SCHEDULER_SKIP_WINDOW_NOT_OPEN
 
 
-def test_scheduler_contract_rejects_negative_quota() -> None:
-    with pytest.raises(ValueError, match="invocation_quota_remaining must be >= 0"):
-        decide_and_invoke_scheduler(_scheduler_policy(invocation_quota_remaining=-1))
+def test_scheduler_returns_blocked_invalid_contract_for_negative_quota() -> None:
+    result = decide_and_invoke_scheduler(_scheduler_policy(invocation_quota_remaining=-1))
+    assert result.scheduler_result == SCHEDULER_RESULT_BLOCKED
+    assert result.block_reason == SCHEDULER_BLOCK_INVALID_CONTRACT
+    assert result.skip_reason is None
+    assert result.trigger_result is None
+
+
+def test_scheduler_invalid_contract_blocked_note_present() -> None:
+    result = decide_and_invoke_scheduler(_scheduler_policy(invocation_quota_remaining=-1))
+    assert any("invalid_contract" in note for note in result.scheduler_notes)
+
+
+def test_scheduler_invalid_contract_priority_below_quota_reached() -> None:
+    # quota == 0 must yield skipped(quota_reached), not blocked(invalid_contract)
+    result = decide_and_invoke_scheduler(_scheduler_policy(invocation_quota_remaining=0))
+    assert result.scheduler_result == SCHEDULER_RESULT_SKIPPED
+    assert result.skip_reason == SCHEDULER_SKIP_QUOTA_REACHED
 
 
 def test_scheduler_quota_of_one_is_accepted() -> None:
