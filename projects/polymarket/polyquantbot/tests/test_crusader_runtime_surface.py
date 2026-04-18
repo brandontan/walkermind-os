@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, validate_api_environment
+from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings
 from projects.polymarket.polyquantbot.server.main import create_app
 
 
@@ -17,11 +16,12 @@ def test_api_settings_uses_fly_port(monkeypatch) -> None:
     assert settings.port == 9090
 
 
-def test_validate_api_environment_accepts_paper_defaults(monkeypatch) -> None:
+def test_api_settings_accepts_default_strict_startup_mode(monkeypatch) -> None:
     monkeypatch.setenv("PORT", "8080")
     monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.delenv("CRUSADER_STARTUP_MODE", raising=False)
     settings = ApiSettings.from_env()
-    assert validate_api_environment(settings) == []
+    assert settings.startup_mode == "strict"
 
 
 def test_api_settings_rejects_warn_startup_mode(monkeypatch) -> None:
@@ -59,7 +59,6 @@ def test_runtime_docs_match_fly_health_check_contract() -> None:
     docs_text = (project_root / "docs/crusader_runtime_surface.md").read_text(encoding="utf-8")
     fly_text = (project_root / "fly.toml").read_text(encoding="utf-8")
 
-    assert "Health checks target `GET /health`." in docs_text
     assert "Fly health checks currently target `GET /health` only." in docs_text
     assert "is not currently configured as a Fly check path." in docs_text
     assert 'path = "/health"' in fly_text

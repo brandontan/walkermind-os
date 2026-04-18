@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 05:39
-Status       : PR #585 blocker patch is applied on branch `refactor/infra-crusaderbot-fly-readiness-20260419`; startup-mode contract is now strict-only and Fly readiness documentation is aligned to `/health` checks before SENTINEL re-validation.
+Last Updated : 2026-04-19 05:49
+Status       : PR #585 blocker patch is finalized on branch `refactor/infra-crusaderbot-fly-readiness-20260419`; strict-only startup contract and Fly `/health` documentation alignment are applied with focused test updates before SENTINEL re-validation.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -14,7 +14,7 @@ Status       : PR #585 blocker patch is applied on branch `refactor/infra-crusad
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 
 [IN PROGRESS]
-- PR #585 blocker patch pass completed: strict-only startup contract and readiness contract wording now match deployed Fly `/health` checks.
+- PR #585 blocker patch pass finalized: strict-only startup contract is enforced without fake warn abstraction and readiness wording matches deployed Fly `/health` checks.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.

@@ -69,13 +69,9 @@ class RuntimeState:
         self.ready = False
 
 
-def validate_api_environment(settings: ApiSettings) -> list[str]:
-    _ = settings
-    return []
-
-
 async def run_startup_validation(settings: ApiSettings, state: RuntimeState) -> None:
-    validation_errors = validate_api_environment(settings)
+    _ = settings
+    validation_errors: list[str] = []
     state.validation_errors = validation_errors
 
     if validation_errors:

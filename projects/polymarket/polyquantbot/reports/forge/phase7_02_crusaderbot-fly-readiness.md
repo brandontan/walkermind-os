@@ -45,7 +45,7 @@ Modified:
 - Runtime-facing branding on the new API and bootstrap surfaces uses `CrusaderBot`
 - FastAPI control-plane surface exists and is launchable via `projects/polymarket/polyquantbot/scripts/run_api.py`
 - `/health` and `/ready` are implemented on the new API surface
-- API startup validates `PORT`, `TRADING_MODE`, strict-only `CRUSADER_STARTUP_MODE`, and the live-trading guard contract
+- API startup validates `PORT`, `TRADING_MODE`, strict-only `CRUSADER_STARTUP_MODE`, and the live-trading guard contract without retained warn-mode branch behavior
 - Docker healthcheck and Fly health check both target `/health`
 - Docker default command no longer points at the monolithic root `main.py`
 - Telegram runtime can now be launched independently from the API runtime surface

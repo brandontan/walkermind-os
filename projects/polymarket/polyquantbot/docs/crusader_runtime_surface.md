@@ -28,7 +28,6 @@
 
 ## Fly.io runtime contract
 - Fly now targets the FastAPI surface through `projects/polymarket/polyquantbot/scripts/run_api.py`.
-- Health checks target `GET /health`.
 - Fly health checks currently target `GET /health` only.
 - `GET /ready` exists as an API runtime endpoint and is not currently configured as a Fly check path.
 - The API binds Fly-injected `PORT`.
