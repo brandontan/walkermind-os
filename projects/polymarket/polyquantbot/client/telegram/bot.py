@@ -20,8 +20,10 @@ class TelegramBotSettings:
     @classmethod
     def from_env(cls) -> "TelegramBotSettings":
         startup_mode = os.getenv("CRUSADER_STARTUP_MODE", "strict").strip().lower() or "strict"
-        if startup_mode not in {"strict", "warn"}:
-            raise RuntimeError("CRUSADER_STARTUP_MODE must be 'strict' or 'warn'.")
+        if startup_mode != "strict":
+            raise RuntimeError(
+                "CRUSADER_STARTUP_MODE must be 'strict' for the current Telegram bootstrap contract."
+            )
 
         token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
         chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
