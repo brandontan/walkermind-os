@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 11:42
+**Last Updated:** 2026-04-18 11:52
 
 ## Board Overview
 
@@ -44,7 +44,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** ✅ Done  
-**Last Updated:** 2026-04-18 11:42
+**Last Updated:** 2026-04-18 11:52
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -87,11 +87,12 @@
 
 **Goal:** Add thin deterministic orchestration contracts over the completed 6.6 baseline without broad automation rollout.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 11:42
+**Last Updated:** 2026-04-18 11:52
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
-| 7.0 | Orchestration and Automation Foundation (Single Public Cycle) | 🚧 In Progress | Active on feature/orchestration-and-automation-foundation-2026-04-18 for one synchronous deterministic cycle entrypoint `run_public_activation_cycle` chaining 6.6.5 -> 6.6.6 -> 6.6.7 -> 6.6.8 -> 6.6.9; excludes scheduler daemons, async workers, portfolio orchestration, and live trading rollout. |
+| 7.0 | Orchestration and Automation Foundation (Single Public Cycle) | ✅ Done | Deterministic single-cycle orchestration entrypoint `run_public_activation_cycle` merged and preserved as thin synchronous chaining over 6.6.5 -> 6.6.6 -> 6.6.7 -> 6.6.8 -> 6.6.9. |
+| 7.1 | Public Activation Trigger Surface (Single Entrypoint) | 🚧 In Progress | Active on feature/public-activation-trigger-surface-2026-04-18 with one synchronous CLI trigger path invoking `run_public_activation_cycle(...)` and explicit completed/stopped_hold/stopped_blocked mapping; excludes scheduler daemons, async workers, settlement automation, portfolio orchestration, and live trading rollout. |
 
 ---
 
