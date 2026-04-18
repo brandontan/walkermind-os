@@ -87,7 +87,7 @@
 
 **Goal:** Add thin deterministic orchestration contracts over the completed 6.6 baseline without broad automation rollout.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 00:54
+**Last Updated:** 2026-04-19 02:00
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -96,7 +96,8 @@
 | 7.2 | Lightweight Automation Scheduler (Single Invocation Cycle) | ✅ Done | Deterministic triggered/skipped/blocked result categories delivered; blocked(invalid_contract) for negative quota; one synchronous invocation cycle only; excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
 | 7.3 | Runtime Auto-Run Loop Foundation (Bounded Synchronous Loop) | 🚧 In Progress | Bounded deterministic loop over the 7.2 scheduler boundary active on claude/runtime-auto-run-loop-cBVTs; loop result categories: completed/stopped_hold/stopped_blocked/exhausted; deterministic stop reasons; excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
 | 7.4 | Observability / Visibility Foundation | ✅ Done | Merged to main. Deterministic visibility records (visible/partial/blocked) over Phase 6.4.1 monitoring evaluations, Phase 7.2 scheduler decisions, and Phase 7.3 loop outcomes in monitoring/observability_foundation.py; 45 passing tests; pure functions only; excludes alert delivery, dashboards, distributed monitoring mesh, async workers, cron daemon rollout. |
-| 7.5 | Operator Control / Manual Override | 🚧 In Progress | Active on branch claude/operator-control-override-q2r4g (PR #574). Deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation via pure OperatorSchedulerGate and OperatorLoopGate in core/operator_control.py; 49 targeted tests; 181 total phase 7 suite passing; pending COMMANDER review (STANDARD tier). |
+| 7.5 | Operator Control / Manual Override | ✅ Done | Merged to main via PR #575. Deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation via pure OperatorSchedulerGate and OperatorLoopGate in core/operator_control.py; 49 targeted tests; 181 total phase 7 suite passing. |
+| 7.6 | State Persistence / Execution Memory Foundation | 🚧 In Progress | Active on branch feature/phase7-6-state-persistence-execution-memory-foundation-2026-04-18. Deterministic local-file load/store/clear boundary in core/execution_memory_foundation.py for minimal last-run context (run result, scheduler decision, loop outcome, optional operator control decision, observability trace summary); explicit invalid_contract blocked behavior; excludes database rollout, Redis, distributed state, replay engine, recovery orchestration, async workers, and cron daemon rollout. |
 
 ---
 
