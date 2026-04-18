@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active | Phase 6 — Production Safety & Stabilization |
+| Crusader | Polymarket | Active | Phase 7 — Orchestration & Automation Foundation |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 08:56
+**Last Updated:** 2026-04-18 11:42
 
 ## Board Overview
 
@@ -35,15 +35,16 @@
 | Phase 3 | Execution-Safe MVP | ✅ Done | Closed Beta |
 | Phase 4 | Execution Formalization & Boundaries | ✅ Done | Internal |
 | Phase 5 | Real Execution & Capital System | ✅ Done | Internal |
-| Phase 6 | Production Safety & Stabilization | In Progress | Public Preparation |
+| Phase 6 | Production Safety & Stabilization | ✅ Done | Public Preparation |
+| Phase 7 | Orchestration & Automation Foundation | In Progress | Public Activation Orchestration |
 
 ---
 
 ## Phase 6 — Production Safety & Stabilization
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
-**Status:** In Progress  
-**Last Updated:** 2026-04-18 08:56
+**Status:** ✅ Done  
+**Last Updated:** 2026-04-18 11:42
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -74,11 +75,23 @@
 | 6.6.2 | Wallet Lifecycle Batch Reconciliation | ✅ Done | Merged-main truth accepted via PR #559 at `WalletLifecycleReconciliationBoundary.reconcile_wallet_state_batch` with deterministic per-entry outcomes in exact input order. |
 | 6.6.3 | Wallet Reconciliation Mutation Correction Foundation | ✅ Done | Merged-main truth accepted via PR #560 at `WalletReconciliationCorrectionBoundary.apply_correction` with deterministic correction decision categories and block reasons. |
 | 6.6.4 | Wallet Reconciliation Retry/Worker Foundation | ✅ Done | Merged-main truth accepted via PR #561 at `WalletReconciliationRetryWorkerBoundary.decide_retry_work_item` with deterministic accepted/skipped/blocked/exhausted retry preparation outcomes and explicit block contracts. |
-| 6.6.5 | Public Readiness Slice Opener Foundation | 🚧 In Progress | Active on feature/public-readiness-slice-opener-2026-04-18 for evaluation-only go/hold/blocked preparation contract using declared 6.5.x/6.6.x readiness inputs; no live activation, scheduler rollout, settlement automation, or portfolio orchestration claimed. |
-| 6.6.6 | Public Activation Gate Foundation | 🚧 In Progress | Active on claude/public-activation-gate-0xLIz for deterministic gate-only allowed/denied_hold/denied_blocked evaluation consuming 6.6.5 readiness outcomes; no scheduler daemon, automation rollout, portfolio orchestration, or live trading activation claimed. |
-| 6.6.7 | Minimal Public Activation Flow Foundation | 🚧 In Progress | Active on claude/minimal-activation-flow-FUV3u for thin-flow-only deterministic completed/stopped_hold/stopped_blocked routing consuming declared 6.6.5 readiness and 6.6.6 gate outputs; no scheduler daemon, automation rollout, portfolio orchestration, or live trading activation claimed. |
-| 6.6.8 | Public Safety Hardening | 🚧 In Progress | Active on claude/public-safety-hardening-h1lYy for deterministic cross-boundary pass/hold/blocked consistency checks across declared 6.6.5/6.6.6/6.6.7 outputs; no scheduler daemon, live trading rollout, portfolio orchestration, or broader go-live pipeline claimed. |
-| 6.6.9 | Minimal Execution Hook | 🚧 In Progress | Active on claude/minimal-execution-hook-xBP8u for deterministic executed/stopped_hold/stopped_blocked hook outcome consuming declared 6.6.6/6.6.7/6.6.8 outputs; hook-only, no scheduler daemon, live trading rollout, portfolio orchestration, or broader go-live pipeline claimed. |
+| 6.6.5 | Public Readiness Slice Opener Foundation | ✅ Done | Merged via PR #562 with deterministic go/hold/blocked readiness evaluation contract. |
+| 6.6.6 | Public Activation Gate Foundation | ✅ Done | Merged via PR #563 with deterministic allowed/denied_hold/denied_blocked gate outcomes. |
+| 6.6.7 | Minimal Public Activation Flow Foundation | ✅ Done | Merged via PR #564 with deterministic completed/stopped_hold/stopped_blocked thin flow routing. |
+| 6.6.8 | Public Safety Hardening | ✅ Done | Merged via PR #565 with deterministic cross-boundary consistency pass/hold/blocked hardening outcomes. |
+| 6.6.9 | Minimal Execution Hook | ✅ Done | Merged via PR #566 with deterministic executed/stopped_hold/stopped_blocked hook outcomes. |
+
+---
+
+## Phase 7 — Orchestration & Automation Foundation
+
+**Goal:** Add thin deterministic orchestration contracts over the completed 6.6 baseline without broad automation rollout.  
+**Status:** In Progress  
+**Last Updated:** 2026-04-18 11:42
+
+| Sub-Phase | Name | Status | Notes |
+|---|---|---|---|
+| 7.0 | Orchestration and Automation Foundation (Single Public Cycle) | 🚧 In Progress | Active on feature/orchestration-and-automation-foundation-2026-04-18 for one synchronous deterministic cycle entrypoint `run_public_activation_cycle` chaining 6.6.5 -> 6.6.6 -> 6.6.7 -> 6.6.8 -> 6.6.9; excludes scheduler daemons, async workers, portfolio orchestration, and live trading rollout. |
 
 ---
 
