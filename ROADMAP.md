@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 05:10
+**Last Updated:** 2026-04-18 08:30
 
 ## Board Overview
 
@@ -43,7 +43,7 @@
 
 **Goal:** Ensure production-grade safety, stability, and operational truth.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 05:10
+**Last Updated:** 2026-04-18 08:30
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -75,6 +75,7 @@
 | 6.6.3 | Wallet Reconciliation Mutation Correction Foundation | ✅ Done | Merged-main truth accepted via PR #560 at `WalletReconciliationCorrectionBoundary.apply_correction` with deterministic correction decision categories and block reasons. |
 | 6.6.4 | Wallet Reconciliation Retry/Worker Foundation | ✅ Done | Merged-main truth accepted via PR #561 at `WalletReconciliationRetryWorkerBoundary.decide_retry_work_item` with deterministic accepted/skipped/blocked/exhausted retry preparation outcomes and explicit block contracts. |
 | 6.6.5 | Public Readiness Slice Opener Foundation | 🚧 In Progress | Active on feature/public-readiness-slice-opener-2026-04-18 for evaluation-only go/hold/blocked preparation contract using declared 6.5.x/6.6.x readiness inputs; no live activation, scheduler rollout, settlement automation, or portfolio orchestration claimed. |
+| 6.6.6 | Public Activation Gate Foundation | 🚧 In Progress | Active on claude/public-activation-gate-0xLIz for deterministic gate-only allowed/denied_hold/denied_blocked evaluation consuming 6.6.5 readiness outcomes; no scheduler daemon, automation rollout, portfolio orchestration, or live trading activation claimed. |
 
 ---
 
