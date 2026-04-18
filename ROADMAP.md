@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 02:16
+**Last Updated:** 2026-04-19 02:24
 
 ## Board Overview
 
@@ -87,14 +87,14 @@
 
 **Goal:** Add thin deterministic orchestration contracts over the completed 6.6 baseline without broad automation rollout.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 02:16
+**Last Updated:** 2026-04-19 02:24
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
 | 7.0 | Orchestration and Automation Foundation (Single Public Cycle) | ✅ Done | Deterministic single-cycle orchestration entrypoint `run_public_activation_cycle` merged and preserved as thin synchronous chaining over 6.6.5 -> 6.6.6 -> 6.6.7 -> 6.6.8 -> 6.6.9. |
 | 7.1 | Public Activation Trigger Surface (Single Entrypoint) | ✅ Done | Merged with one synchronous CLI trigger path invoking `run_public_activation_cycle(...)` and explicit completed/stopped_hold/stopped_blocked mapping; excludes scheduler daemons, async workers, settlement automation, portfolio orchestration, and live trading rollout. |
 | 7.2 | Lightweight Automation Scheduler (Single Invocation Cycle) | ✅ Done | Deterministic triggered/skipped/blocked result categories delivered; blocked(invalid_contract) for negative quota; one synchronous invocation cycle only; excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
-| 7.3 | Runtime Auto-Run Loop Foundation (Bounded Synchronous Loop) | 🚧 In Progress | Bounded deterministic loop over the 7.2 scheduler boundary active on claude/runtime-auto-run-loop-cBVTs; loop result categories: completed/stopped_hold/stopped_blocked/exhausted; deterministic stop reasons; excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
+| 7.3 | Runtime Auto-Run Loop Foundation (Bounded Synchronous Loop) | ✅ Done | Finalized as merged-main truth with preserved bounded synchronous loop behavior over the 7.2 scheduler boundary and unchanged loop result categories (completed/stopped_hold/stopped_blocked/exhausted); excludes distributed schedulers, async workers, cron daemon rollout, portfolio orchestration, and live trading. |
 | 7.4 | Observability / Visibility Foundation | ✅ Done | Merged to main. Deterministic visibility records (visible/partial/blocked) over Phase 6.4.1 monitoring evaluations, Phase 7.2 scheduler decisions, and Phase 7.3 loop outcomes in monitoring/observability_foundation.py; 45 passing tests; pure functions only; excludes alert delivery, dashboards, distributed monitoring mesh, async workers, cron daemon rollout. |
 | 7.5 | Operator Control / Manual Override | ✅ Done | Merged to main via PR #575. Deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation via pure OperatorSchedulerGate and OperatorLoopGate in core/operator_control.py; 49 targeted tests; 181 total phase 7 suite passing. |
 | 7.6 | State Persistence / Execution Memory Foundation | ✅ Done | Completed baseline preserved in core/execution_memory_foundation.py with deterministic local-file load/store/clear boundary for minimal last-run context and explicit invalid_contract blocked behavior; excludes database rollout, Redis, distributed state, replay engine, and broad recovery orchestration claims. |
