@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 05:03
-Status       : CrusaderBot Fly.io deploy-readiness runtime split is in progress on branch `refactor/infra-crusaderbot-fly-readiness-20260419`; new FastAPI, Telegram, and worker runtime surfaces are added under `projects/polymarket/polyquantbot/` and Fly/Docker now target the API surface instead of the monolithic root `main.py`.
+Last Updated : 2026-04-19 06:47
+Status       : CrusaderBot Fly.io deploy-readiness runtime split is merged on main via PR #585 with SENTINEL APPROVED revalidation recorded; next lane shifts to post-merge verification and roadmap continuation for the next implementation phase.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -12,9 +12,10 @@ Status       : CrusaderBot Fly.io deploy-readiness runtime split is in progress 
 - Phase 7.5 operator control / manual override merged to main via PR #575 with deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation through OperatorSchedulerGate + OperatorLoopGate.
 - Phase 7.6 state persistence / execution memory FOUNDATION completed as preserved baseline with deterministic local-file load/store/clear boundary in core/execution_memory_foundation.py for explicit last-run context and invalid_contract blocked behavior.
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
+- Phase 7.2 CrusaderBot Fly.io deploy-readiness runtime split merged via PR #585; final SENTINEL APPROVED revalidation is recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase7_02_crusaderbot-fly-readiness-revalidation.md`.
 
 [IN PROGRESS]
-- CrusaderBot Fly.io deploy-readiness refactor is in progress on branch `refactor/infra-crusaderbot-fly-readiness-20260419` with new `server/main.py`, `client/telegram/bot.py`, and `scripts/run_api.py` runtime surfaces plus Docker/Fly contract updates.
+- Post-merge verification lane for CrusaderBot runtime split is in progress to confirm main-branch deploy/readiness continuity and queue the next roadmap implementation slice.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -22,7 +23,7 @@ Status       : CrusaderBot Fly.io deploy-readiness runtime split is in progress 
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL to validate the CrusaderBot Fly.io deploy path, FastAPI lifecycle contract, startup validation behavior, and the documented legacy boundary before merge.
+- Execute post-merge verification on main for CrusaderBot Fly readiness (deploy smoke checks, health/readiness confirmation, and roadmap handoff to the next lane).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
