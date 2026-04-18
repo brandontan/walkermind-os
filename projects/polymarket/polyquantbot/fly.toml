@@ -1,7 +1,8 @@
-app = "vurtnex-bot"
+app = "crusaderbot"
 primary_region = "iad"
 
 [build]
+  dockerfile = "projects/polymarket/polyquantbot/Dockerfile"
 
 [env]
   ENV = "production"
