@@ -1,4 +1,7 @@
+aiohttp
+numpy
+pandas
 python-telegram-bot
 requests
-pandas
-numpy
+structlog
+uvicorn[standard]
