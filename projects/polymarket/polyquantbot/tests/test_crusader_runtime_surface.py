@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from fastapi.testclient import TestClient
 
 from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, validate_api_environment
@@ -13,6 +11,18 @@ def test_api_settings_uses_fly_port(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     settings = ApiSettings.from_env()
     assert settings.port == 9090
+
+
+def test_api_settings_rejects_non_strict_startup_mode(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_STARTUP_MODE", "warn")
+    try:
+        ApiSettings.from_env()
+    except RuntimeError as exc:
+        assert "CRUSADER_STARTUP_MODE" in str(exc)
+    else:
+        raise AssertionError("ApiSettings.from_env() should reject non-strict startup mode.")
 
 
 def test_validate_api_environment_accepts_paper_defaults(monkeypatch) -> None:
@@ -32,3 +42,15 @@ def test_health_route_reports_crusaderbot_service(monkeypatch) -> None:
     payload = response.json()
     assert payload["service"] == "CrusaderBot"
     assert payload["runtime"] == "server.main"
+
+
+def test_ready_route_reports_ready_after_startup(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/ready")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ready"
+    assert payload["validation_errors"] == []
