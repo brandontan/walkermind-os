@@ -33,9 +33,9 @@ class ApiSettings:
 
         environment = os.getenv("APP_ENV", "development").strip() or "development"
         startup_mode = os.getenv("CRUSADER_STARTUP_MODE", "strict").strip().lower() or "strict"
-        if startup_mode not in {"strict", "warn"}:
+        if startup_mode != "strict":
             raise RuntimeError(
-                "CRUSADER_STARTUP_MODE must be 'strict' or 'warn'."
+                "CRUSADER_STARTUP_MODE must be 'strict' for the current runtime contract."
             )
 
         trading_mode = os.getenv("TRADING_MODE", "PAPER").strip().upper() or "PAPER"
@@ -43,9 +43,7 @@ class ApiSettings:
             raise RuntimeError("TRADING_MODE must be PAPER or LIVE.")
 
         if trading_mode == "LIVE" and os.getenv("ENABLE_LIVE_TRADING", "").strip().lower() != "true":
-            raise RuntimeError(
-                "LIVE mode requires ENABLE_LIVE_TRADING=true."
-            )
+            raise RuntimeError("LIVE mode requires ENABLE_LIVE_TRADING=true.")
 
         return cls(
             port=port,
@@ -74,11 +72,8 @@ class RuntimeState:
 def validate_api_environment(settings: ApiSettings) -> list[str]:
     errors: list[str] = []
 
-    if settings.port != int(os.getenv("PORT", "8080").strip() or "8080"):
-        errors.append("Resolved port does not match PORT environment variable.")
-
-    if settings.trading_mode == "LIVE" and settings.startup_mode == "warn":
-        errors.append("LIVE mode cannot run with CRUSADER_STARTUP_MODE=warn.")
+    if settings.startup_mode != "strict":
+        errors.append("CRUSADER_STARTUP_MODE must remain 'strict' at runtime.")
 
     return errors
 
