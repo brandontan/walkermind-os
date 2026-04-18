@@ -1,5 +1,5 @@
-Last Updated : 2026-04-18 11:52
-Status       : Phase 7.1 public activation trigger surface is now in progress with one synchronous CLI invocation path over the completed 7.0 deterministic cycle contract. Scope remains narrow integration only (no scheduler/worker/live rollout). Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
+Last Updated : 2026-04-18 18:01
+Status       : Phase 7.2 lightweight automation scheduler contract fix is active. Scheduler boundary now returns deterministic blocked(invalid_contract) for negative quota instead of raising. All scheduler result categories (triggered/skipped/blocked) are returned as SchedulerInvocationResult. Historical completed entries restored. Scope remains narrow integration only (no distributed schedulers, async workers, or live rollout). Phase 6.4.1 remains spec-approved only and is not the active implementation lane.
 
 [COMPLETED]
 - Phase 6.4.3 authorizer-path monitoring narrow integration merged via PR #491 (SENTINEL APPROVED 99/100).
@@ -20,9 +20,11 @@ Status       : Phase 7.1 public activation trigger surface is now in progress wi
 - Phase 6.6.7 minimal public activation flow merged via PR #564.
 - Phase 6.6.8 public safety hardening merged via PR #565.
 - Phase 6.6.9 minimal execution hook merged via PR #566.
+- Phase 7.0 deterministic public activation cycle orchestration foundation merged and preserved.
+- Phase 7.1 public activation trigger surface merged with one synchronous CLI invocation path mapping run_public_activation_cycle outcomes to explicit completed/stopped_hold/stopped_blocked trigger results.
 
 [IN PROGRESS]
-- Phase 7.1 public activation trigger surface is active with one synchronous CLI invocation path that maps `run_public_activation_cycle(...)` outcomes to explicit completed/stopped_hold/stopped_blocked trigger results.
+- Phase 7.2 lightweight automation scheduler is active with one synchronous invocation decision cycle over the 7.1 trigger surface; defines triggered/skipped/blocked result categories with deterministic skip reasons (already_running, window_not_open, quota_reached) and block reasons (schedule_disabled, invalid_contract).
 
 [NOT STARTED]
 - Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation has not started; prior spec approval does not claim runtime delivery.
@@ -31,7 +33,7 @@ Status       : Phase 7.1 public activation trigger surface is now in progress wi
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review for Phase 7.1 public activation trigger surface (thin CLI invocation path only).
+- COMMANDER re-review for Phase 7.2 contract fix (scheduler invalid_contract path returns blocked result; historical PROJECT_STATE.md entries restored).
 - Keep Phase 6.4.1 out of active-lane wording until implementation is explicitly resumed.
 
 [KNOWN ISSUES]
