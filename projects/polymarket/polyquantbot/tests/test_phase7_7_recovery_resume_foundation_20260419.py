@@ -15,6 +15,7 @@ from projects.polymarket.polyquantbot.core.recovery_resume_foundation import (
     RECOVERY_REASON_MEMORY_INVALID_CONTRACT,
     RECOVERY_REASON_MEMORY_NOT_FOUND,
     RECOVERY_REASON_MEMORY_VALID_INTERRUPTED,
+    RECOVERY_REASON_OPERATOR_HOLD,
     RECOVERY_REASON_PREVIOUS_BLOCKED,
     RecoveryResumeContract,
     RecoveryResumeFoundationBoundary,
@@ -65,7 +66,7 @@ def test_phase7_7_returns_restart_fresh_when_memory_is_closed(tmp_path) -> None:
 
 
 def test_phase7_7_returns_resume_when_memory_shows_interrupted_flow(tmp_path) -> None:
-    _store_memory(tmp_path, last_run_result="triggered", last_scheduler_decision="triggered", last_loop_outcome="exhausted")
+    _store_memory(tmp_path, last_run_result="triggered", last_scheduler_decision="triggered", last_loop_outcome="in_progress")
 
     decision = RecoveryResumeFoundationBoundary().decide(
         RecoveryResumeContract(owner_ref="owner-1", storage_dir=str(tmp_path))
@@ -86,6 +87,58 @@ def test_phase7_7_returns_blocked_when_memory_shows_blocked_condition(tmp_path) 
     assert decision.success is False
     assert decision.decision_category == RECOVERY_DECISION_BLOCKED
     assert decision.reason == RECOVERY_REASON_PREVIOUS_BLOCKED
+
+
+def test_phase7_7_returns_blocked_when_operator_memory_is_force_block(tmp_path) -> None:
+    _store_memory(
+        tmp_path,
+        last_run_result="triggered",
+        last_scheduler_decision="triggered",
+        last_loop_outcome="in_progress",
+        last_operator_control_decision="force_block",
+    )
+
+    decision = RecoveryResumeFoundationBoundary().decide(
+        RecoveryResumeContract(owner_ref="owner-1", storage_dir=str(tmp_path))
+    )
+
+    assert decision.success is False
+    assert decision.decision_category == RECOVERY_DECISION_BLOCKED
+    assert decision.reason == RECOVERY_REASON_PREVIOUS_BLOCKED
+
+
+def test_phase7_7_returns_restart_fresh_when_memory_is_exhausted(tmp_path) -> None:
+    _store_memory(
+        tmp_path,
+        last_run_result="exhausted",
+        last_scheduler_decision="triggered",
+        last_loop_outcome="exhausted",
+    )
+
+    decision = RecoveryResumeFoundationBoundary().decide(
+        RecoveryResumeContract(owner_ref="owner-1", storage_dir=str(tmp_path))
+    )
+
+    assert decision.success is True
+    assert decision.decision_category == RECOVERY_DECISION_RESTART_FRESH
+
+
+def test_phase7_7_returns_non_resume_when_operator_memory_is_hold(tmp_path) -> None:
+    _store_memory(
+        tmp_path,
+        last_run_result="triggered",
+        last_scheduler_decision="triggered",
+        last_loop_outcome="in_progress",
+        last_operator_control_decision="hold",
+    )
+
+    decision = RecoveryResumeFoundationBoundary().decide(
+        RecoveryResumeContract(owner_ref="owner-1", storage_dir=str(tmp_path))
+    )
+
+    assert decision.success is True
+    assert decision.decision_category == RECOVERY_DECISION_RESTART_FRESH
+    assert decision.reason == RECOVERY_REASON_OPERATOR_HOLD
 
 
 def test_phase7_7_returns_blocked_when_persisted_memory_contract_is_invalid(tmp_path) -> None:

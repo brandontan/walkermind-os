@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 02:07
-Status       : Phase 7.6 state persistence / execution memory FOUNDATION is preserved as completed base layer; Phase 7.7 recovery / resume FOUNDATION is active on branch feature/phase7-7-recovery-resume-foundation-2026-04-19 with deterministic resume/restart_fresh/blocked/no_memory decisions over 7.6 memory only; pending COMMANDER review.
+Last Updated : 2026-04-19 02:16
+Status       : Phase 7.6 state persistence / execution memory FOUNDATION is preserved as completed base layer; Phase 7.7 recovery / resume FOUNDATION safety semantics fix is active on branch feature/phase7-7-recovery-resume-safety-semantics-fix-2026-04-19 with deterministic blocked handling for force_block, non-resume hold handling, and restart_fresh closed-loop terminal states over 7.6 memory only; pending COMMANDER re-review.
 
 [COMPLETED]
 - Phase 6.4.1 monitoring and circuit-breaker FOUNDATION implementation merged via PR #572 at monitoring/foundation.py with deterministic ALLOW/BLOCK/HALT contract and 26 targeted tests.
@@ -19,7 +19,7 @@ Status       : Phase 7.6 state persistence / execution memory FOUNDATION is pres
 
 [IN PROGRESS]
 - Phase 7.3 runtime auto-run loop foundation is active over the 7.2 scheduler boundary; executes bounded synchronous loop with result categories (completed/stopped_hold/stopped_blocked/exhausted) and deterministic stop reasons; no distributed schedulers, async workers, or cron daemon rollout.
-- Phase 7.7 recovery / resume FOUNDATION active on branch feature/phase7-7-recovery-resume-foundation-2026-04-19 with deterministic decision categories (resume/restart_fresh/blocked/no_memory), explicit reasons/notes, and strict consumption of Phase 7.6 execution memory state only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
+- Phase 7.7 recovery / resume FOUNDATION safety semantics fix active on branch feature/phase7-7-recovery-resume-safety-semantics-fix-2026-04-19 with deterministic force_block -> blocked behavior, non-resume hold handling, and restart_fresh closed-loop terminal state handling (completed/stopped_hold/exhausted) over Phase 7.6 execution memory state only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -28,7 +28,7 @@ Status       : Phase 7.6 state persistence / execution memory FOUNDATION is pres
 
 [NEXT PRIORITY]
 - COMMANDER review for Phase 7.3 runtime auto-run loop foundation (STANDARD tier; loop over 7.2 scheduler with completed/stopped_hold/stopped_blocked/exhausted result categories).
-- COMMANDER review for Phase 7.7 recovery / resume FOUNDATION (STANDARD tier; deterministic resume/restart_fresh/blocked/no_memory outcomes over Phase 7.6 execution memory boundary with explicit reasons and targeted tests).
+- COMMANDER re-review for Phase 7.7 recovery / resume FOUNDATION safety semantics fix (STANDARD tier; deterministic force_block blocked behavior, non-resume hold behavior, and restart_fresh closed-loop terminal handling with targeted tests).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

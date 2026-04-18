@@ -37,6 +37,7 @@ RECOVERY_REASON_MEMORY_NOT_FOUND = "memory_not_found"
 RECOVERY_REASON_MEMORY_INVALID_CONTRACT = "memory_invalid_contract"
 RECOVERY_REASON_MEMORY_RUNTIME_ERROR = "memory_runtime_error"
 RECOVERY_REASON_PREVIOUS_BLOCKED = "previous_blocked"
+RECOVERY_REASON_OPERATOR_HOLD = "operator_hold"
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,7 @@ def _decide_from_load_result(load_result: ExecutionMemoryLoadResult) -> Recovery
         memory.last_run_result == "stopped_blocked"
         or memory.last_scheduler_decision == "blocked"
         or memory.last_loop_outcome == "stopped_blocked"
+        or memory.last_operator_control_decision == "force_block"
     ):
         return RecoveryResumeDecision(
             success=False,
@@ -132,10 +134,24 @@ def _decide_from_load_result(load_result: ExecutionMemoryLoadResult) -> Recovery
                 "last_run_result": memory.last_run_result,
                 "last_scheduler_decision": memory.last_scheduler_decision,
                 "last_loop_outcome": memory.last_loop_outcome,
+                "last_operator_control_decision": memory.last_operator_control_decision,
             },
         )
 
-    if memory.last_loop_outcome in {"completed", "stopped_hold"}:
+    if memory.last_operator_control_decision == "hold":
+        return RecoveryResumeDecision(
+            success=True,
+            decision_category=RECOVERY_DECISION_RESTART_FRESH,
+            reason=RECOVERY_REASON_OPERATOR_HOLD,
+            notes={
+                "last_run_result": memory.last_run_result,
+                "last_scheduler_decision": memory.last_scheduler_decision,
+                "last_loop_outcome": memory.last_loop_outcome,
+                "last_operator_control_decision": memory.last_operator_control_decision,
+            },
+        )
+
+    if memory.last_loop_outcome in {"completed", "stopped_hold", "exhausted"}:
         return RecoveryResumeDecision(
             success=True,
             decision_category=RECOVERY_DECISION_RESTART_FRESH,

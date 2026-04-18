@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 02:07
+**Last Updated:** 2026-04-19 02:16
 
 ## Board Overview
 
@@ -87,7 +87,7 @@
 
 **Goal:** Add thin deterministic orchestration contracts over the completed 6.6 baseline without broad automation rollout.  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 02:07
+**Last Updated:** 2026-04-19 02:16
 
 | Sub-Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -98,7 +98,7 @@
 | 7.4 | Observability / Visibility Foundation | ✅ Done | Merged to main. Deterministic visibility records (visible/partial/blocked) over Phase 6.4.1 monitoring evaluations, Phase 7.2 scheduler decisions, and Phase 7.3 loop outcomes in monitoring/observability_foundation.py; 45 passing tests; pure functions only; excludes alert delivery, dashboards, distributed monitoring mesh, async workers, cron daemon rollout. |
 | 7.5 | Operator Control / Manual Override | ✅ Done | Merged to main via PR #575. Deterministic OperatorControlDecision (allow/hold/force_block/force_run) injected before Phase 7.2 scheduler decision and Phase 7.3 loop continuation via pure OperatorSchedulerGate and OperatorLoopGate in core/operator_control.py; 49 targeted tests; 181 total phase 7 suite passing. |
 | 7.6 | State Persistence / Execution Memory Foundation | ✅ Done | Completed baseline preserved in core/execution_memory_foundation.py with deterministic local-file load/store/clear boundary for minimal last-run context and explicit invalid_contract blocked behavior; excludes database rollout, Redis, distributed state, replay engine, and broad recovery orchestration claims. |
-| 7.7 | Recovery / Resume Foundation | 🚧 In Progress | Active on branch feature/phase7-7-recovery-resume-foundation-2026-04-19. Deterministic recovery decision categories (resume/restart_fresh/blocked/no_memory) over Phase 7.6 execution memory load state only with explicit reasons/notes; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, crash supervision, and broader production failover program. |
+| 7.7 | Recovery / Resume Foundation | 🚧 In Progress | Active on branch feature/phase7-7-recovery-resume-safety-semantics-fix-2026-04-19. Safety semantics fix in progress: deterministic force_block memory -> blocked, hold memory -> non-resume, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, crash supervision, and broader production failover program. |
 
 ---
 
