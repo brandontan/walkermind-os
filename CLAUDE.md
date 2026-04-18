@@ -223,7 +223,8 @@ NEVER bypass execution guard under any circumstances.
 5. Run structure validation (checklist below)
 6. Generate report — all 6 sections mandatory
 7. Update `PROJECT_STATE.md` (7 sections only)
-8. Commit code + report + state in ONE commit → create PR
+8. Update `ROADMAP.md` if roadmap-level truth changed (active phase, milestone status, task row)
+9. Commit code + report + state + roadmap in ONE commit → create PR
 
 ### Report (MANDATORY — STRICT)
 
@@ -300,6 +301,7 @@ Done ✅ — [task name] complete.
 PR: {prefix}/{area}-{purpose}-{date}
 Report: reports/forge/[phase]_[increment]_[name].md
 State: PROJECT_STATE.md updated
+Roadmap: ROADMAP.md updated | no roadmap-level change
 Validation Tier: [MINOR / STANDARD / MAJOR]
 Claim Level: [FOUNDATION / NARROW INTEGRATION / FULL RUNTIME INTEGRATION]
 ```
@@ -328,6 +330,7 @@ Done ⚠️ — [task name] complete. GitHub write failed. Files delivered in ch
 - Commit without report
 - Commit without updating `PROJECT_STATE.md`
 - Merge PR
+- Skip ROADMAP.md update when roadmap-level truth changed
 - Use full Kelly (α=1.0)
 - Bypass RISK layer
 
@@ -589,6 +592,7 @@ Archive via: `chore/core-report-archive-YYYYMMDD` branch.
 - Keep `phase*/` folders
 - Use short paths — always full path from repo root in reports
 - Commit without report (FORGE-X)
+- Commit without updating ROADMAP.md when roadmap-level truth changed (FORGE-X)
 - Merge PR without required validation tier satisfied
 - Invent data (BRIEFER)
 - Build HTML from scratch (BRIEFER)
