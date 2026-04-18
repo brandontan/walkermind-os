@@ -2037,3 +2037,143 @@ def _blocked_public_readiness_result(
         readiness_notes=readiness_notes,
         notes=notes,
     )
+
+
+WALLET_ACTIVATION_GATE_BLOCK_INVALID_CONTRACT = "invalid_contract"
+WALLET_ACTIVATION_GATE_BLOCK_OWNERSHIP_MISMATCH = "ownership_mismatch"
+WALLET_ACTIVATION_GATE_BLOCK_WALLET_NOT_ACTIVE = "wallet_not_active"
+WALLET_ACTIVATION_GATE_BLOCK_READINESS_HOLD = "readiness_hold"
+WALLET_ACTIVATION_GATE_BLOCK_READINESS_BLOCKED = "readiness_blocked"
+WALLET_ACTIVATION_GATE_RESULT_ALLOWED = "allowed"
+WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD = "denied_hold"
+WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED = "denied_blocked"
+
+_WALLET_ACTIVATION_GATE_VALID_READINESS_RESULTS: frozenset[str] = frozenset({
+    WALLET_PUBLIC_READINESS_RESULT_GO,
+    WALLET_PUBLIC_READINESS_RESULT_HOLD,
+    WALLET_PUBLIC_READINESS_RESULT_BLOCKED,
+})
+
+
+@dataclass(frozen=True)
+class WalletPublicActivationGatePolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requested_by_user_id: str
+    wallet_active: bool
+    readiness_result_category: str
+    readiness_notes: list[str]
+
+
+@dataclass(frozen=True)
+class WalletPublicActivationGateResult:
+    success: bool
+    blocked_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    activation_result_category: str
+    activation_notes: list[str]
+    notes: dict[str, Any] | None = None
+
+
+class WalletPublicActivationGateBoundary:
+    """Phase 6.6.6 narrow public activation gate.
+    Consumes 6.6.5 readiness outcome and deterministically allows or blocks activation.
+    Gate-only: no scheduler daemon, no automation rollout, no live trading claim."""
+
+    def evaluate_activation_gate(
+        self, policy: WalletPublicActivationGatePolicy
+    ) -> WalletPublicActivationGateResult:
+        contract_error = _validate_activation_gate_policy(policy)
+        if contract_error is not None:
+            return _blocked_activation_gate_result(
+                policy=policy,
+                blocked_reason=WALLET_ACTIVATION_GATE_BLOCK_INVALID_CONTRACT,
+                activation_result_category=WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED,
+                activation_notes=["contract_error"],
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requested_by_user_id != policy.owner_user_id:
+            return _blocked_activation_gate_result(
+                policy=policy,
+                blocked_reason=WALLET_ACTIVATION_GATE_BLOCK_OWNERSHIP_MISMATCH,
+                activation_result_category=WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED,
+                activation_notes=["owner_mismatch"],
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if policy.wallet_active is not True:
+            return _blocked_activation_gate_result(
+                policy=policy,
+                blocked_reason=WALLET_ACTIVATION_GATE_BLOCK_WALLET_NOT_ACTIVE,
+                activation_result_category=WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED,
+                activation_notes=["wallet_not_active"],
+                notes={"wallet_active": False},
+            )
+
+        if policy.readiness_result_category == WALLET_PUBLIC_READINESS_RESULT_GO:
+            return WalletPublicActivationGateResult(
+                success=True,
+                blocked_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                activation_result_category=WALLET_ACTIVATION_GATE_RESULT_ALLOWED,
+                activation_notes=list(policy.readiness_notes) + ["readiness_go_confirmed"],
+                notes={"readiness_result_category": policy.readiness_result_category},
+            )
+
+        if policy.readiness_result_category == WALLET_PUBLIC_READINESS_RESULT_HOLD:
+            return _blocked_activation_gate_result(
+                policy=policy,
+                blocked_reason=WALLET_ACTIVATION_GATE_BLOCK_READINESS_HOLD,
+                activation_result_category=WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD,
+                activation_notes=list(policy.readiness_notes) + ["readiness_hold_pending"],
+                notes={"readiness_result_category": policy.readiness_result_category},
+            )
+
+        return _blocked_activation_gate_result(
+            policy=policy,
+            blocked_reason=WALLET_ACTIVATION_GATE_BLOCK_READINESS_BLOCKED,
+            activation_result_category=WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED,
+            activation_notes=list(policy.readiness_notes) + ["readiness_blocked"],
+            notes={"readiness_result_category": policy.readiness_result_category},
+        )
+
+
+def _validate_activation_gate_policy(policy: WalletPublicActivationGatePolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requested_by_user_id, str) or not policy.requested_by_user_id.strip():
+        return "requested_by_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    if (
+        not isinstance(policy.readiness_result_category, str)
+        or policy.readiness_result_category not in _WALLET_ACTIVATION_GATE_VALID_READINESS_RESULTS
+    ):
+        return "readiness_result_category_invalid"
+    if not isinstance(policy.readiness_notes, list):
+        return "readiness_notes_must_be_list"
+    return None
+
+
+def _blocked_activation_gate_result(
+    *,
+    policy: WalletPublicActivationGatePolicy,
+    blocked_reason: str,
+    activation_result_category: str,
+    activation_notes: list[str],
+    notes: dict[str, Any] | None,
+) -> WalletPublicActivationGateResult:
+    return WalletPublicActivationGateResult(
+        success=False,
+        blocked_reason=blocked_reason,
+        wallet_binding_id=policy.wallet_binding_id,
+        owner_user_id=policy.owner_user_id,
+        activation_result_category=activation_result_category,
+        activation_notes=activation_notes,
+        notes=notes,
+    )
