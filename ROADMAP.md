@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-18 18:21
+**Last Updated:** 2026-04-18 22:35
 
 ## Board Overview
 
@@ -51,7 +51,7 @@
 | 6.1 | Execution Ledger (In-Memory) | ✅ Done | Deterministic append-only records and read-only reconciliation delivered. |
 | 6.2 | Persistent Ledger & Audit Trail | ✅ Done | Append-only local-file persistence and deterministic reload delivered. |
 | 6.3 | Kill Switch & Execution Halt Foundation | ✅ Done | Merged via PR #479 and preserved as approved carry-forward truth. |
-| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Implementation | 🚧 In Progress | Deterministic contract delivered in monitoring/foundation.py — MonitoringDecision (ALLOW/BLOCK/HALT), MonitoringAnomalyCategory (8 types), evaluate_monitoring_contract() pure evaluator, 26 passing tests. Pending COMMANDER review on branch claude/phase6-4-1-monitoring-foundation-5CVsL. |
+| 6.4.1 | Monitoring & Circuit Breaker FOUNDATION Implementation | ✅ Done | Merged via PR #572 with deterministic contract in monitoring/foundation.py — MonitoringDecision (ALLOW/BLOCK/HALT), MonitoringAnomalyCategory (8 types), evaluate_monitoring_contract() pure evaluator, 26 passing tests. |
 | 6.4.2 | Runtime Monitoring Narrow Integration | ✅ Done | Merged truth preserved for ExecutionTransport.submit_with_trace narrow integration after SENTINEL APPROVED (95/100). |
 | 6.4.3 | Authorizer-Path Monitoring Narrow Integration | ✅ Done | Merged via PR #491. SENTINEL APPROVED(99/100). Narrow scope preserved: LiveExecutionAuthorizer.authorize_with_trace + ExecutionTransport.submit_with_trace only. |
 | 6.4.4 | Gateway-Path Monitoring Narrow Integration Expansion | ✅ Done | Runtime/code path merged via PR #493. SENTINEL APPROVED validation path recorded in PR #495 (97/100). Accepted narrow three-path execution monitoring baseline preserved. |

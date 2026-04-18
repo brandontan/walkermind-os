@@ -2,6 +2,7 @@ Last Updated : 2026-04-18 22:58
 Status       : Phase 7.4 observability / visibility foundation active on branch claude/add-observability-visibility-tydYW — deterministic visibility records (visible/partial/blocked) over Phase 6.4.1 monitoring evaluations, Phase 7.2 scheduler decisions, and Phase 7.3 loop outcomes implemented in monitoring/observability_foundation.py with 45 targeted tests; pending COMMANDER review (STANDARD tier).
 
 [COMPLETED]
+- Phase 6.4.1 monitoring and circuit-breaker FOUNDATION implementation merged via PR #572 at monitoring/foundation.py with deterministic ALLOW/BLOCK/HALT contract and 26 targeted tests.
 - Phase 6.6.3 wallet reconciliation mutation/correction foundation merged via PR #560.
 - Phase 6.6.4 wallet reconciliation retry/worker foundation merged via PR #561.
 - Phase 6.6.5 public readiness slice opener merged via PR #562.
@@ -14,7 +15,6 @@ Status       : Phase 7.4 observability / visibility foundation active on branch 
 - Phase 7.2 lightweight automation scheduler merged with deterministic triggered/skipped/blocked result categories and invalid_contract blocked path for negative quota.
 
 [IN PROGRESS]
-- Phase 6.4.1 Monitoring and Circuit Breaker FOUNDATION implementation delivered on branch claude/phase6-4-1-monitoring-foundation-5CVsL; deterministic evaluation contract in monitoring/foundation.py with 26 targeted tests; pending COMMANDER review (STANDARD tier).
 - Phase 7.3 runtime auto-run loop foundation is active over the 7.2 scheduler boundary; executes bounded synchronous loop with result categories (completed/stopped_hold/stopped_blocked/exhausted) and deterministic stop reasons; no distributed schedulers, async workers, or cron daemon rollout.
 - Phase 7.4 observability / visibility foundation active on branch claude/add-observability-visibility-tydYW; deterministic visibility records (visible/partial/blocked) over 6.4.1 monitoring evaluations, 7.2 scheduler decisions, and 7.3 loop outcomes in monitoring/observability_foundation.py with 45 targeted tests; pending COMMANDER review (STANDARD tier).
 
@@ -24,7 +24,6 @@ Status       : Phase 7.4 observability / visibility foundation active on branch 
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review for Phase 6.4.1 monitoring & circuit-breaker FOUNDATION (STANDARD tier; monitoring/foundation.py with deterministic ALLOW/BLOCK/HALT decision contract and 26 passing tests).
 - COMMANDER review for Phase 7.3 runtime auto-run loop foundation (STANDARD tier; loop over 7.2 scheduler with completed/stopped_hold/stopped_blocked/exhausted result categories).
 - COMMANDER review for Phase 7.4 observability / visibility foundation (STANDARD tier; monitoring/observability_foundation.py with visible/partial/blocked categories over 6.4.1/7.2/7.3 surfaces and 45 passing tests).
 
