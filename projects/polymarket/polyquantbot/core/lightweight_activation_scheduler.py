@@ -67,8 +67,16 @@ class LightweightActivationSchedulerBoundary:
     """
 
     def decide_and_invoke(self, policy: SchedulerInvocationPolicy) -> SchedulerInvocationResult:
-        """Evaluate scheduling conditions; invoke 7.1 trigger only if all conditions are met."""
-        _validate_scheduler_policy_contract(policy)
+        """Evaluate scheduling conditions; invoke 7.1 trigger only if all conditions are met.
+
+        Decision priority (deterministic, evaluated in order):
+        1. schedule_disabled  -> blocked
+        2. already_running    -> skipped
+        3. window_not_open    -> skipped
+        4. quota_reached      -> skipped  (quota == 0)
+        5. invalid_contract   -> blocked  (quota < 0)
+        6. all conditions met -> triggered
+        """
         notes: list[str] = []
 
         if not policy.schedule_enabled:
@@ -101,12 +109,22 @@ class LightweightActivationSchedulerBoundary:
                 scheduler_notes=notes,
             )
 
-        if policy.invocation_quota_remaining <= 0:
+        if policy.invocation_quota_remaining == 0:
             notes.append("quota_reached: invocation quota is exhausted")
             return SchedulerInvocationResult(
                 scheduler_result=SCHEDULER_RESULT_SKIPPED,
                 skip_reason=SCHEDULER_SKIP_QUOTA_REACHED,
                 block_reason=None,
+                trigger_result=None,
+                scheduler_notes=notes,
+            )
+
+        if policy.invocation_quota_remaining < 0:
+            notes.append("invalid_contract: invocation_quota_remaining must be >= 0")
+            return SchedulerInvocationResult(
+                scheduler_result=SCHEDULER_RESULT_BLOCKED,
+                skip_reason=None,
+                block_reason=SCHEDULER_BLOCK_INVALID_CONTRACT,
                 trigger_result=None,
                 scheduler_notes=notes,
             )
@@ -120,13 +138,6 @@ class LightweightActivationSchedulerBoundary:
             block_reason=None,
             trigger_result=trigger_result,
             scheduler_notes=notes,
-        )
-
-
-def _validate_scheduler_policy_contract(policy: SchedulerInvocationPolicy) -> None:
-    if policy.invocation_quota_remaining < 0:
-        raise ValueError(
-            "invalid scheduler policy: invocation_quota_remaining must be >= 0"
         )
 
 
