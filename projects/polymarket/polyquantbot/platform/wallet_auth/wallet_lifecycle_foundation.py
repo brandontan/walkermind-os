@@ -2344,3 +2344,240 @@ def _stopped_activation_flow_result(
         flow_notes=flow_notes,
         notes=notes,
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 6.6.8 -- Public Safety Hardening
+# ---------------------------------------------------------------------------
+
+PUBLIC_SAFETY_HARDENING_OUTCOME_PASS = "pass"
+PUBLIC_SAFETY_HARDENING_OUTCOME_HOLD = "hold"
+PUBLIC_SAFETY_HARDENING_OUTCOME_BLOCKED = "blocked"
+
+PUBLIC_SAFETY_HARDENING_STOP_INVALID_CONTRACT = "invalid_contract"
+PUBLIC_SAFETY_HARDENING_STOP_READINESS_GATE_MISMATCH = "readiness_gate_mismatch"
+PUBLIC_SAFETY_HARDENING_STOP_GATE_FLOW_MISMATCH = "gate_flow_mismatch"
+PUBLIC_SAFETY_HARDENING_STOP_CROSS_BOUNDARY_INCONSISTENCY = "cross_boundary_inconsistency"
+
+PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_GO_GATE_HOLD = "readiness_go_gate_hold"
+PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_GO_GATE_BLOCKED = "readiness_go_gate_blocked"
+PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_HOLD_GATE_ALLOWED = "readiness_hold_gate_allowed"
+PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_HOLD_GATE_BLOCKED = "readiness_hold_gate_blocked"
+PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_BLOCKED_GATE_ALLOWED = "readiness_blocked_gate_allowed"
+PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_BLOCKED_GATE_HOLD = "readiness_blocked_gate_hold"
+PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_ALLOWED_FLOW_HOLD = "gate_allowed_flow_hold"
+PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_ALLOWED_FLOW_BLOCKED = "gate_allowed_flow_blocked"
+PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_HOLD_FLOW_COMPLETED = "gate_hold_flow_completed"
+PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_HOLD_FLOW_BLOCKED = "gate_hold_flow_blocked"
+PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_BLOCKED_FLOW_COMPLETED = "gate_blocked_flow_completed"
+PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_BLOCKED_FLOW_HOLD = "gate_blocked_flow_hold"
+
+_HARDENING_VALID_READINESS_RESULTS: frozenset[str] = frozenset({
+    WALLET_PUBLIC_READINESS_RESULT_GO,
+    WALLET_PUBLIC_READINESS_RESULT_HOLD,
+    WALLET_PUBLIC_READINESS_RESULT_BLOCKED,
+})
+_HARDENING_VALID_GATE_RESULTS: frozenset[str] = frozenset({
+    WALLET_ACTIVATION_GATE_RESULT_ALLOWED,
+    WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD,
+    WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED,
+})
+_HARDENING_VALID_FLOW_RESULTS: frozenset[str] = frozenset({
+    ACTIVATION_FLOW_RESULT_COMPLETED,
+    ACTIVATION_FLOW_RESULT_STOPPED_HOLD,
+    ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED,
+})
+
+# (readiness, gate) -> mismatch name.  Keys absent from this map are consistent.
+_READINESS_GATE_MISMATCH_MAP: dict[tuple[str, str], str] = {
+    (WALLET_PUBLIC_READINESS_RESULT_GO, WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_GO_GATE_HOLD,
+    (WALLET_PUBLIC_READINESS_RESULT_GO, WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_GO_GATE_BLOCKED,
+    (WALLET_PUBLIC_READINESS_RESULT_HOLD, WALLET_ACTIVATION_GATE_RESULT_ALLOWED):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_HOLD_GATE_ALLOWED,
+    (WALLET_PUBLIC_READINESS_RESULT_HOLD, WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_HOLD_GATE_BLOCKED,
+    (WALLET_PUBLIC_READINESS_RESULT_BLOCKED, WALLET_ACTIVATION_GATE_RESULT_ALLOWED):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_BLOCKED_GATE_ALLOWED,
+    (WALLET_PUBLIC_READINESS_RESULT_BLOCKED, WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_BLOCKED_GATE_HOLD,
+}
+
+# (gate, flow) -> mismatch name.  Keys absent from this map are consistent.
+_GATE_FLOW_MISMATCH_MAP: dict[tuple[str, str], str] = {
+    (WALLET_ACTIVATION_GATE_RESULT_ALLOWED, ACTIVATION_FLOW_RESULT_STOPPED_HOLD):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_ALLOWED_FLOW_HOLD,
+    (WALLET_ACTIVATION_GATE_RESULT_ALLOWED, ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_ALLOWED_FLOW_BLOCKED,
+    (WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD, ACTIVATION_FLOW_RESULT_COMPLETED):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_HOLD_FLOW_COMPLETED,
+    (WALLET_ACTIVATION_GATE_RESULT_DENIED_HOLD, ACTIVATION_FLOW_RESULT_STOPPED_BLOCKED):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_HOLD_FLOW_BLOCKED,
+    (WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED, ACTIVATION_FLOW_RESULT_COMPLETED):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_BLOCKED_FLOW_COMPLETED,
+    (WALLET_ACTIVATION_GATE_RESULT_DENIED_BLOCKED, ACTIVATION_FLOW_RESULT_STOPPED_HOLD):
+        PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_BLOCKED_FLOW_HOLD,
+}
+
+# Mismatch names that escalate the outcome to BLOCKED (not merely HOLD).
+_HARDENING_BLOCKED_MISMATCH_NAMES: frozenset[str] = frozenset({
+    PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_GO_GATE_BLOCKED,
+    PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_HOLD_GATE_ALLOWED,
+    PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_BLOCKED_GATE_ALLOWED,
+    PUBLIC_SAFETY_HARDENING_MISMATCH_READINESS_BLOCKED_GATE_HOLD,
+    PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_ALLOWED_FLOW_HOLD,
+    PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_ALLOWED_FLOW_BLOCKED,
+    PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_HOLD_FLOW_COMPLETED,
+    PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_BLOCKED_FLOW_COMPLETED,
+    PUBLIC_SAFETY_HARDENING_MISMATCH_GATE_BLOCKED_FLOW_HOLD,
+})
+
+
+@dataclass(frozen=True)
+class PublicSafetyHardeningPolicy:
+    wallet_binding_id: str
+    owner_user_id: str
+    requester_user_id: str
+    wallet_active: bool
+    readiness_result_category: str
+    activation_result_category: str
+    flow_result_category: str
+
+
+@dataclass(frozen=True)
+class PublicSafetyHardeningResult:
+    hardening_outcome: str
+    mismatch_block_reason: str | None
+    stop_reason: str | None
+    wallet_binding_id: str
+    owner_user_id: str
+    hardening_notes: list[str]
+    notes: dict[str, Any] | None = None
+
+
+class PublicSafetyHardeningBoundary:
+    """Phase 6.6.8 cross-boundary public safety hardening.
+    Detects inconsistent cross-boundary combinations across 6.6.5/6.6.6/6.6.7 outputs.
+    Hardening-only: no scheduler daemon, no live trading rollout, no portfolio orchestration."""
+
+    def check_hardening(
+        self, policy: PublicSafetyHardeningPolicy
+    ) -> PublicSafetyHardeningResult:
+        contract_error = _validate_hardening_policy(policy)
+        if contract_error is not None:
+            return PublicSafetyHardeningResult(
+                hardening_outcome=PUBLIC_SAFETY_HARDENING_OUTCOME_BLOCKED,
+                mismatch_block_reason=None,
+                stop_reason=PUBLIC_SAFETY_HARDENING_STOP_INVALID_CONTRACT,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                hardening_notes=["contract_error"],
+                notes={"contract_error": contract_error},
+            )
+
+        if policy.requester_user_id != policy.owner_user_id:
+            return PublicSafetyHardeningResult(
+                hardening_outcome=PUBLIC_SAFETY_HARDENING_OUTCOME_BLOCKED,
+                mismatch_block_reason=None,
+                stop_reason=PUBLIC_SAFETY_HARDENING_STOP_INVALID_CONTRACT,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                hardening_notes=["owner_mismatch"],
+                notes={"owner_user_id": policy.owner_user_id},
+            )
+
+        if not policy.wallet_active:
+            return PublicSafetyHardeningResult(
+                hardening_outcome=PUBLIC_SAFETY_HARDENING_OUTCOME_BLOCKED,
+                mismatch_block_reason=None,
+                stop_reason=PUBLIC_SAFETY_HARDENING_STOP_INVALID_CONTRACT,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                hardening_notes=["wallet_not_active"],
+                notes={"wallet_active": False},
+            )
+
+        rg_pair = (policy.readiness_result_category, policy.activation_result_category)
+        gf_pair = (policy.activation_result_category, policy.flow_result_category)
+
+        rg_mismatch = _READINESS_GATE_MISMATCH_MAP.get(rg_pair)
+        gf_mismatch = _GATE_FLOW_MISMATCH_MAP.get(gf_pair)
+
+        if rg_mismatch is None and gf_mismatch is None:
+            return PublicSafetyHardeningResult(
+                hardening_outcome=PUBLIC_SAFETY_HARDENING_OUTCOME_PASS,
+                mismatch_block_reason=None,
+                stop_reason=None,
+                wallet_binding_id=policy.wallet_binding_id,
+                owner_user_id=policy.owner_user_id,
+                hardening_notes=["readiness_gate_consistent", "gate_flow_consistent"],
+                notes={
+                    "readiness_result_category": policy.readiness_result_category,
+                    "activation_result_category": policy.activation_result_category,
+                    "flow_result_category": policy.flow_result_category,
+                },
+            )
+
+        mismatch_names: list[str] = []
+        if rg_mismatch is not None:
+            mismatch_names.append(rg_mismatch)
+        if gf_mismatch is not None:
+            mismatch_names.append(gf_mismatch)
+
+        has_blocked_mismatch = any(m in _HARDENING_BLOCKED_MISMATCH_NAMES for m in mismatch_names)
+
+        if rg_mismatch is not None and gf_mismatch is not None:
+            stop_reason = PUBLIC_SAFETY_HARDENING_STOP_CROSS_BOUNDARY_INCONSISTENCY
+        elif rg_mismatch is not None:
+            stop_reason = PUBLIC_SAFETY_HARDENING_STOP_READINESS_GATE_MISMATCH
+        else:
+            stop_reason = PUBLIC_SAFETY_HARDENING_STOP_GATE_FLOW_MISMATCH
+
+        outcome = (
+            PUBLIC_SAFETY_HARDENING_OUTCOME_BLOCKED
+            if has_blocked_mismatch
+            else PUBLIC_SAFETY_HARDENING_OUTCOME_HOLD
+        )
+
+        return PublicSafetyHardeningResult(
+            hardening_outcome=outcome,
+            mismatch_block_reason=mismatch_names[0],
+            stop_reason=stop_reason,
+            wallet_binding_id=policy.wallet_binding_id,
+            owner_user_id=policy.owner_user_id,
+            hardening_notes=mismatch_names,
+            notes={
+                "readiness_result_category": policy.readiness_result_category,
+                "activation_result_category": policy.activation_result_category,
+                "flow_result_category": policy.flow_result_category,
+                "mismatches": mismatch_names,
+            },
+        )
+
+
+def _validate_hardening_policy(policy: PublicSafetyHardeningPolicy) -> str | None:
+    if not isinstance(policy.wallet_binding_id, str) or not policy.wallet_binding_id.strip():
+        return "wallet_binding_id_required"
+    if not isinstance(policy.owner_user_id, str) or not policy.owner_user_id.strip():
+        return "owner_user_id_required"
+    if not isinstance(policy.requester_user_id, str) or not policy.requester_user_id.strip():
+        return "requester_user_id_required"
+    if not isinstance(policy.wallet_active, bool):
+        return "wallet_active_must_be_bool"
+    if (
+        not isinstance(policy.readiness_result_category, str)
+        or policy.readiness_result_category not in _HARDENING_VALID_READINESS_RESULTS
+    ):
+        return "readiness_result_category_invalid"
+    if (
+        not isinstance(policy.activation_result_category, str)
+        or policy.activation_result_category not in _HARDENING_VALID_GATE_RESULTS
+    ):
+        return "activation_result_category_invalid"
+    if (
+        not isinstance(policy.flow_result_category, str)
+        or policy.flow_result_category not in _HARDENING_VALID_FLOW_RESULTS
+    ):
+        return "flow_result_category_invalid"
+    return None
