@@ -14,6 +14,9 @@ from projects.polymarket.polyquantbot.server.services.auth_session_service impor
 from projects.polymarket.polyquantbot.server.services.telegram_activation_service import TelegramActivationService
 from projects.polymarket.polyquantbot.server.services.telegram_identity_service import TelegramIdentityService
 from projects.polymarket.polyquantbot.server.services.telegram_onboarding_service import TelegramOnboardingService
+from projects.polymarket.polyquantbot.server.services.telegram_session_issuance_service import (
+    TelegramSessionIssuanceService,
+)
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import (
     WalletLinkNotFoundError,
     WalletLinkOwnershipError,
@@ -34,12 +37,19 @@ class TelegramOnboardingStartBody(BaseModel):
     tenant_id: str = Field(min_length=1)
 
 
+class TelegramSessionIssueBody(BaseModel):
+    telegram_user_id: str = Field(min_length=1)
+    tenant_id: str = Field(min_length=1)
+    ttl_seconds: int = Field(default=1800, ge=60, le=86400)
+
+
 def build_client_auth_router(
     auth_session_service: AuthSessionService,
     wallet_link_service: WalletLinkService,
     telegram_identity_service: TelegramIdentityService,
     telegram_onboarding_service: TelegramOnboardingService,
     telegram_activation_service: TelegramActivationService,
+    telegram_session_issuance_service: TelegramSessionIssuanceService,
 ) -> APIRouter:
     router = APIRouter(prefix="/auth", tags=["client-auth"])
 
@@ -94,6 +104,24 @@ def build_client_auth_router(
             "outcome": result.outcome,
             "tenant_id": result.tenant_id,
             "user_id": result.user_id,
+            "detail": result.detail,
+        }
+
+    @router.post("/telegram-onboarding/session-issue")
+    async def issue_telegram_session(
+        body: TelegramSessionIssueBody,
+    ) -> dict[str, object]:
+        """Issue Telegram session only for activated users; pending users are rejected."""
+        result = telegram_session_issuance_service.issue(
+            telegram_user_id=body.telegram_user_id,
+            tenant_id=body.tenant_id,
+            ttl_seconds=body.ttl_seconds,
+        )
+        return {
+            "outcome": result.outcome,
+            "tenant_id": result.tenant_id,
+            "user_id": result.user_id,
+            "session_id": result.session_id,
             "detail": result.detail,
         }
 

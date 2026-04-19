@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 21:39
-Status       : Phase 8.11 post-merge repo-truth sync is now closed on main. Phase 8.12 Telegram confirmation/activation foundation is implemented with explicit activation outcomes over the onboarding baseline and targeted MAJOR coverage.
+Last Updated : 2026-04-19 23:28
+Status       : Phase 8.13 session-issuance gate fix committed on branch claude/fix-telegram-session-issuance-zGD86. Auto-promotion removed from TelegramSessionIssuanceService; strict active-only gate enforced. 148/148 pytest pass. SENTINEL PR #617 BLOCKED finding is resolved pending COMMANDER merge decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -26,7 +26,7 @@ Status       : Phase 8.11 post-merge repo-truth sync is now closed on main. Phas
 - Phase 8.11 Telegram onboarding/account-link foundation merged truth synced on main: unresolved /start onboarding route and persistence evidence preserved in `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md` and `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`; expected validation reference path remains `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`.
 
 [IN PROGRESS]
-- Phase 8.12 Telegram confirmation/activation foundation: resolved Telegram-linked users now pass through explicit activation confirmation outcomes (activated/already_active/rejected/error) before session dispatch, with persistent activation status and tenant isolation evidence.
+- Phase 8.13 Telegram session-issuance gate fix: auto-promotion removed, strict active-only issuance gate enforced, 148/148 pytest pass, awaiting COMMANDER merge decision on PR #616 / branch claude/fix-telegram-session-issuance-zGD86.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -34,7 +34,7 @@ Status       : Phase 8.11 post-merge repo-truth sync is now closed on main. Phas
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation for Phase 8.12 MAJOR scope (Telegram confirmation/activation foundation) over backend confirm contract, runtime activation reply mapping, persistence/isolation integrity, and preserved Phase 8.11 regressions; then return to COMMANDER for merge decision.
+- COMMANDER review and merge decision for Phase 8.13 session-issuance gate fix (branch claude/fix-telegram-session-issuance-zGD86). SENTINEL PR #617 BLOCKED finding is resolved; PR #617 can be closed after merge. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_02_fix-session-issuance-gate.md.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
