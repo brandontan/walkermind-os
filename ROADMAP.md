@@ -24,9 +24,9 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 11:46
+**Last Updated:** 2026-04-19 09:39
 
-3# Board Overview
+# Board Overview
 
 | Phase | Name | Status | Target |
 |---|---|---|---|
@@ -37,17 +37,17 @@
 | Phase 5 | Real Execution & Capital System | ✅ Done | Internal |
 | Phase 6 | Production Safety & Stabilization | ✅ Done | Public Preparation |
 | Phase 7 | Orchestration & Automation Foundation | ✅ Done | Public Activation Orchestration |
-| Phase 8 | Multi-User Foundation | 🚧 In Progress | Multi-User Ownership & Tenant Scope |
+| Phase 8 | Multi-User Foundation | 🚧 In Progress | Multi-User Ownership + Auth/Session Scope |
 
 ---
 
 ## CrusaderBot — Multi-User Foundation Checklist
 
 **Goal:** Establish truthful backend foundations for user identity, tenant scope, ownership mapping, and scoped storage under `projects/polymarket/polyquantbot/server/`.  
-**Status:** 🚧 In Progress  
-**Last Updated:** 2026-04-19 11:46
+**Status:** ✅ Done (Phase 8.1 merged via PR #590)  
+**Last Updated:** 2026-04-19 09:39
 
-3## Scope Lock
+## Scope Lock
 - [x] Keep scope on backend multi-user foundations only
 - [x] Treat validation as `MAJOR`
 - [x] Avoid false claims of full auth/session productization
@@ -67,6 +67,38 @@
 - [x] Production-grade session system
 - [x] Full wallet lifecycle rollout
 - [x] Full RBAC and notification system
+
+
+---
+
+## CrusaderBot — Auth/Session Foundation Checklist (Phase 8.2)
+
+**Goal:** Add truthful auth/session foundation primitives that derive trusted tenant/user scope for backend routes under `projects/polymarket/polyquantbot/server/`.  
+**Status:** 🚧 In Progress  
+**Last Updated:** 2026-04-19 09:39
+
+### Scope Lock
+- [x] Keep scope on backend auth/session foundation only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full auth productization
+
+### Foundation Deliverables
+- [x] Add auth/session identity and scope schemas
+- [x] Add trusted scope derivation primitive over active session context
+- [x] Add minimal auth/session service + in-memory session storage boundary
+- [x] Add FastAPI dependency for authenticated scope injection
+- [x] Integrate authenticated scope into minimal `/foundation` route behavior
+- [x] Add tests for trusted scope derivation and protected wallet route behavior
+- [x] Update implementation notes for lane 8.2
+
+### Explicit Exclusions
+- [x] Full Telegram login flow
+- [x] Full web login UX
+- [x] OAuth rollout
+- [x] Production token rotation platform
+- [x] Full RBAC system
+- [x] Delegated wallet signing lifecycle
+- [x] Database migration rollout
 
 ---
 

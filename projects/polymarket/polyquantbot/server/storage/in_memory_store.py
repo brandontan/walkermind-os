@@ -1,6 +1,7 @@
 """In-memory storage boundary for multi-user foundation entities."""
 from __future__ import annotations
 
+from projects.polymarket.polyquantbot.server.schemas.auth_session import SessionContext
 from projects.polymarket.polyquantbot.server.schemas.multi_user import (
     AccountRecord,
     UserRecord,
@@ -15,6 +16,7 @@ class InMemoryMultiUserStore:
         self.user_settings: dict[str, UserSettingsRecord] = {}
         self.accounts: dict[str, AccountRecord] = {}
         self.wallets: dict[str, WalletRecord] = {}
+        self.sessions: dict[str, SessionContext] = {}
 
     def put_user(self, user: UserRecord) -> None:
         self.users[user.user_id] = user
@@ -28,6 +30,9 @@ class InMemoryMultiUserStore:
     def put_wallet(self, wallet: WalletRecord) -> None:
         self.wallets[wallet.wallet_id] = wallet
 
+    def put_session(self, session: SessionContext) -> None:
+        self.sessions[session.session_id] = session
+
     def get_user(self, user_id: str) -> UserRecord | None:
         return self.users.get(user_id)
 
@@ -36,3 +41,6 @@ class InMemoryMultiUserStore:
 
     def get_wallet(self, wallet_id: str) -> WalletRecord | None:
         return self.wallets.get(wallet_id)
+
+    def get_session(self, session_id: str) -> SessionContext | None:
+        return self.sessions.get(session_id)

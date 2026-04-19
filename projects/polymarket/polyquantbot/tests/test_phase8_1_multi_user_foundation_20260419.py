@@ -42,6 +42,13 @@ def test_multi_user_routes_enforce_wallet_scope(monkeypatch) -> None:
         assert user_response.status_code == 200
         user_payload = user_response.json()["user"]
 
+        session_response = client.post(
+            "/foundation/sessions",
+            json={"tenant_id": user_payload["tenant_id"], "user_id": user_payload["user_id"]},
+        )
+        assert session_response.status_code == 200
+        session_payload = session_response.json()["session"]
+
         account_response = client.post(
             "/foundation/accounts",
             json={
@@ -67,13 +74,74 @@ def test_multi_user_routes_enforce_wallet_scope(monkeypatch) -> None:
 
         denied_response = client.get(
             f"/foundation/wallets/{wallet_payload['wallet_id']}",
-            headers={"X-Tenant-Id": "tenant-alpha", "X-User-Id": "intruder-user"},
+            headers={
+                "X-Session-Id": session_payload["session_id"],
+                "X-Auth-Tenant-Id": "tenant-alpha",
+                "X-Auth-User-Id": "intruder-user",
+            },
         )
         assert denied_response.status_code == 403
 
         allowed_response = client.get(
             f"/foundation/wallets/{wallet_payload['wallet_id']}",
-            headers={"X-Tenant-Id": user_payload["tenant_id"], "X-User-Id": user_payload["user_id"]},
+            headers={
+                "X-Session-Id": session_payload["session_id"],
+                "X-Auth-Tenant-Id": user_payload["tenant_id"],
+                "X-Auth-User-Id": user_payload["user_id"],
+            },
         )
         assert allowed_response.status_code == 200
         assert allowed_response.json()["wallet"]["address"] == "0xabc123"
+
+
+def test_scope_dependency_rejects_missing_session(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get(
+            "/foundation/auth/scope",
+            headers={
+                "X-Session-Id": "sess_missing",
+                "X-Auth-Tenant-Id": "tenant-alpha",
+                "X-Auth-User-Id": "user-alpha",
+            },
+        )
+        assert response.status_code == 403
+        assert "session not found" in response.json()["detail"]
+
+
+def test_scope_dependency_derives_authenticated_scope(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+
+    app = create_app()
+    with TestClient(app) as client:
+        user_response = client.post(
+            "/foundation/users",
+            json={"tenant_id": "tenant-beta", "external_id": "tg_2001", "display_name": "bob"},
+        )
+        assert user_response.status_code == 200
+        user_payload = user_response.json()["user"]
+
+        session_response = client.post(
+            "/foundation/sessions",
+            json={"tenant_id": user_payload["tenant_id"], "user_id": user_payload["user_id"]},
+        )
+        assert session_response.status_code == 200
+        session_payload = session_response.json()["session"]
+
+        scope_response = client.get(
+            "/foundation/auth/scope",
+            headers={
+                "X-Session-Id": session_payload["session_id"],
+                "X-Auth-Tenant-Id": user_payload["tenant_id"],
+                "X-Auth-User-Id": user_payload["user_id"],
+            },
+        )
+        assert scope_response.status_code == 200
+        scope = scope_response.json()["scope"]
+        assert scope["tenant_id"] == user_payload["tenant_id"]
+        assert scope["user_id"] == user_payload["user_id"]
+        assert scope["session_id"] == session_payload["session_id"]
