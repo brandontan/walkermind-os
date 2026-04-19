@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 15:21
-Status       : Phase 8.8 real Telegram dispatch integration foundation merged (SENTINEL CONDITIONAL gate satisfied via phase8-8_02_pytest-evidence-pass.md, 77/77 pass). Phase 8.9 real Telegram polling / runtime loop foundation in progress on branch claude/phase8-9-telegram-runtime-I5Jnb.
+Last Updated : 2026-04-19 15:36
+Status       : Phase 8.8 real Telegram dispatch integration foundation merged (SENTINEL CONDITIONAL gate satisfied via phase8-8_02_pytest-evidence-pass.md, 77/77 pass). Phase 8.9 real Telegram polling / runtime loop foundation validated by SENTINEL (CONDITIONAL, 92/100) on branch claude/phase8-9-telegram-runtime-I5Jnb; awaiting COMMANDER final decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -31,7 +31,7 @@ Status       : Phase 8.8 real Telegram dispatch integration foundation merged (S
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase 8.9 real Telegram polling / runtime loop foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-9_01_telegram-runtime-loop-foundation.md. Tier: MAJOR.
+- COMMANDER final decision for PR #608 after SENTINEL CONDITIONAL verdict (92/100, critical 0). Source: projects/polymarket/polyquantbot/reports/sentinel/phase8-9_01_telegram-runtime-loop-validation-pr608.md.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
