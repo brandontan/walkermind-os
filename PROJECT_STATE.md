@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 17:00
-Status       : Phase 8.10 Telegram identity resolution foundation SENTINEL CONDITIONAL gate satisfied (114/114 pass, strict outcome normalization fix applied). PR #610 pending COMMANDER review and merge decision.
+Last Updated : 2026-04-19 20:16
+Status       : Phase 8.10 repo-truth closeout synced as merged reality. Phase 8.11 Telegram onboarding/account-link foundation is implemented with persistent minimal user-link creation for unresolved /start users and targeted MAJOR test coverage.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -22,9 +22,10 @@ Status       : Phase 8.10 Telegram identity resolution foundation SENTINEL CONDI
 - Phase 8.7 Telegram/Web runtime handoff integration foundation merged: CrusaderBackendClient HTTP bridge, handle_start Telegram handler, handle_web_handoff web handler, client/telegram/bot.py backend wiring. SENTINEL CONDITIONAL gate satisfied. Pytest gate: 62/62 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-7_01_telegram-web-runtime-handoff-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-7_02_pytest-evidence-pass.md`. SENTINEL report: `projects/polymarket/polyquantbot/reports/sentinel/phase8-7_01_runtime-handoff-validation-pr604.md`.
 - Phase 8.8 real Telegram dispatch integration foundation merged: TelegramDispatcher command router, /start -> handle_start() dispatch boundary, DispatchResult reply mapping, unknown command safe fallback, bot.py dispatcher wiring. SENTINEL CONDITIONAL gate satisfied via phase8-8_02_pytest-evidence-pass.md. Pytest gate: 77/77 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-8_01_telegram-dispatch-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-8_02_pytest-evidence-pass.md`. SENTINEL: PR #607 (CONDITIONAL gate satisfied).
 - Phase 8.9 real Telegram polling / runtime loop foundation merged: TelegramRuntimeAdapter abstract boundary, HttpTelegramAdapter concrete implementation, extract_command_context staging identity contract, TelegramPollingLoop dispatch + reply routing, run_polling_loop top-level wiring, bot.py adapter/loop wiring. SENTINEL CONDITIONAL gate satisfied via phase8-9_02_pytest-evidence-pass.md. Pytest gate: 94/94 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-9_01_telegram-runtime-loop-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-9_02_pytest-evidence-pass.md`. SENTINEL: PR #609 (CONDITIONAL gate satisfied).
+- Phase 8.10 Telegram identity resolution foundation merged truth synced: strict outcome normalization fix retained with 114/114 pytest evidence. References preserved: `projects/polymarket/polyquantbot/reports/forge/phase8-10_01_telegram-identity-resolution-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-10_02_pytest-evidence-pass.md`, `projects/polymarket/polyquantbot/reports/sentinel/phase8-10_01_telegram-identity-validation-pr610.md`.
 
 [IN PROGRESS]
-- Phase 8.10 Telegram identity resolution foundation: SENTINEL CONDITIONAL gate satisfied (strict outcome normalization fix + 2 new malformed-resolved tests + 114/114 dependency-complete pass). PR #610 open; pending COMMANDER merge decision.
+- Phase 8.11 Telegram onboarding/account-link foundation: unresolved Telegram /start users now trigger backend onboarding start contract with truthful outcomes (onboarded/already_linked/rejected/error) backed by persistent multi-user storage and runtime reply mapping.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -32,7 +33,7 @@ Status       : Phase 8.10 Telegram identity resolution foundation SENTINEL CONDI
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review and merge decision for PR #610 (Phase 8.10 Telegram identity resolution). SENTINEL CONDITIONAL gate satisfied. Evidence: projects/polymarket/polyquantbot/reports/forge/phase8-10_02_pytest-evidence-pass.md (114/114 pass). PR #611 CONDITIONAL gate satisfied — can be closed after PR #610 merges.
+- SENTINEL validation for Phase 8.11 MAJOR scope (Telegram onboarding/account-link foundation) over backend onboarding contract, runtime not_found onboarding mapping, and persistence/isolation evidence; then return to COMMANDER for merge decision.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
