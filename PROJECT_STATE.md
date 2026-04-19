@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 06:59
-Status       : Post-merge CrusaderBot smoke verification on main confirms GO-level continuity for Fly-readiness runtime split surfaces; next lane advances to COMMANDER-directed roadmap implementation continuation.
+Last Updated : 2026-04-19 07:22
+Status       : Crusader multi-user foundation lane is now in progress with explicit tenant scope, ownership mapping, and user/account/wallet/user_settings backend primitives under server surfaces.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -15,7 +15,7 @@ Status       : Post-merge CrusaderBot smoke verification on main confirms GO-lev
 - Phase 7.2 CrusaderBot Fly.io deploy-readiness runtime split merged via PR #585; final SENTINEL APPROVED revalidation is recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase7_02_crusaderbot-fly-readiness-revalidation.md`.
 
 [IN PROGRESS]
-- Roadmap continuation planning for the next implementation slice is in progress after GO continuity verification on merged main runtime surfaces.
+- Phase 8.1 Crusader multi-user foundation implementation is in progress for identity, tenant scope resolution, ownership guards, and scoped user/account/wallet storage/service boundaries.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -23,7 +23,7 @@ Status       : Post-merge CrusaderBot smoke verification on main confirms GO-lev
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Initiate the next roadmap implementation lane under COMMANDER direction using this smoke-verification GO result as continuity baseline evidence.
+- Route this MAJOR build lane to SENTINEL for validation of ownership/scope boundaries before merge approval.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
