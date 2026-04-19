@@ -1,0 +1,1669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>CrusaderBot — Master Blueprint</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04050a;--surface:#0c1018;--surface2:#10161f;--surface3:#121820;
+  --border:#182030;--border2:#1f2d42;
+  --green:#00f5a0;--blue:#0af;--yellow:#ffd60a;--red:#ff3c5f;
+  --purple:#a78bfa;--teal:#2dd4bf;--orange:#fb923c;--pink:#f472b6;
+  --text:#d1dce8;--muted:#3d5570;--mid:#6a8aaa;
+  --mono:'JetBrains Mono',monospace;--sans:'Outfit',sans-serif;
+}
+*,::before,::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;
+  line-height:1.65;min-height:100vh;overflow-x:hidden;-webkit-text-size-adjust:100%}
+
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,170,255,.015) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,170,255,.015) 1px,transparent 1px);
+  background-size:48px 48px}
+
+.wrap{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:0 14px 80px}
+
+/* ── HEADER ── */
+header{padding:22px 0 0;border-bottom:1px solid var(--border);margin-bottom:0}
+
+.header-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+
+.brand{display:flex;align-items:center;gap:11px}
+.brand-mark{width:40px;height:40px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--green),var(--blue));
+  color:var(--bg);display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:-.5px}
+.brand-sub{font-family:var(--mono);font-size:9px;color:var(--muted);
+  letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px}
+.brand-name{font-size:20px;font-weight:700;letter-spacing:-.3px;
+  background:linear-gradient(90deg,var(--text) 60%,var(--blue));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hbadge{font-family:var(--mono);font-size:9px;padding:4px 10px;border-radius:12px;
+  background:rgba(0,245,160,.06);border:1px solid rgba(0,245,160,.2);
+  color:var(--green);letter-spacing:.08em}
+
+/* ── NAV TABS ── */
+.nav-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none;border-bottom:1px solid var(--border)}
+.nav-scroll::-webkit-scrollbar{display:none}
+.nav-bar{display:flex;min-width:max-content}
+.nav-group-label{font-family:var(--mono);font-size:8px;letter-spacing:2px;
+  text-transform:uppercase;color:var(--muted);padding:10px 14px 4px 4px;
+  display:flex;align-items:flex-end;white-space:nowrap}
+.ntab{border:none;background:transparent;color:var(--muted);cursor:pointer;
+  padding:10px 14px;font-family:var(--mono);font-size:9px;
+  text-transform:uppercase;letter-spacing:.08em;
+  border-bottom:2px solid transparent;white-space:nowrap;
+  transition:all .15s;margin-bottom:-1px}
+.ntab:hover{color:var(--mid)}
+.ntab.on{color:var(--green);border-bottom-color:var(--green);background:rgba(0,245,160,.04)}
+
+/* ── PAGES ── */
+.page{display:none;padding-top:24px;animation:rise .15s ease}
+.page.on{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ── PAGE HEADER ── */
+.phead{display:flex;align-items:baseline;gap:8px;padding-bottom:14px;
+  margin-bottom:22px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.phead-seq{font-size:9px;color:var(--green);font-weight:600;letter-spacing:2px}
+.phead-title{font-size:22px;font-weight:700;color:#fff;letter-spacing:-.5px}
+.phead-tag{margin-left:auto;font-family:var(--mono);font-size:9px;
+  padding:3px 10px;border-radius:4px;white-space:nowrap}
+.tG{background:rgba(0,245,160,.1);color:var(--green);border:1px solid rgba(0,245,160,.2)}
+.tb{background:rgba(0,170,255,.1);color:var(--blue);border:1px solid rgba(0,170,255,.2)}
+.tp{background:rgba(167,139,250,.1);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
+.to{background:rgba(251,146,60,.1);color:var(--orange);border:1px solid rgba(251,146,60,.2)}
+.tr{background:rgba(255,60,95,.1);color:var(--red);border:1px solid rgba(255,60,95,.2)}
+.tt{background:rgba(45,212,191,.1);color:var(--teal);border:1px solid rgba(45,212,191,.2)}
+.ty{background:rgba(255,214,10,.1);color:var(--yellow);border:1px solid rgba(255,214,10,.2)}
+
+/* ── GRID ── */
+.g2{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:14px}
+.g3{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:14px}
+.g4{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+@media(min-width:580px){.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}}
+@media(min-width:760px){.g3{grid-template-columns:1fr 1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}}
+
+/* ── CARD ── */
+.card{background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:16px;margin-bottom:14px}
+.card-title{font-size:13px;font-weight:700;margin-bottom:12px;
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+
+/* ── BLK ── */
+.blk{background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:13px 14px}
+.blk-h{font-weight:700;font-size:12px;margin-bottom:6px}
+.blk-b{font-size:11px;color:var(--muted);line-height:1.9}
+.blk-b b{color:var(--text)}
+.blk-b code{font-family:var(--mono);color:var(--teal);font-size:10.5px}
+
+/* ── STAT ── */
+.stat-n{font-size:26px;font-weight:800;color:#fff;line-height:1.1}
+.stat-l{font-size:10px;color:var(--muted);margin-top:4px}
+
+/* ── TABLE ── */
+.tbl-wrap{width:100%}
+.tbl{width:100%;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
+.tbl th{text-align:left;padding:7px 10px;font-size:8.5px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+.tbl td{padding:9px 10px;border-bottom:1px solid rgba(24,32,48,.8);
+  vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
+.tbl td:first-child{width:38%;white-space:normal}
+.tbl td:last-child{width:62%}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(0,245,160,.02)}
+/* tbl colored first-col — allow wrap */
+.tbl td[style*="color"]:first-child{white-space:normal;word-break:break-word}
+
+/* ── PILL ── */
+.pill{display:inline-flex;align-items:center;font-family:var(--mono);
+  font-size:9px;padding:2px 7px;border-radius:8px;white-space:nowrap}
+.pG{background:rgba(0,245,160,.1);color:var(--green)}
+.pb{background:rgba(0,170,255,.1);color:var(--blue)}
+.pp{background:rgba(167,139,250,.1);color:var(--purple)}
+.po{background:rgba(251,146,60,.1);color:var(--orange)}
+.pr{background:rgba(255,60,95,.1);color:var(--red)}
+.pt{background:rgba(45,212,191,.1);color:var(--teal)}
+.py{background:rgba(255,214,10,.1);color:var(--yellow)}
+.pd{background:rgba(74,90,112,.2);color:var(--mid)}
+
+/* ── INFO BOX ── */
+.ib{border-radius:8px;padding:12px 15px;margin:12px 0;border-left:3px solid;
+  font-size:11.5px;line-height:1.8}
+.ib-note{background:rgba(0,170,255,.06);border-color:var(--blue);color:#7dd3fc}
+.ib-rule{background:rgba(255,60,95,.06);border-color:var(--red);color:#fca5a5}
+.ib-tip{background:rgba(0,245,160,.05);border-color:var(--green);color:#6ee7b7}
+.ib strong{font-weight:700}
+
+/* ── CODE BLOCK ── */
+.code{background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:14px 16px;font-family:var(--mono);font-size:11px;line-height:2;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:pre}
+.ck{color:var(--blue)}.cv{color:var(--green)}.cc{color:var(--muted);font-size:10px}
+.cs{color:var(--yellow)}.cf{color:var(--teal)}.cw{color:var(--purple)}
+.i1{padding-left:18px}.i2{padding-left:36px}.i3{padding-left:54px}
+
+/* ── TREE ── */
+.tree{font-family:var(--mono);font-size:11px;line-height:1.85;
+  background:var(--surface);border:1px solid var(--border);border-radius:9px;
+  padding:16px 18px;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:pre}
+.td{color:var(--blue)}.tf{color:var(--mid)}.tc{color:var(--muted);font-size:10px}
+.th{color:var(--green)}.tk{color:var(--teal)}.tn{color:var(--yellow)}
+
+/* ── ARCH ── */
+.arch-flow{display:flex;flex-direction:column;align-items:center;gap:0}
+.arch-layer{width:100%;max-width:520px;border-radius:9px;padding:12px 18px;
+  text-align:center;border:1px solid}
+.arch-layer .lbl{font-weight:700;font-size:13px;margin-bottom:2px}
+.arch-layer .sub{font-size:10.5px;color:var(--muted)}
+.arch-arrow{width:1px;height:22px;
+  background:linear-gradient(180deg,rgba(0,245,160,.3),rgba(0,245,160,.05));
+  position:relative;margin:0 auto}
+.arch-arrow::after{content:'▾';position:absolute;bottom:-4px;left:-5px;
+  font-size:9px;color:rgba(0,245,160,.4)}
+.l-user{background:rgba(0,170,255,.05);border-color:rgba(0,170,255,.2)}.l-user .lbl{color:var(--blue)}
+.l-bot{background:rgba(167,139,250,.05);border-color:rgba(167,139,250,.2)}.l-bot .lbl{color:var(--purple)}
+.l-core{background:rgba(0,245,160,.04);border-color:rgba(0,245,160,.15)}.l-core .lbl{color:var(--green)}
+.l-falcon{background:rgba(45,212,191,.05);border-color:rgba(45,212,191,.2)}.l-falcon .lbl{color:var(--teal)}
+.l-clob{background:rgba(255,214,10,.05);border-color:rgba(255,214,10,.2)}.l-clob .lbl{color:var(--yellow)}
+.l-chain{background:rgba(255,60,95,.05);border-color:rgba(255,60,95,.18)}.l-chain .lbl{color:var(--red)}
+.l-wallet{background:rgba(167,139,250,.05);border-color:rgba(167,139,250,.15)}.l-wallet .lbl{color:var(--purple)}
+
+/* ── DECISION FLOW ── */
+.dflow{display:flex;align-items:center;flex-wrap:wrap;gap:4px;
+  padding:13px 16px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:9px;margin-bottom:14px;row-gap:8px}
+.ds{font-family:var(--mono);font-size:10.5px;padding:4px 10px;border-radius:5px;white-space:nowrap}
+.da{color:var(--muted);padding:0 2px;font-size:11px}
+.ds-d{background:rgba(0,170,255,.1);color:#7dd3fc;border:1px solid rgba(0,170,255,.2)}
+.ds-f{background:rgba(167,139,250,.1);color:#c4b5fd;border:1px solid rgba(167,139,250,.2)}
+.ds-m{background:rgba(0,245,160,.08);color:var(--green);border:1px solid rgba(0,245,160,.15)}
+.ds-e{background:rgba(45,212,191,.1);color:var(--teal);border:1px solid rgba(45,212,191,.2)}
+.ds-r{background:rgba(255,60,95,.1);color:var(--red);border:1px solid rgba(255,60,95,.2)}
+.ds-x{background:rgba(255,214,10,.1);color:var(--yellow);border:1px solid rgba(255,214,10,.2)}
+.ds-p{background:rgba(251,146,60,.1);color:var(--orange);border:1px solid rgba(251,146,60,.2)}
+.ds-n{background:rgba(74,90,112,.2);color:var(--mid);border:1px solid rgba(74,90,112,.2)}
+
+/* ── SUBSYSTEM GRID ── */
+.sg{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:14px}
+@media(min-width:480px){.sg{grid-template-columns:1fr 1fr}}
+@media(min-width:720px){.sg{grid-template-columns:1fr 1fr 1fr}}
+.sc{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:13px}
+.sc-t{font-weight:700;font-size:11.5px;margin-bottom:8px;
+  padding-bottom:7px;border-bottom:1px solid var(--border)}
+.sc-b{font-size:11px;color:var(--muted);line-height:1.9}
+
+/* ── DB ── */
+.dbt{background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;overflow:hidden;margin-bottom:9px}
+.dbh{background:var(--surface3);padding:9px 14px;display:flex;
+  align-items:center;gap:8px;font-weight:700;font-size:12px}
+.dbr{display:flex;align-items:baseline;gap:6px;
+  padding:6px 14px;border-top:1px solid rgba(24,32,48,.8);
+  font-size:10.5px;flex-wrap:wrap}
+.dbr:hover{background:rgba(0,245,160,.03)}
+.dbf{color:var(--text);flex:1 1 120px;font-family:var(--mono)}
+.dbt2{color:var(--blue);flex-shrink:0;font-family:var(--mono)}
+.dbn{color:var(--muted);flex:1;font-size:10px}
+.pk,.fk,.ux,.enc{font-size:8px;padding:1px 5px;border-radius:3px}
+.pk{background:rgba(255,214,10,.12);color:var(--yellow)}
+.fk{background:rgba(0,170,255,.12);color:var(--blue)}
+.ux{background:rgba(45,212,191,.12);color:var(--teal)}
+.enc{background:rgba(255,60,95,.12);color:var(--red)}
+
+/* ── CMD GRID ── */
+.cgrid{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:14px}
+@media(min-width:520px){.cgrid{grid-template-columns:1fr 1fr}}
+.ccard{background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:12px 14px}
+.ccard:hover{border-color:rgba(0,245,160,.2)}
+.ccard .cn{font-family:var(--mono);font-size:11.5px;font-weight:700;
+  color:var(--green);margin-bottom:2px}
+.ccard .ca{color:var(--yellow);font-size:10px}
+.ccard .cd{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6}
+.ccard .cr{font-family:var(--mono);font-size:10px;color:var(--teal);
+  margin-top:7px;padding-top:6px;border-top:1px solid var(--border)}
+
+/* ── PHASE CARDS ── */
+.ph-grid{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.ph-card{border-radius:10px;padding:14px 16px;border:1px solid;display:flex;gap:14px;align-items:flex-start}
+.ph-num{font-size:20px;font-weight:800;min-width:28px;line-height:1;margin-top:2px;flex-shrink:0}
+.ph-title{font-weight:700;font-size:12.5px;margin-bottom:4px}
+.ph-items{font-size:11px;color:var(--muted);line-height:1.9}
+.ph-agents{font-family:var(--mono);font-size:9.5px;margin-top:7px;
+  padding:3px 8px;border-radius:4px;display:inline-block}
+.ph1{background:rgba(0,170,255,.05);border-color:rgba(0,170,255,.18)}.ph1 .ph-num,.ph1 .ph-title{color:var(--blue)}.ph1 .ph-agents{background:rgba(0,170,255,.08);color:var(--blue)}
+.ph2{background:rgba(0,245,160,.04);border-color:rgba(0,245,160,.13)}.ph2 .ph-num,.ph2 .ph-title{color:var(--green)}.ph2 .ph-agents{background:rgba(0,245,160,.07);color:var(--green)}
+.ph3{background:rgba(255,214,10,.04);border-color:rgba(255,214,10,.15)}.ph3 .ph-num,.ph3 .ph-title{color:var(--yellow)}.ph3 .ph-agents{background:rgba(255,214,10,.07);color:var(--yellow)}
+.ph4{background:rgba(167,139,250,.04);border-color:rgba(167,139,250,.15)}.ph4 .ph-num,.ph4 .ph-title{color:var(--purple)}.ph4 .ph-agents{background:rgba(167,139,250,.07);color:var(--purple)}
+.ph5{background:rgba(255,60,95,.04);border-color:rgba(255,60,95,.15)}.ph5 .ph-num,.ph5 .ph-title{color:var(--red)}.ph5 .ph-agents{background:rgba(255,60,95,.07);color:var(--red)}
+
+/* ── FLOW ── */
+.flow{display:flex;flex-direction:column;align-items:center;padding:6px 0}
+.flow-box{width:100%;max-width:520px;padding:11px 18px;border-radius:8px;
+  border:1px solid;text-align:center;font-size:11.5px;font-weight:500}
+.flow-arrow{height:24px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.flow-arrow::before{content:'';width:1px;height:14px;background:rgba(0,245,160,.2)}
+.flow-arrow::after{content:'▾';font-size:9px;color:var(--muted);margin-top:-2px}
+
+/* ── CONFIG BLOCK ── */
+.cfgb{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:14px 18px;margin:10px 0;font-family:var(--mono);font-size:11px;
+  color:var(--muted);line-height:1.9;overflow-x:auto}
+.cfgb .ct{color:var(--yellow);font-weight:700;font-size:12px;margin-bottom:8px}
+
+/* ── TELEGRAM PHONE ── */
+.phone{background:var(--surface2);border:1px solid var(--border);
+  border-radius:14px;overflow:hidden;max-width:100%}
+.phone-bar{background:var(--surface3);padding:10px 14px;display:flex;
+  align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.phone-ava{width:32px;height:32px;border-radius:50%;background:var(--green);
+  display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.phone-name{font-weight:700;color:#fff;font-size:12px}
+.phone-role{font-size:9.5px;color:var(--muted)}
+.phone-msgs{padding:12px 13px;display:flex;flex-direction:column;gap:7px}
+.bubble{padding:8px 11px;border-radius:10px;font-size:10.5px;line-height:1.7}
+.b-in{background:var(--surface3);border-radius:3px 10px 10px 10px;align-self:flex-start;max-width:90%}
+.b-out{background:rgba(0,245,160,.1);border:1px solid rgba(0,245,160,.15);
+  border-radius:10px 10px 3px 10px;align-self:flex-end;max-width:90%}
+.phone-kbd{padding:8px 13px;border-top:1px solid var(--border);
+  display:flex;flex-wrap:wrap;gap:5px;background:var(--surface3)}
+.kbtn{padding:5px 9px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:5px;font-size:9.5px;color:var(--green);cursor:pointer}
+
+/* ── ALERT BOX ── */
+.alert-box{background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:13px 15px;font-family:var(--mono);
+  font-size:11px;line-height:2;margin-bottom:10px}
+
+/* ── SPEC GRID ── */
+.spec-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+@media(min-width:520px){.spec-grid{grid-template-columns:repeat(4,1fr)}}
+.spec-item{background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:10px 12px}
+.spec-label{font-size:10px;color:var(--muted);margin-bottom:3px}
+.spec-val{font-family:var(--mono);font-size:13px;color:var(--green);line-height:1.5}
+
+/* ── TARGET ROW ── */
+.target-row{display:flex;align-items:center;gap:10px;
+  padding:9px 0;border-bottom:1px solid rgba(24,32,48,.8)}
+.target-row:last-child{border-bottom:none}
+.target-label{flex:1;color:var(--mid);font-size:12px}
+.target-val{font-family:var(--mono);font-size:10.5px;text-align:right;flex-shrink:0;white-space:nowrap}
+
+/* ── DB TAGS ── */
+.dbtags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.dbtag{font-family:var(--mono);font-size:10.5px;padding:3px 9px;border-radius:4px;border:1px solid}
+.dt-id{background:rgba(0,170,255,.08);border-color:rgba(0,170,255,.2);color:#7dd3fc}
+.dt-w{background:rgba(255,214,10,.08);border-color:rgba(255,214,10,.2);color:var(--yellow)}
+.dt-m{background:rgba(0,245,160,.07);border-color:rgba(0,245,160,.18);color:var(--green)}
+.dt-t{background:rgba(255,60,95,.08);border-color:rgba(255,60,95,.2);color:var(--red)}
+.dt-p{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.2);color:var(--purple)}
+.dt-n{background:rgba(45,212,191,.08);border-color:rgba(45,212,191,.2);color:var(--teal)}
+.dt-a{background:rgba(74,90,112,.15);border-color:rgba(74,90,112,.3);color:var(--mid)}
+
+/* ── SECTION LABEL ── */
+.slabel{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--muted);margin-bottom:10px;margin-top:4px;padding:3px 0}
+
+/* ── OVERVIEW SPECIFICS ── */
+.ov-hero{position:relative;background:linear-gradient(135deg,rgba(0,245,160,.07),rgba(0,170,255,.04),transparent);
+  border:1px solid rgba(0,245,160,.15);border-radius:12px;padding:26px 22px 22px;margin-bottom:8px;overflow:hidden}
+.ov-glow{position:absolute;top:-60px;right:-60px;width:200px;height:200px;
+  background:radial-gradient(circle,rgba(0,245,160,.07),transparent 70%);pointer-events:none}
+.ov-badge{font-family:var(--mono);font-size:9px;letter-spacing:3px;
+  text-transform:uppercase;color:var(--green);margin-bottom:10px}
+.ov-title{font-size:26px;font-weight:800;line-height:1.15;letter-spacing:-.5px;
+  color:#fff;margin-bottom:8px}
+.ov-sub{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-bottom:16px}
+.ov-tags{display:flex;flex-wrap:wrap;gap:7px}
+.ov-tag{font-family:var(--mono);font-size:9.5px;padding:3px 10px;
+  border-radius:16px;border:1px solid;background:rgba(0,0,0,.2)}
+
+.ov-strip{display:grid;grid-template-columns:repeat(3,1fr);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;overflow:hidden;margin:10px 0 20px}
+.ov-strip-item{padding:10px 10px;text-align:center;border-right:1px solid var(--border)}
+.ov-strip-item:last-child{border-right:none}
+.ov-strip-val{font-family:var(--mono);font-size:16px;font-weight:700;
+  line-height:1.1;margin-bottom:4px;white-space:nowrap}
+.ov-strip-label{font-family:var(--mono);font-size:8.5px;color:var(--muted);
+  letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(min-width:520px){
+  .ov-strip{grid-template-columns:repeat(6,1fr)}
+  .ov-strip-val{font-size:18px}
+}
+
+.ov-pipeline{display:flex;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+.ov-pipe-step{flex:1;padding:14px 8px;text-align:center;
+  border-right:1px solid var(--border)}
+.ov-pipe-step:last-child{border-right:none}
+.ov-pipe-icon{font-size:18px;margin-bottom:5px}
+.ov-pipe-name{font-family:var(--mono);font-size:8.5px;font-weight:700;
+  letter-spacing:.4px;color:var(--ac,var(--green));margin-bottom:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-pipe-desc{font-size:10px;color:var(--muted);line-height:1.5}
+
+.ov-layers{display:grid;grid-template-columns:1fr;gap:11px;margin-bottom:20px}
+@media(min-width:580px){.ov-layers{grid-template-columns:1fr 1fr}}
+@media(min-width:820px){.ov-layers{grid-template-columns:1fr 1fr 1fr}}
+.ov-lcard{background:var(--lb);border:1px solid var(--le);border-radius:10px;
+  padding:15px;position:relative;overflow:hidden}
+.ov-lcard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--lc);opacity:.7}
+.ov-lc-top{display:flex;align-items:flex-start;gap:9px;margin-bottom:9px}
+.ov-lc-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.ov-lc-name{font-weight:700;font-size:13px;color:var(--lc);margin-bottom:2px}
+.ov-lc-role{font-size:10px;color:var(--muted)}
+.ov-lc-badge{margin-left:auto;flex-shrink:0;font-family:var(--mono);font-size:8px;
+  padding:2px 7px;border-radius:4px;color:var(--teal);
+  background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.2)}
+.ov-lc-body{font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:9px}
+.ov-lc-body strong{color:var(--text)}
+.ov-lc-pills{display:flex;flex-wrap:wrap;gap:5px}
+.ov-lc-pill{font-family:var(--mono);font-size:9px;padding:2px 7px;
+  border-radius:4px;color:var(--teal);border:1px solid rgba(45,212,191,.2);
+  background:rgba(45,212,191,.05)}
+
+.ov-principles{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:20px}
+@media(min-width:520px){.ov-principles{grid-template-columns:1fr 1fr}}
+.ov-pcard{background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:15px;position:relative;overflow:hidden}
+.ov-pcard::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--pc)}
+.ov-pc-num{font-family:var(--mono);font-size:9.5px;color:var(--pc);
+  letter-spacing:1px;margin-bottom:5px;opacity:.8}
+.ov-pc-title{font-weight:700;font-size:13px;color:#fff;margin-bottom:7px}
+.ov-pc-body{font-size:11px;color:var(--muted);line-height:1.75}
+
+.ov-targets{background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:14px 18px;margin-bottom:14px}
+.ov-trow{display:flex;align-items:center;gap:11px;padding:9px 0;
+  border-bottom:1px solid rgba(24,32,48,.8)}
+.ov-trow:last-child{border-bottom:none}
+.ov-tname{font-family:var(--mono);font-size:10px;color:var(--muted);flex-shrink:0;width:130px}
+.ov-tbar{flex:1;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+.ov-tfill{height:100%;border-radius:2px}
+.ov-tval{font-family:var(--mono);font-size:10px;font-weight:600;flex-shrink:0;width:48px;text-align:right}
+
+/* ── MOBILE TWEAKS ── */
+@media(max-width:480px){
+  .ov-title{font-size:20px}
+  .ov-hero{padding:18px 14px}
+  .ov-pipeline{flex-direction:column}
+  .ov-pipe-step{border-right:none;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:10px;text-align:left;padding:10px 13px}
+  .ov-pipe-icon{margin-bottom:0;font-size:16px}
+  .ov-tname{width:100px;font-size:9.5px}
+  .phead-title{font-size:18px}
+  .phead-tag{margin-left:0;margin-top:4px}
+  .ph-card{flex-direction:column;gap:8px}
+  .dflow{row-gap:6px}
+  .card{padding:12px 10px}
+  .tbl{font-size:11px}
+  .tbl td,.tbl th{padding:8px 8px}
+  .tbl td:first-child{width:36%}
+  .tbl td:last-child{width:64%}
+  .blk{padding:11px 12px}
+  .wrap{padding:0 10px 80px}
+}
+
+/* ── FOOTER ── */
+footer{border-top:1px solid var(--border);padding-top:18px;margin-top:28px;
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.footer-text{font-family:var(--mono);font-size:9px;color:var(--muted);line-height:1.9}
+.footer-text span{color:var(--green)}
+.ftags{display:flex;gap:5px;flex-wrap:wrap}
+.ftag{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:4px}
+.ft-g{background:rgba(0,245,160,.08);color:var(--green);border:1px solid rgba(0,245,160,.2)}
+.ft-b{background:rgba(0,170,255,.08);color:var(--blue);border:1px solid rgba(0,170,255,.2)}
+.ft-y{background:rgba(255,214,10,.08);color:var(--yellow);border:1px solid rgba(255,214,10,.2)}
+.ft-m{background:rgba(61,85,112,.15);color:var(--mid);border:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HEADER -->
+<header>
+  <div class="header-top">
+    <div class="brand">
+      <div class="brand-mark">⚔</div>
+      <div>
+        <div class="brand-sub">Walker AI Trading Team</div>
+        <div class="brand-name">CrusaderBot Blueprint</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="hbadge">v2 · Master Reference</span>
+    </div>
+  </div>
+
+  <!-- NAV TABS -->
+  <div class="nav-scroll">
+    <div class="nav-bar">
+      <button class="ntab on"  onclick="goPage('overview',this)">Overview</button>
+      <button class="ntab"     onclick="goPage('stack',this)">Tech Stack</button>
+      <button class="ntab"     onclick="goPage('arch',this)">Architecture</button>
+      <button class="ntab"     onclick="goPage('decision',this)">Decision Flow</button>
+      <button class="ntab"     onclick="goPage('tree',this)">Directory</button>
+      <button class="ntab"     onclick="goPage('subsystems',this)">Subsystems</button>
+      <button class="ntab"     onclick="goPage('pipeline',this)">Pipeline</button>
+      <button class="ntab"     onclick="goPage('strategy',this)">Strategies</button>
+      <button class="ntab"     onclick="goPage('ml',this)">ML</button>
+      <button class="ntab"     onclick="goPage('risk',this)">Risk Engine</button>
+      <button class="ntab"     onclick="goPage('workers',this)">Workers</button>
+      <button class="ntab"     onclick="goPage('falcon',this)">Falcon</button>
+      <button class="ntab"     onclick="goPage('falcon-key',this)">API Keys</button>
+      <button class="ntab"     onclick="goPage('telegram',this)">Telegram</button>
+      <button class="ntab"     onclick="goPage('tg-cmds',this)">Commands</button>
+      <button class="ntab"     onclick="goPage('tg-alerts',this)">Alerts</button>
+      <button class="ntab"     onclick="goPage('db',this)">DB Schema</button>
+      <button class="ntab"     onclick="goPage('config',this)">Config</button>
+      <button class="ntab"     onclick="goPage('deploy',this)">Deploy</button>
+      <button class="ntab"     onclick="goPage('roadmap',this)">Roadmap</button>
+      <button class="ntab"     onclick="goPage('rules',this)">Hard Rules</button>
+      <button class="ntab"     onclick="goPage('safety',this)">Safety</button>
+      <button class="ntab"     onclick="goPage('perf',this)">Performance</button>
+    </div>
+  </div>
+</header>
+
+
+<!-- ══ OVERVIEW ══ -->
+<div id="overview" class="page on">
+  <div class="ov-hero">
+    <div class="ov-glow"></div>
+    <div class="ov-badge">⚔ CRUSADER BOT</div>
+    <div class="ov-title">Autonomous Prediction<br>Market Trader</div>
+    <div class="ov-sub">Multi-user · Non-custodial · Risk-first · Polymarket · Fly.io</div>
+    <div class="ov-tags">
+      <span class="ov-tag" style="color:var(--green);border-color:rgba(0,245,160,.25)">✓ Fully Automated</span>
+      <span class="ov-tag" style="color:var(--blue);border-color:rgba(0,170,255,.25)">✓ ML-Enhanced</span>
+      <span class="ov-tag" style="color:var(--teal);border-color:rgba(45,212,191,.25)">✓ Falcon Intelligence</span>
+      <span class="ov-tag" style="color:var(--purple);border-color:rgba(167,139,250,.25)">✓ Multi-User</span>
+    </div>
+  </div>
+
+  <div class="ov-strip">
+    <div class="ov-strip-item"><div class="ov-strip-val" style="color:var(--green)">0.25α</div><div class="ov-strip-label">Kelly Max</div></div>
+    <div class="ov-strip-item"><div class="ov-strip-val" style="color:var(--blue)">10%</div><div class="ov-strip-label">Max Position</div></div>
+    <div class="ov-strip-item"><div class="ov-strip-val" style="color:var(--yellow)">5</div><div class="ov-strip-label">Max Concurrent</div></div>
+    <div class="ov-strip-item"><div class="ov-strip-val" style="color:var(--red)">−$2k</div><div class="ov-strip-label">Daily Loss Limit</div></div>
+    <div class="ov-strip-item"><div class="ov-strip-val" style="color:var(--orange)">8%</div><div class="ov-strip-label">MDD → Hard Stop</div></div>
+    <div class="ov-strip-item"><div class="ov-strip-val" style="color:var(--teal)">$10k</div><div class="ov-strip-label">Min Liquidity</div></div>
+  </div>
+
+  <div class="slabel">Automated Pipeline</div>
+  <div class="ov-pipeline">
+    <div class="ov-pipe-step" style="--ac:var(--teal);background:rgba(45,212,191,.06)"><div class="ov-pipe-icon">⚡</div><div class="ov-pipe-name">FALCON READ</div><div class="ov-pipe-desc">Market intel<br>read-only</div></div>
+    <div class="ov-pipe-step" style="--ac:var(--blue);background:rgba(0,170,255,.05)"><div class="ov-pipe-icon">📡</div><div class="ov-pipe-name">INGEST</div><div class="ov-pipe-desc">OHLC · trades<br>market data</div></div>
+    <div class="ov-pipe-step" style="--ac:var(--purple);background:rgba(167,139,250,.06)"><div class="ov-pipe-icon">🧠</div><div class="ov-pipe-name">STRATEGY+ML</div><div class="ov-pipe-desc">S1–S5 signals<br>LightGBM</div></div>
+    <div class="ov-pipe-step" style="--ac:var(--red);background:rgba(255,60,95,.06)"><div class="ov-pipe-icon">🛡</div><div class="ov-pipe-name">RISK GATE</div><div class="ov-pipe-desc">Kelly · MDD<br>kill switch</div></div>
+    <div class="ov-pipe-step" style="--ac:var(--yellow);background:rgba(255,214,10,.05)"><div class="ov-pipe-icon">⚙</div><div class="ov-pipe-name">CLOB EXEC</div><div class="ov-pipe-desc">py-clob-client<br>Polymarket</div></div>
+    <div class="ov-pipe-step" style="--ac:var(--green);background:rgba(0,245,160,.05)"><div class="ov-pipe-icon">📊</div><div class="ov-pipe-name">MONITOR</div><div class="ov-pipe-desc">P&amp;L · Telegram<br>audit trail</div></div>
+  </div>
+
+  <div class="slabel">Core Layers</div>
+  <div class="ov-layers">
+    <div class="ov-lcard" style="--lc:var(--teal);--lb:rgba(45,212,191,.05);--le:rgba(45,212,191,.18)">
+      <div class="ov-lc-top"><div class="ov-lc-icon">⚡</div><div><div class="ov-lc-name">Falcon MCP</div><div class="ov-lc-role">Read-Only Intelligence</div></div><span class="ov-lc-badge">READ ONLY</span></div>
+      <div class="ov-lc-body">Market discovery · OHLC · trade flow · wallet analytics · social pulse. <strong>Never used for order submission.</strong> Agents #568 #574 #556 #572 #581 #584 #585 #596.</div>
+      <div class="ov-lc-pills"><span class="ov-lc-pill">Market Discovery</span><span class="ov-lc-pill">OHLC</span><span class="ov-lc-pill">Trade Flow</span><span class="ov-lc-pill">Wallet Analytics</span></div>
+    </div>
+    <div class="ov-lcard" style="--lc:var(--yellow);--lb:rgba(255,214,10,.04);--le:rgba(255,214,10,.18)">
+      <div class="ov-lc-top"><div class="ov-lc-icon">📈</div><div><div class="ov-lc-name">Polymarket CLOB</div><div class="ov-lc-role">Write-Side Execution</div></div><span class="ov-lc-badge" style="color:var(--yellow);background:rgba(255,214,10,.1);border-color:rgba(255,214,10,.2)">WRITE ONLY</span></div>
+      <div class="ov-lc-body"><strong>Only path for order submission.</strong> Fills, cancellations, and position lifecycle via py-clob-client. Risk gate must approve before execution. Polygon · USDC.</div>
+      <div class="ov-lc-pills"><span class="ov-lc-pill" style="color:var(--yellow);border-color:rgba(255,214,10,.2)">Order Placement</span><span class="ov-lc-pill" style="color:var(--yellow);border-color:rgba(255,214,10,.2)">Fill Lifecycle</span><span class="ov-lc-pill" style="color:var(--yellow);border-color:rgba(255,214,10,.2)">USDC/Polygon</span></div>
+    </div>
+    <div class="ov-lcard" style="--lc:var(--purple);--lb:rgba(167,139,250,.04);--le:rgba(167,139,250,.18)">
+      <div class="ov-lc-top"><div class="ov-lc-icon">📱</div><div><div class="ov-lc-name">Telegram Bot</div><div class="ov-lc-role">Control Surface Only</div></div><span class="ov-lc-badge" style="color:var(--purple);background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.2)">UI ONLY</span></div>
+      <div class="ov-lc-body">Commands · settings · notifications · kill switch · mode switch. <strong>Not the authority for trade decisions</strong> — the backend signal + risk engine decides.</div>
+      <div class="ov-lc-pills"><span class="ov-lc-pill" style="color:var(--purple);border-color:rgba(167,139,250,.2)">Kill Switch</span><span class="ov-lc-pill" style="color:var(--purple);border-color:rgba(167,139,250,.2)">Mode Control</span><span class="ov-lc-pill" style="color:var(--purple);border-color:rgba(167,139,250,.2)">Live Alerts</span></div>
+    </div>
+  </div>
+
+  <div class="slabel">Design Principles</div>
+  <div class="ov-principles">
+    <div class="ov-pcard" style="--pc:var(--green)"><div class="ov-pc-num">01</div><div class="ov-pc-title">Risk-First</div><div class="ov-pc-body">Every signal is filtered through hard risk rules before execution. Kelly, position limits, drawdown circuit-breakers, and kill switch are enforced in code — not just configured.</div></div>
+    <div class="ov-pcard" style="--pc:var(--blue)"><div class="ov-pc-num">02</div><div class="ov-pc-title">Non-Custodial</div><div class="ov-pc-body">Users own their wallets. The backend orchestrates execution but never holds funds. Each user authenticates with their own Polygon wallet — private keys never leave their device.</div></div>
+    <div class="ov-pcard" style="--pc:var(--purple)"><div class="ov-pc-num">03</div><div class="ov-pc-title">Read / Write Separation</div><div class="ov-pc-body">Falcon MCP is purely read-only intelligence. CLOB is purely write-side execution. They never cross — preventing accidental order submission from the intelligence layer.</div></div>
+    <div class="ov-pcard" style="--pc:var(--yellow)"><div class="ov-pc-num">04</div><div class="ov-pc-title">Fully Automated</div><div class="ov-pc-body">After setup, zero manual intervention required. Bot scans markets, runs ML-enhanced analysis, applies risk rules, and executes independently 24/7 on Fly.io.</div></div>
+  </div>
+
+  <div class="slabel">Performance Targets</div>
+  <div class="ov-targets">
+    <div class="ov-trow"><span class="ov-tname">Win Rate</span><div class="ov-tbar"><div class="ov-tfill" style="width:62%;background:var(--green)"></div></div><span class="ov-tval" style="color:var(--green)">&gt; 60%</span></div>
+    <div class="ov-trow"><span class="ov-tname">Sharpe Ratio</span><div class="ov-tbar"><div class="ov-tfill" style="width:80%;background:var(--blue)"></div></div><span class="ov-tval" style="color:var(--blue)">&gt; 2.0</span></div>
+    <div class="ov-trow"><span class="ov-tname">ML Accuracy</span><div class="ov-tbar"><div class="ov-tfill" style="width:65%;background:var(--purple)"></div></div><span class="ov-tval" style="color:var(--purple)">&gt; 65%</span></div>
+    <div class="ov-trow"><span class="ov-tname">E2E Latency</span><div class="ov-tbar"><div class="ov-tfill" style="width:90%;background:var(--teal)"></div></div><span class="ov-tval" style="color:var(--teal)">&lt; 2s</span></div>
+    <div class="ov-trow"><span class="ov-tname">Profit Factor</span><div class="ov-tbar"><div class="ov-tfill" style="width:55%;background:var(--yellow)"></div></div><span class="ov-tval" style="color:var(--yellow)">&gt; 1.4</span></div>
+  </div>
+</div>
+
+
+<!-- ──────── STACK ──────── -->
+<div id="stack" class="page">
+  <div class="phead"><span class="phead-seq">02</span><span class="phead-title">Tech Stack</span><span class="phead-tag tG">Python 3.11 · FastAPI · Fly.io</span></div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title" style="color:var(--blue)">Backend Runtime</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Component</th><th>Technology</th></tr></thead>
+        <tbody>
+          <tr><td style="color:var(--green)">Language</td><td>Python 3.11+ · asyncio only, zero threading</td></tr>
+          <tr><td style="color:var(--green)">API Server</td><td>FastAPI — async REST + webhook receiver</td></tr>
+          <tr><td style="color:var(--green)">Bot Framework</td><td>python-telegram-bot 20+ async</td></tr>
+          <tr><td style="color:var(--green)">ORM / Migrations</td><td>SQLAlchemy 2 + Alembic</td></tr>
+          <tr><td style="color:var(--green)">Database</td><td>PostgreSQL 15 — Fly Postgres</td></tr>
+          <tr><td style="color:var(--green)">Cache / Sessions</td><td>Redis 7 — Upstash</td></tr>
+          <tr><td style="color:var(--green)">Scheduler</td><td>APScheduler — background workers</td></tr>
+          <tr><td style="color:var(--green)">HTTP Client</td><td>httpx — Falcon MCP + CLOB calls</td></tr>
+          <tr><td style="color:var(--green)">Validation</td><td>pydantic v2</td></tr>
+          <tr><td style="color:var(--green)">Encryption</td><td>cryptography — AES-256 key storage</td></tr>
+          <tr><td style="color:var(--green)">Logging</td><td>loguru — structured audit logs</td></tr>
+          <tr><td style="color:var(--green)">Exchange SDK</td><td>py-clob-client — Polymarket CLOB</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color:var(--purple)">ML & Analytics</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Component</th><th>Technology</th></tr></thead>
+        <tbody>
+          <tr><td style="color:var(--purple)">ML Model</td><td>LightGBM binary classifier</td></tr>
+          <tr><td style="color:var(--purple)">Calibration</td><td>IsotonicRegression on hold-out val</td></tr>
+          <tr><td style="color:var(--purple)">Feature Pipeline</td><td>pandas + numpy · 40+ features</td></tr>
+          <tr><td style="color:var(--purple)">ML Validation</td><td>scikit-learn · TimeSeriesSplit 5-fold</td></tr>
+          <tr><td style="color:var(--teal)">Intelligence Layer</td><td>Falcon MCP — narrative.agent.heisenberg.so</td></tr>
+          <tr><td style="color:var(--teal)">Market Data</td><td>Falcon agents #568 #574 #556 #572 (read)</td></tr>
+          <tr><td style="color:var(--teal)">Analytics</td><td>Falcon agents #581 #584 #585 #596 (read)</td></tr>
+          <tr><td style="color:var(--yellow)">Order Execution</td><td>Polymarket CLOB API (write-only)</td></tr>
+          <tr><td style="color:var(--yellow)">Chain</td><td>Polygon · USDC · CTF Exchange</td></tr>
+          <tr><td style="color:var(--blue)">Deploy</td><td>Fly.io · Docker · GitHub Actions CI/CD</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────── ARCHITECTURE ──────── -->
+<div id="arch" class="page">
+  <div class="phead"><span class="phead-seq">03</span><span class="phead-title">Layer Architecture</span><span class="phead-tag tt">Read-side / Write-side separation</span></div>
+
+  <div class="g2" style="align-items:start">
+    <div>
+      <div class="arch-flow">
+        <div class="arch-layer l-user">
+          <div class="lbl">User Layer</div>
+          <div class="sub">Telegram App · Web Browser</div>
+        </div>
+        <div class="arch-arrow"></div>
+        <div class="arch-layer l-bot">
+          <div class="lbl">Telegram — Control Surface</div>
+          <div class="sub">Commands · Alerts · Settings · Kill switch · Mode switch</div>
+        </div>
+        <div class="arch-arrow"></div>
+        <div class="arch-layer l-core">
+          <div class="lbl">Crusader Backend (FastAPI)</div>
+          <div class="sub">Signal engine · Risk gate · Execution · Portfolio · Audit</div>
+        </div>
+        <div class="arch-arrow" style="position:relative">
+          <div style="position:absolute;left:40px;top:6px;font-size:9px;color:var(--teal);white-space:nowrap">READ →</div>
+          <div style="position:absolute;right:40px;top:6px;font-size:9px;color:var(--yellow);white-space:nowrap">← WRITE</div>
+        </div>
+        <div style="display:flex;gap:12px;width:100%;max-width:560px">
+          <div class="arch-layer l-falcon" style="flex:1">
+            <div class="lbl">⚡ Falcon MCP</div>
+            <div class="sub">READ ONLY<br>14 agents · market intel · social · wallet analytics</div>
+          </div>
+          <div class="arch-layer l-clob" style="flex:1">
+            <div class="lbl">📈 CLOB API</div>
+            <div class="sub">WRITE ONLY<br>Order submit · Fill · Cancel</div>
+          </div>
+        </div>
+        <div class="arch-arrow"></div>
+        <div class="arch-layer l-chain">
+          <div class="lbl">Polymarket Exchange Contract</div>
+          <div class="sub">On-chain settlement · CTF resolution · Polygon</div>
+        </div>
+        <div class="arch-arrow"></div>
+        <div class="arch-layer l-wallet">
+          <div class="lbl">User Proxy Wallet</div>
+          <div class="sub">USDC balance · Asset ownership · Polygon</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-title" style="color:var(--teal)">Falcon — Read-Side Intelligence</div>
+        <div class="blk-b" style="margin-bottom:12px;font-size:11.5px;line-height:2">
+          Falcon MCP replaces raw Polymarket Gamma API for all read operations. It provides enriched, aggregated market data unavailable from the base API — orderbook quality scoring, social acceleration, wallet behaviour classification, price jump anomaly detection.<br><br>
+          <b style="color:var(--text)">Falcon is never called for order submission.</b> It is purely an intelligence feed into the signal engine, feature builder, and portfolio display.
+        </div>
+        <div class="blk" style="margin-bottom:9px">
+          <div class="blk-h" style="color:var(--teal)">What Falcon provides</div>
+          <div class="blk-b">Markets · Candles · Trades · Orderbook<br>Wallet 360 · H-Leaderboard · Social Pulse<br>Price Jumps · Market 360 · PnL timeline<br>Kalshi Markets (cross-exchange, Phase 5)</div>
+        </div>
+        <div class="blk">
+          <div class="blk-h" style="color:var(--yellow)">What CLOB provides</div>
+          <div class="blk-b">Order submission (BUY / SELL)<br>Order cancellation<br>Fill confirmation<br>Position lifecycle</div>
+        </div>
+      </div>
+      <div class="ib ib-note"><strong>Multi-user isolation:</strong> Each FalconClient is instantiated with the API key of the requesting user. No shared client across users. Backend injects <code>get_falcon(user_id, db)</code> per request.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────── DECISION FLOW ──────── -->
+<div id="decision" class="page">
+  <div class="phead"><span class="phead-seq">04</span><span class="phead-title">Decision Flow</span><span class="phead-tag tr">Risk gate always before execution</span></div>
+
+  <div class="dflow">
+    <span class="ds ds-d">Falcon Data</span><span class="da">→</span>
+    <span class="ds ds-f">Feature Build</span><span class="da">→</span>
+    <span class="ds ds-m">p_model</span><span class="da">→</span>
+    <span class="ds ds-e">Edge / EV</span><span class="da">→</span>
+    <span class="ds ds-r">Risk Gate</span><span class="da">→</span>
+    <span class="ds ds-x">CLOB Execute</span><span class="da">→</span>
+    <span class="ds ds-p">Portfolio</span><span class="da">→</span>
+    <span class="ds ds-n">Monitor</span>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="color:var(--blue)">Step Breakdown</div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Step</th><th>Logic</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--teal)">Data fetch</td><td>candles, trades, social, market quality, orderbook</td><td><span class="pill pt">#568 #556 #585 #575 #572</span></td></tr>
+        <tr><td style="color:var(--teal)">Feature build</td><td>price momentum, buy/sell ratio, volume trend, liquidity pct, wallet signals</td><td><span class="pill pt">#568 #556 #575 #581 #584</span></td></tr>
+        <tr><td style="color:var(--green)">p_model</td><td>rules-based v1 → LightGBM v2 (Phase 3+)</td><td><span class="pill pd">internal</span></td></tr>
+        <tr><td style="color:var(--green)">edge</td><td><code>p_model − p_market</code></td><td><span class="pill pd">internal</span></td></tr>
+        <tr><td style="color:var(--green)">EV</td><td><code>p × (1/p_market − 1) − (1 − p)</code></td><td><span class="pill pd">internal</span></td></tr>
+        <tr><td style="color:var(--green)">z-score</td><td><code>|edge| / price_7d_volatility</code></td><td><span class="pill pd">internal</span></td></tr>
+        <tr><td style="color:var(--red)">Risk gate</td><td>EV > 0.03, edge > 6%, z > 1.5, MDD < 8%, Kelly sizing, exposure cap, kill switch</td><td><span class="pill pr">risk engine</span></td></tr>
+        <tr><td style="color:var(--yellow)">Execution</td><td>CLOB order → fill → settlement</td><td><span class="pill py">Polymarket CLOB</span></td></tr>
+        <tr><td style="color:var(--orange)">Portfolio</td><td>mark-to-market PnL, exposure aggregation per user</td><td><span class="pill pt">#569 #581 #586</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="color:var(--purple)">20-Step Auto-Trade Pipeline</div>
+    <div class="blk-b" style="line-height:2.2">
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">1.</span><b style="color:var(--blue)">P14.2 Market Scope</b> <span style="color:var(--muted)">— Falcon #574/#575: scope check, liquidity filter, whale/volume-trend gate</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">2.</span><b style="color:var(--blue)">P1 Dedup</b> <span style="color:var(--muted)">— already-open check before any analysis</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">3.</span><b style="color:var(--blue)">P14.3 Falcon Features</b> <span style="color:var(--muted)">— candles, trades, orderbook, social, smart-money → feature matrix</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">4.</span><b style="color:var(--purple)">S1 Narrative Momentum</b> <span style="color:var(--muted)">— social spike + market-lag detection (Falcon #585)</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">5.</span><b style="color:var(--purple)">S2 Cross-Exchange Arb</b> <span style="color:var(--muted)">— Polymarket ↔ Kalshi spread (Falcon #565/#573)</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">6.</span><b style="color:var(--purple)">S3 Smart-Money Copy</b> <span style="color:var(--muted)">— Wallet360 + H-Score quality gate (Falcon #581/#584)</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">7.</span><b style="color:var(--purple)">S5 Settlement Gap</b> <span style="color:var(--muted)">— Kalshi resolved → Polymarket equivalent < 0.95</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">8.</span><b style="color:var(--purple)">P9 ML Score</b> <span style="color:var(--muted)">— LightGBM p_model + confidence gate (min 0.30)</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">9.</span><b style="color:var(--purple)">P14 Regime</b> <span style="color:var(--muted)">— regime classification modifies strategy weights</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">10.</span><b style="color:var(--purple)">S4 Aggregator</b> <span style="color:var(--muted)">— ML-weighted S1/S2/S3/S5 → single trade decision</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">11.</span><b style="color:var(--green)">P7 EV Gate</b> <span style="color:var(--muted)">— EV > 0.03 + edge > 6% + z-score > 1.5</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">12.</span><b style="color:var(--green)">P11 Kelly Sizing</b> <span style="color:var(--muted)">— fractional Kelly × 0.25 cap</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">13.</span><b style="color:var(--red)">P8 Exposure Guard</b> <span style="color:var(--muted)">— correlated cluster cap → ENTER/SKIP/REDUCE</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">14.</span><b style="color:var(--red)">P10 Quality Gate</b> <span style="color:var(--muted)">— spread/depth/slippage + expected_fill_price</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">15.</span><b style="color:var(--red)">P12 Entry Timing</b> <span style="color:var(--muted)">— anti-chase spike delay / pullback wait → ENTER_NOW/WAIT/SKIP</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">16.</span><b style="color:var(--red)">P16/P3 Hard Gates</b> <span style="color:var(--muted)">— proof verify + capital + drawdown + max positions</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">17.</span><b style="color:var(--orange)">Authorize</b> <span style="color:var(--muted)">— LiveExecutionAuthorizer.authorize_with_trace()</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">18.</span><b style="color:var(--orange)">CLOB Submit</b> <span style="color:var(--muted)">— ExecutionTransport.submit_with_trace() + circuit breaker monitoring</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">19.</span><b style="color:var(--orange)">Ledger + DB Write</b> <span style="color:var(--muted)">— append-only ledger + orders/positions/audit_logs</span></div>
+      <div><span style="color:var(--muted);min-width:28px;display:inline-block">20.</span><b style="color:var(--green)">Post-Trade</b> <span style="color:var(--muted)">— attribution + ML label + Telegram ⚡ alert dispatched</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────── DIRECTORY TREE ──────── -->
+<div id="tree" class="page">
+  <div class="phead"><span class="phead-seq">05</span><span class="phead-title">Directory Tree</span><span class="phead-tag tb">client/ server/ configs/ scripts/ tests/ docs/ legacy/</span></div>
+  <div class="tree"><span class="td">crusaderbot/</span>
+├── <span class="tf">README.md</span>
+├── <span class="tf">pyproject.toml</span>
+├── <span class="tf">requirements.txt</span>          <span class="tc"># httpx, fastapi, python-telegram-bot, sqlalchemy, lightgbm</span>
+├── <span class="tf">.env.example</span>
+├── <span class="tf">.gitignore</span>
+├── <span class="tf">Dockerfile</span>
+├── <span class="tf">fly.toml</span>
+│
+├── <span class="td">client/</span>                           <span class="tc"># User-facing surfaces</span>
+│   ├── <span class="td">telegram/</span>                     <span class="tc"># Control surface — not execution authority</span>
+│   │   ├── <span class="tf">bot.py</span>                    <span class="tc"># Telegram bot instance, webhook registration</span>
+│   │   ├── <span class="tf">config.py</span>                 <span class="tc"># Token, webhook URL, admin IDs</span>
+│   │   ├── <span class="tf">helpers.py</span>                <span class="tc"># require_auth, format_table, send_paginated</span>
+│   │   ├── <span class="td">handlers/</span>
+│   │   │   ├── <span class="tf">auth.py</span>               <span class="tc"># /start /connect_wallet /disconnect</span>
+│   │   │   ├── <span class="th">account.py</span>            <span class="tk"># ★ /setkey /profile /wallet</span>
+│   │   │   ├── <span class="th">markets.py</span>            <span class="tk"># ★ /markets /market360 /jumps /social</span>
+│   │   │   ├── <span class="tf">signals.py</span>            <span class="tc"># /signal /recommendation</span>
+│   │   │   ├── <span class="tf">trading.py</span>            <span class="tc"># /buy /sell /cancel /close — manual overrides only</span>
+│   │   │   ├── <span class="tf">portfolio.py</span>          <span class="tc"># /balance /positions /history</span>
+│   │   │   ├── <span class="th">analytics.py</span>          <span class="tk"># ★ /wallet /wallet360 /pnl /leaderboard /hboard</span>
+│   │   │   ├── <span class="tf">settings.py</span>           <span class="tc"># /mode /limits /notifications /kill</span>
+│   │   │   ├── <span class="tf">notifications.py</span>      <span class="tc"># Alert subscriptions</span>
+│   │   │   └── <span class="tf">admin.py</span>              <span class="tc"># Operator-only commands</span>
+│   │   ├── <span class="td">middlewares/</span>
+│   │   │   ├── <span class="tf">auth.py</span>               <span class="tc"># Session + identity validation</span>
+│   │   │   ├── <span class="tf">tenant_context.py</span>     <span class="tc"># Inject user_id into request scope</span>
+│   │   │   ├── <span class="tf">permissions.py</span>        <span class="tc"># RBAC</span>
+│   │   │   ├── <span class="tf">rate_limit.py</span>         <span class="tc"># Flood control per user</span>
+│   │   │   └── <span class="tf">error_handler.py</span>
+│   │   ├── <span class="td">keyboards/</span>
+│   │   │   └── <span class="tf">main.py</span>  <span class="tf">trading.py</span>  <span class="tf">portfolio.py</span>  <span class="tf">settings.py</span>
+│   │   ├── <span class="td">states/</span>
+│   │   │   └── <span class="tf">auth_states.py</span>  <span class="tf">trade_states.py</span>  <span class="tf">settings_states.py</span>
+│   │   ├── <span class="td">templates/</span>                    <span class="tc"># Markdown message templates</span>
+│   │   │   └── <span class="tf">welcome.md</span>  <span class="tf">order_confirm.md</span>  <span class="tf">portfolio.md</span>  <span class="tf">signal.md</span>  <span class="tf">error.md</span>
+│   │   └── <span class="td">notifications/</span>
+│   │       └── <span class="tf">trade_alerts.py</span>  <span class="tf">fill_alerts.py</span>  <span class="tf">pnl_alerts.py</span>  <span class="tf">risk_alerts.py</span>
+│   └── <span class="td">web/</span>                              <span class="tc"># Optional web dashboard</span>
+│       └── <span class="tf">app.py</span>  <span class="tf">routes/</span>  <span class="tf">templates/</span>  <span class="tf">static/</span>
+│
+├── <span class="td">server/</span>                           <span class="tc"># Backend — all business logic lives here</span>
+│   ├── <span class="tf">main.py</span>                           <span class="tc"># FastAPI entrypoint</span>
+│   ├── <span class="tf">config.py</span>
+│   ├── <span class="tf">dependencies.py</span>
+│   ├── <span class="td">api/</span>
+│   │   ├── <span class="tf">telegram_webhook.py</span>
+│   │   ├── <span class="tf">auth.py</span>  <span class="tf">users.py</span>  <span class="tf">accounts.py</span>  <span class="tf">wallets.py</span>
+│   │   ├── <span class="tf">markets.py</span>  <span class="tf">signals.py</span>  <span class="tf">orders.py</span>  <span class="tf">positions.py</span>
+│   │   ├── <span class="tf">portfolio.py</span>  <span class="tf">risk.py</span>  <span class="tf">settings.py</span>  <span class="tf">notifications.py</span>
+│   │   └── <span class="tf">admin.py</span>  <span class="tf">health.py</span>
+│   ├── <span class="td">services/</span>
+│   │   ├── <span class="tf">auth_service.py</span>  <span class="tf">user_service.py</span>  <span class="tf">wallet_service.py</span>
+│   │   ├── <span class="th">market_service.py</span>             <span class="tk"># ★ Falcon-backed market + candle + social</span>
+│   │   ├── <span class="tf">signal_service.py</span>  <span class="tf">order_service.py</span>  <span class="tf">execution_service.py</span>
+│   │   ├── <span class="tf">portfolio_service.py</span>  <span class="tf">risk_service.py</span>
+│   │   └── <span class="tf">notification_service.py</span>  <span class="tf">audit_service.py</span>
+│   ├── <span class="td">core/</span>
+│   │   ├── <span class="th">signal_engine.py</span>              <span class="tk"># ★ FeatureBuilder + strategy routing</span>
+│   │   ├── <span class="tf">ev_engine.py</span>                  <span class="tc"># edge, EV, z-score</span>
+│   │   ├── <span class="tf">pricing_engine.py</span>
+│   │   ├── <span class="tf">strategy_router.py</span>
+│   │   └── <span class="tf">tenancy.py</span>                    <span class="tc"># User/tenant scoping helpers</span>
+│   ├── <span class="td">risk/</span>
+│   │   ├── <span class="tf">sizing.py</span>  <span class="tf">kelly.py</span>  <span class="tf">exposure.py</span>  <span class="tf">correlation.py</span>
+│   │   ├── <span class="tf">drawdown.py</span>  <span class="tf">var.py</span>  <span class="tf">cvar.py</span>
+│   │   ├── <span class="tf">trade_gate.py</span>                 <span class="tc"># Hard approval gate</span>
+│   │   └── <span class="tf">user_limits.py</span>               <span class="tc"># Per-user / per-tier limits</span>
+│   ├── <span class="td">execution/</span>
+│   │   ├── <span class="tf">order_planner.py</span>  <span class="tf">order_router.py</span>  <span class="tf">fill_handler.py</span>
+│   │   ├── <span class="tf">settlement_tracker.py</span>  <span class="tf">slippage.py</span>
+│   │   └── <span class="tf">execution_guard.py</span>           <span class="tc"># Idempotency + race prevention</span>
+│   ├── <span class="td">integrations/</span>
+│   │   ├── <span class="td">falcon/</span>                       <span class="tk"># ★ FALCON — read-side intelligence layer</span>
+│   │   │   ├── <span class="th">client.py</span>             <span class="tk"># ★ FalconClient — all 14 read agents</span>
+│   │   │   └── <span class="th">isolation.py</span>          <span class="tk"># ★ get_falcon(user_id, db) per-request helper</span>
+│   │   ├── <span class="td">polymarket/</span>               <span class="tc"># CLOB — write-side execution layer</span>
+│   │   │   ├── <span class="tf">clob_client.py</span>  <span class="tf">orders_client.py</span>  <span class="tf">fills_client.py</span>
+│   │   │   └── <span class="tf">exchange_contract.py</span>
+│   │   └── <span class="td">polygon/</span>
+│   │       ├── <span class="tf">wallet_client.py</span>  <span class="tf">signer.py</span>  <span class="tf">balances.py</span>
+│   │       └── <span class="tf">proxy_wallet.py</span>
+│   ├── <span class="td">portfolio/</span>
+│   │   ├── <span class="tf">positions.py</span>  <span class="tf">bankroll.py</span>  <span class="tf">pnl.py</span>
+│   │   ├── <span class="tf">exposure_aggregator.py</span>  <span class="tf">reconciliation.py</span>
+│   │   └── <span class="tf">user_portfolio_scope.py</span>
+│   ├── <span class="td">ml/</span>
+│   │   ├── <span class="tf">feature_builder.py</span>  <span class="tf">model_trainer.py</span>  <span class="tf">model_store.py</span>
+│   │   ├── <span class="tf">calibrator.py</span>  <span class="tf">predictor.py</span>  <span class="tf">labeler.py</span>
+│   │   └── <span class="tf">retrain_scheduler.py</span>
+│   ├── <span class="td">storage/</span>
+│   │   ├── <span class="tf">db.py</span>  <span class="tf">session.py</span>
+│   │   ├── <span class="td">models/</span>
+│   │   │   ├── <span class="tf">user.py</span>  <span class="tf">account.py</span>  <span class="tf">wallet.py</span>
+│   │   │   ├── <span class="th">user_settings.py</span>          <span class="tk"># ★ + falcon_api_key (AES-256 encrypted)</span>
+│   │   │   ├── <span class="tf">market.py</span>  <span class="tf">signal.py</span>  <span class="tf">order.py</span>  <span class="tf">fill.py</span>
+│   │   │   ├── <span class="tf">position.py</span>  <span class="tf">portfolio_snapshot.py</span>
+│   │   │   └── <span class="tf">risk_decision.py</span>  <span class="tf">audit_log.py</span>  <span class="tf">idempotency_key.py</span>
+│   │   ├── <span class="td">repositories/</span>
+│   │   │   ├── <span class="tf">user_repository.py</span>         <span class="tc"># save_falcon_key(), get_settings()</span>
+│   │   │   ├── <span class="tf">order_repository.py</span>  <span class="tf">position_repository.py</span>
+│   │   │   ├── <span class="tf">signal_repository.py</span>  <span class="tf">portfolio_repository.py</span>
+│   │   │   └── <span class="tf">audit_repository.py</span>
+│   │   └── <span class="td">migrations/</span>
+│   ├── <span class="td">workers/</span>
+│   │   ├── <span class="tf">scheduler.py</span>
+│   │   ├── <span class="th">market_sync.py</span>             <span class="tk"># ★ Falcon #574 + #575</span>
+│   │   ├── <span class="th">signal_runner.py</span>           <span class="tk"># ★ Full 20-step pipeline per watchlist market</span>
+│   │   ├── <span class="tf">order_monitor.py</span>  <span class="tf">settlement_monitor.py</span>
+│   │   ├── <span class="tf">risk_monitor.py</span>    <span class="tf">portfolio_reconciler.py</span>
+│   │   └── <span class="tf">notification_dispatcher.py</span>
+│   ├── <span class="td">schemas/</span>
+│   │   └── <span class="tf">auth.py</span>  <span class="tf">user.py</span>  <span class="tf">market.py</span>  <span class="tf">signal.py</span>  <span class="tf">order.py</span>  <span class="tf">portfolio.py</span>  <span class="tf">risk.py</span>
+│   └── <span class="td">utils/</span>
+│       └── <span class="tf">logging.py</span>  <span class="tf">time.py</span>  <span class="tf">ids.py</span>  <span class="tf">crypto.py</span>  <span class="tf">exceptions.py</span>
+│
+├── <span class="td">configs/</span>
+│   ├── <span class="tf">app.yaml</span>  <span class="tf">telegram.yaml</span>  <span class="tf">polymarket.yaml</span>  <span class="tf">wallet.yaml</span>
+│   ├── <span class="th">falcon.yaml</span>                   <span class="tk"># ★ base URL, timeouts, cache TTL per agent</span>
+│   ├── <span class="tf">trading.yaml</span>               <span class="tc"># mode, min volume, scan interval</span>
+│   ├── <span class="tf">risk.yaml</span>                  <span class="tc"># Kelly, MDD threshold, exposure caps</span>
+│   ├── <span class="tf">tiers.yaml</span>                 <span class="tc"># User tiers, permissions, rate limits</span>
+│   └── <span class="tf">notifications.yaml</span>
+│
+├── <span class="td">scripts/</span>
+│   ├── <span class="tf">run_bot.py</span>  <span class="tf">run_api.py</span>  <span class="tf">run_worker.py</span>
+│   ├── <span class="tf">migrate.py</span>  <span class="tf">seed_admin.py</span>
+│   └── <span class="tf">backfill_labels.py</span>         <span class="tc"># ML training data backfill</span>
+│
+├── <span class="td">tests/</span>
+│   ├── <span class="td">unit/</span>      <span class="tc"># signal, risk, ml, ev unit tests</span>
+│   ├── <span class="td">integration/</span>  <span class="tc"># Falcon client, CLOB, DB</span>
+│   ├── <span class="td">multiuser/</span>  <span class="tc"># Tenant isolation tests</span>
+│   └── <span class="td">e2e/</span>       <span class="tc"># Full pipeline simulation</span>
+│
+├── <span class="td">docs/</span>
+│   ├── <span class="tf">architecture.md</span>  <span class="tf">api_spec.md</span>  <span class="tf">telegram_flow.md</span>
+│   ├── <span class="tf">wallet_flow.md</span>  <span class="tf">multiuser_model.md</span>  <span class="tf">risk_rules.md</span>
+│   └── <span class="th">falcon_integration.md</span>     <span class="tk"># ★ Agent mapping + read/write split</span>
+│
+└── <span class="td">legacy/</span>                           <span class="tc"># Archived pre-refactor code</span>
+    └── <span class="tf">...</span>
+</div>
+  <div style="margin-top:10px;font-size:11px">
+    <span style="color:var(--green)">★ highlight</span> = key file &nbsp;|&nbsp;
+    <span style="color:var(--teal)">teal</span> = Falcon-specific &nbsp;|&nbsp;
+    <span style="color:var(--yellow)">amber</span> = new / pending
+  </div>
+</div>
+
+<!-- ──────── SUBSYSTEMS ──────── -->
+<div id="subsystems" class="page">
+  <div class="phead"><span class="phead-seq">06</span><span class="phead-title">Subsystems</span><span class="phead-tag tb">6 core subsystems</span></div>
+  <div class="sg">
+    <div class="sc"><div class="sc-t" style="color:var(--blue)">Data Ingestion</div><div class="sc-b">markets_fetcher (→ #574)<br>candles_fetcher (→ #568)<br>trades_fetcher (→ #556)<br>social_fetcher (→ #585)<br>orderbook_fetcher (→ #572)<br>scheduler · normalizer</div></div>
+    <div class="sc"><div class="sc-t" style="color:var(--green)">Signal Engine</div><div class="sc-b">FeatureBuilder (40+ features)<br>ProbabilityModel v1 → v2 ML<br>EdgeEngine (edge / EV / z)<br>RegimeFilter<br>StrategySelector<br>MarketQuality Gate (→ #575)</div></div>
+    <div class="sc"><div class="sc-t" style="color:var(--red)">Risk Engine</div><div class="sc-b">SizingEngine · FractionalKelly<br>ExposureEngine (cluster cap)<br>DrawdownGuard (MDD 8%)<br>TradeApprovalGate<br>KillSwitchCheck<br>UserLimits (per-tier)</div></div>
+    <div class="sc"><div class="sc-t" style="color:var(--yellow)">Execution Engine</div><div class="sc-b">OrderPlanner<br>OrderRouter (→ CLOB only)<br>FillHandler<br>ExitManager<br>SettlementTracker<br>ExecutionGuard (idempotent)</div></div>
+    <div class="sc"><div class="sc-t" style="color:var(--purple)">Portfolio Engine</div><div class="sc-b">PositionRegistry<br>MarkToMarket PnL<br>RealizedPnL (→ #569)<br>ExposureAggregator<br>BankrollTracker<br>UserPortfolioScope</div></div>
+    <div class="sc"><div class="sc-t" style="color:var(--teal)">Monitoring</div><div class="sc-b">SystemHealth<br>TradingHealth<br>StrategyHealth<br>RiskHealth<br>UserAnomalies<br>AuditLogger</div></div>
+  </div>
+</div>
+
+<!-- ──────── STRATEGY ──────── -->
+<div id="strategy" class="page">
+  <div class="phead"><span class="phead-seq">07</span><span class="phead-title">Strategies S1–S5</span><span class="phead-tag tG">All backed by Falcon read-layer</span></div>
+  <div class="g2">
+    <div class="blk"><div class="blk-h" style="color:var(--purple)">S1 — Narrative Momentum</div><div class="blk-b">Falcon #585 social spike + market-lag measurement → EV edge gate → ENTER/SKIP. Enters when market hasn't repriced after news breaks. Falcon is the read source for acceleration + volume signals.</div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--purple)">S2 — Cross-Exchange Arbitrage</div><div class="blk-b">Falcon #565/#573 Kalshi markets/trades → normalized probability + actionable spread gate + fee/slippage net edge. CLOB is used for order submission only; Falcon reads Kalshi side.</div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--purple)">S3 + S3.1 — Smart-Money Copy</div><div class="blk-b">Falcon #581 Wallet360 + #584 H-Score: consistency / discipline / frequency / diversity → confidence-weighted ENTER/SKIP. Multi-dimensional wallet quality gate derived entirely from Falcon read layer.</div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--purple)">S4 — ML-Weighted Aggregator</div><div class="blk-b">Collects outputs of S1/S2/S3/S5 → ML-driven weights (P15) + regime modifiers (P11) + Falcon alpha layer (P14.3) → single trade decision. Output: <code>selected_trade / decision</code>.</div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--purple)">S5 — Settlement Gap Scanner</div><div class="blk-b">Falcon #565/#573 Kalshi resolution detected → Polymarket equivalent market → resolved-outcome price &lt; 0.95 + liquidity guard → ENTER via CLOB, <code>source="settlement_gap"</code>.</div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--teal)">P14.3 — Falcon Alpha Layer</div><div class="blk-b">Smart-money flow concentration + momentum (price jumps, candle trend) + liquidity (spread/depth) → bounded <code>external_signal_weight</code> fed to S4. All inputs from Falcon read agents. Insufficient data → neutral weight.</div></div>
+  </div>
+</div>
+
+<!-- ──────── ML ──────── -->
+<div id="ml" class="page">
+  <div class="phead"><span class="phead-seq">08</span><span class="phead-title">Machine Learning Layer</span><span class="phead-tag tp">LightGBM · Auto-Retrain every 6h</span></div>
+  <div class="card">
+    <div class="card-title" style="color:var(--purple)">ML Pipeline</div>
+    <div class="flow">
+      <div class="flow-box" style="background:rgba(56,189,248,.06);border-color:rgba(56,189,248,.2);color:#93c5fd">Raw Inputs: Falcon candles + trades + orderbook + social + wallet + resolved outcomes</div>
+      <div class="flow-arrow"></div>
+      <div class="flow-box" style="background:rgba(167,139,250,.07);border-color:rgba(167,139,250,.2);color:#c4b5fd">feature_builder.py — 40+ engineered features (price, flow, social, liquidity, regime, wallet)</div>
+      <div class="flow-arrow"></div>
+      <div class="flow-box" style="background:rgba(167,139,250,.07);border-color:rgba(167,139,250,.2);color:#d8b4fe">LightGBM binary classifier → raw score → IsotonicRegression calibration → p_model ∈ (0,1)</div>
+      <div class="flow-arrow"></div>
+      <div class="flow-box" style="background:rgba(0,255,136,.07);border-color:rgba(0,255,136,.2);color:var(--green)">edge = p_model − p_market · EV = p·b − (1−p) · size = Kelly(edge, p_model_conf) × 0.25</div>
+      <div class="flow-arrow"></div>
+      <div class="flow-box" style="background:rgba(251,146,60,.06);border-color:rgba(251,146,60,.2);color:#fdba74">Post-trade: resolved label stored → retrain_scheduler every 6h → hot-swap active model</div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title" style="color:var(--purple)">Feature Groups — 40+</div>
+      <div class="g2" style="margin-bottom:0">
+        <div class="blk"><div class="blk-h" style="color:var(--teal)">Price Momentum</div><div class="blk-b" style="font-size:10.5px">price_7d_momentum<br>price_24h_change<br>volume_momentum_ratio<br>volatility_7d<br>candle_trend_slope<br>spread_mean_1h</div></div>
+        <div class="blk"><div class="blk-h" style="color:var(--teal)">Order Flow</div><div class="blk-b" style="font-size:10.5px">buy_sell_ratio_24h<br>large_trade_count<br>smart_money_signal<br>trade_velocity<br>unique_wallets_24h<br>flow_z_score</div></div>
+        <div class="blk"><div class="blk-h" style="color:var(--teal)">Social Signals</div><div class="blk-b" style="font-size:10.5px">social_acceleration<br>pct_last_1h<br>pct_last_6h<br>author_diversity<br>retweet_velocity<br>sentiment_spike_flag</div></div>
+        <div class="blk"><div class="blk-h" style="color:var(--teal)">Market Quality</div><div class="blk-b" style="font-size:10.5px">bid_depth / ask_depth<br>orderbook_imbalance<br>liquidity_percentile<br>whale_control_flag<br>squeeze_risk_flag<br>regime_encoded</div></div>
+        <div class="blk"><div class="blk-h" style="color:var(--teal)">Wallet Quality</div><div class="blk-b" style="font-size:10.5px">wallet_h_score_avg<br>top_wallet_concentration<br>sybil_risk_flag<br>wallet_consistency_score<br>smart_wallet_buy_side</div></div>
+        <div class="blk"><div class="blk-h" style="color:var(--teal)">Market Context</div><div class="blk-b" style="font-size:10.5px">time_to_resolution<br>yes_avg_pnl<br>winning_side_encoded<br>volume_trend_encoded<br>p14_falcon_signal<br>strategy_source_encoded</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color:var(--purple)">Model Config & Fallback</div>
+      <div class="blk" style="margin-bottom:10px">
+        <div class="blk-h" style="color:var(--purple)">model_trainer.py</div>
+        <div class="blk-b">
+          <b>Algorithm:</b> LightGBM binary classifier<br>
+          <b>Target:</b> did market resolve YES?<br>
+          <b>Validation:</b> TimeSeriesSplit 5-fold CV<br>
+          <b>Calibration:</b> IsotonicRegression on hold-out<br>
+          <b>Metric:</b> Brier score + log-loss + AUC<br>
+          <b>Training window:</b> rolling 90-day resolved<br>
+          <b>Min samples:</b> 200 labeled records to activate<br>
+          <b>Retrain:</b> every 6h via APScheduler<br>
+          <b>Hot-swap:</b> new model replaces active if improved
+        </div>
+      </div>
+      <div class="blk">
+        <div class="blk-h" style="color:var(--purple)">Fallback Logic</div>
+        <div class="blk-b">
+          Not trained yet → rules-based p_model<br>
+          ML confidence &lt; 0.30 → SKIP, no trade<br>
+          Model error → EV-only gate<br>
+          Rules-based: buy/sell ratio + social spike + regime
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────── RISK ──────── -->
+<div id="risk" class="page">
+  <div class="phead"><span class="phead-seq">09</span><span class="phead-title">Risk Engine</span><span class="phead-tag tr">Always runs before execution</span></div>
+  <div class="card">
+    <div class="card-title" style="color:var(--red)">Hard Block Conditions</div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Block Reason</th><th>Trigger Condition</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--red);font-family:var(--mono)">capital_insufficient</td><td>Requested size > available capital</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">exposure_limit</td><td>Total correlated exposure exceeds cap</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">max_positions_reached</td><td>Open positions ≥ MAX_CONCURRENT (default 5)</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">drawdown_limit</td><td>MDD > 8% or daily loss > −$2,000</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">ml_confidence_too_low</td><td>ML model confidence < 0.30</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">ev_non_positive</td><td>Expected Value ≤ 0.03</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">min_edge_not_met</td><td>edge < 6%</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">z_score_too_low</td><td>|edge| / volatility < 1.5</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">no_valid_proof</td><td>ExecutionValidationProof missing or expired</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">size_non_positive</td><td>Computed size ≤ 0</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">duplicate_blocked</td><td>Same idempotency key already processed</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">kill_switch_active</td><td>Kill switch engaged (via Telegram /kill or admin)</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">min_liquidity_not_met</td><td>Market orderbook depth < $10,000</td></tr>
+        <tr><td style="color:var(--red);font-family:var(--mono)">market_quality_fail</td><td>Falcon #575: whale_flag=true or volume_trend=Dying</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ──────── WORKERS ──────── -->
+<div id="workers" class="page">
+  <div class="phead"><span class="phead-seq">10</span><span class="phead-title">Auto Workers</span><span class="phead-tag tb">APScheduler · 100% Automated</span></div>
+  <div class="card">
+    <div class="card-title" style="color:var(--blue)">Worker Schedule</div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Worker</th><th>Interval</th><th>What It Does</th><th>Falcon</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--green);font-family:var(--mono)">market_sync</td><td><span class="pill pb">15 min</span></td><td style="color:var(--muted)">Fetch watchlist markets via Falcon, update scope, prune stale entries</td><td><span class="pill po">#574 #575</span></td></tr>
+        <tr><td style="color:var(--green);font-family:var(--mono)">signal_runner</td><td><span class="pill pb">30 min</span></td><td style="color:var(--muted)">Full 20-step pipeline per watchlist market. Executes via CLOB if risk-approved.</td><td><span class="pill po">#574 #556 #568 #572 #585</span></td></tr>
+        <tr><td style="color:var(--green);font-family:var(--mono)">position_monitor</td><td><span class="pill pb">5 min</span></td><td style="color:var(--muted)">Exit checks per open position. Auto-closes via CLOB on EXIT_FULL trigger.</td><td><span class="pill po">#568</span></td></tr>
+        <tr><td style="color:var(--green);font-family:var(--mono)">risk_monitor</td><td><span class="pill pb">5 min</span></td><td style="color:var(--muted)">MDD + daily loss check per user. Auto-pauses + Telegram alert if breach.</td><td style="color:var(--muted)">—</td></tr>
+        <tr><td style="color:var(--green);font-family:var(--mono)">price_updater</td><td><span class="pill pb">2 min</span></td><td style="color:var(--muted)">Refresh mark_price + unrealized_pnl for open positions via Falcon candles</td><td><span class="pill po">#568</span></td></tr>
+        <tr><td style="color:var(--green);font-family:var(--mono)">social_pulse</td><td><span class="pill pb">60 min</span></td><td style="color:var(--muted)">Fetch social acceleration for watchlist keywords — read only</td><td><span class="pill po">#585</span></td></tr>
+        <tr><td style="color:var(--green);font-family:var(--mono)">ml_retrain</td><td><span class="pill pb">6 hours</span></td><td style="color:var(--muted)">Collect resolved labels → build features → train LightGBM → calibrate → hot-swap</td><td style="color:var(--muted)">—</td></tr>
+        <tr><td style="color:var(--green);font-family:var(--mono)">ledger_persist</td><td><span class="pill pb">10 min</span></td><td style="color:var(--muted)">Flush execution ledger to disk for audit durability</td><td style="color:var(--muted)">—</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ──────── FALCON ──────── -->
+<div id="falcon" class="page">
+  <div class="phead"><span class="phead-seq">11</span><span class="phead-title">Falcon MCP — Agent Map</span><span class="phead-tag tt">Read-side intelligence · narrative.agent.heisenberg.so</span></div>
+
+  <div class="ib ib-note"><strong>Architectural position:</strong> Falcon is the read-side intelligence layer. It enriches signals and powers portfolio analytics. All write operations (order submission, cancellation) are directed exclusively to Polymarket CLOB — never through Falcon.</div>
+
+  <div class="card">
+    <div class="card-title" style="color:var(--teal)">14 Agents — Full Map</div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>ID</th><th>Agent</th><th>CrusaderBot Module</th><th>Data Provided</th><th>Phase</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#574</td><td>Polymarket Markets</td><td style="color:var(--muted);font-size:11px">data_ingestion/markets_fetcher · workers/market_sync</td><td style="color:var(--muted);font-size:10.5px">condition_id, token_ids, slug, volume, title</td><td><span class="pill pb">1</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#568</td><td>Candlesticks</td><td style="color:var(--muted);font-size:11px">data_ingestion/candles_fetcher · signal_engine (price features)</td><td style="color:var(--muted);font-size:10.5px">open, high, low, close, volume, spread</td><td><span class="pill pb">1</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#556</td><td>Trades</td><td style="color:var(--muted);font-size:11px">data_ingestion/trades_fetcher · signal_engine (flow features)</td><td style="color:var(--muted);font-size:10.5px">price, size, wallet, side, timestamp</td><td><span class="pill pb">1</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#575</td><td>Market 360</td><td style="color:var(--muted);font-size:11px">signal_engine (market quality gate · liquidity filter)</td><td style="color:var(--muted);font-size:10.5px">liquidity_pct, whale_flag, volume_trend, PnL by side</td><td><span class="pill pb">1</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#569</td><td>Wallet PnL</td><td style="color:var(--muted);font-size:11px">portfolio/pnl · /pnl command</td><td style="color:var(--muted);font-size:10.5px">pnl, invested, trades, win_rate per period</td><td><span class="pill pb">2</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#586</td><td>Wallet Stat All-Time</td><td style="color:var(--muted);font-size:11px">portfolio/bankroll · /wallet command</td><td style="color:var(--muted);font-size:10.5px">total_pnl, roi_pct, avg_trade_size</td><td><span class="pill pb">2</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#572</td><td>Orderbook</td><td style="color:var(--muted);font-size:11px">data_ingestion/orderbook_fetcher · /book command</td><td style="color:var(--muted);font-size:10.5px">bids, asks, spread, depth</td><td><span class="pill pb">2</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#579</td><td>Polymarket Leaderboard</td><td style="color:var(--muted);font-size:11px">signal_engine (flow seed) · /leaderboard command</td><td style="color:var(--muted);font-size:10.5px">rank, total_pnl, roi, win_rate, sharpe</td><td><span class="pill pb">3</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#581</td><td>Wallet 360</td><td style="color:var(--muted);font-size:11px">portfolio/positions · risk engine (sybil detection)</td><td style="color:var(--muted);font-size:10.5px">consistency, discipline, sybil_risk_flag, 60+ metrics</td><td><span class="pill pb">3</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#584</td><td>H-Leaderboard</td><td style="color:var(--muted);font-size:11px">signal_engine S3.1 · smart money gate</td><td style="color:var(--muted);font-size:10.5px">h_score, tier (Elite/Sharp/Solid), trajectory, roi_15d</td><td><span class="pill pb">4</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#596</td><td>Price Jumps</td><td style="color:var(--muted);font-size:11px">signal_engine (anomaly features) · /jumps command</td><td style="color:var(--muted);font-size:10.5px">jump_time, change_pct, direction</td><td><span class="pill pb">4</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#585</td><td>Social Pulse</td><td style="color:var(--muted);font-size:11px">data_ingestion/social_fetcher · S1 Narrative · Bayesian updater</td><td style="color:var(--muted);font-size:10.5px">content, acceleration, pct_last_1h, author_diversity</td><td><span class="pill pb">4</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#565</td><td>Kalshi Markets</td><td style="color:var(--muted);font-size:11px">integrations/kalshi · S2 + S5</td><td style="color:var(--muted);font-size:10.5px">ticker, yes_price, resolution, status</td><td><span class="pill pb">5</span></td></tr>
+        <tr><td style="color:var(--orange);font-family:var(--mono);font-weight:600">#573</td><td>Kalshi Trades</td><td style="color:var(--muted);font-size:11px">integrations/kalshi · S2 arbitrage</td><td style="color:var(--muted);font-size:10.5px">price, size, side, timestamp</td><td><span class="pill pb">5</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ──────── FALCON KEY ──────── -->
+<div id="falcon-key" class="page">
+  <div class="phead"><span class="phead-seq">12</span><span class="phead-title">Falcon API Key Setup</span><span class="phead-tag tt">Per-user · AES-256 · ketanalytics.com</span></div>
+  <div class="card">
+    <div class="card-title" style="color:var(--teal)">3-Step Setup Flow</div>
+    <div class="g3">
+      <div class="blk"><div class="blk-h" style="color:var(--teal)">Step 1 — Get Key</div><div class="blk-b">User signs up at <code>ketanalytics.com</code> → API Keys page → copies Bearer JWT token starting with <code>eyJ...</code></div></div>
+      <div class="blk"><div class="blk-h" style="color:var(--teal)">Step 2 — Register</div><div class="blk-b">User sends <code>/setkey eyJhbG...</code> to CrusaderBot → bot calls <code>FalconClient.validate_key()</code> → AES-256 encrypted, stored in <code>user_settings.falcon_api_key</code></div></div>
+      <div class="blk"><div class="blk-h" style="color:var(--teal)">Step 3 — Isolated Use</div><div class="blk-b">Every Falcon call uses <code>get_falcon(user_id, db)</code> — decrypts that user's key, creates fresh <code>FalconClient</code>. Zero cross-user leakage.</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--teal)">falcon/client.py</div>
+    <div class="code">
+<span class="cc"># server/integrations/falcon/client.py</span>
+<span class="ck">class</span> <span class="cf">FalconClient</span>:
+    BASE = <span class="cs">"https://narrative.agent.heisenberg.so"</span>
+
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, api_key: str, timeout: float = 30.0, max_retries: int = 3):
+        self._headers = {<span class="cs">"Authorization"</span>: f<span class="cs">"Bearer {api_key}"</span>}
+        self._timeout = timeout
+        self._retries = max_retries
+
+    <span class="cc"># All methods are READ-ONLY — market intelligence only, no order submission</span>
+    <span class="ck">async def</span> <span class="cf">get_markets</span>(self, ...) -> list     <span class="cc"># #574</span>
+    <span class="ck">async def</span> <span class="cf">get_trades</span>(self, ...) -> list      <span class="cc"># #556</span>
+    <span class="ck">async def</span> <span class="cf">get_candlesticks</span>(self, ...) -> list <span class="cc"># #568</span>
+    <span class="ck">async def</span> <span class="cf">get_orderbook</span>(self, ...) -> list    <span class="cc"># #572</span>
+    <span class="ck">async def</span> <span class="cf">get_market_360</span>(self, ...) -> list   <span class="cc"># #575</span>
+    <span class="ck">async def</span> <span class="cf">get_wallet_360</span>(self, ...) -> list   <span class="cc"># #581</span>
+    <span class="ck">async def</span> <span class="cf">get_h_leaderboard</span>(self, ...) -> list <span class="cc"># #584</span>
+    <span class="ck">async def</span> <span class="cf">get_social_pulse</span>(self, ...) -> list  <span class="cc"># #585</span>
+    <span class="ck">async def</span> <span class="cf">get_pnl</span>(self, ...) -> list           <span class="cc"># #569</span>
+    <span class="ck">async def</span> <span class="cf">get_wallet_stat</span>(self, ...) -> list   <span class="cc"># #586</span>
+    <span class="ck">async def</span> <span class="cf">get_price_jumps</span>(self, ...) -> list   <span class="cc"># #596</span>
+    <span class="ck">async def</span> <span class="cf">get_leaderboard</span>(self, ...) -> list   <span class="cc"># #579</span>
+    <span class="ck">async def</span> <span class="cf">get_kalshi_markets</span>(self, ...) -> list <span class="cc"># #565</span>
+    <span class="ck">async def</span> <span class="cf">get_kalshi_trades</span>(self, ...) -> list  <span class="cc"># #573</span>
+
+<span class="cc"># Per-request isolation — called by every backend service that needs Falcon</span>
+<span class="ck">def</span> <span class="cf">get_falcon</span>(user_id: UUID, db: AsyncSession) -> FalconClient:
+    s = UserSettingsRepo(db).get(user_id)
+    <span class="ck">if not</span> s <span class="ck">or not</span> s.falcon_api_key:
+        <span class="ck">raise</span> ServiceError(<span class="cs">"Add your Falcon API key via /setkey"</span>)
+    raw_key = aes_decrypt(s.falcon_api_key, settings.ENCRYPTION_KEY)
+    <span class="ck">return</span> FalconClient(api_key=raw_key)
+    </div>
+  </div>
+  <div class="g2">
+    <div class="blk"><div class="blk-h" style="color:var(--red)">❌ NOT in .env</div><div class="blk-b">Falcon API keys are never in environment variables. The server <code>.env</code> holds only <code>ENCRYPTION_KEY</code> used to encrypt/decrypt keys stored in DB.</div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--green)">✅ In DB (AES-256 encrypted)</div><div class="blk-b">Table: <code>user_settings.falcon_api_key</code><br>Stored as: AES-256-CBC ciphertext<br>Decrypted at: runtime, per-request only<br>Never logged, never returned in API responses</div></div>
+  </div>
+</div>
+
+<!-- ──────── TELEGRAM ──────── -->
+<div id="telegram" class="page">
+  <div class="phead"><span class="phead-seq">13</span><span class="phead-title">Telegram — Control Surface</span><span class="phead-tag tp">User/control surface · not execution authority</span></div>
+
+  <div class="ib ib-rule"><strong>Scope boundary:</strong> Telegram is a user-facing control and notification surface. Trade decisions originate from the backend signal engine + risk gate — not from Telegram commands. Users can observe, configure, and override via Telegram; they cannot bypass risk rules through it.</div>
+
+  <div class="g2">
+    <div>
+      <div class="card">
+        <div class="card-title" style="color:var(--purple)">What Telegram can do</div>
+        <div class="blk-b" style="line-height:2.2">
+          ✅ Receive trade execution alerts<br>
+          ✅ View portfolio, positions, PnL<br>
+          ✅ Switch paper ↔ live mode<br>
+          ✅ Set personal risk limits<br>
+          ✅ Engage kill switch (halt all live trading)<br>
+          ✅ Manage Falcon API key (<code>/setkey</code>)<br>
+          ✅ Browse Falcon intelligence (/market360, /social, /jumps)<br>
+          ✅ Manual buy/sell override (still passes risk gate)<br>
+          ✅ Subscribe/unsubscribe to alert types
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-title" style="color:var(--red)">What Telegram cannot do</div>
+        <div class="blk-b" style="line-height:2.2">
+          ❌ Submit orders directly to CLOB<br>
+          ❌ Skip or modify risk gate thresholds mid-run<br>
+          ❌ Access other users' data<br>
+          ❌ Trigger ML model training<br>
+          ❌ Modify strategy weights or ML parameters<br>
+          ❌ Unlock live trading without mode switch + wallet config
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-bar">
+          <div class="phone-ava">⚔</div>
+          <div><div class="phone-name">CrusaderBot</div><div class="phone-role">Notification surface</div></div>
+        </div>
+        <div class="phone-msgs">
+          <div class="b-in bubble">⚡ <b>AUTO POSITION ENTERED</b><br>Market: US Election 2025<br>Side: YES · Size: $47.20<br>Edge: 8.4% · EV: 0.061<br>Strategy: S1 Narrative</div>
+          <div class="b-in bubble">⚠️ <b>MDD ALERT</b><br>Drawdown reached 7.8%<br>Live trading auto-paused</div>
+          <div class="b-out bubble">✅ AUTO POSITION CLOSED<br>Realized PnL: +$18.40<br>Exit: TARGET_REACHED</div>
+        </div>
+        <div class="phone-kbd">
+          <span class="kbtn">📊 Portfolio</span>
+          <span class="kbtn">🔴 Kill</span>
+          <span class="kbtn">⚙ Settings</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────── TG COMMANDS ──────── -->
+<div id="tg-cmds" class="page">
+  <div class="phead"><span class="phead-seq">14</span><span class="phead-title">Telegram Commands</span><span class="phead-tag tp">All filtered through auth middleware</span></div>
+  <div class="cgrid">
+    <div class="ccard"><div class="cn">/start</div><div class="cd">Onboarding, register new user, show menu</div></div>
+    <div class="ccard"><div class="cn">/setkey <span class="ca">[api_key]</span></div><div class="cd">Register Falcon API key per user (AES-256 encrypted)</div><div class="cr">validate → Falcon auth endpoint</div></div>
+    <div class="ccard"><div class="cn">/connect_wallet <span class="ca">[address]</span></div><div class="cd">Link Polygon proxy wallet to user account</div></div>
+    <div class="ccard"><div class="cn">/markets <span class="ca">[query]</span></div><div class="cd">Search active Polymarket markets by keyword</div><div class="cr">Falcon #574 — Polymarket Markets</div></div>
+    <div class="ccard"><div class="cn">/market360 <span class="ca">[condition_id]</span></div><div class="cd">Deep market analysis: liquidity, whale, volume trend, PnL by side</div><div class="cr">Falcon #575 — Market 360</div></div>
+    <div class="ccard"><div class="cn">/signal</div><div class="cd">Top signal candidates today (EV + edge + z-score ranked)</div><div class="cr">internal signal_engine + #568 #556 #575</div></div>
+    <div class="ccard"><div class="cn">/buy <span class="ca">[slug] [outcome] [size]</span></div><div class="cd">Manual buy override — still passes through full risk gate</div></div>
+    <div class="ccard"><div class="cn">/sell <span class="ca">[slug] [outcome] [size]</span></div><div class="cd">Manual sell / close override</div></div>
+    <div class="ccard"><div class="cn">/positions</div><div class="cd">List open positions for this user</div></div>
+    <div class="ccard"><div class="cn">/balance</div><div class="cd">USDC balance in proxy wallet</div></div>
+    <div class="ccard"><div class="cn">/pnl <span class="ca">[address] [days]</span></div><div class="cd">PnL timeline per day/week/month</div><div class="cr">Falcon #569 — Wallet PnL</div></div>
+    <div class="ccard"><div class="cn">/wallet <span class="ca">[address]</span></div><div class="cd">All-time wallet stats quick view</div><div class="cr">Falcon #586 — Wallet Stat All Time</div></div>
+    <div class="ccard"><div class="cn">/wallet360 <span class="ca">[address]</span></div><div class="cd">Deep profile: 60+ metrics, Sharpe, sybil flag, risk level</div><div class="cr">Falcon #581 — Wallet 360</div></div>
+    <div class="ccard"><div class="cn">/leaderboard <span class="ca">[1d|7d|30d]</span></div><div class="cd">Top traders by raw PnL</div><div class="cr">Falcon #579 — Polymarket Leaderboard</div></div>
+    <div class="ccard"><div class="cn">/hboard</div><div class="cd">H-Score leaderboard (bots + wash traders filtered)</div><div class="cr">Falcon #584 — Heisenberg Leaderboard</div></div>
+    <div class="ccard"><div class="cn">/jumps <span class="ca">[token_id] [pct] [hours]</span></div><div class="cd">Price jump detector — smart money signal</div><div class="cr">Falcon #596 — Price Jumps</div></div>
+    <div class="ccard"><div class="cn">/social <span class="ca">[topic] [hours]</span></div><div class="cd">Real-time Twitter sentiment for market topic</div><div class="cr">Falcon #585 — Social Pulse</div></div>
+    <div class="ccard"><div class="cn">/risk</div><div class="cd">Risk dashboard: MDD, exposure, drawdown per user</div></div>
+    <div class="ccard"><div class="cn">/mode <span class="ca">[paper|live]</span></div><div class="cd">Switch between paper trading and live execution</div></div>
+    <div class="ccard"><div class="cn">/limits</div><div class="cd">View and edit personal risk limits</div></div>
+    <div class="ccard"><div class="cn">/kill</div><div class="cd">Emergency kill switch — halt all live trading immediately</div></div>
+    <div class="ccard"><div class="cn">/status</div><div class="cd">System health + active mode + pending orders</div></div>
+    <div class="ccard"><div class="cn">/kalshi <span class="ca">[title]</span></div><div class="cd">Search Kalshi markets (future multi-exchange)</div><div class="cr">Falcon #565 — Kalshi Markets</div></div>
+  </div>
+</div>
+
+<!-- ──────── ALERTS ──────── -->
+<div id="tg-alerts" class="page">
+  <div class="phead"><span class="phead-seq">15</span><span class="phead-title">Auto Alerts</span><span class="phead-tag tG">Dispatched by backend · not by Telegram logic</span></div>
+  <div class="g2">
+    <div>
+      <div class="slabel">Trade Events</div>
+      <div class="alert-box"><span style="color:var(--green)">⚡ AUTO POSITION ENTERED</span><br>
+Market: <span style="color:var(--text)">Trump wins 2025?</span><br>
+Side: <span style="color:var(--green)">YES</span> · Size: <span style="color:var(--text)">$52.80</span> · Entry: <span style="color:var(--text)">0.41</span><br>
+Edge: <span style="color:var(--green)">9.2%</span> · EV: <span style="color:var(--yellow)">0.071</span> · Strategy: <span style="color:var(--blue)">S1</span><br>
+ML Confidence: <span style="color:var(--green)">0.74</span></div>
+      <div class="alert-box"><span style="color:var(--orange)">✅ AUTO POSITION CLOSED</span><br>
+Market: <span style="color:var(--text)">Trump wins 2025?</span><br>
+Exit: <span style="color:var(--orange)">TARGET_REACHED</span> · Price: <span style="color:var(--text)">0.74</span><br>
+Realized PnL: <span style="color:var(--green)">+$17.40</span></div>
+      <div class="alert-box"><span style="color:var(--blue)">📊 ORDER BLOCKED</span><br>
+Market: <span style="color:var(--text)">Ethereum ETF 2025</span><br>
+Block: <span style="color:var(--red)">min_edge_not_met</span><br>
+Edge: 4.1% (min: 6%)</div>
+    </div>
+    <div>
+      <div class="slabel">Risk & System Events</div>
+      <div class="alert-box"><span style="color:var(--red)">⚠️ MDD ALERT — LIVE PAUSED</span><br>
+Drawdown: <span style="color:var(--red)">8.2%</span> (limit: 8%)<br>
+Live trading auto-paused for your account<br>
+Use <span style="color:var(--green)">/mode paper</span> to confirm or wait for reset</div>
+      <div class="alert-box"><span style="color:var(--red)">🛡 KILL SWITCH ACTIVE</span><br>
+All live trading halted by operator<br>
+Open positions still monitored</div>
+      <div class="alert-box"><span style="color:var(--yellow)">📡 SIGNAL OPPORTUNITY</span><br>
+Market: <span style="color:var(--text)">Fed rate cut Sept 2025</span><br>
+Edge: <span style="color:var(--green)">11.3%</span> · EV: <span style="color:var(--green)">0.089</span><br>
+Queued for auto-execution next cycle</div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────── DB SCHEMA ──────── -->
+<div id="db" class="page">
+  <div class="phead"><span class="phead-seq">16</span><span class="phead-title">DB Schema</span><span class="phead-tag tb">Every table scoped by user_id</span></div>
+
+  <div class="ib ib-rule"><strong>Isolation rule:</strong> Every user-activity table must be queryable by <code>user_id</code>, <code>account_id</code>, or <code>wallet_id</code>. No cross-user queries without explicit admin scope.</div>
+
+  <div class="slabel">Identity & Access</div>
+  <div class="dbtags">
+    <span class="dbtag dt-id">users</span>
+    <span class="dbtag dt-id">accounts</span>
+    <span class="dbtag dt-id">user_sessions</span>
+    <span class="dbtag dt-id">user_roles</span>
+    <span class="dbtag dt-id">permissions</span>
+  </div>
+
+  <div class="slabel">Wallet</div>
+  <div class="dbtags">
+    <span class="dbtag dt-w">wallets</span>
+    <span class="dbtag dt-w">wallet_links</span>
+    <span class="dbtag dt-w">wallet_balances</span>
+    <span class="dbtag dt-w">wallet_allowances</span>
+    <span class="dbtag dt-w">proxy_wallet_mappings</span>
+  </div>
+
+  <div class="slabel">Market & Signal</div>
+  <div class="dbtags">
+    <span class="dbtag dt-m">markets</span>
+    <span class="dbtag dt-m">market_outcomes</span>
+    <span class="dbtag dt-m">candles</span>
+    <span class="dbtag dt-m">trades</span>
+    <span class="dbtag dt-m">social_events</span>
+    <span class="dbtag dt-m">watchlist</span>
+    <span class="dbtag dt-m">feature_snapshots</span>
+    <span class="dbtag dt-m">signal_snapshots</span>
+  </div>
+
+  <div class="slabel">Trading Core</div>
+  <div class="dbtags">
+    <span class="dbtag dt-t">orders</span>
+    <span class="dbtag dt-t">fills</span>
+    <span class="dbtag dt-t">positions</span>
+    <span class="dbtag dt-t">position_events</span>
+    <span class="dbtag dt-t">risk_decisions</span>
+    <span class="dbtag dt-t">idempotency_keys</span>
+    <span class="dbtag dt-t">validation_proofs</span>
+    <span class="dbtag dt-t">execution_ledger</span>
+  </div>
+
+  <div class="slabel">Portfolio</div>
+  <div class="dbtags">
+    <span class="dbtag dt-p">portfolio_snapshots</span>
+    <span class="dbtag dt-p">bankroll_snapshots</span>
+    <span class="dbtag dt-p">pnl_snapshots</span>
+    <span class="dbtag dt-p">exposure_snapshots</span>
+  </div>
+
+  <div class="slabel">ML Registry</div>
+  <div class="dbtags">
+    <span class="dbtag dt-p">ml_models</span>
+    <span class="dbtag dt-p">ml_training_labels</span>
+    <span class="dbtag dt-p">ml_predictions</span>
+  </div>
+
+  <div class="slabel">User Settings & Notifications</div>
+  <div class="dbtags">
+    <span class="dbtag dt-n">user_settings <span style="color:var(--yellow)">★ falcon_api_key (AES-256)</span></span>
+    <span class="dbtag dt-n">notification_subscriptions</span>
+    <span class="dbtag dt-n">notification_events</span>
+  </div>
+
+  <div class="slabel">Audit & System</div>
+  <div class="dbtags">
+    <span class="dbtag dt-a">audit_logs</span>
+    <span class="dbtag dt-a">system_alerts</span>
+    <span class="dbtag dt-a">job_runs</span>
+  </div>
+
+  <div class="g2" style="margin-top:16px">
+    <div>
+      <div class="dbt">
+        <div class="dbh"><span class="pill pt">user_settings</span><span style="color:var(--teal);font-size:9.5px;margin-left:auto">per user</span></div>
+        <div class="dbr"><span class="dbf">user_id</span><span class="dbt2">UUID</span><span class="pk">PK · FK</span></div>
+        <div class="dbr"><span class="dbf">falcon_api_key</span><span class="dbt2">TEXT</span><span class="enc">AES-256 encrypted</span></div>
+        <div class="dbr"><span class="dbf">autotrade_on</span><span class="dbt2">BOOLEAN</span><span class="dbn">default true</span></div>
+        <div class="dbr"><span class="dbf">mode</span><span class="dbt2">TEXT</span><span class="dbn">paper | live</span></div>
+        <div class="dbr"><span class="dbf">max_position_pct</span><span class="dbt2">FLOAT</span><span class="dbn">default 0.10</span></div>
+        <div class="dbr"><span class="dbf">daily_loss_limit</span><span class="dbt2">FLOAT</span><span class="dbn">default −2000</span></div>
+        <div class="dbr"><span class="dbf">max_concurrent</span><span class="dbt2">INTEGER</span><span class="dbn">default 5</span></div>
+        <div class="dbr"><span class="dbf">ml_min_confidence</span><span class="dbt2">FLOAT</span><span class="dbn">default 0.30</span></div>
+        <div class="dbr"><span class="dbf">notifications_on</span><span class="dbt2">BOOLEAN</span></div>
+        <div class="dbr"><span class="dbf">kill_switch</span><span class="dbt2">BOOLEAN</span><span class="dbn">default false</span></div>
+        <div class="dbr"><span class="dbf">market_scope_state</span><span class="dbt2">JSONB</span></div>
+        <div class="dbr"><span class="dbf">updated_at</span><span class="dbt2">TIMESTAMPTZ</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="dbt">
+        <div class="dbh"><span class="pill po">orders</span><span style="color:var(--muted);font-size:9.5px;margin-left:auto">always scoped by user_id</span></div>
+        <div class="dbr"><span class="dbf">id</span><span class="dbt2">UUID</span><span class="pk">PK</span></div>
+        <div class="dbr"><span class="dbf">user_id</span><span class="dbt2">UUID</span><span class="fk">FK IDX</span></div>
+        <div class="dbr"><span class="dbf">wallet_id</span><span class="dbt2">UUID</span><span class="fk">FK</span></div>
+        <div class="dbr"><span class="dbf">idempotency_key</span><span class="dbt2">TEXT</span><span class="ux">UNIQUE IDX</span></div>
+        <div class="dbr"><span class="dbf">condition_id</span><span class="dbt2">TEXT</span><span class="ux">IDX</span></div>
+        <div class="dbr"><span class="dbf">market_title</span><span class="dbt2">TEXT</span><span class="dbn">canonical</span></div>
+        <div class="dbr"><span class="dbf">side</span><span class="dbt2">TEXT</span><span class="dbn">BUY | SELL</span></div>
+        <div class="dbr"><span class="dbf">outcome</span><span class="dbt2">TEXT</span><span class="dbn">YES | NO</span></div>
+        <div class="dbr"><span class="dbf">size</span><span class="dbt2">FLOAT</span></div>
+        <div class="dbr"><span class="dbf">price</span><span class="dbt2">FLOAT</span></div>
+        <div class="dbr"><span class="dbf">actual_fill_price</span><span class="dbt2">FLOAT</span></div>
+        <div class="dbr"><span class="dbf">slippage</span><span class="dbt2">FLOAT</span></div>
+        <div class="dbr"><span class="dbf">status</span><span class="dbt2">TEXT</span><span class="dbn">executed|blocked|failed</span></div>
+        <div class="dbr"><span class="dbf">block_reason</span><span class="dbt2">TEXT</span></div>
+        <div class="dbr"><span class="dbf">strategy_source</span><span class="dbt2">TEXT</span><span class="dbn">s1/s2/s3/s4/s5</span></div>
+        <div class="dbr"><span class="dbf">ml_p_model</span><span class="dbt2">FLOAT</span></div>
+        <div class="dbr"><span class="dbf">ml_confidence</span><span class="dbt2">FLOAT</span></div>
+        <div class="dbr"><span class="dbf">execution_mode</span><span class="dbt2">TEXT</span><span class="dbn">paper | live</span></div>
+        <div class="dbr"><span class="dbf">trace_id</span><span class="dbt2">UUID</span><span class="ux">IDX</span></div>
+        <div class="dbr"><span class="dbf">created_at</span><span class="dbt2">TIMESTAMPTZ</span><span class="ux">IDX</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────── CONFIG ──────── -->
+<div id="config" class="page">
+  <div class="phead"><span class="phead-seq">17</span><span class="phead-title">Config Files</span><span class="phead-tag tb">configs/ directory</span></div>
+
+  <div class="cfgb">
+    <div class="ct">configs/falcon.yaml</div>
+    <span class="ck">base_url</span>: <span class="cv">"https://narrative.agent.heisenberg.so"</span><br>
+    <span class="ck">timeout</span>: <span class="cv">30</span><br>
+    <span class="ck">max_retries</span>: <span class="cv">3</span><br>
+    <span class="ck">cache_ttl_markets</span>: <span class="cv">300</span>   <span class="co"># 5 min</span><br>
+    <span class="ck">cache_ttl_candles</span>: <span class="cv">60</span>    <span class="co"># 1 min</span><br>
+    <span class="ck">cache_ttl_social</span>: <span class="cv">600</span>    <span class="co"># 10 min</span><br>
+    <span class="ck">cache_ttl_orderbook</span>: <span class="cv">30</span>  <span class="co"># 30 sec</span>
+  </div>
+
+  <div class="cfgb">
+    <div class="ct">configs/risk.yaml</div>
+    <span class="ck">max_single_position_pct</span>: <span class="cv">0.10</span>   <span class="co"># 10% bankroll</span><br>
+    <span class="ck">max_cluster_exposure_pct</span>: <span class="cv">0.40</span>   <span class="co"># 40% correlated cap</span><br>
+    <span class="ck">mdd_stop_threshold</span>: <span class="cv">0.08</span>         <span class="co"># 8% max drawdown</span><br>
+    <span class="ck">daily_loss_limit</span>: <span class="cv">-2000</span>          <span class="co"># USD</span><br>
+    <span class="ck">kelly_fraction</span>: <span class="cv">0.25</span>              <span class="co"># 1/4 Kelly</span><br>
+    <span class="ck">min_edge</span>: <span class="cv">0.06</span>                    <span class="co"># 6% minimum</span><br>
+    <span class="ck">min_ev</span>: <span class="cv">0.03</span>                      <span class="co"># EV > 0.03</span><br>
+    <span class="ck">min_z_score</span>: <span class="cv">1.5</span><br>
+    <span class="ck">max_concurrent_positions</span>: <span class="cv">5</span><br>
+    <span class="ck">ml_min_confidence</span>: <span class="cv">0.30</span>
+  </div>
+
+  <div class="cfgb">
+    <div class="ct">configs/trading.yaml</div>
+    <span class="ck">mode</span>: <span class="cv">"paper"</span>                       <span class="co"># paper | live</span><br>
+    <span class="ck">min_market_volume</span>: <span class="cv">10000</span>          <span class="co"># USD</span><br>
+    <span class="ck">min_liquidity_percentile</span>: <span class="cv">25</span><br>
+    <span class="ck">max_time_to_resolution</span>: <span class="cv">30</span>          <span class="co"># days</span><br>
+    <span class="ck">scan_interval_minutes</span>: <span class="cv">30</span>
+  </div>
+</div>
+
+<!-- ──────── DEPLOY ──────── -->
+<div id="deploy" class="page">
+  <div class="phead"><span class="phead-seq">18</span><span class="phead-title">Fly.io Deployment</span><span class="phead-tag tG">region: sin · Postgres + Redis</span></div>
+  <div class="card">
+    <div class="card-title" style="color:var(--green)">fly.toml</div>
+    <div class="code">
+app = <span class="cs">"crusaderbot"</span>
+primary_region = <span class="cs">"sin"</span>
+
+[build]
+  dockerfile = <span class="cs">"Dockerfile"</span>
+
+[env]
+  PORT = <span class="cs">"8080"</span>
+  PYTHONUNBUFFERED = <span class="cs">"1"</span>
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  [[http_service.checks]]
+    path = <span class="cs">"/health"</span>
+    interval = <span class="cs">"30s"</span>
+    timeout = <span class="cs">"5s"</span>
+
+[[vm]]
+  memory = <span class="cs">"512mb"</span>
+  cpu_kind = <span class="cs">"shared"</span>
+  cpus = 1
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--green)">Deploy Steps</div>
+    <div class="code">
+<span class="cc"># 1. Create app</span>
+fly apps create crusaderbot
+
+<span class="cc"># 2. Provision Fly Postgres</span>
+fly postgres create --name crusaderbot-db --region sin
+fly postgres attach crusaderbot-db
+
+<span class="cc"># 3. Set secrets (never in fly.toml)</span>
+fly secrets set TELEGRAM_BOT_TOKEN=xxx
+fly secrets set SECRET_KEY=xxx
+fly secrets set ENCRYPTION_KEY=xxx         <span class="cc"># AES key for Falcon key encryption</span>
+fly secrets set POLYGON_RPC_URL=xxx
+fly secrets set REDIS_URL=xxx
+fly secrets set ENABLE_LIVE_TRADING=false  <span class="cc"># start in paper mode</span>
+
+<span class="cc"># 4. Deploy (runs Alembic migrations first)</span>
+fly deploy
+
+<span class="cc"># 5. Register Telegram webhook</span>
+curl -X POST \
+  https://api.telegram.org/bot$TOKEN/setWebhook \
+  -d url=https://crusaderbot.fly.dev/webhook/telegram
+
+<span class="cc"># 6. Verify</span>
+fly logs
+fly status
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--green)">Dockerfile</div>
+    <div class="code">
+FROM <span class="cf">python:3.11-slim</span>
+WORKDIR /app
+RUN apt-get update && apt-get install -y libgomp1  <span class="cc"># LightGBM dep</span>
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["sh", "-c", "alembic upgrade head && python scripts/run_api.py"]
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--green)">CI/CD — GitHub Actions</div>
+    <div class="code">
+<span class="cc"># .github/workflows/deploy.yml</span>
+<span class="ck">name</span>: Deploy to Fly.io
+<span class="ck">on</span>:
+  push:
+    branches: [main]
+<span class="ck">jobs</span>:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    </div>
+  </div>
+</div>
+
+<!-- ──────── ROADMAP ──────── -->
+<div id="roadmap" class="page">
+  <div class="phead"><span class="phead-seq">19</span><span class="phead-title">Phase Roadmap</span><span class="phead-tag tb">Forward-looking targets</span></div>
+
+  <div class="ph-grid">
+    <div class="ph-card ph1">
+      <div class="ph-num">1</div>
+      <div>
+        <div class="ph-title">Foundation</div>
+        <div class="ph-items">
+          Repo structure + configs<br>
+          Identity / user / wallet models<br>
+          Ingestion pipeline: markets, candles, trades<br>
+          Market quality filter (Falcon #575)<br>
+          Watchlist engine<br>
+          Paper portfolio state per user<br>
+          Rules-based p_model (value/mispricing)
+        </div>
+        <div class="ph-agents">Falcon: #574 #568 #556 #575</div>
+      </div>
+    </div>
+    <div class="ph-card ph2">
+      <div class="ph-num">2</div>
+      <div>
+        <div class="ph-title">Signal Core + Risk Gate</div>
+        <div class="ph-items">
+          Edge / EV engine · Fractional Kelly sizing<br>
+          Risk gate per user (MDD, exposure, drawdown)<br>
+          Paper execution loop<br>
+          Per-user order / position flow<br>
+          Wallet PnL display (Falcon #569, #586)<br>
+          Orderbook depth quality scoring (Falcon #572)
+        </div>
+        <div class="ph-agents">Falcon: #569 #586 #572</div>
+      </div>
+    </div>
+    <div class="ph-card ph3">
+      <div class="ph-num">3</div>
+      <div>
+        <div class="ph-title">Monitoring & ML Baseline</div>
+        <div class="ph-items">
+          LightGBM model v1 trained on resolved markets<br>
+          PnL reporting: Sharpe, Sortino, Calmar<br>
+          MDD tracking + anomaly alerts<br>
+          Backtesting engine<br>
+          Leaderboard integration (Falcon #579, #581)<br>
+          Audit tools + admin dashboard
+        </div>
+        <div class="ph-agents">Falcon: #579 #581</div>
+      </div>
+    </div>
+    <div class="ph-card ph4">
+      <div class="ph-num">4</div>
+      <div>
+        <div class="ph-title">Intelligence Upgrade</div>
+        <div class="ph-items">
+          Social / narrative integration (Falcon #585)<br>
+          Price jump anomaly signal (Falcon #596)<br>
+          Bayesian updater (prior from market + social)<br>
+          Smart-money flow features (H-Leaderboard #584)<br>
+          Event model + regime switching<br>
+          Fly.io production live · closed beta
+        </div>
+        <div class="ph-agents">Falcon: #585 #596 #584</div>
+      </div>
+    </div>
+    <div class="ph-card ph5">
+      <div class="ph-num">5</div>
+      <div>
+        <div class="ph-title">Portfolio Expansion + Multi-Exchange</div>
+        <div class="ph-items">
+          Multi-strategy sleeves<br>
+          Cluster risk model<br>
+          Live execution validated + open beta<br>
+          Kalshi exchange integration (Falcon #565, #573)<br>
+          Multi-exchange arbitrage detection<br>
+          Web dashboard live
+        </div>
+        <div class="ph-agents">Falcon: #565 #573</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────── HARD RULES ──────── -->
+<div id="rules" class="page">
+  <div class="phead"><span class="phead-seq">20</span><span class="phead-title">Hard Rules</span><span class="phead-tag tr">Non-negotiable thresholds</span></div>
+  <div class="card">
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Rule</th><th>Threshold</th><th>Data Source</th></tr></thead>
+      <tbody>
+        <tr><td>Entry only if EV > 0</td><td>EV > 0.03</td><td>internal ev_engine</td></tr>
+        <tr><td>Minimum edge</td><td>edge > 6%</td><td>internal signal_engine</td></tr>
+        <tr><td>Z-score mispricing</td><td>z > 1.5</td><td>price_7d_volatility</td></tr>
+        <tr><td>Stop new trades if MDD breach</td><td>MDD > 8%</td><td>portfolio / bankroll</td></tr>
+        <tr><td>Max correlated exposure</td><td>&lt; 40% bankroll</td><td>risk / exposure</td></tr>
+        <tr><td>ML confidence gate</td><td>ml_confidence ≥ 0.30</td><td>ml/predictor.py</td></tr>
+        <tr><td>Skip illiquid market</td><td>liquidity_pct &lt; 25</td><td style="color:var(--teal)">Falcon #575</td></tr>
+        <tr><td>Skip whale-dominated</td><td>whale_control_flag = true</td><td style="color:var(--teal)">Falcon #575</td></tr>
+        <tr><td>Skip dying volume</td><td>volume_trend = "Dying"</td><td style="color:var(--teal)">Falcon #575</td></tr>
+        <tr><td>Idempotent order</td><td>idempotency_key per user+action</td><td>execution_guard</td></tr>
+        <tr><td>Cross-user data isolation</td><td>ALL queries scoped by user_id</td><td>tenancy.py</td></tr>
+        <tr><td>Falcon = read only</td><td>No order submission via Falcon</td><td>architectural constraint</td></tr>
+        <tr><td>Paper mode default</td><td>Live only after explicit /mode live</td><td>user_settings.mode</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ──────── SAFETY ──────── -->
+<div id="safety" class="page">
+  <div class="phead"><span class="phead-seq">21</span><span class="phead-title">Safety & Failure Handling</span><span class="phead-tag tr">Fail-safe design</span></div>
+  <div class="card">
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Condition</th><th>Recovery Behavior</th></tr></thead>
+      <tbody>
+        <tr><td>Stale / missing market data</td><td>safe mode fallback, disable live execution</td></tr>
+        <tr><td>MDD breach</td><td>auto-disable live, notify user via Telegram</td></tr>
+        <tr><td>Duplicate order intent</td><td>idempotency_key check, reject silently, log</td></tr>
+        <tr><td>Cross-user data leakage detected</td><td>emergency halt, audit log, admin alert</td></tr>
+        <tr><td>Falcon API unavailable</td><td>retry ×3 with exponential backoff, fallback to cached data</td></tr>
+        <tr><td>Falcon returns empty / malformed</td><td>skip signal cycle, log warning, do not trade</td></tr>
+        <tr><td>CLOB order failure</td><td>log, increment failure counter, circuit breaker monitors</td></tr>
+        <tr><td>Excessive CLOB failures</td><td>circuit breaker trips, manual reconcile required</td></tr>
+        <tr><td>Position book mismatch</td><td>portfolio_reconciler worker force-resyncs</td></tr>
+        <tr><td>Bankroll desync</td><td>halt execution, force wallet resync per user</td></tr>
+        <tr><td>ML model unavailable</td><td>fallback to rules-based p_model, continue trading</td></tr>
+        <tr><td>Kill switch engaged</td><td>all live execution halted immediately, positions still monitored</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <div class="ib ib-note"><strong>Paper-first principle:</strong> All deployments start in paper mode. Live execution requires explicit <code>/mode live</code> command from the user, plus a configured and verified proxy wallet. Phase 1–2 are paper-only by design.</div>
+</div>
+
+<!-- ──────── PERFORMANCE ──────── -->
+<div id="perf" class="page">
+  <div class="phead"><span class="phead-seq">22</span><span class="phead-title">Performance Targets</span><span class="phead-tag tG">Design objectives</span></div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title" style="color:var(--green)">Trading Performance</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Metric</th><th>Target</th></tr></thead>
+        <tbody>
+          <tr><td>Win Rate</td><td style="color:var(--green)">&gt; 60%</td></tr>
+          <tr><td>Sharpe Ratio</td><td style="color:var(--green)">&gt; 2.0</td></tr>
+          <tr><td>Max Drawdown</td><td style="color:var(--green)">&lt; 8%</td></tr>
+          <tr><td>Profit Factor</td><td style="color:var(--green)">&gt; 1.4</td></tr>
+          <tr><td>End-to-End Latency</td><td style="color:var(--green)">&lt; 2s</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color:var(--purple)">ML Performance</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Metric</th><th>Target</th></tr></thead>
+        <tbody>
+          <tr><td>Brier Score</td><td style="color:var(--purple)">&lt; 0.22</td></tr>
+          <tr><td>ML Accuracy</td><td style="color:var(--purple)">&gt; 65%</td></tr>
+          <tr><td>Min Training Samples</td><td style="color:var(--purple)">200 resolved markets</td></tr>
+          <tr><td>Retrain Cycle</td><td style="color:var(--purple)">every 6 hours</td></tr>
+          <tr><td>Confidence Threshold</td><td style="color:var(--purple)">≥ 0.30 to trade</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+
+
+</div><!-- .wrap -->
+
+<footer style="max-width:960px;margin:0 auto;padding:0 14px">
+  <div class="footer-text">CrusaderBot · Master Blueprint v2<br>Walker AI Trading Team · <span>Non-Custodial</span> · Polymarket · Fly.io</div>
+  <div class="ftags">
+    <span class="ftag ft-g">Fully Auto</span>
+    <span class="ftag ft-b">ML-Enhanced</span>
+    <span class="ftag ft-y">Risk-First</span>
+    <span class="ftag ft-m">Non-Custodial</span>
+  </div>
+</footer>
+
+<script>
+function goPage(id, el) {
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('on'); });
+  document.querySelectorAll('.ntab').forEach(function(t){ t.classList.remove('on'); });
+  var pg = document.getElementById(id);
+  if (pg) pg.classList.add('on');
+  if (el) { el.classList.add('on'); el.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}); }
+  window.scrollTo(0, 0);
+}
+// Legacy nav() alias for any old onclick="nav(...)" in content
+function nav(id, el) { goPage(id, el); }
+</script>
+</body>
+</html>
