@@ -238,12 +238,14 @@ def extract_command_context(
         return None
     parts = text.split(None, 1)
     command = parts[0].lower()
+    argument = parts[1].strip() if len(parts) > 1 else ""
     return TelegramCommandContext(
         command=command,
         from_user_id=update.from_user_id,
         chat_id=update.chat_id,
         tenant_id=tenant_id,
         user_id=user_id,
+        argument=argument,
     )
 
 
@@ -504,7 +506,7 @@ async def run_polling_loop(
     log.info(
         "crusaderbot_telegram_polling_started",
         phase="8.13",
-        registered_commands=["/start"],
+        registered_commands=["/start","/connect_wallet","/mode","/autotrade","/positions","/pnl","/risk","/status","/markets","/market360","/social","/kill"],
         identity_resolution="enabled" if identity_resolver is not None else "staging_fallback",
         onboarding="enabled" if onboarding_initiator is not None else "disabled",
         activation="enabled" if activation_confirmer is not None else "disabled",

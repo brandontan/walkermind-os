@@ -12,7 +12,9 @@ from fastapi.responses import JSONResponse
 
 from projects.polymarket.polyquantbot.server.api.client_auth_routes import build_client_auth_router
 from projects.polymarket.polyquantbot.server.api.multi_user_foundation_routes import build_multi_user_router
+from projects.polymarket.polyquantbot.server.api.public_beta_routes import build_public_beta_router
 from projects.polymarket.polyquantbot.server.api.routes import build_router
+from projects.polymarket.polyquantbot.configs.falcon import FalconSettings
 from projects.polymarket.polyquantbot.server.core.runtime import (
     ApiSettings,
     RuntimeState,
@@ -30,6 +32,7 @@ from projects.polymarket.polyquantbot.server.services.telegram_session_issuance_
 from projects.polymarket.polyquantbot.server.services.user_service import UserService
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import WalletLinkService
 from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
+from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
 from projects.polymarket.polyquantbot.server.storage.multi_user_store import PersistentMultiUserStore
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
 from projects.polymarket.polyquantbot.server.storage.wallet_link_store import PersistentWalletLinkStore
@@ -39,6 +42,7 @@ log = structlog.get_logger(__name__)
 
 def create_app() -> FastAPI:
     settings = ApiSettings.from_env()
+    falcon_settings = FalconSettings.from_env()
     state = RuntimeState()
 
     @asynccontextmanager
@@ -56,6 +60,7 @@ def create_app() -> FastAPI:
     )
     app.state.crusader_settings = settings
     app.state.crusader_runtime = state
+    app.state.falcon_settings = falcon_settings
 
     multi_user_storage_path = Path(
         os.getenv(
@@ -108,6 +113,7 @@ def create_app() -> FastAPI:
     app.state.wallet_link_store = wallet_link_store
     app.state.wallet_link_service = wallet_link_service
 
+    falcon_gateway = FalconGateway(settings=falcon_settings)
     router = build_router(settings=settings, state=state)
     app.include_router(router)
     app.include_router(
@@ -129,6 +135,8 @@ def create_app() -> FastAPI:
         )
     )
 
+    app.include_router(build_public_beta_router(falcon=falcon_gateway))
+
     @app.get("/")
     async def root() -> JSONResponse:
         return JSONResponse(
@@ -147,7 +155,7 @@ def create_app() -> FastAPI:
         multi_user_storage_path=str(multi_user_storage_path),
         session_storage_path=str(session_storage_path),
         wallet_link_storage_path=str(wallet_link_storage_path),
-        phase="8.13",
+        phase="8.3-public-paper-beta",
     )
     return app
 

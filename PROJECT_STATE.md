@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 23:28
-Status       : Phase 8.13 session-issuance gate fix committed on branch claude/fix-telegram-session-issuance-zGD86. Auto-promotion removed from TelegramSessionIssuanceService; strict active-only gate enforced. 148/148 pytest pass. SENTINEL PR #617 BLOCKED finding is resolved pending COMMANDER merge decision.
+Last Updated : 2026-04-20 00:04
+Status       : Phase 8.3 public paper beta spine implementation is in progress on branch refactor/public-paper-beta-spine-20260419 with new API/Telegram/worker runtime slice, backend-managed Falcon contract, and paper risk-gated auto-trade loop awaiting SENTINEL validation.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -27,6 +27,7 @@ Status       : Phase 8.13 session-issuance gate fix committed on branch claude/f
 
 [IN PROGRESS]
 - Phase 8.13 Telegram session-issuance gate fix: auto-promotion removed, strict active-only issuance gate enforced, 148/148 pytest pass, awaiting COMMANDER merge decision on PR #616 / branch claude/fix-telegram-session-issuance-zGD86.
+- Phase 8.3 Public Paper Beta Spine (MAJOR): entrypoints + FastAPI control plane + backend-managed Falcon + Telegram public command shell + paper auto-trading worker + risk gate enforcement implemented on branch refactor/public-paper-beta-spine-20260419; pending SENTINEL review before merge.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -34,6 +35,7 @@ Status       : Phase 8.13 session-issuance gate fix committed on branch claude/f
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
+- SENTINEL review for Phase 8.3 Public Paper Beta Spine on branch refactor/public-paper-beta-spine-20260419 is required before merge. Report: projects/polymarket/polyquantbot/reports/forge/phase8-3_04_public-paper-beta-spine.md.
 - COMMANDER review and merge decision for Phase 8.13 session-issuance gate fix (branch claude/fix-telegram-session-issuance-zGD86). SENTINEL PR #617 BLOCKED finding is resolved; PR #617 can be closed after merge. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_02_fix-session-issuance-gate.md.
 
 [KNOWN ISSUES]

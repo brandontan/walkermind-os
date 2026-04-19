@@ -1,4 +1,4 @@
-"""Telegram command dispatch boundary — routes /start to handle_start()."""
+"""Telegram command dispatch boundary for public paper beta control shell."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,61 +15,64 @@ from projects.polymarket.polyquantbot.client.telegram.handlers.auth import (
 
 log = structlog.get_logger(__name__)
 
-DispatchOutcome = Literal["session_issued", "rejected", "error", "unknown_command"]
+DispatchOutcome = Literal["session_issued", "rejected", "error", "unknown_command", "ok"]
 
 
 @dataclass(frozen=True)
 class TelegramCommandContext:
-    """Inbound command context extracted from a Telegram message."""
-
     command: str
     from_user_id: str
     chat_id: str
     tenant_id: str
     user_id: str
+    argument: str = ""
     ttl_seconds: int = 1800
 
 
 @dataclass(frozen=True)
 class DispatchResult:
-    """Result of dispatching a Telegram command."""
-
     outcome: DispatchOutcome
     reply_text: str
     session_id: str = ""
 
 
 class TelegramDispatcher:
-    """Routes Telegram commands to their registered handler functions.
-
-    Phase 8.8 foundation: only /start is registered. Unknown commands receive
-    a safe fallback reply without raising. A real Telegram polling loop calls
-    dispatch() for each inbound message and sends reply_text back to the chat.
-    """
-
     def __init__(self, backend: CrusaderBackendClient) -> None:
         self._backend = backend
 
     async def dispatch(self, ctx: TelegramCommandContext) -> DispatchResult:
-        """Dispatch a Telegram command to the appropriate handler.
-
-        Routes /start to handle_start(). All other commands return a safe
-        unknown_command result. No Telegram API calls are made here.
-        """
         command = ctx.command.strip().lower()
-
+        arg = ctx.argument.strip()
         if command == "/start":
             return await self._dispatch_start(ctx)
+        if command == "/connect_wallet":
+            return DispatchResult(outcome="ok", reply_text="Wallet connect request acknowledged.")
+        if command == "/mode":
+            mode = arg.lower()
+            data = await self._backend.beta_post("/beta/mode", {"mode": mode})
+            return DispatchResult(outcome="ok", reply_text=f"Mode: {data.get('mode', 'unknown')}")
+        if command == "/autotrade":
+            enabled = arg.lower() == "on"
+            data = await self._backend.beta_post("/beta/autotrade", {"enabled": enabled})
+            return DispatchResult(outcome="ok", reply_text=f"Autotrade: {data.get('autotrade', False)}")
+        if command in {"/positions", "/pnl", "/risk", "/status"}:
+            status = await self._backend.beta_get("/beta/status")
+            return DispatchResult(outcome="ok", reply_text=str(status))
+        if command == "/markets":
+            data = await self._backend.beta_get("/beta/markets", params={"query": arg})
+            return DispatchResult(outcome="ok", reply_text=str(data.get("items", [])))
+        if command == "/market360":
+            data = await self._backend.beta_get(f"/beta/market360/{arg}")
+            return DispatchResult(outcome="ok", reply_text=str(data))
+        if command == "/social":
+            data = await self._backend.beta_get("/beta/social", params={"topic": arg or "macro"})
+            return DispatchResult(outcome="ok", reply_text=str(data))
+        if command == "/kill":
+            await self._backend.beta_post("/beta/kill", {})
+            return DispatchResult(outcome="ok", reply_text="Kill switch enabled.")
 
-        log.warning(
-            "crusaderbot_telegram_dispatch_unknown_command",
-            command=ctx.command,
-            chat_id=ctx.chat_id,
-        )
-        return DispatchResult(
-            outcome="unknown_command",
-            reply_text="Unknown command. Use /start to begin.",
-        )
+        log.warning("crusaderbot_telegram_dispatch_unknown_command", command=ctx.command, chat_id=ctx.chat_id)
+        return DispatchResult(outcome="unknown_command", reply_text="Unknown command.")
 
     async def _dispatch_start(self, ctx: TelegramCommandContext) -> DispatchResult:
         handoff_ctx = TelegramHandoffContext(
@@ -79,12 +82,5 @@ class TelegramDispatcher:
             user_id=ctx.user_id,
             ttl_seconds=ctx.ttl_seconds,
         )
-        result: HandleStartResult = await handle_start(
-            context=handoff_ctx,
-            backend=self._backend,
-        )
-        return DispatchResult(
-            outcome=result.outcome,
-            reply_text=result.reply_text,
-            session_id=result.session_id,
-        )
+        result: HandleStartResult = await handle_start(context=handoff_ctx, backend=self._backend)
+        return DispatchResult(outcome=result.outcome, reply_text=result.reply_text, session_id=result.session_id)
