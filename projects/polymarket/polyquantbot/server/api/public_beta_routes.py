@@ -24,10 +24,22 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
 
     @router.get("/status")
     async def status() -> dict[str, object]:
+        execution_blocked_reasons: list[str] = []
+        if STATE.mode != "paper":
+            execution_blocked_reasons.append("mode_live_paper_execution_disabled")
+        if not STATE.autotrade_enabled:
+            execution_blocked_reasons.append("autotrade_disabled")
+        if STATE.kill_switch:
+            execution_blocked_reasons.append("kill_switch_enabled")
         return {
             "mode": STATE.mode,
             "autotrade": STATE.autotrade_enabled,
             "kill_switch": STATE.kill_switch,
+            "paper_only_execution_boundary": True,
+            "execution_guard": {
+                "entry_allowed": len(execution_blocked_reasons) == 0,
+                "blocked_reasons": execution_blocked_reasons,
+            },
             "position_count": len(STATE.positions),
             "last_risk_reason": STATE.last_risk_reason,
         }

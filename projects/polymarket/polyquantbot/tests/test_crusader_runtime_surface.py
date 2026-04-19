@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
 from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, validate_api_environment
@@ -65,8 +68,46 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
     payload = response.json()
     readiness = payload["readiness"]
 
+    assert "scope" in readiness
     assert "worker_runtime" in readiness
     assert "worker_prerequisites" in readiness
     assert "falcon_config_state" in readiness
     assert "control_plane" in readiness
     assert readiness["control_plane"]["paper_only_execution_boundary"] is True
+
+
+def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("FALCON_ENABLED", "false")
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/ready")
+    assert response.status_code == 200
+    payload = response.json()
+    readiness = payload["readiness"]
+
+    assert readiness["scope"]["runtime_assertion"] == "local_runtime_only"
+    assert readiness["scope"]["external_dependencies_probed"] is False
+    assert readiness["scope"]["worker_state_visibility"] == "in_process_state_snapshot"
+    assert readiness["worker_runtime"]["last_iteration_visible"] is False
+    assert readiness["worker_prerequisites"]["paper_mode_enforced"] is True
+    assert readiness["worker_prerequisites"]["execution_ready_for_paper_entries"] is False
+    assert readiness["falcon_config_state"]["enabled"] is False
+    assert readiness["falcon_config_state"]["config_valid_for_enabled_mode"] is True
+    assert readiness["control_plane"]["live_mode_execution_allowed"] is False
+
+
+def test_ready_route_falcon_enabled_without_key_is_not_valid(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("FALCON_ENABLED", "true")
+    monkeypatch.delenv("FALCON_API_KEY", raising=False)
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/ready")
+    readiness = response.json()["readiness"]
+    assert readiness["falcon_config_state"]["enabled"] is True
+    assert readiness["falcon_config_state"]["api_key_configured"] is False
+    assert readiness["falcon_config_state"]["enabled_without_api_key"] is True
+    assert readiness["falcon_config_state"]["config_valid_for_enabled_mode"] is False

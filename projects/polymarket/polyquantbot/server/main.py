@@ -157,7 +157,7 @@ def create_app() -> FastAPI:
         multi_user_storage_path=str(multi_user_storage_path),
         session_storage_path=str(session_storage_path),
         wallet_link_storage_path=str(wallet_link_storage_path),
-        phase="8.4-paper-beta-hardening",
+        phase="8.6-public-paper-beta-confidence-pass",
     )
     return app
 
