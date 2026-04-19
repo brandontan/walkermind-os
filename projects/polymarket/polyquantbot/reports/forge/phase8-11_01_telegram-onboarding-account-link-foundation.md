@@ -1,7 +1,7 @@
 # Phase 8.10 Post-Merge Truth Sync + Phase 8.11 Telegram Onboarding / Account-Link Foundation
 
 **Date:** 2026-04-19 20:16  
-**Branch:** feature/phase8-11-telegram-onboarding-account-link-foundation-2026-04-19
+**Branch:** feature/task-title-2026-04-19-u33jkr
 
 ## 1. What was built
 
