@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 14:01
-Status       : Phase 8.7 Telegram/Web runtime handoff integration foundation merged (SENTINEL CONDITIONAL gate satisfied via phase8-7_02_pytest-evidence-pass.md, 62/62 pass). Phase 8.8 real Telegram dispatch integration foundation in progress on branch claude/phase-8-7-8-telegram-dispatch-TAE9c.
+Last Updated : 2026-04-19 15:21
+Status       : Phase 8.8 real Telegram dispatch integration foundation merged (SENTINEL CONDITIONAL gate satisfied via phase8-8_02_pytest-evidence-pass.md, 77/77 pass). Phase 8.9 real Telegram polling / runtime loop foundation in progress on branch claude/phase8-9-telegram-runtime-I5Jnb.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -20,9 +20,10 @@ Status       : Phase 8.7 Telegram/Web runtime handoff integration foundation mer
 - Phase 8.5 persistent wallet-link storage / lifecycle foundation merged: PersistentWalletLinkStore (local-file JSON), unlink lifecycle (active → unlinked), authenticated unlink route. Pytest gate: 33/33 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-5_01_persistent-wallet-link-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-5_02_pytest-evidence-pass.md`. SENTINEL report: `projects/polymarket/polyquantbot/reports/sentinel/phase8-5_01_wallet-link-persistence-validation.md`.
 - Phase 8.6 persistent multi-user store foundation merged: PersistentMultiUserStore (local-file JSON), MultiUserStore abstract base, services switched to MultiUserStore, restart-safe user/account/wallet ownership chain. Pytest gate: 46/46 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-6_01_persistent-multi-user-store-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-6_02_pytest-evidence-pass.md`. SENTINEL report: `projects/polymarket/polyquantbot/reports/sentinel/phase8-6_01_persistent-multi-user-store-validation.md`.
 - Phase 8.7 Telegram/Web runtime handoff integration foundation merged: CrusaderBackendClient HTTP bridge, handle_start Telegram handler, handle_web_handoff web handler, client/telegram/bot.py backend wiring. SENTINEL CONDITIONAL gate satisfied. Pytest gate: 62/62 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-7_01_telegram-web-runtime-handoff-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-7_02_pytest-evidence-pass.md`. SENTINEL report: `projects/polymarket/polyquantbot/reports/sentinel/phase8-7_01_runtime-handoff-validation-pr604.md`.
+- Phase 8.8 real Telegram dispatch integration foundation merged: TelegramDispatcher command router, /start -> handle_start() dispatch boundary, DispatchResult reply mapping, unknown command safe fallback, bot.py dispatcher wiring. SENTINEL CONDITIONAL gate satisfied via phase8-8_02_pytest-evidence-pass.md. Pytest gate: 77/77 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-8_01_telegram-dispatch-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-8_02_pytest-evidence-pass.md`. SENTINEL: PR #607 (CONDITIONAL gate satisfied).
 
 [IN PROGRESS]
-- Phase 8.8 real Telegram dispatch integration foundation: TelegramDispatcher command router, /start → handle_start() dispatch boundary, reply mapping adapter contract, targeted tests. Branch: claude/phase-8-7-8-telegram-dispatch-TAE9c.
+- Phase 8.9 real Telegram polling / runtime loop foundation: TelegramRuntimeAdapter abstract boundary, HttpTelegramAdapter concrete implementation, TelegramPollingLoop driving inbound /start through TelegramDispatcher, context extraction contract, outbound reply adapter boundary. Branch: claude/phase8-9-telegram-runtime-I5Jnb.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -30,7 +31,7 @@ Status       : Phase 8.7 Telegram/Web runtime handoff integration foundation mer
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase 8.8 real Telegram dispatch integration foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-8_01_telegram-dispatch-foundation.md. Tier: MAJOR.
+- SENTINEL validation required for Phase 8.9 real Telegram polling / runtime loop foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-9_01_telegram-runtime-loop-foundation.md. Tier: MAJOR.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

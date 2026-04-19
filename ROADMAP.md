@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 14:01
+**Last Updated:** 2026-04-19 15:21
 
 # Board Overview
 
@@ -275,8 +275,8 @@
 ## CrusaderBot — Real Telegram Dispatch Integration Foundation Checklist (Phase 8.8)
 
 **Goal:** Wire the Telegram runtime to a real dispatchable `/start` path over the existing `handle_start()` foundation. Introduce a truthful command dispatch boundary (`TelegramDispatcher`) that routes `/start` to `handle_start()` and maps `HandleStartResult` to a typed `DispatchResult`. Update `client/telegram/bot.py` to wire the dispatcher truthfully. Exclude full polished Telegram UX, broad command suite, OAuth, RBAC, and delegated signing lifecycle.  
-**Status:** 🚧 In Progress — SENTINEL validation required before merge  
-**Last Updated:** 2026-04-19 14:01
+**Status:** ✅ Done (merged. SENTINEL CONDITIONAL gate satisfied via phase8-8_02_pytest-evidence-pass.md, 77/77 pass. PR #606 merged, PR #607 CONDITIONAL satisfied)  
+**Last Updated:** 2026-04-19 15:21
 
 ### Scope Lock
 - [x] Keep scope on Telegram command dispatch boundary only (/start → handle_start)
@@ -301,6 +301,43 @@
 - [x] Exchange execution rollout
 - [x] Portfolio engine rollout
 - [x] Full web UX rollout
+
+---
+
+## CrusaderBot — Real Telegram Polling / Runtime Loop Foundation Checklist (Phase 8.9)
+
+**Goal:** Introduce the first real Telegram runtime loop foundation that drives inbound `/start` messages through `TelegramDispatcher` via a truthful adapter/runtime boundary under `projects/polymarket/polyquantbot/client/telegram/`.  
+**Status:** 🚧 In Progress — SENTINEL validation required before merge  
+**Last Updated:** 2026-04-19 15:21
+
+### Scope Lock
+- [x] Keep scope on Telegram runtime adapter boundary + polling loop foundation only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full polished Telegram bot product
+
+### Foundation Deliverables
+- [x] Add `TelegramInboundUpdate` — normalized inbound update dataclass
+- [x] Add `TelegramRuntimeAdapter` — abstract boundary (get_updates, send_reply)
+- [x] Add `HttpTelegramAdapter` — concrete Telegram Bot API implementation via httpx
+- [x] Add `extract_command_context()` — inbound update -> TelegramCommandContext mapping with staging identity contract
+- [x] Add `TelegramPollingLoop` — drives inbound updates through TelegramDispatcher, maps reply_text back via adapter
+- [x] Add `run_polling_loop()` — top-level async polling function wired into bot.py
+- [x] Update `client/telegram/bot.py` to wire HttpTelegramAdapter + run_polling_loop
+- [x] Add targeted tests for runtime adapter boundary, polling loop, context extraction, and edge cases
+- [x] Preserve Phase 8.8 regression suite (77/77 pass carried forward)
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full polished Telegram UX
+- [x] Broad command suite beyond /start
+- [x] Production-grade identity resolution (staging contract used for tenant_id/user_id)
+- [x] OAuth rollout
+- [x] RBAC rollout
+- [x] Delegated signing lifecycle
+- [x] Exchange execution rollout
+- [x] Portfolio engine rollout
+- [x] Full web UX rollout
+- [x] Production Telegram deployment orchestration
 
 ---
 
