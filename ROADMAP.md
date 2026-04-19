@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 11:10
+**Last Updated:** 2026-04-19 12:12
 
 # Board Overview
 
@@ -176,8 +176,8 @@
 ## CrusaderBot — Persistent Wallet-Link Storage / Lifecycle Foundation Checklist (Phase 8.5)
 
 **Goal:** Replace in-memory-only wallet-link records with restart-safe persistent storage and add minimal truthful wallet-link lifecycle controls under `projects/polymarket/polyquantbot/server/`.  
-**Status:** 🚧 In Progress — SENTINEL validation required before merge  
-**Last Updated:** 2026-04-19 11:28
+**Status:** ✅ Done (merged. Pytest gate: 33/33 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-5_01_persistent-wallet-link-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-5_02_pytest-evidence-pass.md`. SENTINEL: `projects/polymarket/polyquantbot/reports/sentinel/phase8-5_01_wallet-link-persistence-validation.md`)  
+**Last Updated:** 2026-04-19 12:12
 
 ### Scope Lock
 - [x] Keep scope on persistent wallet-link storage + minimal lifecycle foundation only
@@ -205,6 +205,40 @@
 - [x] Production token rotation platform
 - [x] Broad portfolio engine work
 - [x] Full database migration platform
+
+---
+
+## CrusaderBot — Persistent Multi-User Store Foundation Checklist (Phase 8.6)
+
+**Goal:** Replace in-memory-only user/account/wallet ownership records with restart-safe persistent storage under `projects/polymarket/polyquantbot/server/`, preserving strict tenant/user/account/wallet ownership semantics established in earlier phases.  
+**Status:** 🚧 In Progress — SENTINEL validation required before merge  
+**Last Updated:** 2026-04-19 12:12
+
+### Scope Lock
+- [x] Keep scope on persistent user/account/wallet store foundation only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full database rollout or production orchestration
+
+### Foundation Deliverables
+- [x] Introduce `MultiUserStore` abstract base class (`server/storage/multi_user_store.py`)
+- [x] Introduce `MultiUserStoreError` typed exception
+- [x] Introduce `PersistentMultiUserStore` with deterministic local-file JSON persistence (atomic overwrite)
+- [x] Extend `InMemoryMultiUserStore` to implement `MultiUserStore` (zero regression)
+- [x] Switch `UserService`, `AccountService`, `WalletService`, `AuthSessionService` off `InMemoryMultiUserStore` type hint to `MultiUserStore`
+- [x] Wire `PersistentMultiUserStore` into `server/main.py` (replaces in-memory store)
+- [x] Add `CRUSADER_MULTI_USER_STORAGE_PATH` env var (default: `/tmp/crusaderbot/runtime/multi_user.json`)
+- [x] Add tests for persisted user/account/wallet readback, restart-safe ownership chain, cross-user isolation regression
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full database migration platform
+- [x] Full portfolio engine
+- [x] Exchange execution changes
+- [x] On-chain settlement changes
+- [x] RBAC
+- [x] OAuth
+- [x] Delegated signing lifecycle
+- [x] Full wallet lifecycle orchestration
 
 ---
 

@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 11:28
-Status       : Phase 8.4 merged (PR #598). Phase 8.5 persistent wallet-link storage / lifecycle foundation in progress on branch claude/phase8-5-wallet-link-persistence-ExuR9. SENTINEL validation required before merge.
+Last Updated : 2026-04-19 12:12
+Status       : Phase 8.5 merged. Phase 8.6 persistent multi-user store foundation in progress on branch claude/phase-8-5-8-6-persistent-store-25UO0. SENTINEL validation required before merge.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -16,10 +16,11 @@ Status       : Phase 8.4 merged (PR #598). Phase 8.5 persistent wallet-link stor
 - Phase 8.1 Crusader multi-user foundation merged via PR #590 with real pytest evidence confirmed (8/8 pass); post-merge truth sync for PROJECT_STATE.md and ROADMAP.md is now completed.
 - Phase 8.2 auth/session foundation merged; trusted scope derivation and protected foundation routes are preserved as merged-main baseline and no longer pending merge validation wording.
 - Phase 8.3 persistent session/storage foundation merged via PR #596. Pytest gate: 10/10 pass confirmed in dependency-complete environment (Python 3.11.15, pytest-9.0.3, fastapi-0.136.0). Evidence recorded in `projects/polymarket/polyquantbot/reports/forge/phase8-3_03_pytest-evidence-pass.md`.
-- Phase 8.4 client auth handoff / wallet-link foundation built: client auth handoff contract (core/client_auth_handoff.py), wallet-link schemas/storage/service, authenticated /auth/handoff + /auth/wallet-links routes. Pytest gate closed: 25/25 pass (Python 3.11.15, pytest-9.0.2). Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-4_02_pytest-evidence-pass.md`. PR #598 mergeable. SENTINEL CONDITIONAL gate satisfied.
+- Phase 8.4 client auth handoff / wallet-link foundation built: client auth handoff contract (core/client_auth_handoff.py), wallet-link schemas/storage/service, authenticated /auth/handoff + /auth/wallet-links routes. Pytest gate closed: 25/25 pass (Python 3.11.15, pytest-9.0.2). Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-4_02_pytest-evidence-pass.md`. PR #598 merged.
+- Phase 8.5 persistent wallet-link storage / lifecycle foundation merged: PersistentWalletLinkStore (local-file JSON), unlink lifecycle (active → unlinked), authenticated unlink route. Pytest gate: 33/33 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-5_01_persistent-wallet-link-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-5_02_pytest-evidence-pass.md`. SENTINEL report: `projects/polymarket/polyquantbot/reports/sentinel/phase8-5_01_wallet-link-persistence-validation.md`.
 
 [IN PROGRESS]
-- Phase 8.5 persistent wallet-link storage / lifecycle foundation: PersistentWalletLinkStore (local-file JSON), unlink lifecycle (active → unlinked), authenticated unlink route. Branch: claude/phase8-5-wallet-link-persistence-ExuR9.
+- Phase 8.6 persistent multi-user store foundation: PersistentMultiUserStore (local-file JSON), MultiUserStore abstract base, services switched to MultiUserStore, restart-safe user/account/wallet ownership chain. Branch: claude/phase-8-5-8-6-persistent-store-25UO0.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -27,7 +28,7 @@ Status       : Phase 8.4 merged (PR #598). Phase 8.5 persistent wallet-link stor
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase 8.5 persistent wallet-link foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-5_01_persistent-wallet-link-foundation.md. Tier: MAJOR.
+- SENTINEL validation required for Phase 8.6 persistent multi-user store foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-6_01_persistent-multi-user-store-foundation.md. Tier: MAJOR.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

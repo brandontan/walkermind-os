@@ -8,9 +8,10 @@ from projects.polymarket.polyquantbot.server.schemas.multi_user import (
     UserSettingsRecord,
     WalletRecord,
 )
+from projects.polymarket.polyquantbot.server.storage.multi_user_store import MultiUserStore
 
 
-class InMemoryMultiUserStore:
+class InMemoryMultiUserStore(MultiUserStore):
     def __init__(self) -> None:
         self.users: dict[str, UserRecord] = {}
         self.user_settings: dict[str, UserSettingsRecord] = {}
@@ -23,6 +24,12 @@ class InMemoryMultiUserStore:
 
     def put_user_settings(self, settings: UserSettingsRecord) -> None:
         self.user_settings[settings.settings_id] = settings
+
+    def get_user_settings_for_user(self, user_id: str) -> UserSettingsRecord | None:
+        for s in self.user_settings.values():
+            if s.user_id == user_id:
+                return s
+        return None
 
     def put_account(self, account: AccountRecord) -> None:
         self.accounts[account.account_id] = account
@@ -39,8 +46,20 @@ class InMemoryMultiUserStore:
     def get_account(self, account_id: str) -> AccountRecord | None:
         return self.accounts.get(account_id)
 
+    def list_accounts_for_user(self, tenant_id: str, user_id: str) -> list[AccountRecord]:
+        return [
+            a for a in self.accounts.values()
+            if a.tenant_id == tenant_id and a.user_id == user_id
+        ]
+
     def get_wallet(self, wallet_id: str) -> WalletRecord | None:
         return self.wallets.get(wallet_id)
+
+    def list_wallets_for_account(self, tenant_id: str, account_id: str) -> list[WalletRecord]:
+        return [
+            w for w in self.wallets.values()
+            if w.tenant_id == tenant_id and w.account_id == account_id
+        ]
 
     def get_session(self, session_id: str) -> SessionContext | None:
         return self.sessions.get(session_id)

@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from projects.polymarket.polyquantbot.server.core.scope import ResourceOwnership, ScopeResolutionError, require_ownership
 from projects.polymarket.polyquantbot.server.schemas.multi_user import ScopeContext, WalletCreate, WalletRecord, new_id, now_utc
-from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
+from projects.polymarket.polyquantbot.server.storage.multi_user_store import MultiUserStore
 
 
 class WalletService:
-    def __init__(self, store: InMemoryMultiUserStore) -> None:
+    def __init__(self, store: MultiUserStore) -> None:
         self._store = store
 
     def create_wallet(self, payload: WalletCreate) -> WalletRecord:

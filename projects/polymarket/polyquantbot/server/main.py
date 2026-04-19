@@ -24,7 +24,7 @@ from projects.polymarket.polyquantbot.server.services.auth_session_service impor
 from projects.polymarket.polyquantbot.server.services.user_service import UserService
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import WalletLinkService
 from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
-from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
+from projects.polymarket.polyquantbot.server.storage.multi_user_store import PersistentMultiUserStore
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
 from projects.polymarket.polyquantbot.server.storage.wallet_link_store import PersistentWalletLinkStore
 
@@ -51,7 +51,13 @@ def create_app() -> FastAPI:
     app.state.crusader_settings = settings
     app.state.crusader_runtime = state
 
-    store = InMemoryMultiUserStore()
+    multi_user_storage_path = Path(
+        os.getenv(
+            "CRUSADER_MULTI_USER_STORAGE_PATH",
+            "/tmp/crusaderbot/runtime/multi_user.json",
+        )
+    )
+    store = PersistentMultiUserStore(storage_path=multi_user_storage_path)
     user_service = UserService(store=store)
     account_service = AccountService(store=store)
     wallet_service = WalletService(store=store)
@@ -74,6 +80,7 @@ def create_app() -> FastAPI:
     wallet_link_store = PersistentWalletLinkStore(storage_path=wallet_link_storage_path)
     wallet_link_service = WalletLinkService(store=wallet_link_store)
 
+    app.state.multi_user_storage_path = multi_user_storage_path
     app.state.multi_user_store = store
     app.state.persistent_session_store = persistent_session_store
     app.state.user_service = user_service
@@ -116,9 +123,10 @@ def create_app() -> FastAPI:
         runtime="server.main",
         port=settings.port,
         trading_mode=settings.trading_mode,
+        multi_user_storage_path=str(multi_user_storage_path),
         session_storage_path=str(session_storage_path),
         wallet_link_storage_path=str(wallet_link_storage_path),
-        phase="8.5",
+        phase="8.6",
     )
     return app
 
