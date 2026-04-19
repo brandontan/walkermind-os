@@ -37,7 +37,10 @@ class PaperBetaWorker:
                     "paper_beta_worker_execution_skipped",
                     reason="mode_live_paper_execution_disabled",
                     mode=STATE.mode,
+                    autotrade_enabled=STATE.autotrade_enabled,
+                    kill_switch=STATE.kill_switch,
                     signal_id=candidate.signal_id,
+                    execution_boundary="paper_only",
                 )
                 continue
             if not STATE.autotrade_enabled:
@@ -46,7 +49,11 @@ class PaperBetaWorker:
                 log.info(
                     "paper_beta_worker_execution_skipped",
                     reason="autotrade_disabled",
+                    mode=STATE.mode,
+                    autotrade_enabled=STATE.autotrade_enabled,
+                    kill_switch=STATE.kill_switch,
                     signal_id=candidate.signal_id,
+                    execution_boundary="paper_only",
                 )
                 continue
             if STATE.kill_switch:
@@ -55,7 +62,11 @@ class PaperBetaWorker:
                 log.info(
                     "paper_beta_worker_execution_skipped",
                     reason="kill_switch_enabled",
+                    mode=STATE.mode,
+                    autotrade_enabled=STATE.autotrade_enabled,
+                    kill_switch=STATE.kill_switch,
                     signal_id=candidate.signal_id,
+                    execution_boundary="paper_only",
                 )
                 continue
             decision = self._risk_gate.evaluate(candidate, STATE)

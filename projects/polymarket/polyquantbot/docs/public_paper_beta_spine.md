@@ -22,15 +22,17 @@
 - `GET /beta/market360/{condition_id}`
 - `GET /beta/social?topic=...`
 
-### Readiness truth (Phase 8.4 hardening)
+### Readiness truth (Phase 8.6 confidence pass)
 `GET /ready` reports readiness dimensions for this lane:
+- Readiness scope contract (`contract_version`, `runtime_assertion`, `worker_state_visibility`, `external_dependencies_probed=false`)
 - API boot completion (`api_boot_complete`)
-- Worker runtime status (`startup_complete`, `active`, `shutdown_complete`, `iterations_total`, `last_error`)
-- Worker prerequisites (`paper_mode_enforced`, `autotrade_enabled`, `kill_switch_enabled`)
-- Falcon config truth (`enabled`, `api_key_configured`, `candidate_source_contract`)
-- Control-plane execution boundary (`paper_only_execution_boundary=true`)
+- Worker runtime status (`startup_complete`, `active`, `shutdown_complete`, `iterations_total`, `last_iteration_visible`, `last_error`)
+- Worker prerequisites (`paper_mode_enforced`, `autotrade_enabled`, `kill_switch_enabled`, `execution_ready_for_paper_entries`)
+- Falcon config truth (`enabled`, `api_key_configured`, `enabled_without_api_key`, `config_valid_for_enabled_mode`, `candidate_source_contract`)
+- Control-plane execution boundary (`paper_only_execution_boundary=true`, `live_mode_execution_allowed=false`)
 
 Readiness intentionally does **not** overclaim external dependency health that is not actively probed.
+`/ready` should be interpreted as local runtime and control-plane truth, not as Falcon/Telegram upstream health.
 
 ## Falcon backend-managed contract
 Falcon config is backend-managed only using environment variables:
@@ -81,6 +83,7 @@ Fly runtime is paper-mode by default. To activate Falcon-backed candidate genera
 - `/mode live` updates control-plane state only; execution stays paper-only in this phase.
 - `/autotrade on` is rejected when mode is `live` to preserve paper-only boundary truth.
 - `/kill` always forces autotrade OFF and sets a hard paper-beta execution block.
+- `/beta/status` includes `execution_guard` with concrete blocked reasons for operator visibility.
 - Unknown Telegram commands should fall back to a concise supported-command hint.
 
 ## Known limitations

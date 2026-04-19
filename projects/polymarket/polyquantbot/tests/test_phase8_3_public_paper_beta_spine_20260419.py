@@ -3,6 +3,10 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
+import pytest
+pytest.importorskip("fastapi")
+from fastapi.testclient import TestClient
+
 from projects.polymarket.polyquantbot.client.telegram.dispatcher import (
     TelegramCommandContext,
     TelegramDispatcher,
@@ -13,6 +17,7 @@ from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import 
 from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio
 from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import PaperRiskGate
 from projects.polymarket.polyquantbot.server.workers.paper_beta_worker import PaperBetaWorker
+from projects.polymarket.polyquantbot.server.main import create_app
 
 
 class FakeFalcon:
@@ -92,6 +97,19 @@ def _reset_state() -> None:
     STATE.last_risk_reason = ""
     STATE.positions.clear()
     STATE.processed_signals.clear()
+    STATE.worker_runtime.active = False
+    STATE.worker_runtime.startup_complete = False
+    STATE.worker_runtime.shutdown_complete = False
+    STATE.worker_runtime.iterations_total = 0
+    STATE.worker_runtime.last_error = ""
+    STATE.worker_runtime.last_iteration.candidate_count = 0
+    STATE.worker_runtime.last_iteration.accepted_count = 0
+    STATE.worker_runtime.last_iteration.rejected_count = 0
+    STATE.worker_runtime.last_iteration.skip_autotrade_count = 0
+    STATE.worker_runtime.last_iteration.skip_kill_count = 0
+    STATE.worker_runtime.last_iteration.skip_mode_count = 0
+    STATE.worker_runtime.last_iteration.current_position_count = 0
+    STATE.worker_runtime.last_iteration.risk_rejection_reasons = {}
 
 
 def _make_ctx(command: str, argument: str = "") -> TelegramCommandContext:
@@ -201,3 +219,56 @@ def test_autotrade_reply_preserves_live_mode_boundary_detail() -> None:
     dispatcher = TelegramDispatcher(backend=backend)
     result = asyncio.run(dispatcher.dispatch(_make_ctx("/autotrade", "on")))
     assert "Autotrade" in result.reply_text
+
+
+def test_live_mode_with_autotrade_request_stays_blocked_and_emits_no_events() -> None:
+    _reset_state()
+    app = create_app()
+    with TestClient(app) as client:
+        live_response = client.post("/beta/mode", json={"mode": "live"})
+        assert live_response.status_code == 200
+        auto_response = client.post("/beta/autotrade", json={"enabled": True})
+        assert auto_response.status_code == 200
+        payload = auto_response.json()
+        assert payload["ok"] is False
+        assert payload["autotrade"] is False
+
+    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    events = asyncio.run(worker.run_once())
+    assert events == []
+    assert STATE.last_risk_reason == "mode_live_paper_execution_disabled"
+    assert STATE.worker_runtime.last_iteration.skip_mode_count == 1
+
+
+def test_kill_switch_keeps_execution_blocked_after_mode_switches() -> None:
+    _reset_state()
+    app = create_app()
+    with TestClient(app) as client:
+        assert client.post("/beta/mode", json={"mode": "paper"}).status_code == 200
+        assert client.post("/beta/autotrade", json={"enabled": True}).status_code == 200
+        kill_response = client.post("/beta/kill")
+        assert kill_response.status_code == 200
+        assert kill_response.json()["kill_switch"] is True
+        assert client.post("/beta/mode", json={"mode": "live"}).status_code == 200
+        assert client.post("/beta/mode", json={"mode": "paper"}).status_code == 200
+        reenable_response = client.post("/beta/autotrade", json={"enabled": True})
+        assert reenable_response.status_code == 200
+        assert reenable_response.json()["autotrade"] is True
+
+    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    events = asyncio.run(worker.run_once())
+    assert events == []
+    assert STATE.last_risk_reason == "kill_switch_enabled"
+    assert STATE.worker_runtime.last_iteration.skip_kill_count == 1
+
+
+def test_status_reports_control_plane_guard_reasons() -> None:
+    _reset_state()
+    app = create_app()
+    with TestClient(app) as client:
+        client.post("/beta/mode", json={"mode": "live"})
+        status_payload = client.get("/beta/status").json()
+
+    assert status_payload["paper_only_execution_boundary"] is True
+    assert status_payload["execution_guard"]["entry_allowed"] is False
+    assert "mode_live_paper_execution_disabled" in status_payload["execution_guard"]["blocked_reasons"]
