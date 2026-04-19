@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 15:52
+**Last Updated:** 2026-04-19 20:16
 
 # Board Overview
 
@@ -344,8 +344,8 @@
 ## CrusaderBot — Telegram Identity Resolution Foundation Checklist (Phase 8.10)
 
 **Goal:** Replace staging tenant/user placeholders in the Telegram runtime with a truthful backend-driven identity resolution foundation under `projects/polymarket/polyquantbot/`. Introduces a narrow service/contract that maps inbound Telegram `from_user_id` to backend user scope, updates the polling loop to use resolved identity for command dispatch, and defines safe fallback reply behavior for unlinked/unknown users and backend errors.  
-**Status:** 🚧 In Progress — SENTINEL validation required before merge  
-**Last Updated:** 2026-04-19 15:52
+**Status:** ✅ Done (merged truth sync closed. SENTINEL CONDITIONAL gate satisfied with strict outcome normalization and 114/114 pass evidence. References: `projects/polymarket/polyquantbot/reports/forge/phase8-10_01_telegram-identity-resolution-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-10_02_pytest-evidence-pass.md`, `projects/polymarket/polyquantbot/reports/sentinel/phase8-10_01_telegram-identity-validation-pr610.md`)  
+**Last Updated:** 2026-04-19 20:16
 
 ### Scope Lock
 - [x] Keep scope on Telegram identity resolution contract only
@@ -379,6 +379,42 @@
 - [x] Portfolio engine rollout
 - [x] Full web identity rollout
 - [x] Production-grade cross-client identity linking orchestration
+
+---
+
+## CrusaderBot — Telegram Onboarding / Account-Link Foundation Checklist (Phase 8.11)
+
+**Goal:** Replace unknown-user Telegram `/start` dead-end with a narrow, truthful onboarding/account-link foundation that can initiate link creation for unresolved users while preserving Phase 8.10 resolved-user behavior.  
+**Status:** 🚧 In Progress (FORGE-X implementation complete; MAJOR lane awaiting SENTINEL validation)  
+**Last Updated:** 2026-04-19 20:16
+
+### Scope Lock
+- [x] Keep scope on minimal Telegram onboarding/account-link foundation only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full self-serve account management product
+
+### Foundation Deliverables
+- [x] Add backend onboarding contract for unresolved Telegram users (`POST /auth/telegram-onboarding/start`)
+- [x] Add `TelegramOnboardingService` with truthful outcomes (`onboarded`, `already_linked`, `rejected`, `error`)
+- [x] Persist onboarding linkage via existing persistent multi-user user record boundary (`external_id=tg_{telegram_user_id}`)
+- [x] Extend `CrusaderBackendClient` with `start_telegram_onboarding()` API mapping
+- [x] Extend `TelegramPollingLoop` unresolved-user branch to initiate onboarding and map safe replies by real outcomes
+- [x] Preserve resolved-user Phase 8.10 flow (dispatch with real tenant/user scope unchanged)
+- [x] Update bot runtime wiring to pass onboarding initiator
+- [x] Add targeted Phase 8.11 tests for success, already-linked, rejected, error, and persistence/isolation
+- [x] Preserve Phase 8.10 regression coverage in test execution
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full polished Telegram onboarding UX
+- [x] Full cross-client account-link product
+- [x] OAuth
+- [x] RBAC
+- [x] Delegated signing lifecycle
+- [x] Exchange execution rollout
+- [x] Portfolio engine rollout
+- [x] Full web onboarding rollout
+- [x] Production-grade notification orchestration
 
 ---
 

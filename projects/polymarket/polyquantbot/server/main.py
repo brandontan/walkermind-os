@@ -22,6 +22,7 @@ from projects.polymarket.polyquantbot.server.core.runtime import (
 from projects.polymarket.polyquantbot.server.services.account_service import AccountService
 from projects.polymarket.polyquantbot.server.services.auth_session_service import AuthSessionService
 from projects.polymarket.polyquantbot.server.services.telegram_identity_service import TelegramIdentityService
+from projects.polymarket.polyquantbot.server.services.telegram_onboarding_service import TelegramOnboardingService
 from projects.polymarket.polyquantbot.server.services.user_service import UserService
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import WalletLinkService
 from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
     account_service = AccountService(store=store)
     wallet_service = WalletService(store=store)
     telegram_identity_service = TelegramIdentityService(user_service=user_service)
+    telegram_onboarding_service = TelegramOnboardingService(user_service=user_service)
 
     session_storage_path = Path(
         os.getenv(
@@ -85,6 +87,7 @@ def create_app() -> FastAPI:
     app.state.multi_user_storage_path = multi_user_storage_path
     app.state.multi_user_store = store
     app.state.telegram_identity_service = telegram_identity_service
+    app.state.telegram_onboarding_service = telegram_onboarding_service
     app.state.persistent_session_store = persistent_session_store
     app.state.user_service = user_service
     app.state.account_service = account_service
@@ -109,6 +112,7 @@ def create_app() -> FastAPI:
             auth_session_service=auth_session_service,
             wallet_link_service=wallet_link_service,
             telegram_identity_service=telegram_identity_service,
+            telegram_onboarding_service=telegram_onboarding_service,
         )
     )
 
@@ -130,7 +134,7 @@ def create_app() -> FastAPI:
         multi_user_storage_path=str(multi_user_storage_path),
         session_storage_path=str(session_storage_path),
         wallet_link_storage_path=str(wallet_link_storage_path),
-        phase="8.10",
+        phase="8.11",
     )
     return app
 

@@ -12,6 +12,7 @@ from projects.polymarket.polyquantbot.server.schemas.auth_session import AuthMet
 from projects.polymarket.polyquantbot.server.schemas.wallet_link import WalletLinkCreateRequest
 from projects.polymarket.polyquantbot.server.services.auth_session_service import AuthSessionService
 from projects.polymarket.polyquantbot.server.services.telegram_identity_service import TelegramIdentityService
+from projects.polymarket.polyquantbot.server.services.telegram_onboarding_service import TelegramOnboardingService
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import (
     WalletLinkNotFoundError,
     WalletLinkOwnershipError,
@@ -27,10 +28,16 @@ class ClientHandoffRequestBody(BaseModel):
     ttl_seconds: int = Field(default=1800, ge=60, le=86400)
 
 
+class TelegramOnboardingStartBody(BaseModel):
+    telegram_user_id: str = Field(min_length=1)
+    tenant_id: str = Field(min_length=1)
+
+
 def build_client_auth_router(
     auth_session_service: AuthSessionService,
     wallet_link_service: WalletLinkService,
     telegram_identity_service: TelegramIdentityService,
+    telegram_onboarding_service: TelegramOnboardingService,
 ) -> APIRouter:
     router = APIRouter(prefix="/auth", tags=["client-auth"])
 
@@ -54,6 +61,22 @@ def build_client_auth_router(
             "outcome": resolution.outcome,
             "tenant_id": resolution.tenant_id,
             "user_id": resolution.user_id,
+        }
+
+    @router.post("/telegram-onboarding/start")
+    async def start_telegram_onboarding(
+        body: TelegramOnboardingStartBody,
+    ) -> dict[str, object]:
+        """Start minimal Telegram onboarding/account-link foundation."""
+        result = telegram_onboarding_service.start(
+            telegram_user_id=body.telegram_user_id,
+            tenant_id=body.tenant_id,
+        )
+        return {
+            "outcome": result.outcome,
+            "tenant_id": result.tenant_id,
+            "user_id": result.user_id,
+            "detail": result.detail,
         }
 
     @router.post("/handoff")

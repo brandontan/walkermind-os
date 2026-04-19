@@ -26,6 +26,7 @@ import structlog
 from projects.polymarket.polyquantbot.client.telegram.backend_client import (
     CrusaderBackendClient,
     TelegramIdentityResolution,
+    TelegramOnboardingResult,
 )
 from projects.polymarket.polyquantbot.client.telegram.dispatcher import (
     DispatchResult,
@@ -39,8 +40,16 @@ _STAGING_TENANT_ID = "staging"
 _STAGING_USER_ID = "staging"
 
 _REPLY_NOT_REGISTERED = (
-    "You are not registered with CrusaderBot. "
-    "Contact the bot administrator to get access."
+    "You are not registered with CrusaderBot."
+)
+_REPLY_ONBOARDED = (
+    "Your onboarding request is ready. Please send /start again to continue."
+)
+_REPLY_ALREADY_LINKED = (
+    "Your account is already linked. Please send /start again."
+)
+_REPLY_ONBOARDING_REJECTED = (
+    "Onboarding could not be started. Please contact the bot administrator."
 )
 _REPLY_IDENTITY_ERROR = "Unable to verify your identity. Please try again later."
 
@@ -87,6 +96,16 @@ class TelegramIdentityResolver(Protocol):
         self, telegram_user_id: str
     ) -> TelegramIdentityResolution:
         """Resolve a Telegram user ID to backend tenant/user scope."""
+        ...
+
+
+class TelegramOnboardingInitiator(Protocol):
+    """Protocol for starting onboarding/account-link flow for unresolved users."""
+
+    async def start_telegram_onboarding(
+        self, telegram_user_id: str
+    ) -> TelegramOnboardingResult:
+        """Start onboarding and return typed outcome."""
         ...
 
 
@@ -215,12 +234,14 @@ class TelegramPollingLoop:
         adapter: TelegramRuntimeAdapter,
         dispatcher: TelegramDispatcher,
         identity_resolver: Optional[TelegramIdentityResolver] = None,
+        onboarding_initiator: Optional[TelegramOnboardingInitiator] = None,
         staging_tenant_id: str = _STAGING_TENANT_ID,
         staging_user_id: str = _STAGING_USER_ID,
     ) -> None:
         self._adapter = adapter
         self._dispatcher = dispatcher
         self._identity_resolver = identity_resolver
+        self._onboarding_initiator = onboarding_initiator
         self._staging_tenant_id = staging_tenant_id
         self._staging_user_id = staging_user_id
         self._offset: int = 0
@@ -274,7 +295,33 @@ class TelegramPollingLoop:
                     update_id=update.update_id,
                     from_user_id=update.from_user_id,
                 )
-                await self._safe_send_reply(update.chat_id, _REPLY_NOT_REGISTERED)
+                if self._onboarding_initiator is None:
+                    await self._safe_send_reply(update.chat_id, _REPLY_NOT_REGISTERED)
+                    return
+                try:
+                    onboarding = await self._onboarding_initiator.start_telegram_onboarding(
+                        update.from_user_id
+                    )
+                except Exception as exc:
+                    log.error(
+                        "crusaderbot_telegram_onboarding_exception",
+                        update_id=update.update_id,
+                        from_user_id=update.from_user_id,
+                        error=str(exc),
+                    )
+                    await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
+                    return
+
+                if onboarding.outcome == "onboarded":
+                    await self._safe_send_reply(update.chat_id, _REPLY_ONBOARDED)
+                    return
+                if onboarding.outcome == "already_linked":
+                    await self._safe_send_reply(update.chat_id, _REPLY_ALREADY_LINKED)
+                    return
+                if onboarding.outcome == "rejected":
+                    await self._safe_send_reply(update.chat_id, _REPLY_ONBOARDING_REJECTED)
+                    return
+                await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
                 return
 
             if resolution.outcome == "error":
@@ -338,6 +385,7 @@ async def run_polling_loop(
     adapter: TelegramRuntimeAdapter,
     dispatcher: TelegramDispatcher,
     identity_resolver: Optional[TelegramIdentityResolver] = None,
+    onboarding_initiator: Optional[TelegramOnboardingInitiator] = None,
     staging_tenant_id: str = _STAGING_TENANT_ID,
     staging_user_id: str = _STAGING_USER_ID,
 ) -> None:
@@ -354,14 +402,16 @@ async def run_polling_loop(
         adapter=adapter,
         dispatcher=dispatcher,
         identity_resolver=identity_resolver,
+        onboarding_initiator=onboarding_initiator,
         staging_tenant_id=staging_tenant_id,
         staging_user_id=staging_user_id,
     )
     log.info(
         "crusaderbot_telegram_polling_started",
-        phase="8.10",
+        phase="8.11",
         registered_commands=["/start"],
         identity_resolution="enabled" if identity_resolver is not None else "staging_fallback",
+        onboarding="enabled" if onboarding_initiator is not None else "disabled",
         staging_tenant_id=staging_tenant_id,
         staging_user_id=staging_user_id,
     )
