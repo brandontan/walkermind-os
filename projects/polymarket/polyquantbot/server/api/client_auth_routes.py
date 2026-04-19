@@ -11,7 +11,11 @@ from projects.polymarket.polyquantbot.server.core.scope import ScopeResolutionEr
 from projects.polymarket.polyquantbot.server.schemas.auth_session import AuthMethod, SessionCreateRequest
 from projects.polymarket.polyquantbot.server.schemas.wallet_link import WalletLinkCreateRequest
 from projects.polymarket.polyquantbot.server.services.auth_session_service import AuthSessionService
-from projects.polymarket.polyquantbot.server.services.wallet_link_service import WalletLinkService
+from projects.polymarket.polyquantbot.server.services.wallet_link_service import (
+    WalletLinkNotFoundError,
+    WalletLinkOwnershipError,
+    WalletLinkService,
+)
 
 
 class ClientHandoffRequestBody(BaseModel):
@@ -73,5 +77,18 @@ def build_client_auth_router(
     ) -> dict[str, object]:
         links = wallet_link_service.list_links(scope=auth_scope)
         return {"wallet_links": [r.model_dump() for r in links]}
+
+    @router.patch("/wallet-links/{link_id}/unlink")
+    async def unlink_wallet_link(
+        link_id: str,
+        auth_scope=Depends(get_authenticated_scope),
+    ) -> dict[str, object]:
+        try:
+            record = wallet_link_service.unlink_link(scope=auth_scope, link_id=link_id)
+        except WalletLinkNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except WalletLinkOwnershipError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        return {"wallet_link": record.model_dump()}
 
     return router

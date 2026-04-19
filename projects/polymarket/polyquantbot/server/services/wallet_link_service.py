@@ -11,6 +11,14 @@ from projects.polymarket.polyquantbot.server.storage.wallet_link_store import Wa
 log = structlog.get_logger(__name__)
 
 
+class WalletLinkNotFoundError(LookupError):
+    """Raised when a wallet link record cannot be found."""
+
+
+class WalletLinkOwnershipError(PermissionError):
+    """Raised when the authenticated user does not own the referenced wallet link."""
+
+
 class WalletLinkService:
     def __init__(self, store: WalletLinkStore) -> None:
         self._store = store
@@ -44,3 +52,20 @@ class WalletLinkService:
             tenant_id=scope.tenant_id,
             user_id=scope.user_id,
         )
+
+    def unlink_link(self, scope: AuthenticatedScope, link_id: str) -> WalletLinkRecord:
+        record = self._store.get_link(link_id)
+        if record is None:
+            raise WalletLinkNotFoundError(f"wallet link not found: {link_id}")
+        if record.tenant_id != scope.tenant_id or record.user_id != scope.user_id:
+            raise WalletLinkOwnershipError(
+                "wallet link does not belong to authenticated user"
+            )
+        updated = self._store.set_link_status(link_id, "unlinked")
+        log.info(
+            "wallet_link_unlinked",
+            link_id=link_id,
+            user_id=scope.user_id,
+            tenant_id=scope.tenant_id,
+        )
+        return updated
