@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 07:22
-Status       : Crusader multi-user foundation lane is now in progress with explicit tenant scope, ownership mapping, and user/account/wallet/user_settings backend primitives under server surfaces.
+Last Updated : 2026-04-19 09:18
+Status       : Phase 8.1 multi-user foundation pytest evidence confirmed (8/8 pass); SENTINEL CONDITIONAL gate cleared; PR #590 merged and post-merge repo-truth sync is pending.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -14,8 +14,7 @@ Status       : Crusader multi-user foundation lane is now in progress with expli
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 - Phase 7.2 CrusaderBot Fly.io deploy-readiness runtime split merged via PR #585; final SENTINEL APPROVED revalidation is recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase7_02_crusaderbot-fly-readiness-revalidation.md`.
 
-[IN PROGRESS]
-- Phase 8.1 Crusader multi-user foundation implementation is in progress for identity, tenant scope resolution, ownership guards, and scoped user/account/wallet storage/service boundaries.
+- Phase 8.1 Crusader multi-user foundation merged via PR #590 with real pytest evidence confirmed (8/8 pass); condition from PR #591 was satisfied before merge.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -23,7 +22,7 @@ Status       : Crusader multi-user foundation lane is now in progress with expli
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Route this MAJOR build lane to SENTINEL for validation of ownership/scope boundaries before merge approval.
+- Sync main with Phase 8.1 pytest-evidence report and close stale validation/history PRs (#591, #593).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
