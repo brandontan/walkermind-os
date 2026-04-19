@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 20:16
-Status       : Phase 8.10 repo-truth closeout synced as merged reality. Phase 8.11 Telegram onboarding/account-link foundation is implemented with persistent minimal user-link creation for unresolved /start users and targeted MAJOR test coverage.
+Last Updated : 2026-04-19 20:46
+Status       : Phase 8.11 Telegram onboarding/account-link FOUNDATION validated by SENTINEL as CONDITIONAL (no runtime criticals). Traceability cleanup required before COMMANDER merge decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -25,7 +25,7 @@ Status       : Phase 8.10 repo-truth closeout synced as merged reality. Phase 8.
 - Phase 8.10 Telegram identity resolution foundation merged truth synced: strict outcome normalization fix retained with 114/114 pytest evidence. References preserved: `projects/polymarket/polyquantbot/reports/forge/phase8-10_01_telegram-identity-resolution-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-10_02_pytest-evidence-pass.md`, `projects/polymarket/polyquantbot/reports/sentinel/phase8-10_01_telegram-identity-validation-pr610.md`.
 
 [IN PROGRESS]
-- Phase 8.11 Telegram onboarding/account-link foundation: unresolved Telegram /start users now trigger backend onboarding start contract with truthful outcomes (onboarded/already_linked/rejected/error) backed by persistent multi-user storage and runtime reply mapping.
+- Phase 8.11 Telegram onboarding/account-link foundation: implementation validated by SENTINEL (CONDITIONAL, 90/100, 0 critical); runtime path is coherent with truthful outcomes and preserved tenant isolation pending traceability metadata cleanup.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -33,7 +33,7 @@ Status       : Phase 8.10 repo-truth closeout synced as merged reality. Phase 8.
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation for Phase 8.11 MAJOR scope (Telegram onboarding/account-link foundation) over backend onboarding contract, runtime not_found onboarding mapping, and persistence/isolation evidence; then return to COMMANDER for merge decision.
+- FORGE-X traceability cleanup: align forge report branch metadata with PR #612 source branch, then return to COMMANDER for final merge decision (SENTINEL verdict: CONDITIONAL).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
