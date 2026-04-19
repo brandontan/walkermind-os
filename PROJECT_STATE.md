@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 09:39
-Status       : Phase 8.1 post-merge truth sync completed on main; Phase 8.2 auth/session foundation implementation is in progress with new trusted scope derivation primitives ready for SENTINEL.
+Last Updated : 2026-04-19 09:48
+Status       : SENTINEL completed MAJOR validation for PR #594 as CONDITIONAL (implementation sound, tiny ROADMAP legend cleanup pending), awaiting COMMANDER final decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -17,7 +17,7 @@ Status       : Phase 8.1 post-merge truth sync completed on main; Phase 8.2 auth
 - Phase 8.1 Crusader multi-user foundation merged via PR #590 with real pytest evidence confirmed (8/8 pass); post-merge truth sync for PROJECT_STATE.md and ROADMAP.md is now completed.
 
 [IN PROGRESS]
-- Phase 8.2 auth/session foundation lane implemented with trusted identity/session scope derivation, minimal auth session primitives, and protected route integration under projects/polymarket/polyquantbot/server/.
+- Phase 8.2 auth/session foundation lane is implemented and SENTINEL-validated as technically sound at FOUNDATION scope; final merge decision is pending COMMANDER plus tiny ROADMAP legend cleanup.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -25,7 +25,7 @@ Status       : Phase 8.1 post-merge truth sync completed on main; Phase 8.2 auth
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation for Phase 8.2 auth/session foundation implementation and protected route scope-derivation behavior.
+- COMMANDER final decision on PR #594 after applying tiny ROADMAP status-legend cleanup (`✅ / 🚧 / ❌`).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
