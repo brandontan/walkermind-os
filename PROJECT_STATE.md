@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 21:39
-Status       : Phase 8.11 post-merge repo-truth sync is now closed on main. Phase 8.12 Telegram confirmation/activation foundation is implemented with explicit activation outcomes over the onboarding baseline and targeted MAJOR coverage.
+Last Updated : 2026-04-19 21:58
+Status       : Phase 8.11 post-merge repo-truth sync remains closed on main. Phase 8.12 Telegram confirmation/activation foundation is implemented and SENTINEL-reviewed (CONDITIONAL) for PR #614; awaiting COMMANDER merge decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -26,7 +26,7 @@ Status       : Phase 8.11 post-merge repo-truth sync is now closed on main. Phas
 - Phase 8.11 Telegram onboarding/account-link foundation merged truth synced on main: unresolved /start onboarding route and persistence evidence preserved in `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md` and `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`; expected validation reference path remains `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`.
 
 [IN PROGRESS]
-- Phase 8.12 Telegram confirmation/activation foundation: resolved Telegram-linked users now pass through explicit activation confirmation outcomes (activated/already_active/rejected/error) before session dispatch, with persistent activation status and tenant isolation evidence.
+- Phase 8.12 Telegram confirmation/activation foundation is now SENTINEL-reviewed (CONDITIONAL) for PR #614; implementation remains narrow FOUNDATION scope with activation outcomes and persistent activation-state semantics pending COMMANDER merge decision.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -34,9 +34,10 @@ Status       : Phase 8.11 post-merge repo-truth sync is now closed on main. Phas
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation for Phase 8.12 MAJOR scope (Telegram confirmation/activation foundation) over backend confirm contract, runtime activation reply mapping, persistence/isolation integrity, and preserved Phase 8.11 regressions; then return to COMMANDER for merge decision.
+- COMMANDER final decision on PR #614: review SENTINEL CONDITIONAL verdict for Phase 8.12, apply traceability metadata fix in forge report branch field, and decide merge gate.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 6.4 narrow monitoring remains intentionally scoped and not yet the active implementation lane.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning -- carried forward as non-runtime higiene backlog.
+- [DEFERRED] Forge report branch metadata for PR #614 does not match COMMANDER-declared branch; update traceability field.

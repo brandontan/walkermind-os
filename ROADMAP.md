@@ -421,8 +421,8 @@
 ## CrusaderBot — Telegram Confirmation / Activation Foundation Checklist (Phase 8.12)
 
 **Goal:** Add a narrow confirmation/activation lifecycle for Telegram-linked onboarding users so runtime does not stop at record creation and can truthfully report activation outcomes before session handoff dispatch.  
-**Status:** 🚧 In Progress (FORGE-X implementation complete; MAJOR lane awaiting SENTINEL validation)  
-**Last Updated:** 2026-04-19 21:39
+**Status:** 🚧 In Progress (FORGE-X implementation complete; SENTINEL returned CONDITIONAL for PR #614, pending COMMANDER merge decision)  
+**Last Updated:** 2026-04-19 21:58
 
 ### Scope Lock
 - [x] Keep scope on Telegram confirmation/activation foundation only
