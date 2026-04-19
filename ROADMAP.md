@@ -137,8 +137,8 @@
 ## CrusaderBot — Client Auth Handoff / Wallet-Link Foundation Checklist (Phase 8.4)
 
 **Goal:** Establish truthful client-to-backend identity handoff and user-owned wallet-link foundation over the persistent session backbone under `projects/polymarket/polyquantbot/server/`.  
-**Status:** 🚧 In Progress — SENTINEL validation required before merge  
-**Last Updated:** 2026-04-19 11:10
+**Status:** ✅ Done (Merged via PR #598. SENTINEL CONDITIONAL gate satisfied. Pytest gate: 25/25 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-4_02_pytest-evidence-pass.md`)  
+**Last Updated:** 2026-04-19 11:28
 
 ### Scope Lock
 - [x] Keep scope on client auth handoff contract + wallet-link foundation only
@@ -170,6 +170,41 @@
 - [x] On-chain settlement rollout
 - [x] Persistent wallet-link storage (deferred follow-up lane)
 - [x] Broad portfolio engine work
+
+---
+
+## CrusaderBot — Persistent Wallet-Link Storage / Lifecycle Foundation Checklist (Phase 8.5)
+
+**Goal:** Replace in-memory-only wallet-link records with restart-safe persistent storage and add minimal truthful wallet-link lifecycle controls under `projects/polymarket/polyquantbot/server/`.  
+**Status:** 🚧 In Progress — SENTINEL validation required before merge  
+**Last Updated:** 2026-04-19 11:28
+
+### Scope Lock
+- [x] Keep scope on persistent wallet-link storage + minimal lifecycle foundation only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full wallet lifecycle completion or production orchestration
+
+### Foundation Deliverables
+- [x] Introduce `PersistentWalletLinkStore` with deterministic local-file JSON persistence (atomic overwrite)
+- [x] Convert `WalletLinkStore` to abstract base class (SessionStore pattern)
+- [x] Switch `server/main.py` off in-memory `WalletLinkStore` to `PersistentWalletLinkStore`
+- [x] Add `CRUSADER_WALLET_LINK_STORAGE_PATH` env var for configurable storage path
+- [x] Add `set_link_status` lifecycle method to storage boundary
+- [x] Add `unlink_link` method to `WalletLinkService` (ownership-enforced `active` → `unlinked`)
+- [x] Expose `PATCH /auth/wallet-links/{link_id}/unlink` authenticated route
+- [x] Add tests for persisted readback, restart-safe continuity, unlink behavior, cross-user isolation
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full wallet lifecycle orchestration
+- [x] Delegated signing lifecycle
+- [x] Exchange signing rollout
+- [x] On-chain settlement rollout
+- [x] Full RBAC
+- [x] OAuth rollout
+- [x] Production token rotation platform
+- [x] Broad portfolio engine work
+- [x] Full database migration platform
 
 ---
 
