@@ -8,9 +8,12 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class FalconSettings:
     enabled: bool
-    api_key: str
+    api_key: str | None
     base_url: str
     timeout_seconds: float
+
+    def api_key_configured(self) -> bool:
+        return bool((self.api_key or "").strip())
 
     @classmethod
     def from_env(cls) -> "FalconSettings":

@@ -153,7 +153,7 @@ def create_app() -> FastAPI:
         port=settings.port,
         trading_mode=settings.trading_mode,
         falcon_enabled=falcon_settings.enabled,
-        falcon_key_configured=bool(falcon_settings.api_key.strip()),
+        falcon_key_configured=falcon_settings.api_key_configured(),
         multi_user_storage_path=str(multi_user_storage_path),
         session_storage_path=str(session_storage_path),
         wallet_link_storage_path=str(wallet_link_storage_path),

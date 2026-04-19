@@ -1,6 +1,6 @@
 # Phase 8.4 — Paper Beta Operational Hardening
 
-**Date:** 2026-04-20 00:54
+**Date:** 2026-04-20 01:16
 **Branch:** harden/paper-beta-operational-readiness-20260420
 
 ## 1. What was built
@@ -50,3 +50,8 @@ Claim Level       : NARROW INTEGRATION HARDENING
 Validation Target : paper-beta worker observability/readiness truth, paper-only execution enforcement, Falcon boundary wording, and Phase 8.3/8.4 test ergonomics
 Not in Scope      : live trading rollout, multi-exchange support, user-managed Falcon keys, heavy ML/strategy expansion, broad dashboard work
 Suggested Next    : SENTINEL review required before merge
+
+## 7. Fix pass for PR #622 comments
+- Corrected test import normalization by removing fragile `parents[3]` bootstrap from `projects/polymarket/polyquantbot/tests/conftest.py` and keeping repo-root normalization in `conftest.py` only.
+- Hardened Falcon readiness key handling by moving key-state evaluation to `FalconSettings.api_key_configured()` and reusing this in `/ready` and API startup logging to avoid `.strip()` fragility when key is unset/null-like.
+- Revalidated Phase 8.3/8.4 test execution without manual `PYTHONPATH` override in command invocation.

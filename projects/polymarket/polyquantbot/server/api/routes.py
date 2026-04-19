@@ -28,7 +28,7 @@ def build_router(
 
     @router.get("/ready")
     async def ready() -> JSONResponse:
-        falcon_api_key_configured = bool(falcon_settings.api_key.strip())
+        falcon_api_key_configured = falcon_settings.api_key_configured()
         worker_prerequisites = {
             "paper_mode_enforced": beta_state.mode == "paper",
             "autotrade_enabled": beta_state.autotrade_enabled,
