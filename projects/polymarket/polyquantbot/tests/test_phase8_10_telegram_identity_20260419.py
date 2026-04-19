@@ -448,3 +448,43 @@ def test_polling_loop_resolver_skipped_for_non_command_messages() -> None:
     assert resolver.calls == []
     dispatcher.dispatch.assert_not_awaited()
     assert adapter.replies == []
+
+
+def test_polling_loop_resolved_with_missing_tenant_id_sends_identity_error() -> None:
+    update = _make_update(from_user_id="12345678", text="/start", chat_id="chat_E")
+    adapter = MockTelegramAdapter(updates=[update])
+    dispatcher = _make_dispatcher_with_start_reply("Welcome!")
+    resolver = MockIdentityResolver(
+        TelegramIdentityResolution(outcome="resolved", tenant_id=None, user_id="usr_abc")
+    )
+    loop = TelegramPollingLoop(
+        adapter=adapter,
+        dispatcher=dispatcher,
+        identity_resolver=resolver,
+    )
+
+    asyncio.get_event_loop().run_until_complete(loop.run_once())
+
+    assert len(adapter.replies) == 1
+    assert adapter.replies[0] == ("chat_E", _REPLY_IDENTITY_ERROR)
+    dispatcher.dispatch.assert_not_awaited()
+
+
+def test_polling_loop_resolved_with_missing_user_id_sends_identity_error() -> None:
+    update = _make_update(from_user_id="12345678", text="/start", chat_id="chat_F")
+    adapter = MockTelegramAdapter(updates=[update])
+    dispatcher = _make_dispatcher_with_start_reply("Welcome!")
+    resolver = MockIdentityResolver(
+        TelegramIdentityResolution(outcome="resolved", tenant_id="t1", user_id=None)
+    )
+    loop = TelegramPollingLoop(
+        adapter=adapter,
+        dispatcher=dispatcher,
+        identity_resolver=resolver,
+    )
+
+    asyncio.get_event_loop().run_until_complete(loop.run_once())
+
+    assert len(adapter.replies) == 1
+    assert adapter.replies[0] == ("chat_F", _REPLY_IDENTITY_ERROR)
+    dispatcher.dispatch.assert_not_awaited()

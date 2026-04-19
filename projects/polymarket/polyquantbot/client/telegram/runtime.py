@@ -286,13 +286,24 @@ class TelegramPollingLoop:
                 await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
                 return
 
-            # outcome == "resolved" — replace staging placeholder with real backend scope
+            # outcome == "resolved" — validate payload before constructing context
+            if not resolution.tenant_id or not resolution.user_id:
+                log.error(
+                    "crusaderbot_telegram_identity_resolved_incomplete",
+                    update_id=update.update_id,
+                    from_user_id=update.from_user_id,
+                    has_tenant_id=bool(resolution.tenant_id),
+                    has_user_id=bool(resolution.user_id),
+                )
+                await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
+                return
+
             ctx = TelegramCommandContext(
                 command=ctx.command,
                 from_user_id=ctx.from_user_id,
                 chat_id=ctx.chat_id,
-                tenant_id=resolution.tenant_id,  # type: ignore[arg-type]
-                user_id=resolution.user_id,  # type: ignore[arg-type]
+                tenant_id=resolution.tenant_id,
+                user_id=resolution.user_id,
             )
 
         try:
