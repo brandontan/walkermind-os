@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 12:12
-Status       : Phase 8.5 merged. Phase 8.6 persistent multi-user store foundation in progress on branch claude/phase-8-5-8-6-persistent-store-25UO0. SENTINEL validation required before merge.
+Last Updated : 2026-04-19 12:27
+Status       : SENTINEL validation completed for PR #602 (Phase 8.6 persistent multi-user store foundation) with CONDITIONAL verdict pending dependency-complete pytest evidence confirmation before merge decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -20,7 +20,7 @@ Status       : Phase 8.5 merged. Phase 8.6 persistent multi-user store foundatio
 - Phase 8.5 persistent wallet-link storage / lifecycle foundation merged: PersistentWalletLinkStore (local-file JSON), unlink lifecycle (active → unlinked), authenticated unlink route. Pytest gate: 33/33 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-5_01_persistent-wallet-link-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-5_02_pytest-evidence-pass.md`. SENTINEL report: `projects/polymarket/polyquantbot/reports/sentinel/phase8-5_01_wallet-link-persistence-validation.md`.
 
 [IN PROGRESS]
-- Phase 8.6 persistent multi-user store foundation: PersistentMultiUserStore (local-file JSON), MultiUserStore abstract base, services switched to MultiUserStore, restart-safe user/account/wallet ownership chain. Branch: claude/phase-8-5-8-6-persistent-store-25UO0.
+- Phase 8.6 persistent multi-user store foundation: SENTINEL completed on PR #602 with CONDITIONAL verdict; code-level persistence/ownership checks passed, merge gate pending dependency-complete pytest reproduction for the claimed 46-test suite. Branch: claude/phase-8-5-8-6-persistent-store-25UO0.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -28,7 +28,7 @@ Status       : Phase 8.5 merged. Phase 8.6 persistent multi-user store foundatio
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase 8.6 persistent multi-user store foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-6_01_persistent-multi-user-store-foundation.md. Tier: MAJOR.
+- COMMANDER decision gate for PR #602: review SENTINEL CONDITIONAL verdict and require dependency-complete pytest evidence for the claimed 46-test suite before merge. Evidence: projects/polymarket/polyquantbot/reports/sentinel/phase8-6_01_persistent-multi-user-store-validation.md.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
