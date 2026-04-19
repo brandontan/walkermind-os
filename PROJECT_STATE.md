@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 08:46
-Status       : Phase 8.1 remains in progress; FORGE-X executed the required PR #590 pytest gate command but this runner cannot install `fastapi`/`pydantic` due package proxy restriction, so executable pass evidence is still pending dependency-complete environment rerun.
+Last Updated : 2026-04-19 09:03
+Status       : Phase 8.1 remains in progress; MAJOR evidence run for PR #590 executed required pytest command but real pass evidence is blocked in this runner because both pip and apt dependency provisioning paths are denied by network/proxy restrictions.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -16,8 +16,8 @@ Status       : Phase 8.1 remains in progress; FORGE-X executed the required PR #
 
 [IN PROGRESS]
 - Phase 8.1 Crusader multi-user foundation implementation is in progress for identity, tenant scope resolution, ownership guards, and scoped user/account/wallet storage/service boundaries.
-- SENTINEL validation for PR #590 remains CONDITIONAL until dependency-complete pytest pass evidence is attached.
-- FORGE-X evidence rerun task executed in current runner; dependency provisioning failed due package proxy restriction (`403 Forbidden`) and blocked pytest collection.
+- SENTINEL validation for PR #590 remains CONDITIONAL until real dependency-complete pytest pass evidence is attached.
+- MAJOR follow-up evidence run executed required command plus pip/apt provisioning attempts; all dependency provisioning paths are blocked in this runner by network/proxy restrictions.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -25,7 +25,7 @@ Status       : Phase 8.1 remains in progress; FORGE-X executed the required PR #
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER to run `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_1_multi_user_foundation_20260419.py` in a dependency-complete environment with `fastapi` and `pydantic`, then request final SENTINEL confirmation on PR #590.
+- COMMANDER to run `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_1_multi_user_foundation_20260419.py` in a dependency-complete local/CI/internal runner, attach passing output to PR #590, then request final SENTINEL confirmation.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
