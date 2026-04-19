@@ -26,6 +26,22 @@ class PaperBetaWorker:
         candidates = await self.signal_runner()
         events: list[dict[str, object]] = []
         for candidate in candidates:
+            if not STATE.autotrade_enabled:
+                STATE.last_risk_reason = "autotrade_disabled"
+                log.info(
+                    "paper_beta_worker_execution_skipped",
+                    reason="autotrade_disabled",
+                    signal_id=candidate.signal_id,
+                )
+                continue
+            if STATE.kill_switch:
+                STATE.last_risk_reason = "kill_switch_enabled"
+                log.info(
+                    "paper_beta_worker_execution_skipped",
+                    reason="kill_switch_enabled",
+                    signal_id=candidate.signal_id,
+                )
+                continue
             decision = self._risk_gate.evaluate(candidate, STATE)
             STATE.last_risk_reason = decision.reason
             if not decision.allowed:
@@ -59,8 +75,6 @@ async def run_worker_loop(iterations: int = 1) -> None:
         engine=PaperExecutionEngine(PaperPortfolio()),
     )
     for _ in range(max(iterations, 1)):
-        if STATE.kill_switch:
-            break
         events = await worker.run_once()
         log.info("paper_beta_worker_iteration", positions=len(STATE.positions), events=events)
         await asyncio.sleep(0)

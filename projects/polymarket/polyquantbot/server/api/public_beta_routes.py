@@ -25,13 +25,8 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
             "mode": STATE.mode,
             "autotrade": STATE.autotrade_enabled,
             "kill_switch": STATE.kill_switch,
-            "positions": len(STATE.positions),
-            "pnl": STATE.pnl,
-            "risk": {
-                "drawdown": STATE.drawdown,
-                "exposure": STATE.exposure,
-                "last_reason": STATE.last_risk_reason,
-            },
+            "position_count": len(STATE.positions),
+            "last_risk_reason": STATE.last_risk_reason,
         }
 
     @router.post("/mode")
@@ -56,6 +51,20 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
     @router.get("/positions")
     async def positions() -> dict[str, object]:
         return {"items": [p.__dict__ for p in STATE.positions]}
+
+    @router.get("/pnl")
+    async def pnl() -> dict[str, object]:
+        return {"pnl": STATE.pnl}
+
+    @router.get("/risk")
+    async def risk() -> dict[str, object]:
+        return {
+            "drawdown": STATE.drawdown,
+            "exposure": STATE.exposure,
+            "last_reason": STATE.last_risk_reason,
+            "kill_switch": STATE.kill_switch,
+            "autotrade_enabled": STATE.autotrade_enabled,
+        }
 
     @router.get("/markets")
     async def markets(query: str = "") -> dict[str, object]:

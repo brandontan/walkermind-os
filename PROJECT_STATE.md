@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 00:04
-Status       : Phase 8.3 public paper beta spine implementation is in progress on branch refactor/public-paper-beta-spine-20260419 with new API/Telegram/worker runtime slice, backend-managed Falcon contract, and paper risk-gated auto-trade loop awaiting SENTINEL validation.
+Last Updated : 2026-04-20 00:15
+Status       : Phase 8.3 public paper beta spine fix pass for PR #620 is in progress on branch refactor/public-paper-beta-spine-20260419 with autotrade/kill execution gating, truthful Telegram command mapping, and narrowed placeholder disclosure awaiting SENTINEL validation.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -27,7 +27,7 @@ Status       : Phase 8.3 public paper beta spine implementation is in progress o
 
 [IN PROGRESS]
 - Phase 8.13 Telegram session-issuance gate fix: auto-promotion removed, strict active-only issuance gate enforced, 148/148 pytest pass, awaiting COMMANDER merge decision on PR #616 / branch claude/fix-telegram-session-issuance-zGD86.
-- Phase 8.3 Public Paper Beta Spine (MAJOR): entrypoints + FastAPI control plane + backend-managed Falcon + Telegram public command shell + paper auto-trading worker + risk gate enforcement implemented on branch refactor/public-paper-beta-spine-20260419; pending SENTINEL review before merge.
+- Phase 8.3 Public Paper Beta Spine (MAJOR) fix pass: autotrade off and kill switch now both block new paper entries, /connect_wallet stub removed, /positions /pnl /risk /status mapped to truthful backend surfaces, and Fly/docs claim wording aligned with narrow placeholder behavior; pending SENTINEL review before merge.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.

@@ -16,22 +16,26 @@
 - `POST /beta/autotrade`
 - `POST /beta/kill`
 - `GET /beta/positions`
+- `GET /beta/pnl`
+- `GET /beta/risk`
 - `GET /beta/markets`
 - `GET /beta/market360/{condition_id}`
 - `GET /beta/social?topic=...`
 
 ## Falcon backend-managed contract
 Falcon config is backend-managed only using environment variables:
-- `FALCON_API_KEY`
+- `FALCON_API_KEY` (required only when `FALCON_ENABLED=true`)
 - `FALCON_BASE_URL`
 - `FALCON_TIMEOUT`
 - `FALCON_ENABLED`
 
 No user-managed key flow and no `/setkey` command is provided.
 
+### Runtime truth note
+This lane is **NARROW INTEGRATION**. Falcon market/candidate/social data currently includes bounded placeholder/sample behavior in `FalconGateway` and is not yet a full production retrieval surface.
+
 ## Telegram command shell (public beta)
 - `/start`
-- `/connect_wallet`
 - `/mode [paper|live]`
 - `/autotrade [on|off]`
 - `/positions`
@@ -48,13 +52,12 @@ Manual trade-entry commands are intentionally excluded.
 ## Paper worker flow
 `market_sync -> signal_runner -> risk_monitor -> position_monitor -> price_updater`
 
-Execution mode defaults to `paper`. Risk gate enforces:
-- positive EV
-- minimum edge threshold
-- liquidity floor
-- drawdown stop
-- exposure cap
-- idempotency
-- kill switch
+Execution mode defaults to `paper`. New entries are blocked when:
+- `autotrade_enabled=false`
+- `kill_switch=true`
+- risk gate rejects EV/edge/liquidity/drawdown/exposure/idempotency checks
 
-Write-side execution for this beta slice remains paper-only and never sends live orders.
+Monitoring/update stages still run even when entry creation is blocked.
+
+## Fly deploy truth
+Fly runtime is paper-mode by default. To activate Falcon-backed candidate generation, deploy must provide secret-backed Falcon configuration (`FALCON_ENABLED=true` + `FALCON_API_KEY` and optional base URL override).

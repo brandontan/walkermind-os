@@ -32,5 +32,4 @@ primary_region = "iad"
 [env]
   CRUSADER_STARTUP_MODE = "strict"
   TRADING_MODE = "PAPER"
-  FALCON_ENABLED = "false"
   FALCON_TIMEOUT = "8"

@@ -45,8 +45,6 @@ class TelegramDispatcher:
         arg = ctx.argument.strip()
         if command == "/start":
             return await self._dispatch_start(ctx)
-        if command == "/connect_wallet":
-            return DispatchResult(outcome="ok", reply_text="Wallet connect request acknowledged.")
         if command == "/mode":
             mode = arg.lower()
             data = await self._backend.beta_post("/beta/mode", {"mode": mode})
@@ -55,9 +53,18 @@ class TelegramDispatcher:
             enabled = arg.lower() == "on"
             data = await self._backend.beta_post("/beta/autotrade", {"enabled": enabled})
             return DispatchResult(outcome="ok", reply_text=f"Autotrade: {data.get('autotrade', False)}")
-        if command in {"/positions", "/pnl", "/risk", "/status"}:
-            status = await self._backend.beta_get("/beta/status")
-            return DispatchResult(outcome="ok", reply_text=str(status))
+        if command == "/positions":
+            data = await self._backend.beta_get("/beta/positions")
+            return DispatchResult(outcome="ok", reply_text=str(data.get("items", [])))
+        if command == "/pnl":
+            data = await self._backend.beta_get("/beta/pnl")
+            return DispatchResult(outcome="ok", reply_text=f"PnL: {data.get('pnl', 0.0)}")
+        if command == "/risk":
+            data = await self._backend.beta_get("/beta/risk")
+            return DispatchResult(outcome="ok", reply_text=str(data))
+        if command == "/status":
+            data = await self._backend.beta_get("/beta/status")
+            return DispatchResult(outcome="ok", reply_text=str(data))
         if command == "/markets":
             data = await self._backend.beta_get("/beta/markets", params={"query": arg})
             return DispatchResult(outcome="ok", reply_text=str(data.get("items", [])))
