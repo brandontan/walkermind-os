@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 00:15
-Status       : Phase 8.3 public paper beta spine fix pass for PR #620 is in progress on branch refactor/public-paper-beta-spine-20260419 with autotrade/kill execution gating, truthful Telegram command mapping, and narrowed placeholder disclosure awaiting SENTINEL validation.
+Last Updated : 2026-04-20 00:26
+Status       : SENTINEL PASS WITH NOTES completed for Phase 8.3 public paper beta spine (PR #620) on branch refactor/public-paper-beta-spine-20260419; runtime slice and claim discipline validated for COMMANDER merge decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -27,7 +27,7 @@ Status       : Phase 8.3 public paper beta spine fix pass for PR #620 is in prog
 
 [IN PROGRESS]
 - Phase 8.13 Telegram session-issuance gate fix: auto-promotion removed, strict active-only issuance gate enforced, 148/148 pytest pass, awaiting COMMANDER merge decision on PR #616 / branch claude/fix-telegram-session-issuance-zGD86.
-- Phase 8.3 Public Paper Beta Spine (MAJOR) fix pass: autotrade off and kill switch now both block new paper entries, /connect_wallet stub removed, /positions /pnl /risk /status mapped to truthful backend surfaces, and Fly/docs claim wording aligned with narrow placeholder behavior; pending SENTINEL review before merge.
+- Phase 8.3 Public Paper Beta Spine (MAJOR) SENTINEL review completed with PASS WITH NOTES for PR #620: worker autotrade/kill/risk gating, truthful Telegram command routing, Fly /health deploy contract, and narrow Falcon placeholder disclosure validated.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -35,7 +35,7 @@ Status       : Phase 8.3 public paper beta spine fix pass for PR #620 is in prog
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL review for Phase 8.3 Public Paper Beta Spine on branch refactor/public-paper-beta-spine-20260419 is required before merge. Report: projects/polymarket/polyquantbot/reports/forge/phase8-3_04_public-paper-beta-spine.md.
+- COMMANDER merge decision for PR #620 (Phase 8.3 Public Paper Beta Spine) with SENTINEL PASS WITH NOTES. Validation report: projects/polymarket/polyquantbot/reports/sentinel/phase8-3_01_public-paper-beta-spine-validation-pr620.md.
 - COMMANDER review and merge decision for Phase 8.13 session-issuance gate fix (branch claude/fix-telegram-session-issuance-zGD86). SENTINEL PR #617 BLOCKED finding is resolved; PR #617 can be closed after merge. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_02_fix-session-issuance-gate.md.
 
 [KNOWN ISSUES]
