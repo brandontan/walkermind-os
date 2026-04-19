@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 12:58
+**Last Updated:** 2026-04-19 14:01
 
 # Board Overview
 
@@ -245,8 +245,8 @@
 ## CrusaderBot — Telegram/Web Runtime Handoff Integration Foundation Checklist (Phase 8.7)
 
 **Goal:** Connect real client runtime entry surfaces (Telegram bot + web) to the persistent backend identity/session/ownership foundation established in Phases 8.1–8.6, enabling truthful authenticated handoff/session creation from client runtimes.  
-**Status:** 🚧 In Progress — SENTINEL validation required before merge  
-**Last Updated:** 2026-04-19 12:58
+**Status:** ✅ Done (merged. SENTINEL CONDITIONAL gate satisfied. Pytest gate: 62/62 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-7_01_telegram-web-runtime-handoff-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-7_02_pytest-evidence-pass.md`. SENTINEL: `projects/polymarket/polyquantbot/reports/sentinel/phase8-7_01_runtime-handoff-validation-pr604.md`)  
+**Last Updated:** 2026-04-19 14:01
 
 ### Scope Lock
 - [x] Keep scope on Telegram/Web client runtime handoff surfaces only
@@ -269,6 +269,38 @@
 - [x] Delegated signing lifecycle
 - [x] Exchange execution rollout
 - [x] Portfolio engine rollout
+
+---
+
+## CrusaderBot — Real Telegram Dispatch Integration Foundation Checklist (Phase 8.8)
+
+**Goal:** Wire the Telegram runtime to a real dispatchable `/start` path over the existing `handle_start()` foundation. Introduce a truthful command dispatch boundary (`TelegramDispatcher`) that routes `/start` to `handle_start()` and maps `HandleStartResult` to a typed `DispatchResult`. Update `client/telegram/bot.py` to wire the dispatcher truthfully. Exclude full polished Telegram UX, broad command suite, OAuth, RBAC, and delegated signing lifecycle.  
+**Status:** 🚧 In Progress — SENTINEL validation required before merge  
+**Last Updated:** 2026-04-19 14:01
+
+### Scope Lock
+- [x] Keep scope on Telegram command dispatch boundary only (/start → handle_start)
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full polished Telegram bot product
+
+### Foundation Deliverables
+- [x] Add `TelegramCommandContext` — inbound command context dataclass
+- [x] Add `DispatchResult` — typed dispatch result with outcome + reply_text + session_id
+- [x] Add `TelegramDispatcher` — routes /start to handle_start(), handles unknown commands safely
+- [x] Update `client/telegram/bot.py` to wire `TelegramDispatcher` over backend client
+- [x] Add targeted tests for /start dispatch, reply mapping, and unknown command handling
+- [x] Preserve Phase 8.7 regression suite (62/62 pass carried forward)
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full polished Telegram UX
+- [x] Broad command suite beyond /start
+- [x] OAuth rollout
+- [x] RBAC rollout
+- [x] Delegated signing lifecycle
+- [x] Exchange execution rollout
+- [x] Portfolio engine rollout
+- [x] Full web UX rollout
 
 ---
 
