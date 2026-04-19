@@ -1,24 +1,32 @@
 """Telegram runtime adapter and polling loop — inbound update processing foundation.
 
-Phase 8.9: Introduces the adapter boundary for inbound Telegram updates and
+Phase 8.10: Introduces TelegramIdentityResolver Protocol and updates
+TelegramPollingLoop to resolve inbound Telegram from_user_id to real backend
+tenant/user scope before command dispatch. Safe fallback reply behavior defined
+for not_found and error resolution outcomes.
+
+Phase 8.9: Introduced the adapter boundary for inbound Telegram updates and
 outbound reply sending, context extraction from raw Telegram messages, and a
 truthful polling loop that drives /start through TelegramDispatcher.
 
-Staging identity contract: tenant_id and user_id are not derivable from
-inbound Telegram updates without a backend user lookup. For Phase 8.9 foundation,
-configurable staging values are used. Production identity resolution is a
-follow-up lane.
+Staging fallback: if no identity_resolver is provided, the polling loop falls
+back to the configurable staging_tenant_id / staging_user_id contract. This
+preserves backward compatibility for tests and non-identity-wired environments.
 """
 from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Protocol
 
 import httpx
 import structlog
 
+from projects.polymarket.polyquantbot.client.telegram.backend_client import (
+    CrusaderBackendClient,
+    TelegramIdentityResolution,
+)
 from projects.polymarket.polyquantbot.client.telegram.dispatcher import (
     DispatchResult,
     TelegramCommandContext,
@@ -29,6 +37,12 @@ log = structlog.get_logger(__name__)
 
 _STAGING_TENANT_ID = "staging"
 _STAGING_USER_ID = "staging"
+
+_REPLY_NOT_REGISTERED = (
+    "You are not registered with CrusaderBot. "
+    "Contact the bot administrator to get access."
+)
+_REPLY_IDENTITY_ERROR = "Unable to verify your identity. Please try again later."
 
 
 @dataclass(frozen=True)
@@ -58,6 +72,21 @@ class TelegramRuntimeAdapter(ABC):
     @abstractmethod
     async def send_reply(self, chat_id: str, text: str) -> None:
         """Send reply text to a Telegram chat."""
+        ...
+
+
+class TelegramIdentityResolver(Protocol):
+    """Protocol for resolving Telegram user IDs to backend user scope.
+
+    Any object that implements resolve_telegram_identity(telegram_user_id) ->
+    TelegramIdentityResolution satisfies this protocol. CrusaderBackendClient
+    implements this structurally.
+    """
+
+    async def resolve_telegram_identity(
+        self, telegram_user_id: str
+    ) -> TelegramIdentityResolution:
+        """Resolve a Telegram user ID to backend tenant/user scope."""
         ...
 
 
@@ -150,8 +179,8 @@ def extract_command_context(
     """Extract TelegramCommandContext from an inbound update if it carries a command.
 
     Returns None for non-command messages (text not starting with '/').
-    tenant_id and user_id use the staging contract for Phase 8.9 — production
-    identity resolution from Telegram user data is a follow-up lane.
+    tenant_id and user_id are placeholder values — callers should supply resolved
+    backend identity or rely on the TelegramPollingLoop identity resolver path.
     """
     text = update.text.strip() if update.text else ""
     if not text.startswith("/"):
@@ -170,22 +199,28 @@ def extract_command_context(
 class TelegramPollingLoop:
     """Runtime loop that drives inbound Telegram updates through TelegramDispatcher.
 
-    Phase 8.9 foundation: processes commands (currently /start) via
+    Phase 8.10: When identity_resolver is provided, resolves inbound from_user_id
+    to real backend tenant/user scope before dispatch. Unregistered users receive
+    a not-registered reply and command dispatch is skipped. Backend errors receive
+    a safe error reply. Staging fallback is used when no resolver is wired.
+
+    Phase 8.9 baseline: processes commands (currently /start) via
     dispatcher.dispatch() and sends reply_text back through the adapter boundary.
     Non-command messages are logged and skipped. Dispatch and send_reply
-    exceptions are caught, logged, and result in safe error replies — the loop
-    does not crash on individual update failures.
+    exceptions are caught, logged, and result in safe error replies.
     """
 
     def __init__(
         self,
         adapter: TelegramRuntimeAdapter,
         dispatcher: TelegramDispatcher,
+        identity_resolver: Optional[TelegramIdentityResolver] = None,
         staging_tenant_id: str = _STAGING_TENANT_ID,
         staging_user_id: str = _STAGING_USER_ID,
     ) -> None:
         self._adapter = adapter
         self._dispatcher = dispatcher
+        self._identity_resolver = identity_resolver
         self._staging_tenant_id = staging_tenant_id
         self._staging_user_id = staging_user_id
         self._offset: int = 0
@@ -218,6 +253,48 @@ class TelegramPollingLoop:
             )
             return
 
+        if self._identity_resolver is not None:
+            try:
+                resolution = await self._identity_resolver.resolve_telegram_identity(
+                    update.from_user_id
+                )
+            except Exception as exc:
+                log.error(
+                    "crusaderbot_telegram_identity_resolver_exception",
+                    update_id=update.update_id,
+                    from_user_id=update.from_user_id,
+                    error=str(exc),
+                )
+                await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
+                return
+
+            if resolution.outcome == "not_found":
+                log.info(
+                    "crusaderbot_telegram_identity_not_registered",
+                    update_id=update.update_id,
+                    from_user_id=update.from_user_id,
+                )
+                await self._safe_send_reply(update.chat_id, _REPLY_NOT_REGISTERED)
+                return
+
+            if resolution.outcome == "error":
+                log.error(
+                    "crusaderbot_telegram_identity_resolution_error",
+                    update_id=update.update_id,
+                    from_user_id=update.from_user_id,
+                )
+                await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
+                return
+
+            # outcome == "resolved" — replace staging placeholder with real backend scope
+            ctx = TelegramCommandContext(
+                command=ctx.command,
+                from_user_id=ctx.from_user_id,
+                chat_id=ctx.chat_id,
+                tenant_id=resolution.tenant_id,  # type: ignore[arg-type]
+                user_id=resolution.user_id,  # type: ignore[arg-type]
+            )
+
         try:
             result: DispatchResult = await self._dispatcher.dispatch(ctx)
         except Exception as exc:
@@ -249,10 +326,14 @@ class TelegramPollingLoop:
 async def run_polling_loop(
     adapter: TelegramRuntimeAdapter,
     dispatcher: TelegramDispatcher,
+    identity_resolver: Optional[TelegramIdentityResolver] = None,
     staging_tenant_id: str = _STAGING_TENANT_ID,
     staging_user_id: str = _STAGING_USER_ID,
 ) -> None:
     """Top-level async polling function. Runs until cancelled.
+
+    Phase 8.10: accepts identity_resolver to replace staging placeholders with
+    real backend user scope. When resolver is None, falls back to staging contract.
 
     Processes updates in run_once() batches. Sleeps briefly when no updates
     are available to avoid tight looping. On unexpected errors, sleeps 5
@@ -261,13 +342,15 @@ async def run_polling_loop(
     loop = TelegramPollingLoop(
         adapter=adapter,
         dispatcher=dispatcher,
+        identity_resolver=identity_resolver,
         staging_tenant_id=staging_tenant_id,
         staging_user_id=staging_user_id,
     )
     log.info(
         "crusaderbot_telegram_polling_started",
-        phase="8.9",
+        phase="8.10",
         registered_commands=["/start"],
+        identity_resolution="enabled" if identity_resolver is not None else "staging_fallback",
         staging_tenant_id=staging_tenant_id,
         staging_user_id=staging_user_id,
     )

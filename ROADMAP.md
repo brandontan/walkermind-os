@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 15:21
+**Last Updated:** 2026-04-19 15:52
 
 # Board Overview
 
@@ -307,8 +307,8 @@
 ## CrusaderBot — Real Telegram Polling / Runtime Loop Foundation Checklist (Phase 8.9)
 
 **Goal:** Introduce the first real Telegram runtime loop foundation that drives inbound `/start` messages through `TelegramDispatcher` via a truthful adapter/runtime boundary under `projects/polymarket/polyquantbot/client/telegram/`.  
-**Status:** 🚧 In Progress — SENTINEL validation required before merge  
-**Last Updated:** 2026-04-19 15:21
+**Status:** ✅ Done (merged. SENTINEL CONDITIONAL gate satisfied via phase8-9_02_pytest-evidence-pass.md, 94/94 pass. PR #608 merged, PR #609 CONDITIONAL satisfied. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-9_01_telegram-runtime-loop-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-9_02_pytest-evidence-pass.md`)  
+**Last Updated:** 2026-04-19 15:52
 
 ### Scope Lock
 - [x] Keep scope on Telegram runtime adapter boundary + polling loop foundation only
@@ -338,6 +338,47 @@
 - [x] Portfolio engine rollout
 - [x] Full web UX rollout
 - [x] Production Telegram deployment orchestration
+
+---
+
+## CrusaderBot — Telegram Identity Resolution Foundation Checklist (Phase 8.10)
+
+**Goal:** Replace staging tenant/user placeholders in the Telegram runtime with a truthful backend-driven identity resolution foundation under `projects/polymarket/polyquantbot/`. Introduces a narrow service/contract that maps inbound Telegram `from_user_id` to backend user scope, updates the polling loop to use resolved identity for command dispatch, and defines safe fallback reply behavior for unlinked/unknown users and backend errors.  
+**Status:** 🚧 In Progress — SENTINEL validation required before merge  
+**Last Updated:** 2026-04-19 15:52
+
+### Scope Lock
+- [x] Keep scope on Telegram identity resolution contract only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full account-link UX completion or production-grade identity linking
+
+### Foundation Deliverables
+- [x] Add `get_user_by_external_id(tenant_id, external_id)` to `MultiUserStore` abstract base and `PersistentMultiUserStore`
+- [x] Add `get_user_by_external_id` to `InMemoryMultiUserStore`
+- [x] Add `get_user_by_external_id` to `UserService`
+- [x] Add `TelegramIdentityService` — resolves `tg_{telegram_user_id}` external_id to backend user scope (resolved/not_found/error)
+- [x] Add `GET /auth/telegram-identity/{telegram_user_id}` backend route (pre-auth identity lookup)
+- [x] Wire `TelegramIdentityService` into `server/main.py`
+- [x] Add `TelegramIdentityResolution` dataclass and `TelegramIdentityResolver` Protocol to `client/telegram/runtime.py`
+- [x] Add `resolve_telegram_identity()` method to `CrusaderBackendClient` (implements Protocol structurally)
+- [x] Update `TelegramPollingLoop` to use identity resolver before dispatch (resolved/not_found/error branching)
+- [x] Define truthful reply behavior for not_found and error paths
+- [x] Update `run_polling_loop()` signature to accept `identity_resolver`
+- [x] Update `client/telegram/bot.py` to pass `backend` as `identity_resolver`
+- [x] Add targeted Phase 8.10 tests
+- [x] Preserve Phase 8.9 regression suite (94/94 pass carried forward)
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full polished Telegram account-link UX
+- [x] Broad command suite beyond /start
+- [x] OAuth rollout
+- [x] RBAC rollout
+- [x] Delegated signing lifecycle
+- [x] Exchange execution rollout
+- [x] Portfolio engine rollout
+- [x] Full web identity rollout
+- [x] Production-grade cross-client identity linking orchestration
 
 ---
 

@@ -35,3 +35,6 @@ class UserService:
 
     def get_user(self, user_id: str) -> UserRecord | None:
         return self._store.get_user(user_id)
+
+    def get_user_by_external_id(self, tenant_id: str, external_id: str) -> UserRecord | None:
+        return self._store.get_user_by_external_id(tenant_id, external_id)
