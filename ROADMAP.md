@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 10:04
+**Last Updated:** 2026-04-19 11:10
 
 # Board Overview
 
@@ -105,8 +105,8 @@
 ## CrusaderBot — Persistent Session Storage Foundation Checklist (Phase 8.3)
 
 **Goal:** Replace in-memory-only auth/session continuity with a truthful persistent session storage boundary for restart-safe identity scope under `projects/polymarket/polyquantbot/server/`.  
-**Status:** 🚧 In Progress  
-**Last Updated:** 2026-04-19 10:04
+**Status:** ✅ Done (Merged via PR #596)  
+**Last Updated:** 2026-04-19 11:10
 
 ### Scope Lock
 - [x] Keep scope on persistent auth/session foundation only
@@ -131,6 +131,45 @@
 - [x] Delegated wallet signing lifecycle
 - [x] Full DB migration platform
 - [x] Broad wallet lifecycle rollout
+
+---
+
+## CrusaderBot — Client Auth Handoff / Wallet-Link Foundation Checklist (Phase 8.4)
+
+**Goal:** Establish truthful client-to-backend identity handoff and user-owned wallet-link foundation over the persistent session backbone under `projects/polymarket/polyquantbot/server/`.  
+**Status:** 🚧 In Progress — SENTINEL validation required before merge  
+**Last Updated:** 2026-04-19 11:10
+
+### Scope Lock
+- [x] Keep scope on client auth handoff contract + wallet-link foundation only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full public auth or full wallet lifecycle completion
+
+### Foundation Deliverables
+- [x] Add minimal client auth handoff contract with structural validation (core/client_auth_handoff.py)
+- [x] Expose POST /auth/handoff route — issues session for known user via handoff claim
+- [x] Add wallet-link schema foundation (WalletLinkRecord, WalletLinkCreateRequest)
+- [x] Add wallet-link storage boundary (WalletLinkStore — in-memory)
+- [x] Add wallet-link service (create_link, list_links — user-scoped)
+- [x] Expose authenticated POST /auth/wallet-links and GET /auth/wallet-links routes
+- [x] Enforce authenticated scope on all wallet-link routes (no session → 403)
+- [x] Enforce cross-user isolation (user B cannot read user A's wallet-links)
+- [x] Wire WalletLinkStore + WalletLinkService + client_auth_router into server/main.py
+- [x] Add 12 tests covering handoff contract, handoff route, wallet-link create/read/deny flows
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full Telegram login UX
+- [x] Full web login UX
+- [x] OAuth rollout
+- [x] Production token rotation platform
+- [x] Full RBAC
+- [x] Delegated signing lifecycle
+- [x] Full wallet lifecycle orchestration
+- [x] Exchange signing rollout
+- [x] On-chain settlement rollout
+- [x] Persistent wallet-link storage (deferred follow-up lane)
+- [x] Broad portfolio engine work
 
 ---
 
