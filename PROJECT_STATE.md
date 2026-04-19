@@ -1,4 +1,4 @@
-Last Updated : 2026-04-19 14:01
+Last Updated : 2026-04-19 14:21
 Status       : Phase 8.7 Telegram/Web runtime handoff integration foundation merged (SENTINEL CONDITIONAL gate satisfied via phase8-7_02_pytest-evidence-pass.md, 62/62 pass). Phase 8.8 real Telegram dispatch integration foundation in progress on branch claude/phase-8-7-8-telegram-dispatch-TAE9c.
 
 [COMPLETED]
@@ -22,7 +22,7 @@ Status       : Phase 8.7 Telegram/Web runtime handoff integration foundation mer
 - Phase 8.7 Telegram/Web runtime handoff integration foundation merged: CrusaderBackendClient HTTP bridge, handle_start Telegram handler, handle_web_handoff web handler, client/telegram/bot.py backend wiring. SENTINEL CONDITIONAL gate satisfied. Pytest gate: 62/62 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-7_01_telegram-web-runtime-handoff-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-7_02_pytest-evidence-pass.md`. SENTINEL report: `projects/polymarket/polyquantbot/reports/sentinel/phase8-7_01_runtime-handoff-validation-pr604.md`.
 
 [IN PROGRESS]
-- Phase 8.8 real Telegram dispatch integration foundation: TelegramDispatcher command router, /start → handle_start() dispatch boundary, reply mapping adapter contract, targeted tests. Branch: claude/phase-8-7-8-telegram-dispatch-TAE9c.
+- Phase 8.8 real Telegram dispatch integration foundation validated by SENTINEL for PR #606 with CONDITIONAL verdict (runtime path validated; traceability drift fix pending for missing historical Sentinel report references). Branch: claude/phase-8-7-8-telegram-dispatch-TAE9c.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -30,7 +30,7 @@ Status       : Phase 8.7 Telegram/Web runtime handoff integration foundation mer
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase 8.8 real Telegram dispatch integration foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-8_01_telegram-dispatch-foundation.md. Tier: MAJOR.
+- COMMANDER decision gate for PR #606 (SENTINEL verdict: CONDITIONAL). Resolve traceability drift on missing Sentinel report references before merge. Validation report: projects/polymarket/polyquantbot/reports/sentinel/phase8-8_01_telegram-dispatch-validation-pr606.md.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
