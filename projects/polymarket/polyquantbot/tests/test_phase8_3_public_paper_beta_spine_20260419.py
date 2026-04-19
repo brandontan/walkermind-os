@@ -29,6 +29,21 @@ class FakeFalcon:
         ]
 
 
+class RecordingWorker(PaperBetaWorker):
+    def __init__(self, falcon, risk_gate, engine) -> None:
+        super().__init__(falcon, risk_gate, engine)
+        self.position_monitor_calls = 0
+        self.price_updater_calls = 0
+
+    async def position_monitor(self) -> int:
+        self.position_monitor_calls += 1
+        return await super().position_monitor()
+
+    async def price_updater(self) -> None:
+        self.price_updater_calls += 1
+        await super().price_updater()
+
+
 @dataclass
 class FakeBackend:
     last_get_path: str = ""
@@ -102,6 +117,27 @@ def test_kill_switch_prevents_new_entries() -> None:
     asyncio.run(worker.run_once())
     assert len(STATE.positions) == 0
     assert STATE.last_risk_reason == "kill_switch_enabled"
+
+
+def test_mode_live_blocks_execution_events() -> None:
+    _reset_state()
+    STATE.mode = "live"
+    STATE.autotrade_enabled = True
+    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    events = asyncio.run(worker.run_once())
+    assert events == []
+    assert len(STATE.positions) == 0
+    assert STATE.last_risk_reason == "mode_live_paper_execution_disabled"
+    assert STATE.worker_runtime.last_iteration.skip_mode_count == 1
+
+
+def test_monitoring_stages_still_run_when_entries_blocked() -> None:
+    _reset_state()
+    worker = RecordingWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    asyncio.run(worker.run_once())
+    assert worker.position_monitor_calls == 1
+    assert worker.price_updater_calls == 1
+    assert STATE.worker_runtime.last_iteration.skip_autotrade_count == 1
 
 
 def test_positions_command_maps_to_positions_endpoint() -> None:

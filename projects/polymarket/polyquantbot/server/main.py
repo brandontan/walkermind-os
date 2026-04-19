@@ -114,7 +114,7 @@ def create_app() -> FastAPI:
     app.state.wallet_link_service = wallet_link_service
 
     falcon_gateway = FalconGateway(settings=falcon_settings)
-    router = build_router(settings=settings, state=state)
+    router = build_router(settings=settings, state=state, falcon_settings=falcon_settings)
     app.include_router(router)
     app.include_router(
         build_multi_user_router(
@@ -152,10 +152,12 @@ def create_app() -> FastAPI:
         runtime="server.main",
         port=settings.port,
         trading_mode=settings.trading_mode,
+        falcon_enabled=falcon_settings.enabled,
+        falcon_key_configured=bool(falcon_settings.api_key.strip()),
         multi_user_storage_path=str(multi_user_storage_path),
         session_storage_path=str(session_storage_path),
         wallet_link_storage_path=str(wallet_link_storage_path),
-        phase="8.3-public-paper-beta",
+        phase="8.4-paper-beta-hardening",
     )
     return app
 
