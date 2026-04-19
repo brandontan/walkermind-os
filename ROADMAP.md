@@ -102,60 +102,122 @@
 - [ ] Create `projects/polymarket/polyquantbot/scripts/run_bot.py`
 - [ ] Create `projects/polymarket/polyquantbot/scripts/run_worker.py`
 - [ ] Reduce root `main.py` to a thin compatibility wrapper if needed
+## CrusaderBot — Fly.io Deploy Readiness Checklist
+
+**Goal:** Prepare CrusaderBot for Fly.io deployment while keeping the project rooted at `projects/polymarket/polyquantbot/` and aligning the structure toward the Crusader multi-user blueprint in `docs/crusader_multi_user_architecture_blueprint.md`.  
+**Status:** ✅ Done  
+**Last Updated:** 2026-04-19 07:05
+
+### Scope Lock
+- [x] Keep the working root at `projects/polymarket/polyquantbot/`
+- [x] Use `CrusaderBot` as the runtime-facing product name
+- [x] Keep the task scoped to deploy-readiness + structural cleanup
+- [x] Keep the folder name `polyquantbot` for now
+- [x] Treat validation as `MAJOR`
+- [x] Require SENTINEL before merge
+
+### Baseline Audit
+- [x] Read `PROJECT_STATE.md`
+- [x] Read `ROADMAP.md`
+- [x] Inspect `projects/polymarket/polyquantbot/` structure
+- [x] Confirm deploy artifacts exist:
+  - [x] `projects/polymarket/polyquantbot/Dockerfile`
+  - [x] `projects/polymarket/polyquantbot/fly.toml`
+- [x] Inspect current primary runtime entrypoint:
+  - [x] `projects/polymarket/polyquantbot/main.py`
+- [x] Confirm the current structure is still polyquantbot-centric
+- [x] Confirm the current structure is not yet aligned with the Crusader multi-user blueprint
+- [x] Confirm `main.py` is oversized and acting as an orchestration sink
+- [x] Confirm overlapping / mixed layers exist:
+  - [x] `api`
+  - [x] `interface`
+  - [x] `telegram`
+  - [x] `ui`
+  - [x] `views`
+  - [x] `legacy`
+- [ ] Inventory active import paths that must remain compatible
+- [ ] Inventory legacy-only modules
+- [ ] Inventory Fly-critical versus optional runtime surfaces
+
+### Target Structure Planning
+- [x] Define target structural direction from the Crusader multi-user blueprint:
+  - [x] `client/telegram/`
+  - [x] `client/web/`
+  - [x] `server/api/`
+  - [x] `server/services/`
+  - [x] `server/utils/`
+  - [x] `configs/`
+  - [x] `scripts/`
+- [x] Confirm cleanup strategy is structural normalization, not a rewrite
+- [x] Confirm `main.py` should become a thin bootstrap or compatibility shim
+- [x] Confirm Telegram handlers should become thinner
+- [x] Confirm FastAPI should become the clear control-plane runtime surface
+- [x] Produce exact mapping from current directories to target directories
+- [x] Decide what moves now vs later
+- [x] Decide what becomes explicit legacy
+- [x] Decide which compatibility shims are required
+
+### Entrypoints and Runtime Surfaces
+- [x] Create `projects/polymarket/polyquantbot/server/main.py`
+- [x] Create `projects/polymarket/polyquantbot/client/telegram/bot.py`
+- [x] Create `projects/polymarket/polyquantbot/scripts/run_api.py`
+- [x] Create `projects/polymarket/polyquantbot/scripts/run_bot.py`
+- [x] Create `projects/polymarket/polyquantbot/scripts/run_worker.py`
+- [ ] Reduce root `main.py` to a thin compatibility wrapper if needed
 - [ ] Remove oversized startup responsibility from root `main.py`
-- [ ] Ensure new entrypoints resolve imports cleanly
+- [x] Ensure new entrypoints resolve imports cleanly
 
 ### FastAPI Control Plane
-- [ ] Implement minimal FastAPI app in `server/main.py`
-- [ ] Add `/health`
-- [ ] Add `/ready` if truthful and useful
-- [ ] Bind to Fly-injected `PORT`
-- [ ] Add deterministic startup validation for required env
-- [ ] Add graceful shutdown behavior
-- [ ] Make CrusaderBot the runtime-facing app name
+- [x] Implement minimal FastAPI app in `server/main.py`
+- [x] Add `/health`
+- [x] Add `/ready`
+- [x] Bind to Fly-injected `PORT`
+- [x] Add deterministic startup validation for required env
+- [x] Add graceful shutdown behavior
+- [x] Make CrusaderBot the runtime-facing app name
 
 ### Telegram Bootstrap Cleanup
-- [ ] Move Telegram bootstrap responsibility into `client/telegram/bot.py`
-- [ ] Keep Telegram runtime independently launchable
+- [x] Move Telegram bootstrap responsibility into `client/telegram/bot.py`
+- [x] Keep Telegram runtime independently launchable
 - [ ] Keep Telegram handlers thin
 - [ ] Remove deploy-critical logic from Telegram handler layer
-- [ ] Ensure Telegram runtime does not block the API runtime path
+- [x] Ensure Telegram runtime does not block the API runtime path
 
 ### Fly.io Deployment Contract
-- [ ] Update `projects/polymarket/polyquantbot/fly.toml`
-- [ ] Ensure Fly config matches the actual runtime process model
-- [ ] Ensure internal port matches app binding
-- [ ] Ensure health check path matches implemented route
-- [ ] Ensure machine/process command points to the correct entrypoint
-- [ ] Update `projects/polymarket/polyquantbot/Dockerfile`
-- [ ] Ensure Docker startup command is coherent
-- [ ] Ensure no stale command still points at the old monolithic runtime path
+- [x] Update `projects/polymarket/polyquantbot/fly.toml`
+- [x] Ensure Fly config matches the actual runtime process model
+- [x] Ensure internal port matches app binding
+- [x] Ensure health check path matches implemented route
+- [x] Ensure machine/process command points to the correct entrypoint
+- [x] Update `projects/polymarket/polyquantbot/Dockerfile`
+- [x] Ensure Docker startup command is coherent
+- [x] Ensure no stale command still points at the old monolithic runtime path
 
 ### Config, Compatibility, and Proof
 - [ ] Define minimum deploy-critical environment variables
 - [ ] Separate required vs optional env
-- [ ] Document what stayed, what moved, and what is now legacy
-- [ ] Avoid fake abstraction and dead imports
-- [ ] Add startup/import tests
-- [ ] Add `/health` test
-- [ ] Add deploy-critical config validation tests
-- [ ] Add deploy notes under project docs
-- [ ] Create a FORGE report under `projects/polymarket/polyquantbot/reports/forge/`
-- [ ] Update `PROJECT_STATE.md` truthfully when execution starts
-- [ ] Open PR from `refactor/infra-crusaderbot-fly-readiness-20260419`
-- [ ] Request SENTINEL review before merge
+- [x] Document what stayed, what moved, and what is now legacy
+- [x] Avoid fake abstraction and dead imports
+- [x] Add startup/import tests
+- [x] Add `/health` test
+- [x] Add deploy-critical config validation tests
+- [x] Add deploy notes under project docs
+- [x] Create a FORGE report under `projects/polymarket/polyquantbot/reports/forge/`
+- [x] Update `PROJECT_STATE.md` truthfully when execution starts
+- [x] Open PR from `refactor/infra-crusaderbot-fly-readiness-20260419`
+- [x] Request SENTINEL review before merge
 
 ### Final Acceptance Gate
-- [ ] Runtime-facing name is `CrusaderBot`
-- [ ] Project remains under `projects/polymarket/polyquantbot/`
-- [ ] Fly.io deploy surface is real and coherent
-- [ ] FastAPI health path works
-- [ ] Entrypoints are cleaner than baseline
-- [ ] Structure is materially closer to the Crusader blueprint
-- [ ] No fake abstraction introduced
-- [ ] FORGE report exists
-- [ ] State files are truthful
-- [ ] PR is ready for COMMANDER + SENTINEL
+- [x] Runtime-facing name is `CrusaderBot`
+- [x] Project remains under `projects/polymarket/polyquantbot/`
+- [x] Fly.io deploy surface is real and coherent
+- [x] FastAPI health path works
+- [x] Entrypoints are cleaner than baseline
+- [x] Structure is materially closer to the Crusader blueprint
+- [x] No fake abstraction introduced
+- [x] FORGE report exists
+- [x] State files are truthful
+- [x] PR is ready for COMMANDER + SENTINEL
 
 ---
 
