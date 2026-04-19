@@ -1,4 +1,4 @@
-Last Updated : 2026-04-19 23:28
+Last Updated : 2026-04-19 23:33
 Status       : Phase 8.13 session-issuance gate fix committed on branch claude/fix-telegram-session-issuance-zGD86. Auto-promotion removed from TelegramSessionIssuanceService; strict active-only gate enforced. 148/148 pytest pass. SENTINEL PR #617 BLOCKED finding is resolved pending COMMANDER merge decision.
 
 [COMPLETED]
@@ -26,7 +26,7 @@ Status       : Phase 8.13 session-issuance gate fix committed on branch claude/f
 - Phase 8.11 Telegram onboarding/account-link foundation merged truth synced on main: unresolved /start onboarding route and persistence evidence preserved in `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md` and `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`; expected validation reference path remains `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`.
 
 [IN PROGRESS]
-- Phase 8.13 Telegram session-issuance gate fix: auto-promotion removed, strict active-only issuance gate enforced, 148/148 pytest pass, awaiting COMMANDER merge decision on PR #616 / branch claude/fix-telegram-session-issuance-zGD86.
+- Phase 8.13 Telegram session-issuance gate fix validated by SENTINEL for PR #618 on branch claude/fix-telegram-session-issuance-zGD86 with CONDITIONAL verdict (contract checks PASS; 148/148 claim environment-gated on this runner).
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -34,7 +34,7 @@ Status       : Phase 8.13 session-issuance gate fix committed on branch claude/f
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review and merge decision for Phase 8.13 session-issuance gate fix (branch claude/fix-telegram-session-issuance-zGD86). SENTINEL PR #617 BLOCKED finding is resolved; PR #617 can be closed after merge. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_02_fix-session-issuance-gate.md.
+- COMMANDER final decision for PR #618 after dependency-complete pytest evidence confirms claimed 148/148 gate; SENTINEL contract validation is CONDITIONAL PASS. Reports: projects/polymarket/polyquantbot/reports/forge/phase8-13_02_fix-session-issuance-gate.md and projects/polymarket/polyquantbot/reports/sentinel/phase8-13_01_session-issuance-gate-validation-pr618.md.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
