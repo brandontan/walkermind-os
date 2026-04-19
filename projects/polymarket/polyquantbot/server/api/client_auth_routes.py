@@ -1,7 +1,7 @@
 """Client auth handoff and wallet-link authenticated routes."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from projects.polymarket.polyquantbot.server.api.auth_session_dependencies import get_authenticated_scope
@@ -11,6 +11,7 @@ from projects.polymarket.polyquantbot.server.core.scope import ScopeResolutionEr
 from projects.polymarket.polyquantbot.server.schemas.auth_session import AuthMethod, SessionCreateRequest
 from projects.polymarket.polyquantbot.server.schemas.wallet_link import WalletLinkCreateRequest
 from projects.polymarket.polyquantbot.server.services.auth_session_service import AuthSessionService
+from projects.polymarket.polyquantbot.server.services.telegram_identity_service import TelegramIdentityService
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import (
     WalletLinkNotFoundError,
     WalletLinkOwnershipError,
@@ -29,8 +30,31 @@ class ClientHandoffRequestBody(BaseModel):
 def build_client_auth_router(
     auth_session_service: AuthSessionService,
     wallet_link_service: WalletLinkService,
+    telegram_identity_service: TelegramIdentityService,
 ) -> APIRouter:
     router = APIRouter(prefix="/auth", tags=["client-auth"])
+
+    @router.get("/telegram-identity/{telegram_user_id}")
+    async def resolve_telegram_identity(
+        telegram_user_id: str,
+        tenant_id: str = Query(min_length=1),
+    ) -> dict[str, object]:
+        """Resolve a Telegram user ID to backend tenant/user scope.
+
+        Pre-auth identity lookup: does not require a session. Returns outcome
+        resolved/not_found/error with tenant_id and user_id when resolved.
+        Used by the Telegram runtime to replace staging placeholders with real
+        backend user scope before command dispatch.
+        """
+        resolution = telegram_identity_service.resolve(
+            telegram_user_id=telegram_user_id,
+            tenant_id=tenant_id,
+        )
+        return {
+            "outcome": resolution.outcome,
+            "tenant_id": resolution.tenant_id,
+            "user_id": resolution.user_id,
+        }
 
     @router.post("/handoff")
     async def client_handoff(body: ClientHandoffRequestBody) -> dict[str, object]:

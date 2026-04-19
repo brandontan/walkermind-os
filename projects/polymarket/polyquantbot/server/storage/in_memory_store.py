@@ -63,3 +63,9 @@ class InMemoryMultiUserStore(MultiUserStore):
 
     def get_session(self, session_id: str) -> SessionContext | None:
         return self.sessions.get(session_id)
+
+    def get_user_by_external_id(self, tenant_id: str, external_id: str) -> UserRecord | None:
+        for user in self.users.values():
+            if user.tenant_id == tenant_id and user.external_id == external_id:
+                return user
+        return None

@@ -78,7 +78,10 @@ async def run_bot() -> None:
         )
         raise RuntimeError("; ".join(validation_errors))
 
-    backend = CrusaderBackendClient(base_url=settings.backend_base_url)
+    backend = CrusaderBackendClient(
+        base_url=settings.backend_base_url,
+        identity_tenant_id=settings.staging_tenant_id,
+    )
     dispatcher = TelegramDispatcher(backend=backend)
     adapter = HttpTelegramAdapter(token=settings.telegram_token)
 
@@ -90,8 +93,9 @@ async def run_bot() -> None:
         backend_base_url=settings.backend_base_url,
         dispatcher="client.telegram.dispatcher.TelegramDispatcher",
         adapter="client.telegram.runtime.HttpTelegramAdapter",
+        identity_resolution="backend",
         registered_commands=["/start"],
-        phase="8.9",
+        phase="8.10",
         staging_tenant_id=settings.staging_tenant_id,
         staging_user_id=settings.staging_user_id,
     )
@@ -99,6 +103,7 @@ async def run_bot() -> None:
     await run_polling_loop(
         adapter=adapter,
         dispatcher=dispatcher,
+        identity_resolver=backend,
         staging_tenant_id=settings.staging_tenant_id,
         staging_user_id=settings.staging_user_id,
     )

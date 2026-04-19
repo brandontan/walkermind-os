@@ -52,6 +52,9 @@ class MultiUserStore:
     def list_wallets_for_account(self, tenant_id: str, account_id: str) -> list[WalletRecord]:
         raise NotImplementedError
 
+    def get_user_by_external_id(self, tenant_id: str, external_id: str) -> UserRecord | None:
+        raise NotImplementedError
+
 
 class PersistentMultiUserStore(MultiUserStore):
     """Local-file JSON multi-user store with deterministic overwrite semantics."""
@@ -111,6 +114,12 @@ class PersistentMultiUserStore(MultiUserStore):
             w for w in self._wallets.values()
             if w.tenant_id == tenant_id and w.account_id == account_id
         ]
+
+    def get_user_by_external_id(self, tenant_id: str, external_id: str) -> UserRecord | None:
+        for user in self._users.values():
+            if user.tenant_id == tenant_id and user.external_id == external_id:
+                return user
+        return None
 
     def _load_from_disk(self) -> None:
         if not self._storage_path.exists():
