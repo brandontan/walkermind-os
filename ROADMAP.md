@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active | Phase 7 — Orchestration & Automation Foundation |
+| Crusader | Polymarket | Active | Phase 8 — Multi-User Foundation |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 11:45
+**Last Updated:** 2026-04-19 07:22
 
 ## Board Overview
 
@@ -36,7 +36,37 @@
 | Phase 4 | Execution Formalization & Boundaries | ✅ Done | Internal |
 | Phase 5 | Real Execution & Capital System | ✅ Done | Internal |
 | Phase 6 | Production Safety & Stabilization | ✅ Done | Public Preparation |
-| Phase 7 | Orchestration & Automation Foundation | In Progress | Public Activation Orchestration |
+| Phase 7 | Orchestration & Automation Foundation | ✅ Done | Public Activation Orchestration |
+| Phase 8 | Multi-User Foundation | 🚧 In Progress | Multi-User Ownership & Tenant Scope |
+
+---
+
+## CrusaderBot — Multi-User Foundation Checklist
+
+**Goal:** Establish truthful backend foundations for user identity, tenant scope, ownership mapping, and scoped storage under `projects/polymarket/polyquantbot/server/`.  
+**Status:** 🚧 In Progress  
+**Last Updated:** 2026-04-19 07:22
+
+### Scope Lock
+- [x] Keep scope on backend multi-user foundations only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full auth/session productization
+
+### Foundation Deliverables
+- [x] Add tenant/user scope helpers for ownership boundaries
+- [x] Add schema foundations for `user`, `account`, `wallet`, `user_settings`
+- [x] Add storage foundations for scoped entities
+- [x] Add thin `user`, `account`, and `wallet` service boundaries
+- [x] Add minimal testable API routes for future auth/user/account/wallet surfaces
+- [x] Add tests for scope and ownership guard behavior
+- [x] Add implementation notes in project docs
+
+### Explicit Exclusions
+- [x] Full Telegram auth UX
+- [x] Full web auth flow
+- [x] Production-grade session system
+- [x] Full wallet lifecycle rollout
+- [x] Full RBAC and notification system
 
 ---
 

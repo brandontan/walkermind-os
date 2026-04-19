@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 06:59
-Status       : Post-merge CrusaderBot smoke verification on main confirms GO-level continuity for Fly-readiness runtime split surfaces; next lane advances to COMMANDER-directed roadmap implementation continuation.
+Last Updated : 2026-04-19 08:07
+Status       : PR #590 remains at SENTINEL CONDITIONAL gate pending executable runtime evidence for phase8.1 test pass in a dependency-complete environment (fastapi + pydantic).
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -15,7 +15,7 @@ Status       : Post-merge CrusaderBot smoke verification on main confirms GO-lev
 - Phase 7.2 CrusaderBot Fly.io deploy-readiness runtime split merged via PR #585; final SENTINEL APPROVED revalidation is recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase7_02_crusaderbot-fly-readiness-revalidation.md`.
 
 [IN PROGRESS]
-- Roadmap continuation planning for the next implementation slice is in progress after GO continuity verification on merged main runtime surfaces.
+- Phase 8.1 Crusader multi-user foundation code is complete; SENTINEL CONDITIONAL closure is in progress pending executable dependency-complete pytest evidence for PR #590.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -23,9 +23,10 @@ Status       : Post-merge CrusaderBot smoke verification on main confirms GO-lev
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Initiate the next roadmap implementation lane under COMMANDER direction using this smoke-verification GO result as continuity baseline evidence.
+- Re-run `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_1_multi_user_foundation_20260419.py` in a network-enabled dependency-complete runner, attach passing output to PR #590, then request final SENTINEL confirmation.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
+- [DEFERRED] Dependency installation for fastapi/pydantic is blocked in current Codex runner due outbound network/proxy restrictions; runtime evidence rerun must be executed in a dependency-complete environment for PR #590.
 - Phase 6.4 narrow monitoring remains intentionally scoped and not yet the active implementation lane.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning -- carried forward as non-runtime higiene backlog.
