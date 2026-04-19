@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 11:28
-Status       : Phase 8.4 merged (PR #598). Phase 8.5 persistent wallet-link storage / lifecycle foundation in progress on branch claude/phase8-5-wallet-link-persistence-ExuR9. SENTINEL validation required before merge.
+Last Updated : 2026-04-19 11:55
+Status       : SENTINEL validation completed for PR #600 (Phase 8.5 persistent wallet-link storage / lifecycle foundation) with CONDITIONAL verdict; dependency-complete pytest rerun evidence required before merge decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -19,7 +19,7 @@ Status       : Phase 8.4 merged (PR #598). Phase 8.5 persistent wallet-link stor
 - Phase 8.4 client auth handoff / wallet-link foundation built: client auth handoff contract (core/client_auth_handoff.py), wallet-link schemas/storage/service, authenticated /auth/handoff + /auth/wallet-links routes. Pytest gate closed: 25/25 pass (Python 3.11.15, pytest-9.0.2). Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-4_02_pytest-evidence-pass.md`. PR #598 mergeable. SENTINEL CONDITIONAL gate satisfied.
 
 [IN PROGRESS]
-- Phase 8.5 persistent wallet-link storage / lifecycle foundation: PersistentWalletLinkStore (local-file JSON), unlink lifecycle (active → unlinked), authenticated unlink route. Branch: claude/phase8-5-wallet-link-persistence-ExuR9.
+- Phase 8.5 persistent wallet-link storage / lifecycle foundation: PersistentWalletLinkStore (local-file JSON), unlink lifecycle (active → unlinked), authenticated unlink route. Branch: claude/phase8-5-wallet-link-persistence-ExuR9. SENTINEL report recorded at `projects/polymarket/polyquantbot/reports/sentinel/phase8-5_01_wallet-link-persistence-validation.md` with CONDITIONAL verdict pending dependency-complete pytest rerun evidence.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -27,7 +27,7 @@ Status       : Phase 8.4 merged (PR #598). Phase 8.5 persistent wallet-link stor
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase 8.5 persistent wallet-link foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-5_01_persistent-wallet-link-foundation.md. Tier: MAJOR.
+- COMMANDER decision gate for PR #600: obtain dependency-complete pytest rerun evidence for Phase 8.5/8.4/8.1 suites, then decide merge/hold based on SENTINEL report `projects/polymarket/polyquantbot/reports/sentinel/phase8-5_01_wallet-link-persistence-validation.md`.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
