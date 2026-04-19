@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 10:04
-Status       : Phase 8.2 auth/session foundation is merged and truth-synced; Phase 8.3 persistent session/storage foundation is now in progress for restart-safe identity continuity.
+Last Updated : 2026-04-19 10:23
+Status       : Phase 8.2 auth/session foundation is merged and truth-synced; Phase 8.3 implementation is complete but PR #596 remains gate-blocked pending real pytest evidence from a dependency-complete environment.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -17,7 +17,7 @@ Status       : Phase 8.2 auth/session foundation is merged and truth-synced; Pha
 - Phase 8.2 auth/session foundation merged; trusted scope derivation and protected foundation routes are preserved as merged-main baseline and no longer pending merge validation wording.
 
 [IN PROGRESS]
-- Phase 8.3 persistent session/storage foundation implementation: local-file session persistence, restart-safe session lookup, and minimal revoke/expired lifecycle enforcement for authenticated scope routes under projects/polymarket/polyquantbot/server/.
+- Phase 8.3 persistent session/storage implementation is complete on PR #596; remaining gate is executable pytest evidence run in an environment with fastapi/pydantic available.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -25,7 +25,7 @@ Status       : Phase 8.2 auth/session foundation is merged and truth-synced; Pha
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review and MAJOR validation handoff for Phase 8.3 persistent session/storage foundation implementation scope.
+- Run required pytest evidence commands for PR #596 in a dependency-complete environment, attach output to PR #596, then request final SENTINEL confirmation against PR #597 CONDITIONAL history.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
