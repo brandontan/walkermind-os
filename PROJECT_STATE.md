@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 06:29
-Status       : FORGE-X Phase 8.7 public paper beta completion pass is in progress on branch feature/complete-public-paper-beta-pass-20260420; MAJOR lane requires SENTINEL review before merge.
+Last Updated : 2026-04-20 06:47
+Status       : SENTINEL validation for Phase 8.7 Public Paper Beta Completion Pass (PR #628) is complete with PASS WITH NOTES; awaiting COMMANDER merge decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -27,7 +27,7 @@ Status       : FORGE-X Phase 8.7 public paper beta completion pass is in progres
 
 [IN PROGRESS]
 - Phase 8.13 Telegram session-issuance gate fix: auto-promotion removed, strict active-only issuance gate enforced, 148/148 pytest pass, awaiting COMMANDER merge decision on PR #616 / branch claude/fix-telegram-session-issuance-zGD86.
-- Phase 8.7 Public Paper Beta Completion Pass (MAJOR): status/control reply semantics hardening, onboarding control-only disclosure tightening, operator guard visibility completion, and paper-boundary regression expansion in progress on branch feature/complete-public-paper-beta-pass-20260420.
+- Phase 8.7 Public Paper Beta Completion Pass (MAJOR): SENTINEL validation completed for PR #628 with PASS WITH NOTES verdict; awaiting COMMANDER merge decision on branch feature/complete-public-paper-beta-pass-20260420.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -35,7 +35,7 @@ Status       : FORGE-X Phase 8.7 public paper beta completion pass is in progres
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL-required review for Phase 8.7 Public Paper Beta Completion Pass after FORGE-X delivery on branch feature/complete-public-paper-beta-pass-20260420.
+- COMMANDER merge decision for PR #628 (Phase 8.7 Public Paper Beta Completion Pass) after SENTINEL PASS WITH NOTES verdict. Report: projects/polymarket/polyquantbot/reports/sentinel/phase8-7_02_public-paper-beta-completion-validation-pr628.md.
 - COMMANDER review and merge decision for Phase 8.13 session-issuance gate fix (branch claude/fix-telegram-session-issuance-zGD86). SENTINEL PR #617 BLOCKED finding is resolved; PR #617 can be closed after merge. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_02_fix-session-issuance-gate.md.
 
 [KNOWN ISSUES]
