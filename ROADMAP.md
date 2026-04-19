@@ -24,9 +24,9 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 07:22
+**Last Updated:** 2026-04-19 11:46
 
-## Board Overview
+3# Board Overview
 
 | Phase | Name | Status | Target |
 |---|---|---|---|
@@ -45,9 +45,9 @@
 
 **Goal:** Establish truthful backend foundations for user identity, tenant scope, ownership mapping, and scoped storage under `projects/polymarket/polyquantbot/server/`.  
 **Status:** 🚧 In Progress  
-**Last Updated:** 2026-04-19 07:22
+**Last Updated:** 2026-04-19 11:46
 
-### Scope Lock
+3## Scope Lock
 - [x] Keep scope on backend multi-user foundations only
 - [x] Treat validation as `MAJOR`
 - [x] Avoid false claims of full auth/session productization
@@ -70,68 +70,6 @@
 
 ---
 
-## CrusaderBot — Fly.io Deploy Readiness Checklist
-
-**Goal:** Prepare CrusaderBot for Fly.io deployment while keeping the project rooted at `projects/polymarket/polyquantbot/` and aligning the structure toward the Crusader multi-user blueprint.  
-**Status:** In Progress  
-**Last Updated:** 2026-04-19 11:45
-
-### Scope Lock
-- [x] Keep the working root at `projects/polymarket/polyquantbot/`
-- [x] Use `CrusaderBot` as the runtime-facing product name
-- [x] Keep the task scoped to deploy-readiness + structural cleanup
-- [x] Keep the folder name `polyquantbot` for now
-- [x] Treat validation as `MAJOR`
-- [x] Require SENTINEL before merge
-
-### Baseline Audit
-- [x] Read `PROJECT_STATE.md`
-- [x] Read `ROADMAP.md`
-- [x] Inspect `projects/polymarket/polyquantbot/` structure
-- [x] Confirm deploy artifacts exist:
-  - [x] `projects/polymarket/polyquantbot/Dockerfile`
-  - [x] `projects/polymarket/polyquantbot/fly.toml`
-- [x] Inspect current primary runtime entrypoint:
-  - [x] `projects/polymarket/polyquantbot/main.py`
-- [x] Confirm the current structure is still polyquantbot-centric
-- [x] Confirm the current structure is not yet aligned with the Crusader multi-user blueprint
-- [x] Confirm `main.py` is oversized and acting as an orchestration sink
-- [x] Confirm overlapping / mixed layers exist:
-  - [x] `api`
-  - [x] `interface`
-  - [x] `telegram`
-  - [x] `ui`
-  - [x] `views`
-  - [x] `legacy`
-- [ ] Inventory active import paths that must remain compatible
-- [ ] Inventory legacy-only modules
-- [ ] Inventory Fly-critical versus optional runtime surfaces
-
-### Target Structure Planning
-- [x] Define target structural direction:
-  - [x] `client/telegram/`
-  - [x] `client/web/`
-  - [x] `server/api/`
-  - [x] `server/services/`
-  - [x] `server/utils/`
-  - [x] `configs/`
-  - [x] `scripts/`
-- [x] Confirm cleanup strategy is structural normalization, not a rewrite
-- [x] Confirm `main.py` should become a thin bootstrap or compatibility shim
-- [x] Confirm Telegram handlers should become thinner
-- [x] Confirm FastAPI should become the clear control-plane runtime surface
-- [ ] Produce exact mapping from current directories to target directories
-- [ ] Decide what moves now vs later
-- [ ] Decide what becomes explicit legacy
-- [ ] Decide which compatibility shims are required
-
-### Entrypoints and Runtime Surfaces
-- [ ] Create `projects/polymarket/polyquantbot/server/main.py`
-- [ ] Create `projects/polymarket/polyquantbot/client/telegram/bot.py`
-- [ ] Create `projects/polymarket/polyquantbot/scripts/run_api.py`
-- [ ] Create `projects/polymarket/polyquantbot/scripts/run_bot.py`
-- [ ] Create `projects/polymarket/polyquantbot/scripts/run_worker.py`
-- [ ] Reduce root `main.py` to a thin compatibility wrapper if needed
 ## CrusaderBot — Fly.io Deploy Readiness Checklist
 
 **Goal:** Prepare CrusaderBot for Fly.io deployment while keeping the project rooted at `projects/polymarket/polyquantbot/` and aligning the structure toward the Crusader multi-user blueprint in `docs/crusader_multi_user_architecture_blueprint.md`.  
