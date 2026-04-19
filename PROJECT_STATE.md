@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 09:39
-Status       : Phase 8.1 post-merge truth sync completed on main; Phase 8.2 auth/session foundation implementation is in progress with new trusted scope derivation primitives ready for SENTINEL.
+Last Updated : 2026-04-19 11:00
+Status       : Phase 8.3 persistent session/storage foundation pytest gate closed — 10/10 pass confirmed in dependency-complete environment. PR #596 is mergeable. PR #597 SENTINEL CONDITIONAL verdict now has real executable evidence.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -13,11 +13,12 @@ Status       : Phase 8.1 post-merge truth sync completed on main; Phase 8.2 auth
 - Phase 7.6 state persistence / execution memory FOUNDATION completed as preserved baseline with deterministic local-file load/store/clear boundary in core/execution_memory_foundation.py for explicit last-run context and invalid_contract blocked behavior.
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 - Phase 7.2 CrusaderBot Fly.io deploy-readiness runtime split merged via PR #585; final SENTINEL APPROVED revalidation is recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase7_02_crusaderbot-fly-readiness-revalidation.md`.
-
 - Phase 8.1 Crusader multi-user foundation merged via PR #590 with real pytest evidence confirmed (8/8 pass); post-merge truth sync for PROJECT_STATE.md and ROADMAP.md is now completed.
+- Phase 8.2 auth/session foundation merged; trusted scope derivation and protected foundation routes are preserved as merged-main baseline and no longer pending merge validation wording.
+- Phase 8.3 persistent session/storage foundation pytest gate closed: 10/10 pass confirmed in dependency-complete environment (Python 3.11.15, pytest-9.0.3, fastapi-0.136.0). Evidence recorded in `projects/polymarket/polyquantbot/reports/forge/phase8-3_03_pytest-evidence-pass.md` and attached to PR #596.
 
 [IN PROGRESS]
-- Phase 8.2 auth/session foundation lane implemented with trusted identity/session scope derivation, minimal auth session primitives, and protected route integration under projects/polymarket/polyquantbot/server/.
+- None.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -25,7 +26,7 @@ Status       : Phase 8.1 post-merge truth sync completed on main; Phase 8.2 auth
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation for Phase 8.2 auth/session foundation implementation and protected route scope-derivation behavior.
+- COMMANDER reviews PR #596 and decides merge. PR #597 can be closed as satisfied SENTINEL validation history.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

@@ -14,11 +14,13 @@ from projects.polymarket.polyquantbot.server.schemas.auth_session import (
 )
 from projects.polymarket.polyquantbot.server.schemas.multi_user import new_id, now_utc
 from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
+from projects.polymarket.polyquantbot.server.storage.session_store import SessionStorageError, SessionStore
 
 
 class AuthSessionService:
-    def __init__(self, store: InMemoryMultiUserStore) -> None:
+    def __init__(self, store: InMemoryMultiUserStore, session_store: SessionStore) -> None:
         self._store = store
+        self._session_store = session_store
 
     def issue_session(self, payload: SessionCreateRequest) -> SessionIssueResponse:
         user = self._store.get_user(payload.user_id)
@@ -37,7 +39,7 @@ class AuthSessionService:
             expires_at=issued_at + timedelta(seconds=payload.ttl_seconds),
             status="active",
         )
-        self._store.put_session(session)
+        self._session_store.put_session(session)
 
         identity = AuthIdentityContext(
             tenant_id=payload.tenant_id,
@@ -54,7 +56,7 @@ class AuthSessionService:
         return SessionIssueResponse(identity=identity, session=session, scope=scope)
 
     def get_authenticated_scope(self, headers: TrustedSessionHeaders) -> AuthenticatedScope:
-        session = self._store.get_session(headers.session_id)
+        session = self._session_store.get_session(headers.session_id)
         if session is None:
             raise AuthSessionError(f"session not found: {headers.session_id}")
 
@@ -65,3 +67,9 @@ class AuthSessionService:
             session_id=session.session_id,
             auth_method=session.auth_method,
         )
+
+    def revoke_session(self, session_id: str) -> SessionContext:
+        try:
+            return self._session_store.set_session_status(session_id=session_id, status="revoked")
+        except SessionStorageError as exc:
+            raise AuthSessionError(str(exc)) from exc

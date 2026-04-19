@@ -41,6 +41,14 @@ def build_multi_user_router(
     async def get_scope(scope=Depends(get_authenticated_scope)) -> dict[str, object]:
         return {"scope": scope.model_dump()}
 
+    @router.post("/sessions/{session_id}/revoke")
+    async def revoke_session(session_id: str) -> dict[str, object]:
+        try:
+            session = auth_session_service.revoke_session(session_id=session_id)
+        except AuthSessionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"session": session.model_dump()}
+
     @router.post("/accounts")
     async def create_account(payload: AccountCreate) -> dict[str, object]:
         try:

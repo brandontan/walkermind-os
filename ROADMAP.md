@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 09:39
+**Last Updated:** 2026-04-19 10:04
 
 # Board Overview
 
@@ -45,7 +45,7 @@
 
 **Goal:** Establish truthful backend foundations for user identity, tenant scope, ownership mapping, and scoped storage under `projects/polymarket/polyquantbot/server/`.  
 **Status:** ✅ Done (Phase 8.1 merged via PR #590)  
-**Last Updated:** 2026-04-19 09:39
+**Last Updated:** 2026-04-19 10:04
 
 ## Scope Lock
 - [x] Keep scope on backend multi-user foundations only
@@ -74,8 +74,8 @@
 ## CrusaderBot — Auth/Session Foundation Checklist (Phase 8.2)
 
 **Goal:** Add truthful auth/session foundation primitives that derive trusted tenant/user scope for backend routes under `projects/polymarket/polyquantbot/server/`.  
-**Status:** 🚧 In Progress  
-**Last Updated:** 2026-04-19 09:39
+**Status:** ✅ Done (Merged baseline; post-merge truth synced)  
+**Last Updated:** 2026-04-19 10:04
 
 ### Scope Lock
 - [x] Keep scope on backend auth/session foundation only
@@ -99,6 +99,38 @@
 - [x] Full RBAC system
 - [x] Delegated wallet signing lifecycle
 - [x] Database migration rollout
+
+---
+
+## CrusaderBot — Persistent Session Storage Foundation Checklist (Phase 8.3)
+
+**Goal:** Replace in-memory-only auth/session continuity with a truthful persistent session storage boundary for restart-safe identity scope under `projects/polymarket/polyquantbot/server/`.  
+**Status:** 🚧 In Progress  
+**Last Updated:** 2026-04-19 10:04
+
+### Scope Lock
+- [x] Keep scope on persistent auth/session foundation only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full production auth
+
+### Foundation Deliverables
+- [x] Introduce persistent session storage boundary with deterministic local-file persistence
+- [x] Integrate `AuthSessionService` session reads/writes to persistent storage
+- [x] Support minimal session lifecycle transitions (`active`, `revoked`, `expired` enforcement)
+- [x] Keep trusted-scope derivation contract unchanged for protected foundation routes
+- [x] Add revoke endpoint for truthful invalidation behavior
+- [x] Add tests for persisted readback, restart continuity, revoked rejection, and expired rejection
+- [x] Update implementation notes and state truth for lane 8.3
+
+### Explicit Exclusions
+- [x] Full Telegram login UX
+- [x] Full web login UX
+- [x] OAuth rollout
+- [x] Production token rotation platform
+- [x] Full RBAC
+- [x] Delegated wallet signing lifecycle
+- [x] Full DB migration platform
+- [x] Broad wallet lifecycle rollout
 
 ---
 
