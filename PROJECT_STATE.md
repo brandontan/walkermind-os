@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 07:22
-Status       : Crusader multi-user foundation lane is now in progress with explicit tenant scope, ownership mapping, and user/account/wallet/user_settings backend primitives under server surfaces.
+Last Updated : 2026-04-19 08:00
+Status       : Crusader multi-user foundation lane remains in progress; SENTINEL validated PR #590 as CONDITIONAL with scope/ownership foundations aligned and dependency-complete runtime rerun required before final merge decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -16,6 +16,7 @@ Status       : Crusader multi-user foundation lane is now in progress with expli
 
 [IN PROGRESS]
 - Phase 8.1 Crusader multi-user foundation implementation is in progress for identity, tenant scope resolution, ownership guards, and scoped user/account/wallet storage/service boundaries.
+- SENTINEL validation for PR #590 completed with CONDITIONAL verdict pending dependency-complete runtime test rerun evidence.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -23,7 +24,7 @@ Status       : Crusader multi-user foundation lane is now in progress with expli
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Route this MAJOR build lane to SENTINEL for validation of ownership/scope boundaries before merge approval.
+- COMMANDER to decide PR #590 merge gate using SENTINEL CONDITIONAL verdict and confirm dependency-complete pytest rerun evidence for Phase 8.1 foundation tests.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
