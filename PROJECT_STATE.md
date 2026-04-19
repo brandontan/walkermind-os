@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 12:58
-Status       : Phase 8.6 merged (PR #602 + SENTINEL CONDITIONAL gate satisfied via phase8-6_02_pytest-evidence-pass.md). Phase 8.7 Telegram/Web runtime handoff integration foundation in progress on branch claude/phase-8-6-8-7-runtime-handoff-azeWU.
+Last Updated : 2026-04-19 13:29
+Status       : Phase 8.6 remains merged. Phase 8.7 Telegram/Web runtime handoff integration foundation validated by SENTINEL for PR #604 with CONDITIONAL gate pending COMMANDER final decision.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -21,7 +21,7 @@ Status       : Phase 8.6 merged (PR #602 + SENTINEL CONDITIONAL gate satisfied v
 - Phase 8.6 persistent multi-user store foundation merged: PersistentMultiUserStore (local-file JSON), MultiUserStore abstract base, services switched to MultiUserStore, restart-safe user/account/wallet ownership chain. Pytest gate: 46/46 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-6_01_persistent-multi-user-store-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-6_02_pytest-evidence-pass.md`. SENTINEL report: `projects/polymarket/polyquantbot/reports/sentinel/phase8-6_01_persistent-multi-user-store-validation.md`.
 
 [IN PROGRESS]
-- Phase 8.7 Telegram/Web runtime handoff integration foundation: thin Telegram auth handler (handle_start), CrusaderBackendClient HTTP bridge, web handoff surface (handle_web_handoff), runtime identity/session wiring to existing backend auth/session backbone. Branch: claude/phase-8-6-8-7-runtime-handoff-azeWU.
+- Phase 8.7 Telegram/Web runtime handoff integration foundation validated on PR #604 with SENTINEL verdict CONDITIONAL; awaiting COMMANDER merge decision and dependency-complete pytest evidence confirmation.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -29,7 +29,7 @@ Status       : Phase 8.6 merged (PR #602 + SENTINEL CONDITIONAL gate satisfied v
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase 8.7 Telegram/Web runtime handoff integration foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-7_01_telegram-web-runtime-handoff-foundation.md. Tier: MAJOR.
+- COMMANDER final decision for PR #604 after SENTINEL CONDITIONAL verdict. SENTINEL report: projects/polymarket/polyquantbot/reports/sentinel/phase8-7_01_runtime-handoff-validation-pr604.md.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
