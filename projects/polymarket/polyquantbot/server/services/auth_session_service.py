@@ -13,12 +13,12 @@ from projects.polymarket.polyquantbot.server.schemas.auth_session import (
     TrustedSessionHeaders,
 )
 from projects.polymarket.polyquantbot.server.schemas.multi_user import new_id, now_utc
-from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
+from projects.polymarket.polyquantbot.server.storage.multi_user_store import MultiUserStore
 from projects.polymarket.polyquantbot.server.storage.session_store import SessionStorageError, SessionStore
 
 
 class AuthSessionService:
-    def __init__(self, store: InMemoryMultiUserStore, session_store: SessionStore) -> None:
+    def __init__(self, store: MultiUserStore, session_store: SessionStore) -> None:
         self._store = store
         self._session_store = session_store
 

@@ -8,11 +8,11 @@ from projects.polymarket.polyquantbot.server.schemas.multi_user import (
     new_id,
     now_utc,
 )
-from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
+from projects.polymarket.polyquantbot.server.storage.multi_user_store import MultiUserStore
 
 
 class UserService:
-    def __init__(self, store: InMemoryMultiUserStore) -> None:
+    def __init__(self, store: MultiUserStore) -> None:
         self._store = store
 
     def create_user(self, payload: UserCreate) -> tuple[UserRecord, UserSettingsRecord]:
