@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import structlog
 
 from projects.polymarket.polyquantbot.client.telegram.backend_client import CrusaderBackendClient
+from projects.polymarket.polyquantbot.client.telegram.dispatcher import TelegramDispatcher
 
 log = structlog.get_logger(__name__)
 
@@ -62,6 +63,7 @@ async def run_bot() -> None:
         raise RuntimeError("; ".join(validation_errors))
 
     backend = CrusaderBackendClient(base_url=settings.backend_base_url)
+    dispatcher = TelegramDispatcher(backend=backend)
 
     log.info(
         "crusaderbot_telegram_bootstrap_ready",
@@ -69,11 +71,12 @@ async def run_bot() -> None:
         app_name=settings.app_name,
         chat_id_configured=bool(settings.telegram_chat_id),
         backend_base_url=settings.backend_base_url,
-        handoff_handler="client.telegram.handlers.auth.handle_start",
-        phase="8.7",
+        dispatcher="client.telegram.dispatcher.TelegramDispatcher",
+        registered_commands=["/start"],
+        phase="8.8",
     )
 
-    _ = backend
+    _ = dispatcher
     await asyncio.sleep(0)
 
 
