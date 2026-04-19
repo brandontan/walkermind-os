@@ -69,9 +69,25 @@ class FakeBackend:
         if path == "/beta/pnl":
             return {"pnl": 12.5}
         if path == "/beta/risk":
-            return {"drawdown": 0.0, "exposure": 0.02}
+            return {
+                "drawdown": 0.0,
+                "exposure": 0.02,
+                "last_reason": "autotrade_disabled",
+                "kill_switch": False,
+                "autotrade_enabled": False,
+            }
         if path == "/beta/status":
-            return {"mode": "paper"}
+            return {
+                "mode": "paper",
+                "autotrade": False,
+                "kill_switch": False,
+                "position_count": 0,
+                "last_risk_reason": "autotrade_disabled",
+                "execution_guard": {
+                    "entry_allowed": False,
+                    "blocked_reasons": ["autotrade_disabled"],
+                },
+            }
         return {}
 
     async def beta_post(self, path: str, payload: dict[str, object]):
@@ -272,3 +288,25 @@ def test_status_reports_control_plane_guard_reasons() -> None:
     assert status_payload["paper_only_execution_boundary"] is True
     assert status_payload["execution_guard"]["entry_allowed"] is False
     assert "mode_live_paper_execution_disabled" in status_payload["execution_guard"]["blocked_reasons"]
+
+
+def test_status_command_reply_surfaces_execution_guard_and_boundary() -> None:
+    backend = FakeBackend()
+    dispatcher = TelegramDispatcher(backend=backend)
+    result = asyncio.run(dispatcher.dispatch(_make_ctx("/status")))
+    assert "Guard allows entry" in result.reply_text
+    assert "autotrade_disabled" in result.reply_text
+    assert "paper-only execution" in result.reply_text
+
+
+def test_positions_pnl_risk_replies_keep_paper_beta_boundaries_visible() -> None:
+    backend = FakeBackend()
+    dispatcher = TelegramDispatcher(backend=backend)
+
+    positions_reply = asyncio.run(dispatcher.dispatch(_make_ctx("/positions"))).reply_text
+    pnl_reply = asyncio.run(dispatcher.dispatch(_make_ctx("/pnl"))).reply_text
+    risk_reply = asyncio.run(dispatcher.dispatch(_make_ctx("/risk"))).reply_text
+
+    assert "no manual order entry" in positions_reply
+    assert "no live settlement path" in pnl_reply
+    assert "paper execution only" in risk_reply

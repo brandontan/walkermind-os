@@ -54,7 +54,7 @@ class TelegramDispatcher:
                     "✅ Mode updated\n"
                     f"• Current mode: {data.get('mode', 'unknown')}\n"
                     "• Execution boundary: paper-only\n"
-                    "• Note: live mode is state-only in this beta lane."
+                    "• Operator meaning: mode=live does not enable live order entry in this beta."
                 ),
             )
         if command == "/autotrade":
@@ -65,10 +65,10 @@ class TelegramDispatcher:
             message = (
                 "🤖 Autotrade updated\n"
                 f"• Status: {status}\n"
-                "• Mode: paper beta control plane"
+                "• Scope: control-plane toggle for paper execution only"
             )
             if detail:
-                message += f"\n• Note: {detail}"
+                message += f"\n• Guard: {detail}"
             return DispatchResult(outcome="ok", reply_text=message)
         if command == "/positions":
             data = await self._backend.beta_get("/beta/positions")
@@ -76,8 +76,9 @@ class TelegramDispatcher:
             return DispatchResult(
                 outcome="ok",
                 reply_text=(
-                    "📌 Positions (paper)\n"
+                    "📌 Positions (paper beta)\n"
                     f"• Open positions: {len(items)}\n"
+                    "• Boundary: read-only surface (no manual order entry commands)\n"
                     f"• Detail: {items}"
                 ),
             )
@@ -86,8 +87,9 @@ class TelegramDispatcher:
             return DispatchResult(
                 outcome="ok",
                 reply_text=(
-                    "📊 PnL (paper)\n"
-                    f"• Unrealized + realized: {data.get('pnl', 0.0)}"
+                    "📊 PnL (paper beta)\n"
+                    f"• Unrealized + realized: {data.get('pnl', 0.0)}\n"
+                    "• Interpretation: informational metric; no live settlement path in this lane"
                 ),
             )
         if command == "/risk":
@@ -100,20 +102,27 @@ class TelegramDispatcher:
                     f"• Exposure: {data.get('exposure', 0.0)}\n"
                     f"• Last reason: {data.get('last_reason', 'n/a')}\n"
                     f"• Kill switch: {data.get('kill_switch', False)}\n"
-                    f"• Autotrade enabled: {data.get('autotrade_enabled', False)}"
+                    f"• Autotrade enabled: {data.get('autotrade_enabled', False)}\n"
+                    "• Boundary: risk state governs paper execution only"
                 ),
             )
         if command == "/status":
             data = await self._backend.beta_get("/beta/status")
+            execution_guard = data.get("execution_guard", {})
+            blocked_reasons = execution_guard.get("blocked_reasons", [])
+            reason_text = ", ".join(blocked_reasons) if blocked_reasons else "none"
             return DispatchResult(
                 outcome="ok",
                 reply_text=(
-                    "🧭 Runtime status (paper beta)\n"
+                    "🧭 Runtime status (public paper beta)\n"
                     f"• Mode: {data.get('mode', 'unknown')}\n"
                     f"• Autotrade: {data.get('autotrade', False)}\n"
                     f"• Kill switch: {data.get('kill_switch', False)}\n"
                     f"• Position count: {data.get('position_count', 0)}\n"
-                    f"• Last risk reason: {data.get('last_risk_reason', 'n/a')}"
+                    f"• Guard allows entry: {execution_guard.get('entry_allowed', False)}\n"
+                    f"• Guard reasons: {reason_text}\n"
+                    f"• Last risk reason: {data.get('last_risk_reason', 'n/a')}\n"
+                    "• Boundary: paper-only execution; Telegram is control/read surface"
                 ),
             )
         if command == "/markets":
@@ -163,8 +172,9 @@ class TelegramDispatcher:
         return DispatchResult(
             outcome="unknown_command",
             reply_text=(
-                "Unknown command for CrusaderBot paper beta.\n"
-                "Try: /start /mode /autotrade /positions /pnl /risk /status /markets /market360 /social /kill"
+                "Unknown command for CrusaderBot public paper beta.\n"
+                "Supported: /start /mode /autotrade /positions /pnl /risk /status /markets /market360 /social /kill\n"
+                "Note: no manual trade-entry commands are available in this beta."
             ),
         )
 

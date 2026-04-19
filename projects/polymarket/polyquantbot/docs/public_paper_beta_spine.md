@@ -62,6 +62,11 @@ This lane is **NARROW INTEGRATION**. Falcon market/candidate/social data current
 Manual trade-entry commands are intentionally excluded.
 `/mode live` is accepted as control-plane state only in this phase; execution remains paper-only.
 
+### Operator-facing command semantics (completion pass)
+- `/status` reports operator guard truth (`entry_allowed`, blocked reasons, last risk reason, mode/autotrade/kill state, and paper-only boundary reminder).
+- `/positions`, `/pnl`, and `/risk` are explicitly informational control/read surfaces and do not grant execution authority.
+- `/start` and unresolved-user onboarding replies explicitly state this is a public **paper** beta control surface with no manual trade-entry path.
+
 ## Paper worker flow
 `market_sync -> signal_runner -> risk_monitor -> position_monitor -> price_updater`
 
@@ -83,8 +88,9 @@ Fly runtime is paper-mode by default. To activate Falcon-backed candidate genera
 - `/mode live` updates control-plane state only; execution stays paper-only in this phase.
 - `/autotrade on` is rejected when mode is `live` to preserve paper-only boundary truth.
 - `/kill` always forces autotrade OFF and sets a hard paper-beta execution block.
-- `/beta/status` includes `execution_guard` with concrete blocked reasons for operator visibility.
-- Unknown Telegram commands should fall back to a concise supported-command hint.
+- `/beta/status` includes `execution_guard` with concrete blocked reasons, `reason_count`, and `operator_summary` for operator visibility.
+- `/beta/status` includes `readiness_interpretation` (`control_surface`, `execution_authority`, `live_trading_ready=false`) to prevent overclaiming readiness.
+- Unknown Telegram commands fall back to a concise supported-command hint and restate that manual trade-entry commands are not available in this beta.
 
 ## Known limitations
 - Falcon data surfaces remain narrow/placeholder-bounded outside `market_360`; signal quality is not a production claim.

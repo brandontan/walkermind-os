@@ -42,10 +42,10 @@ _STAGING_TENANT_ID = "staging"
 _STAGING_USER_ID = "staging"
 
 _REPLY_NOT_REGISTERED = (
-    "You are not registered with CrusaderBot yet. Public beta currently supports control commands only after onboarding."
+    "You are not registered with CrusaderBot yet. This public paper beta supports control/read commands only after onboarding; manual trade-entry is unavailable."
 )
 _REPLY_ONBOARDED = (
-    "Your onboarding request is ready. Please send /start again to continue."
+    "Your onboarding request is ready. Send /start again to continue into the paper-beta control surface."
 )
 _REPLY_ALREADY_LINKED = (
     "Your account is already linked. Please send /start again."
@@ -53,9 +53,9 @@ _REPLY_ALREADY_LINKED = (
 _REPLY_ACTIVATED = (
     "Your account is now activated. Please send /start again to continue."
 )
-_REPLY_SESSION_ISSUED = "Welcome to CrusaderBot. Your session is ready."
+_REPLY_SESSION_ISSUED = "Welcome to CrusaderBot public paper beta. Your control session is ready (paper-only execution boundary)."
 _REPLY_ALREADY_ACTIVE_SESSION_ISSUED = (
-    "Welcome back. Your account is already active and your session is ready."
+    "Welcome back. Your account is already active and your control session is ready (paper-only boundary)."
 )
 _REPLY_ACTIVATION_REJECTED = (
     "Activation was rejected. Please contact the bot administrator."
