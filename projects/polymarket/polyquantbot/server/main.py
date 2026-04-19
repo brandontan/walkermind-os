@@ -10,6 +10,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from projects.polymarket.polyquantbot.server.api.client_auth_routes import build_client_auth_router
 from projects.polymarket.polyquantbot.server.api.multi_user_foundation_routes import build_multi_user_router
 from projects.polymarket.polyquantbot.server.api.routes import build_router
 from projects.polymarket.polyquantbot.server.core.runtime import (
@@ -21,9 +22,11 @@ from projects.polymarket.polyquantbot.server.core.runtime import (
 from projects.polymarket.polyquantbot.server.services.account_service import AccountService
 from projects.polymarket.polyquantbot.server.services.auth_session_service import AuthSessionService
 from projects.polymarket.polyquantbot.server.services.user_service import UserService
+from projects.polymarket.polyquantbot.server.services.wallet_link_service import WalletLinkService
 from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
 from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
+from projects.polymarket.polyquantbot.server.storage.wallet_link_store import WalletLinkStore
 
 log = structlog.get_logger(__name__)
 
@@ -62,12 +65,17 @@ def create_app() -> FastAPI:
     persistent_session_store = PersistentSessionStore(storage_path=session_storage_path)
     auth_session_service = AuthSessionService(store=store, session_store=persistent_session_store)
 
+    wallet_link_store = WalletLinkStore()
+    wallet_link_service = WalletLinkService(store=wallet_link_store)
+
     app.state.multi_user_store = store
     app.state.persistent_session_store = persistent_session_store
     app.state.user_service = user_service
     app.state.account_service = account_service
     app.state.wallet_service = wallet_service
     app.state.auth_session_service = auth_session_service
+    app.state.wallet_link_store = wallet_link_store
+    app.state.wallet_link_service = wallet_link_service
 
     router = build_router(settings=settings, state=state)
     app.include_router(router)
@@ -77,6 +85,12 @@ def create_app() -> FastAPI:
             account_service=account_service,
             wallet_service=wallet_service,
             auth_session_service=auth_session_service,
+        )
+    )
+    app.include_router(
+        build_client_auth_router(
+            auth_session_service=auth_session_service,
+            wallet_link_service=wallet_link_service,
         )
     )
 
@@ -96,6 +110,7 @@ def create_app() -> FastAPI:
         port=settings.port,
         trading_mode=settings.trading_mode,
         session_storage_path=str(session_storage_path),
+        phase="8.4",
     )
     return app
 
