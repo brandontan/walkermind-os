@@ -7,7 +7,11 @@ from dataclasses import dataclass
 
 import structlog
 
+from projects.polymarket.polyquantbot.client.telegram.backend_client import CrusaderBackendClient
+
 log = structlog.get_logger(__name__)
+
+_DEFAULT_BACKEND_URL = "http://localhost:8080"
 
 
 @dataclass(frozen=True)
@@ -16,6 +20,7 @@ class TelegramBotSettings:
     startup_mode: str = "strict"
     telegram_token: str = ""
     telegram_chat_id: str = ""
+    backend_base_url: str = _DEFAULT_BACKEND_URL
 
     @classmethod
     def from_env(cls) -> "TelegramBotSettings":
@@ -27,11 +32,13 @@ class TelegramBotSettings:
 
         token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
         chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+        backend_url = os.getenv("CRUSADER_BACKEND_URL", _DEFAULT_BACKEND_URL).strip() or _DEFAULT_BACKEND_URL
 
         return cls(
             startup_mode=startup_mode,
             telegram_token=token,
             telegram_chat_id=chat_id,
+            backend_base_url=backend_url,
         )
 
 
@@ -54,13 +61,19 @@ async def run_bot() -> None:
         )
         raise RuntimeError("; ".join(validation_errors))
 
+    backend = CrusaderBackendClient(base_url=settings.backend_base_url)
+
     log.info(
         "crusaderbot_telegram_bootstrap_ready",
         runtime="client.telegram.bot",
         app_name=settings.app_name,
         chat_id_configured=bool(settings.telegram_chat_id),
+        backend_base_url=settings.backend_base_url,
+        handoff_handler="client.telegram.handlers.auth.handle_start",
+        phase="8.7",
     )
 
+    _ = backend
     await asyncio.sleep(0)
 
 

@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 12:12
+**Last Updated:** 2026-04-19 12:58
 
 # Board Overview
 
@@ -211,8 +211,8 @@
 ## CrusaderBot — Persistent Multi-User Store Foundation Checklist (Phase 8.6)
 
 **Goal:** Replace in-memory-only user/account/wallet ownership records with restart-safe persistent storage under `projects/polymarket/polyquantbot/server/`, preserving strict tenant/user/account/wallet ownership semantics established in earlier phases.  
-**Status:** 🚧 In Progress — SENTINEL validation required before merge  
-**Last Updated:** 2026-04-19 12:12
+**Status:** ✅ Done (merged. Pytest gate: 46/46 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-6_01_persistent-multi-user-store-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-6_02_pytest-evidence-pass.md`. SENTINEL CONDITIONAL gate satisfied.)  
+**Last Updated:** 2026-04-19 12:58
 
 ### Scope Lock
 - [x] Keep scope on persistent user/account/wallet store foundation only
@@ -239,6 +239,36 @@
 - [x] OAuth
 - [x] Delegated signing lifecycle
 - [x] Full wallet lifecycle orchestration
+
+---
+
+## CrusaderBot — Telegram/Web Runtime Handoff Integration Foundation Checklist (Phase 8.7)
+
+**Goal:** Connect real client runtime entry surfaces (Telegram bot + web) to the persistent backend identity/session/ownership foundation established in Phases 8.1–8.6, enabling truthful authenticated handoff/session creation from client runtimes.  
+**Status:** 🚧 In Progress — SENTINEL validation required before merge  
+**Last Updated:** 2026-04-19 12:58
+
+### Scope Lock
+- [x] Keep scope on Telegram/Web client runtime handoff surfaces only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full polished Telegram or web UX completion
+
+### Foundation Deliverables
+- [x] Add `CrusaderBackendClient` — thin async HTTP client bridging client runtimes to backend `/auth/handoff`
+- [x] Add `client/telegram/handlers/auth.py` — thin `/start` handler with `handle_start()` dispatching handoff via backend client
+- [x] Add `client/web/handoff.py` — minimal web handoff surface with `handle_web_handoff()`
+- [x] Update `client/telegram/bot.py` to wire backend client reference into Telegram runtime bootstrap
+- [x] Add 12 targeted runtime integration tests covering Telegram/Web handoff path behavior and regressions
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full polished Telegram product UX
+- [x] Full polished web app UX
+- [x] OAuth rollout
+- [x] RBAC rollout
+- [x] Delegated signing lifecycle
+- [x] Exchange execution rollout
+- [x] Portfolio engine rollout
 
 ---
 
