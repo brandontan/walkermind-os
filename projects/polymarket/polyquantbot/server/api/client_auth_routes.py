@@ -11,6 +11,7 @@ from projects.polymarket.polyquantbot.server.core.scope import ScopeResolutionEr
 from projects.polymarket.polyquantbot.server.schemas.auth_session import AuthMethod, SessionCreateRequest
 from projects.polymarket.polyquantbot.server.schemas.wallet_link import WalletLinkCreateRequest
 from projects.polymarket.polyquantbot.server.services.auth_session_service import AuthSessionService
+from projects.polymarket.polyquantbot.server.services.telegram_activation_service import TelegramActivationService
 from projects.polymarket.polyquantbot.server.services.telegram_identity_service import TelegramIdentityService
 from projects.polymarket.polyquantbot.server.services.telegram_onboarding_service import TelegramOnboardingService
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import (
@@ -38,6 +39,7 @@ def build_client_auth_router(
     wallet_link_service: WalletLinkService,
     telegram_identity_service: TelegramIdentityService,
     telegram_onboarding_service: TelegramOnboardingService,
+    telegram_activation_service: TelegramActivationService,
 ) -> APIRouter:
     router = APIRouter(prefix="/auth", tags=["client-auth"])
 
@@ -69,6 +71,22 @@ def build_client_auth_router(
     ) -> dict[str, object]:
         """Start minimal Telegram onboarding/account-link foundation."""
         result = telegram_onboarding_service.start(
+            telegram_user_id=body.telegram_user_id,
+            tenant_id=body.tenant_id,
+        )
+        return {
+            "outcome": result.outcome,
+            "tenant_id": result.tenant_id,
+            "user_id": result.user_id,
+            "detail": result.detail,
+        }
+
+    @router.post("/telegram-onboarding/confirm")
+    async def confirm_telegram_onboarding(
+        body: TelegramOnboardingStartBody,
+    ) -> dict[str, object]:
+        """Confirm/activate Telegram-linked onboarding foundation."""
+        result = telegram_activation_service.confirm(
             telegram_user_id=body.telegram_user_id,
             tenant_id=body.tenant_id,
         )

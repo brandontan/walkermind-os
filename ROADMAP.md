@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 20:16
+**Last Updated:** 2026-04-19 21:39
 
 # Board Overview
 
@@ -385,8 +385,8 @@
 ## CrusaderBot — Telegram Onboarding / Account-Link Foundation Checklist (Phase 8.11)
 
 **Goal:** Replace unknown-user Telegram `/start` dead-end with a narrow, truthful onboarding/account-link foundation that can initiate link creation for unresolved users while preserving Phase 8.10 resolved-user behavior.  
-**Status:** 🚧 In Progress (FORGE-X implementation complete; MAJOR lane awaiting SENTINEL validation)  
-**Last Updated:** 2026-04-19 20:16
+**Status:** ✅ Done (Merged truth synced. References preserved: `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`, `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`)  
+**Last Updated:** 2026-04-19 21:39
 
 ### Scope Lock
 - [x] Keep scope on minimal Telegram onboarding/account-link foundation only
@@ -415,6 +415,42 @@
 - [x] Portfolio engine rollout
 - [x] Full web onboarding rollout
 - [x] Production-grade notification orchestration
+
+---
+
+## CrusaderBot — Telegram Confirmation / Activation Foundation Checklist (Phase 8.12)
+
+**Goal:** Add a narrow confirmation/activation lifecycle for Telegram-linked onboarding users so runtime does not stop at record creation and can truthfully report activation outcomes before session handoff dispatch.  
+**Status:** 🚧 In Progress (FORGE-X implementation complete; MAJOR lane awaiting SENTINEL validation)  
+**Last Updated:** 2026-04-19 21:39
+
+### Scope Lock
+- [x] Keep scope on Telegram confirmation/activation foundation only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full account-management productization
+
+### Foundation Deliverables
+- [x] Introduce activation state model over user settings (`pending_confirmation` -> `active`)
+- [x] Add `TelegramActivationService` with truthful outcomes (`activated`, `already_active`, `rejected`, `error`)
+- [x] Add backend confirmation contract for Telegram-linked users (`POST /auth/telegram-onboarding/confirm`)
+- [x] Extend `CrusaderBackendClient` with `confirm_telegram_activation()` mapping
+- [x] Extend `TelegramPollingLoop` resolved-user branch to gate dispatch with activation outcomes
+- [x] Return truthful runtime replies for `activated`, `already_active`, `rejected`, and `error`
+- [x] Persist activation state through existing persistent multi-user storage
+- [x] Add targeted Phase 8.12 tests for success, already-active, rejected, error, and persistence/isolation behavior
+- [x] Preserve Phase 8.11 regressions in validation run
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full Telegram account-management UX
+- [x] Broad command suite expansion beyond current runtime
+- [x] OAuth
+- [x] RBAC
+- [x] Delegated signing lifecycle
+- [x] Exchange execution rollout
+- [x] Portfolio engine rollout
+- [x] Full web activation rollout
+- [x] Production-grade notification/orchestration platform
 
 ---
 

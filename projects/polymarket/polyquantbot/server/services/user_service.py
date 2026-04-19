@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from projects.polymarket.polyquantbot.server.schemas.multi_user import (
+    ActivationStatus,
     UserCreate,
     UserRecord,
     UserSettingsRecord,
@@ -38,3 +39,16 @@ class UserService:
 
     def get_user_by_external_id(self, tenant_id: str, external_id: str) -> UserRecord | None:
         return self._store.get_user_by_external_id(tenant_id, external_id)
+
+    def get_user_settings(self, user_id: str) -> UserSettingsRecord | None:
+        return self._store.get_user_settings_for_user(user_id)
+
+    def set_activation_status(
+        self, user_id: str, activation_status: ActivationStatus
+    ) -> UserSettingsRecord | None:
+        settings = self._store.get_user_settings_for_user(user_id)
+        if settings is None:
+            return None
+        updated = settings.model_copy(update={"activation_status": activation_status})
+        self._store.put_user_settings(updated)
+        return updated

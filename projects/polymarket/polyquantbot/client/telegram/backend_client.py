@@ -14,6 +14,7 @@ SUPPORTED_CLIENT_TYPES: frozenset[str] = frozenset({"telegram", "web"})
 HandoffOutcome = Literal["issued", "rejected", "error"]
 TelegramIdentityOutcome = Literal["resolved", "not_found", "error"]
 TelegramOnboardingOutcome = Literal["onboarded", "already_linked", "rejected", "error"]
+TelegramActivationOutcome = Literal["activated", "already_active", "rejected", "error"]
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,14 @@ class TelegramIdentityResolution:
 @dataclass(frozen=True)
 class TelegramOnboardingResult:
     outcome: TelegramOnboardingOutcome
+    tenant_id: str | None = None
+    user_id: str | None = None
+    detail: str = ""
+
+
+@dataclass(frozen=True)
+class TelegramActivationResult:
+    outcome: TelegramActivationOutcome
     tenant_id: str | None = None
     user_id: str | None = None
     detail: str = ""
@@ -246,6 +255,58 @@ class CrusaderBackendClient:
         except Exception:
             detail = resp.text or f"http {resp.status_code}"
         return TelegramOnboardingResult(
+            outcome="error" if resp.status_code >= 500 else "rejected",
+            detail=detail,
+        )
+
+    async def confirm_telegram_activation(
+        self, telegram_user_id: str
+    ) -> TelegramActivationResult:
+        """Call POST /auth/telegram-onboarding/confirm for activation confirmation."""
+        if not telegram_user_id or not telegram_user_id.strip():
+            return TelegramActivationResult(
+                outcome="rejected",
+                detail="telegram_user_id must not be empty",
+            )
+
+        payload = {
+            "telegram_user_id": telegram_user_id,
+            "tenant_id": self._identity_tenant_id,
+        }
+
+        try:
+            async with httpx.AsyncClient(
+                base_url=self._base_url,
+                timeout=self._timeout,
+            ) as http_client:
+                resp = await http_client.post("/auth/telegram-onboarding/confirm", json=payload)
+        except Exception as exc:
+            log.error(
+                "crusaderbot_backend_activation_http_error",
+                telegram_user_id=telegram_user_id,
+                error=str(exc),
+            )
+            return TelegramActivationResult(outcome="error", detail=str(exc))
+
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                outcome: TelegramActivationOutcome = data.get("outcome", "error")
+                return TelegramActivationResult(
+                    outcome=outcome,
+                    tenant_id=data.get("tenant_id"),
+                    user_id=data.get("user_id"),
+                    detail=str(data.get("detail") or ""),
+                )
+            except Exception:
+                return TelegramActivationResult(outcome="error", detail="invalid activation response")
+
+        detail = ""
+        try:
+            detail = str(resp.json().get("detail", ""))
+        except Exception:
+            detail = resp.text or f"http {resp.status_code}"
+        return TelegramActivationResult(
             outcome="error" if resp.status_code >= 500 else "rejected",
             detail=detail,
         )
