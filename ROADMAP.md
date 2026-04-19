@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 21:39
+**Last Updated:** 2026-04-19 22:24
 
 # Board Overview
 
@@ -421,8 +421,8 @@
 ## CrusaderBot — Telegram Confirmation / Activation Foundation Checklist (Phase 8.12)
 
 **Goal:** Add a narrow confirmation/activation lifecycle for Telegram-linked onboarding users so runtime does not stop at record creation and can truthfully report activation outcomes before session handoff dispatch.  
-**Status:** 🚧 In Progress (FORGE-X implementation complete; MAJOR lane awaiting SENTINEL validation)  
-**Last Updated:** 2026-04-19 21:39
+**Status:** ✅ Done (Merged-main truth synced; activation outcome baseline preserved)  
+**Last Updated:** 2026-04-19 22:24
 
 ### Scope Lock
 - [x] Keep scope on Telegram confirmation/activation foundation only
@@ -451,6 +451,39 @@
 - [x] Portfolio engine rollout
 - [x] Full web activation rollout
 - [x] Production-grade notification/orchestration platform
+
+---
+
+## CrusaderBot — Telegram Session-Issuance Handoff Foundation Checklist (Phase 8.13)
+
+**Goal:** Add a narrow activated-user -> session-issued backend bridge so Telegram-linked users can truthfully receive authenticated backend sessions after activation gate evaluation.  
+**Status:** 🚧 In Progress (FORGE-X implementation complete; MAJOR lane awaiting SENTINEL validation)  
+**Last Updated:** 2026-04-19 22:24
+
+### Scope Lock
+- [x] Keep scope on Telegram session-issuance handoff foundation only
+- [x] Treat validation as `MAJOR`
+- [x] Avoid false claims of full account-management productization
+
+### Foundation Deliverables
+- [x] Add backend Telegram session-issuance service with strict outcomes (`session_issued`, `already_active_session_issued`, `rejected`, `error`)
+- [x] Add backend contract for Telegram session issuance (`POST /auth/telegram-onboarding/session-issue`)
+- [x] Allow issuance only for activated/already_active user paths under tenant boundary
+- [x] Reject non-activated/non-linked paths truthfully
+- [x] Extend `CrusaderBackendClient` with `issue_telegram_session()` mapping
+- [x] Extend `TelegramPollingLoop` resolved-user path to map session issuance outcomes to runtime replies
+- [x] Preserve tenant isolation and activation persistence behavior
+- [x] Add targeted Phase 8.13 tests for allowed/rejected/error and runtime reply mapping
+- [x] Update forge report, PROJECT_STATE.md, ROADMAP.md
+
+### Explicit Exclusions
+- [x] Full polished login UX
+- [x] Broad command suite expansion
+- [x] OAuth
+- [x] RBAC
+- [x] Delegated signing lifecycle
+- [x] Exchange execution rollout
+- [x] Portfolio engine rollout
 
 ---
 

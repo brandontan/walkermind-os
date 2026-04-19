@@ -95,7 +95,7 @@ async def run_bot() -> None:
         adapter="client.telegram.runtime.HttpTelegramAdapter",
         identity_resolution="backend",
         registered_commands=["/start"],
-        phase="8.12",
+        phase="8.13",
         staging_tenant_id=settings.staging_tenant_id,
         staging_user_id=settings.staging_user_id,
     )
@@ -106,6 +106,7 @@ async def run_bot() -> None:
         identity_resolver=backend,
         onboarding_initiator=backend,
         activation_confirmer=backend,
+        session_issuer=backend,
         staging_tenant_id=settings.staging_tenant_id,
         staging_user_id=settings.staging_user_id,
     )

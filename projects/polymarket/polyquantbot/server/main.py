@@ -24,6 +24,9 @@ from projects.polymarket.polyquantbot.server.services.auth_session_service impor
 from projects.polymarket.polyquantbot.server.services.telegram_activation_service import TelegramActivationService
 from projects.polymarket.polyquantbot.server.services.telegram_identity_service import TelegramIdentityService
 from projects.polymarket.polyquantbot.server.services.telegram_onboarding_service import TelegramOnboardingService
+from projects.polymarket.polyquantbot.server.services.telegram_session_issuance_service import (
+    TelegramSessionIssuanceService,
+)
 from projects.polymarket.polyquantbot.server.services.user_service import UserService
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import WalletLinkService
 from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
@@ -76,6 +79,10 @@ def create_app() -> FastAPI:
     )
     persistent_session_store = PersistentSessionStore(storage_path=session_storage_path)
     auth_session_service = AuthSessionService(store=store, session_store=persistent_session_store)
+    telegram_session_issuance_service = TelegramSessionIssuanceService(
+        user_service=user_service,
+        auth_session_service=auth_session_service,
+    )
 
     wallet_link_storage_path = Path(
         os.getenv(
@@ -91,6 +98,7 @@ def create_app() -> FastAPI:
     app.state.telegram_identity_service = telegram_identity_service
     app.state.telegram_onboarding_service = telegram_onboarding_service
     app.state.telegram_activation_service = telegram_activation_service
+    app.state.telegram_session_issuance_service = telegram_session_issuance_service
     app.state.persistent_session_store = persistent_session_store
     app.state.user_service = user_service
     app.state.account_service = account_service
@@ -117,6 +125,7 @@ def create_app() -> FastAPI:
             telegram_identity_service=telegram_identity_service,
             telegram_onboarding_service=telegram_onboarding_service,
             telegram_activation_service=telegram_activation_service,
+            telegram_session_issuance_service=telegram_session_issuance_service,
         )
     )
 
@@ -138,7 +147,7 @@ def create_app() -> FastAPI:
         multi_user_storage_path=str(multi_user_storage_path),
         session_storage_path=str(session_storage_path),
         wallet_link_storage_path=str(wallet_link_storage_path),
-        phase="8.12",
+        phase="8.13",
     )
     return app
 
