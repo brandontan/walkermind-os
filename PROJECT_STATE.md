@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 09:18
-Status       : Phase 8.1 multi-user foundation pytest evidence confirmed (8/8 pass); SENTINEL CONDITIONAL gate cleared; PR #590 merged and post-merge repo-truth sync is pending.
+Last Updated : 2026-04-19 09:39
+Status       : Phase 8.1 post-merge truth sync completed on main; Phase 8.2 auth/session foundation implementation is in progress with new trusted scope derivation primitives ready for SENTINEL.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -14,7 +14,10 @@ Status       : Phase 8.1 multi-user foundation pytest evidence confirmed (8/8 pa
 - Phase 7.7 recovery / resume FOUNDATION safety semantics fix merged via PR #577 with deterministic force_block -> blocked, hold -> restart_fresh, and closed terminal loop outcomes (completed/stopped_hold/exhausted) -> restart_fresh over Phase 7.6 execution memory only; excludes distributed recovery, daemon orchestration, replay engine, database rollout, Redis, async workers, and crash supervision.
 - Phase 7.2 CrusaderBot Fly.io deploy-readiness runtime split merged via PR #585; final SENTINEL APPROVED revalidation is recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase7_02_crusaderbot-fly-readiness-revalidation.md`.
 
-- Phase 8.1 Crusader multi-user foundation merged via PR #590 with real pytest evidence confirmed (8/8 pass); condition from PR #591 was satisfied before merge.
+- Phase 8.1 Crusader multi-user foundation merged via PR #590 with real pytest evidence confirmed (8/8 pass); post-merge truth sync for PROJECT_STATE.md and ROADMAP.md is now completed.
+
+[IN PROGRESS]
+- Phase 8.2 auth/session foundation lane implemented with trusted identity/session scope derivation, minimal auth session primitives, and protected route integration under projects/polymarket/polyquantbot/server/.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -22,7 +25,7 @@ Status       : Phase 8.1 multi-user foundation pytest evidence confirmed (8/8 pa
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Sync main with Phase 8.1 pytest-evidence report and close stale validation/history PRs (#591, #593).
+- SENTINEL validation for Phase 8.2 auth/session foundation implementation and protected route scope-derivation behavior.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

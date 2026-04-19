@@ -10,16 +10,17 @@ from fastapi.responses import JSONResponse
 
 from projects.polymarket.polyquantbot.server.api.multi_user_foundation_routes import build_multi_user_router
 from projects.polymarket.polyquantbot.server.api.routes import build_router
-from projects.polymarket.polyquantbot.server.services.account_service import AccountService
-from projects.polymarket.polyquantbot.server.services.user_service import UserService
-from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
-from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
 from projects.polymarket.polyquantbot.server.core.runtime import (
     ApiSettings,
     RuntimeState,
     run_shutdown,
     run_startup_validation,
 )
+from projects.polymarket.polyquantbot.server.services.account_service import AccountService
+from projects.polymarket.polyquantbot.server.services.auth_session_service import AuthSessionService
+from projects.polymarket.polyquantbot.server.services.user_service import UserService
+from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
+from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
 
 log = structlog.get_logger(__name__)
 
@@ -48,11 +49,13 @@ def create_app() -> FastAPI:
     user_service = UserService(store=store)
     account_service = AccountService(store=store)
     wallet_service = WalletService(store=store)
+    auth_session_service = AuthSessionService(store=store)
 
     app.state.multi_user_store = store
     app.state.user_service = user_service
     app.state.account_service = account_service
     app.state.wallet_service = wallet_service
+    app.state.auth_session_service = auth_session_service
 
     router = build_router(settings=settings, state=state)
     app.include_router(router)
@@ -61,6 +64,7 @@ def create_app() -> FastAPI:
             user_service=user_service,
             account_service=account_service,
             wallet_service=wallet_service,
+            auth_session_service=auth_session_service,
         )
     )
 
