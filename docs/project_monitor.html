@@ -490,6 +490,65 @@ header {
 /* ── UTILITIES ── */
 .mode-hidden { display: none !important; }
 
+/* ── ALL PROJECTS ── */
+.proj-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (min-width: 600px) { .proj-grid { grid-template-columns: repeat(4, 1fr); } }
+.proj-item {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+  position: relative; overflow: hidden;
+}
+.proj-item::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--proj-accent, var(--muted));
+}
+.proj-name { font-size: 11px; font-weight: 600; color: var(--text); margin-bottom: 3px; word-break: break-word; }
+.proj-platform { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-bottom: 6px; }
+.proj-phase { font-family: var(--mono); font-size: 9px; color: var(--mid); margin-bottom: 6px; }
+.proj-status-badge {
+  display: inline-block; font-family: var(--mono); font-size: 8px;
+  padding: 2px 7px; border-radius: 8px;
+}
+
+/* ── COMMIT HEATMAP ── */
+.heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
+.heatmap-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.heatmap-label { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.heatmap-grid {
+  display: flex; gap: 3px; flex-wrap: wrap;
+}
+.heatmap-day {
+  width: 14px; height: 14px; border-radius: 3px;
+  background: var(--surface2); border: 1px solid var(--border);
+  position: relative; cursor: default; flex-shrink: 0;
+  transition: transform .15s;
+}
+.heatmap-day:hover { transform: scale(1.3); z-index: 2; }
+.heatmap-day[data-count="1"] { background: rgba(0,170,255,.25); border-color: rgba(0,170,255,.35); }
+.heatmap-day[data-count="2"] { background: rgba(0,170,255,.45); border-color: rgba(0,170,255,.6); }
+.heatmap-day[data-count="3"] { background: rgba(0,245,160,.5); border-color: rgba(0,245,160,.7); }
+.heatmap-day[data-count="4"] { background: rgba(0,245,160,.75); border-color: rgba(0,245,160,.9); }
+.heatmap-day[data-count="5+"] { background: var(--green); border-color: var(--green); }
+.heatmap-legend { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
+.hl-box { width: 11px; height: 11px; border-radius: 2px; }
+.hl-label { font-family: var(--mono); font-size: 8px; color: var(--muted); }
+.commit-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.commit-row {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 10px; border-radius: 6px;
+  background: var(--surface2); border: 1px solid var(--border);
+}
+.commit-sha { font-family: var(--mono); font-size: 9px; color: var(--blue); flex-shrink: 0; margin-top: 2px; }
+.commit-msg { font-size: 11.5px; color: var(--text); flex: 1; word-break: break-word; line-height: 1.45; }
+.commit-when { font-family: var(--mono); font-size: 9px; color: var(--muted); flex-shrink: 0; text-align: right; margin-top: 2px; }
+.subphase-progress {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 6px;
+}
+.sp-bar { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.sp-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--blue)); border-radius: 2px; transition: width .8s ease; }
+.sp-label { font-family: var(--mono); font-size: 9px; color: var(--mid); flex-shrink: 0; }
+
 .loading {
   display: flex; align-items: center; justify-content: center;
   padding: 48px 20px; color: var(--muted);
@@ -698,6 +757,30 @@ footer {
     </div>
   </div>
 
+  <div class="card" id="allProjectsCard">
+    <div class="card-head" onclick="tog(this)">
+      <span>🗂️</span>
+      <span class="ch-title">All Projects</span>
+      <span class="ch-badge" id="allProjectsBadge">4</span>
+      <span class="ch-chev">▼</span>
+    </div>
+    <div class="card-body" id="allProjectsBody">
+      <div class="loading">Syncing…</div>
+    </div>
+  </div>
+
+  <div class="card" id="commitHeatmapCard">
+    <div class="card-head" onclick="tog(this)">
+      <span>📅</span>
+      <span class="ch-title">Commit Activity</span>
+      <span class="ch-badge" id="commitHeatmapBadge">—</span>
+      <span class="ch-chev">▼</span>
+    </div>
+    <div class="card-body" id="commitHeatmapBody">
+      <div class="loading">Syncing…</div>
+    </div>
+  </div>
+
   <footer>
     <div class="footer-text">
       Walker AI Trading Team — CRUSADER Project Monitor<br>
@@ -721,7 +804,8 @@ let currentView = 'internal';
 const state = {
   status: '—', next: '—',
   inProgress: [], issues: [],
-  phases: [], prs: [], commits: []
+  phases: [], prs: [], commits: [],
+  allProjects: []
 };
 
 // ── AUTO-PARSED: PROJECT STRUCTURE & STRATEGY ────────────
@@ -866,7 +950,8 @@ function switchProgressTab(tab) {
 
 function setTs() {
   const t = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  document.getElementById('ts').innerHTML = 'Updated: <span>' + t + '</span>';
+  const el = document.getElementById('ts');
+  if (el) el.innerHTML = 'Updated: <span>' + t + '</span>';
 }
 
 async function fetchRaw(path) {
@@ -962,10 +1047,10 @@ function parsePhases(md) {
   // Normalise a status cell to canonical emoji
   function normaliseStatus(raw) {
     const s = raw.trim();
-    if (s === '✅' || /done/i.test(s))                    return '✅';
-    if (s === '🚧' || /in.?progress|active/i.test(s))     return '🚧';
-    if (s === '❌' || /not.?started/i.test(s))            return '❌';
-    return s; // keep as-is (e.g. unknown)
+    if (s === '✅' || /^\s*✅|done/i.test(s))             return '✅';
+    if (s === '🚧' || /^\s*🚧|in.?progress|active/i.test(s)) return '🚧';
+    if (s === '❌' || /^\s*❌|not.?started/i.test(s))     return '❌';
+    return s;
   }
 
   for (const line of lines) {
@@ -973,18 +1058,48 @@ function parsePhases(md) {
     if (inCrusader && /^##\s+[^\w]*PROJECT:/u.test(line) && !line.includes('CRUSADER')) break;
     if (!inCrusader) continue;
 
-    // Phase section header: "## Phase 7 — Name"
+    // Phase section header: "## Phase 7 — Name" or "## Phase 8 — Name"
     const mHdr = line.match(/^##\s+.*Phase\s+(\d+)\s*[—-]/);
     if (mHdr) { activeTopNum = 'Phase ' + mHdr[1]; inSubTable = false; continue; }
+
+    // Checklist section headers like:
+    // "## CrusaderBot — Multi-User Foundation Checklist (Phase 8.1)"
+    // "## CrusaderBot — Auth/Session Foundation Checklist (Phase 8.2)"
+    const mChecklist = line.match(/^##\s+CrusaderBot\s*[—-]\s*(.+?)\s+Checklist\s*\(Phase\s*([\d.]+)\)/i);
+    if (mChecklist && activeTopNum) {
+      // Extract status from nearby "**Status:**" line - we'll look ahead
+      // For now, find status in the next few lines after this header
+      const headerIdx = lines.indexOf(line);
+      let subStatus = '❌';
+      for (let k = headerIdx + 1; k < Math.min(headerIdx + 6, lines.length); k++) {
+        const sm = lines[k].match(/\*\*Status:\*\*\s*(.+)/);
+        if (sm) {
+          const raw = sm[1].trim();
+          if (/✅|done/i.test(raw))          subStatus = '✅';
+          else if (/🚧|in.?progress/i.test(raw)) subStatus = '🚧';
+          else if (/❌|not.?started/i.test(raw)) subStatus = '❌';
+          break;
+        }
+      }
+      const subNum = mChecklist[2];
+      const parentPhaseNum = 'Phase ' + subNum.split('.')[0];
+      phases.push({
+        num: subNum,
+        name: mChecklist[1].trim(),
+        status: subStatus,
+        isSub: true,
+        parentPhase: parentPhaseNum
+      });
+      continue;
+    }
 
     // Skip separator rows
     if (/^\|\s*[-:]+\s*\|/.test(line)) continue;
 
-    // Sub-phase table header
+    // Sub-phase table header: "| Sub-Phase | Name | Status | Notes |"
     if (/^\|\s*Sub-Phase\s*\|/i.test(line)) { inSubTable = true; continue; }
 
     // Top-level Board Overview row: "| Phase N | Name | status | ..."
-    // Status can be emoji OR text like "In Progress" / "Done" / "✅ Done"
     const mTop = line.match(/^\|\s*(Phase \d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/);
     if (mTop && !inSubTable) {
       const status = normaliseStatus(mTop[3]);
@@ -993,7 +1108,7 @@ function parsePhases(md) {
       continue;
     }
 
-    // Sub-phase row: "| 7.2 | Name | status | ..."
+    // Sub-phase table row: "| 6.1 | Name | status | Notes |" or "| 7.0 | ... |"
     if (inSubTable && activeTopNum) {
       const mSub = line.match(/^\|\s*(\d+\.\d+(?:\.\d+)?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/);
       if (mSub) {
@@ -1005,6 +1120,30 @@ function parsePhases(md) {
     }
   }
   return phases;
+}
+
+// ── ALL PROJECTS PARSER ───────────────────────────────────
+function parseAllProjects(md) {
+  const projects = [];
+  const lines = md.split('\n');
+  // Parse the Active Projects table at the top
+  let inTable = false;
+  for (const line of lines) {
+    if (/^\|\s*Project\s*\|/i.test(line)) { inTable = true; continue; }
+    if (inTable) {
+      if (/^\|\s*[-:]+/.test(line)) continue;
+      if (!line.startsWith('|')) { inTable = false; continue; }
+      const cols = line.split('|').map(s => s.trim()).filter(Boolean);
+      if (cols.length >= 4) {
+        const raw = cols[2];
+        let status = '❌';
+        if (/✅|done/i.test(raw))           status = '✅';
+        else if (/🚧|active|in.?progress/i.test(raw)) status = '🚧';
+        projects.push({ name: cols[0], platform: cols[1], status, phase: cols[3] });
+      }
+    }
+  }
+  return projects;
 }
 
 // ── HELPERS ──────────────────────────────────────────────
@@ -1113,11 +1252,13 @@ function buildData(view) {
     }));
 
   if (view === 'internal') {
+    const subDone  = state.phases.filter(p => p.isSub && p.status === '✅').length;
+    const subTotal = state.phases.filter(p => p.isSub).length;
     return {
       hero: [
         { label: 'Build Phase',      value: phaseLabel.replace('Phase ', 'P'), sub: phaseName,                    accent: 'var(--green)'  },
         { label: 'Open PRs',         value: String(openPRs),                    sub: 'Awaiting merge or review',    accent: 'var(--blue)'   },
-        { label: 'In Progress',      value: String(inProgCount),                sub: 'Active tasks',                accent: 'var(--yellow)' },
+        { label: 'Sub-phases',       value: subDone + '/' + subTotal,           sub: 'Completed sub-milestones',    accent: 'var(--yellow)' },
         { label: 'Validation Gate',  value: majorGate,                          sub: state.next || 'Awaiting sync', accent: 'var(--purple)' }
       ],
       summaryLabel: 'Internal Summary',
@@ -1205,7 +1346,9 @@ function buildData(view) {
 
 // ── RENDERERS ────────────────────────────────────────────
 function renderHero(data) {
-  document.getElementById('hero').innerHTML = data.hero.map(item => `
+  const el = document.getElementById('hero');
+  if (!el) return;
+  el.innerHTML = data.hero.map(item => `
     <div class="hero-card" style="--accent:${item.accent}">
       <div class="hero-label">${esc(item.label)}</div>
       <div class="hero-val">${esc(item.value)}</div>
@@ -1316,69 +1459,192 @@ function render() {
   const data = buildData(currentView);
   renderHero(data);
 
+  // Null-safe helpers
+  function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+  function setHTML(id, val) { const el = document.getElementById(id); if (el) el.innerHTML  = val; }
+
   // Header strip
   const topP   = state.phases.filter(p => !p.isSub);
   const active = topP.find(p => p.status === '🚧') || topP[topP.length - 1];
   const pNum   = active ? active.num.replace('Phase ', 'P') : '—';
   const pShort = active ? pNum + ' · ' + active.name.split(' ').slice(0, 3).join(' ') : '—';
-  document.getElementById('stripPhase').textContent    = pShort;
-  document.getElementById('stripPRs').textContent      = state.prs.length + ' open';
-  document.getElementById('stripProgress').textContent = state.inProgress.length + ' tasks';
-  document.getElementById('stripBot').textContent      = 'BUILD MODE';
+  setText('stripPhase',    pShort);
+  setText('stripPRs',      state.prs.length + ' open');
+  setText('stripProgress', state.inProgress.length + ' tasks');
+  setText('stripBot',      'BUILD MODE');
   const lastCommit = state.commits[0];
-  document.getElementById('stripCommit').textContent   = lastCommit ? lastCommit.when : '—';
+  setText('stripCommit',   lastCommit ? lastCommit.when : '—');
 
-  document.getElementById('summaryLabel').textContent   = data.summaryLabel;
-  document.getElementById('summaryText').textContent    = data.summaryText;
-  document.getElementById('focusText').textContent      = data.focusText;
-  document.getElementById('progressTitle').textContent  = data.progressTitle;
-  document.getElementById('progressBadge').textContent  = data.progressBadge;
+  setText('summaryLabel',  data.summaryLabel);
+  setText('summaryText',   data.summaryText);
+  setText('focusText',     data.focusText);
+  setText('progressTitle', data.progressTitle);
+  setText('progressBadge', data.progressBadge);
 
   const _topItems = data.progressItems.filter(x => !x.isSub);
-  const _subItems = data.progressItems.filter(x => x.isSub);
-  document.getElementById('ptab-phases-body').innerHTML = rows(_topItems);
-  document.getElementById('ptab-sub-body').innerHTML    = _subItems.length
-    ? rows(_subItems)
-    : '<div class="row-sub" style="padding:12px 4px;color:var(--muted)">No sub-phases for current view.</div>';
-
   const _activeTop = state.phases.filter(p => !p.isSub).find(p => p.status === '🚧');
-  const _subLabel  = _activeTop ? _activeTop.num.replace('Phase ', 'P') + ' Sub-phases' : 'Sub-phases';
-  document.getElementById('ptab-sub').textContent = _subLabel;
+  const _activePhaseNum = _activeTop ? _activeTop.num : null;
 
-  document.getElementById('rightCardIcon').textContent  = data.rightIcon;
-  document.getElementById('rightCardTitle').textContent = data.rightTitle;
-  document.getElementById('rightCardBadge').textContent = data.rightBadge;
-  document.getElementById('rightCardBody').innerHTML    = feed(data.rightItems);
+  // Sub-phases: show only the active top phase's sub-phases, or all if none active
+  const _subPhases = state.phases.filter(p => p.isSub && (_activePhaseNum ? p.parentPhase === _activePhaseNum : true));
+  const _subDone   = _subPhases.filter(p => p.status === '✅').length;
+  const _subTotal  = _subPhases.length;
+
+  const _subItems = _subPhases.map(s => {
+    const [badge, cls] = phaseBadge(s.status);
+    return {
+      main: s.num + ' — ' + s.name,
+      sub: s.status === '✅' ? 'Sub-phase complete.'
+         : s.status === '🚧' ? 'Active sub-phase.'
+         : 'Pending.',
+      badge, cls
+    };
+  });
+
+  setHTML('ptab-phases-body', rows(_topItems));
+
+  const subBody = document.getElementById('ptab-sub-body');
+  if (subBody) {
+    if (_subItems.length) {
+      const pct = _subTotal > 0 ? Math.round((_subDone / _subTotal) * 100) : 0;
+      const progressBar = `<div class="subphase-progress" style="margin-bottom:10px">
+        <div class="sp-bar"><div class="sp-fill" style="width:${pct}%"></div></div>
+        <span class="sp-label">${_subDone}/${_subTotal} done (${pct}%)</span>
+      </div>`;
+      const flatList = '<div class="list">' + _subItems.map(s => `
+        <div class="row">
+          <div class="row-left">
+            <div class="row-main">${esc(s.main)}</div>
+            <div class="row-sub">${esc(s.sub || '')}</div>
+          </div>
+          <div class="badge ${s.cls || 'prog'}">${esc(s.badge || '')}</div>
+        </div>`).join('') + '</div>';
+      subBody.innerHTML = progressBar + flatList;
+    } else {
+      subBody.innerHTML = '<div class="row-sub" style="padding:12px 4px;color:var(--muted)">No sub-phases for current view.</div>';
+    }
+  }
+
+  const _subLabel = _activeTop ? _activeTop.num.replace('Phase ', 'P') + ' Sub-phases' : 'Sub-phases';
+  setText('ptab-sub', _subLabel);
+
+  setText('rightCardIcon',  data.rightIcon);
+  setText('rightCardTitle', data.rightTitle);
+  setText('rightCardBadge', data.rightBadge);
+  setHTML('rightCardBody',  feed(data.rightItems));
 
   const isInternal = currentView === 'internal';
-  document.getElementById('structureTitle').textContent  = isInternal ? 'Project Structure' : 'System Architecture';
-  document.getElementById('structureBadge').textContent  = isInternal ? 'Live' : 'Overview';
-  document.getElementById('structureBody').innerHTML     = capabilityRows(buildStructureItems(currentView));
-  document.getElementById('strategyTitle').textContent   = isInternal ? 'Strategy Model Status' : 'Strategy & Capability Status';
-  document.getElementById('strategyBadge').textContent   = isInternal ? 'Engineering' : 'Executive';
-  document.getElementById('strategyBody').innerHTML      = capabilityRows(buildStrategyItems(currentView));
+  setText('structureTitle',  isInternal ? 'Project Structure' : 'System Architecture');
+  setText('structureBadge',  isInternal ? 'Live' : 'Overview');
+  setHTML('structureBody',   capabilityRows(buildStructureItems(currentView)));
+  setText('strategyTitle',   isInternal ? 'Strategy Model Status' : 'Strategy & Capability Status');
+  setText('strategyBadge',   isInternal ? 'Engineering' : 'Executive');
+  setHTML('strategyBody',    capabilityRows(buildStrategyItems(currentView)));
 
-  document.getElementById('riskTitle').textContent   = data.riskTitle;
-  document.getElementById('riskBody').innerHTML      = riskGrid(data.riskGrid);
-  document.getElementById('targetTitle').textContent = data.targetTitle;
-  document.getElementById('targetBody').innerHTML    = targets(data.targets);
-  document.getElementById('issuesTitle').textContent = data.issuesTitle;
-  document.getElementById('issuesBadge').textContent = data.issuesBadge;
-  document.getElementById('issuesBody').innerHTML    = rows(data.issues);
+  setText('riskTitle',   data.riskTitle);
+  setHTML('riskBody',    riskGrid(data.riskGrid));
+  setText('targetTitle', data.targetTitle);
+  setHTML('targetBody',  targets(data.targets));
+  setText('issuesTitle', data.issuesTitle);
+  setText('issuesBadge', data.issuesBadge);
+  setHTML('issuesBody',  rows(data.issues));
+
+  // All Projects + Commit Heatmap cards
+  renderAllProjects();
+  renderCommitHeatmap();
 
   const prCard         = document.getElementById('prCard');
   const workstreamCard = document.getElementById('workstreamCard');
 
   if (currentView === 'internal') {
-    prCard.classList.remove('mode-hidden');
-    workstreamCard.classList.add('mode-hidden');
-    document.getElementById('prCount').textContent = String(state.prs.length);
-    document.getElementById('prBody').innerHTML    = rows(data.prs);
+    if (prCard)         prCard.classList.remove('mode-hidden');
+    if (workstreamCard) workstreamCard.classList.add('mode-hidden');
+    setText('prCount', String(state.prs.length));
+    setHTML('prBody',  rows(data.prs || []));
   } else {
-    prCard.classList.add('mode-hidden');
-    workstreamCard.classList.remove('mode-hidden');
-    document.getElementById('workstreamBody').innerHTML = rows(data.workstreams);
+    if (prCard)         prCard.classList.add('mode-hidden');
+    if (workstreamCard) workstreamCard.classList.remove('mode-hidden');
+    setHTML('workstreamBody', rows(data.workstreams || []));
   }
+}
+
+function renderAllProjects() {
+  const projects = state.allProjects;
+  const badge = document.getElementById('allProjectsBadge');
+  const body  = document.getElementById('allProjectsBody');
+  if (!projects.length) {
+    if (badge) badge.textContent = '0';
+    if (body)  body.innerHTML = '<div class="row-sub" style="padding:12px 4px;color:var(--muted)">No project data available.</div>';
+    return;
+  }
+  if (badge) badge.textContent = String(projects.length);
+  const accentMap = {
+    '✅': 'var(--green)', '🚧': 'var(--blue)', '❌': 'var(--muted)'
+  };
+  const clsMap = { '✅': 'ok', '🚧': 'prog', '❌': 'warn' };
+  const labelMap = { '✅': 'Active', '🚧': 'Building', '❌': 'Not Started' };
+  if (body) body.innerHTML = '<div class="proj-grid">' + projects.map(p => {
+    const accent = accentMap[p.status] || 'var(--muted)';
+    const cls    = clsMap[p.status]    || 'warn';
+    const label  = labelMap[p.status]  || p.status;
+    return `
+    <div class="proj-item" style="--proj-accent:${accent}">
+      <div class="proj-name">${esc(p.name)}</div>
+      <div class="proj-platform">${esc(p.platform)}</div>
+      <div class="proj-phase">${esc(p.phase)}</div>
+      <span class="proj-status-badge ${cls}">${esc(label)}</span>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function renderCommitHeatmap() {
+  const badge   = document.getElementById('commitHeatmapBadge');
+  const body    = document.getElementById('commitHeatmapBody');
+  const commits = state.commits;
+  if (!commits.length) {
+    if (badge) badge.textContent = '0';
+    if (body)  body.innerHTML = '<div class="row-sub" style="padding:12px 4px;color:var(--muted)">No commit data available.</div>';
+    return;
+  }
+  if (badge) badge.textContent = commits.length + ' recent';
+
+  // Group commits by ISO date key
+  const dayCounts = {};
+  commits.forEach(c => {
+    const key = c.dayKey || c.when.split(' ').slice(0, 2).join(' ');
+    dayCounts[key] = (dayCounts[key] || 0) + 1;
+  });
+
+  const days = Object.keys(dayCounts).sort();
+
+  const heatBoxes = days.map(day => {
+    const n        = dayCounts[day];
+    const countKey = n >= 5 ? '5+' : String(n);
+    const label    = day + ': ' + n + ' commit' + (n > 1 ? 's' : '');
+    return `<div class="heatmap-day" data-count="${countKey}" title="${label}"></div>`;
+  }).join('');
+
+  const legendColors = ['var(--surface2)', 'rgba(0,170,255,.25)', 'rgba(0,170,255,.45)', 'rgba(0,245,160,.5)', 'rgba(0,245,160,.75)', 'var(--green)'];
+  const legend = legendColors.map(bg =>
+    `<div class="hl-box" style="background:${bg};border:1px solid var(--border)"></div>`
+  ).join('') + '<span class="hl-label" style="margin-left:4px">less → more commits</span>';
+
+  const recentList = commits.slice(0, 8).map(c => `
+    <div class="commit-row">
+      <div class="commit-sha">●</div>
+      <div class="commit-msg">${esc(c.msg)}</div>
+      <div class="commit-when">${esc(c.when)}</div>
+    </div>`).join('');
+
+  if (body) body.innerHTML = `
+    <div class="heatmap-meta">
+      <span class="heatmap-label">${days.length} active day${days.length !== 1 ? 's' : ''} tracked — ${commits.length} commits loaded</span>
+    </div>
+    <div class="heatmap-wrap">
+      <div class="heatmap-grid">${heatBoxes}</div>
+    </div>
+    <div class="heatmap-legend">${legend}</div>
+    <div class="commit-list">${recentList}</div>`;
 }
 
 // ── DATA LOADERS ─────────────────────────────────────────
@@ -1393,6 +1659,7 @@ async function loadState() {
 async function loadRoadmap() {
   const md = await fetchRaw('ROADMAP.md');
   state.phases = parsePhases(md);
+  state.allProjects = parseAllProjects(md);
 }
 
 async function loadPRs() {
@@ -1423,16 +1690,18 @@ async function loadPRs() {
   state.commits = commits.map(c => {
     const msg  = c.commit.message.split('\n')[0];
     const m    = msg.toLowerCase();
-    const when = new Date(c.commit.author.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+    const date = new Date(c.commit.author.date);
+    const when = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
                + ' '
-               + new Date(c.commit.author.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+               + date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const dayKey = date.toISOString().slice(0, 10); // "2026-04-19"
     const tag  = m.includes('merge')    ? 'Merged'
                : m.includes('sentinel') ? 'Validation'
                : 'Update';
     const cls  = m.includes('merge')    ? 'ok'
                : m.includes('sentinel') ? 'warn'
                : 'prog';
-    return { msg, when, tag, cls };
+    return { msg, when, dayKey, tag, cls };
   });
 }
 
@@ -1457,11 +1726,15 @@ async function loadAll() {
     })();
   } catch (e) {
     const err = '<div class="error-box">⚠️ Failed to load: ' + esc(e.message) + '</div>';
-    ['progressBody', 'rightCardBody', 'prBody', 'workstreamBody', 'issuesBody'].forEach(id => {
+    // Target inner elements only — never wipe containers that hold sub-elements
+    ['ptab-phases-body', 'ptab-sub-body', 'rightCardBody', 'prBody', 'workstreamBody', 'issuesBody',
+     'structureBody', 'strategyBody', 'riskBody', 'targetBody', 'allProjectsBody', 'commitHeatmapBody'
+    ].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = err;
     });
-    document.getElementById('summaryText').textContent = 'Live sync failed. Check API access.';
+    const sumEl = document.getElementById('summaryText');
+    if (sumEl) sumEl.textContent = 'Live sync failed. Check API access.';
     setTs();
   }
   if (icon) icon.style.animation = '';
