@@ -74,3 +74,15 @@ Worker iteration logs include candidate count, accepted/rejected counts, skip re
 
 ## Fly deploy truth
 Fly runtime is paper-mode by default. To activate Falcon-backed candidate generation, deploy must provide secret-backed Falcon configuration (`FALCON_ENABLED=true` + `FALCON_API_KEY` and optional base URL override).
+
+
+## Operator expectations (public paper beta)
+- Telegram is a **control shell**, not a manual trade terminal.
+- `/mode live` updates control-plane state only; execution stays paper-only in this phase.
+- `/autotrade on` is rejected when mode is `live` to preserve paper-only boundary truth.
+- `/kill` always forces autotrade OFF and sets a hard paper-beta execution block.
+- Unknown Telegram commands should fall back to a concise supported-command hint.
+
+## Known limitations
+- Falcon data surfaces remain narrow/placeholder-bounded outside `market_360`; signal quality is not a production claim.
+- This lane does not include live execution authority, user-managed Falcon keys, dashboard expansion, or manual trade-entry commands.

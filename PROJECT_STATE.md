@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 00:54
-Status       : FORGE-X Phase 8.4 paper beta operational hardening is in progress on branch harden/paper-beta-operational-readiness-20260420; MAJOR lane requires SENTINEL review before merge.
+Last Updated : 2026-04-20 05:19
+Status       : FORGE-X Phase 8.5 public paper beta UX + ops readiness is in progress on branch harden/public-paper-beta-ux-ops-readiness-20260420; MAJOR lane requires SENTINEL review before merge.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -27,7 +27,7 @@ Status       : FORGE-X Phase 8.4 paper beta operational hardening is in progress
 
 [IN PROGRESS]
 - Phase 8.13 Telegram session-issuance gate fix: auto-promotion removed, strict active-only issuance gate enforced, 148/148 pytest pass, awaiting COMMANDER merge decision on PR #616 / branch claude/fix-telegram-session-issuance-zGD86.
-- Phase 8.4 Paper Beta Operational Hardening (MAJOR): observability/readiness/test ergonomics hardening in progress on branch harden/paper-beta-operational-readiness-20260420.
+- Phase 8.5 Public Paper Beta UX + Ops Readiness (MAJOR): Telegram UX polish, readiness/runtime coverage expansion, bootstrap cleanup, and operator observability refinement in progress on branch harden/public-paper-beta-ux-ops-readiness-20260420.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -35,7 +35,7 @@ Status       : FORGE-X Phase 8.4 paper beta operational hardening is in progress
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL-required review for Phase 8.4 Paper Beta Operational Hardening after FORGE-X delivery on branch harden/paper-beta-operational-readiness-20260420.
+- SENTINEL-required review for Phase 8.5 Public Paper Beta UX + Ops Readiness after FORGE-X delivery on branch harden/public-paper-beta-ux-ops-readiness-20260420.
 - COMMANDER review and merge decision for Phase 8.13 session-issuance gate fix (branch claude/fix-telegram-session-issuance-zGD86). SENTINEL PR #617 BLOCKED finding is resolved; PR #617 can be closed after merge. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_02_fix-session-issuance-gate.md.
 
 [KNOWN ISSUES]

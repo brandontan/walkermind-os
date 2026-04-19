@@ -130,11 +130,26 @@ async def run_worker_loop(iterations: int = 1) -> None:
     STATE.worker_runtime.startup_complete = True
     STATE.worker_runtime.shutdown_complete = False
     STATE.worker_runtime.last_error = ""
-    log.info("paper_beta_worker_started", requested_iterations=max(iterations, 1))
+    log.info(
+        "paper_beta_worker_started",
+        requested_iterations=max(iterations, 1),
+        mode=STATE.mode,
+        autotrade_enabled=STATE.autotrade_enabled,
+        kill_switch=STATE.kill_switch,
+        execution_boundary="paper_only",
+    )
     try:
         for _ in range(max(iterations, 1)):
             events = await worker.run_once()
-            log.info("paper_beta_worker_iteration", positions=len(STATE.positions), events=events)
+            log.info(
+                "paper_beta_worker_iteration",
+                positions=len(STATE.positions),
+                emitted_events=len(events),
+                mode=STATE.mode,
+                autotrade_enabled=STATE.autotrade_enabled,
+                kill_switch=STATE.kill_switch,
+                paper_only_execution=True,
+            )
             await asyncio.sleep(0)
     except Exception as exc:
         STATE.worker_runtime.last_error = str(exc)

@@ -54,3 +54,19 @@ def test_ready_route_reports_ready_after_startup(monkeypatch) -> None:
     payload = response.json()
     assert payload["status"] == "ready"
     assert payload["validation_errors"] == []
+
+
+def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/ready")
+    payload = response.json()
+    readiness = payload["readiness"]
+
+    assert "worker_runtime" in readiness
+    assert "worker_prerequisites" in readiness
+    assert "falcon_config_state" in readiness
+    assert "control_plane" in readiness
+    assert readiness["control_plane"]["paper_only_execution_boundary"] is True

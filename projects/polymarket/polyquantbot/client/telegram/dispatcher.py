@@ -48,38 +48,125 @@ class TelegramDispatcher:
         if command == "/mode":
             mode = arg.lower()
             data = await self._backend.beta_post("/beta/mode", {"mode": mode})
-            return DispatchResult(outcome="ok", reply_text=f"Mode: {data.get('mode', 'unknown')}")
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "✅ Mode updated\n"
+                    f"• Current mode: {data.get('mode', 'unknown')}\n"
+                    "• Execution boundary: paper-only\n"
+                    "• Note: live mode is state-only in this beta lane."
+                ),
+            )
         if command == "/autotrade":
             enabled = arg.lower() == "on"
             data = await self._backend.beta_post("/beta/autotrade", {"enabled": enabled})
-            return DispatchResult(outcome="ok", reply_text=f"Autotrade: {data.get('autotrade', False)}")
+            detail = data.get("detail", "")
+            status = "ON" if data.get("autotrade", False) else "OFF"
+            message = (
+                "🤖 Autotrade updated\n"
+                f"• Status: {status}\n"
+                "• Mode: paper beta control plane"
+            )
+            if detail:
+                message += f"\n• Note: {detail}"
+            return DispatchResult(outcome="ok", reply_text=message)
         if command == "/positions":
             data = await self._backend.beta_get("/beta/positions")
-            return DispatchResult(outcome="ok", reply_text=str(data.get("items", [])))
+            items = data.get("items", [])
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "📌 Positions (paper)\n"
+                    f"• Open positions: {len(items)}\n"
+                    f"• Detail: {items}"
+                ),
+            )
         if command == "/pnl":
             data = await self._backend.beta_get("/beta/pnl")
-            return DispatchResult(outcome="ok", reply_text=f"PnL: {data.get('pnl', 0.0)}")
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "📊 PnL (paper)\n"
+                    f"• Unrealized + realized: {data.get('pnl', 0.0)}"
+                ),
+            )
         if command == "/risk":
             data = await self._backend.beta_get("/beta/risk")
-            return DispatchResult(outcome="ok", reply_text=str(data))
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "🛡 Risk snapshot\n"
+                    f"• Drawdown: {data.get('drawdown', 0.0)}\n"
+                    f"• Exposure: {data.get('exposure', 0.0)}\n"
+                    f"• Last reason: {data.get('last_reason', 'n/a')}\n"
+                    f"• Kill switch: {data.get('kill_switch', False)}\n"
+                    f"• Autotrade enabled: {data.get('autotrade_enabled', False)}"
+                ),
+            )
         if command == "/status":
             data = await self._backend.beta_get("/beta/status")
-            return DispatchResult(outcome="ok", reply_text=str(data))
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "🧭 Runtime status (paper beta)\n"
+                    f"• Mode: {data.get('mode', 'unknown')}\n"
+                    f"• Autotrade: {data.get('autotrade', False)}\n"
+                    f"• Kill switch: {data.get('kill_switch', False)}\n"
+                    f"• Position count: {data.get('position_count', 0)}\n"
+                    f"• Last risk reason: {data.get('last_risk_reason', 'n/a')}"
+                ),
+            )
         if command == "/markets":
             data = await self._backend.beta_get("/beta/markets", params={"query": arg})
-            return DispatchResult(outcome="ok", reply_text=str(data.get("items", [])))
+            items = data.get("items", [])
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "🧾 Market scan (Falcon read-side)\n"
+                    f"• Query: {arg or '(default)'}\n"
+                    f"• Matches: {len(items)}\n"
+                    f"• Detail: {items}"
+                ),
+            )
         if command == "/market360":
             data = await self._backend.beta_get(f"/beta/market360/{arg}")
-            return DispatchResult(outcome="ok", reply_text=str(data))
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "🔎 Market360 (bounded placeholder surface)\n"
+                    f"• Condition: {arg or '(missing)'}\n"
+                    f"• Detail: {data}"
+                ),
+            )
         if command == "/social":
             data = await self._backend.beta_get("/beta/social", params={"topic": arg or "macro"})
-            return DispatchResult(outcome="ok", reply_text=str(data))
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "🌐 Social pulse (Falcon read-side)\n"
+                    f"• Topic: {arg or 'macro'}\n"
+                    f"• Detail: {data}"
+                ),
+            )
         if command == "/kill":
             await self._backend.beta_post("/beta/kill", {})
-            return DispatchResult(outcome="ok", reply_text="Kill switch enabled.")
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "🛑 Kill switch enabled\n"
+                    "• Autotrade forced OFF\n"
+                    "• Execution remains paper-only in this beta lane."
+                ),
+            )
 
         log.warning("crusaderbot_telegram_dispatch_unknown_command", command=ctx.command, chat_id=ctx.chat_id)
-        return DispatchResult(outcome="unknown_command", reply_text="Unknown command.")
+        return DispatchResult(
+            outcome="unknown_command",
+            reply_text=(
+                "Unknown command for CrusaderBot paper beta.\n"
+                "Try: /start /mode /autotrade /positions /pnl /risk /status /markets /market360 /social /kill"
+            ),
+        )
 
     async def _dispatch_start(self, ctx: TelegramCommandContext) -> DispatchResult:
         handoff_ctx = TelegramHandoffContext(

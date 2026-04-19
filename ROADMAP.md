@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 00:54
+**Last Updated:** 2026-04-20 05:19
 
 # Board Overview
 
@@ -455,11 +455,11 @@
 ---
 
 
-## CrusaderBot — Paper Beta Operational Hardening (Phase 8.4 Runtime Slice)
+## CrusaderBot — Public Paper Beta UX + Ops Readiness (Phase 8.5 Runtime Slice)
 
 **Goal:** Build the fastest safe public-ready paper-trading beta slice with FastAPI control plane, Telegram control shell, backend-managed Falcon read integration, and paper-only worker execution spine.  
-**Status:** 🚧 In Progress (FORGE-X hardening pass in progress on branch `harden/paper-beta-operational-readiness-20260420`; SENTINEL required before merge)  
-**Last Updated:** 2026-04-20 00:54
+**Status:** 🚧 In Progress (FORGE-X hardening pass in progress on branch `harden/public-paper-beta-ux-ops-readiness-20260420`; SENTINEL required before merge)  
+**Last Updated:** 2026-04-20 05:19
 
 ### Scope Lock
 - [x] Preserve Phase 8.3 runtime entrypoints for API, bot, and worker
