@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 22:24
-Status       : Phase 8.12 post-merge truth is synced on main. Phase 8.13 Telegram session-issuance handoff foundation is implemented with activated/already_active issuance gating and targeted MAJOR coverage.
+Last Updated : 2026-04-19 22:47
+Status       : Phase 8.12 post-merge truth remains synced on main. Phase 8.13 Telegram session-issuance handoff foundation is SENTINEL BLOCKED for activation-gate contract drift and requires FORGE-X correction before merge.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -27,7 +27,7 @@ Status       : Phase 8.12 post-merge truth is synced on main. Phase 8.13 Telegra
 - Phase 8.12 Telegram confirmation/activation foundation merged truth synced on main with explicit activation outcomes (`activated`, `already_active`, `rejected`, `error`) over the onboarding baseline and persisted activation state isolation.
 
 [IN PROGRESS]
-- Phase 8.13 Telegram session-issuance handoff foundation: backend route/service now issues sessions only on activated/already_active paths with truthful outcomes (`session_issued`, `already_active_session_issued`, `rejected`, `error`) and tenant-isolated persistence checks.
+- Phase 8.13 Telegram session-issuance handoff foundation: SENTINEL BLOCKED on PR #616 due to activation-gate contract drift (`pending_confirmation` path still auto-promotes to active + issues session).
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -35,7 +35,7 @@ Status       : Phase 8.12 post-merge truth is synced on main. Phase 8.13 Telegra
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation for Phase 8.13 MAJOR scope (Telegram session-issuance handoff foundation) over backend session-issuance contract, activation-gated issuance outcomes, runtime reply mapping, tenant isolation integrity, and Phase 8.12 continuity; then return to COMMANDER for merge decision.
+- FORGE-X fix pass for Phase 8.13 PR #616: enforce strict active/already_active-only session issuance gate, update tests/report, then return to SENTINEL for MAJOR revalidation.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
