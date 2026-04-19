@@ -26,7 +26,7 @@ from projects.polymarket.polyquantbot.server.services.wallet_link_service import
 from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
 from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
-from projects.polymarket.polyquantbot.server.storage.wallet_link_store import WalletLinkStore
+from projects.polymarket.polyquantbot.server.storage.wallet_link_store import PersistentWalletLinkStore
 
 log = structlog.get_logger(__name__)
 
@@ -65,7 +65,13 @@ def create_app() -> FastAPI:
     persistent_session_store = PersistentSessionStore(storage_path=session_storage_path)
     auth_session_service = AuthSessionService(store=store, session_store=persistent_session_store)
 
-    wallet_link_store = WalletLinkStore()
+    wallet_link_storage_path = Path(
+        os.getenv(
+            "CRUSADER_WALLET_LINK_STORAGE_PATH",
+            "/tmp/crusaderbot/runtime/wallet_links.json",
+        )
+    )
+    wallet_link_store = PersistentWalletLinkStore(storage_path=wallet_link_storage_path)
     wallet_link_service = WalletLinkService(store=wallet_link_store)
 
     app.state.multi_user_store = store
@@ -74,6 +80,7 @@ def create_app() -> FastAPI:
     app.state.account_service = account_service
     app.state.wallet_service = wallet_service
     app.state.auth_session_service = auth_session_service
+    app.state.wallet_link_storage_path = wallet_link_storage_path
     app.state.wallet_link_store = wallet_link_store
     app.state.wallet_link_service = wallet_link_service
 
@@ -110,7 +117,8 @@ def create_app() -> FastAPI:
         port=settings.port,
         trading_mode=settings.trading_mode,
         session_storage_path=str(session_storage_path),
-        phase="8.4",
+        wallet_link_storage_path=str(wallet_link_storage_path),
+        phase="8.5",
     )
     return app
 
