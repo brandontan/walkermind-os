@@ -1,7 +1,9 @@
 """CrusaderBot FastAPI control-plane runtime."""
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 import uvicorn
@@ -21,6 +23,7 @@ from projects.polymarket.polyquantbot.server.services.auth_session_service impor
 from projects.polymarket.polyquantbot.server.services.user_service import UserService
 from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
 from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
+from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
 
 log = structlog.get_logger(__name__)
 
@@ -49,9 +52,18 @@ def create_app() -> FastAPI:
     user_service = UserService(store=store)
     account_service = AccountService(store=store)
     wallet_service = WalletService(store=store)
-    auth_session_service = AuthSessionService(store=store)
+
+    session_storage_path = Path(
+        os.getenv(
+            "CRUSADER_SESSION_STORAGE_PATH",
+            "/tmp/crusaderbot/runtime/foundation_sessions.json",
+        )
+    )
+    persistent_session_store = PersistentSessionStore(storage_path=session_storage_path)
+    auth_session_service = AuthSessionService(store=store, session_store=persistent_session_store)
 
     app.state.multi_user_store = store
+    app.state.persistent_session_store = persistent_session_store
     app.state.user_service = user_service
     app.state.account_service = account_service
     app.state.wallet_service = wallet_service
@@ -83,6 +95,7 @@ def create_app() -> FastAPI:
         runtime="server.main",
         port=settings.port,
         trading_mode=settings.trading_mode,
+        session_storage_path=str(session_storage_path),
     )
     return app
 
