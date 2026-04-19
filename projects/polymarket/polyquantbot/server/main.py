@@ -8,7 +8,12 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from projects.polymarket.polyquantbot.server.api.multi_user_foundation_routes import build_multi_user_router
 from projects.polymarket.polyquantbot.server.api.routes import build_router
+from projects.polymarket.polyquantbot.server.services.account_service import AccountService
+from projects.polymarket.polyquantbot.server.services.user_service import UserService
+from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
+from projects.polymarket.polyquantbot.server.storage.in_memory_store import InMemoryMultiUserStore
 from projects.polymarket.polyquantbot.server.core.runtime import (
     ApiSettings,
     RuntimeState,
@@ -39,8 +44,25 @@ def create_app() -> FastAPI:
     app.state.crusader_settings = settings
     app.state.crusader_runtime = state
 
+    store = InMemoryMultiUserStore()
+    user_service = UserService(store=store)
+    account_service = AccountService(store=store)
+    wallet_service = WalletService(store=store)
+
+    app.state.multi_user_store = store
+    app.state.user_service = user_service
+    app.state.account_service = account_service
+    app.state.wallet_service = wallet_service
+
     router = build_router(settings=settings, state=state)
     app.include_router(router)
+    app.include_router(
+        build_multi_user_router(
+            user_service=user_service,
+            account_service=account_service,
+            wallet_service=wallet_service,
+        )
+    )
 
     @app.get("/")
     async def root() -> JSONResponse:
