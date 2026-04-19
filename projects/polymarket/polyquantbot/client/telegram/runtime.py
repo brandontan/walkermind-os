@@ -28,6 +28,7 @@ from projects.polymarket.polyquantbot.client.telegram.backend_client import (
     CrusaderBackendClient,
     TelegramIdentityResolution,
     TelegramOnboardingResult,
+    TelegramSessionIssuanceResult,
 )
 from projects.polymarket.polyquantbot.client.telegram.dispatcher import (
     DispatchResult,
@@ -51,6 +52,10 @@ _REPLY_ALREADY_LINKED = (
 )
 _REPLY_ACTIVATED = (
     "Your account is now activated. Please send /start again to continue."
+)
+_REPLY_SESSION_ISSUED = "Welcome to CrusaderBot. Your session is ready."
+_REPLY_ALREADY_ACTIVE_SESSION_ISSUED = (
+    "Welcome back. Your account is already active and your session is ready."
 )
 _REPLY_ACTIVATION_REJECTED = (
     "Activation was rejected. Please contact the bot administrator."
@@ -123,6 +128,16 @@ class TelegramActivationConfirmer(Protocol):
         self, telegram_user_id: str
     ) -> TelegramActivationResult:
         """Confirm activation and return typed outcome."""
+        ...
+
+
+class TelegramSessionIssuer(Protocol):
+    """Protocol for issuing backend sessions for activated Telegram-linked users."""
+
+    async def issue_telegram_session(
+        self, telegram_user_id: str, ttl_seconds: int = 1800
+    ) -> TelegramSessionIssuanceResult:
+        """Issue backend session and return typed outcome."""
         ...
 
 
@@ -253,6 +268,7 @@ class TelegramPollingLoop:
         identity_resolver: Optional[TelegramIdentityResolver] = None,
         onboarding_initiator: Optional[TelegramOnboardingInitiator] = None,
         activation_confirmer: Optional[TelegramActivationConfirmer] = None,
+        session_issuer: Optional[TelegramSessionIssuer] = None,
         staging_tenant_id: str = _STAGING_TENANT_ID,
         staging_user_id: str = _STAGING_USER_ID,
     ) -> None:
@@ -261,6 +277,7 @@ class TelegramPollingLoop:
         self._identity_resolver = identity_resolver
         self._onboarding_initiator = onboarding_initiator
         self._activation_confirmer = activation_confirmer
+        self._session_issuer = session_issuer
         self._staging_tenant_id = staging_tenant_id
         self._staging_user_id = staging_user_id
         self._offset: int = 0
@@ -389,6 +406,36 @@ class TelegramPollingLoop:
                     await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
                     return
 
+            if self._session_issuer is not None:
+                try:
+                    issuance = await self._session_issuer.issue_telegram_session(
+                        update.from_user_id,
+                        ttl_seconds=ctx.ttl_seconds,
+                    )
+                except Exception as exc:
+                    log.error(
+                        "crusaderbot_telegram_session_issuance_exception",
+                        update_id=update.update_id,
+                        from_user_id=update.from_user_id,
+                        error=str(exc),
+                    )
+                    await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
+                    return
+
+                if issuance.outcome == "session_issued":
+                    await self._safe_send_reply(update.chat_id, _REPLY_SESSION_ISSUED)
+                    return
+                if issuance.outcome == "already_active_session_issued":
+                    await self._safe_send_reply(
+                        update.chat_id, _REPLY_ALREADY_ACTIVE_SESSION_ISSUED
+                    )
+                    return
+                if issuance.outcome == "rejected":
+                    await self._safe_send_reply(update.chat_id, _REPLY_ACTIVATION_REJECTED)
+                    return
+                await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
+                return
+
             ctx = TelegramCommandContext(
                 command=ctx.command,
                 from_user_id=ctx.from_user_id,
@@ -431,6 +478,7 @@ async def run_polling_loop(
     identity_resolver: Optional[TelegramIdentityResolver] = None,
     onboarding_initiator: Optional[TelegramOnboardingInitiator] = None,
     activation_confirmer: Optional[TelegramActivationConfirmer] = None,
+    session_issuer: Optional[TelegramSessionIssuer] = None,
     staging_tenant_id: str = _STAGING_TENANT_ID,
     staging_user_id: str = _STAGING_USER_ID,
 ) -> None:
@@ -449,16 +497,18 @@ async def run_polling_loop(
         identity_resolver=identity_resolver,
         onboarding_initiator=onboarding_initiator,
         activation_confirmer=activation_confirmer,
+        session_issuer=session_issuer,
         staging_tenant_id=staging_tenant_id,
         staging_user_id=staging_user_id,
     )
     log.info(
         "crusaderbot_telegram_polling_started",
-        phase="8.12",
+        phase="8.13",
         registered_commands=["/start"],
         identity_resolution="enabled" if identity_resolver is not None else "staging_fallback",
         onboarding="enabled" if onboarding_initiator is not None else "disabled",
         activation="enabled" if activation_confirmer is not None else "disabled",
+        session_issuance="enabled" if session_issuer is not None else "disabled",
         staging_tenant_id=staging_tenant_id,
         staging_user_id=staging_user_id,
     )

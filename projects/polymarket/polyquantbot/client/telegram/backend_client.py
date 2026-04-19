@@ -15,6 +15,12 @@ HandoffOutcome = Literal["issued", "rejected", "error"]
 TelegramIdentityOutcome = Literal["resolved", "not_found", "error"]
 TelegramOnboardingOutcome = Literal["onboarded", "already_linked", "rejected", "error"]
 TelegramActivationOutcome = Literal["activated", "already_active", "rejected", "error"]
+TelegramSessionIssuanceOutcome = Literal[
+    "session_issued",
+    "already_active_session_issued",
+    "rejected",
+    "error",
+]
 
 
 @dataclass(frozen=True)
@@ -60,6 +66,15 @@ class TelegramActivationResult:
     outcome: TelegramActivationOutcome
     tenant_id: str | None = None
     user_id: str | None = None
+    detail: str = ""
+
+
+@dataclass(frozen=True)
+class TelegramSessionIssuanceResult:
+    outcome: TelegramSessionIssuanceOutcome
+    tenant_id: str | None = None
+    user_id: str | None = None
+    session_id: str = ""
     detail: str = ""
 
 
@@ -307,6 +322,67 @@ class CrusaderBackendClient:
         except Exception:
             detail = resp.text or f"http {resp.status_code}"
         return TelegramActivationResult(
+            outcome="error" if resp.status_code >= 500 else "rejected",
+            detail=detail,
+        )
+
+    async def issue_telegram_session(
+        self,
+        telegram_user_id: str,
+        ttl_seconds: int = 1800,
+    ) -> TelegramSessionIssuanceResult:
+        """Call POST /auth/telegram-onboarding/session-issue for session handoff."""
+        if not telegram_user_id or not telegram_user_id.strip():
+            return TelegramSessionIssuanceResult(
+                outcome="rejected",
+                detail="telegram_user_id must not be empty",
+            )
+
+        payload = {
+            "telegram_user_id": telegram_user_id,
+            "tenant_id": self._identity_tenant_id,
+            "ttl_seconds": ttl_seconds,
+        }
+
+        try:
+            async with httpx.AsyncClient(
+                base_url=self._base_url,
+                timeout=self._timeout,
+            ) as http_client:
+                resp = await http_client.post(
+                    "/auth/telegram-onboarding/session-issue", json=payload
+                )
+        except Exception as exc:
+            log.error(
+                "crusaderbot_backend_session_issuance_http_error",
+                telegram_user_id=telegram_user_id,
+                error=str(exc),
+            )
+            return TelegramSessionIssuanceResult(outcome="error", detail=str(exc))
+
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                outcome: TelegramSessionIssuanceOutcome = data.get("outcome", "error")
+                return TelegramSessionIssuanceResult(
+                    outcome=outcome,
+                    tenant_id=data.get("tenant_id"),
+                    user_id=data.get("user_id"),
+                    session_id=str(data.get("session_id") or ""),
+                    detail=str(data.get("detail") or ""),
+                )
+            except Exception:
+                return TelegramSessionIssuanceResult(
+                    outcome="error",
+                    detail="invalid session issuance response",
+                )
+
+        detail = ""
+        try:
+            detail = str(resp.json().get("detail", ""))
+        except Exception:
+            detail = resp.text or f"http {resp.status_code}"
+        return TelegramSessionIssuanceResult(
             outcome="error" if resp.status_code >= 500 else "rejected",
             detail=detail,
         )
