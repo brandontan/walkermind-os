@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 11:10
-Status       : Phase 8.3 merged (PR #596). Phase 8.4 client auth handoff / wallet-link foundation built — 12/12 tests pass. SENTINEL validation required before merge.
+Last Updated : 2026-04-19 11:20
+Status       : Phase 8.4 client auth handoff / wallet-link foundation — pytest gate closed: 25/25 pass in dependency-complete environment. PR #598 is mergeable. SENTINEL CONDITIONAL gate satisfied.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -16,7 +16,7 @@ Status       : Phase 8.3 merged (PR #596). Phase 8.4 client auth handoff / walle
 - Phase 8.1 Crusader multi-user foundation merged via PR #590 with real pytest evidence confirmed (8/8 pass); post-merge truth sync for PROJECT_STATE.md and ROADMAP.md is now completed.
 - Phase 8.2 auth/session foundation merged; trusted scope derivation and protected foundation routes are preserved as merged-main baseline and no longer pending merge validation wording.
 - Phase 8.3 persistent session/storage foundation merged via PR #596. Pytest gate: 10/10 pass confirmed in dependency-complete environment (Python 3.11.15, pytest-9.0.3, fastapi-0.136.0). Evidence recorded in `projects/polymarket/polyquantbot/reports/forge/phase8-3_03_pytest-evidence-pass.md`.
-- Phase 8.4 client auth handoff / wallet-link foundation built: client auth handoff contract (core/client_auth_handoff.py), wallet-link schemas/storage/service, authenticated /auth/handoff + /auth/wallet-links routes, 12/12 tests pass (Python 3.11.15, pytest-9.0.2). Forge report: `projects/polymarket/polyquantbot/reports/forge/phase8-4_01_client-auth-wallet-link-foundation.md`.
+- Phase 8.4 client auth handoff / wallet-link foundation built: client auth handoff contract (core/client_auth_handoff.py), wallet-link schemas/storage/service, authenticated /auth/handoff + /auth/wallet-links routes. Pytest gate closed: 25/25 pass (Python 3.11.15, pytest-9.0.2). Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-4_02_pytest-evidence-pass.md`. PR #598 mergeable. SENTINEL CONDITIONAL gate satisfied.
 
 [IN PROGRESS]
 - None.
@@ -28,7 +28,7 @@ Status       : Phase 8.3 merged (PR #596). Phase 8.4 client auth handoff / walle
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase 8.4 before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-4_01_client-auth-wallet-link-foundation.md. Tier: MAJOR.
+- COMMANDER reviews PR #598 and decides merge. PR #599 can be closed after merge (SENTINEL CONDITIONAL gate now satisfied by pytest evidence in phase8-4_02_pytest-evidence-pass.md).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
