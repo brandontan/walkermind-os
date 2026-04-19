@@ -94,7 +94,7 @@ async def run_bot() -> None:
         dispatcher="client.telegram.dispatcher.TelegramDispatcher",
         adapter="client.telegram.runtime.HttpTelegramAdapter",
         identity_resolution="backend",
-        registered_commands=["/start","/mode","/autotrade","/positions","/pnl","/risk","/status","/markets","/market360","/social","/kill"],
+        registered_commands=["/start", "/mode", "/autotrade", "/positions", "/pnl", "/risk", "/status", "/markets", "/market360", "/social", "/kill"],
         phase="8.3-public-paper-beta",
         staging_tenant_id=settings.staging_tenant_id,
         staging_user_id=settings.staging_user_id,

@@ -72,15 +72,25 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
                 "detail": "autotrade cannot be enabled while mode=live in paper-beta runtime.",
             }
         STATE.autotrade_enabled = bool(payload.enabled)
-        log.info("public_beta_autotrade_updated", autotrade_enabled=STATE.autotrade_enabled, mode=STATE.mode)
-        return {"ok": True, "autotrade": STATE.autotrade_enabled}
+        log.info(
+            "public_beta_autotrade_updated",
+            autotrade_enabled=STATE.autotrade_enabled,
+            mode=STATE.mode,
+            execution_boundary="paper_only",
+        )
+        return {"ok": True, "autotrade": STATE.autotrade_enabled, "mode": STATE.mode}
 
     @router.post("/kill")
     async def kill() -> dict[str, object]:
         STATE.kill_switch = True
         STATE.autotrade_enabled = False
         STATE.last_risk_reason = "kill_switch_enabled"
-        log.info("public_beta_kill_switch_activated", kill_switch=True, autotrade_enabled=False)
+        log.info(
+            "public_beta_kill_switch_activated",
+            kill_switch=True,
+            autotrade_enabled=False,
+            execution_boundary="paper_only",
+        )
         return {"ok": True, "kill_switch": True}
 
     @router.get("/positions")

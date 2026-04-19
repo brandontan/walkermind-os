@@ -42,7 +42,7 @@ _STAGING_TENANT_ID = "staging"
 _STAGING_USER_ID = "staging"
 
 _REPLY_NOT_REGISTERED = (
-    "You are not registered with CrusaderBot."
+    "You are not registered with CrusaderBot yet. Public beta currently supports control commands only after onboarding."
 )
 _REPLY_ONBOARDED = (
     "Your onboarding request is ready. Please send /start again to continue."

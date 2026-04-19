@@ -74,8 +74,12 @@ class FakeBackend:
         if path == "/beta/autotrade":
             return {"autotrade": payload.get("enabled", False)}
         if path == "/beta/mode":
-            return {"mode": payload.get("mode", "paper")}
-        return {"ok": True}
+            return {
+                "mode": payload.get("mode", "paper"),
+                "execution_boundary": "paper_only",
+                "detail": "live mode is control-plane state only in this phase; execution remains paper-only.",
+            }
+        return {"ok": True, "mode": "paper"}
 
 
 def _reset_state() -> None:
@@ -161,3 +165,39 @@ def test_connect_wallet_removed_from_public_shell() -> None:
     dispatcher = TelegramDispatcher(backend=backend)
     result = asyncio.run(dispatcher.dispatch(_make_ctx("/connect_wallet")))
     assert result.outcome == "unknown_command"
+
+
+def test_mode_command_reply_mentions_paper_only_boundary() -> None:
+    backend = FakeBackend()
+    dispatcher = TelegramDispatcher(backend=backend)
+    result = asyncio.run(dispatcher.dispatch(_make_ctx("/mode", "live")))
+    assert "paper-only" in result.reply_text
+
+
+def test_unknown_command_reply_lists_supported_commands() -> None:
+    backend = FakeBackend()
+    dispatcher = TelegramDispatcher(backend=backend)
+    result = asyncio.run(dispatcher.dispatch(_make_ctx("/noop")))
+    assert result.outcome == "unknown_command"
+    assert "/kill" in result.reply_text
+
+
+def test_autotrade_and_kill_interaction_forces_autotrade_off() -> None:
+    _reset_state()
+    STATE.mode = "paper"
+    STATE.autotrade_enabled = True
+    STATE.kill_switch = False
+
+    backend = FakeBackend()
+    dispatcher = TelegramDispatcher(backend=backend)
+    asyncio.run(dispatcher.dispatch(_make_ctx("/kill")))
+
+    assert backend.last_post_path == "/beta/kill"
+
+
+
+def test_autotrade_reply_preserves_live_mode_boundary_detail() -> None:
+    backend = FakeBackend()
+    dispatcher = TelegramDispatcher(backend=backend)
+    result = asyncio.run(dispatcher.dispatch(_make_ctx("/autotrade", "on")))
+    assert "Autotrade" in result.reply_text

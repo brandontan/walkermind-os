@@ -2,6 +2,9 @@
 
 Provides lightweight stubs for external dependencies (LiveExecutor, Telegram)
 so every test runs in pure-asyncio without network I/O.
+
+Import bootstrap ownership note: repo-root `conftest.py` owns sys.path normalization;
+this project-local conftest intentionally avoids duplicating path mutation logic.
 """
 from __future__ import annotations
 
