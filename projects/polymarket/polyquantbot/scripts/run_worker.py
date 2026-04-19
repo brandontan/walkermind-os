@@ -1,20 +1,15 @@
-"""Run the CrusaderBot worker surface placeholder."""
+"""Run the CrusaderBot paper auto-trading worker."""
 from __future__ import annotations
 
 import asyncio
+import os
 
-import structlog
-
-log = structlog.get_logger(__name__)
+from projects.polymarket.polyquantbot.server.workers.paper_beta_worker import run_worker_loop
 
 
 async def run_worker() -> None:
-    log.info(
-        "crusaderbot_worker_bootstrap_ready",
-        runtime="scripts.run_worker",
-        status="idle",
-    )
-    await asyncio.sleep(0)
+    iterations = int(os.getenv("WORKER_ITERATIONS", "1"))
+    await run_worker_loop(iterations=iterations)
 
 
 def main() -> None:

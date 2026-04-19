@@ -386,3 +386,27 @@ class CrusaderBackendClient:
             outcome="error" if resp.status_code >= 500 else "rejected",
             detail=detail,
         )
+
+    async def beta_get(self, path: str, params: dict[str, object] | None = None) -> dict[str, object]:
+        """Read helper for beta control plane endpoints."""
+        try:
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as http_client:
+                resp = await http_client.get(path, params=params)
+            if resp.status_code == 200:
+                payload = resp.json()
+                return payload if isinstance(payload, dict) else {"ok": False, "detail": "invalid_payload"}
+            return {"ok": False, "detail": f"http_{resp.status_code}"}
+        except Exception as exc:
+            return {"ok": False, "detail": str(exc)}
+
+    async def beta_post(self, path: str, payload: dict[str, object]) -> dict[str, object]:
+        """Write helper for beta control plane endpoints."""
+        try:
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as http_client:
+                resp = await http_client.post(path, json=payload)
+            if resp.status_code == 200:
+                body = resp.json()
+                return body if isinstance(body, dict) else {"ok": False, "detail": "invalid_payload"}
+            return {"ok": False, "detail": f"http_{resp.status_code}"}
+        except Exception as exc:
+            return {"ok": False, "detail": str(exc)}

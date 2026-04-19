@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 21:39
+**Last Updated:** 2026-04-20 00:15
 
 # Board Overview
 
@@ -451,6 +451,29 @@
 - [x] Portfolio engine rollout
 - [x] Full web activation rollout
 - [x] Production-grade notification/orchestration platform
+
+---
+
+
+## CrusaderBot — Public Paper Beta Spine (Phase 8.3 Runtime Slice)
+
+**Goal:** Build the fastest safe public-ready paper-trading beta slice with FastAPI control plane, Telegram control shell, backend-managed Falcon read integration, and paper-only worker execution spine.  
+**Status:** 🚧 In Progress (FORGE-X implementation complete on branch `refactor/public-paper-beta-spine-20260419`; awaiting SENTINEL review)  
+**Last Updated:** 2026-04-20 00:15
+
+### Scope Lock
+- [x] Runtime entrypoints for API, bot, and worker are present
+- [x] FastAPI `/health` and `/ready` are active
+- [x] Backend-managed Falcon env contract enforced (`FALCON_API_KEY`, `FALCON_BASE_URL`, `FALCON_TIMEOUT`, `FALCON_ENABLED`)
+- [x] Telegram command shell implemented (`/start`, `/mode`, `/autotrade`, `/positions`, `/pnl`, `/risk`, `/status`, `/markets`, `/market360`, `/social`, `/kill`)
+- [x] Removed `/connect_wallet` stub from public shell to prevent fake acknowledgement behavior
+- [x] Manual trade-entry commands excluded
+- [x] Worker spine flow implemented (`market_sync`, `signal_runner`, `risk_monitor`, `position_monitor`, `price_updater`)
+- [x] Risk gate enforces EV, edge, liquidity, drawdown, exposure, idempotency, kill switch, and default paper-mode boundary
+- [x] Fly contract updated with health path and env contract
+- [x] Falcon-enabled beta signal generation requires secret-backed env configuration at deploy time.
+- [x] Structural normalization folders present for server/integrations/risk/execution/portfolio/workers/configs/docs/tests
+- [ ] SENTINEL review required before merge (MAJOR)
 
 ---
 
