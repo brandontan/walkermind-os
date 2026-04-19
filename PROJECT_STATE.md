@@ -1,5 +1,5 @@
-Last Updated : 2026-04-19 15:52
-Status       : Phase 8.9 real Telegram polling / runtime loop foundation merged (SENTINEL CONDITIONAL gate satisfied via phase8-9_02_pytest-evidence-pass.md, 94/94 pass). Phase 8.10 Telegram identity resolution foundation in progress on branch claude/phase8-10-telegram-identity-ePWJP.
+Last Updated : 2026-04-19 16:09
+Status       : Phase 8.9 real Telegram polling / runtime loop foundation merged (SENTINEL CONDITIONAL gate satisfied via phase8-9_02_pytest-evidence-pass.md, 94/94 pass). Phase 8.10 Telegram identity resolution foundation received SENTINEL CONDITIONAL for PR #610 (contract hardening + reproducible pytest evidence pending).
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -24,7 +24,7 @@ Status       : Phase 8.9 real Telegram polling / runtime loop foundation merged 
 - Phase 8.9 real Telegram polling / runtime loop foundation merged: TelegramRuntimeAdapter abstract boundary, HttpTelegramAdapter concrete implementation, extract_command_context staging identity contract, TelegramPollingLoop dispatch + reply routing, run_polling_loop top-level wiring, bot.py adapter/loop wiring. SENTINEL CONDITIONAL gate satisfied via phase8-9_02_pytest-evidence-pass.md. Pytest gate: 94/94 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-9_01_telegram-runtime-loop-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-9_02_pytest-evidence-pass.md`. SENTINEL: PR #609 (CONDITIONAL gate satisfied).
 
 [IN PROGRESS]
-- Phase 8.10 Telegram identity resolution foundation: replacing CRUSADER_STAGING_TENANT_ID / CRUSADER_STAGING_USER_ID placeholders with real backend-driven lookup; TelegramIdentityService server-side resolver; GET /auth/telegram-identity/{telegram_user_id} backend route; TelegramIdentityResolver Protocol + updated TelegramPollingLoop; safe not_found/error reply behavior. Branch: claude/phase8-10-telegram-identity-ePWJP.
+- Phase 8.10 Telegram identity resolution foundation: SENTINEL CONDITIONAL on PR #610. Required before merge: strict unknown-outcome normalization in backend client/runtime identity contract and dependency-complete rerun evidence for claimed 112/112 pytest scope. Branch: claude/phase8-10-telegram-identity-ePWJP.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -32,7 +32,7 @@ Status       : Phase 8.9 real Telegram polling / runtime loop foundation merged 
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase 8.10 Telegram identity resolution foundation before merge. Source: projects/polymarket/polyquantbot/reports/forge/phase8-10_01_telegram-identity-resolution-foundation.md. Tier: MAJOR.
+- FORGE-X follow-up required on branch claude/phase8-10-telegram-identity-ePWJP for PR #610: close identity-outcome normalization gap and attach dependency-complete pytest evidence (claimed 112/112) before SENTINEL re-run. Source: projects/polymarket/polyquantbot/reports/sentinel/phase8-10_01_telegram-identity-validation-pr610.md. Tier: MAJOR.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-19 15:52
+**Last Updated:** 2026-04-19 16:09
 
 # Board Overview
 
@@ -344,8 +344,8 @@
 ## CrusaderBot — Telegram Identity Resolution Foundation Checklist (Phase 8.10)
 
 **Goal:** Replace staging tenant/user placeholders in the Telegram runtime with a truthful backend-driven identity resolution foundation under `projects/polymarket/polyquantbot/`. Introduces a narrow service/contract that maps inbound Telegram `from_user_id` to backend user scope, updates the polling loop to use resolved identity for command dispatch, and defines safe fallback reply behavior for unlinked/unknown users and backend errors.  
-**Status:** 🚧 In Progress — SENTINEL validation required before merge  
-**Last Updated:** 2026-04-19 15:52
+**Status:** 🚧 In Progress — SENTINEL CONDITIONAL for PR #610; FORGE-X follow-up required (identity-outcome normalization + dependency-complete pytest evidence) before revalidation  
+**Last Updated:** 2026-04-19 16:09
 
 ### Scope Lock
 - [x] Keep scope on Telegram identity resolution contract only
