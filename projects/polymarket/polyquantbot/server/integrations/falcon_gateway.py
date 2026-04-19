@@ -1,4 +1,10 @@
-"""Falcon read-side integration for paper beta worker and control plane."""
+"""Falcon read-side integration for paper beta worker and control plane.
+
+Current lane is intentionally narrow-integration hardening:
+- real client wiring for external alpha fetch exists for `market_360`
+- `list_markets`, `social`, and `rank_candidates` remain bounded sample/placeholder
+  behavior to keep public paper beta truthful without overclaiming production retrieval.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,6 +24,12 @@ class CandidateSignal:
 
 
 class FalconGateway:
+    """Backend-managed Falcon boundary for public paper beta.
+
+    This class is not a full production data gateway yet. Methods include explicit
+    placeholder/sample outputs where real retrieval is not yet implemented.
+    """
+
     def __init__(self, settings: FalconSettings) -> None:
         self._settings = settings
         self._client = FalconAPIClient(
@@ -27,6 +39,11 @@ class FalconGateway:
         )
 
     async def list_markets(self, query: str = "") -> list[dict[str, object]]:
+        """Return bounded sample market list for beta shell observability.
+
+        This is placeholder behavior and should not be treated as production source
+        of truth for market discovery.
+        """
         if not self._settings.enabled:
             return []
         sample = [
@@ -47,12 +64,17 @@ class FalconGateway:
         return {"condition_id": condition_id, "alpha": alpha}
 
     async def social(self, topic: str) -> dict[str, object]:
+        """Return placeholder narrative response until real social retrieval exists."""
         return {
             "topic": topic,
             "summary": "Falcon social narrative summary unavailable in beta; using safe placeholder.",
         }
 
     async def rank_candidates(self) -> list[CandidateSignal]:
+        """Return bounded sample candidates while enabled.
+
+        This path deliberately avoids claiming production signal quality.
+        """
         if not self._settings.enabled:
             return []
         return [

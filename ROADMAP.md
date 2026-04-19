@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 00:15
+**Last Updated:** 2026-04-20 00:54
 
 # Board Overview
 
@@ -455,14 +455,14 @@
 ---
 
 
-## CrusaderBot — Public Paper Beta Spine (Phase 8.3 Runtime Slice)
+## CrusaderBot — Paper Beta Operational Hardening (Phase 8.4 Runtime Slice)
 
 **Goal:** Build the fastest safe public-ready paper-trading beta slice with FastAPI control plane, Telegram control shell, backend-managed Falcon read integration, and paper-only worker execution spine.  
-**Status:** 🚧 In Progress (FORGE-X implementation complete on branch `refactor/public-paper-beta-spine-20260419`; awaiting SENTINEL review)  
-**Last Updated:** 2026-04-20 00:15
+**Status:** 🚧 In Progress (FORGE-X hardening pass in progress on branch `harden/paper-beta-operational-readiness-20260420`; SENTINEL required before merge)  
+**Last Updated:** 2026-04-20 00:54
 
 ### Scope Lock
-- [x] Runtime entrypoints for API, bot, and worker are present
+- [x] Preserve Phase 8.3 runtime entrypoints for API, bot, and worker
 - [x] FastAPI `/health` and `/ready` are active
 - [x] Backend-managed Falcon env contract enforced (`FALCON_API_KEY`, `FALCON_BASE_URL`, `FALCON_TIMEOUT`, `FALCON_ENABLED`)
 - [x] Telegram command shell implemented (`/start`, `/mode`, `/autotrade`, `/positions`, `/pnl`, `/risk`, `/status`, `/markets`, `/market360`, `/social`, `/kill`)
@@ -473,7 +473,7 @@
 - [x] Fly contract updated with health path and env contract
 - [x] Falcon-enabled beta signal generation requires secret-backed env configuration at deploy time.
 - [x] Structural normalization folders present for server/integrations/risk/execution/portfolio/workers/configs/docs/tests
-- [ ] SENTINEL review required before merge (MAJOR)
+- [ ] SENTINEL review required before merge (MAJOR hardening gate)
 
 ---
 

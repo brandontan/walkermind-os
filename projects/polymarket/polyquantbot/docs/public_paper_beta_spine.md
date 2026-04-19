@@ -22,6 +22,16 @@
 - `GET /beta/market360/{condition_id}`
 - `GET /beta/social?topic=...`
 
+### Readiness truth (Phase 8.4 hardening)
+`GET /ready` reports readiness dimensions for this lane:
+- API boot completion (`api_boot_complete`)
+- Worker runtime status (`startup_complete`, `active`, `shutdown_complete`, `iterations_total`, `last_error`)
+- Worker prerequisites (`paper_mode_enforced`, `autotrade_enabled`, `kill_switch_enabled`)
+- Falcon config truth (`enabled`, `api_key_configured`, `candidate_source_contract`)
+- Control-plane execution boundary (`paper_only_execution_boundary=true`)
+
+Readiness intentionally does **not** overclaim external dependency health that is not actively probed.
+
 ## Falcon backend-managed contract
 Falcon config is backend-managed only using environment variables:
 - `FALCON_API_KEY` (required only when `FALCON_ENABLED=true`)
@@ -48,6 +58,7 @@ This lane is **NARROW INTEGRATION**. Falcon market/candidate/social data current
 - `/kill`
 
 Manual trade-entry commands are intentionally excluded.
+`/mode live` is accepted as control-plane state only in this phase; execution remains paper-only.
 
 ## Paper worker flow
 `market_sync -> signal_runner -> risk_monitor -> position_monitor -> price_updater`
@@ -55,9 +66,11 @@ Manual trade-entry commands are intentionally excluded.
 Execution mode defaults to `paper`. New entries are blocked when:
 - `autotrade_enabled=false`
 - `kill_switch=true`
+- `mode != paper` (`mode_live_paper_execution_disabled`)
 - risk gate rejects EV/edge/liquidity/drawdown/exposure/idempotency checks
 
 Monitoring/update stages still run even when entry creation is blocked.
+Worker iteration logs include candidate count, accepted/rejected counts, skip reasons, rejection reason counts, and current position count.
 
 ## Fly deploy truth
 Fly runtime is paper-mode by default. To activate Falcon-backed candidate generation, deploy must provide secret-backed Falcon configuration (`FALCON_ENABLED=true` + `FALCON_API_KEY` and optional base URL override).
