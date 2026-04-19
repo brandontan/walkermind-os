@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 ScopeStatus = Literal["active", "inactive"]
 WalletStatus = Literal["linked", "unlinked"]
+ActivationStatus = Literal["pending_confirmation", "active"]
 
 
 class UserCreate(BaseModel):
@@ -32,6 +33,7 @@ class UserSettingsRecord(BaseModel):
     user_id: str
     timezone: str = "UTC"
     notifications_enabled: bool = True
+    activation_status: ActivationStatus = "pending_confirmation"
     created_at: datetime
 
 
