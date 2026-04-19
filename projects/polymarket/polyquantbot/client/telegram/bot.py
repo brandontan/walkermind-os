@@ -9,6 +9,10 @@ import structlog
 
 from projects.polymarket.polyquantbot.client.telegram.backend_client import CrusaderBackendClient
 from projects.polymarket.polyquantbot.client.telegram.dispatcher import TelegramDispatcher
+from projects.polymarket.polyquantbot.client.telegram.runtime import (
+    HttpTelegramAdapter,
+    run_polling_loop,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -22,6 +26,8 @@ class TelegramBotSettings:
     telegram_token: str = ""
     telegram_chat_id: str = ""
     backend_base_url: str = _DEFAULT_BACKEND_URL
+    staging_tenant_id: str = "staging"
+    staging_user_id: str = "staging"
 
     @classmethod
     def from_env(cls) -> "TelegramBotSettings":
@@ -33,13 +39,23 @@ class TelegramBotSettings:
 
         token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
         chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
-        backend_url = os.getenv("CRUSADER_BACKEND_URL", _DEFAULT_BACKEND_URL).strip() or _DEFAULT_BACKEND_URL
+        backend_url = (
+            os.getenv("CRUSADER_BACKEND_URL", _DEFAULT_BACKEND_URL).strip() or _DEFAULT_BACKEND_URL
+        )
+        staging_tenant_id = (
+            os.getenv("CRUSADER_STAGING_TENANT_ID", "staging").strip() or "staging"
+        )
+        staging_user_id = (
+            os.getenv("CRUSADER_STAGING_USER_ID", "staging").strip() or "staging"
+        )
 
         return cls(
             startup_mode=startup_mode,
             telegram_token=token,
             telegram_chat_id=chat_id,
             backend_base_url=backend_url,
+            staging_tenant_id=staging_tenant_id,
+            staging_user_id=staging_user_id,
         )
 
 
@@ -64,6 +80,7 @@ async def run_bot() -> None:
 
     backend = CrusaderBackendClient(base_url=settings.backend_base_url)
     dispatcher = TelegramDispatcher(backend=backend)
+    adapter = HttpTelegramAdapter(token=settings.telegram_token)
 
     log.info(
         "crusaderbot_telegram_bootstrap_ready",
@@ -72,12 +89,19 @@ async def run_bot() -> None:
         chat_id_configured=bool(settings.telegram_chat_id),
         backend_base_url=settings.backend_base_url,
         dispatcher="client.telegram.dispatcher.TelegramDispatcher",
+        adapter="client.telegram.runtime.HttpTelegramAdapter",
         registered_commands=["/start"],
-        phase="8.8",
+        phase="8.9",
+        staging_tenant_id=settings.staging_tenant_id,
+        staging_user_id=settings.staging_user_id,
     )
 
-    _ = dispatcher
-    await asyncio.sleep(0)
+    await run_polling_loop(
+        adapter=adapter,
+        dispatcher=dispatcher,
+        staging_tenant_id=settings.staging_tenant_id,
+        staging_user_id=settings.staging_user_id,
+    )
 
 
 def main() -> None:
