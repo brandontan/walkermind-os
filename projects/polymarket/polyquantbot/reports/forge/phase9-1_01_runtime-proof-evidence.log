@@ -1,41 +1,26 @@
 Phase 9.1 Dependency-Complete Runtime Proof
-Python executable: /root/.pyenv/versions/3.10.19/bin/python
-Repo root: /workspace/walker-ai-team
-Project root: /workspace/walker-ai-team/projects/polymarket/polyquantbot
-Targets file: /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/runtime_proof_phase9_1_targets.txt
+Diagnostics mode: enabled (stdout/stderr mirrored)
+Python executable: /opt/hostedtoolcache/Python/3.11.13/x64/bin/python
+Repo root: /home/runner/work/walker-ai-team/walker-ai-team
+Project root: /home/runner/work/walker-ai-team/walker-ai-team/projects/polymarket/polyquantbot
+Targets file: /home/runner/work/walker-ai-team/walker-ai-team/projects/polymarket/polyquantbot/tests/runtime_proof_phase9_1_targets.txt
+Loaded targets (3):
+- projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py
+- projects/polymarket/polyquantbot/tests/test_phase8_7_public_paper_beta_completion_20260420.py
+- projects/polymarket/polyquantbot/tests/test_phase8_8_public_paper_beta_exit_criteria_20260420.py
 
-[1/5] create venv: /workspace/walker-ai-team/projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof
-
-
-venv python: /workspace/walker-ai-team/projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof/bin/python
+[1/5] create venv: /home/runner/work/walker-ai-team/walker-ai-team/projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof
+venv python: /home/runner/work/walker-ai-team/walker-ai-team/projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof/bin/python
 [2/5] install dependency-complete runtime/test stack
 package entrypoint: python -m projects.polymarket.polyquantbot.scripts.run_phase9_1_runtime_proof
 install attempt A (proxy/default env)
-Requirement already satisfied: pip in ./projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof/lib/python3.10/site-packages (23.0.1)
-WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pip/
-WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pip/
-WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pip/
-WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pip/
-WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pip/
-WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pytest/
-WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pytest/
-WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pytest/
-WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pytest/
-WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pytest/
-ERROR: Could not find a version that satisfies the requirement pytest (from versions: none)
-ERROR: No matching distribution found for pytest
-install attempt B (direct/no-proxy env)
-Requirement already satisfied: pip in ./projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof/lib/python3.10/site-packages (23.0.1)
-WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf1287ece0>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pip/
-WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf1287f010>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pip/
-WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf1287f370>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pip/
-WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf1287f520>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pip/
-WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf1287f6d0>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pip/
-WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf12909300>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pytest/
-WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf129097b0>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pytest/
-WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf12909960>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pytest/
-WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf12909b10>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pytest/
-WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7fcf12909cc0>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /simple/pytest/
-ERROR: Could not find a version that satisfies the requirement pytest (from versions: none)
-ERROR: No matching distribution found for pytest
-FAIL: dependency install exit=1
+PASS: dependency install
+[3/5] runtime-surface py_compile
+PASS: py_compile
+[4/5] execute runtime-surface pytest targets
+command: /home/runner/work/walker-ai-team/walker-ai-team/projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof/bin/python -m pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py
+command: /home/runner/work/walker-ai-team/walker-ai-team/projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof/bin/python -m pytest -q projects/polymarket/polyquantbot/tests/test_phase8_7_public_paper_beta_completion_20260420.py
+command: /home/runner/work/walker-ai-team/walker-ai-team/projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof/bin/python -m pytest -q projects/polymarket/polyquantbot/tests/test_phase8_8_public_paper_beta_exit_criteria_20260420.py
+PASS: all runtime-surface pytest targets
+
+[5/5] runtime proof completed

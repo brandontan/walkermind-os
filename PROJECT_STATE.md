@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 02:56
-Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; Falcon readiness contract now keeps /ready evaluable when FALCON is enabled without API key, but closure evidence remains pending an external GitHub Actions rerun in a package-accessible runner.
+Last Updated : 2026-04-21 03:43
+Status       : SENTINEL validated Phase 9.1 closure-pass evidence on PR #673 with a CONDITIONAL gate; 9.2 roadmap drift is corrected to not-started lane truth pending COMMANDER merge decision, while Phase 8.14 launch-planning follow-up remains in progress.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -26,10 +26,11 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Phase 8.11 Telegram onboarding/account-link foundation merged truth synced on main: unresolved /start onboarding route and persistence evidence preserved in `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md` and `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`; expected validation reference path remains `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`.
 - Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation merged truth synced on main via PR #639 and SENTINEL sync PR #640; stale pre-merge wording removed and runtime-hardening checklist truth is now historical-complete.
 - Phase 8.13 Telegram session-issuance gate re-land lane is merged with validation record preserved as historical truth and no longer an active in-progress source lane.
+- Phase 9.1 dependency-complete runtime-proof closure is completed with refreshed canonical evidence log (`projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log`) and closure report (`projects/polymarket/polyquantbot/reports/forge/phase9-1_09_runtime-proof-closure-pass.md`).
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.1 Falcon readiness/runtime contract fix is applied in `projects/polymarket/polyquantbot/configs/falcon.py` so missing `FALCON_API_KEY` under `FALCON_ENABLED=true` is surfaced as readiness-invalid instead of app-creation failure; full closure evidence remains pending external GitHub Actions rerun in a package-accessible runner.
+- Phase 9.2 operational/public readiness lane is the active next lane and will begin implementation after SENTINEL validates the Phase 9.1 closure-pass PR.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +38,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review Falcon readiness fix (`projects/polymarket/polyquantbot/reports/forge/phase9-1_09_falcon-readiness-contract-fix.md`) and trigger external `.github/workflows/phase9_1_runtime_proof.yml`; only produce closure-pass artifacts if full workflow is green.
+- COMMANDER review SENTINEL verdict for PR #673 and decide merge readiness for Phase 9.1 closure pass.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
