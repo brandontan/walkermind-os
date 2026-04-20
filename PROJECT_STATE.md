@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 16:50
-Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 8.15 dependency-complete runtime-proof evidence closure; 8.15 is still blocked pending package-accessible runner proof before 8.16 operational/public readiness then 8.17 release gate.
+Last Updated : 2026-04-20 17:13
+Status       : Open lanes remain Phase 8.14 launch-planning foundation dependency-complete validation closure and Phase 8.15 dependency-complete runtime-proof evidence closure; both lanes remain blocked in this runner by package-access limits before 8.16 operational/public readiness then 8.17 release gate.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -28,7 +28,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Phase 8.13 Telegram session-issuance gate re-land lane is merged with validation record preserved as historical truth and no longer an active in-progress source lane.
 
 [IN PROGRESS]
-- Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
+- Phase 8.14 Walker DevOps launch-planning app FOUNDATION validation-closure lane is active on feature/close-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains intact in projects/app/walker_devops, but closure is still blocked after install/test/verify attempt due to npm registry E403 for @openai/agents and missing OPENAI_API_KEY in this runner. See projects/app/walker_devops/reports/forge/phase8-14_05_validation-closure.md.
 - Phase 8.15 dependency-complete runtime-proof lane remains BLOCKED after rerun follow-up: deterministic runner/manifest/evidence path are preserved for /health, /ready, /beta/status, and /beta/admin, but dependency installation still fails with package/proxy 403 (including direct no-proxy path failure), so no successful py_compile+pytest closure evidence exists yet; follow-up recorded in `projects/polymarket/polyquantbot/reports/forge/phase8-15_02_blocked-rerun-attempt.md`.
 
 [NOT STARTED]
@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER decision gate: review Phase 8.14 actionable-source assessment for launch-planning foundation follow-up scope, and in parallel keep Phase 8.15 pending package-accessible runner access for dependency-complete runtime-proof rerun evidence.
+- COMMANDER decision gate: route Phase 8.14 closure rerun to a package-capable + key-capable environment (npm install pass, npm test pass, npm run verify:stream pass), while keeping Phase 8.15 rerun pending the same environment unblock.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
