@@ -84,7 +84,7 @@
 - No evidence of session-issuance auto-promotion coupling.
 
 ## Reasoning
-Within the declared NARROW INTEGRATION target, the source lane is truthful and safety semantics are preserved: active-only issuance, explicit non-active rejection, no issuance-path promotion, and consistent runtime reply mapping. The only limitation is environment-level test execution failure due missing dependency in this runner, which prevents a fully executed local re-proof.
+Within the declared NARROW INTEGRATION target, the source lane is truthful and safety semantics are preserved: active-only issuance, explicit non-active rejection, no issuance-path promotion, and consistent runtime reply mapping. The only limitation is environment-level test execution failure due to missing dependency in this runner, which prevents a fully executed local re-proof.
 
 ## Fix Recommendations
 1. Re-run focused 8.13 tests in a dependency-complete runner:
