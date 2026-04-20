@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** Public-ready paper beta complete on main (paper-only boundary preserved; not live-trading ready; not production-capital ready)
-**Last Updated:** 2026-04-21 04:56
+**Last Updated:** 2026-04-21 05:29
 
 # Board Overview
 
@@ -421,7 +421,7 @@
 ## CrusaderBot — Telegram Confirmation / Activation Foundation Checklist (Phase 8.12)
 
 **Goal:** Add a narrow confirmation/activation lifecycle for Telegram-linked onboarding users so runtime does not stop at record creation and can truthfully report activation outcomes before session handoff dispatch.  
-**Status:** 🚧 In Progress (status promotion to done reverted pending explicit merged-main completion proof; numbering continuity before active/open lanes 8.13 and 8.14 is preserved)
+**Status:** 🚧 In Progress (status promotion to done reverted pending explicit merged-main completion proof; numbering continuity before historical Phase 8.13/8.14 lanes is preserved)
 **Last Updated:** 2026-04-20 14:14
 
 ### Scope Lock
@@ -536,13 +536,13 @@
 
 ## CrusaderBot — Fastest Path to Public-Ready Paper Beta (Post-9.0 Numbering Realignment)
 
-**Goal:** Keep the same three-lane public-paper-beta finish path (runtime proof -> operational/public readiness -> release gate) while remapping it to truthful next-open numbering after consumed/open lanes through Phase 8.14.  
+**Goal:** Keep the same three-lane public-paper-beta finish path (runtime proof -> operational/public readiness -> release gate) while remapping it to truthful next-open numbering after historically consumed lanes through Phase 8.14.
 **Status:** ✅ Done (Phase 9.1 runtime proof, Phase 9.2 operational/public readiness, and Phase 9.3 release gate are complete on main; public-ready paper beta path is complete while paper-only boundary remains preserved and no live-trading/production-capital readiness is claimed).
-**Last Updated:** 2026-04-21 04:56
+**Last Updated:** 2026-04-21 05:29
 
 ### Numbering Truth
 - [x] Preserve consumed historical lanes through Phase 8.12.
-- [x] Preserve currently active/open lanes Phase 8.13 and Phase 8.14 as already consumed numbering.
+- [x] Preserve historical Phase 8.13 and Phase 8.14 numbering as consumed sequencing continuity (not active execution lanes).
 - [x] Normalize next public-paper-beta runtime-proof lane naming to Phase 9.1 while preserving the same product path semantics.
 
 ### Realigned Remaining Path (product path unchanged)
