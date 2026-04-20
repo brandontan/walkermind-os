@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.13 re-land audit, Phase 8.14 launch-pla
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Keep Phase 8.15 pending package-accessible runner access, then rerun dependency-complete runtime proof to produce successful py_compile+pytest evidence before reopening SENTINEL revalidation, while preserving visible 8.13/8.14/8.15 lane ordering truth.
+- COMMANDER decision gate: review Phase 8.13 SENTINEL CONDITIONAL verdict on PR #649, and in parallel keep Phase 8.15 pending package-accessible runner access for dependency-complete runtime-proof rerun evidence.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
