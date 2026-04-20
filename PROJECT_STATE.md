@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 04:08
-Status       : SENTINEL completed MAJOR validation for Phase 9.2 public-readiness and ops-hardening on feature/phase-9-2-public-readiness-and-ops-hardening with CONDITIONAL verdict (runtime semantics pass; dependency-limited skip evidence caveat); COMMANDER merge decision is now the next gate while Phase 8.14 launch-planning follow-up remains in progress.
+Last Updated : 2026-04-21 04:15
+Status       : Phase 9.3 public paper-beta release-gate artifact is now implemented on feature/phase-9-3-public-release-gate with explicit GO / HOLD / NO-GO decision surface linked to Phase 9.1 and Phase 9.2 evidence; SENTINEL MAJOR validation on this source branch is now the required next gate while Phase 8.14 launch-planning follow-up remains in progress.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -27,10 +27,11 @@ Status       : SENTINEL completed MAJOR validation for Phase 9.2 public-readines
 - Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation merged truth synced on main via PR #639 and SENTINEL sync PR #640; stale pre-merge wording removed and runtime-hardening checklist truth is now historical-complete.
 - Phase 8.13 Telegram session-issuance gate re-land lane is merged with validation record preserved as historical truth and no longer an active in-progress source lane.
 - Phase 9.1 dependency-complete runtime-proof closure is completed with refreshed canonical evidence log (`projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log`) and closure report (`projects/polymarket/polyquantbot/reports/forge/phase9-1_09_runtime-proof-closure-pass.md`).
+- Phase 9.2 operational/public readiness and ops-hardening truth is now treated as landed for release-gate continuity with FORGE report `projects/polymarket/polyquantbot/reports/forge/phase9-2_01_public-readiness-and-ops-hardening.md` and SENTINEL validation `projects/polymarket/polyquantbot/reports/sentinel/phase9-2_01_public-readiness-and-ops-hardening-validation-pr675.md` as the canonical evidence pair.
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.2 operational/public readiness lane implementation pass on feature/phase-9-2-public-readiness-and-ops-hardening now has SENTINEL MAJOR verdict = CONDITIONAL for PR #675 and is awaiting COMMANDER merge decision plus dependency-complete non-skip pytest evidence attachment.
+- Phase 9.3 public paper-beta release-gate lane is in progress on feature/phase-9-3-public-release-gate with explicit checklist, GO / HOLD / NO-GO decision table, and linked Phase 9.1 + 9.2 evidence references pending SENTINEL MAJOR validation.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -38,7 +39,7 @@ Status       : SENTINEL completed MAJOR validation for Phase 9.2 public-readines
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review Phase 9.2 PR #675 with SENTINEL CONDITIONAL verdict and decide hold/merge after dependency-complete non-skip pytest evidence confirmation.
+- SENTINEL validate Phase 9.3 release-gate PR head branch (`feature/phase-9-3-public-release-gate`) and return GO / HOLD / NO-GO readiness verdict with evidence-backed caveats.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
