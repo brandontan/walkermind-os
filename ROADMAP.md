@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 12:12
+**Last Updated:** 2026-04-20 12:19
 
 # Board Overview
 
@@ -458,8 +458,8 @@
 ## CrusaderBot — Public Paper Beta Completion Pass (Phase 8.7 Runtime Slice)
 
 **Goal:** Build the fastest safe public-ready paper-trading beta slice with FastAPI control plane, Telegram control shell, backend-managed Falcon read integration, and paper-only worker execution spine.  
-**Status:** ❌ Superseded (active-lane truth moved to Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation; no longer tracked as active in-progress lane)  
-**Last Updated:** 2026-04-20 12:12
+**Status:** ✅ Done (merged historical truth preserved; SENTINEL CONDITIONAL gate satisfied. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-6_03_public-paper-beta-confidence-pass.md`)  
+**Last Updated:** 2026-04-20 12:19
 
 ### Scope Lock
 - [x] Preserve Phase 8.3 runtime entrypoints for API, bot, and worker
@@ -473,7 +473,34 @@
 - [x] Fly contract updated with health path and env contract
 - [x] Falcon-enabled beta signal generation requires secret-backed env configuration at deploy time.
 - [x] Structural normalization folders present for server/integrations/risk/execution/portfolio/workers/configs/docs/tests
-- [x] Lane closed as stale active-lane truth; superseded by Phase 8.9 state-truth cleanup lane.
+- [x] Historical merged lane truth preserved (not an active in-progress lane).
+
+---
+
+## CrusaderBot — Public Paper Beta Exit Criteria + Admin Controls (Phase 8.8 Runtime Hardening)
+
+**Goal:** Define explicit managed-beta exit criteria and minimum admin/operator control visibility so public paper beta can be judged as controllable and safely bounded without overclaiming live readiness.  
+**Status:** ✅ Done (merged historical truth preserved. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-8_03_public-paper-beta-exit-criteria-admin-controls.md`)  
+**Last Updated:** 2026-04-20 12:19
+
+### Scope Lock
+- [x] Keep Telegram and FastAPI as control/read surfaces only
+- [x] Preserve explicit paper-only execution authority
+- [x] Add machine-readable/operator-readable exit criteria payload semantics
+- [x] Add admin-visible managed-beta status surface (`/beta/admin`)
+- [x] Strengthen `/beta/status` for controllable/guard/config truth visibility
+- [x] Add focused regression coverage for exit-criteria/admin semantics
+- [x] Update public paper-beta documentation with verification checklist and non-goals
+
+### Explicit Exclusions
+- [x] Live trading rollout
+- [x] Admin trading controls
+- [x] User-managed Falcon keys
+- [x] Dashboard expansion
+- [x] Multi-exchange support
+- [x] Wallet lifecycle expansion
+- [x] Broad auth redesign
+- [x] Strategy/ML expansion
 
 ---
 
@@ -481,12 +508,12 @@
 
 **Goal:** Complete Phase 8.9 with clean repo truth, consistent phase identity, and dependency-complete validation guidance for the narrow paper-beta runtime control surfaces (`/health`, `/ready`, `/beta/status`, `/beta/admin`) without runtime behavior expansion.  
 **Status:** 🚧 In Progress (FORGE-X implementation in progress on branch `feature/phase-8-9-paper-beta-state-truth-validation`; SENTINEL required before merge)  
-**Last Updated:** 2026-04-20 12:12
+**Last Updated:** 2026-04-20 12:19
 
 ### Scope Lock
 - [x] Keep Telegram and FastAPI as control/read surfaces only
 - [x] Preserve explicit paper-only execution authority
-- [x] Keep machine-readable/operator-readable exit criteria payload semantics from the prior hardening pass
+- [x] Preserve machine-readable/operator-readable exit criteria payload semantics from Phase 8.8
 - [x] Preserve admin-visible managed-beta status surface (`/beta/admin`)
 - [x] Preserve `/beta/status` controllable/guard/config truth visibility
 - [x] Hard-clean stale 8.7/8.8 active-lane truth from PROJECT_STATE.md and ROADMAP.md
