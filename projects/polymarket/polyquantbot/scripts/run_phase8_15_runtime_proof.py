@@ -83,7 +83,7 @@ def main() -> int:
         _write_line(log, f"venv python: {venv_python}")
 
         _write_line(log, "[2/5] install dependency-complete runtime/test stack")
-        _write_line(log, f"package entrypoint: python -m projects.polymarket.polyquantbot.scripts.run_phase8_15_runtime_proof")
+        _write_line(log, "package entrypoint: python -m projects.polymarket.polyquantbot.scripts.run_phase8_15_runtime_proof")
         install_cmd = [
             str(venv_python),
             "-m",
