@@ -39,9 +39,16 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
             "execution_guard": {
                 "entry_allowed": len(execution_blocked_reasons) == 0,
                 "blocked_reasons": execution_blocked_reasons,
+                "reason_count": len(execution_blocked_reasons),
+                "operator_summary": "blocked" if execution_blocked_reasons else "entry_allowed",
             },
             "position_count": len(STATE.positions),
             "last_risk_reason": STATE.last_risk_reason,
+            "readiness_interpretation": {
+                "control_surface": "telegram_and_api_control_only",
+                "execution_authority": "paper_only",
+                "live_trading_ready": False,
+            },
         }
 
     @router.post("/mode")
