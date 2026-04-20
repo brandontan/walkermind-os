@@ -29,7 +29,7 @@
 - PROJECT_STATE.md reflects 8.13 as an open validation lane before this SENTINEL pass.
 - Target code and tests for the 8.13 gate are present at declared paths.
 - Executed check:
-  - `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_13_telegram_session_issuance_20260419.py` -> collection failed in this runner due missing dependency `pydantic` (`ModuleNotFoundError`).
+  - `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_13_telegram_session_issuance_20260419.py` -> collection failed in this runner due to missing dependency `pydantic` (`ModuleNotFoundError`).
 
 ## Findings
 1. **Reopened PR lane integrity (not relabel-only deception): PASS**
