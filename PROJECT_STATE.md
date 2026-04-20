@@ -1,4 +1,4 @@
-Last Updated : 2026-04-20 10:02
+Last Updated : 2026-04-20 11:05
 Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin controls hardening is in progress on branch feature/public-paper-beta-exit-criteria-admin-controls; MAJOR lane requires SENTINEL review before merge.
 
 [COMPLETED]
@@ -26,6 +26,7 @@ Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin control
 - Phase 8.11 Telegram onboarding/account-link foundation merged truth synced on main: unresolved /start onboarding route and persistence evidence preserved in `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md` and `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`; expected validation reference path remains `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`.
 
 [IN PROGRESS]
+- Phase 8.14 Walker DevOps launch-planning app FOUNDATION delivery in progress under projects/app/walker_devops; reports are now tracked under projects/app/walker_devops/reports/forge; local runtime verification is blocked in this environment by npm registry 403 and missing OPENAI_API_KEY.
 - Phase 8.13 Telegram session-issuance gate re-land audit on branch feature/reland-session-issuance-gate-fix-20260420: strict active-only issuance gate already present on current code truth; fresh PR opened for SENTINEL-required MAJOR validation before merge.
 - Phase 8.7 Public Paper Beta Completion Pass (MAJOR): status/control reply semantics hardening, onboarding control-only disclosure tightening, operator guard visibility completion, and paper-boundary regression expansion in progress on branch feature/complete-public-paper-beta-pass-20260420.
 - Phase 8.8 Public Paper Beta Exit Criteria + Admin Controls (MAJOR): machine-readable exit criteria, managed-beta admin/status semantics, and focused regression/doc hardening in progress on branch feature/public-paper-beta-exit-criteria-admin-controls.
