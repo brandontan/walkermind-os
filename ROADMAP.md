@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 13:23
+**Last Updated:** 2026-04-20 13:55
 
 # Board Overview
 
@@ -421,8 +421,8 @@
 ## CrusaderBot — Telegram Confirmation / Activation Foundation Checklist (Phase 8.12)
 
 **Goal:** Add a narrow confirmation/activation lifecycle for Telegram-linked onboarding users so runtime does not stop at record creation and can truthfully report activation outcomes before session handoff dispatch.  
-**Status:** ✅ Done (historical lane consumed on main; preserved as numbering continuity before active/open lanes 8.13 and 8.14)  
-**Last Updated:** 2026-04-20 13:23
+**Status:** 🚧 In Progress (status promotion to done reverted pending explicit merged-main completion proof; numbering continuity before active/open lanes 8.13 and 8.14 is preserved)
+**Last Updated:** 2026-04-20 13:55
 
 ### Scope Lock
 - [x] Keep scope on Telegram confirmation/activation foundation only
