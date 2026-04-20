@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 12:19
+**Last Updated:** 2026-04-20 13:07
 
 # Board Overview
 
@@ -507,8 +507,8 @@
 ## CrusaderBot — Paper Beta State Truth Cleanup + Dependency-Complete Validation (Phase 8.9 Runtime Hardening)
 
 **Goal:** Complete Phase 8.9 with clean repo truth, consistent phase identity, and dependency-complete validation guidance for the narrow paper-beta runtime control surfaces (`/health`, `/ready`, `/beta/status`, `/beta/admin`) without runtime behavior expansion.  
-**Status:** 🚧 In Progress (FORGE-X implementation in progress on branch `feature/phase-8-9-paper-beta-state-truth-validation`; SENTINEL required before merge)  
-**Last Updated:** 2026-04-20 12:19
+**Status:** ✅ Done (merged historical truth synced on main via PR #639 and post-merge SENTINEL sync PR #640; no pending pre-merge gates remain for this lane)  
+**Last Updated:** 2026-04-20 13:07
 
 ### Scope Lock
 - [x] Keep Telegram and FastAPI as control/read surfaces only
@@ -520,7 +520,7 @@
 - [x] Make phase identity consistent as `Phase 8.9 — Paper Beta State Truth Cleanup + Dependency-Complete Validation` across state/docs/report/PR
 - [x] Preserve and tighten dependency-complete validation guidance and FastAPI skip disclaimers
 - [x] Preserve focused regression coverage with narrow runtime-surface contract-key assertions
-- [ ] SENTINEL review required before merge (MAJOR hardening gate)
+- [x] SENTINEL review required before merge (MAJOR hardening gate; closed via merged PR #640 sync)
 
 ### Explicit Exclusions
 - [x] Live trading rollout
