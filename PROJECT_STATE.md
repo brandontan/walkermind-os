@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 19:36
-Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; dependency-capable runner preparation requirements and external-runner handoff instructions are now documented (without rerun), and 9.2/9.3 remain pending canonical closure evidence from a capable environment.
+Last Updated : 2026-04-20 23:08
+Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; root-cause diagnostics now confirm current Codex runner egress incapability (proxy 403 + no-proxy network unreachable), with one reproducible dependency-capable external-runner path documented and 9.2/9.3 still pending canonical closure evidence from that capable environment.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -29,7 +29,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.1 runtime-proof-and-evidence lane remains pending dependency-capable closure execution: canonical command remains unchanged, runner-prep requirements are documented in `projects/polymarket/polyquantbot/docs/phase9_1_dependency_capable_runner_prep.md`, external-runner execution handoff is documented in `projects/polymarket/polyquantbot/reports/forge/phase9-1_05_external-runner-handoff.md`, and closure evidence is still pending in `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log` until run in a package-index-capable environment.
+- Phase 9.1 runtime-proof-and-evidence lane remains pending dependency-capable closure execution: canonical command remains unchanged, runner-prep guide now includes route-level root cause and reproducible capable-environment path in `projects/polymarket/polyquantbot/docs/phase9_1_dependency_capable_runner_prep.md`, unblock evidence is documented in `projects/polymarket/polyquantbot/reports/forge/phase9-1_06_capable-environment-unblock.md`, and closure evidence is still pending in `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log` until run in a package-index-capable environment.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER decision gate: review Phase 8.14 actionable-source assessment for launch-planning foundation follow-up scope, and route Phase 9.1 canonical runtime-proof closure to a dependency-capable runner using `projects/polymarket/polyquantbot/docs/phase9_1_dependency_capable_runner_prep.md` before Phase 9.2.
+- COMMANDER decision gate: review Phase 8.14 actionable-source assessment for launch-planning foundation follow-up scope, and route Phase 9.1 canonical runtime-proof closure to the confirmed capable external runner path documented in `projects/polymarket/polyquantbot/reports/forge/phase9-1_06_capable-environment-unblock.md` and `projects/polymarket/polyquantbot/docs/phase9_1_dependency_capable_runner_prep.md` before Phase 9.2.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
