@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active | Phase 8 — Multi-User Foundation |
+| Crusader | Polymarket | Active | Phase 9.3 — Public Release Gate |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-21 04:08
+**Last Updated:** 2026-04-21 04:29
 
 # Board Overview
 
@@ -537,8 +537,8 @@
 ## CrusaderBot — Fastest Path to Public-Ready Paper Beta (Post-9.0 Numbering Realignment)
 
 **Goal:** Keep the same three-lane public-paper-beta finish path (runtime proof -> operational/public readiness -> release gate) while remapping it to truthful next-open numbering after consumed/open lanes through Phase 8.14.  
-**Status:** 🚧 In Progress (Phase 9.1 runtime-proof closure remains complete; Phase 9.2 has now received SENTINEL CONDITIONAL validation on source branch and is awaiting COMMANDER merge decision plus dependency-complete non-skip pytest evidence confirmation).  
-**Last Updated:** 2026-04-21 04:08
+**Status:** 🚧 In Progress (Phase 9.1 runtime-proof closure and Phase 9.2 public-readiness evidence remain linked into the Phase 9.3 release-gate checklist; SENTINEL MAJOR validation for PR #677 is now recorded as CONDITIONAL and COMMANDER final GO / HOLD / NO-GO decision is the next gate).  
+**Last Updated:** 2026-04-21 04:29
 
 ### Numbering Truth
 - [x] Preserve consumed historical lanes through Phase 8.12.
@@ -549,8 +549,8 @@
 | Phase | Milestone | Status | Notes |
 |---|---|---|---|
 | 9.1 | Runtime Proof + Evidence Closure | ✅ Done | Dependency-complete external runner evidence is now recorded in canonical log (`phase9-1_01_runtime-proof-evidence.log`) with closure pass documented in `phase9-1_09_runtime-proof-closure-pass.md`; paper-beta runtime surfaces remain the only claimed scope. |
-| 9.2 | Operational/Public Readiness | 🚧 In Progress | FORGE implementation pass completed on feature/phase-9-2-public-readiness-and-ops-hardening; SENTINEL MAJOR verdict is CONDITIONAL for PR #675, and COMMANDER merge decision is the active gate after dependency-complete non-skip pytest confirmation. |
-| 9.3 | Release Gate | ❌ Not Started | Final public-paper-beta gate before release decision; scope unchanged. |
+| 9.2 | Operational/Public Readiness | ✅ Done | Public/operator/admin paper-beta boundary hardening is treated as landed continuity truth for Phase 9.3 with FORGE evidence (`phase9-2_01_public-readiness-and-ops-hardening.md`) and SENTINEL validation (`phase9-2_01_public-readiness-and-ops-hardening-validation-pr675.md`). |
+| 9.3 | Release Gate | 🚧 In Progress | Release checklist and GO / HOLD / NO-GO decision surface are built and validated by SENTINEL with CONDITIONAL verdict in `phase9-3_01_public-release-gate-validation-pr677.md`; COMMANDER final decision gate remains open. |
 
 ### Paper-Beta Claim Boundary
 - [x] Paper-beta-only claim boundary preserved (no live-trading authority claim introduced).
