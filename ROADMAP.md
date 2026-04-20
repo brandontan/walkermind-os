@@ -304,7 +304,7 @@
 
 ---
 
-## CrusaderBot — Real Telegram Polling / Runtime Loop Foundation Checklist (Phase 8.9 Legacy Track Reference)
+## CrusaderBot — Real Telegram Polling / Runtime Loop Foundation Checklist (Phase 8.9)
 
 **Goal:** Introduce the first real Telegram runtime loop foundation that drives inbound `/start` messages through `TelegramDispatcher` via a truthful adapter/runtime boundary under `projects/polymarket/polyquantbot/client/telegram/`.  
 **Status:** ✅ Done (merged. SENTINEL CONDITIONAL gate satisfied via phase8-9_02_pytest-evidence-pass.md, 94/94 pass. PR #608 merged, PR #609 CONDITIONAL satisfied. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-9_01_telegram-runtime-loop-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-9_02_pytest-evidence-pass.md`)  
