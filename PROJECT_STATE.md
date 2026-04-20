@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 12:19
-Status       : FORGE-X Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation is in progress on branch feature/phase-8-9-paper-beta-state-truth-validation; MAJOR lane requires SENTINEL review before merge.
+Last Updated : 2026-04-20 13:07
+Status       : Phase 8.9 post-merge repo-truth sync is completed on main (PR #639 and PR #640 merged); active validation lane remains Phase 8.13 re-land session-issuance gate.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -24,11 +24,11 @@ Status       : FORGE-X Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Com
 - Phase 8.9 real Telegram polling / runtime loop foundation merged: TelegramRuntimeAdapter abstract boundary, HttpTelegramAdapter concrete implementation, extract_command_context staging identity contract, TelegramPollingLoop dispatch + reply routing, run_polling_loop top-level wiring, bot.py adapter/loop wiring. SENTINEL CONDITIONAL gate satisfied via phase8-9_02_pytest-evidence-pass.md. Pytest gate: 94/94 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-9_01_telegram-runtime-loop-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-9_02_pytest-evidence-pass.md`. SENTINEL: PR #609 (CONDITIONAL gate satisfied).
 - Phase 8.10 Telegram identity resolution foundation merged truth synced: strict outcome normalization fix retained with 114/114 pytest evidence. References preserved: `projects/polymarket/polyquantbot/reports/forge/phase8-10_01_telegram-identity-resolution-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-10_02_pytest-evidence-pass.md`, `projects/polymarket/polyquantbot/reports/sentinel/phase8-10_01_telegram-identity-validation-pr610.md`.
 - Phase 8.11 Telegram onboarding/account-link foundation merged truth synced on main: unresolved /start onboarding route and persistence evidence preserved in `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md` and `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`; expected validation reference path remains `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`.
+- Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation merged truth synced on main via PR #639 and SENTINEL sync PR #640; stale pre-merge wording removed and runtime-hardening checklist truth is now historical-complete.
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION delivery in progress under projects/app/walker_devops; reports are now tracked under projects/app/walker_devops/reports/forge; local runtime verification is blocked in this environment by npm registry 403 and missing OPENAI_API_KEY.
 - Phase 8.13 Telegram session-issuance gate re-land audit on branch feature/reland-session-issuance-gate-fix-20260420: strict active-only issuance gate already present on current code truth; fresh PR opened for SENTINEL-required MAJOR validation before merge.
-- Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation (MAJOR): repo-truth cleanup for stale 8.7/8.8 active-lane drift, phase-identity consistency hardening across state/docs/report, and narrow runtime-surface validation guidance hardening in progress on branch feature/phase-8-9-paper-beta-state-truth-validation.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -36,9 +36,7 @@ Status       : FORGE-X Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Com
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL-required review for Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation after FORGE-X delivery on branch feature/phase-8-9-paper-beta-state-truth-validation. Report: projects/polymarket/polyquantbot/reports/forge/phase8-9_04_repo-truth-corrections-before-sentinel.md.
 - SENTINEL-required validation for Phase 8.13 re-land branch feature/reland-session-issuance-gate-fix-20260420 after FORGE-X audit-only truth sync. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_03_reland-session-issuance-gate-fix.md.
-- COMMANDER decision gate after SENTINEL verdicts for Phase 8.9 and Phase 8.13.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
