@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 10:02
-Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin controls hardening is in progress on branch feature/public-paper-beta-exit-criteria-admin-controls; MAJOR lane requires SENTINEL review before merge.
+Last Updated : 2026-04-20 10:10
+Status       : SENTINEL completed MAJOR validation for PR #631 (Phase 8.8 public paper beta exit-criteria + admin controls) with PASS WITH NOTES on branch feature/task-title-2026-04-20-ncq9m4; COMMANDER merge decision is next.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -28,7 +28,7 @@ Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin control
 [IN PROGRESS]
 - Phase 8.13 Telegram session-issuance gate re-land audit on branch feature/reland-session-issuance-gate-fix-20260420: strict active-only issuance gate already present on current code truth; fresh PR opened for SENTINEL-required MAJOR validation before merge.
 - Phase 8.7 Public Paper Beta Completion Pass (MAJOR): status/control reply semantics hardening, onboarding control-only disclosure tightening, operator guard visibility completion, and paper-boundary regression expansion in progress on branch feature/complete-public-paper-beta-pass-20260420.
-- Phase 8.8 Public Paper Beta Exit Criteria + Admin Controls (MAJOR): machine-readable exit criteria, managed-beta admin/status semantics, and focused regression/doc hardening in progress on branch feature/public-paper-beta-exit-criteria-admin-controls.
+- Phase 8.8 Public Paper Beta Exit Criteria + Admin Controls (MAJOR): SENTINEL PASS WITH NOTES completed for PR #631 on branch feature/task-title-2026-04-20-ncq9m4; awaiting COMMANDER merge decision.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -36,7 +36,7 @@ Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin control
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL-required review for Phase 8.8 Public Paper Beta Exit Criteria + Admin Controls after FORGE-X delivery on branch feature/public-paper-beta-exit-criteria-admin-controls.
+- COMMANDER merge decision for Phase 8.8 PR #631 after SENTINEL PASS WITH NOTES (report: projects/polymarket/polyquantbot/reports/sentinel/phase8-8_01_public-paper-beta-exit-criteria-admin-controls-validation-pr631.md).
 - SENTINEL-required review for Phase 8.7 Public Paper Beta Completion Pass after FORGE-X delivery on branch feature/complete-public-paper-beta-pass-20260420.
 - SENTINEL-required validation for Phase 8.13 re-land branch feature/reland-session-issuance-gate-fix-20260420 after FORGE-X audit-only truth sync. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_03_reland-session-issuance-gate-fix.md.
 
@@ -44,3 +44,4 @@ Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin control
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 6.4 narrow monitoring remains intentionally scoped and not yet the active implementation lane.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning -- carried forward as non-runtime higiene backlog.
+- [DEFERRED] PROJECT_STATE drift: Phase 8.7 remains listed in [IN PROGRESS] despite merged-completed truth; requires post-merge state cleanup.
