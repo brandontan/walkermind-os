@@ -27,7 +27,8 @@ Hard rules:
 - Do NOT expand scope
 - Do NOT replace repository truth with assumptions
 - Code truth overrides report wording when they conflict
-- NEXUS never merges PRs directly — COMMANDER decides
+- NEXUS does not decide merges autonomously — COMMANDER decides
+- NEXUS may execute merge / close / review actions only under explicit COMMANDER instruction
 
 ## OPERATING MODEL
 
@@ -56,13 +57,15 @@ Order:
 2. `PROJECT_STATE.md` → current operational truth
 3. `ROADMAP.md` → planning / milestone truth
 4. latest relevant valid report under `{PROJECT_ROOT}/reports/`
-5. supporting repo references (`docs/KNOWLEDGE_BASE.md`, templates, conventions)
+5. supporting repo references (`docs/KNOWLEDGE_BASE.md`, `docs/crusader_blueprint_v2.html`, templates, conventions)
 
 Conflict rules:
 - `AGENTS.md` wins over everything else
 - If `PROJECT_STATE.md` and `ROADMAP.md` conflict on roadmap-level truth → treat as drift and STOP
 - If code and report disagree → code wins, report is incorrect, drift must be reported
 - `commander_knowledge.md` is COMMANDER persona/operating reference only — it never overrides this file
+- `docs/crusader_blueprint_v2.html` is an architecture-intent reference for CrusaderBot only — it never overrides this file, PROJECT_STATE.md, ROADMAP.md, or current code truth
+- If Crusader blueprint and current code differ, code defines current reality and blueprint defines intended target architecture
 
 ## TIMESTAMPS (AUTHORITATIVE)
 
@@ -75,6 +78,17 @@ Conflict rules:
   ```
 - A new `Last Updated` earlier than the previous value = pre-flight FAIL
 - Never use system or server local time
+
+## PHASE NUMBERING NORMALIZATION (AUTHORITATIVE)
+
+- Maximum sub-phase is `.9`
+- After `X.9`, the next new work must move to the next major phase (`X+1.1`)
+- Legacy references like `8.10+` may remain only as historical mapping context
+- No new tasks, reports, roadmap planning, or state text may introduce fresh `8.10+` numbering
+- Current CrusaderBot public-ready normalization path is:
+  - `9.1` runtime proof
+  - `9.2` operational / public readiness
+  - `9.3` release gate
 
 ## ENCODING RULE (AUTHORITATIVE)
 
@@ -205,6 +219,7 @@ Always read:
 
 Read if needed:
 - `docs/KNOWLEDGE_BASE.md` → architecture, infra, API, conventions
+- `docs/crusader_blueprint_v2.html` → CrusaderBot target architecture, runtime boundaries, and project-local directory structure
 - `docs/CLAUDE.md` → repo-specific workflow
 - `docs/templates/PROJECT_STATE_TEMPLATE.md`
 - `docs/templates/ROADMAP_TEMPLATE.md`
@@ -316,9 +331,6 @@ Immediate FAIL / BLOCKED if:
 - `PROJECT_STATE.md` appended instead of section-replaced
 - `PROJECT_STATE.md` contains markdown headings inside sections
 - project-local `PROJECT_STATE.md` exists alongside repo-root version
-- COMMANDER merged a PR but did not sync PROJECT_STATE.md to reflect merged state
-- COMMANDER merged a PR but did not sync ROADMAP.md when roadmap-level truth changed
-- COMMANDER proceeded to the next build task before post-merge sync was completed
 - SENTINEL opens or recommends direct-to-main bypass of validated source branch
 - file contains mojibake or non-UTF-8 byte sequences (encoding corruption)
 
@@ -368,12 +380,20 @@ DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING
 
 ## DOMAIN STRUCTURE (LOCKED)
 
-Code lives only within: `core/`, `data/`, `strategy/`, `intelligence/`, `risk/`, `execution/`, `monitoring/`, `api/`, `infra/`, `backtest/`, `reports/`.
+Within the active `PROJECT_ROOT`, runtime / trading system code must live only within:
+`core/`, `data/`, `strategy/`, `intelligence/`, `risk/`, `execution/`, `monitoring/`, `api/`, `infra/`, `backtest/`, `reports/`.
 
-- no `phase*/` folders anywhere
-- no legacy path retention
+Interpretation:
+- These directories are relative to the active `PROJECT_ROOT`, not the repository root
+- For CrusaderBot, this enforced runtime / domain structure applies under:
+  `projects/polymarket/polyquantbot/`
+- `docs/crusader_blueprint_v2.html` is the supporting architecture reference for CrusaderBot pathing and boundaries inside this project
+- Project-external folders elsewhere in the repo may follow their own established structure unless COMMANDER explicitly normalizes them
+
+- no `phase*/` folders anywhere inside the active `PROJECT_ROOT`
+- no legacy path retention inside the active `PROJECT_ROOT`
 - no shims / compatibility layers unless explicitly approved
-- no files outside these folders except repo-root metadata/config
+- no files outside these folders inside the active `PROJECT_ROOT` except project-local metadata / config / docs / scripts / tests already established in repo truth
 
 ## GLOBAL HARD RULES
 
@@ -463,6 +483,14 @@ Branch name in forge report must match actual PR head branch exactly. If Codex g
 - use the branch name declared in the COMMANDER task, or the actual PR head branch if PR exists
 - branch mismatch alone is never a blocker — block only on actual scope / change intent mismatch
 
+## OUTCOME LABELING RULE
+
+- Use `pass` only if declared done criteria are fully achieved
+- Use `blocked` if execution fails or required proof is not achieved
+- Use `attempt` or `rerun` if work was retried but not closed
+- Filenames, report titles, PR titles, and PROJECT_STATE wording must reflect the same actual outcome
+- Do not use `closure`, `complete`, or equivalent success wording when install / proof / validation gates remain blocked
+
 ## REPORT TRACEABILITY
 
 - FORGE report → referenced by SENTINEL when validating
@@ -536,7 +564,6 @@ Use the checklist matching the declared Validation Tier. Do not run MAJOR checkl
 [ ] Runtime or behavior evidence attached
 [ ] Negative / break-attempt considered for risk-execution paths
 [ ] Max 5 files per commit preferred; split if needed
-[ ] ROADMAP.md updated if roadmap-level truth changed (active phase, milestone, task status)
 ```
 
 If any check fails: fix in same branch, re-run, only open PR after required checks pass.
@@ -665,9 +692,11 @@ Required structure:
 
 Branch/PR rules:
 - validate the active source branch / source PR
-- never create direct-to-main PR
+- never create direct-to-main PR bypass of the source lane
 - never bypass FORGE-X delivery branch
 - keep audit continuity on the validated source path
+- before merge, SENTINEL PR base must match current merge-order truth
+- if the source FORGE-X PR is already merged, the SENTINEL sync PR must target `main`, not the old source branch
 
 ### Mandatory final output lines
 
@@ -823,37 +852,6 @@ Post-merge sync rules:
 - Must complete before next task is opened
 
 Failure to sync before next task = repo state drift.
-
-## POST-MERGE SYNC RULE (COMMANDER — MANDATORY)
-
-After every PR merge, COMMANDER must complete post-merge sync before proceeding.
-
-COMMANDER owns post-merge truth. FORGE-X and SENTINEL update state inside their branches.
-After merge to main, COMMANDER is responsible for verifying that PROJECT_STATE.md and ROADMAP.md
-on main reflect actual merged state.
-
-Post-merge checklist (run after every merge):
-- Read PROJECT_STATE.md on main — verify STATUS, COMPLETED, IN PROGRESS, NEXT PRIORITY are current
-- Read ROADMAP.md on main — verify active phase (🚧), completed phases (✅), and Board Overview are current
-- Verify PROJECT_STATE.md and ROADMAP.md are in sync on active phase and next milestone
-- If any file is stale → generate chore/core-state-sync-{date} fix immediately
-
-When to update PROJECT_STATE.md after merge:
-- FORGE-X PR → verify accuracy, fix if stale
-- SENTINEL PR → update IN PROGRESS and NEXT PRIORITY to reflect verdict
-- Any PR that changes delivery state → update COMPLETED if milestone reached
-
-When to update ROADMAP.md after merge:
-- Phase milestone completed → mark phase ✅, update Board Overview
-- Task within active phase merged → update task status in phase table
-- New tasks added → add rows with ❌
-- Code-only fix with no roadmap impact → no update needed
-- Report-only with no milestone change → no update needed
-
-Hard rule:
-- COMMANDER must not generate the next build task until post-merge sync is verified complete
-- Post-merge state sync qualifies as COMMANDER direct-fix (no FORGE-X task needed)
-- Commit message for sync: chore: post-merge state sync — [task/PR name]
 
 ## REPORT ARCHIVE RULE
 
