@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 11:05
-Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin controls hardening is in progress on branch feature/public-paper-beta-exit-criteria-admin-controls; MAJOR lane requires SENTINEL review before merge.
+Last Updated : 2026-04-20 12:19
+Status       : FORGE-X Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation is in progress on branch feature/phase-8-9-paper-beta-state-truth-validation; MAJOR lane requires SENTINEL review before merge.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -28,8 +28,7 @@ Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin control
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION delivery in progress under projects/app/walker_devops; reports are now tracked under projects/app/walker_devops/reports/forge; local runtime verification is blocked in this environment by npm registry 403 and missing OPENAI_API_KEY.
 - Phase 8.13 Telegram session-issuance gate re-land audit on branch feature/reland-session-issuance-gate-fix-20260420: strict active-only issuance gate already present on current code truth; fresh PR opened for SENTINEL-required MAJOR validation before merge.
-- Phase 8.7 Public Paper Beta Completion Pass (MAJOR): status/control reply semantics hardening, onboarding control-only disclosure tightening, operator guard visibility completion, and paper-boundary regression expansion in progress on branch feature/complete-public-paper-beta-pass-20260420.
-- Phase 8.8 Public Paper Beta Exit Criteria + Admin Controls (MAJOR): machine-readable exit criteria, managed-beta admin/status semantics, and focused regression/doc hardening in progress on branch feature/public-paper-beta-exit-criteria-admin-controls.
+- Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation (MAJOR): repo-truth cleanup for stale 8.7/8.8 active-lane drift, phase-identity consistency hardening across state/docs/report, and narrow runtime-surface validation guidance hardening in progress on branch feature/phase-8-9-paper-beta-state-truth-validation.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,9 +36,9 @@ Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin control
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL-required review for Phase 8.8 Public Paper Beta Exit Criteria + Admin Controls after FORGE-X delivery on branch feature/public-paper-beta-exit-criteria-admin-controls.
-- SENTINEL-required review for Phase 8.7 Public Paper Beta Completion Pass after FORGE-X delivery on branch feature/complete-public-paper-beta-pass-20260420.
+- SENTINEL-required review for Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation after FORGE-X delivery on branch feature/phase-8-9-paper-beta-state-truth-validation. Report: projects/polymarket/polyquantbot/reports/forge/phase8-9_04_repo-truth-corrections-before-sentinel.md.
 - SENTINEL-required validation for Phase 8.13 re-land branch feature/reland-session-issuance-gate-fix-20260420 after FORGE-X audit-only truth sync. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_03_reland-session-issuance-gate-fix.md.
+- COMMANDER decision gate after SENTINEL verdicts for Phase 8.9 and Phase 8.13.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

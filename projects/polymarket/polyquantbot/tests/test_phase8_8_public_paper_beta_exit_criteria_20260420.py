@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("fastapi")
+pytest.importorskip(
+    "fastapi",
+    reason="Phase 8.9 validation guard: FastAPI dependency missing; skip is not runtime proof.",
+)
 from fastapi.testclient import TestClient
 
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE

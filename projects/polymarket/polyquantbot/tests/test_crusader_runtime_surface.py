@@ -2,11 +2,34 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("fastapi")
+pytest.importorskip(
+    "fastapi",
+    reason="Phase 8.9 runtime-surface contract checks require FastAPI; skipped suites are not runtime proof.",
+)
 from fastapi.testclient import TestClient
 
 from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, validate_api_environment
 from projects.polymarket.polyquantbot.server.main import create_app
+
+
+@pytest.mark.parametrize(
+    ("route", "required_keys"),
+    [
+        ("/health", {"service", "runtime", "status"}),
+        ("/ready", {"status", "validation_errors", "readiness"}),
+        ("/beta/status", {"paper_only_execution_boundary", "execution_guard", "managed_beta_state", "exit_criteria"}),
+        ("/beta/admin", {"paper_only_execution_boundary", "admin_summary", "managed_beta_state", "exit_criteria"}),
+    ],
+)
+def test_runtime_surface_contract_keys_are_present(monkeypatch, route: str, required_keys: set[str]) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get(route)
+    assert response.status_code == 200
+    payload = response.json()
+    assert required_keys.issubset(set(payload.keys()))
 
 
 def test_api_settings_uses_fly_port(monkeypatch) -> None:

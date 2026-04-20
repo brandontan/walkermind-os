@@ -114,6 +114,30 @@ These checks are exposed under `exit_criteria.checks` with per-check `pass` and 
 - Verify `/beta/status.readiness_interpretation.live_trading_ready=false`
 - Verify `/beta/admin.exit_criteria.checks.required_config_present.pass` matches Falcon env reality
 
+## Phase 8.9 validation truth guard (Paper Beta State Truth Cleanup + Dependency-Complete Validation)
+- Phase identity for this lane is fixed to: `Phase 8.9 — Paper Beta State Truth Cleanup + Dependency-Complete Validation`.
+- Narrow runtime surfaces under validation in this lane:
+  - `GET /health`
+  - `GET /ready`
+  - `GET /beta/status`
+  - `GET /beta/admin`
+- `pytest.importorskip("fastapi", reason=...)` in runtime-surface tests is a dependency guard only; skipped tests are **not runtime proof**.
+- Runtime claims must be tied to dependency-complete evidence from an environment where `fastapi` and test dependencies are installed.
+
+### Dependency-complete validation commands
+Run these commands from repo root in a dependency-complete environment:
+
+```bash
+python -m py_compile \
+  projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py \
+  projects/polymarket/polyquantbot/tests/test_phase8_7_public_paper_beta_completion_20260420.py \
+  projects/polymarket/polyquantbot/tests/test_phase8_8_public_paper_beta_exit_criteria_20260420.py
+
+pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py
+pytest -q projects/polymarket/polyquantbot/tests/test_phase8_7_public_paper_beta_completion_20260420.py
+pytest -q projects/polymarket/polyquantbot/tests/test_phase8_8_public_paper_beta_exit_criteria_20260420.py
+```
+
 ## Explicit non-goals and live-readiness block
 - No live trading rollout or privileged live execution controls
 - No admin trade-entry commands
