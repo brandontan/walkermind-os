@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 12:19
-Status       : FORGE-X Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation is in progress on branch feature/phase-8-9-paper-beta-state-truth-validation; MAJOR lane requires SENTINEL review before merge.
+Last Updated : 2026-04-20 12:36
+Status       : SENTINEL completed Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation review for PR #639 with PASS WITH NOTES; COMMANDER merge decision is now pending with dependency-complete runtime evidence guidance preserved.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -28,7 +28,7 @@ Status       : FORGE-X Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Com
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION delivery in progress under projects/app/walker_devops; reports are now tracked under projects/app/walker_devops/reports/forge; local runtime verification is blocked in this environment by npm registry 403 and missing OPENAI_API_KEY.
 - Phase 8.13 Telegram session-issuance gate re-land audit on branch feature/reland-session-issuance-gate-fix-20260420: strict active-only issuance gate already present on current code truth; fresh PR opened for SENTINEL-required MAJOR validation before merge.
-- Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation (MAJOR): repo-truth cleanup for stale 8.7/8.8 active-lane drift, phase-identity consistency hardening across state/docs/report, and narrow runtime-surface validation guidance hardening in progress on branch feature/phase-8-9-paper-beta-state-truth-validation.
+- Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation (MAJOR): SENTINEL review completed for PR #639 with PASS WITH NOTES; lane remains narrow state/docs/test hardening with paper-only runtime authority and dependency-incomplete FastAPI skips treated as non-proof. SENTINEL report: projects/polymarket/polyquantbot/reports/sentinel/phase8-9_01_repo-truth-validation-pr639.md.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -36,9 +36,9 @@ Status       : FORGE-X Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Com
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL-required review for Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation after FORGE-X delivery on branch feature/phase-8-9-paper-beta-state-truth-validation. Report: projects/polymarket/polyquantbot/reports/forge/phase8-9_04_repo-truth-corrections-before-sentinel.md.
+- COMMANDER merge decision for PR #639 after SENTINEL PASS WITH NOTES on Phase 8.9. SENTINEL report: projects/polymarket/polyquantbot/reports/sentinel/phase8-9_01_repo-truth-validation-pr639.md. FORGE references: projects/polymarket/polyquantbot/reports/forge/phase8-9_03_paper-beta-state-truth-validation.md and projects/polymarket/polyquantbot/reports/forge/phase8-9_04_repo-truth-corrections-before-sentinel.md.
 - SENTINEL-required validation for Phase 8.13 re-land branch feature/reland-session-issuance-gate-fix-20260420 after FORGE-X audit-only truth sync. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_03_reland-session-issuance-gate-fix.md.
-- COMMANDER decision gate after SENTINEL verdicts for Phase 8.9 and Phase 8.13.
+- COMMANDER decision gate after SENTINEL verdict finalization for Phase 8.13 and merge decision handling for Phase 8.9 (PR #639).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
