@@ -1,0 +1,88 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #e7ebff;
+  background: #0b1020;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #1a2446, #0a1022 60%);
+}
+
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+header h1 {
+  margin-bottom: 0.5rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.panel {
+  background: rgba(9, 12, 24, 0.85);
+  border: 1px solid #33416f;
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+input,
+textarea,
+button {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #465489;
+  background: #121b35;
+  color: #eff3ff;
+  padding: 0.7rem;
+  margin-top: 0.35rem;
+  box-sizing: border-box;
+}
+
+textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+button {
+  margin-top: 1rem;
+  cursor: pointer;
+  background: linear-gradient(135deg, #5e8bff, #2dc4f6);
+  color: #07101f;
+  font-weight: 700;
+}
+
+.output {
+  min-height: 280px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: #0f1730;
+}
+
+.error {
+  background: #501f28;
+  border: 1px solid #e0687b;
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+
+@media (max-width: 960px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
