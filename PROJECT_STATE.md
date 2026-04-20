@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 04:56
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path is complete on main with paper-only boundary preserved; Crusader is not live-trading ready and not production-capital ready, while Phase 8.14 launch-planning follow-up remains in progress.
+Last Updated : 2026-04-21 05:34
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path is complete on main with paper-only boundary preserved; post-release public-facing launch asset pack is now prepared for COMMANDER review; Crusader remains not live-trading ready and not production-capital ready while Phase 8.14 launch-planning follow-up remains in progress.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -29,6 +29,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path is complete on
 - Phase 9.1 dependency-complete runtime-proof closure is completed with refreshed canonical evidence log (`projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log`) and closure report (`projects/polymarket/polyquantbot/reports/forge/phase9-1_09_runtime-proof-closure-pass.md`).
 - Phase 9.2 operational/public readiness and ops-hardening truth is now treated as landed for release-gate continuity with FORGE report `projects/polymarket/polyquantbot/reports/forge/phase9-2_01_public-readiness-and-ops-hardening.md` and SENTINEL validation `projects/polymarket/polyquantbot/reports/sentinel/phase9-2_01_public-readiness-and-ops-hardening-validation-pr675.md` as the canonical evidence pair.
 - Phase 9.3 public paper-beta release gate is completed on main with SENTINEL validation recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase9-3_01_public-release-gate-validation-pr677.md`; public-ready paper beta path is now complete with explicit paper-only boundary and no live-trading/production-capital readiness claim.
+- Phase 9.3 post-release public-facing launch assets pack is completed with coherent readiness/posture/boundary/onboarding/announcement docs and wording-audit alignment to paper-only truth under `projects/polymarket/polyquantbot/reports/forge/phase9-3_03_post-release-launch-assets-pack.md`.
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
@@ -39,7 +40,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path is complete on
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Prepare post-release readiness summary and launch posture assets (onboarding + announcement package) for the completed public-ready paper beta lane while preserving paper-only claim boundaries.
+- COMMANDER review for post-release public-facing launch assets pack and messaging approval.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
