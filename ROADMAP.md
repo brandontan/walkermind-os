@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 15:27
+**Last Updated:** 2026-04-20 17:32
 
 # Board Overview
 
@@ -534,27 +534,27 @@
 
 ---
 
-## CrusaderBot — Fastest Path to Public-Ready Paper Beta (Post-8.9 Numbering Realignment)
+## CrusaderBot — Fastest Path to Public-Ready Paper Beta (Post-9.0 Numbering Realignment)
 
 **Goal:** Keep the same three-lane public-paper-beta finish path (runtime proof -> operational/public readiness -> release gate) while remapping it to truthful next-open numbering after consumed/open lanes through Phase 8.14.  
-**Status:** 🚧 In Progress (Phase 8.15 now has a package-accessible runner entrypoint, but rerun evidence closure remains blocked in this runner because dependency installation still fails; dependency-complete closure proof is still pending successful package resolution).  
-**Last Updated:** 2026-04-20 15:27
+**Status:** 🚧 In Progress (Phase 9.1 now has a normalized package-accessible runner + target manifest + canonical evidence path, but dependency-complete closure remains blocked in this runner because dependency installation still fails under both proxy and direct no-proxy attempts).  
+**Last Updated:** 2026-04-20 17:32
 
 ### Numbering Truth
 - [x] Preserve consumed historical lanes through Phase 8.12.
 - [x] Preserve currently active/open lanes Phase 8.13 and Phase 8.14 as already consumed numbering.
-- [x] Set next truthful available public-paper-beta lane to Phase 8.15.
+- [x] Normalize next public-paper-beta runtime-proof lane naming to Phase 9.1 while preserving the same product path semantics.
 
 ### Realigned Remaining Path (product path unchanged)
 | Phase | Milestone | Status | Notes |
 |---|---|---|---|
-| 8.15 | Runtime Proof | 🚧 In Progress | Package-accessible runner path is now in place and rerun is documented, but dependency install still fails in runner environment, so py_compile+pytest closure evidence remains blocked pending successful dependency resolution. |
-| 8.16 | Operational/Public Readiness | ❌ Not Started | Follows runtime-proof completion; scope unchanged. |
-| 8.17 | Release Gate | ❌ Not Started | Final public-paper-beta gate before release decision; scope unchanged. |
+| 9.1 | Runtime Proof + Evidence Closure | 🚧 In Progress | Normalized runtime-proof lane exists (`run_phase9_1_runtime_proof.py`, `runtime_proof_phase9_1_targets.txt`, canonical log path), but dependency installation still fails in this runner under proxy 403 and direct no-proxy network-unreachable conditions; py_compile+pytest closure evidence remains blocked pending dependency-capable environment access. |
+| 9.2 | Operational/Public Readiness | ❌ Not Started | Follows 9.1 runtime-proof closure; scope unchanged. |
+| 9.3 | Release Gate | ❌ Not Started | Final public-paper-beta gate before release decision; scope unchanged. |
 
 ### Paper-Beta Claim Boundary
 - [x] Paper-beta-only claim boundary preserved (no live-trading authority claim introduced).
-- [x] Realignment truth is preserved while Phase 8.15 runtime-proof infrastructure is now in progress without live-trading or product-scope expansion.
+- [x] Realignment truth is preserved while Phase 9.1 runtime-proof infrastructure remains paper-beta only with no live-trading or product-scope expansion.
 
 ---
 
