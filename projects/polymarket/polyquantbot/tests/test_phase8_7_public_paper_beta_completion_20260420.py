@@ -35,6 +35,7 @@ class FakeBackend:
                 "position_count": 0,
                 "last_risk_reason": "autotrade_disabled",
                 "managed_beta_state": {"state": "managed"},
+                "public_readiness_semantics": {"release_channel": "public_paper_beta"},
                 "execution_guard": {
                     "entry_allowed": False,
                     "blocked_reasons": ["autotrade_disabled"],

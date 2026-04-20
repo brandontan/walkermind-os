@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 03:43
-Status       : SENTINEL validated Phase 9.1 closure-pass evidence on PR #673 with a CONDITIONAL gate; 9.2 roadmap drift is corrected to not-started lane truth pending COMMANDER merge decision, while Phase 8.14 launch-planning follow-up remains in progress.
+Last Updated : 2026-04-21 04:08
+Status       : SENTINEL completed MAJOR validation for Phase 9.2 public-readiness and ops-hardening on feature/phase-9-2-public-readiness-and-ops-hardening with CONDITIONAL verdict (runtime semantics pass; dependency-limited skip evidence caveat); COMMANDER merge decision is now the next gate while Phase 8.14 launch-planning follow-up remains in progress.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -30,7 +30,7 @@ Status       : SENTINEL validated Phase 9.1 closure-pass evidence on PR #673 wit
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.2 operational/public readiness lane is the active next lane and will begin implementation after SENTINEL validates the Phase 9.1 closure-pass PR.
+- Phase 9.2 operational/public readiness lane implementation pass on feature/phase-9-2-public-readiness-and-ops-hardening now has SENTINEL MAJOR verdict = CONDITIONAL for PR #675 and is awaiting COMMANDER merge decision plus dependency-complete non-skip pytest evidence attachment.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -38,7 +38,7 @@ Status       : SENTINEL validated Phase 9.1 closure-pass evidence on PR #673 wit
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review SENTINEL verdict for PR #673 and decide merge readiness for Phase 9.1 closure pass.
+- COMMANDER review Phase 9.2 PR #675 with SENTINEL CONDITIONAL verdict and decide hold/merge after dependency-complete non-skip pytest evidence confirmation.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

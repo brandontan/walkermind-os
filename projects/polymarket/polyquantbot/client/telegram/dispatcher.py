@@ -48,13 +48,16 @@ class TelegramDispatcher:
         if command == "/mode":
             mode = arg.lower()
             data = await self._backend.beta_post("/beta/mode", {"mode": mode})
+            detail = data.get("detail", "")
+            mode_updated = bool(data.get("ok", False))
+            prefix = "✅ Mode updated" if mode_updated else "⚠️ Mode change blocked"
             return DispatchResult(
                 outcome="ok",
                 reply_text=(
-                    "✅ Mode updated\n"
+                    f"{prefix}\n"
                     f"• Current mode: {data.get('mode', 'unknown')}\n"
                     "• Execution boundary: paper-only\n"
-                    "• Operator meaning: mode=live does not enable live order entry in this beta."
+                    f"• Guard detail: {detail or 'n/a'}"
                 ),
             )
         if command == "/autotrade":
@@ -124,6 +127,7 @@ class TelegramDispatcher:
                     f"• Guard reasons: {reason_text}\n"
                     f"• Last risk reason: {data.get('last_risk_reason', 'n/a')}\n"
                     f"• Managed beta state: {managed_beta_state.get('state', 'unknown')}\n"
+                    f"• Release channel: {data.get('public_readiness_semantics', {}).get('release_channel', 'unknown')}\n"
                     "• Boundary: paper-only execution; Telegram is control/read surface"
                 ),
             )
