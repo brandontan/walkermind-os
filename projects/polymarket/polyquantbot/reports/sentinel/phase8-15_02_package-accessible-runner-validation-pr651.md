@@ -1,19 +1,20 @@
 # SENTINEL Validation Report — Phase 8.15 Package-Accessible Runner Follow-Up (PR #651)
 
 ## Environment
-- Timestamp (Asia/Jakarta): 2026-04-20 16:08
+- Timestamp (Asia/Jakarta): 2026-04-20 16:35
 - Repo: `bayuewalker/walker-ai-team`
 - Validation role: SENTINEL
 - Validation tier: MAJOR
 - Claim level: NARROW INTEGRATION
-- Target branch (task-declared): `feature/unblock-phase-8.15-runtime-runner-2026-04-20`
+- Target branch (PR #651 head): `feature/unblock-phase-8.15-with-package-accessible-runner-2026-04-20`
 - Workspace HEAD branch (Codex worktree): `work`
 
 ## Validation Context
-- Task-declared source forge report: `projects/polymarket/polyquantbot/reports/forge/phase8-15_03_package-accessible-evidence-closure.md`
-- Actual available Phase 8.15 forge continuity reports found in repo:
-  - `projects/polymarket/polyquantbot/reports/forge/phase8-15_01_dependency-complete-runtime-proof.md`
-  - `projects/polymarket/polyquantbot/reports/forge/phase8-15_02_blocked-rerun-attempt.md`
+- Source forge report (task-declared): `projects/polymarket/polyquantbot/reports/forge/phase8-15_03_package-accessible-evidence-closure.md`
+- Validation basis for this correction pass:
+  1. Current local checkout artifacts under `projects/polymarket/polyquantbot/`
+  2. PR #651 conversation + files-changed metadata on GitHub
+  3. PR #651 commit `194114b` raw artifacts (`phase8-15_03` forge report, package init, runtime-proof evidence log)
 - Validation target under review:
   - package-accessible runtime-proof runner path for `/health`, `/ready`, `/beta/status`, `/beta/admin`
 - Not in scope honored:
@@ -25,76 +26,76 @@
   - release-gate decisioning
 
 ## Phase 0 Checks
-- Task-declared forge source report `phase8-15_03_package-accessible-evidence-closure.md` is **missing** from repository tree; this is traceability drift against task metadata.
-- Package-accessible runner module path exists and is importable as package-style entrypoint from repo root:
-  - `python -m projects.polymarket.polyquantbot.scripts.run_phase8_15_runtime_proof`
-- Deterministic target/evidence paths remain fixed in code:
-  - targets manifest: `projects/polymarket/polyquantbot/tests/runtime_proof_phase8_15_targets.txt`
-  - evidence log: `projects/polymarket/polyquantbot/reports/forge/phase8-15_01_runtime-proof-evidence.log`
-- Runtime-surface target tests remain present but skip in this runner when `fastapi` is unavailable (guard message explicitly states skip != runtime proof).
+- ✅ **Traceability source check (PR head): PASS**
+  - `projects/polymarket/polyquantbot/reports/forge/phase8-15_03_package-accessible-evidence-closure.md` is present on PR #651 head commit `194114b`.
+- ✅ **Package-entry infra check: PASS**
+  - PR #651 includes `projects/polymarket/polyquantbot/scripts/__init__.py` and package-style invocation path for the runner.
+- ✅ **Deterministic evidence lane check: PASS**
+  - Runner still targets fixed manifest/evidence paths:
+    - `projects/polymarket/polyquantbot/tests/runtime_proof_phase8_15_targets.txt`
+    - `projects/polymarket/polyquantbot/reports/forge/phase8-15_01_runtime-proof-evidence.log`
+- ⚠️ **Dependency-complete runtime proof check: NOT CLOSED**
+  - PR #651 evidence log on commit `194114b` still shows dependency-install failure (`403 Forbidden`) before `py_compile + pytest` closure.
 
 ## Findings
-1. **Package-style entrypoint reality check: PASS (narrow infra claim)**
-   - Module invocation from repo root executes and reaches dependency-install stage.
-   - This confirms package-style invocation path is real (not pseudo-doc-only).
+1. **Incorrect prior traceability finding: FIXED**
+   - The earlier SENTINEL statement that `_03` source report was missing was incorrect for PR #651 head.
+   - On actual PR #651 files, `_03` forge report is present and traceability is intact.
 
-2. **Scope containment check (Phase 8.15 narrow infra lane): PASS**
-   - Current lane artifacts remain confined to runtime-proof script + target manifest + evidence continuity.
-   - No observed expansion into strategy logic, wallet lifecycle expansion, dashboard broadening, or release authority.
+2. **Package-style entrypoint reality check: PASS (narrow infra claim)**
+   - PR #651 introduces package import boundary for scripts and documents/runs package-style command path.
+   - This is a real infra unblock-improvement for invocation path consistency from repo root.
 
-3. **No runtime-authority expansion check: PASS**
-   - Runtime-surface contracts continue to assert paper-only boundaries and no live execution privilege on `/beta/status` and `/beta/admin` pathways.
+3. **Scope containment check (Phase 8.15 narrow infra lane): PASS**
+   - PR #651 file set is bounded to script packaging, docs/report/state-roadmap continuity, and evidence-log refresh.
+   - No live-trading authority expansion or strategy/runtime execution-logic expansion is introduced.
 
-4. **Deterministic evidence path preservation: PASS**
-   - Runner still writes to the same deterministic evidence log and reads from the fixed runtime-proof target manifest.
+4. **Deterministic evidence-path preservation: PASS**
+   - Evidence sink and targets manifest remain deterministic and unchanged in purpose.
 
-5. **Current blocked-truth continuity check: PASS**
-   - New rerun in this environment still fails during dependency installation (`403 Forbidden` proxy/package access failure), so dependency-complete runtime proof is still unachieved.
-
-6. **Task metadata/source continuity check: FAIL (traceability drift)**
-   - The task-required source report path for `_03` does not exist in repo state under validation.
-   - This blocks strict source-to-validation traceability for PR #651 in the current checkout.
+5. **Dependency-complete proof closure: FAIL (still pending)**
+   - Current evidence still terminates during dependency installation in this environment.
+   - Successful dependency-complete runtime proof (`install + py_compile + scoped pytest`) is not yet demonstrated.
 
 ## Score Breakdown
+- Traceability on actual PR #651 head: 20/20
 - Package entrypoint validity: 20/20
 - Scope boundary integrity: 20/20
 - Runtime authority safety boundary: 20/20
-- Deterministic evidence lane integrity: 20/20
-- Source traceability + dependency-complete evidence sufficiency: 0/20
+- Dependency-complete evidence sufficiency: 5/20
 
-**Total: 80/100**
+**Total: 85/100**
 
 ## Critical Issues
-1. Missing task-declared source report path (`phase8-15_03_package-accessible-evidence-closure.md`) prevents strict traceability check.
-2. Dependency-complete proof still blocked (`403 Forbidden` during dependency install), so runtime-proof completion claim remains unproven.
+1. Dependency-complete runtime-proof evidence remains incomplete due dependency-install failure (`403 Forbidden` package/proxy path in available evidence).
 
 ## Status
-**BLOCKED**
+**CONDITIONAL**
 
 ## PR Gate Result
-- **Merge gate outcome:** BLOCKED
-- **Reason:** Package-style runner path appears valid and scoped, but declared source artifact is missing and dependency-complete proof remains blocked in this environment.
+- **Merge gate outcome:** CONDITIONAL
+- **Reason:** Package-accessible runner infrastructure and traceability are valid on PR #651 head, but dependency-complete runtime-proof closure evidence is still not achieved in this environment.
 
 ## Broader Audit Finding
-- This follow-up is directionally a truthful unblock-improvement lane (package-style invocation path is real), but cannot be promoted to closure-quality evidence while source report traceability is missing and dependency-complete run remains unsuccessful.
+- PR #651 is mergeable as a truthful unblock-improvement lane (package-accessible runner path and traceability correction are valid), provided it is **not** represented as dependency-complete runtime-proof closure.
 
 ## Reasoning
-SENTINEL accepts the narrow-integration infrastructure signal (repo-root package invocation path works), and accepts safety containment, but rejects merge approval because required source traceability is absent and executed proof still does not reach successful dependency-complete `py_compile` + pytest closure.
+SENTINEL accepts this as a narrow infrastructure improvement that unblocks invocation path consistency and preserves safety scope. Runtime-proof completion remains pending a successful dependency-complete rerun, so this gate is CONDITIONAL rather than APPROVED.
 
 ## Fix Recommendations
-1. Add/restore the declared forge source report at `projects/polymarket/polyquantbot/reports/forge/phase8-15_03_package-accessible-evidence-closure.md` (or update task metadata to the actual canonical source path).
-2. Re-run `python -m projects.polymarket.polyquantbot.scripts.run_phase8_15_runtime_proof` in a package-accessible environment and preserve successful evidence in deterministic log path.
-3. Re-open SENTINEL revalidation after both source-traceability and successful runtime-proof evidence are present on the same PR head.
+1. Re-run `python -m projects.polymarket.polyquantbot.scripts.run_phase8_15_runtime_proof` in a package-accessible environment.
+2. Capture successful install + `py_compile` + scoped pytest pass in `projects/polymarket/polyquantbot/reports/forge/phase8-15_01_runtime-proof-evidence.log`.
+3. Open a short SENTINEL closure pass after successful evidence refresh to promote from CONDITIONAL to APPROVED for runtime-proof completion claim.
 
 ## Out-of-scope Advisory
-- No additional advisory beyond scoped Phase 8.15 runtime-proof infrastructure and traceability/evidence sufficiency.
+- No additional advisory beyond scoped Phase 8.15 runtime-proof infrastructure and evidence-closure sufficiency.
 
 ## Deferred Minor Backlog
 - None added by this validation pass.
 
 ## Telegram Visual Preview
-- Package-style 8.15 runner invocation is real from repo root.
-- Safety/scope boundaries remain paper-beta only.
-- Dependency-complete proof still blocked by package access.
-- Required `_03` forge source path missing in repo -> traceability drift.
-- Verdict remains BLOCKED for PR #651 validation gate.
+- Traceability correction applied: `_03` source report exists on PR #651 head.
+- Package-style runner lane is real and scoped.
+- Safety boundary remains paper-beta only.
+- Dependency-complete proof still pending successful install/runtime closure evidence.
+- Verdict updated to CONDITIONAL for truthful unblock-improvement merge lane.
