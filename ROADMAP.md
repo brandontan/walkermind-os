@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 13:07
+**Last Updated:** 2026-04-20 13:23
 
 # Board Overview
 
@@ -421,8 +421,8 @@
 ## CrusaderBot — Telegram Confirmation / Activation Foundation Checklist (Phase 8.12)
 
 **Goal:** Add a narrow confirmation/activation lifecycle for Telegram-linked onboarding users so runtime does not stop at record creation and can truthfully report activation outcomes before session handoff dispatch.  
-**Status:** 🚧 In Progress (FORGE-X implementation complete; MAJOR lane awaiting SENTINEL validation)  
-**Last Updated:** 2026-04-19 21:39
+**Status:** ✅ Done (historical lane consumed on main; preserved as numbering continuity before active/open lanes 8.13 and 8.14)  
+**Last Updated:** 2026-04-20 13:23
 
 ### Scope Lock
 - [x] Keep scope on Telegram confirmation/activation foundation only
@@ -531,6 +531,30 @@
 - [x] Wallet lifecycle expansion
 - [x] Broad auth redesign
 - [x] Strategy/ML expansion
+
+---
+
+## CrusaderBot — Fastest Path to Public-Ready Paper Beta (Post-8.9 Numbering Realignment)
+
+**Goal:** Keep the same three-lane public-paper-beta finish path (runtime proof -> operational/public readiness -> release gate) while remapping it to truthful next-open numbering after consumed/open lanes through Phase 8.14.  
+**Status:** 🚧 In Progress (planning truth synced; implementation not started)  
+**Last Updated:** 2026-04-20 13:23
+
+### Numbering Truth
+- [x] Preserve consumed historical lanes through Phase 8.12.
+- [x] Preserve currently active/open lanes Phase 8.13 and Phase 8.14 as already consumed numbering.
+- [x] Set next truthful available public-paper-beta lane to Phase 8.15.
+
+### Realigned Remaining Path (product path unchanged)
+| Phase | Milestone | Status | Notes |
+|---|---|---|---|
+| 8.15 | Runtime Proof | ❌ Not Started | Next actionable public-paper-beta milestone. |
+| 8.16 | Operational/Public Readiness | ❌ Not Started | Follows runtime-proof completion; scope unchanged. |
+| 8.17 | Release Gate | ❌ Not Started | Final public-paper-beta gate before release decision; scope unchanged. |
+
+### Paper-Beta Claim Boundary
+- [x] Paper-beta-only claim boundary preserved (no live-trading authority claim introduced).
+- [x] This realignment is numbering/state truth only (no runtime code changes).
 
 ---
 
