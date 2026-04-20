@@ -1,4 +1,4 @@
-Last Updated : 2026-04-21 02:56
+Last Updated : 2026-04-21 03:04
 Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; Falcon readiness contract now keeps /ready evaluable when FALCON is enabled without API key, but closure evidence remains pending an external GitHub Actions rerun in a package-accessible runner.
 
 [COMPLETED]
@@ -29,7 +29,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.1 Falcon readiness/runtime contract fix is applied in `projects/polymarket/polyquantbot/configs/falcon.py` so missing `FALCON_API_KEY` under `FALCON_ENABLED=true` is surfaced as readiness-invalid instead of app-creation failure; full closure evidence remains pending external GitHub Actions rerun in a package-accessible runner.
+- Phase 9.1 Falcon readiness/runtime contract fix is validated by SENTINEL as CONDITIONAL for scoped contract behavior (PR #671); closure remains pending dependency-complete external runtime proof to upgrade evidence from conditional to full closure.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review Falcon readiness fix (`projects/polymarket/polyquantbot/reports/forge/phase9-1_09_falcon-readiness-contract-fix.md`) and trigger external `.github/workflows/phase9_1_runtime_proof.yml`; only produce closure-pass artifacts if full workflow is green.
+- COMMANDER review SENTINEL validation (`projects/polymarket/polyquantbot/reports/sentinel/phase9-1_02_falcon-readiness-contract-validation-pr671.md`) and trigger dependency-complete external runtime proof before Phase 9.1 closure.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
