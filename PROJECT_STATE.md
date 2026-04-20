@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 03:58
-Status       : FORGE completed Phase 9.2 public-readiness and ops-hardening implementation pass on feature/phase-9-2-public-readiness-and-ops-hardening with paper-beta boundary clarification across Telegram/API/docs; MAJOR SENTINEL validation is now the next gate while Phase 8.14 launch-planning follow-up remains in progress.
+Last Updated : 2026-04-21 04:08
+Status       : SENTINEL completed MAJOR validation for Phase 9.2 public-readiness and ops-hardening on feature/phase-9-2-public-readiness-and-ops-hardening with CONDITIONAL verdict (runtime semantics pass; dependency-limited skip evidence caveat); COMMANDER merge decision is now the next gate while Phase 8.14 launch-planning follow-up remains in progress.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -30,7 +30,7 @@ Status       : FORGE completed Phase 9.2 public-readiness and ops-hardening impl
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.2 operational/public readiness lane implementation pass is complete on feature/phase-9-2-public-readiness-and-ops-hardening and is awaiting SENTINEL MAJOR validation before merge decision.
+- Phase 9.2 operational/public readiness lane implementation pass on feature/phase-9-2-public-readiness-and-ops-hardening now has SENTINEL MAJOR verdict = CONDITIONAL for PR #675 and is awaiting COMMANDER merge decision plus dependency-complete non-skip pytest evidence attachment.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -38,7 +38,7 @@ Status       : FORGE completed Phase 9.2 public-readiness and ops-hardening impl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validate Phase 9.2 public-readiness and ops-hardening PR head branch (feature/phase-9-2-public-readiness-and-ops-hardening) before COMMANDER merge decision.
+- COMMANDER review Phase 9.2 PR #675 with SENTINEL CONDITIONAL verdict and decide hold/merge after dependency-complete non-skip pytest evidence confirmation.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

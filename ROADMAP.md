@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-21 03:58
+**Last Updated:** 2026-04-21 04:08
 
 # Board Overview
 
@@ -537,8 +537,8 @@
 ## CrusaderBot — Fastest Path to Public-Ready Paper Beta (Post-9.0 Numbering Realignment)
 
 **Goal:** Keep the same three-lane public-paper-beta finish path (runtime proof -> operational/public readiness -> release gate) while remapping it to truthful next-open numbering after consumed/open lanes through Phase 8.14.  
-**Status:** 🚧 In Progress (Phase 9.1 runtime-proof closure remains complete; Phase 9.2 operational/public readiness implementation pass is now landed on source branch and awaiting SENTINEL validation before merge decision).  
-**Last Updated:** 2026-04-21 03:58
+**Status:** 🚧 In Progress (Phase 9.1 runtime-proof closure remains complete; Phase 9.2 has now received SENTINEL CONDITIONAL validation on source branch and is awaiting COMMANDER merge decision plus dependency-complete non-skip pytest evidence confirmation).  
+**Last Updated:** 2026-04-21 04:08
 
 ### Numbering Truth
 - [x] Preserve consumed historical lanes through Phase 8.12.
@@ -549,7 +549,7 @@
 | Phase | Milestone | Status | Notes |
 |---|---|---|---|
 | 9.1 | Runtime Proof + Evidence Closure | ✅ Done | Dependency-complete external runner evidence is now recorded in canonical log (`phase9-1_01_runtime-proof-evidence.log`) with closure pass documented in `phase9-1_09_runtime-proof-closure-pass.md`; paper-beta runtime surfaces remain the only claimed scope. |
-| 9.2 | Operational/Public Readiness | 🚧 In Progress | FORGE implementation pass completed on feature/phase-9-2-public-readiness-and-ops-hardening; SENTINEL MAJOR validation is the active gate before COMMANDER merge decision. |
+| 9.2 | Operational/Public Readiness | 🚧 In Progress | FORGE implementation pass completed on feature/phase-9-2-public-readiness-and-ops-hardening; SENTINEL MAJOR verdict is CONDITIONAL for PR #675, and COMMANDER merge decision is the active gate after dependency-complete non-skip pytest confirmation. |
 | 9.3 | Release Gate | ❌ Not Started | Final public-paper-beta gate before release decision; scope unchanged. |
 
 ### Paper-Beta Claim Boundary
