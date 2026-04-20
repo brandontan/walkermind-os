@@ -114,7 +114,7 @@ These checks are exposed under `exit_criteria.checks` with per-check `pass` and 
 - Verify `/beta/status.readiness_interpretation.live_trading_ready=false`
 - Verify `/beta/admin.exit_criteria.checks.required_config_present.pass` matches Falcon env reality
 
-## Dependency-complete validation lane (Phase 8.9 truth cleanup)
+## Dependency-complete validation lane (Phase 8.14 truth cleanup)
 These runtime-surface suites are authoritative only when FastAPI/runtime dependencies are installed.
 Thin environments may skip these files via `pytest.importorskip("fastapi")`; skipped output is not runtime proof.
 

@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 10:18
+**Last Updated:** 2026-04-20 10:48
 
 # Board Overview
 
@@ -505,11 +505,11 @@
 
 ---
 
-## CrusaderBot — Paper Beta State Truth Cleanup + Dependency-Complete Validation (Phase 8.9 Runtime Hardening)
+## CrusaderBot — Paper Beta State Truth Cleanup + Dependency-Complete Validation (Phase 8.14 Runtime Hardening)
 
 **Goal:** Clean stale repo-truth drift and make runtime-surface verification repeatable in a dependency-complete environment for the merged public paper-beta slice.  
-**Status:** 🚧 In Progress (FORGE-X implementation in progress on branch `feature/paper-beta-state-truth-cleanup-validation`; SENTINEL required before merge)  
-**Last Updated:** 2026-04-20 10:18
+**Status:** 🚧 In Progress (FORGE-X implementation in progress on branch `feature/task-title-2026-04-20-xaidj7`; SENTINEL required before merge)  
+**Last Updated:** 2026-04-20 10:48
 
 ### Scope Lock
 - [x] Keep scope on state/docs/test evidence hardening only
