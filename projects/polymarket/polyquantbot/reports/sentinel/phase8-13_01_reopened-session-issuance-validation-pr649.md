@@ -77,7 +77,7 @@
 
 ## PR Gate Result
 - **Merge gate outcome:** CONDITIONAL
-- **Reason:** Scoped code truth and contract tests are aligned with the 8.13 safety gate, but this runner could not execute the focused pytest module due missing `pydantic` dependency.
+- **Reason:** Scoped code truth and contract tests are aligned with the 8.13 safety gate, but this runner could not execute the focused pytest module due to missing pydantic dependency.
 
 ## Broader Audit Finding
 - No scoped drift detected between forge report claims and code behavior for the 8.13 issuance gate.
