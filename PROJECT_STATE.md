@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 13:55
-Status       : Phase 8.13 remains the active open validation lane; public-paper-beta roadmap realignment is preserved so Phase 8.15 runtime proof is next only after current open validation lanes (8.13 and 8.14), followed by 8.16 operational/public readiness and 8.17 release gate.
+Last Updated : 2026-04-20 14:14
+Status       : Open lanes now include Phase 8.13 re-land audit, Phase 8.14 launch-planning app foundation, and Phase 8.15 dependency-complete runtime-proof implementation for paper-beta FastAPI control surfaces; sequence after completion remains 8.16 operational/public readiness then 8.17 release gate.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -29,6 +29,7 @@ Status       : Phase 8.13 remains the active open validation lane; public-paper-
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION delivery in progress under projects/app/walker_devops; reports are now tracked under projects/app/walker_devops/reports/forge; local runtime verification is blocked in this environment by npm registry 403 and missing OPENAI_API_KEY.
 - Phase 8.13 Telegram session-issuance gate re-land audit on branch feature/reland-session-issuance-gate-fix-20260420: strict active-only issuance gate already present on current code truth; fresh PR opened for SENTINEL-required MAJOR validation before merge.
+- Phase 8.15 dependency-complete runtime-proof implementation started on branch feature/runtime-proof-dependency-complete-2026-04-20: dedicated runtime-proof runner + stable evidence path added for /health, /ready, /beta/status, and /beta/admin; execution remains blocked in this environment by package proxy 403 during dependency installation.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -36,7 +37,7 @@ Status       : Phase 8.13 remains the active open validation lane; public-paper-
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Phase 8.13 re-land audit validation remains the current open operational lane; after currently open lanes (8.13 and 8.14), the public-paper-beta build path continues at Phase 8.15 runtime proof, then 8.16 operational/public readiness, then 8.17 release gate.
+- Complete dependency-complete runtime proof evidence for Phase 8.15 on the active implementation branch, then route MAJOR lane to SENTINEL on PR head branch while keeping 8.13 and 8.14 open-lane sequencing visible.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
