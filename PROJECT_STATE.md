@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 13:23
-Status       : Public-paper-beta roadmap numbering is realigned to consumed/open phase truth; the next beta lane is Phase 8.15 runtime proof, with operational/public readiness and release gate queued as Phases 8.16 and 8.17.
+Last Updated : 2026-04-20 13:55
+Status       : Phase 8.13 remains the active open validation lane; public-paper-beta roadmap realignment is preserved so Phase 8.15 runtime proof is next only after current open validation lanes (8.13 and 8.14), followed by 8.16 operational/public readiness and 8.17 release gate.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -36,7 +36,7 @@ Status       : Public-paper-beta roadmap numbering is realigned to consumed/open
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Phase 8.15 runtime proof is the next public-paper-beta lane after consumed/open truth through Phase 8.14; Phase 8.16 operational/public readiness and Phase 8.17 release gate remain queued as the unchanged downstream path.
+- Phase 8.13 re-land audit validation remains the current open operational lane; after currently open lanes (8.13 and 8.14), the public-paper-beta build path continues at Phase 8.15 runtime proof, then 8.16 operational/public readiness, then 8.17 release gate.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
