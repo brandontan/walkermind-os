@@ -1,12 +1,12 @@
 # Phase 9.1 — Dependency-Capable Runner Preparation (Foundation)
 
-**Date:** 2026-04-20 19:03
+**Date:** 2026-04-20 19:13
 **Branch:** feature/prepare-phase-9-1-dependency-capable-runner
 **Task:** Prepare reproducible dependency-capable runner path for Phase 9.1 closure rerun
 
 ## 1. What was built
 
-- Added a reproducible preflight helper at `projects/polymarket/polyquantbot/scripts/prepare_phase9_1_dependency_runner.py`.
+- Added a reproducible preflight helper at `projects/polymarket/polyquantbot/scripts/prepare_phase9_1_dependency_runner.py` for dependency-capable runner validation before any closure rerun.
 - Preserved canonical Phase 9.1 closure command unchanged:
   - `python -m projects.polymarket.polyquantbot.scripts.run_phase9_1_runtime_proof`
 - Defined explicit dependency-capable runner requirements and checks for:
@@ -41,17 +41,15 @@ The prep helper validates environmental prerequisites before rerunning the canon
 
 ## 5. Known issues
 
-- This current runner still fails both prep install lanes due to external connectivity constraints:
-  - default/proxy lane: tunnel `403 Forbidden`
-  - no-proxy lane: `[Errno 101] Network is unreachable`
-- Because dependency install cannot pass here, this task does **not** claim Phase 9.1 closure.
+- Phase 9.1 closure remains pending because dependency-capable execution proof must be produced in a confirmed reachable runner.
+- This prep task intentionally does not add new blocked-rerun continuity artifacts or refresh canonical rerun evidence.
 
 ## 6. What is next
 
 - Execute the prep helper in the target runner and require all checks to pass:
-  - TCP/HTTPS reachability checks
-  - `--check-install` success
-  - `--check-install --no-proxy` success (or explicitly documented proxy-only runner contract)
+  - `python -m projects.polymarket.polyquantbot.scripts.prepare_phase9_1_dependency_runner`
+  - `python -m projects.polymarket.polyquantbot.scripts.prepare_phase9_1_dependency_runner --check-install`
+  - `python -m projects.polymarket.polyquantbot.scripts.prepare_phase9_1_dependency_runner --check-install --no-proxy` (or documented proxy-only contract)
 - After prep passes in that runner, rerun canonical Phase 9.1 command there and collect closure evidence.
 
 Validation Tier   : STANDARD
