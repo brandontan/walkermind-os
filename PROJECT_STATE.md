@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 17:32
-Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; 9.1 remains blocked in current runner after proxy and direct no-proxy dependency install failures before 9.2 operational/public readiness then 9.3 release gate.
+Last Updated : 2026-04-20 18:00
+Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; after re-running the canonical Phase 9.1 lane on 2026-04-20 18:00 (Asia/Jakarta), dependency installation still fails in this runner (proxy 403 and direct no-proxy network unreachable), so 9.2/9.3 remain pending closure evidence.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -29,7 +29,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.1 runtime-proof-and-evidence lane is active but still BLOCKED in this environment: normalized runner+targets and canonical evidence path are preserved for /health, /ready, /beta/status, and /beta/admin, yet dependency installation fails under both proxy (403 Forbidden) and direct no-proxy path (network unreachable), so py_compile+pytest closure evidence is still pending; evidence captured in `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log` and report `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-and-evidence.md`.
+- Phase 9.1 runtime-proof-and-evidence lane remains BLOCKED in this runner after closure follow-up rerun at 2026-04-20 18:00 (Asia/Jakarta): canonical entrypoint executes and refreshes evidence, but dependency installation still fails under both proxy (403 Forbidden) and direct no-proxy path (network unreachable), so py_compile+pytest closure evidence is still pending; evidence/report chain: `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log`, `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-and-evidence.md`, `projects/polymarket/polyquantbot/reports/forge/phase9-1_02_runtime-proof-closure-pass.md`.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER decision gate: review Phase 8.14 actionable-source assessment for launch-planning foundation follow-up scope, and in parallel keep Phase 9.1 pending a dependency-capable runner so runtime-proof py_compile+pytest evidence can close before Phase 9.2.
+- COMMANDER decision gate: review Phase 8.14 actionable-source assessment for launch-planning foundation follow-up scope, and in parallel route Phase 9.1 runtime-proof closure rerun to a runner with confirmed package-index reachability so dependency install + py_compile + pytest can pass before Phase 9.2.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
