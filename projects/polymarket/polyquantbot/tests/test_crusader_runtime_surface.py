@@ -29,8 +29,10 @@ def test_runtime_surface_contract_keys_exist(monkeypatch, path: str, required_ke
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     app = create_app()
     with TestClient(app) as client:
-        payload = client.get(path).json()
-    assert required_keys.issubset(payload.keys())
+        response = client.get(path)
+        assert response.status_code == 200
+        payload = response.json()
+        assert required_keys.issubset(payload.keys())
 
 
 def test_api_settings_uses_fly_port(monkeypatch) -> None:
