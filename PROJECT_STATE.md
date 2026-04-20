@@ -1,4 +1,4 @@
-Last Updated : 2026-04-21 00:11
+Last Updated : 2026-04-21 00:47
 Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; root-cause diagnostics now confirm current Codex runner egress incapability (proxy 403 + no-proxy network unreachable), with one reproducible dependency-capable external-runner path documented and 9.2/9.3 still pending canonical closure evidence from that capable environment.
 
 [COMPLETED]
@@ -29,7 +29,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.1 Fly startup crash hotfix lane is now implemented in `projects/polymarket/polyquantbot/platform/__init__.py` with stdlib delegation guard for `platform.system()` shadowing; forge evidence is captured in `projects/polymarket/polyquantbot/reports/forge/phase9-1_07_fly-startup-platform-shadow-hotfix.md`, and Fly deploy/runtime smoke confirmation remains pending SENTINEL + capable deploy environment execution.
+- Phase 9.1 Fly startup crash hotfix lane has cleared SENTINEL validation for narrow crash-path correctness (PR #664) with report `projects/polymarket/polyquantbot/reports/sentinel/phase9-1_02_fly-startup-platform-shadow-validation-pr664.md`; Fly deploy/runtime smoke confirmation (`/health`, `/ready`, startup logs) remains pending in a deploy-capable environment before closure claim.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL gate required for Phase 9.1 Fly startup crash hotfix (`projects/polymarket/polyquantbot/reports/forge/phase9-1_07_fly-startup-platform-shadow-hotfix.md`), then re-run Fly deploy smoke/runtime proof before Phase 9.2 closure decisions.
+- COMMANDER merge decision for Phase 9.1 hotfix lane (PR #664), then execute deploy-capable Fly smoke/runtime proof (`/health`, `/ready`, startup logs) before any Phase 9.1 closure or Phase 9.2 progression claim.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
