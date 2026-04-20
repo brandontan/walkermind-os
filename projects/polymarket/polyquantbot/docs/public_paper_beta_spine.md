@@ -128,14 +128,14 @@ These checks are exposed under `exit_criteria.checks` with per-check `pass` and 
 Run this command from repo root to execute the dependency-complete runtime-proof lane:
 
 ```bash
-python -m projects.polymarket.polyquantbot.scripts.run_phase8_15_runtime_proof
+python -m projects.polymarket.polyquantbot.scripts.run_phase9_1_runtime_proof
 ```
 
 The runner:
-- creates a dedicated virtualenv at `projects/polymarket/polyquantbot/.venv-phase8-15-runtime-proof`
+- creates a dedicated virtualenv at `projects/polymarket/polyquantbot/.venv-phase9-1-runtime-proof`
 - installs runtime/test dependencies (`requirements.txt` + pytest stack)
-- executes `py_compile` and runtime-surface pytest targets listed in `projects/polymarket/polyquantbot/tests/runtime_proof_phase8_15_targets.txt`
-- writes stable evidence output to `projects/polymarket/polyquantbot/reports/forge/phase8-15_01_runtime-proof-evidence.log`
+- executes `py_compile` and runtime-surface pytest targets listed in `projects/polymarket/polyquantbot/tests/runtime_proof_phase9_1_targets.txt`
+- writes stable evidence output to `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log`
 
 ## Explicit non-goals and live-readiness block
 - No live trading rollout or privileged live execution controls
