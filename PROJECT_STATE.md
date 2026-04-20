@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 10:02
-Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin controls hardening is in progress on branch feature/public-paper-beta-exit-criteria-admin-controls; MAJOR lane requires SENTINEL review before merge.
+Last Updated : 2026-04-20 10:18
+Status       : FORGE-X Phase 8.9 paper-beta state-truth cleanup + dependency-complete validation hardening is in progress on branch feature/paper-beta-state-truth-cleanup-validation; MAJOR lane requires SENTINEL review before merge.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -24,11 +24,12 @@ Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin control
 - Phase 8.9 real Telegram polling / runtime loop foundation merged: TelegramRuntimeAdapter abstract boundary, HttpTelegramAdapter concrete implementation, extract_command_context staging identity contract, TelegramPollingLoop dispatch + reply routing, run_polling_loop top-level wiring, bot.py adapter/loop wiring. SENTINEL CONDITIONAL gate satisfied via phase8-9_02_pytest-evidence-pass.md. Pytest gate: 94/94 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-9_01_telegram-runtime-loop-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-9_02_pytest-evidence-pass.md`. SENTINEL: PR #609 (CONDITIONAL gate satisfied).
 - Phase 8.10 Telegram identity resolution foundation merged truth synced: strict outcome normalization fix retained with 114/114 pytest evidence. References preserved: `projects/polymarket/polyquantbot/reports/forge/phase8-10_01_telegram-identity-resolution-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-10_02_pytest-evidence-pass.md`, `projects/polymarket/polyquantbot/reports/sentinel/phase8-10_01_telegram-identity-validation-pr610.md`.
 - Phase 8.11 Telegram onboarding/account-link foundation merged truth synced on main: unresolved /start onboarding route and persistence evidence preserved in `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md` and `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`; expected validation reference path remains `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`.
+- Phase 8.7 Public Paper Beta Completion Pass merged: operator status/control semantics hardening, onboarding boundary disclosure tightening, and focused runtime regression expansion completed with FORGE evidence `projects/polymarket/polyquantbot/reports/forge/phase8-7_03_public-paper-beta-completion-pass.md`.
+- Phase 8.8 Public Paper Beta Exit Criteria + Admin Controls merged: `/beta/status` + `/beta/admin` managed-beta exit-criteria semantics and focused runtime/doc hardening completed with FORGE evidence `projects/polymarket/polyquantbot/reports/forge/phase8-8_03_public-paper-beta-exit-criteria-admin-controls.md`.
 
 [IN PROGRESS]
 - Phase 8.13 Telegram session-issuance gate re-land audit on branch feature/reland-session-issuance-gate-fix-20260420: strict active-only issuance gate already present on current code truth; fresh PR opened for SENTINEL-required MAJOR validation before merge.
-- Phase 8.7 Public Paper Beta Completion Pass (MAJOR): status/control reply semantics hardening, onboarding control-only disclosure tightening, operator guard visibility completion, and paper-boundary regression expansion in progress on branch feature/complete-public-paper-beta-pass-20260420.
-- Phase 8.8 Public Paper Beta Exit Criteria + Admin Controls (MAJOR): machine-readable exit criteria, managed-beta admin/status semantics, and focused regression/doc hardening in progress on branch feature/public-paper-beta-exit-criteria-admin-controls.
+- Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation (MAJOR): state/roadmap drift cleanup, dependency-complete runtime validation lane documentation, and focused runtime-surface evidence hardening in progress on branch feature/paper-beta-state-truth-cleanup-validation.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -36,9 +37,8 @@ Status       : FORGE-X Phase 8.8 public paper beta exit-criteria + admin control
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL-required review for Phase 8.8 Public Paper Beta Exit Criteria + Admin Controls after FORGE-X delivery on branch feature/public-paper-beta-exit-criteria-admin-controls.
-- SENTINEL-required review for Phase 8.7 Public Paper Beta Completion Pass after FORGE-X delivery on branch feature/complete-public-paper-beta-pass-20260420.
 - SENTINEL-required validation for Phase 8.13 re-land branch feature/reland-session-issuance-gate-fix-20260420 after FORGE-X audit-only truth sync. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_03_reland-session-issuance-gate-fix.md.
+- SENTINEL-required review for Phase 8.9 paper-beta state-truth cleanup + dependency-complete validation after FORGE-X delivery on branch feature/paper-beta-state-truth-cleanup-validation.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

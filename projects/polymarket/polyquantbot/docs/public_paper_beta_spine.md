@@ -114,6 +114,23 @@ These checks are exposed under `exit_criteria.checks` with per-check `pass` and 
 - Verify `/beta/status.readiness_interpretation.live_trading_ready=false`
 - Verify `/beta/admin.exit_criteria.checks.required_config_present.pass` matches Falcon env reality
 
+## Dependency-complete validation lane (Phase 8.9 truth cleanup)
+These runtime-surface suites are authoritative only when FastAPI/runtime dependencies are installed.
+Thin environments may skip these files via `pytest.importorskip("fastapi")`; skipped output is not runtime proof.
+
+Run from repo root:
+
+1) Compile check for touched runtime test files:
+- `python3 -m py_compile projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py projects/polymarket/polyquantbot/tests/test_phase8_7_public_paper_beta_completion_20260420.py projects/polymarket/polyquantbot/tests/test_phase8_8_public_paper_beta_exit_criteria_20260420.py`
+
+2) Dependency-complete pytest lane:
+- `python3 -m pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py projects/polymarket/polyquantbot/tests/test_phase8_7_public_paper_beta_completion_20260420.py projects/polymarket/polyquantbot/tests/test_phase8_8_public_paper_beta_exit_criteria_20260420.py`
+
+Passing evidence expectations:
+- `test_crusader_runtime_surface.py` asserts `/health`, `/ready`, `/beta/status`, and `/beta/admin` return `200` with contract keys present.
+- `test_phase8_7_public_paper_beta_completion_20260420.py` asserts paper-only operator semantics and onboarding boundary truth.
+- `test_phase8_8_public_paper_beta_exit_criteria_20260420.py` asserts `/beta/status` and `/beta/admin` managed-beta exit-criteria semantics without live-readiness overclaim.
+
 ## Explicit non-goals and live-readiness block
 - No live trading rollout or privileged live execution controls
 - No admin trade-entry commands
