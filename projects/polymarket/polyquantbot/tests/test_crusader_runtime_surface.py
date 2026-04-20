@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("fastapi")
+pytest.importorskip(
+    "fastapi",
+    reason="Phase 8.9 runtime-surface contract checks require FastAPI; skipped suites are not runtime proof.",
+)
 from fastapi.testclient import TestClient
 
 from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, validate_api_environment

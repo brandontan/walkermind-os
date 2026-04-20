@@ -8,7 +8,10 @@ from projects.polymarket.polyquantbot.client.telegram.dispatcher import Telegram
 from projects.polymarket.polyquantbot.client.telegram.runtime import TelegramInboundUpdate, TelegramPollingLoop, TelegramRuntimeAdapter
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
 
-pytest.importorskip("fastapi")
+pytest.importorskip(
+    "fastapi",
+    reason="Phase 8.9 validation guard: FastAPI dependency missing; skip is not runtime proof.",
+)
 from fastapi.testclient import TestClient
 
 from projects.polymarket.polyquantbot.server.main import create_app
