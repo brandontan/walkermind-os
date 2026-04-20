@@ -1,4 +1,4 @@
-Last Updated : 2026-04-20 23:08
+Last Updated : 2026-04-21 00:34
 Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; root-cause diagnostics now confirm current Codex runner egress incapability (proxy 403 + no-proxy network unreachable), with one reproducible dependency-capable external-runner path documented and 9.2/9.3 still pending canonical closure evidence from that capable environment.
 
 [COMPLETED]
@@ -29,7 +29,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.1 runtime-proof-and-evidence lane remains pending dependency-capable closure execution: canonical command remains unchanged, runner-prep guide now includes route-level root cause and reproducible capable-environment path in `projects/polymarket/polyquantbot/docs/phase9_1_dependency_capable_runner_prep.md`, unblock evidence is documented in `projects/polymarket/polyquantbot/reports/forge/phase9-1_06_capable-environment-unblock.md`, and closure evidence is still pending in `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log` until run in a package-index-capable environment.
+- Phase 9.1 runtime-proof-and-evidence lane remains pending dependency-capable closure execution: canonical command remains unchanged, runner-prep guide now includes route-level root cause and reproducible capable-environment path in `projects/polymarket/polyquantbot/docs/phase9_1_dependency_capable_runner_prep.md`, unblock evidence is documented in `projects/polymarket/polyquantbot/reports/forge/phase9-1_06_capable-environment-unblock.md`, closure evidence is still pending in `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log` until run in a package-index-capable environment, and SENTINEL validation request for PR #664 remains BLOCKED in this runner because branch `feature/fix-fly.io-startup-crash-hotfix-2026-04-20` plus forge report `projects/polymarket/polyquantbot/reports/forge/phase9-1_07_fly-startup-platform-shadow-hotfix.md` are not present locally and cannot be fetched under current proxy-403 network constraints.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
