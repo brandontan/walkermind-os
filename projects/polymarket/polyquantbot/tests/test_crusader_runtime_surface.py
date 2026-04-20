@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("fastapi")
+pytest.importorskip(
+    "fastapi",
+    reason="Dependency-complete validation lane requires FastAPI test dependencies to be installed.",
+)
 from fastapi.testclient import TestClient
 
 from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, validate_api_environment
@@ -74,6 +77,30 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
     assert "falcon_config_state" in readiness
     assert "control_plane" in readiness
     assert readiness["control_plane"]["paper_only_execution_boundary"] is True
+
+
+
+@pytest.mark.parametrize(
+    ("route", "required_keys"),
+    [
+        ("/health", ("service", "runtime")),
+        ("/ready", ("status", "readiness")),
+        ("/beta/status", ("paper_only_execution_boundary", "execution_guard")),
+        ("/beta/admin", ("paper_only_execution_boundary", "admin_summary")),
+    ],
+)
+def test_runtime_surface_routes_expose_expected_contract_keys(
+    monkeypatch, route: str, required_keys: tuple[str, ...]
+) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get(route)
+    assert response.status_code == 200
+    payload = response.json()
+    for key in required_keys:
+        assert key in payload
 
 
 def test_beta_admin_route_exists_and_preserves_paper_boundary(monkeypatch) -> None:
