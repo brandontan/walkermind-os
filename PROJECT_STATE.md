@@ -28,7 +28,7 @@ Status       : Open lanes remain Phase 8.13 re-land audit, Phase 8.14 launch-pla
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION delivery in progress under projects/app/walker_devops; reports are now tracked under projects/app/walker_devops/reports/forge; local runtime verification is blocked in this environment by npm registry 403 and missing OPENAI_API_KEY.
-- Phase 8.13 Telegram session-issuance gate re-land lane on branch feature/reopen-phase-8.13-session-issuance-reland-2026-04-20 passed SENTINEL scoped code-truth validation with CONDITIONAL verdict (runtime pytest execution limited in this runner due missing pydantic dependency); lane remains pending COMMANDER merge decision on PR #649.
+- Phase 8.13 Telegram session-issuance gate re-land lane on branch feature/reopen-phase-8.13-session-issuance-reland-2026-04-20 passed SENTINEL scoped code-truth validation with CONDITIONAL verdict (runtime pytest execution limited in this runner due to missing pydantic dependency); lane remains pending COMMANDER merge decision on PR #649.
 - Phase 8.15 dependency-complete runtime-proof lane remains BLOCKED after rerun follow-up: deterministic runner/manifest/evidence path are preserved for /health, /ready, /beta/status, and /beta/admin, but dependency installation still fails with package/proxy 403 (including direct no-proxy path failure), so no successful py_compile+pytest closure evidence exists yet; follow-up recorded in `projects/polymarket/polyquantbot/reports/forge/phase8-15_02_blocked-rerun-attempt.md`.
 
 [NOT STARTED]
