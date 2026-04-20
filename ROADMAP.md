@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 13:07
+**Last Updated:** 2026-04-20 13:49
 
 # Board Overview
 
@@ -421,7 +421,7 @@
 ## CrusaderBot — Telegram Confirmation / Activation Foundation Checklist (Phase 8.12)
 
 **Goal:** Add a narrow confirmation/activation lifecycle for Telegram-linked onboarding users so runtime does not stop at record creation and can truthfully report activation outcomes before session handoff dispatch.  
-**Status:** 🚧 In Progress (FORGE-X implementation complete; MAJOR lane awaiting SENTINEL validation)  
+**Status:** 🚧 In Progress (FORGE-X implementation complete; MAJOR lane awaiting SENTINEL validation; no merged-main proof yet for status promotion)  
 **Last Updated:** 2026-04-19 21:39
 
 ### Scope Lock
@@ -454,6 +454,44 @@
 
 ---
 
+## CrusaderBot — Public Paper Beta Runtime Proof Lane (Phase 8.15)
+
+**Goal:** Run the realigned public-paper-beta runtime proof lane with dependency-complete evidence while preserving paper-only execution boundaries and current open validation truth.  
+**Status:** ❌ Not Started (queued after currently open validation lanes)  
+**Last Updated:** 2026-04-20 13:49
+
+### Scope Lock
+- [ ] Preserve paper-only execution authority and risk guard boundaries
+- [ ] Capture dependency-complete runtime proof for public paper beta control surfaces
+- [ ] Keep lane sequencing aligned after active validation lanes (8.13 first)
+
+---
+
+## CrusaderBot — Public Paper Beta Operational / Public Readiness Lane (Phase 8.16)
+
+**Goal:** Convert validated runtime proof into operator/public-readiness evidence for managed public paper beta operations without claiming live-trading readiness.  
+**Status:** ❌ Not Started (follows Phase 8.15)  
+**Last Updated:** 2026-04-20 13:49
+
+### Scope Lock
+- [ ] Preserve paper-only authority and operator-control truth
+- [ ] Define and verify operational/public readiness artifacts from proven runtime behavior
+- [ ] Keep exclusions for live-trading rollout and broad product expansion
+
+---
+
+## CrusaderBot — Public Paper Beta Release Gate Lane (Phase 8.17)
+
+**Goal:** Establish the final release-gate decision lane for public paper beta based on validated 8.15 runtime proof and 8.16 operational readiness evidence.  
+**Status:** ❌ Not Started (follows Phase 8.16)  
+**Last Updated:** 2026-04-20 13:49
+
+### Scope Lock
+- [ ] Require explicit gate criteria and decision evidence before public-paper-beta release
+- [ ] Preserve no-live-trading authority during release-gate evaluation
+- [ ] Keep release decision bounded to validated evidence from prior lanes
+
+---
 
 ## CrusaderBot — Public Paper Beta Completion Pass (Phase 8.7 Runtime Slice)
 

@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 13:07
-Status       : Phase 8.9 post-merge repo-truth sync is completed on main (PR #639 and PR #640 merged); active validation lane remains Phase 8.13 re-land session-issuance gate.
+Last Updated : 2026-04-20 13:49
+Status       : Phase 8.9 post-merge repo-truth sync remains completed on main (PR #639 and PR #640 merged); active open validation lane remains Phase 8.13 re-land session-issuance gate, while Phase 8.15 is preserved as the next public-paper-beta build lane after current open validation lanes.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -36,7 +36,8 @@ Status       : Phase 8.9 post-merge repo-truth sync is completed on main (PR #63
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL-required validation for Phase 8.13 re-land branch feature/reland-session-issuance-gate-fix-20260420 after FORGE-X audit-only truth sync. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_03_reland-session-issuance-gate-fix.md.
+- SENTINEL-required validation for Phase 8.13 re-land branch feature/reland-session-issuance-gate-fix-20260420 remains the immediate operational next lane. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_03_reland-session-issuance-gate-fix.md.
+- After current open validation lanes close, start Phase 8.15 public-paper-beta runtime proof lane (roadmap realignment path preserved with 8.16 and 8.17 following).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
