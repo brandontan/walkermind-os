@@ -126,3 +126,22 @@ This remains a bounded public **paper** beta control/read lane. Even with manage
 ## Known limitations
 - Falcon data surfaces remain narrow/placeholder-bounded outside `market_360`; signal quality is not a production claim.
 - This lane does not include live execution authority, user-managed Falcon keys, dashboard expansion, or manual trade-entry commands.
+
+## Phase 8.9 validation lane — state truth + dependency-complete guidance
+- Lane identity remains **Phase 8.9 — Paper Beta State Truth Cleanup + Dependency-Complete Validation**.
+- `pytest.importorskip("fastapi", reason=...)` skips mean the environment is dependency-incomplete and therefore **not runtime proof**.
+- Runtime-proof intent for this lane requires dependency-complete validation runs where FastAPI-backed tests execute.
+
+### Dependency-complete command set (targeted)
+- `pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py`
+- `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_7_public_paper_beta_completion_20260420.py`
+- `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_8_public_paper_beta_exit_criteria_20260420.py`
+
+### Runtime-surface validation guidance (narrow)
+When dependencies are complete, validate only contract keys for:
+- `/health`: stable service/runtime identity keys
+- `/ready`: status, readiness envelope, paper-only control-plane boundary
+- `/beta/status`: managed-beta + execution-guard + readiness interpretation keys
+- `/beta/admin`: paper-only boundary + admin summary + managed-beta keys
+
+This lane is documentation/validation hardening only and does not expand product runtime authority.

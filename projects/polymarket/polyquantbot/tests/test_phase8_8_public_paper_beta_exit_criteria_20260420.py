@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("fastapi")
+pytest.importorskip(
+    "fastapi",
+    reason="fastapi dependency is required for Phase 8.9 dependency-complete exit-criteria validation.",
+)
 from fastapi.testclient import TestClient
 
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE

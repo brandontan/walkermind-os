@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 06:29
+**Last Updated:** 2026-04-20 11:17
 
 # Board Overview
 
@@ -458,7 +458,7 @@
 ## CrusaderBot — Public Paper Beta Completion Pass (Phase 8.7 Runtime Slice)
 
 **Goal:** Build the fastest safe public-ready paper-trading beta slice with FastAPI control plane, Telegram control shell, backend-managed Falcon read integration, and paper-only worker execution spine.  
-**Status:** 🚧 In Progress (FORGE-X completion pass in progress on branch `feature/complete-public-paper-beta-pass-20260420`; SENTINEL required before merge)  
+**Status:** ✅ Done (Merged truth preserved; no longer active in-progress lane)  
 **Last Updated:** 2026-04-20 06:29
 
 ### Scope Lock
@@ -473,14 +473,14 @@
 - [x] Fly contract updated with health path and env contract
 - [x] Falcon-enabled beta signal generation requires secret-backed env configuration at deploy time.
 - [x] Structural normalization folders present for server/integrations/risk/execution/portfolio/workers/configs/docs/tests
-- [ ] SENTINEL review required before merge (MAJOR hardening gate)
+- [x] SENTINEL review gate closed on merged lane truth (historical evidence preserved)
 
 ---
 
 ## CrusaderBot — Public Paper Beta Exit Criteria + Admin Controls (Phase 8.8 Runtime Hardening)
 
 **Goal:** Define explicit managed-beta exit criteria and minimum admin/operator control visibility so public paper beta can be judged as controllable and safely bounded without overclaiming live readiness.  
-**Status:** 🚧 In Progress (FORGE-X implementation in progress on branch `feature/public-paper-beta-exit-criteria-admin-controls`; SENTINEL required before merge)  
+**Status:** ✅ Done (Merged truth preserved; no longer active in-progress lane)  
 **Last Updated:** 2026-04-20 10:02
 
 ### Scope Lock
@@ -491,7 +491,7 @@
 - [x] Strengthen `/beta/status` for controllable/guard/config truth visibility
 - [x] Add focused regression coverage for exit-criteria/admin semantics
 - [x] Update public paper-beta documentation with verification checklist and non-goals
-- [ ] SENTINEL review required before merge (MAJOR hardening gate)
+- [x] SENTINEL review gate closed on merged lane truth (historical evidence preserved)
 
 ### Explicit Exclusions
 - [x] Live trading rollout
@@ -502,6 +502,30 @@
 - [x] Wallet lifecycle expansion
 - [x] Broad auth redesign
 - [x] Strategy/ML expansion
+
+---
+
+## CrusaderBot — Paper Beta State Truth Cleanup + Dependency-Complete Validation (Phase 8.9)
+
+**Goal:** Keep phase identity, state documents, validation instructions, and runtime-surface contract assertions consistent with merged paper-beta truth while explicitly separating dependency skips from runtime proof claims.  
+**Status:** 🚧 In Progress (FORGE-X implementation in progress on branch `feature/paper-beta-state-truth-cleanup-validation-v2`; SENTINEL required before merge)  
+**Last Updated:** 2026-04-20 11:17
+
+### Scope Lock
+- [x] Keep lane identity fixed as Phase 8.9
+- [x] Remove stale in-progress truth for merged Phase 8.7 and 8.8 lanes
+- [x] Preserve explicit FastAPI dependency-skip reasons in targeted tests
+- [x] Keep dependency-complete pytest commands in docs/report with no overclaim
+- [x] Keep runtime-surface contract checks narrow (`/health`, `/ready`, `/beta/status`, `/beta/admin`)
+- [ ] SENTINEL review required before merge (MAJOR hardening gate)
+
+### Explicit Exclusions
+- [x] Live trading rollout
+- [x] Admin trading controls
+- [x] Dashboard expansion
+- [x] Falcon contract redesign
+- [x] Telegram behavior expansion beyond validation truth
+- [x] Worker/risk/execution logic changes
 
 ---
 
