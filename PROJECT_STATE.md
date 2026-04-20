@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 15:22
-Status       : Open lanes remain Phase 8.13 re-land audit, Phase 8.14 launch-planning app foundation, and Phase 8.15 dependency-complete runtime-proof evidence closure; 8.15 is still blocked pending package-accessible runner proof before 8.16 operational/public readiness then 8.17 release gate.
+Last Updated : 2026-04-20 16:50
+Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 8.15 dependency-complete runtime-proof evidence closure; 8.15 is still blocked pending package-accessible runner proof before 8.16 operational/public readiness then 8.17 release gate.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -25,10 +25,10 @@ Status       : Open lanes remain Phase 8.13 re-land audit, Phase 8.14 launch-pla
 - Phase 8.10 Telegram identity resolution foundation merged truth synced: strict outcome normalization fix retained with 114/114 pytest evidence. References preserved: `projects/polymarket/polyquantbot/reports/forge/phase8-10_01_telegram-identity-resolution-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-10_02_pytest-evidence-pass.md`, `projects/polymarket/polyquantbot/reports/sentinel/phase8-10_01_telegram-identity-validation-pr610.md`.
 - Phase 8.11 Telegram onboarding/account-link foundation merged truth synced on main: unresolved /start onboarding route and persistence evidence preserved in `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md` and `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`; expected validation reference path remains `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`.
 - Phase 8.9 Paper Beta State Truth Cleanup + Dependency-Complete Validation merged truth synced on main via PR #639 and SENTINEL sync PR #640; stale pre-merge wording removed and runtime-hardening checklist truth is now historical-complete.
+- Phase 8.13 Telegram session-issuance gate re-land lane is merged with validation record preserved as historical truth and no longer an active in-progress source lane.
 
 [IN PROGRESS]
-- Phase 8.14 Walker DevOps launch-planning app FOUNDATION delivery in progress under projects/app/walker_devops; reports are now tracked under projects/app/walker_devops/reports/forge; local runtime verification is blocked in this environment by npm registry 403 and missing OPENAI_API_KEY.
-- Phase 8.13 Telegram session-issuance gate re-land lane reopened on branch feature/reopen-phase-8.13-session-issuance-reland-2026-04-20: strict active-only issuance gate is already present on current code truth; fresh source PR lane is maintained for SENTINEL-required MAJOR validation before merge.
+- Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
 - Phase 8.15 dependency-complete runtime-proof lane remains BLOCKED after rerun follow-up: deterministic runner/manifest/evidence path are preserved for /health, /ready, /beta/status, and /beta/admin, but dependency installation still fails with package/proxy 403 (including direct no-proxy path failure), so no successful py_compile+pytest closure evidence exists yet; follow-up recorded in `projects/polymarket/polyquantbot/reports/forge/phase8-15_02_blocked-rerun-attempt.md`.
 
 [NOT STARTED]
@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.13 re-land audit, Phase 8.14 launch-pla
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER decision gate: review Phase 8.13 SENTINEL CONDITIONAL verdict on PR #649, and in parallel keep Phase 8.15 pending package-accessible runner access for dependency-complete runtime-proof rerun evidence.
+- COMMANDER decision gate: review Phase 8.14 actionable-source assessment for launch-planning foundation follow-up scope, and in parallel keep Phase 8.15 pending package-accessible runner access for dependency-complete runtime-proof rerun evidence.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
