@@ -101,4 +101,4 @@ Within the declared NARROW INTEGRATION target, the source lane is truthful and s
 ## Telegram Visual Preview
 - Phase 8.13 reopened lane validated as truthful continuation of strict issuance gate semantics.
 - Active-only issuance and non-active rejection safety contract remains intact.
-- Verdict is CONDITIONAL only because local runner cannot execute focused pytest due missing dependency.
+- Verdict is CONDITIONAL only because local runner cannot execute focused pytest due to missing dependency.
