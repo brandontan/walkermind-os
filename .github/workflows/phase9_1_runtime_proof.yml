@@ -1,0 +1,76 @@
+name: Phase 9.1 Runtime Proof
+
+on:
+  workflow_dispatch:
+
+jobs:
+  phase9-1-runtime-proof:
+    runs-on: ubuntu-latest
+    env:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      PYTHONIOENCODING: utf-8
+      PHASE9_1_ARTIFACT_DIR: phase9_1_artifacts
+      RUNTIME_PROOF_LOG: phase9_1_artifacts/phase9-1-runtime-proof.log
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Initialize artifact directory
+        run: |
+          mkdir -p "$PHASE9_1_ARTIFACT_DIR"
+
+      - name: Package-index preflight
+        id: preflight
+        run: |
+          set -o pipefail
+          {
+            echo "[preflight] python -m pip --version"
+            python -m pip --version
+            echo "[preflight] python -m pip index versions fastapi"
+            python -m pip index versions fastapi
+            echo "[preflight] python -m pip index versions pytest"
+            python -m pip index versions pytest
+          } 2>&1 | tee "$PHASE9_1_ARTIFACT_DIR/preflight.log"
+
+      - name: Run canonical Phase 9.1 runtime-proof command
+        if: ${{ success() }}
+        run: |
+          set -o pipefail
+          python -m projects.polymarket.polyquantbot.scripts.run_phase9_1_runtime_proof \
+            2>&1 | tee "$RUNTIME_PROOF_LOG"
+
+      - name: Collect canonical evidence artifacts (if generated)
+        if: ${{ always() }}
+        run: |
+          mkdir -p "$PHASE9_1_ARTIFACT_DIR/evidence"
+          mkdir -p "$PHASE9_1_ARTIFACT_DIR/pytest"
+          if [ -f "projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log" ]; then
+            cp "projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log" \
+              "$PHASE9_1_ARTIFACT_DIR/evidence/"
+          fi
+          if [ -f "projects/polymarket/polyquantbot/reports/forge/phase9-1_02_runtime-proof-rerun-blocked.md" ]; then
+            cp "projects/polymarket/polyquantbot/reports/forge/phase9-1_02_runtime-proof-rerun-blocked.md" \
+              "$PHASE9_1_ARTIFACT_DIR/evidence/"
+          fi
+          while IFS= read -r pytest_file; do
+            cp "$pytest_file" "$PHASE9_1_ARTIFACT_DIR/pytest/"
+          done < <(find projects/polymarket/polyquantbot/reports -type f \( -name '*pytest*.log' -o -name '*pytest*.txt' -o -name '*pytest*.xml' \) 2>/dev/null)
+
+      - name: Upload Phase 9.1 runtime-proof artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase9-1-runtime-proof-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            ${{ env.PHASE9_1_ARTIFACT_DIR }}/preflight.log
+            ${{ env.RUNTIME_PROOF_LOG }}
+            ${{ env.PHASE9_1_ARTIFACT_DIR }}/pytest
+            ${{ env.PHASE9_1_ARTIFACT_DIR }}/evidence
