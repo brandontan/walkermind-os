@@ -477,6 +477,34 @@
 
 ---
 
+## CrusaderBot — Public Paper Beta Exit Criteria + Admin Controls (Phase 8.8 Runtime Hardening)
+
+**Goal:** Define explicit managed-beta exit criteria and minimum admin/operator control visibility so public paper beta can be judged as controllable and safely bounded without overclaiming live readiness.  
+**Status:** 🚧 In Progress (FORGE-X implementation in progress on branch `feature/public-paper-beta-exit-criteria-admin-controls`; SENTINEL required before merge)  
+**Last Updated:** 2026-04-20 10:02
+
+### Scope Lock
+- [x] Keep Telegram and FastAPI as control/read surfaces only
+- [x] Preserve explicit paper-only execution authority
+- [x] Add machine-readable/operator-readable exit criteria payload semantics
+- [x] Add admin-visible managed-beta status surface (`/beta/admin`)
+- [x] Strengthen `/beta/status` for controllable/guard/config truth visibility
+- [x] Add focused regression coverage for exit-criteria/admin semantics
+- [x] Update public paper-beta documentation with verification checklist and non-goals
+- [ ] SENTINEL review required before merge (MAJOR hardening gate)
+
+### Explicit Exclusions
+- [x] Live trading rollout
+- [x] Admin trading controls
+- [x] User-managed Falcon keys
+- [x] Dashboard expansion
+- [x] Multi-exchange support
+- [x] Wallet lifecycle expansion
+- [x] Broad auth redesign
+- [x] Strategy/ML expansion
+
+---
+
 ## CrusaderBot — Fly.io Deploy Readiness Checklist
 
 **Goal:** Prepare CrusaderBot for Fly.io deployment while keeping the project rooted at `projects/polymarket/polyquantbot/` and aligning the structure toward the Crusader multi-user blueprint in `docs/crusader_multi_user_architecture_blueprint.md`.  
