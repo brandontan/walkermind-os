@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 11:17
+**Last Updated:** 2026-04-20 11:32
 
 # Board Overview
 
@@ -508,8 +508,8 @@
 ## CrusaderBot — Paper Beta State Truth Cleanup + Dependency-Complete Validation (Phase 8.9)
 
 **Goal:** Keep phase identity, state documents, validation instructions, and runtime-surface contract assertions consistent with merged paper-beta truth while explicitly separating dependency skips from runtime proof claims.  
-**Status:** 🚧 In Progress (FORGE-X implementation in progress on branch `feature/paper-beta-state-truth-cleanup-validation-v2`; SENTINEL required before merge)  
-**Last Updated:** 2026-04-20 11:17
+**Status:** 🚧 In Progress (FORGE-X delivery complete; SENTINEL review completed as CONDITIONAL on PR #636; awaiting COMMANDER merge decision)  
+**Last Updated:** 2026-04-20 11:32
 
 ### Scope Lock
 - [x] Keep lane identity fixed as Phase 8.9
@@ -517,7 +517,7 @@
 - [x] Preserve explicit FastAPI dependency-skip reasons in targeted tests
 - [x] Keep dependency-complete pytest commands in docs/report with no overclaim
 - [x] Keep runtime-surface contract checks narrow (`/health`, `/ready`, `/beta/status`, `/beta/admin`)
-- [ ] SENTINEL review required before merge (MAJOR hardening gate)
+- [x] SENTINEL review completed for PR #636 (CONDITIONAL); COMMANDER merge decision pending
 
 ### Explicit Exclusions
 - [x] Live trading rollout
