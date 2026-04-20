@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 02:31
-Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; diagnostics mirroring is now added to the canonical runtime-proof command so external GitHub Actions reruns expose actionable root-cause detail without false closure claims, and 9.2/9.3 remain pending canonical closure evidence from a capable environment.
+Last Updated : 2026-04-21 02:56
+Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; Falcon readiness contract now keeps /ready evaluable when FALCON is enabled without API key, but closure evidence remains pending an external GitHub Actions rerun in a package-accessible runner.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -29,7 +29,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.1 external capable-runner path now includes diagnostics-mirrored canonical execution in `projects/polymarket/polyquantbot/scripts/run_phase9_1_runtime_proof.py` plus the existing mobile-triggerable GitHub Actions lane (`.github/workflows/phase9_1_runtime_proof.yml`); runtime-proof closure evidence remains pending successful rerun/review in GitHub with newly surfaced failure detail.
+- Phase 9.1 Falcon readiness/runtime contract fix is applied in `projects/polymarket/polyquantbot/configs/falcon.py` so missing `FALCON_API_KEY` under `FALCON_ENABLED=true` is surfaced as readiness-invalid instead of app-creation failure; full closure evidence remains pending external GitHub Actions rerun in a package-accessible runner.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review Phase 9.1 diagnostics lane (`projects/polymarket/polyquantbot/reports/forge/phase9-1_08_runtime-proof-diagnostics.md`), then rerun GitHub workflow to capture actionable root-cause output before any closure-pass claim.
+- COMMANDER review Falcon readiness fix (`projects/polymarket/polyquantbot/reports/forge/phase9-1_09_falcon-readiness-contract-fix.md`) and trigger external `.github/workflows/phase9_1_runtime_proof.yml`; only produce closure-pass artifacts if full workflow is green.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
