@@ -1,4 +1,4 @@
-Last Updated : 2026-04-20 14:14
+Last Updated : 2026-04-20 14:55
 Status       : Open lanes now include Phase 8.13 re-land audit, Phase 8.14 launch-planning app foundation, and Phase 8.15 dependency-complete runtime-proof implementation for paper-beta FastAPI control surfaces; sequence after completion remains 8.16 operational/public readiness then 8.17 release gate.
 
 [COMPLETED]
@@ -29,7 +29,7 @@ Status       : Open lanes now include Phase 8.13 re-land audit, Phase 8.14 launc
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION delivery in progress under projects/app/walker_devops; reports are now tracked under projects/app/walker_devops/reports/forge; local runtime verification is blocked in this environment by npm registry 403 and missing OPENAI_API_KEY.
 - Phase 8.13 Telegram session-issuance gate re-land audit on branch feature/reland-session-issuance-gate-fix-20260420: strict active-only issuance gate already present on current code truth; fresh PR opened for SENTINEL-required MAJOR validation before merge.
-- Phase 8.15 dependency-complete runtime-proof implementation started on branch feature/runtime-proof-dependency-complete-2026-04-20: dedicated runtime-proof runner + stable evidence path added for /health, /ready, /beta/status, and /beta/admin; execution remains blocked in this environment by package proxy 403 during dependency installation.
+- Phase 8.15 dependency-complete runtime-proof lane validated by SENTINEL on PR #645 as BLOCKED: deterministic runner/manifest/evidence path are correct for /health, /ready, /beta/status, and /beta/admin, but dependency-complete execution proof is still blocked in this environment by package proxy 403 during dependency installation.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +37,7 @@ Status       : Open lanes now include Phase 8.13 re-land audit, Phase 8.14 launc
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Complete dependency-complete runtime proof evidence for Phase 8.15 on the active implementation branch, then route MAJOR lane to SENTINEL on PR head branch while keeping 8.13 and 8.14 open-lane sequencing visible.
+- Re-run Phase 8.15 dependency-complete runtime proof in a package-accessible runner, refresh deterministic evidence log with successful py_compile+pytest outputs, then return same PR head to SENTINEL for revalidation while preserving visible 8.13/8.14/8.15 lane ordering truth.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
