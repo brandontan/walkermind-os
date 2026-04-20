@@ -1,5 +1,5 @@
 Phase 8.15 Dependency-Complete Runtime Proof
-Python executable: /root/.pyenv/versions/3.10.19/bin/python3
+Python executable: /root/.pyenv/versions/3.10.19/bin/python
 Repo root: /workspace/walker-ai-team
 Project root: /workspace/walker-ai-team/projects/polymarket/polyquantbot
 Targets file: /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/runtime_proof_phase8_15_targets.txt
@@ -9,6 +9,7 @@ Targets file: /workspace/walker-ai-team/projects/polymarket/polyquantbot/tests/r
 
 venv python: /workspace/walker-ai-team/projects/polymarket/polyquantbot/.venv-phase8-15-runtime-proof/bin/python
 [2/5] install dependency-complete runtime/test stack
+package entrypoint: python -m projects.polymarket.polyquantbot.scripts.run_phase8_15_runtime_proof
 Requirement already satisfied: pip in ./projects/polymarket/polyquantbot/.venv-phase8-15-runtime-proof/lib/python3.10/site-packages (23.0.1)
 WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pip/
 WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/pip/

@@ -128,7 +128,7 @@ These checks are exposed under `exit_criteria.checks` with per-check `pass` and 
 Run this command from repo root to execute the dependency-complete runtime-proof lane:
 
 ```bash
-PYTHONPATH=. python projects/polymarket/polyquantbot/scripts/run_phase8_15_runtime_proof.py
+python -m projects.polymarket.polyquantbot.scripts.run_phase8_15_runtime_proof
 ```
 
 The runner:

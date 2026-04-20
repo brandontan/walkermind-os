@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 15:13
+**Last Updated:** 2026-04-20 15:27
 
 # Board Overview
 
@@ -537,8 +537,8 @@
 ## CrusaderBot — Fastest Path to Public-Ready Paper Beta (Post-8.9 Numbering Realignment)
 
 **Goal:** Keep the same three-lane public-paper-beta finish path (runtime proof -> operational/public readiness -> release gate) while remapping it to truthful next-open numbering after consumed/open lanes through Phase 8.14.  
-**Status:** 🚧 In Progress (Phase 8.15 rerun evidence-closure attempt executed but remains blocked: dependency/package access still fails with 403, including direct no-proxy path failure, so dependency-complete closure proof is still pending package-accessible environment).  
-**Last Updated:** 2026-04-20 15:13
+**Status:** 🚧 In Progress (Phase 8.15 now has a package-accessible runner entrypoint, but rerun evidence closure remains blocked in this runner because dependency installation still fails; dependency-complete closure proof is still pending successful package resolution).  
+**Last Updated:** 2026-04-20 15:27
 
 ### Numbering Truth
 - [x] Preserve consumed historical lanes through Phase 8.12.
@@ -548,7 +548,7 @@
 ### Realigned Remaining Path (product path unchanged)
 | Phase | Milestone | Status | Notes |
 |---|---|---|---|
-| 8.15 | Runtime Proof | 🚧 In Progress | Rerun attempt executed and documented, but dependency install still fails (proxy/direct path 403), so py_compile+pytest closure evidence remains blocked pending package-accessible runner. |
+| 8.15 | Runtime Proof | 🚧 In Progress | Package-accessible runner path is now in place and rerun is documented, but dependency install still fails in runner environment, so py_compile+pytest closure evidence remains blocked pending successful dependency resolution. |
 | 8.16 | Operational/Public Readiness | ❌ Not Started | Follows runtime-proof completion; scope unchanged. |
 | 8.17 | Release Gate | ❌ Not Started | Final public-paper-beta gate before release decision; scope unchanged. |
 
