@@ -4,7 +4,9 @@ import os
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
+from typing import TextIO
 
 ROOT = Path(__file__).resolve().parents[4]
 PROJECT_ROOT = ROOT / "projects/polymarket/polyquantbot"
@@ -47,8 +49,12 @@ def _run_with_retry(
     return last_result
 
 
-def _write_line(handle, line: str = "") -> None:
+def _write_line(handle: TextIO, line: str = "", *, stream: TextIO | None = None) -> None:
     handle.write(f"{line}\n")
+    handle.flush()
+    if stream is None:
+        stream = sys.stdout
+    print(line, file=stream, flush=True)
 
 
 def _base_env() -> dict[str, str]:
@@ -78,28 +84,43 @@ def _without_proxy(env: dict[str, str]) -> dict[str, str]:
 def main() -> int:
     env = _base_env()
 
-    targets = [
-        line.strip()
-        for line in TARGETS_FILE.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
-
     EVIDENCE_LOG.parent.mkdir(parents=True, exist_ok=True)
 
     with EVIDENCE_LOG.open("w", encoding="utf-8") as log:
         _write_line(log, "Phase 9.1 Dependency-Complete Runtime Proof")
+        _write_line(log, "Diagnostics mode: enabled (stdout/stderr mirrored)")
         _write_line(log, f"Python executable: {sys.executable}")
         _write_line(log, f"Repo root: {ROOT}")
         _write_line(log, f"Project root: {PROJECT_ROOT}")
         _write_line(log, f"Targets file: {TARGETS_FILE}")
         _write_line(log)
 
+        try:
+            targets = [
+                line.strip()
+                for line in TARGETS_FILE.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
+        except Exception:
+            _write_line(log, "FAIL: unable to load runtime proof targets", stream=sys.stderr)
+            _write_line(log, traceback.format_exc().rstrip(), stream=sys.stderr)
+            return 1
+
+        if not targets:
+            _write_line(log, "FAIL: no runtime proof targets were loaded", stream=sys.stderr)
+            return 1
+
+        _write_line(log, f"Loaded targets ({len(targets)}):")
+        for target in targets:
+            _write_line(log, f"- {target}")
+        _write_line(log)
+
         _write_line(log, f"[1/5] create venv: {VENV_DIR}")
         create_venv = _run([sys.executable, "-m", "venv", str(VENV_DIR)], env=env)
         _write_line(log, create_venv.stdout.rstrip())
-        _write_line(log, create_venv.stderr.rstrip())
+        _write_line(log, create_venv.stderr.rstrip(), stream=sys.stderr)
         if create_venv.returncode != 0:
-            _write_line(log, f"FAIL: venv creation exit={create_venv.returncode}")
+            _write_line(log, f"FAIL: venv creation exit={create_venv.returncode}", stream=sys.stderr)
             return create_venv.returncode
 
         venv_python = VENV_DIR / "bin/python"
@@ -123,16 +144,16 @@ def main() -> int:
         _write_line(log, "install attempt A (proxy/default env)")
         install_result = _run_with_retry(install_cmd, env=env, timeout_s=900)
         _write_line(log, install_result.stdout.rstrip())
-        _write_line(log, install_result.stderr.rstrip())
+        _write_line(log, install_result.stderr.rstrip(), stream=sys.stderr)
 
         if install_result.returncode != 0:
             no_proxy_env = _without_proxy(env)
             _write_line(log, "install attempt B (direct/no-proxy env)")
             install_result_no_proxy = _run_with_retry(install_cmd, env=no_proxy_env, timeout_s=900)
             _write_line(log, install_result_no_proxy.stdout.rstrip())
-            _write_line(log, install_result_no_proxy.stderr.rstrip())
+            _write_line(log, install_result_no_proxy.stderr.rstrip(), stream=sys.stderr)
             if install_result_no_proxy.returncode != 0:
-                _write_line(log, f"FAIL: dependency install exit={install_result_no_proxy.returncode}")
+                _write_line(log, f"FAIL: dependency install exit={install_result_no_proxy.returncode}", stream=sys.stderr)
                 return install_result_no_proxy.returncode
             install_result = install_result_no_proxy
 
@@ -141,9 +162,9 @@ def main() -> int:
         py_compile_cmd = [str(venv_python), "-m", "py_compile", *targets]
         py_compile_result = _run(py_compile_cmd, env=env)
         _write_line(log, py_compile_result.stdout.rstrip())
-        _write_line(log, py_compile_result.stderr.rstrip())
+        _write_line(log, py_compile_result.stderr.rstrip(), stream=sys.stderr)
         if py_compile_result.returncode != 0:
-            _write_line(log, f"FAIL: py_compile exit={py_compile_result.returncode}")
+            _write_line(log, f"FAIL: py_compile exit={py_compile_result.returncode}", stream=sys.stderr)
             return py_compile_result.returncode
         _write_line(log, "PASS: py_compile")
 
@@ -153,9 +174,9 @@ def main() -> int:
             _write_line(log, f"command: {' '.join(pytest_cmd)}")
             pytest_result = _run(pytest_cmd, env=env, timeout_s=600)
             _write_line(log, pytest_result.stdout.rstrip())
-            _write_line(log, pytest_result.stderr.rstrip())
+            _write_line(log, pytest_result.stderr.rstrip(), stream=sys.stderr)
             if pytest_result.returncode != 0:
-                _write_line(log, f"FAIL: pytest target {target} exit={pytest_result.returncode}")
+                _write_line(log, f"FAIL: pytest target {target} exit={pytest_result.returncode}", stream=sys.stderr)
                 return pytest_result.returncode
 
         _write_line(log, "PASS: all runtime-surface pytest targets")
