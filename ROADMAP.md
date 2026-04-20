@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** In Progress  
-**Last Updated:** 2026-04-20 18:00
+**Last Updated:** 2026-04-21 03:33
 
 # Board Overview
 
@@ -537,8 +537,8 @@
 ## CrusaderBot — Fastest Path to Public-Ready Paper Beta (Post-9.0 Numbering Realignment)
 
 **Goal:** Keep the same three-lane public-paper-beta finish path (runtime proof -> operational/public readiness -> release gate) while remapping it to truthful next-open numbering after consumed/open lanes through Phase 8.14.  
-**Status:** 🚧 In Progress (Phase 9.1 canonical closure rerun executed at 2026-04-20 18:00 Asia/Jakarta and evidence log refreshed, but dependency-complete closure remains blocked in this runner because dependency installation still fails under both proxy and direct no-proxy attempts).  
-**Last Updated:** 2026-04-20 18:00
+**Status:** 🚧 In Progress (Phase 9.1 runtime-proof closure is now completed with successful external dependency-complete evidence, and Phase 9.2 operational/public readiness is the active next lane).  
+**Last Updated:** 2026-04-21 03:33
 
 ### Numbering Truth
 - [x] Preserve consumed historical lanes through Phase 8.12.
@@ -548,8 +548,8 @@
 ### Realigned Remaining Path (product path unchanged)
 | Phase | Milestone | Status | Notes |
 |---|---|---|---|
-| 9.1 | Runtime Proof + Evidence Closure | 🚧 In Progress | Canonical runtime-proof lane rerun and log refresh completed (`run_phase9_1_runtime_proof.py`, `runtime_proof_phase9_1_targets.txt`, `phase9-1_01_runtime-proof-evidence.log`), but dependency installation still fails in this runner under proxy 403 and direct no-proxy network-unreachable conditions; py_compile+pytest closure evidence remains blocked pending confirmed package-index reachability. |
-| 9.2 | Operational/Public Readiness | ❌ Not Started | Follows 9.1 runtime-proof closure; scope unchanged. |
+| 9.1 | Runtime Proof + Evidence Closure | ✅ Done | Dependency-complete external runner evidence is now recorded in canonical log (`phase9-1_01_runtime-proof-evidence.log`) with closure pass documented in `phase9-1_09_runtime-proof-closure-pass.md`; paper-beta runtime surfaces remain the only claimed scope. |
+| 9.2 | Operational/Public Readiness | 🚧 In Progress | Next active lane after completed 9.1 closure; implementation work starts after SENTINEL validation on closure-pass source branch. |
 | 9.3 | Release Gate | ❌ Not Started | Final public-paper-beta gate before release decision; scope unchanged. |
 
 ### Paper-Beta Claim Boundary
