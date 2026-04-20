@@ -30,7 +30,7 @@ Status       : Phase 9.1 dependency-complete runtime-proof closure evidence is n
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.2 operational/public readiness lane is not started yet and will begin after SENTINEL validates the Phase 9.1 closure-pass PR.
+- Phase 9.2 operational/public readiness lane is the active next lane and will begin implementation after SENTINEL validates the Phase 9.1 closure-pass PR.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
