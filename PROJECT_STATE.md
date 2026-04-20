@@ -1,4 +1,4 @@
-Last Updated : 2026-04-20 06:29
+Last Updated : 2026-04-20 09:50
 Status       : FORGE-X Phase 8.7 public paper beta completion pass is in progress on branch feature/complete-public-paper-beta-pass-20260420; MAJOR lane requires SENTINEL review before merge.
 
 [COMPLETED]
@@ -26,7 +26,7 @@ Status       : FORGE-X Phase 8.7 public paper beta completion pass is in progres
 - Phase 8.11 Telegram onboarding/account-link foundation merged truth synced on main: unresolved /start onboarding route and persistence evidence preserved in `projects/polymarket/polyquantbot/reports/forge/phase8-11_01_telegram-onboarding-account-link-foundation.md` and `projects/polymarket/polyquantbot/reports/forge/phase8-11_02_pytest-evidence-pass.md`; expected validation reference path remains `projects/polymarket/polyquantbot/reports/sentinel/phase8-11_01_telegram-onboarding-validation-pr612.md`.
 
 [IN PROGRESS]
-- Phase 8.13 Telegram session-issuance gate fix: auto-promotion removed, strict active-only issuance gate enforced, 148/148 pytest pass, awaiting COMMANDER merge decision on PR #616 / branch claude/fix-telegram-session-issuance-zGD86.
+- Phase 8.13 Telegram session-issuance gate re-land audit on branch feature/reland-session-issuance-gate-fix-20260420: strict active-only issuance gate already present on current code truth; fresh PR opened for SENTINEL-required MAJOR validation before merge.
 - Phase 8.7 Public Paper Beta Completion Pass (MAJOR): status/control reply semantics hardening, onboarding control-only disclosure tightening, operator guard visibility completion, and paper-boundary regression expansion in progress on branch feature/complete-public-paper-beta-pass-20260420.
 
 [NOT STARTED]
@@ -36,7 +36,7 @@ Status       : FORGE-X Phase 8.7 public paper beta completion pass is in progres
 
 [NEXT PRIORITY]
 - SENTINEL-required review for Phase 8.7 Public Paper Beta Completion Pass after FORGE-X delivery on branch feature/complete-public-paper-beta-pass-20260420.
-- COMMANDER review and merge decision for Phase 8.13 session-issuance gate fix (branch claude/fix-telegram-session-issuance-zGD86). SENTINEL PR #617 BLOCKED finding is resolved; PR #617 can be closed after merge. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_02_fix-session-issuance-gate.md.
+- SENTINEL-required validation for Phase 8.13 re-land branch feature/reland-session-issuance-gate-fix-20260420 after FORGE-X audit-only truth sync. Report: projects/polymarket/polyquantbot/reports/forge/phase8-13_03_reland-session-issuance-gate-fix.md.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
