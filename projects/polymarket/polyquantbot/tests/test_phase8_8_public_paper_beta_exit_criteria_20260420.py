@@ -34,7 +34,7 @@ def test_beta_status_exit_criteria_contract_is_operator_meaningful(monkeypatch) 
     assert payload["managed_beta_state"]["safely_bounded_to_paper"] is True
     assert payload["managed_beta_state"]["controllable"] is True
     assert payload["readiness_interpretation"]["live_trading_ready"] is False
-    assert exit_criteria["total_checks"] >= 7
+    assert exit_criteria["total_checks"] >= 8
     assert exit_criteria["checks"]["paper_only_execution_boundary"]["pass"] is True
     assert exit_criteria["checks"]["known_limitations_disclosed"]["pass"] is True
     assert exit_criteria["live_trading_ready"] is False
@@ -54,6 +54,7 @@ def test_beta_admin_surface_reports_managed_state_without_live_authority(monkeyp
     assert payload["admin_summary"]["beta_controllable"] is True
     assert payload["admin_summary"]["live_execution_privileges_enabled"] is False
     assert payload["exit_criteria"]["live_trading_ready"] is False
+    assert payload["public_readiness_semantics"]["live_mode_switch_available"] is False
 
 
 def test_beta_admin_surface_exposes_required_config_truth_when_falcon_enabled(monkeypatch) -> None:

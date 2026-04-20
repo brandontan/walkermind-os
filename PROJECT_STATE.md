@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 03:43
-Status       : SENTINEL validated Phase 9.1 closure-pass evidence on PR #673 with a CONDITIONAL gate; 9.2 roadmap drift is corrected to not-started lane truth pending COMMANDER merge decision, while Phase 8.14 launch-planning follow-up remains in progress.
+Last Updated : 2026-04-21 03:58
+Status       : FORGE completed Phase 9.2 public-readiness and ops-hardening implementation pass on feature/phase-9-2-public-readiness-and-ops-hardening with paper-beta boundary clarification across Telegram/API/docs; MAJOR SENTINEL validation is now the next gate while Phase 8.14 launch-planning follow-up remains in progress.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -30,7 +30,7 @@ Status       : SENTINEL validated Phase 9.1 closure-pass evidence on PR #673 wit
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.2 operational/public readiness lane is the active next lane and will begin implementation after SENTINEL validates the Phase 9.1 closure-pass PR.
+- Phase 9.2 operational/public readiness lane implementation pass is complete on feature/phase-9-2-public-readiness-and-ops-hardening and is awaiting SENTINEL MAJOR validation before merge decision.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -38,7 +38,7 @@ Status       : SENTINEL validated Phase 9.1 closure-pass evidence on PR #673 wit
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review SENTINEL verdict for PR #673 and decide merge readiness for Phase 9.1 closure pass.
+- SENTINEL validate Phase 9.2 public-readiness and ops-hardening PR head branch (feature/phase-9-2-public-readiness-and-ops-hardening) before COMMANDER merge decision.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
