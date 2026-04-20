@@ -1,10 +1,11 @@
 # SENTINEL Validation — Phase 8.15 Runtime-Proof Lane (PR #645)
 
-**Date:** 2026-04-20 14:31  
+**Date:** 2026-04-20 14:39  
 **Validation Tier:** MAJOR  
 **Claim Level:** NARROW INTEGRATION  
 **Branch Validated:** feature/runtime-proof-dependency-complete-2026-04-20  
 **PR:** #645 (runtime-proof lane scope validation)  
+**PR Target:** main  
 **Source Report:** `projects/polymarket/polyquantbot/reports/forge/phase8-15_01_dependency-complete-runtime-proof.md`
 
 ## Environment
@@ -81,6 +82,7 @@ Requested checks covered:
 
 ## PR Gate Result
 
+- **PR target:** `main` (per COMMANDER instruction for this revision).
 - **Merge for infrastructure lane:** Allowed at COMMANDER discretion, with explicit acknowledgement that runtime-proof execution remains incomplete.
 - **Merge as completed runtime-proof evidence lane:** **Not allowed** until rerun succeeds and evidence log shows passing install + py_compile + scoped pytest.
 
