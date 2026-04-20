@@ -1,5 +1,5 @@
-Last Updated : 2026-04-20 20:05
-Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 runtime-proof closure; canonical closure command was re-run and evidence log refreshed, but dependency installation still fails in this runner so 9.1 closure remains blocked and 9.2/9.3 remain pending dependency-capable proof completion.
+Last Updated : 2026-04-20 22:51
+Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 runtime-proof closure; capability-unblock diagnostics now confirm proxy CONNECT 403 plus direct egress denial in current runner, and a reproducible external dependency-capable environment path is defined for reopening real closure execution.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -29,7 +29,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.1 runtime-proof-and-evidence lane remains blocked in this runner after closure-pass re-execution on `feature/close-phase-9-1-runtime-proof-pass`: canonical evidence log `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log` is refreshed, but dependency install still fails under proxy/default (403 Forbidden) and direct/no-proxy (Network is unreachable), so py_compile and scoped pytest closure steps are still pending dependency-capable execution.
+- Phase 9.1 dependency-capable environment unblock FOUNDATION is documented on `feature/unblock-phase-9-1-capable-environment`: root cause is confirmed as proxy CONNECT 403 plus direct/no-proxy outbound HTTPS reachability denial; reproducible capable-runner prerequisites are now recorded in `projects/polymarket/polyquantbot/reports/forge/phase9-1_06_capable-environment-unblock.md` before reopening real closure execution.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER decision gate: route Phase 9.1 canonical runtime-proof command to a dependency-capable runner with package-index reachability to produce full closure-chain PASS evidence, then advance next execution lane to Phase 9.2.
+- COMMANDER decision gate: execute package-index capability preflight (`pip index versions fastapi` / `pytest`) in the identified external capable runner, then reopen real Phase 9.1 closure pass with canonical command unchanged.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
