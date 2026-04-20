@@ -1,6 +1,6 @@
 # Phase 9.1 Dependency-Capable Runner Preparation
 
-Last Updated: 2026-04-20 19:21 (Asia/Jakarta)
+Last Updated: 2026-04-20 23:08 (Asia/Jakarta)
 
 ## Purpose
 Define the exact runner requirements needed to execute the canonical Phase 9.1 runtime-proof command in an environment where dependency installation is possible.
@@ -21,6 +21,27 @@ This preparation guide does **not** rerun runtime proof and does **not** refresh
   - `LC_ALL=C.UTF-8`
   - `PYTHONIOENCODING=utf-8`
 - Working directory: repository root.
+
+## Current Codex runner diagnosis (2026-04-20)
+- Proxy/default route (`HTTP_PROXY=http://proxy:8080`) to PyPI fails at CONNECT with `403 Forbidden`.
+- Direct/no-proxy route fails with outbound network block (`[Errno 101] Network is unreachable`).
+- DNS lookup for `pypi.org` and `files.pythonhosted.org` succeeds, so failure is egress-policy/entitlement, not DNS.
+
+Implication: this runner cannot satisfy dependency-complete preconditions; use a separate capable environment path below.
+
+## Reproducible capable environment path
+1. Use an external Linux runner (VM or CI host) with outbound HTTPS allowed to:
+   - `pypi.org:443`
+   - `files.pythonhosted.org:443`
+2. Set locale/env baseline:
+   - `LANG=C.UTF-8`
+   - `LC_ALL=C.UTF-8`
+   - `PYTHONIOENCODING=utf-8`
+3. From repo root, verify preflight succeeds:
+   - `python -m pip index versions fastapi`
+   - `python -m pip index versions pytest`
+4. Run canonical command unchanged:
+   - `python -m projects.polymarket.polyquantbot.scripts.run_phase9_1_runtime_proof`
 
 ## Package index reachability requirements
 Runner must satisfy at least one reachable install path:
