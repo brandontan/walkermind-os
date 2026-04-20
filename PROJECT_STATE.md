@@ -1,4 +1,4 @@
-Last Updated : 2026-04-20 17:46
+Last Updated : 2026-04-20 17:32
 Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; 9.1 remains blocked in current runner after proxy and direct no-proxy dependency install failures before 9.2 operational/public readiness then 9.3 release gate.
 
 [COMPLETED]
@@ -29,7 +29,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
-- Phase 9.1 runtime-proof-and-evidence lane remains BLOCKED in this environment after SENTINEL validation for PR #656: normalized runner+targets and canonical evidence path are preserved for /health, /ready, /beta/status, and /beta/admin, while dependency installation still fails under both proxy (403 Forbidden) and direct no-proxy path (network unreachable), so dependency-complete py_compile+pytest closure evidence remains pending; SENTINEL verdict recorded as CONDITIONAL in `projects/polymarket/polyquantbot/reports/sentinel/phase9-1_01_runtime-proof-validation-pr656.md` with mergeable blocked-progress framing only.
+- Phase 9.1 runtime-proof-and-evidence lane is active but still BLOCKED in this environment: normalized runner+targets and canonical evidence path are preserved for /health, /ready, /beta/status, and /beta/admin, yet dependency installation fails under both proxy (403 Forbidden) and direct no-proxy path (network unreachable), so py_compile+pytest closure evidence is still pending; evidence captured in `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log` and report `projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-and-evidence.md`.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +37,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER decision gate: review SENTINEL CONDITIONAL verdict for PR #656, keep Phase 8.14 actionable-source follow-up in view, and keep Phase 9.1 pending a dependency-capable runner so runtime-proof py_compile+pytest evidence can close before Phase 9.2.
+- COMMANDER decision gate: review Phase 8.14 actionable-source assessment for launch-planning foundation follow-up scope, and in parallel keep Phase 9.1 pending a dependency-capable runner so runtime-proof py_compile+pytest evidence can close before Phase 9.2.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
