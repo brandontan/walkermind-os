@@ -31,6 +31,7 @@ class FakeBackend:
                 "kill_switch": False,
                 "position_count": 0,
                 "last_risk_reason": "autotrade_disabled",
+                "managed_beta_state": {"state": "managed"},
                 "execution_guard": {
                     "entry_allowed": False,
                     "blocked_reasons": ["autotrade_disabled"],
@@ -106,6 +107,7 @@ def test_status_command_text_keeps_public_beta_boundary_truth() -> None:
 
     assert "public paper beta" in result.reply_text
     assert "Guard reasons" in result.reply_text
+    assert "Managed beta state" in result.reply_text
     assert "no manual trade-entry commands" not in result.reply_text
     assert "paper-only execution" in result.reply_text
 

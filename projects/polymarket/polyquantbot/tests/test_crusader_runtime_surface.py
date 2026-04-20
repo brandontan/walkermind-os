@@ -76,6 +76,18 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
     assert readiness["control_plane"]["paper_only_execution_boundary"] is True
 
 
+def test_beta_admin_route_exists_and_preserves_paper_boundary(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/beta/admin")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["paper_only_execution_boundary"] is True
+    assert payload["admin_summary"]["live_execution_privileges_enabled"] is False
+
+
 def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
     monkeypatch.setenv("PORT", "8080")
     monkeypatch.setenv("TRADING_MODE", "PAPER")

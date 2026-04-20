@@ -111,6 +111,7 @@ class TelegramDispatcher:
             execution_guard = data.get("execution_guard", {})
             blocked_reasons = execution_guard.get("blocked_reasons", [])
             reason_text = ", ".join(blocked_reasons) if blocked_reasons else "none"
+            managed_beta_state = data.get("managed_beta_state", {})
             return DispatchResult(
                 outcome="ok",
                 reply_text=(
@@ -122,6 +123,7 @@ class TelegramDispatcher:
                     f"• Guard allows entry: {execution_guard.get('entry_allowed', False)}\n"
                     f"• Guard reasons: {reason_text}\n"
                     f"• Last risk reason: {data.get('last_risk_reason', 'n/a')}\n"
+                    f"• Managed beta state: {managed_beta_state.get('state', 'unknown')}\n"
                     "• Boundary: paper-only execution; Telegram is control/read surface"
                 ),
             )

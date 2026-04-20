@@ -38,6 +38,17 @@ class FalconGateway:
             timeout_seconds=settings.timeout_seconds,
         )
 
+    def settings_snapshot(self) -> dict[str, object]:
+        """Return minimal config visibility for operator/admin beta status routes."""
+        return {
+            "enabled": self._settings.enabled,
+            "api_key_configured": self._settings.api_key_configured(),
+            "base_url_configured": bool(self._settings.base_url.strip()),
+            "timeout_seconds": self._settings.timeout_seconds,
+            "config_valid_for_enabled_mode": (not self._settings.enabled)
+            or self._settings.api_key_configured(),
+        }
+
     async def list_markets(self, query: str = "") -> list[dict[str, object]]:
         """Return bounded sample market list for beta shell observability.
 
