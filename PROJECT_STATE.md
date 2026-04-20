@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 05:29
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path is complete on main with paper-only boundary preserved; Crusader is not live-trading ready and not production-capital ready, and Phase 8.14 launch-planning foundation is now historical-complete truth.
+Last Updated : 2026-04-21 05:41
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main with paper-only boundary preserved; independent external deploy/runtime revalidation is currently blocked in this runner by outbound Fly endpoint access limits and requires Fly-accessible validation evidence.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -33,6 +33,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path is complete on
 
 [IN PROGRESS]
 - Post-release readiness summary and launch posture assets packaging is in progress for public-ready paper beta continuity (paper-only claim boundary preserved).
+- Phase 9.3 deploy/runtime truth revalidation lane is in progress with evidence captured, but external verification of live Fly `/health` and `/ready` is blocked in this runner by CONNECT-tunnel 403 and requires Fly-accessible validation.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -40,6 +41,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path is complete on
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
+- Run SENTINEL deploy/runtime validation from a Fly-accessible environment on the Phase 9.3 deploy-runtime-truth source branch to verify live `/health`, live `/ready`, startup stability, and machine crash-loop status against captured blocker evidence.
 - Prepare post-release readiness summary and launch posture assets (onboarding + announcement package) for the completed public-ready paper beta lane while preserving paper-only claim boundaries.
 
 [KNOWN ISSUES]
