@@ -55,7 +55,7 @@
 - Persistence/readiness hardening continuity aligned with current checklist priorities.
 
 ### Execution Tracking Source
-- Detailed checklist, priority ordering, and right-now operational tasks live at: `projects/polymarket/polyquantbot/work_checklist.md`.
+- Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/work_checklist.md](projects/polymarket/polyquantbot/work_checklist.md).
 - ROADMAP.md remains summary-level and milestone-oriented.
 
 ---
