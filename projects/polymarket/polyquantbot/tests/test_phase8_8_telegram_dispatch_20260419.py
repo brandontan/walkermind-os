@@ -138,6 +138,8 @@ def test_dispatch_help_command() -> None:
     result: DispatchResult = asyncio.run(dispatcher.dispatch(_make_ctx("/help")))
     assert result.outcome == "ok"
     assert "CrusaderBot Help" in result.reply_text
+    assert "Boundary" in result.reply_text
+    assert "Paper-only execution" in result.reply_text
     assert "/MODE" not in result.reply_text
     assert "/KILL" not in result.reply_text
     backend.request_handoff.assert_not_awaited()
@@ -149,6 +151,7 @@ def test_dispatch_unknown_command_empty_string() -> None:
     result: DispatchResult = asyncio.run(dispatcher.dispatch(_make_ctx("")))
     assert result.outcome == "unknown_command"
     assert "/mode" not in result.reply_text.lower()
+    assert "operator-managed" in result.reply_text.lower()
     backend.request_handoff.assert_not_awaited()
 
 

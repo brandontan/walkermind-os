@@ -64,7 +64,11 @@ Telegram UX Refinement Follow-up Lane
 
 [x] Save fresh deploy evidence (live command replies and baseline runtime proof captured)
 
-### Latest attempt (2026-04-22 02:31 Asia/Jakarta)
+### Latest attempt (2026-04-22 02:58 Asia/Jakarta)
+
+- Public Telegram copy layer is now consolidated through shared presentation helpers in `client/telegram/presentation.py` so `/start`, onboarding-required, onboarding-started, linked/active-session variants, temporary backend/runtime issues, and unknown-command fallback share one structure.
+- `/help` and `/status` now keep a consistent boundary block with the same public paper-beta posture and no live-trading/production-capital readiness overclaim.
+- Remaining debt is unchanged: repeated `/start` progression flow still feels stepwise and should be refined further without expanding runtime activation scope.
 
 - Live Telegram baseline evidence is now available and recorded in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.md` with supporting log in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.log`.
 - Verified from live runtime evidence: `/start`, `/help`, `/status`, and unknown command fallback all returned non-empty/non-dummy responses.
@@ -85,17 +89,17 @@ Telegram UX Refinement Follow-up Lane
 
 [x] Refine the existing Telegram command UX
 
-[ ] Refine the current welcome intro for new users
+[x] Refine the current welcome intro for new users
 
 [x] Refine the current help and status copy
 
 [x] Refine paper-only messaging across the existing Telegram flow
 
-[ ] Refine the next-step guidance for new users
+[x] Refine the next-step guidance for new users
 
-[ ] Refine the unlinked-user flow using the current foundation
+[x] Refine the unlinked-user flow using the current foundation
 
-[ ] Refine the linked-user flow using the current foundation
+[x] Refine the linked-user flow using the current foundation
 
 [x] Refine fallback and error messaging
 

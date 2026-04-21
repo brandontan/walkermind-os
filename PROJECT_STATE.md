@@ -1,4 +1,4 @@
-Last Updated : 2026-04-22 02:31
+Last Updated : 2026-04-22 02:58
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; live Telegram baseline command proof is now recorded for /start, /help, /status, and unknown fallback with paper-only boundary preserved.
 
 [COMPLETED]
@@ -37,7 +37,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 [IN PROGRESS]
 - Work checklist monitor integration hardening lane is in progress on `feature/integrate-work-checklist-into-project-monitor`: malformed `projects/polymarket/polyquantbot/work_checklist.md` structure was repaired and `docs/project_monitor.html` now includes conservative fallback parsing so major checklist sections remain visible under partial markdown-format damage, pending COMMANDER review.
 - Post-launch cleanup + README alignment + announcement polish lane is in progress for paper-beta public-facing clarity (paper-only/no-live-trading boundary preserved).
-- Telegram onboarding + /start /help /status public UX copy refinement is implemented on `feature/refine-telegram-onboarding-and-public-ux-copy` with cleaner onboarding/fallback messaging and explicit paper-only safety wording pending COMMANDER review.
+- Telegram UI/UX consolidation lane is implemented on `feature/consolidate-telegram-ui-ux-layer`: shared presentation helpers now align `/start` lifecycle variants, `/help`, `/status`, and unknown-command fallback under one public paper-beta structure with explicit paper-only/no-live-trading/no-production-capital boundary wording, pending COMMANDER review.
 - Telegram presentation consolidation + public command-set hygiene lane is implemented on `feature/public-command-set-hygiene-and-help-alignment`: `/help` now advertises only trusted public-safe commands (`/start`, `/help`, `/status`), unknown-command guidance no longer over-advertises operator-managed surfaces, and paper-only/public-safe boundary wording remains explicit; deploy-capable Telegram render proof is pending (`projects/polymarket/polyquantbot/reports/forge/telegram_ux_03_presentation-consolidation.md`, `projects/polymarket/polyquantbot/reports/forge/telegram_ux_04_public-command-hygiene.md`).
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
 

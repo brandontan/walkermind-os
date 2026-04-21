@@ -7,142 +7,151 @@ from __future__ import annotations
 from projects.polymarket.polyquantbot.telegram.ui.components import SEP, render_kv_line
 
 
+_PUBLIC_BOUNDARY_LINES = (
+    "• Public-ready paper beta",
+    "• Paper-only execution",
+    "• Not live-trading ready",
+    "• Not production-capital ready",
+)
+
+
+def _format_public_screen(title: str, body_lines: list[str], *, next_steps: list[str] | None = None) -> str:
+    lines: list[str] = [title, SEP] + body_lines
+    if next_steps:
+        lines.extend(["", "Next steps:"] + [f"• {step}" for step in next_steps])
+    lines.extend(["", "Boundary:"] + list(_PUBLIC_BOUNDARY_LINES))
+    return "\n".join(lines)
+
+
 def format_start_session_ready_reply() -> str:
-    return (
-        "🚀 CrusaderBot — Session Ready\n"
-        f"{SEP}\n"
-        "Your paper-beta session is active.\n\n"
-        "Next steps:\n"
-        "• /help — command guide\n"
-        "• /status — runtime and guard snapshot\n\n"
-        "Boundary:\n"
-        "• Public-ready paper beta\n"
-        "• Paper-only execution\n"
-        "• Not live-trading ready\n"
-        "• Not production-capital ready"
+    return _format_public_screen(
+        "🚀 CrusaderBot — Session Ready",
+        ["Your paper-beta session is active and safe to explore."],
+        next_steps=[
+            "/help — open the public command guide",
+            "/status — check runtime and guard state",
+        ],
     )
 
 
 def format_start_first_required_reply() -> str:
-    return (
-        "⚠️ Onboarding required before this command\n"
-        f"{SEP}\n"
-        "Use /start first to begin onboarding.\n"
-        "After onboarding is ready, retry your command.\n\n"
-        "Boundary:\n"
-        "• Public-ready paper beta\n"
-        "• Paper-only execution\n"
-        "• Not live-trading ready\n"
-        "• Not production-capital ready"
+    return _format_public_screen(
+        "⚠️ Onboarding required",
+        [
+            "This command is available after onboarding starts.",
+            "Use /start to open onboarding, then retry your command.",
+        ],
     )
 
 
 def format_onboarding_started_reply() -> str:
-    return (
-        "✅ Onboarding started\n"
-        f"{SEP}\n"
-        "We created your onboarding path.\n"
-        "Send /start again to continue into session activation.\n\n"
-        "Boundary: paper-only public beta."
+    return _format_public_screen(
+        "✅ Onboarding started",
+        [
+            "Your onboarding path is now created.",
+            "Send /start again to continue into session activation.",
+        ],
     )
 
 
 def format_already_linked_reply() -> str:
-    return (
-        "ℹ️ Account already linked\n"
-        f"{SEP}\n"
-        "Your Telegram account is already linked.\n"
-        "Send /start to continue into session activation."
+    return _format_public_screen(
+        "ℹ️ Account already linked",
+        [
+            "This Telegram account is already linked.",
+            "Send /start to continue into session activation.",
+        ],
     )
 
 
 def format_activation_ready_reply() -> str:
-    return (
-        "✅ Account activated\n"
-        f"{SEP}\n"
-        "Activation is complete.\n"
-        "Send /start again to open your session."
+    return _format_public_screen(
+        "✅ Account activated",
+        [
+            "Activation is complete.",
+            "Send /start again to open your session.",
+        ],
     )
 
 
 def format_already_active_session_reply() -> str:
-    return (
-        "✅ Session already active\n"
-        f"{SEP}\n"
-        "Welcome back — your paper-beta session is ready.\n"
-        "Use /help or /status for next actions."
+    return _format_public_screen(
+        "✅ Session already active",
+        ["Welcome back — your paper-beta session is ready."],
+        next_steps=["/help", "/status"],
     )
 
 
 def format_temporary_identity_error_reply() -> str:
-    return (
-        "⚠️ Temporary identity check issue\n"
-        f"{SEP}\n"
-        "We couldn't verify your identity right now.\n"
-        "Please try again shortly."
+    return _format_public_screen(
+        "⚠️ Temporary identity check issue",
+        [
+            "We couldn't verify your identity right now.",
+            "Please try /start again shortly.",
+        ],
     )
 
 
 def format_onboarding_rejected_reply() -> str:
-    return (
-        "⚠️ Onboarding unavailable right now\n"
-        f"{SEP}\n"
-        "We couldn't start onboarding at the moment.\n"
-        "Please try again later or contact support."
+    return _format_public_screen(
+        "⚠️ Onboarding unavailable",
+        [
+            "We couldn't start onboarding right now.",
+            "Please try again later or contact support.",
+        ],
     )
 
 
 def format_activation_rejected_reply() -> str:
-    return (
-        "⚠️ Activation unavailable for this account\n"
-        f"{SEP}\n"
-        "Activation is not available right now.\n"
-        "Please contact support if this seems unexpected."
+    return _format_public_screen(
+        "⚠️ Activation unavailable",
+        [
+            "Activation is not available for this account right now.",
+            "Please contact support if this seems unexpected.",
+        ],
     )
 
 
 def format_runtime_temporary_error_reply() -> str:
-    return (
-        "⚠️ Temporary runtime issue\n"
-        f"{SEP}\n"
-        "Please retry your command in a moment."
+    return _format_public_screen(
+        "⚠️ Temporary runtime issue",
+        [
+            "The bot runtime is temporarily unavailable.",
+            "Please retry your command in a moment.",
+        ],
     )
 
 
 def format_start_rejected_reply(detail: str) -> str:
     reason = detail or "not available"
-    return (
-        "⚠️ Session could not be opened right now\n"
-        f"{SEP}\n"
-        f"Reason: {reason}\n"
-        "Please send /start again shortly."
+    return _format_public_screen(
+        "⚠️ Session could not be opened",
+        [f"Reason: {reason}", "Please send /start again shortly."],
     )
 
 
 def format_start_temp_backend_error_reply() -> str:
-    return (
-        "⚠️ Temporary backend issue\n"
-        f"{SEP}\n"
-        "We hit a backend issue while opening your session.\n"
-        "Please send /start again shortly."
+    return _format_public_screen(
+        "⚠️ Temporary backend issue",
+        [
+            "We hit a backend issue while opening your session.",
+            "Please send /start again shortly.",
+        ],
     )
 
 
 def format_unknown_command_reply() -> str:
-    return (
-        "⚠️ Command not recognized\n"
-        f"{SEP}\n"
-        "Try one of these public commands:\n"
-        "• /start\n"
-        "• /help\n"
-        "• /status\n\n"
-        "Some advanced controls are operator-managed during paper beta\n"
-        "and intentionally not shown in the public command guide.\n\n"
-        "Boundary:\n"
-        "• Public-ready paper beta\n"
-        "• Paper-only execution\n"
-        "• Not live-trading ready\n"
-        "• Not production-capital ready"
+    return _format_public_screen(
+        "⚠️ Command not recognized",
+        [
+            "Try one of these public commands:",
+            "• /start",
+            "• /help",
+            "• /status",
+            "",
+            "Advanced controls are operator-managed during paper beta",
+            "and intentionally hidden from the public command guide.",
+        ],
     )
 
 
@@ -180,10 +189,9 @@ def format_status_reply(
     autotrade: bool,
     position_count: int,
 ) -> str:
-    return "\n".join(
+    return _format_public_screen(
+        "🧭 CrusaderBot Status — Public Paper Beta",
         [
-            "🧭 CrusaderBot Status — Public Paper Beta",
-            SEP,
             "Runtime",
             render_kv_line("Mode", mode),
             render_kv_line("State", managed_state),
@@ -198,7 +206,5 @@ def format_status_reply(
             "Paper metrics",
             render_kv_line("Autotrade", str(autotrade)),
             render_kv_line("Positions", str(position_count)),
-            SEP,
-            "Boundary: paper-only execution. Not live-trading ready. Not production-capital ready.",
-        ]
+        ],
     )
