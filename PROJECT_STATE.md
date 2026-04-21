@@ -1,4 +1,4 @@
-Last Updated : 2026-04-21 19:32
+Last Updated : 2026-04-21 19:51
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram command-routing semantics plus expanded public-reply presentation consolidation are implemented at code level, with deploy-capable Fly + live Telegram verification still pending.
 
 [COMPLETED]
@@ -36,7 +36,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Post-launch cleanup + README alignment + announcement polish lane is in progress for paper-beta public-facing clarity (paper-only/no-live-trading boundary preserved).
 - Telegram command-routing semantics fix lane is in progress on `feature/fix-telegram-command-routing-and-sync-work-checklist`: polling-loop start lifecycle is now gated to `/start` only so `/help` and `/status` no longer collapse into `/start` at code level; deploy-capable rerun is still required for live Fly + Telegram proof (`projects/polymarket/polyquantbot/reports/forge/telegram_runtime_03_command-routing-semantics-fix.md`, `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_03_command-routing-semantics-evidence.log`).
 - Telegram onboarding + /start /help /status public UX copy refinement is implemented on `feature/refine-telegram-onboarding-and-public-ux-copy` with cleaner onboarding/fallback messaging and explicit paper-only safety wording pending COMMANDER review.
-- Telegram presentation consolidation lane is implemented on `feature/extend-telegram-presentation-layer-and-sync-checklist`: `/start` `/help` `/status` plus remaining public onboarding/fallback/error surfaces now use shared structured presentation helpers with preserved paper-only/public-safe boundaries; deploy-capable Telegram render proof is pending (`projects/polymarket/polyquantbot/reports/forge/telegram_ux_03_presentation-consolidation.md`).
+- Telegram presentation consolidation + public command-set hygiene lane is implemented on `feature/public-command-set-hygiene-and-help-alignment`: `/help` now advertises only trusted public-safe commands (`/start`, `/help`, `/status`), unknown-command guidance no longer over-advertises operator-managed surfaces, and paper-only/public-safe boundary wording remains explicit; deploy-capable Telegram render proof is pending (`projects/polymarket/polyquantbot/reports/forge/telegram_ux_03_presentation-consolidation.md`, `projects/polymarket/polyquantbot/reports/forge/telegram_ux_04_public-command-hygiene.md`).
 
 
 [NOT STARTED]

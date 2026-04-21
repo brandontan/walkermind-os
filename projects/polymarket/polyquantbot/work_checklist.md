@@ -39,6 +39,8 @@ ACTIVE (Current lane)
 
 [x] Consolidate remaining public-safe replies (onboarding required, already-linked/activated/session-ready variants, unknown command, temporary identity/runtime/backend errors) to shared presentation helpers
 
+[x] Align `/help` to trusted public-safe command surface only (hide operator-managed or not-ready commands from public guide)
+
 
 NEXT (immediately after code fix + UX integration)
 
@@ -81,7 +83,7 @@ NEXT (immediately after code fix + UX integration)
 
 4. Public Command Set
 
-[ ] Keep the existing public command baseline clean and useful
+[x] Keep the existing public command baseline clean and useful
 
 [ ] Prepare /paper
 
@@ -91,9 +93,9 @@ NEXT (immediately after code fix + UX integration)
 
 [ ] Prepare /account or /link
 
-[ ] Separate public commands from admin/operator commands
+[x] Separate public commands from admin/operator commands
 
-[ ] Hide commands that are not ready yet
+[x] Hide commands that are not ready yet
 
 
 5. Public-Safe Boundaries
