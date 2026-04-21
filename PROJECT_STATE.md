@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 09:57
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main with paper-only boundary preserved; Fly startup-path source fix is applied on the active Phase 9.3 lane, while deploy/runtime revalidation remains blocked in this runner by Fly CLI/network access limits.
+Last Updated : 2026-04-21 11:06
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; live Fly runtime surface is now externally verified responding (`/`, `/health`, `/ready`) with paper-only boundary preserved and no live-trading/production-capital readiness claim.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -34,7 +34,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 
 [IN PROGRESS]
 - Post-release readiness summary and launch posture assets packaging is in progress for public-ready paper beta continuity (paper-only claim boundary preserved).
-- Phase 9.3 Fly startup-path fix lane is in progress with corrected Docker/Fly entrypoint wiring, but actual redeploy and live `/health` + `/ready` verification remain blocked in this runner (`flyctl` unavailable and CONNECT-tunnel 403).
+- Phase 9.3 final truth-sync lane is in progress to land verified live Fly runtime observations (`/`, `/health`, `/ready`) as canonical repo truth while preserving explicit paper-only execution boundaries.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -42,7 +42,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL gate on PR head branch after Fly-accessible redeploy evidence confirms machine stability and live `/health` + `/ready`.
+- COMMANDER review of final truth-sync PR to confirm verified live Fly runtime responding surface is recorded with explicit paper-only/no-live-trading boundary language.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
