@@ -17,7 +17,8 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
-COPY . .
+RUN mkdir -p /app/projects/polymarket/polyquantbot
+COPY . /app/projects/polymarket/polyquantbot
 
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
@@ -28,4 +29,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:${PORT}/health || exit 1
 
-CMD ["python", "projects/polymarket/polyquantbot/scripts/run_api.py"]
+CMD ["python", "-m", "projects.polymarket.polyquantbot.scripts.run_api"]

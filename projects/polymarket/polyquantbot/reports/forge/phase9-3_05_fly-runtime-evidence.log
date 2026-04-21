@@ -1,0 +1,57 @@
+[phase9-3_05 fly startup-path fix evidence]
+UTC 2026-04-21 02:57:58
+
+## Git branch
+feature/fix-fly-startup-path-and-redeploy
+
+## Runtime entrypoint fixes
+20:RUN mkdir -p /app/projects/polymarket/polyquantbot
+21:COPY . /app/projects/polymarket/polyquantbot
+32:CMD ["python", "-m", "projects.polymarket.polyquantbot.scripts.run_api"]
+11:[processes]
+12:  app = "python -m projects.polymarket.polyquantbot.scripts.run_api"
+
+## Python module startup sanity
+exit_code=1
+-- stderr (first 30 lines) --
+Traceback (most recent call last):
+  File "/root/.pyenv/versions/3.10.19/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/root/.pyenv/versions/3.10.19/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/workspace/walker-ai-team/projects/polymarket/polyquantbot/scripts/run_api.py", line 2, in <module>
+    from projects.polymarket.polyquantbot.server.main import main
+  File "/workspace/walker-ai-team/projects/polymarket/polyquantbot/server/main.py", line 9, in <module>
+    import uvicorn
+ModuleNotFoundError: No module named 'uvicorn'
+
+## Fly deploy attempt
+/bin/bash: line 18: flyctl: command not found
+
+## External runtime probes
+### GET /health
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (56) CONNECT tunnel failed, response 403
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Tue, 21 Apr 2026 02:57:59 GMT
+server: envoy
+connection: close
+
+
+### GET /ready
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (56) CONNECT tunnel failed, response 403
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Tue, 21 Apr 2026 02:57:59 GMT
+server: envoy
+connection: close
+
+

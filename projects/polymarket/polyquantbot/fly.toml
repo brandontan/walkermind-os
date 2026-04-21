@@ -8,6 +8,9 @@ primary_region = 'iad'
 
 [build]
 
+[processes]
+  app = "python -m projects.polymarket.polyquantbot.scripts.run_api"
+
 [http_service]
   internal_port = 8080
   force_https = true
