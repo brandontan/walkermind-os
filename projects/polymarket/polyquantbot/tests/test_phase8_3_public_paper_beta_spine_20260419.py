@@ -310,7 +310,7 @@ def test_status_command_reply_surfaces_execution_guard_and_boundary() -> None:
     backend = FakeBackend()
     dispatcher = TelegramDispatcher(backend=backend)
     result = asyncio.run(dispatcher.dispatch(_make_ctx("/status")))
-    assert "Guard allows entry" in result.reply_text
+    assert "Entry" in result.reply_text
     assert "autotrade_disabled" in result.reply_text
     assert "paper-only execution" in result.reply_text
 

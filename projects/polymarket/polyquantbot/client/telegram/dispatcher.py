@@ -12,6 +12,10 @@ from projects.polymarket.polyquantbot.client.telegram.handlers.auth import (
     TelegramHandoffContext,
     handle_start,
 )
+from projects.polymarket.polyquantbot.client.telegram.presentation import (
+    format_help_reply,
+    format_status_reply,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -48,17 +52,7 @@ class TelegramDispatcher:
         if command == "/help":
             return DispatchResult(
                 outcome="ok",
-                reply_text=(
-                    "📘 CrusaderBot Help (Public Paper Beta)\n\n"
-                    "Quick commands:\n"
-                    "• /start - open or refresh your Telegram session\n"
-                    "• /help - view this command guide\n"
-                    "• /status - view runtime, guard, and mode snapshot\n\n"
-                    "Safety boundary:\n"
-                    "• Paper-only execution\n"
-                    "• No live trading\n"
-                    "• Not production-capital ready"
-                ),
+                reply_text=format_help_reply(),
             )
         if command == "/mode":
             mode = arg.lower()
@@ -132,21 +126,18 @@ class TelegramDispatcher:
             managed_beta_state = data.get("managed_beta_state", {})
             return DispatchResult(
                 outcome="ok",
-                reply_text=(
-                    "🧭 CrusaderBot Status (Public Paper Beta)\n\n"
-                    f"Runtime\n"
-                    f"• Mode: {data.get('mode', 'unknown')}\n"
-                    f"• Managed state: {managed_beta_state.get('state', 'unknown')}\n"
-                    f"• Release channel: {data.get('public_readiness_semantics', {}).get('release_channel', 'unknown')}\n\n"
-                    f"Safety\n"
-                    f"• Guard allows entry: {execution_guard.get('entry_allowed', False)}\n"
-                    f"• Guard reasons: {reason_text}\n"
-                    f"• Last risk reason: {data.get('last_risk_reason', 'n/a')}\n"
-                    f"• Kill switch: {data.get('kill_switch', False)}\n\n"
-                    f"Paper metrics\n"
-                    f"• Autotrade: {data.get('autotrade', False)}\n"
-                    f"• Position count: {data.get('position_count', 0)}\n\n"
-                    "Boundary: paper-only execution. No live trading or production-capital readiness."
+                reply_text=format_status_reply(
+                    mode=str(data.get("mode", "unknown")),
+                    managed_state=str(managed_beta_state.get("state", "unknown")),
+                    release_channel=str(
+                        data.get("public_readiness_semantics", {}).get("release_channel", "unknown")
+                    ),
+                    entry_allowed=bool(execution_guard.get("entry_allowed", False)),
+                    guard_reasons=reason_text,
+                    last_risk_reason=str(data.get("last_risk_reason", "n/a")),
+                    kill_switch=bool(data.get("kill_switch", False)),
+                    autotrade=bool(data.get("autotrade", False)),
+                    position_count=int(data.get("position_count", 0)),
                 ),
             )
         if command == "/markets":
