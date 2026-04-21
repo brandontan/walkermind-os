@@ -192,7 +192,7 @@ def test_polling_loop_run_once_dispatch_exception_sends_error_reply() -> None:
     loop = TelegramPollingLoop(adapter=adapter, dispatcher=dispatcher)
     asyncio.run(loop.run_once())
     assert len(adapter.replies) == 1
-    assert "error" in adapter.replies[0][1].lower()
+    assert "temporary runtime issue" in adapter.replies[0][1].lower()
 
 
 def test_polling_loop_run_once_advances_offset() -> None:

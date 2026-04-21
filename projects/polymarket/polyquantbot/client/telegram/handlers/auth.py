@@ -12,7 +12,9 @@ from projects.polymarket.polyquantbot.client.telegram.backend_client import (
     CrusaderBackendClient,
 )
 from projects.polymarket.polyquantbot.client.telegram.presentation import (
+    format_start_rejected_reply,
     format_start_session_ready_reply,
+    format_start_temp_backend_error_reply,
 )
 
 log = structlog.get_logger(__name__)
@@ -97,11 +99,7 @@ async def handle_start(
         )
         return HandleStartResult(
             outcome="rejected",
-            reply_text=(
-                "⚠️ Session could not be opened right now.\n"
-                f"Reason: {result.detail or 'not available'}\n"
-                "Please try /start again shortly."
-            ),
+            reply_text=format_start_rejected_reply(result.detail),
         )
 
     log.error(
@@ -111,8 +109,5 @@ async def handle_start(
     )
     return HandleStartResult(
         outcome="error",
-        reply_text=(
-            "⚠️ Temporary backend issue while starting your session. "
-            "Please try again shortly."
-        ),
+        reply_text=format_start_temp_backend_error_reply(),
     )

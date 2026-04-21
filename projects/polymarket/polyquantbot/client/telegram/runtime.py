@@ -36,7 +36,16 @@ from projects.polymarket.polyquantbot.client.telegram.dispatcher import (
     TelegramDispatcher,
 )
 from projects.polymarket.polyquantbot.client.telegram.presentation import (
+    format_activation_ready_reply,
+    format_activation_rejected_reply,
+    format_already_active_session_reply,
+    format_already_linked_reply,
+    format_onboarding_rejected_reply,
+    format_onboarding_started_reply,
+    format_runtime_temporary_error_reply,
+    format_start_first_required_reply,
     format_start_session_ready_reply,
+    format_temporary_identity_error_reply,
 )
 
 log = structlog.get_logger(__name__)
@@ -45,38 +54,29 @@ _STAGING_TENANT_ID = "staging"
 _STAGING_USER_ID = "staging"
 
 _REPLY_NOT_REGISTERED = (
-    "Welcome - your account is not onboarded yet.\n\n"
-    "CrusaderBot is currently public paper beta (paper-only).\n"
-    "We'll start your onboarding first; then send /start again."
+    format_start_first_required_reply()
 )
 _REPLY_ONBOARDED = (
-    "✅ Onboarding started successfully.\n"
-    "Send /start again to continue into the paper-beta control surface."
+    format_onboarding_started_reply()
 )
 _REPLY_ALREADY_LINKED = (
-    "ℹ️ Your account is already linked.\n"
-    "Send /start to continue."
+    format_already_linked_reply()
 )
 _REPLY_ACTIVATED = (
-    "✅ Your account is activated.\n"
-    "Send /start again to open your session."
+    format_activation_ready_reply()
 )
 _REPLY_SESSION_ISSUED = format_start_session_ready_reply()
 _REPLY_ALREADY_ACTIVE_SESSION_ISSUED = (
-    "✅ Welcome back. Your session is ready.\n"
-    "Boundary: paper-only execution."
+    format_already_active_session_reply()
 )
 _REPLY_ACTIVATION_REJECTED = (
-    "⚠️ Activation is not available for this account yet.\n"
-    "Please contact support if this seems unexpected."
+    format_activation_rejected_reply()
 )
 _REPLY_ONBOARDING_REJECTED = (
-    "⚠️ Onboarding could not be started right now.\n"
-    "Please try again later or contact support."
+    format_onboarding_rejected_reply()
 )
 _REPLY_IDENTITY_ERROR = (
-    "⚠️ We couldn't verify your identity right now.\n"
-    "Please try again shortly."
+    format_temporary_identity_error_reply()
 )
 
 
@@ -366,10 +366,7 @@ class TelegramPollingLoop:
                 if not requires_start_lifecycle:
                     await self._safe_send_reply(
                         update.chat_id,
-                        (
-                            "⚠️ Your account is not onboarded yet.\n"
-                            "Use /start first to begin onboarding, then retry this command."
-                        ),
+                        format_start_first_required_reply(),
                     )
                     return
                 if self._onboarding_initiator is None:
@@ -496,7 +493,7 @@ class TelegramPollingLoop:
             )
             await self._safe_send_reply(
                 update.chat_id,
-                "⚠️ Temporary runtime error. Please try your command again.",
+                format_runtime_temporary_error_reply(),
             )
             return
 
