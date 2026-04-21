@@ -11,7 +11,7 @@ from projects.polymarket.polyquantbot.core import market_scope
 from projects.polymarket.polyquantbot.core.system_state import SystemStateManager
 from projects.polymarket.polyquantbot.telegram.command_handler import CommandHandler
 from projects.polymarket.polyquantbot.telegram.command_router import CommandRouter
-from projects.polymarket.polyquantbot.interface.telegram.view_handler import render_view
+from projects.polymarket.polyquantbot.telegram.view_handler import render_view
 from projects.polymarket.polyquantbot.telegram.handlers.callback_router import CallbackRouter
 from projects.polymarket.polyquantbot.telegram.ui.reply_keyboard import REPLY_MENU_MAP
 
@@ -196,6 +196,78 @@ def test_command_router_start_live_path_tolerates_na_metrics_payload() -> None:
     assert "🏠 Home Command" in result.message
     assert "CRITICAL ERROR" not in result.message
     assert "_keyboard" in result.payload
+
+
+def test_command_router_help_uses_public_command_guidance() -> None:
+    state_manager = SystemStateManager()
+    config_manager = ConfigManager()
+    handler = CommandHandler(
+        state_manager=state_manager,
+        config_manager=config_manager,
+        mode="PAPER",
+    )
+    router = CommandRouter(handler=handler)
+
+    result = asyncio.run(
+        router.route_update(
+            {
+                "update_id": 2,
+                "message": {"text": "/help", "from": {"id": 1001}, "chat": {"id": 1001}},
+            }
+        )
+    )
+
+    assert result is not None
+    assert "❓ Help Center" in result.message
+    assert "/start · /help · /status" in result.message
+
+
+def test_command_router_status_routes_to_system_snapshot() -> None:
+    state_manager = SystemStateManager()
+    config_manager = ConfigManager()
+    handler = CommandHandler(
+        state_manager=state_manager,
+        config_manager=config_manager,
+        mode="PAPER",
+    )
+    router = CommandRouter(handler=handler)
+
+    result = asyncio.run(
+        router.route_update(
+            {
+                "update_id": 3,
+                "message": {"text": "/status", "from": {"id": 1001}, "chat": {"id": 1001}},
+            }
+        )
+    )
+
+    assert result is not None
+    assert "🧠 System Status" in result.message
+    assert "paper-only boundary enforced" in result.message.lower()
+
+
+def test_unknown_command_returns_help_style_fallback() -> None:
+    state_manager = SystemStateManager()
+    config_manager = ConfigManager()
+    handler = CommandHandler(
+        state_manager=state_manager,
+        config_manager=config_manager,
+        mode="PAPER",
+    )
+    router = CommandRouter(handler=handler)
+
+    result = asyncio.run(
+        router.route_update(
+            {
+                "update_id": 4,
+                "message": {"text": "/unsupported", "from": {"id": 1001}, "chat": {"id": 1001}},
+            }
+        )
+    )
+
+    assert result is not None
+    assert "❓ Help Center" in result.message
+    assert "Unknown command '/unsupported'" in result.message
 
 
 def test_reply_keyboard_routes_align_with_root_menu_actions() -> None:
