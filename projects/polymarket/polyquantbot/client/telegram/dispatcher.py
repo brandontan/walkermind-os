@@ -15,6 +15,7 @@ from projects.polymarket.polyquantbot.client.telegram.handlers.auth import (
 from projects.polymarket.polyquantbot.client.telegram.presentation import (
     format_help_reply,
     format_status_reply,
+    format_unknown_command_reply,
 )
 
 log = structlog.get_logger(__name__)
@@ -186,15 +187,7 @@ class TelegramDispatcher:
         log.warning("crusaderbot_telegram_dispatch_unknown_command", command=ctx.command, chat_id=ctx.chat_id)
         return DispatchResult(
             outcome="unknown_command",
-            reply_text=(
-                "⚠️ I do not recognize that command.\n\n"
-                "Try one of these:\n"
-                "• /start\n"
-                "• /help\n"
-                "• /status\n"
-                "• /mode /autotrade /positions /pnl /risk /markets /market360 /social /kill\n\n"
-                "CrusaderBot is currently public paper beta only (no manual trade-entry, no live trading)."
-            ),
+            reply_text=format_unknown_command_reply(),
         )
 
     async def _dispatch_start(self, ctx: TelegramCommandContext) -> DispatchResult:

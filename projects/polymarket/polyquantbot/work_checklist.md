@@ -37,6 +37,8 @@ ACTIVE (Current lane)
 
 [x] Integrate Telegram design/presentation layer into live `/start`, `/help`, `/status` reply builders (repo code truth)
 
+[x] Consolidate remaining public-safe replies (onboarding required, already-linked/activated/session-ready variants, unknown command, temporary identity/runtime/backend errors) to shared presentation helpers
+
 
 NEXT (immediately after code fix + UX integration)
 
