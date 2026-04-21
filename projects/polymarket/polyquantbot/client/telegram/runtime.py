@@ -341,6 +341,8 @@ class TelegramPollingLoop:
             )
             return
 
+        requires_start_lifecycle = ctx.command == "/start"
+
         if self._identity_resolver is not None:
             try:
                 resolution = await self._identity_resolver.resolve_telegram_identity(
@@ -362,6 +364,15 @@ class TelegramPollingLoop:
                     update_id=update.update_id,
                     from_user_id=update.from_user_id,
                 )
+                if not requires_start_lifecycle:
+                    await self._safe_send_reply(
+                        update.chat_id,
+                        (
+                            "⚠️ Your account is not onboarded yet.\n"
+                            "Use /start first to begin onboarding, then retry this command."
+                        ),
+                    )
+                    return
                 if self._onboarding_initiator is None:
                     await self._safe_send_reply(update.chat_id, _REPLY_NOT_REGISTERED)
                     return
@@ -412,7 +423,7 @@ class TelegramPollingLoop:
                 await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
                 return
 
-            if self._activation_confirmer is not None:
+            if requires_start_lifecycle and self._activation_confirmer is not None:
                 try:
                     activation = await self._activation_confirmer.confirm_telegram_activation(
                         update.from_user_id
@@ -437,7 +448,7 @@ class TelegramPollingLoop:
                     await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
                     return
 
-            if self._session_issuer is not None:
+            if requires_start_lifecycle and self._session_issuer is not None:
                 try:
                     issuance = await self._session_issuer.issue_telegram_session(
                         update.from_user_id,
