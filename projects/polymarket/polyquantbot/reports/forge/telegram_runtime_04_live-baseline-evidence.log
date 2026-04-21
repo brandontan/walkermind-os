@@ -1,0 +1,58 @@
+Telegram Runtime 04 - Live Baseline Closure Evidence
+Date (Asia/Jakarta): 2026-04-22 00:58
+Branch: feature/priority-1-live-telegram-baseline-closure
+Project Root: projects/polymarket/polyquantbot/
+
+[cmd] git rev-parse --abbrev-ref HEAD
+[out] feature/priority-1-live-telegram-baseline-closure
+
+[cmd] command -v flyctl
+[out] (not found)
+
+[cmd] flyctl version
+[out] /bin/bash: line 1: flyctl: command not found
+
+[cmd] curl -sS -m 20 -D - https://crusaderbot.fly.dev/ -o /tmp/curl_root_body.txt
+[out]
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Tue, 21 Apr 2026 17:58:53 GMT
+server: envoy
+connection: close
+
+curl: (56) CONNECT tunnel failed, response 403
+curl_exit=56
+
+[cmd] curl -sS -m 20 -D - https://crusaderbot.fly.dev/health -o /tmp/curl_body.txt
+[out]
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Tue, 21 Apr 2026 17:58:26 GMT
+server: envoy
+connection: close
+
+curl: (56) CONNECT tunnel failed, response 403
+curl_exit=56
+
+[cmd] curl -sS -m 20 -D - https://crusaderbot.fly.dev/ready -o /tmp/curl_body.txt
+[out]
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Tue, 21 Apr 2026 17:58:26 GMT
+server: envoy
+connection: close
+
+curl: (56) CONNECT tunnel failed, response 403
+curl_exit=56
+
+[cmd] env | cut -d= -f1 | rg '^(FLY|TELEGRAM|SENTRY|BOT|CRUSADER)' | sort
+[out] (no matching keys)
+
+Evidence verdict:
+- Live Fly deployment verification could not be completed in this runner.
+- Redeploy/restart and Fly log checks are blocked by missing flyctl.
+- HTTP runtime probes are blocked by upstream proxy 403 tunnel denial.
+- Telegram command verification (/start, /help, /status) is blocked by unavailable runtime credentials and unreachable deploy surface from this environment.
