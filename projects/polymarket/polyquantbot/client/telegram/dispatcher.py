@@ -45,6 +45,17 @@ class TelegramDispatcher:
         arg = ctx.argument.strip()
         if command == "/start":
             return await self._dispatch_start(ctx)
+        if command == "/help":
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "📘 CrusaderBot commands (public paper beta)\n"
+                    "• /start — initialize or refresh your session\n"
+                    "• /help — show command list\n"
+                    "• /status — runtime and guard snapshot\n"
+                    "Boundary: paper-only execution, no live trading, no production capital."
+                ),
+            )
         if command == "/mode":
             mode = arg.lower()
             data = await self._backend.beta_post("/beta/mode", {"mode": mode})
@@ -179,7 +190,7 @@ class TelegramDispatcher:
             outcome="unknown_command",
             reply_text=(
                 "Unknown command for CrusaderBot public paper beta.\n"
-                "Supported: /start /mode /autotrade /positions /pnl /risk /status /markets /market360 /social /kill\n"
+                "Supported: /start /help /mode /autotrade /positions /pnl /risk /status /markets /market360 /social /kill\n"
                 "Note: no manual trade-entry commands are available in this beta."
             ),
         )

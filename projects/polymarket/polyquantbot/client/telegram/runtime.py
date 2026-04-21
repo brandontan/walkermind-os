@@ -141,6 +141,18 @@ class TelegramSessionIssuer(Protocol):
         ...
 
 
+class TelegramRuntimeObserver(Protocol):
+    def on_startup(self) -> None: ...
+
+    def on_iteration(self, processed_count: int) -> None: ...
+
+    def on_reply_sent(self) -> None: ...
+
+    def on_error(self, error: str) -> None: ...
+
+    def on_shutdown(self) -> None: ...
+
+
 class HttpTelegramAdapter(TelegramRuntimeAdapter):
     """Concrete Telegram adapter that calls the Telegram Bot API via httpx.
 
@@ -273,6 +285,7 @@ class TelegramPollingLoop:
         session_issuer: Optional[TelegramSessionIssuer] = None,
         staging_tenant_id: str = _STAGING_TENANT_ID,
         staging_user_id: str = _STAGING_USER_ID,
+        observer: Optional[TelegramRuntimeObserver] = None,
     ) -> None:
         self._adapter = adapter
         self._dispatcher = dispatcher
@@ -282,6 +295,7 @@ class TelegramPollingLoop:
         self._session_issuer = session_issuer
         self._staging_tenant_id = staging_tenant_id
         self._staging_user_id = staging_user_id
+        self._observer = observer
         self._offset: int = 0
 
     async def run_once(self) -> int:
@@ -466,12 +480,16 @@ class TelegramPollingLoop:
     async def _safe_send_reply(self, chat_id: str, text: str) -> None:
         try:
             await self._adapter.send_reply(chat_id, text)
+            if self._observer is not None:
+                self._observer.on_reply_sent()
         except Exception as exc:
             log.error(
                 "crusaderbot_telegram_runtime_send_reply_error",
                 chat_id=chat_id,
                 error=str(exc),
             )
+            if self._observer is not None:
+                self._observer.on_error(str(exc))
 
 
 async def run_polling_loop(
@@ -483,6 +501,7 @@ async def run_polling_loop(
     session_issuer: Optional[TelegramSessionIssuer] = None,
     staging_tenant_id: str = _STAGING_TENANT_ID,
     staging_user_id: str = _STAGING_USER_ID,
+    observer: Optional[TelegramRuntimeObserver] = None,
 ) -> None:
     """Top-level async polling function. Runs until cancelled.
 
@@ -502,6 +521,7 @@ async def run_polling_loop(
         session_issuer=session_issuer,
         staging_tenant_id=staging_tenant_id,
         staging_user_id=staging_user_id,
+        observer=observer,
     )
     log.info(
         "crusaderbot_telegram_polling_started",
@@ -514,14 +534,22 @@ async def run_polling_loop(
         staging_tenant_id=staging_tenant_id,
         staging_user_id=staging_user_id,
     )
+    if observer is not None:
+        observer.on_startup()
     while True:
         try:
             count = await loop.run_once()
+            if observer is not None:
+                observer.on_iteration(count)
             if count == 0:
                 await asyncio.sleep(1.0)
         except asyncio.CancelledError:
             log.info("crusaderbot_telegram_polling_cancelled")
+            if observer is not None:
+                observer.on_shutdown()
             return
         except Exception as exc:
             log.error("crusaderbot_telegram_polling_error", error=str(exc))
+            if observer is not None:
+                observer.on_error(str(exc))
             await asyncio.sleep(5.0)

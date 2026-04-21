@@ -159,8 +159,8 @@ def test_polling_loop_run_once_sends_reply() -> None:
     assert adapter.replies[0][1] == "Welcome to CrusaderBot!"
 
 
-def test_polling_loop_run_once_unknown_command_fallback() -> None:
-    """Unknown command routes through real TelegramDispatcher and returns unknown_command reply."""
+def test_polling_loop_run_once_help_command_reply() -> None:
+    """Help command routes through real TelegramDispatcher and returns command list reply."""
     update = _make_update(update_id=12, chat_id="c2", from_user_id="tg2", text="/help")
     adapter = MockTelegramAdapter([update])
     backend = MagicMock()
@@ -168,7 +168,7 @@ def test_polling_loop_run_once_unknown_command_fallback() -> None:
     loop = TelegramPollingLoop(adapter=adapter, dispatcher=dispatcher)
     asyncio.run(loop.run_once())
     assert len(adapter.replies) == 1
-    assert "Unknown command" in adapter.replies[0][1]
+    assert "CrusaderBot commands" in adapter.replies[0][1]
 
 
 def test_polling_loop_run_once_non_command_no_dispatch() -> None:
