@@ -47,6 +47,7 @@ from projects.polymarket.polyquantbot.client.telegram.presentation import (
     format_start_session_ready_reply,
     format_temporary_identity_error_reply,
 )
+from projects.polymarket.polyquantbot.server.core.sentry_runtime import capture_runtime_exception
 
 log = structlog.get_logger(__name__)
 
@@ -354,6 +355,11 @@ class TelegramPollingLoop:
                     from_user_id=update.from_user_id,
                     error=str(exc),
                 )
+                capture_runtime_exception(
+                    exc,
+                    surface="telegram_runtime",
+                    operation="identity_resolver",
+                )
                 await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
                 return
 
@@ -382,6 +388,11 @@ class TelegramPollingLoop:
                         update_id=update.update_id,
                         from_user_id=update.from_user_id,
                         error=str(exc),
+                    )
+                    capture_runtime_exception(
+                        exc,
+                        surface="telegram_runtime",
+                        operation="onboarding",
                     )
                     await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
                     return
@@ -431,6 +442,11 @@ class TelegramPollingLoop:
                         from_user_id=update.from_user_id,
                         error=str(exc),
                     )
+                    capture_runtime_exception(
+                        exc,
+                        surface="telegram_runtime",
+                        operation="activation",
+                    )
                     await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
                     return
 
@@ -456,6 +472,11 @@ class TelegramPollingLoop:
                         update_id=update.update_id,
                         from_user_id=update.from_user_id,
                         error=str(exc),
+                    )
+                    capture_runtime_exception(
+                        exc,
+                        surface="telegram_runtime",
+                        operation="session_issuance",
                     )
                     await self._safe_send_reply(update.chat_id, _REPLY_IDENTITY_ERROR)
                     return
@@ -491,6 +512,11 @@ class TelegramPollingLoop:
                 chat_id=update.chat_id,
                 error=str(exc),
             )
+            capture_runtime_exception(
+                exc,
+                surface="telegram_runtime",
+                operation="dispatch",
+            )
             await self._safe_send_reply(
                 update.chat_id,
                 format_runtime_temporary_error_reply(),
@@ -509,6 +535,11 @@ class TelegramPollingLoop:
                 "crusaderbot_telegram_runtime_send_reply_error",
                 chat_id=chat_id,
                 error=str(exc),
+            )
+            capture_runtime_exception(
+                exc,
+                surface="telegram_runtime",
+                operation="send_reply",
             )
             if self._observer is not None:
                 self._observer.on_error(str(exc))
@@ -572,6 +603,11 @@ async def run_polling_loop(
             return
         except Exception as exc:
             log.error("crusaderbot_telegram_polling_error", error=str(exc))
+            capture_runtime_exception(
+                exc,
+                surface="telegram_runtime",
+                operation="polling_loop",
+            )
             if observer is not None:
                 observer.on_error(str(exc))
             await asyncio.sleep(5.0)

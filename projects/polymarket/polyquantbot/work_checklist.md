@@ -121,6 +121,8 @@ NEXT (immediately after code fix + UX integration)
 
 [ ] Add missing env / disabled mode logs
 
+[x] Add Sentry Python runtime initialization + exception capture guardrails (env-only `SENTRY_DSN`, FastAPI + Telegram/runtime exception surfaces)
+
 
 7. End-to-End Validation
 

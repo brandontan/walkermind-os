@@ -23,6 +23,10 @@ from projects.polymarket.polyquantbot.server.core.runtime import (
     run_startup_validation,
     telegram_runtime_required_from_env,
 )
+from projects.polymarket.polyquantbot.server.core.sentry_runtime import (
+    capture_runtime_exception,
+    initialize_sentry,
+)
 from projects.polymarket.polyquantbot.client.telegram.backend_client import CrusaderBackendClient
 from projects.polymarket.polyquantbot.client.telegram.bot import TelegramBotSettings, validate_bot_environment
 from projects.polymarket.polyquantbot.client.telegram.dispatcher import TelegramDispatcher
@@ -118,6 +122,7 @@ async def _start_telegram_runtime(state: RuntimeState) -> None:
 
 
 def create_app() -> FastAPI:
+    initialize_sentry()
     settings = ApiSettings.from_env()
     falcon_settings = FalconSettings.from_env()
     state = RuntimeState()
@@ -125,7 +130,11 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         await run_startup_validation(settings=settings, state=state)
-        await _start_telegram_runtime(state=state)
+        try:
+            await _start_telegram_runtime(state=state)
+        except Exception as exc:
+            capture_runtime_exception(exc, surface="telegram_runtime_startup")
+            raise
         try:
             yield
         finally:
