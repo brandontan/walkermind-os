@@ -221,11 +221,18 @@ class CommandHandler:
         self, cmd: str, value: Optional[float | str], cid: str
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
-        if cmd in ("start", "help", "menu", "main_menu"):
+        if cmd in ("start", "menu", "main_menu"):
             payload = self._build_home_payload()
             return CommandResult(
                 success=True,
                 message=await render_view("home", payload),
+                payload=payload,
+            )
+        if cmd == "help":
+            payload = self._build_help_payload()
+            return CommandResult(
+                success=True,
+                message=await render_view("help", payload),
                 payload=payload,
             )
         if cmd == "status":
@@ -329,9 +336,8 @@ class CommandHandler:
 
         return CommandResult(
             success=True,
-            message=(
-                "Unknown command. Type /start or /help for available commands."
-            ),
+            message=await render_view("help", self._build_unknown_command_payload(cmd)),
+            payload=self._build_unknown_command_payload(cmd),
         )
 
     async def _handle_trade(self, args: Optional[float | str] = None) -> CommandResult:
@@ -562,7 +568,12 @@ class CommandHandler:
         )
 
     async def _handle_status(self) -> CommandResult:
-        return await self._handle_home()
+        payload = self._build_status_payload()
+        return CommandResult(
+            success=True,
+            message=await render_view("system", payload),
+            payload=payload,
+        )
 
     def _get_metrics_snapshot(self) -> dict:
         if self._metrics_source is None or not hasattr(self._metrics_source, "snapshot"):
@@ -592,7 +603,41 @@ class CommandHandler:
             "insight": (
                 f"Risk {risk_multiplier:.2f} • Max Pos {max_position:.2f}"
             ),
+            "operator_note": "Paper-only public beta; use /status for runtime posture.",
+            "decision": "Public-safe surface active",
         }
+
+    def _build_status_payload(self) -> dict[str, object]:
+        payload = self._build_home_payload()
+        payload.update(
+            {
+                "mode": "system",
+                "decision": "Runtime health snapshot for paper-beta monitoring",
+                "operator_note": "Paper-only boundary enforced; no live capital actions.",
+            }
+        )
+        return payload
+
+    def _build_help_payload(self) -> dict[str, object]:
+        payload = self._build_home_payload()
+        payload.update(
+            {
+                "mode": "help",
+                "decision": "Use /start, /help, and /status for the public-safe flow",
+                "operator_note": "Paper-only beta: runtime guidance only, no live trading claims.",
+            }
+        )
+        return payload
+
+    def _build_unknown_command_payload(self, cmd: str) -> dict[str, object]:
+        payload = self._build_help_payload()
+        payload.update(
+            {
+                "decision": f"Unknown command '/{cmd}'. Use the trusted public command set.",
+                "operator_note": "Supported commands: /start, /help, /status",
+            }
+        )
+        return payload
 
     async def _handle_home(self) -> CommandResult:
         payload = self._build_home_payload()

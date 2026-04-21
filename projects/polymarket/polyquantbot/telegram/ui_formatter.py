@@ -373,17 +373,17 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
         "help": (
             "❓ Help Center",
             [
-                ("Guidance", "How to use menus and scope controls"),
-                ("Bot Info", "Runtime behavior and control surfaces"),
-                ("Style", "Concise and mobile-first"),
+                ("Public Commands", "/start · /help · /status"),
+                ("Navigation", "Home menu + section callbacks"),
+                ("Boundary", "Paper-only beta, no live-capital control"),
             ],
         ),
         "guidance": (
             "🧭 Operator Guidance",
             [
-                ("Main Menu", "Dashboard · Portfolio · Markets · Settings · Help"),
-                ("Scope Control", "Markets → All Markets / Categories / Active Scope"),
-                ("Refresh", "Use Refresh All in Dashboard or Markets"),
+                ("Start", "/start opens home overview and section menu"),
+                ("Status", "/status shows runtime posture and health summary"),
+                ("Unknown Input", "Unsupported commands route back to help safely"),
             ],
         ),
         "bot_info": (
@@ -558,6 +558,17 @@ def _render_scope_warning(payload: Mapping[str, Any]) -> str:
 
 
 def _render_empty_state(mode: str, payload: Mapping[str, Any]) -> str:
+    if mode in {"home", "system"} and _safe_float(payload.get("equity"), 0.0) <= 0 and _safe_int(payload.get("positions")) <= 0:
+        return _section(
+            "🫥 Empty State",
+            _tree_group(
+                [
+                    ("Status", "No portfolio telemetry yet"),
+                    ("Next", "Values will populate after runtime snapshots arrive"),
+                    ("Tip", "Use /status and Refresh All to fetch the latest view"),
+                ]
+            ),
+        )
     if mode == "positions" and _safe_int(payload.get("positions")) <= 0:
         return "No open positions"
     if mode == "exposure" and _safe_int(payload.get("positions")) <= 0:
