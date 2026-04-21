@@ -1,0 +1,18 @@
+Telegram Runtime 05 - Priority 1 Live Baseline Proof Log
+Date (Asia/Jakarta): 2026-04-22 02:31
+Branch: feature/close-priority-1-live-baseline-truth
+Project Root: projects/polymarket/polyquantbot/
+
+Evidence source summary:
+- Verified live screenshots / runtime evidence provided to FORGE-X by COMMANDER.
+
+Verified live facts:
+- `/start` response observed on deployed runtime (non-empty/non-dummy).
+- `/help` response observed on deployed runtime (non-empty/non-dummy).
+- `/status` response observed on deployed runtime (non-empty/non-dummy).
+- Unknown command fallback response observed (no silent fail).
+- Paper-only public-safe boundary wording remains visible in live replies.
+
+Truth-sync closure notes:
+- Priority 1 live-baseline verification blockers from telegram_runtime_04 are superseded by newer live evidence.
+- Remaining `/start` onboarding/session repetition is retained as UX refinement follow-up debt, not as a baseline-closure blocker.
