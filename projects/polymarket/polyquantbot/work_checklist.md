@@ -2,239 +2,241 @@
 
 ### From Now to Finish
 
-## PRIORITY 1 — Bot Public-Ready Baseline
+---
 
-Ini yang harus beres sekarang dulu.
+PRIORITY 1 — Bot Public-Ready Baseline
 
-1. Telegram runtime activation
+This must be finished first.
 
-[ ] pastikan Telegram listener/worker benar-benar aktif di Fly
+1. Telegram Runtime Activation
 
-[ ] pastikan mode runtime jelas: polling atau webhook
+[ ] Make sure the Telegram listener/worker is truly active on Fly
 
-[ ] pastikan bot startup otomatis saat app boot
+[ ] Confirm the runtime mode: polling or webhook
 
-[ ] pastikan /ready truthful terhadap runtime Telegram
+[ ] Make sure the bot starts automatically when the app boots
 
-[ ] pastikan worker_runtime.active truthful
+[ ] Make sure /ready truthfully reflects Telegram runtime state
 
-[ ] pastikan worker_runtime.startup_complete truthful
+[ ] Make sure worker_runtime.active is truthful
 
-[ ] tambahkan startup log Telegram yang jelas
+[ ] Make sure worker_runtime.startup_complete is truthful
 
-[ ] hilangkan silent disabled mode
+[ ] Add clear Telegram startup logs
 
+[ ] Remove any silent disabled mode
 
-2. Baseline public commands
 
-[ ] /start reply sukses
+2. Baseline Public Commands
 
-[ ] /help reply sukses
+[ ] Make sure /start replies successfully
 
-[ ] /status reply sukses
+[ ] Make sure /help replies successfully
 
-[ ] tidak ada response kosong/dummy
+[ ] Make sure /status replies successfully
 
-[ ] tidak ada timeout/silent fail
+[ ] Make sure responses are not empty or dummy
 
+[ ] Make sure there is no timeout or silent failure
 
-3. Public onboarding
 
-[ ] intro user baru jelas
+3. Public Onboarding
 
-[ ] paper-only state dijelaskan
+[ ] Show a clear intro for new users
 
-[ ] capability yang ready dijelaskan
+[ ] Clearly explain that the bot is in paper-only mode
 
-[ ] next step dijelaskan
+[ ] Clearly explain what is already ready
 
-[ ] unlinked-user flow rapi
+[ ] Clearly explain the next step
 
-[ ] linked-user flow rapi
+[ ] Make the unlinked-user flow clear
 
-[ ] fallback onboarding tidak membingungkan
+[ ] Make the linked-user flow clear
 
+[ ] Add clean fallback onboarding messages
 
-4. Public command set
 
-[ ] /paper
+4. Public Command Set
 
-[ ] /about
+[ ] Prepare /paper
 
-[ ] /risk
+[ ] Prepare /about
 
-[ ] /account atau /link
+[ ] Prepare /risk
 
-[ ] public command dipisah dari admin/operator command
+[ ] Prepare /account or /link
 
-[ ] command yang belum siap disembunyikan
+[ ] Separate public commands from admin/operator commands
 
+[ ] Hide commands that are not ready yet
 
-5. UX polish
 
-[ ] welcome copy rapi
+5. UX Polish
 
-[ ] help copy rapi
+[ ] Improve the welcome message
 
-[ ] status copy singkat dan jelas
+[ ] Improve the help message
 
-[ ] tidak ada raw debug ke user
+[ ] Make status output short and clear
 
-[ ] formatting Telegram rapi
+[ ] Remove raw debug output from user-facing replies
 
+[ ] Clean up Telegram message formatting
 
-6. Public-safe boundaries
 
-[ ] no live-trading claim
+6. Public-Safe Boundaries
 
-[ ] no production-capital claim
+[ ] Do not claim live trading readiness
 
-[ ] paper-only boundary konsisten
+[ ] Do not claim production-capital readiness
 
-[ ] admin/internal path diberi guard
+[ ] Keep the paper-only boundary visible everywhere
 
+[ ] Guard admin/internal paths properly
 
-7. Observability baseline
 
-[ ] log startup bot
+7. Observability Baseline
 
-[ ] log command received
+[ ] Add bot startup logs
 
-[ ] log command handled
+[ ] Add command received logs
 
-[ ] log reply success/fail
+[ ] Add command handled logs
 
-[ ] log missing env / disabled mode
+[ ] Add reply success/failure logs
 
+[ ] Add missing env / disabled mode logs
 
-8. End-to-end validation
 
-[ ] deploy latest
+8. End-to-End Validation
 
-[ ] /health OK
+[ ] Deploy the latest version
 
-[ ] /ready OK
+[ ] Confirm /health is OK
 
-[ ] /start OK
+[ ] Confirm /ready is OK
 
-[ ] /help OK
+[ ] Confirm /start is OK
 
-[ ] /status OK
+[ ] Confirm /help is OK
 
-[ ] evidence disimpan
+[ ] Confirm /status is OK
 
+[ ] Save validation evidence
 
-Done condition PRIORITY 1
 
-[ ] bot benar-benar usable sebagai public-ready paper bot baseline
+Done Condition
+
+[ ] The bot is truly usable as a public-ready paper bot baseline
 
 
 
 ---
 
-PRIORITY 2 — DB, Persistence, Runtime Hardening
+PRIORITY 2 — DB, Persistence, and Runtime Hardening
 
-Setelah bot bisa dipakai, bikin stabil.
+Finish this after the public bot baseline works.
 
-9. Supabase / Postgres integration hardening
+9. Supabase / Postgres Integration Hardening
 
-[ ] DATABASE_URL final stabil
+[ ] Finalize a stable DATABASE_URL
 
-[ ] sslmode=require dipastikan
+[ ] Make sure sslmode=require is used where needed
 
-[ ] pooled connection dipastikan
+[ ] Confirm pooled connection strategy
 
-[ ] DB health check jalan
+[ ] Add DB health checks
 
-[ ] startup tidak crash saat DB lambat
-
-
-10. Persistence stabilization
-
-[ ] audit state yang masih file/tmp
-
-[ ] pindahkan user/session critical state ke DB
-
-[ ] pindahkan link/account state ke DB
-
-[ ] no split-brain file vs DB
-
-[ ] restart deploy tidak merusak state
+[ ] Make sure startup does not fail when DB is slow
 
 
-11. Runtime config hardening
+10. Persistence Stabilization
 
-[ ] env wajib tervalidasi saat boot
+[ ] Audit any state still stored in files or temp storage
 
-[ ] missing secret error jelas
+[ ] Move critical user/session state into DB
 
-[ ] unsafe default dikurangi
+[ ] Move link/account state into DB
 
-[ ] startup summary aman dan truthful
+[ ] Remove split-brain state between file storage and DB
 
-
-12. Health/readiness truth hardening
-
-[ ] /health cek proses utama
-
-[ ] /ready cek dependency relevan
-
-[ ] Telegram status masuk readiness
-
-[ ] DB status masuk readiness
-
-[ ] no false green status
+[ ] Make sure restart/redeploy does not break state
 
 
-13. Error handling & resilience
+11. Runtime Config Hardening
 
-[ ] graceful shutdown benar
+[ ] Validate required env vars at boot
 
-[ ] restart safety baik
+[ ] Make missing-secret errors clear
 
-[ ] worker crash tidak corrupt state
+[ ] Reduce unsafe defaults
 
-[ ] retry non-fatal dependency rapi
-
-
-14. Logging & monitoring hardening
-
-[ ] structured logging konsisten
-
-[ ] startup log informatif
-
-[ ] trace error jelas
-
-[ ] monitoring minimum viable siap
+[ ] Make startup config summary safe and truthful
 
 
-15. Security baseline
+12. Health / Readiness Truth Hardening
 
-[ ] secrets tidak bocor di log
+[ ] Make /health check the main process properly
 
-[ ] no hardcoded credential
+[ ] Make /ready check relevant dependencies properly
 
-[ ] admin access aman
+[ ] Include Telegram runtime state in readiness
 
-[ ] sensitive routes dibatasi
+[ ] Include DB state in readiness
 
-
-16. Deployment hardening
-
-[ ] Dockerfile bersih
-
-[ ] fly.toml sinkron
-
-[ ] restart policy jelas
-
-[ ] rollback strategy jelas
-
-[ ] smoke test pascadeploy jelas
+[ ] Remove false green status
 
 
-Done condition PRIORITY 2
+13. Error Handling and Resilience
 
-[ ] bot tidak cuma hidup, tapi stabil dan persistent
+[ ] Make graceful shutdown work properly
+
+[ ] Make restart safety reliable
+
+[ ] Prevent worker crash from corrupting state
+
+[ ] Add retry handling for non-fatal dependencies
+
+
+14. Logging and Monitoring Hardening
+
+[ ] Keep structured logging consistent
+
+[ ] Improve startup logs
+
+[ ] Make error traces easy to follow
+
+[ ] Prepare minimum viable monitoring
+
+
+15. Security Baseline
+
+[ ] Make sure secrets never appear in logs
+
+[ ] Remove any hardcoded credentials
+
+[ ] Protect admin access properly
+
+[ ] Restrict sensitive routes
+
+
+16. Deployment Hardening
+
+[ ] Clean up the Dockerfile
+
+[ ] Keep fly.toml in sync
+
+[ ] Define restart policy clearly
+
+[ ] Define rollback strategy clearly
+
+[ ] Define post-deploy smoke tests clearly
+
+
+Done Condition
+
+[ ] The bot is not just running, but stable and persistent
 
 
 
@@ -242,101 +244,101 @@ Done condition PRIORITY 2
 
 PRIORITY 3 — Paper Trading Product Completion
 
-Setelah runtime stabil, bikin produk paper-nya benar-benar siap.
+Finish this after runtime and persistence are stable.
 
-17. Paper account model
+17. Paper Account Model
 
-[ ] paper balance model
+[ ] Define the paper balance model
 
-[ ] paper position tracking
+[ ] Define paper position tracking
 
-[ ] paper PnL tracking
+[ ] Define paper PnL tracking
 
-[ ] reset/test flow operator
-
-
-18. Paper execution engine
-
-[ ] paper order intent flow
-
-[ ] paper entry logic
-
-[ ] paper exit logic
-
-[ ] paper fill assumptions jelas
-
-[ ] paper execution logging jelas
+[ ] Add reset/test flow for operators
 
 
-19. Paper portfolio surface
+18. Paper Execution Engine
 
-[ ] open paper positions visible
+[ ] Define paper order intent flow
 
-[ ] realized PnL visible
+[ ] Implement paper entry logic
 
-[ ] unrealized PnL visible
+[ ] Implement paper exit logic
 
-[ ] summary via bot/API
+[ ] Make paper fill assumptions clear
 
-
-20. Paper risk controls
-
-[ ] exposure caps enforced
-
-[ ] drawdown caps enforced
-
-[ ] kill switch enforced
-
-[ ] risk state visible
+[ ] Make paper execution logging clear
 
 
-21. Paper strategy visibility
+19. Paper Portfolio Surface
 
-[ ] strategy state visible
+[ ] Show open paper positions
 
-[ ] signal state visible
+[ ] Show realized PnL
 
-[ ] enable/disable visibility
+[ ] Show unrealized PnL
 
-[ ] suppressed/blocked reasoning visible
-
-
-22. Admin/operator paper controls
-
-[ ] runtime paper summary
-
-[ ] readiness paper state
-
-[ ] pause/resume kalau didukung
-
-[ ] admin command separated
+[ ] Show summary through bot/API
 
 
-23. Public paper UX completion
+20. Paper Risk Controls
 
-[ ] user paham ini paper mode
+[ ] Enforce exposure caps
 
-[ ] status paper product visible
+[ ] Enforce drawdown caps
 
-[ ] keterbatasan produk visible
+[ ] Enforce kill switch
 
-[ ] messaging premium
-
-
-24. Paper validation
-
-[ ] execution test end-to-end
-
-[ ] persistence test
-
-[ ] restart/redeploy test
-
-[ ] logs/evidence stored
+[ ] Show risk state clearly
 
 
-Done condition PRIORITY 3
+21. Paper Strategy Visibility
 
-[ ] bot usable sebagai real paper trading product
+[ ] Show strategy state
+
+[ ] Show signal state
+
+[ ] Show enable/disable visibility
+
+[ ] Show suppressed/blocked reasons
+
+
+22. Admin / Operator Paper Controls
+
+[ ] Show runtime paper summary
+
+[ ] Show readiness paper state
+
+[ ] Add pause/resume if supported
+
+[ ] Keep admin commands separate
+
+
+23. Public Paper UX Completion
+
+[ ] Make sure users understand paper mode
+
+[ ] Show paper product status clearly
+
+[ ] Show product limitations clearly
+
+[ ] Keep messaging premium and clear
+
+
+24. Paper Validation
+
+[ ] Run end-to-end execution tests
+
+[ ] Run persistence tests
+
+[ ] Run restart/redeploy tests
+
+[ ] Store logs and evidence
+
+
+Done Condition
+
+[ ] The bot is usable as a real paper trading product
 
 
 
@@ -344,73 +346,73 @@ Done condition PRIORITY 3
 
 PRIORITY 4 — Wallet Lifecycle Foundation
 
-Ini fondasi untuk layer setelah paper product.
+Build this after the paper product is solid.
 
-25. Wallet domain model
+25. Wallet Domain Model
 
-[ ] wallet entity model final
+[ ] Finalize wallet entity model
 
-[ ] ownership model final
+[ ] Finalize ownership model
 
-[ ] wallet status/state model final
-
-
-26. Wallet lifecycle
-
-[ ] create/init wallet lifecycle
-
-[ ] link/unlink lifecycle
-
-[ ] activation/deactivation lifecycle
-
-[ ] invalid/blocked state handling
+[ ] Finalize wallet status/state model
 
 
-27. Secure wallet persistence
+26. Wallet Lifecycle
 
-[ ] wallet records persistent
+[ ] Build create/init wallet lifecycle
 
-[ ] secret handling aman
+[ ] Build link/unlink lifecycle
 
-[ ] audit trail minimum ada
+[ ] Build activation/deactivation lifecycle
 
-
-28. Wallet auth boundary
-
-[ ] ownership verification jelas
-
-[ ] admin vs user wallet access dipisah
-
-[ ] no privilege crossover
+[ ] Handle invalid/blocked wallet states
 
 
-29. Wallet surfaces
+27. Secure Wallet Persistence
 
-[ ] wallet status readable
+[ ] Persist wallet records safely
 
-[ ] wallet lifecycle state readable
+[ ] Handle secrets safely
 
-[ ] link state readable
-
-[ ] user-facing copy aman
+[ ] Add minimum audit trail
 
 
-30. Wallet recovery & tests
+28. Wallet Auth Boundary
 
-[ ] broken link recovery
+[ ] Verify ownership clearly
 
-[ ] stale wallet recovery
+[ ] Separate admin vs user wallet access
 
-[ ] duplicate wallet handling
-
-[ ] lifecycle tests
-
-[ ] integration tests
+[ ] Prevent privilege crossover
 
 
-Done condition PRIORITY 4
+29. Wallet Surfaces
 
-[ ] wallet lifecycle utuh dan stabil
+[ ] Show wallet status clearly
+
+[ ] Show wallet lifecycle state clearly
+
+[ ] Show link state clearly
+
+[ ] Keep user-facing copy safe
+
+
+30. Wallet Recovery and Tests
+
+[ ] Handle broken-link recovery
+
+[ ] Handle stale wallet recovery
+
+[ ] Handle duplicate wallet conflicts
+
+[ ] Add lifecycle tests
+
+[ ] Add integration tests
+
+
+Done Condition
+
+[ ] Wallet lifecycle is complete and stable
 
 
 
@@ -418,75 +420,75 @@ Done condition PRIORITY 4
 
 PRIORITY 5 — Portfolio Management Logic
 
-Setelah wallet foundation, baru portfolio.
+Build this after wallet lifecycle is ready.
 
-31. Portfolio model
+31. Portfolio Model
 
-[ ] portfolio entity model
+[ ] Finalize portfolio entity model
 
-[ ] per-user portfolio model
+[ ] Finalize per-user portfolio model
 
-[ ] per-wallet portfolio relation
-
-
-32. Exposure aggregation
-
-[ ] aggregate exposure logic
-
-[ ] per-market exposure logic
-
-[ ] per-user exposure logic
-
-[ ] per-wallet exposure logic
+[ ] Finalize per-wallet portfolio relation
 
 
-33. Allocation logic
+32. Exposure Aggregation
 
-[ ] bankroll allocation model
+[ ] Build aggregate exposure logic
 
-[ ] strategy allocation model
+[ ] Build per-market exposure logic
 
-[ ] user/wallet aware allocation
+[ ] Build per-user exposure logic
 
-
-34. PnL logic
-
-[ ] realized PnL computation
-
-[ ] unrealized PnL computation
-
-[ ] portfolio-level summary
-
-[ ] history/snapshot structure
+[ ] Build per-wallet exposure logic
 
 
-35. Portfolio guardrails
+33. Allocation Logic
 
-[ ] exposure cap enforcement
+[ ] Build bankroll allocation model
 
-[ ] drawdown cap
+[ ] Build strategy allocation model
 
-[ ] concentration cap
-
-[ ] kill switch interaction
+[ ] Build user/wallet-aware allocation
 
 
-36. Portfolio surfaces & validation
+34. PnL Logic
 
-[ ] bot/API summary
+[ ] Build realized PnL computation
 
-[ ] admin/operator portfolio surface
+[ ] Build unrealized PnL computation
 
-[ ] persistence & recovery
+[ ] Build portfolio-level summary
 
-[ ] validation
-
-[ ] closure docs sync
+[ ] Build history/snapshot structure
 
 
-Done condition PRIORITY 5
+35. Portfolio Guardrails
 
-[ ] portfolio dikelola di level sistem, bukan manual/ad hoc
+[ ] Enforce exposure caps
+
+[ ] Enforce drawdown caps
+
+[ ] Enforce concentration caps
+
+[ ] Connect portfolio logic to kill switch
+
+
+36. Portfolio Surfaces and Validation
+
+[ ] Show portfolio summary in bot/API
+
+[ ] Show admin/operator portfolio surface
+
+[ ] Add persistence and recovery
+
+[ ] Validate all calculations
+
+[ ] Sync docs after completion
+
+
+Done Condition
+
+[ ] Portfolio is managed at system level, not manually
 
 
 
@@ -494,155 +496,157 @@ Done condition PRIORITY 5
 
 PRIORITY 6 — Multi-Wallet Orchestration
 
-Baru setelah wallet + portfolio jelas.
+Build this after wallet and portfolio are ready.
 
-37. Orchestration model
+37. Orchestration Model
 
-[ ] multi-wallet routing model
+[ ] Define multi-wallet routing model
 
-[ ] wallet selection rules
+[ ] Define wallet selection rules
 
-[ ] ownership-aware routing
-
-
-38. Allocation across wallets
-
-[ ] balance-aware allocation
-
-[ ] strategy-aware allocation
-
-[ ] risk-aware allocation
-
-[ ] failover wallet selection
+[ ] Define ownership-aware routing
 
 
-39. Cross-wallet state truth
+38. Allocation Across Wallets
 
-[ ] unified view across wallets
+[ ] Build balance-aware allocation
 
-[ ] no duplicate/conflicting state
+[ ] Build strategy-aware allocation
 
-[ ] shared exposure truth
+[ ] Build risk-aware allocation
 
-
-40. Cross-wallet controls
-
-[ ] per-wallet enable/disable
-
-[ ] per-wallet health status
-
-[ ] per-wallet risk state
-
-[ ] portfolio-wide control overlay
+[ ] Build failover wallet selection
 
 
-41. UX/API and recovery
+39. Cross-Wallet State Truth
 
-[ ] admin/operator visibility
+[ ] Build unified view across wallets
 
-[ ] safe user summaries if needed
+[ ] Prevent duplicate/conflicting state
 
-[ ] wallet unavailable handling
-
-[ ] routing conflict handling
-
-[ ] degraded mode behavior
+[ ] Build shared exposure truth
 
 
-42. Persistence & validation
+40. Cross-Wallet Controls
 
-[ ] orchestration state persistence
+[ ] Add per-wallet enable/disable
 
-[ ] reconciliation traces
+[ ] Add per-wallet health status
 
-[ ] simulations/tests
+[ ] Add per-wallet risk state
 
-[ ] closure docs sync
+[ ] Add portfolio-wide control overlay
 
 
-Done condition PRIORITY 6
+41. UX/API and Recovery
 
-[ ] system bisa koordinasi lebih dari satu wallet secara truthful dan aman
+[ ] Add admin/operator visibility
+
+[ ] Add safe user summaries if needed
+
+[ ] Handle unavailable wallet cases
+
+[ ] Handle routing conflicts
+
+[ ] Handle degraded mode behavior
+
+
+42. Persistence and Validation
+
+[ ] Persist orchestration state
+
+[ ] Persist reconciliation traces where needed
+
+[ ] Add simulations/tests
+
+[ ] Sync docs after completion
+
+
+Done Condition
+
+[ ] The system can coordinate multiple wallets safely and truthfully
 
 
 
 ---
 
-PRIORITY 7 — Settlement, Retry, Reconciliation & Ops Automation
+PRIORITY 7 — Settlement, Retry, Reconciliation, and Ops Automation
 
-43. Settlement workflow
+Build this after orchestration is ready.
 
-[ ] settlement workflow defined
+43. Settlement Workflow
 
-[ ] status transitions defined
+[ ] Define settlement workflow
 
-[ ] idempotency model defined
+[ ] Define status transitions
 
-
-44. Retry engine
-
-[ ] retry rules
-
-[ ] retry caps
-
-[ ] backoff strategy
-
-[ ] fatal vs retryable distinction
+[ ] Define idempotency model
 
 
-45. Batching logic
+44. Retry Engine
 
-[ ] settlement batching rules
+[ ] Define retry rules
 
-[ ] queueing model
+[ ] Define retry caps
 
-[ ] partial batch handling
+[ ] Define backoff strategy
 
-[ ] batch observability
-
-
-46. Reconciliation logic
-
-[ ] internal vs external reconciliation
-
-[ ] mismatch detection
-
-[ ] stuck state detection
-
-[ ] repair/recovery flow
+[ ] Distinguish fatal vs retryable failures
 
 
-47. Operator tooling
+45. Batching Logic
 
-[ ] settlement status visibility
+[ ] Define settlement batching rules
 
-[ ] retry visibility
+[ ] Define queueing model
 
-[ ] failed batch visibility
+[ ] Handle partial batches
 
-[ ] admin intervention paths
-
-
-48. Persistence, alerts, validation
-
-[ ] settlement events persistent
-
-[ ] retry history persistent
-
-[ ] reconciliation results persistent
-
-[ ] critical alerts
-
-[ ] drift alerts
-
-[ ] validation
-
-[ ] closure docs sync
+[ ] Add batch observability
 
 
-Done condition PRIORITY 7
+46. Reconciliation Logic
 
-[ ] ops flow resilient, observable, and recoverable
+[ ] Build internal vs external reconciliation
+
+[ ] Detect mismatches
+
+[ ] Detect stuck states
+
+[ ] Add repair/recovery flow
+
+
+47. Operator Tooling
+
+[ ] Show settlement status
+
+[ ] Show retry status
+
+[ ] Show failed batches
+
+[ ] Add admin intervention paths
+
+
+48. Persistence, Alerts, and Validation
+
+[ ] Persist settlement events
+
+[ ] Persist retry history
+
+[ ] Persist reconciliation results
+
+[ ] Add critical alerts
+
+[ ] Add drift alerts
+
+[ ] Validate all flows
+
+[ ] Sync docs after completion
+
+
+Done Condition
+
+[ ] Ops flow is resilient, observable, and recoverable
 
 
 
@@ -650,191 +654,189 @@ Done condition PRIORITY 7
 
 PRIORITY 8 — Production-Capital Readiness
 
-Ini paling belakang. Jangan dibuka sebelum semua fondasi atas selesai.
+This is the last major capability layer.
 
-49. Capability boundary review
+49. Capability Boundary Review
 
-[ ] audit semua paper-only assumptions
+[ ] Audit all paper-only assumptions
 
-[ ] identifikasi semua area belum aman untuk capital
+[ ] Identify all unsafe areas for capital mode
 
-[ ] define exact capital-readiness criteria
-
-
-50. Capital-mode config model
-
-[ ] capital-mode config defined
-
-[ ] strict feature gating
-
-[ ] explicit enable path
-
-[ ] safeguards default-off
+[ ] Define exact capital-readiness criteria
 
 
-51. Capital risk controls hardening
+50. Capital-Mode Config Model
 
-[ ] position sizing hardening
+[ ] Define capital-mode config
 
-[ ] max loss hardening
+[ ] Add strict feature gating
 
-[ ] drawdown hardening
+[ ] Add explicit enable path
 
-[ ] kill switch hardening
-
-[ ] circuit breaker hardening
+[ ] Keep safeguards default-off
 
 
-52. Live execution readiness
+51. Capital Risk Controls Hardening
 
-[ ] live execution path audit
+[ ] Harden position sizing
 
-[ ] live order flow truth
+[ ] Harden max loss protection
 
-[ ] external dependency risk review
+[ ] Harden drawdown protection
 
-[ ] failure mode review
+[ ] Harden kill switch
 
-[ ] rollback/disable path
-
-
-53. Security & observability hardening
-
-[ ] secret handling hardened
-
-[ ] permission model hardened
-
-[ ] admin action guardrails hardened
-
-[ ] production-grade alerting
-
-[ ] incident visibility
-
-[ ] runbooks
+[ ] Harden circuit breakers
 
 
-54. Capital validation & claim review
+52. Live Execution Readiness
 
-[ ] dry-run validation
+[ ] Audit live execution path
 
-[ ] staged rollout validation
+[ ] Verify live order flow truth
 
-[ ] docs/policy/claim review
+[ ] Review external dependency risks
 
-[ ] no overclaim
+[ ] Review failure modes
 
-[ ] release decision
+[ ] Add rollback/disable path
 
 
-Done condition PRIORITY 8
+53. Security and Observability Hardening
 
-[ ] project bisa truthfully claim production-capital readiness
+[ ] Harden secret handling
+
+[ ] Harden permission model
+
+[ ] Harden admin action guardrails
+
+[ ] Add production-grade alerting
+
+[ ] Add incident visibility
+
+[ ] Prepare runbooks
+
+
+54. Capital Validation and Claim Review
+
+[ ] Run dry-run validation
+
+[ ] Run staged rollout validation
+
+[ ] Review docs/policy/claims
+
+[ ] Remove overclaim
+
+[ ] Make release decision
+
+
+Done Condition
+
+[ ] The project can truthfully claim production-capital readiness
 
 
 
 ---
 
-PRIORITY 9 — Final Product Completion, Launch Assets, Handoff
+PRIORITY 9 — Final Product Completion, Launch Assets, and Handoff
 
-Tahap finish 100%.
+This is the final finish layer.
 
-55. Public product assets
+55. Public Product Assets
 
-[ ] README final premium
+[ ] Finalize README
 
-[ ] docs final sync
+[ ] Finalize docs sync
 
-[ ] launch summary
+[ ] Finalize launch summary
 
-[ ] onboarding docs
+[ ] Finalize onboarding docs
 
-[ ] support/help docs
-
-
-56. Ops handoff assets
-
-[ ] deployment guide
-
-[ ] secrets/env guide
-
-[ ] troubleshooting guide
-
-[ ] incident guide
-
-[ ] rollback guide
+[ ] Finalize support/help docs
 
 
-57. Monitoring/admin surfaces final
+56. Ops Handoff Assets
 
-[ ] project monitor final
+[ ] Prepare deployment guide
 
-[ ] admin visibility final
+[ ] Prepare secrets/env guide
 
-[ ] operator checklists final
+[ ] Prepare troubleshooting guide
 
-[ ] release dashboard final
+[ ] Prepare incident guide
 
-
-58. Repo hygiene final
-
-[ ] stale docs cleaned
-
-[ ] stale reports clarified/archived
-
-[ ] roadmap final sync
-
-[ ] project state final sync
-
-[ ] misleading checklist removed
+[ ] Prepare rollback guide
 
 
-59. Validation archive
+57. Monitoring and Admin Surfaces
 
-[ ] FORGE reports organized
+[ ] Finalize project monitor
 
-[ ] SENTINEL reports organized
+[ ] Finalize admin visibility
 
-[ ] BRIEFER assets organized
+[ ] Finalize operator checklists
 
-[ ] milestone evidence preserved
-
-
-60. Final acceptance
-
-[ ] runtime stable
-
-[ ] persistence stable
-
-[ ] wallet lifecycle complete
-
-[ ] portfolio complete
-
-[ ] multi-wallet orchestration complete
-
-[ ] settlement/retry/reconciliation complete
-
-[ ] capital readiness complete
-
-[ ] docs and ops complete
-
-[ ] final COMMANDER acceptance
+[ ] Finalize release dashboard
 
 
-Done condition PRIORITY 9
+58. Repo Hygiene Final
 
-[ ] project finish 100%
+[ ] Clean stale docs
+
+[ ] Clarify/archive stale reports
+
+[ ] Finalize roadmap sync
+
+[ ] Finalize project state sync
+
+[ ] Remove misleading checklists
+
+
+59. Validation Archive
+
+[ ] Organize FORGE reports
+
+[ ] Organize SENTINEL reports
+
+[ ] Organize BRIEFER assets
+
+[ ] Preserve milestone evidence
+
+
+60. Final Acceptance
+
+[ ] Confirm runtime stability
+
+[ ] Confirm persistence stability
+
+[ ] Confirm wallet lifecycle completion
+
+[ ] Confirm portfolio completion
+
+[ ] Confirm multi-wallet orchestration completion
+
+[ ] Confirm settlement/retry/reconciliation completion
+
+[ ] Confirm capital readiness completion
+
+[ ] Confirm docs and ops completion
+
+[ ] Get final COMMANDER acceptance
+
+
+Done Condition
+
+[ ] Project is finished 100%
 
 
 
 ---
 
-Simple execution order
+Simple Execution Order
 
-Kerjain berurutan:
+[ ] PRIORITY 1 — Public Bot Runtime and Baseline
 
-[ ] PRIORITY 1 — Public Bot Runtime & Baseline
-
-[ ] PRIORITY 2 — DB, Persistence, Runtime Hardening
+[ ] PRIORITY 2 — DB, Persistence, and Runtime Hardening
 
 [ ] PRIORITY 3 — Paper Trading Product Completion
 
@@ -851,19 +853,20 @@ Kerjain berurutan:
 [ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
 
 
-Right now
 
-Yang paling dekat dikerjain:
+---
 
-[ ] redeploy/restart Fly dengan env terbaru
+Right Now
 
-[ ] cek startup logs Telegram
+[ ] Redeploy/restart Fly with the latest secrets
 
-[ ] aktifkan Telegram runtime beneran
+[ ] Check Telegram startup logs
 
-[ ] test /start
+[ ] Make Telegram runtime truly active
 
-[ ] test /help
+[ ] Test /start
 
-[ ] test /status
+[ ] Test /help
+
+[ ] Test /status
 
