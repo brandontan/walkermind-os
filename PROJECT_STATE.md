@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 05:41
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main with paper-only boundary preserved; independent external deploy/runtime revalidation is currently blocked in this runner by outbound Fly endpoint access limits and requires Fly-accessible validation evidence.
+Last Updated : 2026-04-21 09:57
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main with paper-only boundary preserved; Fly startup-path source fix is applied on the active Phase 9.3 lane, while deploy/runtime revalidation remains blocked in this runner by Fly CLI/network access limits.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -34,7 +34,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 
 [IN PROGRESS]
 - Post-release readiness summary and launch posture assets packaging is in progress for public-ready paper beta continuity (paper-only claim boundary preserved).
-- Phase 9.3 deploy/runtime truth revalidation lane is in progress with evidence captured, but external verification of live Fly `/health` and `/ready` is blocked in this runner by CONNECT-tunnel 403 and requires Fly-accessible validation.
+- Phase 9.3 Fly startup-path fix lane is in progress with corrected Docker/Fly entrypoint wiring, but actual redeploy and live `/health` + `/ready` verification remain blocked in this runner (`flyctl` unavailable and CONNECT-tunnel 403).
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -42,7 +42,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review for post-release public-facing launch assets pack and messaging approval.
+- SENTINEL gate on PR head branch after Fly-accessible redeploy evidence confirms machine stability and live `/health` + `/ready`.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
