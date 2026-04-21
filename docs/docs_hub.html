@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrusaderBot Docs Hub</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font-family: Inter, system-ui, Arial, sans-serif; background: #0b1020; color: #e5e7eb; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 20px 14px 48px; }
+    h1 { margin: 0 0 8px 0; font-size: 1.5rem; }
+    .muted { color: #94a3b8; margin-bottom: 14px; }
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .badge { border: 1px solid #334155; border-radius: 999px; padding: 4px 10px; font-size: 0.82rem; color: #cbd5e1; }
+    .notice { border: 1px solid #1f2937; background: #0f172a; border-radius: 10px; padding: 12px; margin-bottom: 16px; font-size: 0.95rem; color: #cbd5e1; }
+    .section { border: 1px solid #1e293b; border-radius: 12px; background: #0f172a; padding: 14px; margin-bottom: 12px; }
+    .section h2 { margin: 0 0 8px 0; font-size: 1rem; }
+    .section p { margin: 0 0 10px 0; color: #93c5fd; font-size: 0.9rem; }
+    .link-list { display: grid; gap: 8px; }
+    a.doc { display: block; text-decoration: none; border: 1px solid #334155; border-radius: 10px; padding: 10px; color: #e5e7eb; }
+    a.doc strong { display: block; font-size: 0.95rem; margin-bottom: 2px; }
+    a.doc span { color: #94a3b8; font-size: 0.84rem; }
+    .quick-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .quick-nav a { text-decoration: none; border: 1px solid #334155; border-radius: 999px; padding: 6px 11px; color: #7dd3fc; font-size: 0.85rem; }
+    @media (max-width: 640px) { .wrap { padding: 14px 10px 32px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>CrusaderBot Docs Hub</h1>
+    <div class="muted">One lightweight navigation pack for monitor pages, operator docs, and troubleshooting references.</div>
+
+    <div class="badge-row">
+      <span class="badge">Main monitor: project_monitor.html</span>
+      <span class="badge">Fallback checklist: worktodo.html</span>
+      <span class="badge">Paper-only posture</span>
+    </div>
+
+    <div class="notice">
+      Current repo truth: public-ready <strong>paper beta</strong>, live Fly runtime responding, and operator guides landed. This hub does not change runtime/deploy behavior.
+    </div>
+
+    <div class="quick-nav">
+      <a href="project_monitor.html">Open Main Monitor</a>
+      <a href="worktodo.html">Open Lightweight Checklist</a>
+    </div>
+
+    <div class="section">
+      <h2>Status Surfaces</h2>
+      <p>Main runtime/status monitor and lightweight fallback page.</p>
+      <div class="link-list">
+        <a class="doc" href="project_monitor.html"><strong>Project Monitor (main)</strong><span>Primary status + checklist monitor surface.</span></a>
+        <a class="doc" href="worktodo.html"><strong>Work TODO (fallback)</strong><span>Lightweight checklist view sourced from work_checklist.md.</span></a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Operator Runbook & Troubleshooting</h2>
+      <p>Operational references for runtime checks and incident triage.</p>
+      <div class="link-list">
+        <a class="doc" href="../projects/polymarket/polyquantbot/docs/operator_runbook.md"><strong>Operator Runbook</strong><span>Runtime posture, command checks, and operator baseline flow.</span></a>
+        <a class="doc" href="../projects/polymarket/polyquantbot/docs/fly_runtime_troubleshooting.md"><strong>Fly Runtime Troubleshooting</strong><span>Deploy/runtime diagnostics for Fly environment.</span></a>
+        <a class="doc" href="../projects/polymarket/polyquantbot/docs/telegram_runtime_troubleshooting.md"><strong>Telegram Runtime Troubleshooting</strong><span>Telegram command path troubleshooting and checks.</span></a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Observability & Evidence</h2>
+      <p>Quick checks and evidence capture references for runtime validation.</p>
+      <div class="link-list">
+        <a class="doc" href="../projects/polymarket/polyquantbot/docs/sentry_quickcheck.md"><strong>Sentry Quick Check</strong><span>Integration presence and first-event verification guidance.</span></a>
+        <a class="doc" href="../projects/polymarket/polyquantbot/docs/runtime_evidence_checklist.md"><strong>Runtime Evidence Checklist</strong><span>Reusable checklist for deploy + command evidence collection.</span></a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

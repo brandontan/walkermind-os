@@ -41,6 +41,7 @@ Ops Handoff / Troubleshooting Lane
 
 [x] Publish reusable runtime evidence capture checklist
 
+[x] Add lightweight docs hub / navigation pack so monitor, checklist, and operator troubleshooting docs are discoverable from one page
 
 [x] Fix /help command semantics so it reaches real help handler (no /start collapse)
 

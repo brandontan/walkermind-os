@@ -1,4 +1,4 @@
-Last Updated : 2026-04-21 23:52
+Last Updated : 2026-04-22 00:39
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram command-routing semantics plus expanded public-reply presentation consolidation are implemented at code level, with deploy-capable Fly + live Telegram verification still pending.
 
 [COMPLETED]
@@ -34,7 +34,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Phase 9.3 post-release public-facing launch assets pack is completed with coherent readiness/posture/boundary/onboarding/announcement docs and wording-audit alignment to paper-only truth under `projects/polymarket/polyquantbot/reports/forge/phase9-3_03_post-release-launch-assets-pack.md`.
 
 [IN PROGRESS]
-- Work checklist monitor integration lane is in progress on `feature/integrate-work-checklist-into-project-monitor`: `docs/project_monitor.html` now renders repository-truth `projects/polymarket/polyquantbot/work_checklist.md` directly (with `docs/worktodo.html` retained as fallback) pending COMMANDER review.
+- Work checklist monitor integration lane is in progress on `feature/integrate-work-checklist-into-project-monitor`: `docs/project_monitor.html` now renders repository-truth `projects/polymarket/polyquantbot/work_checklist.md` directly (with `docs/worktodo.html` retained as fallback and `docs/docs_hub.html` as docs navigation entrypoint) pending COMMANDER review.
 - Post-launch cleanup + README alignment + announcement polish lane is in progress for paper-beta public-facing clarity (paper-only/no-live-trading boundary preserved).
 - Telegram command-routing semantics fix lane is in progress on `feature/fix-telegram-command-routing-and-sync-work-checklist`: polling-loop start lifecycle is now gated to `/start` only so `/help` and `/status` no longer collapse into `/start` at code level; deploy-capable rerun is still required for live Fly + Telegram proof (`projects/polymarket/polyquantbot/reports/forge/telegram_runtime_03_command-routing-semantics-fix.md`, `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_03_command-routing-semantics-evidence.log`).
 - Telegram onboarding + /start /help /status public UX copy refinement is implemented on `feature/refine-telegram-onboarding-and-public-ux-copy` with cleaner onboarding/fallback messaging and explicit paper-only safety wording pending COMMANDER review.
