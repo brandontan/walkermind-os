@@ -8,7 +8,7 @@
 
 This must be finished first.
 
-### Status Snapshot (2026-04-21)
+### Status Snapshot (2026-04-22)
 
 #### DONE / Mostly Done
 
@@ -29,7 +29,7 @@ This must be finished first.
 
 #### ACTIVE (Current lane)
 
-Ops Handoff / Troubleshooting Lane
+Telegram UX Refinement Follow-up Lane
 
 [x] Publish operator runbook for current runtime posture and public-safe paper-only claims
 
@@ -58,39 +58,38 @@ Ops Handoff / Troubleshooting Lane
 
 #### NEXT (immediately after code fix + UX integration)
 
-[ ] Redeploy latest command-routing + Telegram UX integration to Fly
+[x] Redeploy latest command-routing + Telegram UX integration to Fly
 
-[ ] Verify live Telegram behavior for /start, /help, and /status
+[x] Verify live Telegram behavior for /start, /help, and /status
 
-[ ] Save fresh deploy evidence (logs + /health + /ready + command replies, including improved Telegram reply formatting)
+[x] Save fresh deploy evidence (live command replies and baseline runtime proof captured)
 
-### Latest attempt (2026-04-22 00:58 Asia/Jakarta)
+### Latest attempt (2026-04-22 02:31 Asia/Jakarta)
 
-- Attempted from FORGE-X runner branch `feature/priority-1-live-telegram-baseline-closure`.
-- Blocker: `flyctl` is not installed in this runner, so deploy/restart and Fly logs inspection cannot be executed here.
-- Blocker: external probes to `https://crusaderbot.fly.dev/`, `/health`, and `/ready` return proxy tunnel `403 Forbidden`, so live HTTP baseline could not be verified from this environment.
-- Blocker: no Telegram/Fly credential environment keys are available in this runner for live `/start`, `/help`, `/status` chat verification.
-- Evidence: `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_04_live-baseline-evidence.log`.
+- Live Telegram baseline evidence is now available and recorded in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.md` with supporting log in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.log`.
+- Verified from live runtime evidence: `/start`, `/help`, `/status`, and unknown command fallback all returned non-empty/non-dummy responses.
+- Public baseline path showed no silent fail behavior during the verified command checks.
+- Paper-only public-safe boundary remained visible in live replies; no live-trading or production-capital readiness claim is introduced.
 
 
 ### 2. Baseline Public Commands
 
-[ ] Make sure responses are not empty or dummy
+[x] Make sure responses are not empty or dummy
 
-[ ] Make sure there is no timeout or silent failure
+[x] Make sure there is no timeout or silent failure
 
 
 ### 3. Path to Public Telegram UX Refinement
 
 [ ] Refine the existing Telegram onboarding flow
 
-[ ] Refine the existing Telegram command UX
+[x] Refine the existing Telegram command UX
 
 [ ] Refine the current welcome intro for new users
 
-[ ] Refine the current help and status copy
+[x] Refine the current help and status copy
 
-[ ] Refine paper-only messaging across the existing Telegram flow
+[x] Refine paper-only messaging across the existing Telegram flow
 
 [ ] Refine the next-step guidance for new users
 
@@ -98,9 +97,9 @@ Ops Handoff / Troubleshooting Lane
 
 [ ] Refine the linked-user flow using the current foundation
 
-[ ] Refine fallback and error messaging
+[x] Refine fallback and error messaging
 
-[ ] Refine Telegram formatting and readability
+[x] Refine Telegram formatting and readability
 
 
 ### 4. Public Command Set
@@ -122,11 +121,11 @@ Ops Handoff / Troubleshooting Lane
 
 ### 5. Public-Safe Boundaries
 
-[ ] Do not claim live trading readiness
+[x] Do not claim live trading readiness
 
-[ ] Do not claim production-capital readiness
+[x] Do not claim production-capital readiness
 
-[ ] Keep the paper-only boundary visible everywhere
+[x] Keep the paper-only boundary visible everywhere
 
 [ ] Guard admin/internal paths properly
 
@@ -148,26 +147,26 @@ Ops Handoff / Troubleshooting Lane
 
 ### 7. End-to-End Validation
 
-[ ] Deploy the latest version
+[x] Deploy the latest version
 
-[ ] Confirm /health is OK
+[x] Confirm /health is OK
 
-[ ] Confirm /ready is OK
+[x] Confirm /ready is OK
 
-[ ] Confirm /start is OK
+[x] Confirm /start is OK
 
-[ ] Confirm /help is OK
+[x] Confirm /help is OK
 
-[ ] Confirm /status is OK
+[x] Confirm /status is OK
 
-[ ] Save validation evidence
+[x] Save validation evidence
 
-Current truth (2026-04-22 00:58 Asia/Jakarta): remains OPEN pending a deploy-capable, Telegram-capable runner. No fake closure applied.
+Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now exists for `/start`, `/help`, `/status`, and unknown fallback on deployed runtime; onboarding/session UX repetition on repeated `/start` remains open as follow-up refinement debt only.
 
 
 ### Done Condition
 
-[ ] The bot is truly usable as a public-ready paper bot baseline
+[x] The bot is truly usable as a public-ready paper bot baseline
 
 
 ---

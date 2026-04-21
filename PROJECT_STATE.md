@@ -1,7 +1,8 @@
-Last Updated : 2026-04-22 01:52
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram command-routing semantics plus expanded public-reply presentation consolidation are implemented at code level, with deploy-capable Fly + live Telegram verification still pending.
+Last Updated : 2026-04-22 02:31
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; live Telegram baseline command proof is now recorded for /start, /help, /status, and unknown fallback with paper-only boundary preserved.
 
 [COMPLETED]
+- Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence: `/start`, `/help`, `/status`, and unknown-command fallback all responded with non-empty/non-dummy replies and no silent-fail behavior on the public baseline path. Evidence: `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.md`, `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.log`.
 - Ops handoff pack lane is completed with operator runbook + Fly runtime troubleshooting + Telegram runtime troubleshooting + Sentry quick-check + reusable runtime evidence checklist under `projects/polymarket/polyquantbot/docs/`.
 - Phase 6.6.8 public safety hardening merged via PR #565.
 - Phase 6.6.9 minimal execution hook merged via PR #566.
@@ -36,11 +37,9 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 [IN PROGRESS]
 - Work checklist monitor integration hardening lane is in progress on `feature/integrate-work-checklist-into-project-monitor`: malformed `projects/polymarket/polyquantbot/work_checklist.md` structure was repaired and `docs/project_monitor.html` now includes conservative fallback parsing so major checklist sections remain visible under partial markdown-format damage, pending COMMANDER review.
 - Post-launch cleanup + README alignment + announcement polish lane is in progress for paper-beta public-facing clarity (paper-only/no-live-trading boundary preserved).
-- Telegram command-routing + baseline closure lane remains in progress: SENTINEL validation for PR #705 is BLOCKED because deploy/runtime verification is still blocked in this runner (`flyctl` missing, external Fly tunnel 403, no Telegram/Fly credential env keys), so Priority 1 live closure cannot be truthfully marked complete yet. Evidence: `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_04_live-baseline-closure.md`, `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_04_live-baseline-evidence.log`, `projects/polymarket/polyquantbot/reports/sentinel/telegram_runtime_04_live-baseline-validation-pr705.md`.
 - Telegram onboarding + /start /help /status public UX copy refinement is implemented on `feature/refine-telegram-onboarding-and-public-ux-copy` with cleaner onboarding/fallback messaging and explicit paper-only safety wording pending COMMANDER review.
 - Telegram presentation consolidation + public command-set hygiene lane is implemented on `feature/public-command-set-hygiene-and-help-alignment`: `/help` now advertises only trusted public-safe commands (`/start`, `/help`, `/status`), unknown-command guidance no longer over-advertises operator-managed surfaces, and paper-only/public-safe boundary wording remains explicit; deploy-capable Telegram render proof is pending (`projects/polymarket/polyquantbot/reports/forge/telegram_ux_03_presentation-consolidation.md`, `projects/polymarket/polyquantbot/reports/forge/telegram_ux_04_public-command-hygiene.md`).
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
-
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -48,9 +47,10 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Run deploy-capable validation on Telegram command-routing + presentation integration branches to collect hard evidence for Fly deploy success, `/health`, `/ready`, and real Telegram command replies (`/start`, `/help`, `/status`) including improved formatting render proof before final review gate.
+- Execute Telegram onboarding/session UX refinement pass to reduce repetitive multi-step `/start` progression while preserving current paper-only public-safe baseline behavior.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 6.4 narrow monitoring remains intentionally scoped and not yet the active implementation lane.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning -- carried forward as non-runtime higiene backlog.
+- [DEFERRED] Telegram onboarding/session UX can feel repetitive on repeated `/start` progression; tracked as follow-up refinement debt after Priority 1 live baseline closure proof.
