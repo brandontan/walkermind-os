@@ -464,7 +464,7 @@ function parseChecklistLines(text) {
 
     const match = line.match(/^\[(x|X| )\]\s+(.+)$/);
     if (match) {
-      const textValue = currentSubhead ? `${currentSubhead} — ${match[2]}` : match[2];
+      const textValue = match[2];
       current.items.push({ text: textValue, done: match[1].toLowerCase() === 'x', kind: 'check' });
       continue;
     }
