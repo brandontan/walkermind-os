@@ -35,6 +35,9 @@ from projects.polymarket.polyquantbot.client.telegram.dispatcher import (
     TelegramCommandContext,
     TelegramDispatcher,
 )
+from projects.polymarket.polyquantbot.client.telegram.presentation import (
+    format_start_session_ready_reply,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -58,11 +61,7 @@ _REPLY_ACTIVATED = (
     "✅ Your account is activated.\n"
     "Send /start again to open your session."
 )
-_REPLY_SESSION_ISSUED = (
-    "✅ Session ready. Welcome to CrusaderBot public paper beta.\n"
-    "Use /help for commands or /status for runtime + guard status.\n"
-    "Boundary: paper-only execution."
-)
+_REPLY_SESSION_ISSUED = format_start_session_ready_reply()
 _REPLY_ALREADY_ACTIVE_SESSION_ISSUED = (
     "✅ Welcome back. Your session is ready.\n"
     "Boundary: paper-only execution."

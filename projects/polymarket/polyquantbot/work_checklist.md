@@ -29,20 +29,22 @@ DONE / Mostly Done
 
 ACTIVE (Current lane)
 
-[ ] Fix /help command semantics so it reaches real help handler (no /start collapse)
+[x] Fix /help command semantics so it reaches real help handler (no /start collapse)
 
-[ ] Fix /status command semantics so it reaches real status handler (no /start collapse)
+[x] Fix /status command semantics so it reaches real status handler (no /start collapse)
 
-[ ] Ensure command routing precedence no longer collapses non-/start commands into /start lifecycle/session path
+[x] Ensure command routing precedence no longer collapses non-/start commands into /start lifecycle/session path
+
+[x] Integrate Telegram design/presentation layer into live `/start`, `/help`, `/status` reply builders (repo code truth)
 
 
-NEXT (immediately after code fix)
+NEXT (immediately after code fix + UX integration)
 
-[ ] Redeploy latest command-routing fix to Fly
+[ ] Redeploy latest command-routing + Telegram UX integration to Fly
 
 [ ] Verify live Telegram behavior for /start, /help, and /status
 
-[ ] Save fresh deploy evidence (logs + /health + /ready + command replies)
+[ ] Save fresh deploy evidence (logs + /health + /ready + command replies, including improved Telegram reply formatting)
 
 
 2. Baseline Public Commands

@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 16:09
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram command-routing semantics fix lane is now implemented at code level for `/start`-only lifecycle gating and no `/help`/`/status` collapse, with deploy-capable SENTINEL proof still pending for Fly + live Telegram verification.
+Last Updated : 2026-04-21 19:05
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram command-routing semantics and `/start` `/help` `/status` presentation-layer integration are now implemented at code level, with deploy-capable Fly + live Telegram verification still pending.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -36,6 +36,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Post-launch cleanup + README alignment + announcement polish lane is in progress for paper-beta public-facing clarity (paper-only/no-live-trading boundary preserved).
 - Telegram command-routing semantics fix lane is in progress on `feature/fix-telegram-command-routing-and-sync-work-checklist`: polling-loop start lifecycle is now gated to `/start` only so `/help` and `/status` no longer collapse into `/start` at code level; deploy-capable rerun is still required for live Fly + Telegram proof (`projects/polymarket/polyquantbot/reports/forge/telegram_runtime_03_command-routing-semantics-fix.md`, `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_03_command-routing-semantics-evidence.log`).
 - Telegram onboarding + /start /help /status public UX copy refinement is implemented on `feature/refine-telegram-onboarding-and-public-ux-copy` with cleaner onboarding/fallback messaging and explicit paper-only safety wording pending COMMANDER review.
+- Telegram design/presentation integration lane is implemented on `feature/integrate-telegram-design-layer-and-sync-checklist`: live `/start`, `/help`, `/status` replies now use structured presentation helpers with preserved paper-only/public-safe boundaries; deploy-capable Telegram render proof is pending (`projects/polymarket/polyquantbot/reports/forge/telegram_ux_02_design-layer-integration.md`).
 
 
 [NOT STARTED]
@@ -44,7 +45,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Run deploy-capable validation on `feature/fix-telegram-command-routing-and-sync-work-checklist` to collect hard evidence for Fly deploy success, `/health`, `/ready`, and real Telegram command replies (`/start`, `/help`, `/status`) before SENTINEL final gate.
+- Run deploy-capable validation on Telegram command-routing + presentation integration branches to collect hard evidence for Fly deploy success, `/health`, `/ready`, and real Telegram command replies (`/start`, `/help`, `/status`) including improved formatting render proof before final review gate.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

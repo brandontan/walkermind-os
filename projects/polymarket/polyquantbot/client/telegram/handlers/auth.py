@@ -11,6 +11,9 @@ from projects.polymarket.polyquantbot.client.telegram.backend_client import (
     BackendHandoffResult,
     CrusaderBackendClient,
 )
+from projects.polymarket.polyquantbot.client.telegram.presentation import (
+    format_start_session_ready_reply,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -83,10 +86,7 @@ async def handle_start(
         return HandleStartResult(
             outcome="session_issued",
             session_id=result.session_id,
-            reply_text=(
-                "✅ Welcome to CrusaderBot public paper beta.\n"
-                "Your session is ready. Use /help for commands and /status for runtime info."
-            ),
+            reply_text=format_start_session_ready_reply(),
         )
 
     if result.outcome == "rejected":

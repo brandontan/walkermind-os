@@ -1,0 +1,59 @@
+=== /start session-issued reply ===
+🚀 CrusaderBot — Session Ready
+━━━━━━━━━━━━━━━━━━━━━━
+Your paper-beta session is active.
+
+Next steps:
+• /help — command guide
+• /status — runtime and guard snapshot
+
+Boundary:
+• Public-ready paper beta
+• Paper-only execution
+• Not live-trading ready
+• Not production-capital ready
+
+=== /help reply ===
+📘 CrusaderBot Help — Public Paper Beta
+━━━━━━━━━━━━━━━━━━━━━━
+Core commands
+/START       ● Open or refresh your session
+/HELP        ● View this guide
+/STATUS      ● Runtime + guard snapshot
+━━━━━━━━━━━━━━━━━━━━━━
+Paper control surfaces
+/MODE        ● Set paper mode only
+/AUTOTRADE   ● Toggle paper autotrade
+/POSITIONS   ● Read open paper positions
+/PNL         ● Read paper PnL
+/RISK        ● Read risk state
+/MARKETS     ● Query market scan
+/MARKET360   ● View market detail
+/SOCIAL      ● View social pulse
+/KILL        ● Force paper kill switch
+━━━━━━━━━━━━━━━━━━━━━━
+Boundary
+• Public-ready paper beta
+• Paper-only execution
+• Not live-trading ready
+• Not production-capital ready
+
+=== /status reply (representative payload mapping) ===
+🧭 CrusaderBot Status — Public Paper Beta
+━━━━━━━━━━━━━━━━━━━━━━
+Runtime
+MODE         ● paper
+STATE        ● running
+CHANNEL      ● public_paper_beta
+━━━━━━━━━━━━━━━━━━━━━━
+Safety
+ENTRY        ● False
+REASONS      ● autotrade_disabled
+LAST RISK    ● kill_switch_enabled
+KILL SWITCH  ● True
+━━━━━━━━━━━━━━━━━━━━━━
+Paper metrics
+AUTOTRADE    ● False
+POSITIONS    ● 2
+━━━━━━━━━━━━━━━━━━━━━━
+Boundary: paper-only execution. Not live-trading ready. Not production-capital ready.
