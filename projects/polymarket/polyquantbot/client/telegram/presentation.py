@@ -132,11 +132,12 @@ def format_unknown_command_reply() -> str:
     return (
         "⚠️ Command not recognized\n"
         f"{SEP}\n"
-        "Try one of these:\n"
+        "Try one of these public commands:\n"
         "• /start\n"
         "• /help\n"
-        "• /status\n"
-        "• /mode /autotrade /positions /pnl /risk /markets /market360 /social /kill\n\n"
+        "• /status\n\n"
+        "Some advanced controls are operator-managed during paper beta\n"
+        "and intentionally not shown in the public command guide.\n\n"
         "Boundary:\n"
         "• Public-ready paper beta\n"
         "• Paper-only execution\n"
@@ -154,16 +155,9 @@ def format_help_reply() -> str:
         render_kv_line("/HELP", "View this guide"),
         render_kv_line("/STATUS", "Runtime + guard snapshot"),
         SEP,
-        "Paper control surfaces",
-        render_kv_line("/MODE", "Set paper mode only"),
-        render_kv_line("/AUTOTRADE", "Toggle paper autotrade"),
-        render_kv_line("/POSITIONS", "Read open paper positions"),
-        render_kv_line("/PNL", "Read paper PnL"),
-        render_kv_line("/RISK", "Read risk state"),
-        render_kv_line("/MARKETS", "Query market scan"),
-        render_kv_line("/MARKET360", "View market detail"),
-        render_kv_line("/SOCIAL", "View social pulse"),
-        render_kv_line("/KILL", "Force paper kill switch"),
+        "Public posture",
+        "• Public-safe command set is intentionally small during paper beta.",
+        "• Advanced controls remain operator-managed until broader readiness proof.",
         SEP,
         "Boundary",
         "• Public-ready paper beta",

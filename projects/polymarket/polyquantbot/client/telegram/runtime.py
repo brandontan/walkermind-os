@@ -548,7 +548,7 @@ async def run_polling_loop(
     log.info(
         "crusaderbot_telegram_polling_started",
         phase="8.13",
-        registered_commands=["/start","/mode","/autotrade","/positions","/pnl","/risk","/status","/markets","/market360","/social","/kill"],
+        registered_commands=["/start", "/help", "/status"],
         identity_resolution="enabled" if identity_resolver is not None else "staging_fallback",
         onboarding="enabled" if onboarding_initiator is not None else "disabled",
         activation="enabled" if activation_confirmer is not None else "disabled",
