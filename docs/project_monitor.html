@@ -502,7 +502,7 @@ function parseChecklistFallback(text) {
       items.push({ text: note.replace(/^\s*\d+\.\s+/, '').trim(), done: false, kind: 'note' });
     });
 
-    const checksRegex = /\[(x|X| )\]\s*([^\n\[]+?)(?=(?:\n\[(?:x|X| )\])|$)/g;
+    const checksRegex = /\[(x|X| )\]\s*([^\n]+?)(?=(?:\n\[(?:x|X| )\])|$)/g;
     let m;
     while ((m = checksRegex.exec(block)) !== null) {
       items.push({ text: m[2].trim(), done: m[1].toLowerCase() === 'x', kind: 'check' });
