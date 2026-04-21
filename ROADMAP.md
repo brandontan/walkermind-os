@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active (Paper Beta Complete) | Post-Phase 9.3 — Paper Beta Complete |
+| Crusader | Polymarket | Active (Paper Beta Complete + Phase 10 Execution) | Phase 10.1 — Telegram Runtime/Public Baseline |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta complete on main (paper-only boundary preserved; not live-trading ready; not production-capital ready)
-**Last Updated:** 2026-04-21 05:29
+**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; current execution lane is Phase 10 paper-only hardening and public baseline completion (no live-trading or production-capital claim)
+**Last Updated:** 2026-04-21 15:49
 
 # Board Overview
 
@@ -37,10 +37,28 @@
 | Phase 5 | Real Execution & Capital System | ✅ Done | Internal |
 | Phase 6 | Production Safety & Stabilization | ✅ Done | Public Preparation |
 | Phase 7 | Orchestration & Automation Foundation | ✅ Done | Public Activation Orchestration |
-| Phase 8 | Multi-User Foundation | 🚧 In Progress | Multi-User Ownership + Auth/Session Scope |
+| Phase 8 | Multi-User Foundation | ✅ Done | Multi-User Ownership + Auth/Session Scope |
+| Phase 9 | Public-Ready Paper Beta Path | ✅ Done | Runtime Proof + Operational Readiness + Release Gate |
+| Phase 10 | Public Runtime & Product Completion | 🚧 In Progress | Telegram runtime activation + public command validation + UX/persistence hardening |
 
 ---
 
+
+## CrusaderBot — Current Delivery Focus (Phase 10)
+
+**Roadmap Intent:** Keep ROADMAP.md as milestone-level planning truth and keep execution-level task tracking in `projects/polymarket/polyquantbot/work_checklist.md`.
+
+### Current Focus Summary (paper-only boundary preserved)
+- Telegram runtime activation on Fly (startup lifecycle, truthful `/ready`, runtime state visibility).
+- Public command validation baseline (`/start`, `/help`, `/status`) with non-dummy replies and no silent failure.
+- Refinement of existing Telegram UX foundation (onboarding, help/status copy, fallback messaging, readability).
+- Persistence/readiness hardening continuity aligned with current checklist priorities.
+
+### Execution Tracking Source
+- Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/work_checklist.md](projects/polymarket/polyquantbot/work_checklist.md).
+- ROADMAP.md remains summary-level and milestone-oriented.
+
+---
 ## CrusaderBot — Multi-User Foundation Checklist
 
 **Goal:** Establish truthful backend foundations for user identity, tenant scope, ownership mapping, and scoped storage under `projects/polymarket/polyquantbot/server/`.  
@@ -538,7 +556,7 @@
 
 **Goal:** Keep the same three-lane public-paper-beta finish path (runtime proof -> operational/public readiness -> release gate) while remapping it to truthful next-open numbering after historically consumed lanes through Phase 8.14.
 **Status:** ✅ Done (Phase 9.1 runtime proof, Phase 9.2 operational/public readiness, and Phase 9.3 release gate are complete on main; public-ready paper beta path is complete while paper-only boundary remains preserved and no live-trading/production-capital readiness is claimed).
-**Last Updated:** 2026-04-21 05:29
+**Last Updated:** 2026-04-21 15:49
 
 ### Numbering Truth
 - [x] Preserve consumed historical lanes through Phase 8.12.
