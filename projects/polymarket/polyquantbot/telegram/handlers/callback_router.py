@@ -47,7 +47,7 @@ from ..ui.screens import (
     noop_screen,
 )
 from ..ui.components import render_kv_line, render_insight, SEP
-from ...interface.telegram.view_handler import render_view, safe_number, safe_count
+from ..view_handler import render_view, safe_number, safe_count
 from ...core.market_scope import (
     MARKET_SCOPE_CATEGORIES,
     get_market_scope_snapshot,

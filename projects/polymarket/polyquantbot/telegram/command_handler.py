@@ -9,7 +9,7 @@ import structlog
 
 from ..config.runtime_config import ConfigManager
 from ..core.system_state import SystemState, SystemStateManager
-from ..interface.telegram.view_handler import render_view, safe_count, safe_number
+from .view_handler import render_view, safe_count, safe_number
 from ..execution.engine import export_execution_payload, get_execution_engine
 from ..execution.execution_isolation import get_execution_isolation_gateway
 from ..execution.observability import (
