@@ -1,23 +1,39 @@
-# CrusaderBot Announcement Package Draft
+# CrusaderBot Announcement Package (Polished Draft)
 
 ## Short Version
-CrusaderBot is now available in a public-ready **paper beta** format with managed operator oversight. This launch is paper-only and does not claim live-trading or production-capital readiness.
+CrusaderBot is now public-ready in a **paper beta** posture.
+
+The Fly runtime is live and responding on `/`, `/health`, and `/ready`, while execution remains explicitly paper-only. This release does **not** claim live-trading readiness or production-capital readiness.
 
 ## Medium Version
-We are launching CrusaderBot in a public-ready paper beta posture. The current release reflects completion of the 9.1, 9.2, and 9.3 closure path for paper-beta readiness, with Telegram and FastAPI control surfaces operating under managed oversight.
+We are opening CrusaderBot as a public-ready paper beta after closing the 9.1, 9.2, and 9.3 release path for this stage.
 
-This is intentionally a paper-only boundary: CrusaderBot is not live-trading ready, not production-capital ready, and not positioned for unrestricted production execution at this stage.
+Current runtime truth is straightforward: the deployed Fly service is responding on `/`, `/health`, and `/ready`, and readiness posture remains paper-only by design. This is a managed, operator-aware beta lane focused on transparent testing, feedback, and disciplined iteration.
 
-## Founder-Facing Launch Copy Draft
-Today we are opening CrusaderBot as a public-ready paper beta after closing the 9.1, 9.2, and 9.3 release path for this stage. We are deliberately launching with managed operator oversight and explicit paper-only boundaries.
+This release does **not** claim:
+- live-trading readiness,
+- production-capital readiness, or
+- unrestricted production execution.
 
-This launch is built for transparent beta usage, feedback, and operational discipline. We are not claiming live-trading readiness, production-capital readiness, or unrestricted production execution in this release lane.
+## Founder-Facing Version
+Today we are opening CrusaderBot as a public-ready paper beta with clear operational boundaries.
+
+What we can truthfully communicate now:
+- The Fly deployment is live and responding on `/`, `/health`, and `/ready`.
+- The execution boundary is still paper-only.
+- This is a managed beta posture, suitable for controlled onboarding and feedback.
+
+What we should explicitly avoid claiming:
+- live-trading readiness,
+- production-capital readiness,
+- unrestricted production deployment.
 
 ## What This Is / What This Is Not
+
 ### What this is
-- A public-ready, operator-managed paper beta launch
-- A controlled onboarding and communication posture
-- A truthful release state aligned with current repository truth
+- A public-ready, operator-aware paper beta
+- A live runtime surface with verified health/readiness responses
+- A controlled and transparent launch posture aligned to repo truth
 
 ### What this is not
 - Not live-trading ready
