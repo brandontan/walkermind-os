@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-<title>CRUSADER — Project Monitor</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>Crusader — Project Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #07090f;
@@ -21,9 +21,9 @@
   --muted: #3d5570;
   --mid: #6a8aaa;
   --mono: 'JetBrains Mono', monospace;
-  --sans: 'Outfit', sans-serif;
+  --sans: 'Syne', sans-serif;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -36,707 +36,515 @@ body::before {
   content: '';
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background-image:
-    linear-gradient(rgba(0,170,255,.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,170,255,.02) 1px, transparent 1px);
+    linear-gradient(rgba(0,170,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,170,255,0.02) 1px, transparent 1px);
   background-size: 48px 48px;
+}
+body::after {
+  content: '';
+  position: fixed; z-index: 0; pointer-events: none;
+  width: 600px; height: 600px;
+  top: -200px; right: -200px;
+  background: radial-gradient(circle, rgba(0,245,160,0.04) 0%, transparent 70%);
 }
 .wrap {
   position: relative; z-index: 1;
-  max-width: 1120px; margin: 0 auto;
-  padding: 0 14px 72px;
+  max-width: 960px; margin: 0 auto;
+  padding: 0 14px 80px;
 }
 header {
-  padding: 20px 0 0;
+  padding: 28px 0 24px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
-}
-.header-top {
+  margin-bottom: 28px;
   display: flex; align-items: center;
   justify-content: space-between;
-  gap: 12px; flex-wrap: wrap;
-  margin-bottom: 14px;
+  gap: 16px; flex-wrap: wrap;
 }
-.brand { display: flex; align-items: center; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 14px; }
 .brand-icon {
-  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  width: 42px; height: 42px; flex-shrink: 0;
   background: linear-gradient(135deg, var(--green), var(--blue));
-  color: var(--bg);
+  border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--mono); font-size: 10px; font-weight: 700;
-  letter-spacing: -.5px;
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  color: var(--bg); letter-spacing: -0.5px;
 }
 .brand-sub {
   font-family: var(--mono); font-size: 9px;
-  color: var(--muted); letter-spacing: .12em;
-  text-transform: uppercase; margin-bottom: 3px;
+  color: var(--muted); letter-spacing: 0.12em;
+  text-transform: uppercase; margin-bottom: 4px;
 }
 .brand-name {
-  font-size: 20px; font-weight: 700; letter-spacing: -.3px;
-  background: linear-gradient(90deg, var(--text) 60%, var(--blue));
+  font-size: 22px; font-weight: 800;
+  letter-spacing: -0.5px;
+  background: linear-gradient(90deg, var(--text), var(--blue));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-.header-controls {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+.header-right {
+  display: flex; flex-direction: column;
+  align-items: flex-end; gap: 8px;
 }
 .live-indicator {
-  display: flex; align-items: center; gap: 6px;
-  background: rgba(0,245,160,.06);
-  border: 1px solid rgba(0,245,160,.2);
-  border-radius: 20px; padding: 5px 11px;
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(0,245,160,0.06);
+  border: 1px solid rgba(0,245,160,0.2);
+  border-radius: 20px; padding: 5px 12px;
   font-family: var(--mono); font-size: 9px;
-  color: var(--green); letter-spacing: .1em;
+  color: var(--green); letter-spacing: 0.1em;
 }
 .pulse {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--green); animation: pulse 1.5s infinite;
+  width: 6px; height: 6px;
+  background: var(--green); border-radius: 50%;
+  animation: pulse 1.5s infinite;
 }
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: .3; transform: scale(.8); }
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.8)} }
 .refresh-btn {
   background: var(--surface); border: 1px solid var(--border2);
-  border-radius: 8px; padding: 6px 11px;
-  cursor: pointer; font-family: var(--mono); font-size: 10px;
-  color: var(--mid); transition: all .2s;
-  display: flex; align-items: center; gap: 5px;
+  border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  font-family: var(--mono); font-size: 9px; color: var(--mid);
+  display: flex; align-items: center; gap: 6px;
 }
-.refresh-btn:hover { color: var(--green); border-color: rgba(0,245,160,.3); }
 .ts { font-family: var(--mono); font-size: 9px; color: var(--muted); }
 .ts span { color: var(--blue); }
-.header-strip {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border: 1px solid var(--border);
-  border-radius: 10px; overflow: hidden;
-  margin-bottom: 0;
-  background: var(--surface);
-}
-.strip-item {
-  padding: 9px 10px;
-  border-right: 1px solid var(--border);
-  min-width: 0; overflow: hidden;
-}
-.strip-item:last-child  { border-right: none; }
-.strip-item:nth-child(4),
-.strip-item:nth-child(5) { display: none; }
-@media(min-width: 520px) {
-  .header-strip { grid-template-columns: repeat(5, 1fr); }
-  .strip-item:nth-child(4),
-  .strip-item:nth-child(5) { display: block; }
-}
-.strip-label {
-  font-family: var(--mono); font-size: 8px;
-  color: var(--muted); letter-spacing: .08em;
-  text-transform: uppercase; margin-bottom: 4px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.strip-val {
-  font-family: var(--mono); font-size: 11px; font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.strip-val.green  { color: var(--green); }
-.strip-val.blue   { color: var(--blue); }
-.strip-val.yellow { color: var(--yellow); }
-.strip-val.purple { color: var(--purple); }
-.strip-val.mid    { color: var(--mid); }
-.view-switch {
-  display: flex; gap: 0;
-  border-top: 1px solid var(--border);
-  margin-top: 14px;
-}
-.view-btn {
-  flex: 1; border: none; background: transparent;
-  color: var(--muted); cursor: pointer;
-  padding: 10px 16px;
-  font-family: var(--mono); font-size: 9px;
-  text-transform: uppercase; letter-spacing: .1em;
-  border-bottom: 2px solid transparent;
-  transition: all .2s;
-}
-.view-btn:hover { color: var(--mid); }
-.view-btn.active {
-  color: var(--blue);
-  border-bottom-color: var(--blue);
-  background: rgba(0,170,255,.04);
-}
 .hero {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px; margin-bottom: 18px;
+  gap: 10px; margin-bottom: 20px;
 }
+@media(min-width: 600px) { .hero { grid-template-columns: repeat(4, 1fr); } }
 .hero-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 14px;
   position: relative; overflow: hidden;
 }
 .hero-card::before {
   content: ''; position: absolute;
   top: 0; left: 0; right: 0; height: 2px;
-  background: var(--accent, var(--green)); opacity: .65;
+  background: var(--accent, var(--green)); opacity: 0.6;
 }
 .hero-label {
-  font-family: var(--mono); font-size: 8px;
-  color: var(--muted); letter-spacing: .08em;
-  text-transform: uppercase; margin-bottom: 8px;
+  font-family: var(--mono); font-size: 9px;
+  color: var(--muted); letter-spacing: 0.1em;
+  text-transform: uppercase; margin-bottom: 10px;
 }
 .hero-val {
-  font-size: 20px; font-weight: 700;
-  letter-spacing: -.5px; line-height: 1.1;
-  color: var(--accent, var(--green)); margin-bottom: 5px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 26px; font-weight: 800;
+  letter-spacing: -1px; line-height: 1;
+  color: var(--accent, var(--green));
+  margin-bottom: 4px;
 }
 .hero-sub {
   font-family: var(--mono); font-size: 9px;
-  color: var(--muted); line-height: 1.4;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--muted);
 }
-@media (min-width: 520px) { .hero-val { font-size: 26px; } }
-@media (min-width: 720px) {
-  .hero { grid-template-columns: repeat(4, 1fr); }
-  .brand-name { font-size: 22px; }
-  .strip-val { font-size: 13px; }
-  .hero-val { font-size: 30px; letter-spacing: -1px; }
-  .hero-card { padding: 16px 14px; }
+.status-banner, .next-card {
+  background: linear-gradient(135deg, rgba(0,245,160,0.05), rgba(0,170,255,0.05));
+  border: 1px solid rgba(0,245,160,0.15);
+  border-radius: 10px; padding: 14px 16px;
+  margin-bottom: 20px;
+  display: flex; align-items: flex-start; gap: 12px;
 }
-.summary-card, .focus-card {
-  background: linear-gradient(135deg, rgba(0,245,160,.05), rgba(0,170,255,.05));
-  border: 1px solid rgba(0,245,160,.15);
-  border-radius: 12px; padding: 16px; margin-bottom: 16px;
-}
-.summary-label, .focus-label {
+.banner-content { flex: 1; min-width: 0; }
+.banner-label {
   font-family: var(--mono); font-size: 9px;
-  color: var(--green); text-transform: uppercase;
-  letter-spacing: .12em; margin-bottom: 10px;
-  display: flex; align-items: center; gap: 6px;
+  color: var(--green); letter-spacing: 0.1em;
+  text-transform: uppercase; margin-bottom: 4px;
 }
-.summary-text, .focus-text {
-  font-size: 13px; line-height: 1.65;
-  color: var(--text); overflow-wrap: anywhere;
-  font-weight: 300;
+.banner-text, .next-text {
+  font-size: 13px; line-height: 1.55; color: var(--text);
+  overflow-wrap: break-word; word-wrap: break-word; hyphens: auto;
 }
-.grid-2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
-@media (min-width: 760px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+.search-wrap {
+  margin-bottom: 14px;
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+.search-input, .filter-toggle {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 10px 12px;
+  color: var(--text); font-family: var(--mono); font-size: 11px;
+}
+.search-input { flex: 1; min-width: 220px; }
+.filter-toggle { display:flex; align-items:center; gap:8px; color: var(--mid); }
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px; margin-bottom: 14px;
+}
+@media(min-width: 680px) { .two-col { grid-template-columns: 1fr 1fr; } }
 .card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; overflow: hidden; margin-bottom: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  margin-bottom: 14px;
 }
 .card-head {
-  padding: 12px 16px; background: var(--surface2);
+  padding: 12px 16px;
+  background: var(--surface2);
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 8px;
-  cursor: pointer; user-select: none;
+  display: flex; align-items: center;
+  gap: 8px; cursor: pointer; user-select: none;
 }
 .ch-title {
-  flex: 1; font-family: var(--mono); font-size: 9px;
-  color: var(--mid); text-transform: uppercase; letter-spacing: .12em;
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--mid); flex: 1;
+}
+.ch-badge, .feed-tag, .phase-badge, .atag {
+  font-family: var(--mono); font-size: 9px;
 }
 .ch-badge {
-  font-family: var(--mono); font-size: 9px;
   padding: 2px 8px; border-radius: 8px;
-  color: var(--muted); background: rgba(26,45,66,.8);
+  background: rgba(26,45,66,0.8); color: var(--muted);
 }
-.ch-chev {
-  color: var(--muted); font-size: 10px; transition: transform .2s;
-}
+.ch-chev { color: var(--muted); font-size: 10px; transition: transform 0.2s; }
 .card-head.closed .ch-chev { transform: rotate(-90deg); }
 .card-body { padding: 14px 16px; }
 .card-body.hidden { display: none; }
-.list { display: flex; flex-direction: column; gap: 8px; }
-.row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--surface2);
+.phase-list, .feed, .pr-list { display: flex; flex-direction: column; gap: 8px; }
+.phase-row, .pr-item {
+  display: flex; align-items: center;
+  gap: 10px; padding: 10px 12px;
+  border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface2);
 }
-.row-left { flex: 1; min-width: 0; }
-.row-main { font-size: 12.5px; line-height: 1.5; color: var(--text); word-break: break-word; font-weight: 400; }
-.row-sub  { margin-top: 3px; font-size: 11px; color: var(--muted); line-height: 1.5; word-break: break-word; font-weight: 300; }
-.badge {
-  flex-shrink: 0; font-family: var(--mono); font-size: 9px;
-  padding: 2px 7px; border-radius: 10px;
-  white-space: nowrap; max-width: 110px;
-  overflow: hidden; text-overflow: ellipsis;
+.phase-row.active { border-color: rgba(0,170,255,0.3); }
+.phase-row.done { border-color: rgba(0,245,160,0.2); }
+.phase-num, .pr-num, .feed-time {
+  font-family: var(--mono); color: var(--muted);
 }
-.ok   { color: var(--green);  background: rgba(0,245,160,.08);  border: 1px solid rgba(0,245,160,.2); }
-.prog { color: var(--blue);   background: rgba(0,170,255,.08);  border: 1px solid rgba(0,170,255,.2); }
-.warn { color: var(--yellow); background: rgba(255,214,10,.08); border: 1px solid rgba(255,214,10,.2); }
-.risk { color: var(--red);    background: rgba(255,60,95,.08);  border: 1px solid rgba(255,60,95,.2); }
-.cap-list { display: flex; flex-direction: column; gap: 10px; }
-.cap-item {
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 12px 14px;
+.phase-num { font-size: 9px; width: 20px; }
+.phase-name { font-size: 12px; flex: 1; font-weight: 500; }
+.phase-badge { padding: 2px 8px; border-radius: 10px; }
+.pb-done { background: rgba(0,245,160,0.1); color: var(--green); border: 1px solid rgba(0,245,160,0.2); }
+.pb-prog { background: rgba(0,170,255,0.1); color: var(--blue); border: 1px solid rgba(0,170,255,0.2); }
+.pb-pend { background: rgba(61,85,112,0.2); color: var(--muted); border: 1px solid var(--border); }
+.phase-bar-wrap { width: 48px; flex-shrink: 0; }
+.phase-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.phase-bar-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--blue)); }
+.feed-item {
+  display: flex; gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(24,32,48,0.8);
+  position: relative;
 }
-.cap-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
-.cap-main { font-size: 12.5px; font-weight: 500; line-height: 1.4; color: var(--text); word-break: break-word; }
-.cap-sub { margin-top: 4px; font-size: 11px; color: var(--muted); line-height: 1.5; word-break: break-word; font-weight: 300; }
-.cap-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-.cap-badge { font-family: var(--mono); font-size: 9px; padding: 2px 8px; border-radius: 10px; }
-.cap-meta { font-family: var(--mono); font-size: 8px; color: var(--muted); text-align: right; }
-.cap-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.cap-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--blue)); border-radius: 2px; transition: width 0.8s ease; }
-.feed-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(24,32,48,.8); }
 .feed-item:last-child { border-bottom: none; }
-.feed-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; border: 2px solid var(--bg); }
+.feed-line {
+  position: absolute; left: 17px;
+  top: 32px; bottom: -1px; width: 1px;
+  background: var(--border);
+}
+.feed-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  flex-shrink: 0; margin-top: 3px; position: relative; z-index: 1;
+  border: 2px solid var(--bg);
+}
 .fd-g { background: var(--green); }
 .fd-b { background: var(--blue); }
 .fd-y { background: var(--yellow); }
 .fd-r { background: var(--red); }
-.spec-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-@media (min-width: 520px) { .spec-grid { grid-template-columns: repeat(4, 1fr); } }
-.spec-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
-.spec-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
-.spec-val   { font-family: var(--mono); font-size: 13px; color: var(--green); line-height: 1.5; }
-.target-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(24,32,48,.8); }
-.target-row:last-child { border-bottom: none; }
-.target-label { flex: 1; color: var(--mid); font-size: 12px; font-weight: 400; }
-.target-val { font-family: var(--mono); font-size: 10px; text-align: right; flex-shrink: 0; white-space: nowrap; }
-.beta { color: var(--yellow); }
-.launch { color: var(--green); }
-.ptab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
-.ptab {
-  flex: 1; border: none; background: transparent; color: var(--muted); cursor: pointer;
-  padding: 8px 12px; font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .1em;
-  border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .2s;
+.feed-content { flex: 1; min-width: 0; }
+.feed-title, .todo-text { overflow-wrap: break-word; word-wrap: break-word; }
+.feed-title { font-size: 12.5px; line-height: 1.4; margin-bottom: 3px; }
+.feed-meta, .pr-labels { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.feed-tag { padding: 1px 6px; border-radius: 4px; }
+.ft-merged { background: rgba(0,245,160,0.1); color: var(--green); border: 1px solid rgba(0,245,160,0.2); }
+.ft-open { background: rgba(0,170,255,0.1); color: var(--blue); border: 1px solid rgba(0,170,255,0.2); }
+.ft-info { background: rgba(61,85,112,0.2); color: var(--mid); border: 1px solid var(--border); }
+.todo-section { border-top: 1px solid rgba(24,32,48,0.8); padding-top: 14px; margin-top: 14px; }
+.todo-section:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+.todo-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom: 12px; }
+.todo-title { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+.todo-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.todo-sub { margin-top: 10px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.todo-sub-head { padding: 10px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 10px; color: var(--mid); letter-spacing: .08em; text-transform: uppercase; }
+.todo-items { padding: 8px 12px; }
+.todo-item { display:flex; gap:10px; align-items:flex-start; padding: 8px 0; border-bottom: 1px solid rgba(24,32,48,0.8); }
+.todo-item:last-child { border-bottom: 0; }
+.todo-dot { width: 18px; height: 18px; border-radius: 50%; display:flex; align-items:center; justify-content:center; font-family: var(--mono); font-size: 10px; flex-shrink:0; margin-top: 1px; border: 1px solid var(--border2); }
+.td-done .todo-dot { background: rgba(0,245,160,0.12); color: var(--green); border-color: rgba(0,245,160,0.2); }
+.td-open .todo-dot { background: rgba(0,170,255,0.08); color: var(--blue); border-color: rgba(0,170,255,0.2); }
+.td-note .todo-dot { background: rgba(61,85,112,0.15); color: var(--mid); }
+.todo-text { font-size: 12.5px; line-height: 1.55; color: var(--text); }
+.hidden-item { display:none; }
+footer {
+  border-top: 1px solid var(--border);
+  padding-top: 20px; margin-top: 32px;
+  display: flex; justify-content: space-between;
+  align-items: center; flex-wrap: wrap; gap: 12px;
 }
-.ptab:hover { color: var(--mid); }
-.ptab.active { color: var(--green); border-bottom-color: var(--green); background: rgba(0,245,160,.04); }
-.row.phase-row { cursor: pointer; user-select: none; transition: background .15s; }
-.row.phase-row:hover { background: rgba(16,22,31,.95); border-color: var(--border2); }
-.phase-chevron { font-size: 9px; color: var(--muted); transition: transform .22s; flex-shrink: 0; margin-left: 4px; }
-.row.phase-row.expanded .phase-chevron { transform: rotate(90deg); }
-.sub-group { display: none; flex-direction: column; gap: 6px; margin: 4px 0 4px 16px; }
-.sub-group.open { display: flex; }
-.row.sub-row { background: rgba(12,16,24,.8); border-color: var(--border); border-left: 2px solid rgba(0,170,255,.25); }
-.row.sub-row .row-main { font-size: 11.5px; color: var(--mid); }
-.row.sub-row .row-sub { font-size: 10px; }
-.mode-hidden { display: none !important; }
-.proj-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-@media (min-width: 600px) { .proj-grid { grid-template-columns: repeat(4, 1fr); } }
-.proj-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; position: relative; overflow: hidden; }
-.proj-item::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--proj-accent, var(--muted)); }
-.proj-name { font-size: 11px; font-weight: 600; color: var(--text); margin-bottom: 3px; word-break: break-word; }
-.proj-platform { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-bottom: 6px; }
-.proj-phase { font-family: var(--mono); font-size: 9px; color: var(--mid); margin-bottom: 6px; }
-.proj-status-badge { display: inline-block; font-family: var(--mono); font-size: 8px; padding: 2px 7px; border-radius: 8px; }
-.heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
-.heatmap-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.heatmap-label { font-family: var(--mono); font-size: 9px; color: var(--muted); }
-.heatmap-grid { display: flex; gap: 3px; flex-wrap: wrap; }
-.heatmap-day { width: 14px; height: 14px; border-radius: 3px; background: var(--surface2); border: 1px solid var(--border); position: relative; cursor: default; flex-shrink: 0; transition: transform .15s; }
-.heatmap-day:hover { transform: scale(1.3); z-index: 2; }
-.heatmap-day[data-count="1"] { background: rgba(0,170,255,.25); border-color: rgba(0,170,255,.35); }
-.heatmap-day[data-count="2"] { background: rgba(0,170,255,.45); border-color: rgba(0,170,255,.6); }
-.heatmap-day[data-count="3"] { background: rgba(0,245,160,.5); border-color: rgba(0,245,160,.7); }
-.heatmap-day[data-count="4"] { background: rgba(0,245,160,.75); border-color: rgba(0,245,160,.9); }
-.heatmap-day[data-count="5+"] { background: var(--green); border-color: var(--green); }
-.heatmap-legend { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
-.hl-box { width: 11px; height: 11px; border-radius: 2px; }
-.hl-label { font-family: var(--mono); font-size: 8px; color: var(--muted); }
-.commit-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
-.commit-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 6px; background: var(--surface2); border: 1px solid var(--border); }
-.commit-sha { font-family: var(--mono); font-size: 9px; color: var(--blue); flex-shrink: 0; margin-top: 2px; }
-.commit-msg { font-size: 11.5px; color: var(--text); flex: 1; word-break: break-word; line-height: 1.45; }
-.commit-when { font-family: var(--mono); font-size: 9px; color: var(--muted); flex-shrink: 0; text-align: right; margin-top: 2px; }
-.subphase-progress { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-.sp-bar { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.sp-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--blue)); border-radius: 2px; transition: width .8s ease; }
-.sp-label { font-family: var(--mono); font-size: 9px; color: var(--mid); flex-shrink: 0; }
-.loading { display: flex; align-items: center; justify-content: center; padding: 48px 20px; color: var(--muted); font-family: var(--mono); font-size: 10px; }
-.error-box { background: rgba(255,60,95,.05); border: 1px solid rgba(255,60,95,.2); border-radius: 8px; padding: 14px; font-family: var(--mono); font-size: 11px; color: var(--red); line-height: 1.6; }
-footer { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 32px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .footer-text { font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.9; }
 .footer-text span { color: var(--green); }
 .agent-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.atag { font-family: var(--mono); font-size: 9px; padding: 3px 8px; border-radius: 4px; }
-.at-c { background: rgba(0,245,160,.08); color: var(--green);  border: 1px solid rgba(0,245,160,.2); }
-.at-f { background: rgba(0,170,255,.08); color: var(--blue);   border: 1px solid rgba(0,170,255,.2); }
-.at-s { background: rgba(255,214,10,.08); color: var(--yellow); border: 1px solid rgba(255,214,10,.2); }
-.at-b { background: rgba(61,85,112,.15); color: var(--mid); border: 1px solid var(--border); }
+.at-c { background: rgba(0,245,160,0.08); color: var(--green); border: 1px solid rgba(0,245,160,0.2); }
+.at-f { background: rgba(0,170,255,0.08); color: var(--blue); border: 1px solid rgba(0,170,255,0.2); }
+.at-s { background: rgba(255,214,10,0.08); color: var(--yellow); border: 1px solid rgba(255,214,10,0.2); }
+.at-b { background: rgba(61,85,112,0.15); color: var(--mid); border: 1px solid var(--border); }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div class="header-top">
-      <div class="brand">
-        <div class="brand-icon">CR</div>
-        <div>
-          <div class="brand-sub">Walker AI Trading Team</div>
-          <div class="brand-name">Project Monitor · Premium Control Surface</div>
-        </div>
+<header>
+  <div class="brand">
+    <div class="brand-icon">CR</div>
+    <div>
+      <div class="brand-sub">Walker AI Trading Team</div>
+      <div class="brand-name">Project Monitor</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-indicator"><span class="pulse"></span>CHECKLIST LIVE</div>
+    <button class="refresh-btn" onclick="window.location.reload()"><span>↻</span> Refresh</button>
+    <div class="ts" id="ts">—</div>
+  </div>
+</header>
+<div class="hero">
+  <div class="hero-card" style="--accent:var(--green)">
+    <div class="hero-label">Completed</div>
+    <div class="hero-val">11</div>
+    <div class="hero-sub">Checklist items done</div>
+  </div>
+  <div class="hero-card" style="--accent:var(--blue)">
+    <div class="hero-label">Open Items</div>
+    <div class="hero-val">150</div>
+    <div class="hero-sub">Still pending</div>
+  </div>
+  <div class="hero-card" style="--accent:var(--yellow)">
+    <div class="hero-label">Completion</div>
+    <div class="hero-val">7%</div>
+    <div class="hero-sub">11/161 checked</div>
+  </div>
+  <div class="hero-card" style="--accent:var(--purple)">
+    <div class="hero-label">Active Lane</div>
+    <div class="hero-val" style="font-size:16px;padding-top:4px">P1</div>
+    <div class="hero-sub">Public-ready baseline</div>
+  </div>
+</div>
+<div class="status-banner">
+  <div>📋</div>
+  <div class="banner-content">
+    <div class="banner-label">Current Status</div>
+    <div class="banner-text">Priority 1 remains the active lane. Telegram public-ready refinement is in progress, with paper-only boundary kept explicit and runtime truth separated from any live-trading claim.</div>
+  </div>
+</div>
+<div class="next-card">
+  <div>🎯</div>
+  <div class="banner-content">
+    <div class="banner-label">Next Priority</div>
+    <div class="next-text">Redeploy latest command-routing + Telegram UX integration to Fly, then verify live /start, /help, and /status end-to-end.</div>
+  </div>
+</div>
+<div class="search-wrap">
+  <input id="searchInput" class="search-input" type="search" placeholder="Search checklist text, Telegram, Fly, paper-only, status, risk..." />
+  <label class="filter-toggle"><input type="checkbox" id="hideDone" /> Hide completed</label>
+</div>
+<div class="two-col">
+  <div class="card">
+    <div class="card-head" onclick="tog(this)">
+      <span>📊</span><span class="ch-title">Priority Progress</span><span class="ch-badge">Checklist</span><span class="ch-chev">▼</span>
+    </div>
+    <div class="card-body">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:12px">9 priority lanes tracked</div>
+      <div class="phase-list">
+        <div class="phase-row active"><span class="phase-num">P1</span><span class="phase-name">Bot Public-Ready Baseline</span><span class="phase-badge pb-prog">🚧</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:26%"></div></div></div></div>
+        <div class="phase-row"><span class="phase-num">P2</span><span class="phase-name">DB, Persistence, and Runtime Hardening</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
+        <div class="phase-row"><span class="phase-num">P3</span><span class="phase-name">Paper Trading Product Completion</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
+        <div class="phase-row"><span class="phase-num">P4</span><span class="phase-name">Wallet Lifecycle Foundation</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
+        <div class="phase-row"><span class="phase-num">P5</span><span class="phase-name">Portfolio Management Logic</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
+        <div class="phase-row"><span class="phase-num">P6</span><span class="phase-name">Multi-Wallet Orchestration</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
+        <div class="phase-row"><span class="phase-num">P7</span><span class="phase-name">Settlement, Retry, Reconciliation, and Ops Automation</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
+        <div class="phase-row"><span class="phase-num">P8</span><span class="phase-name">Production-Capital Readiness</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
+        <div class="phase-row"><span class="phase-num">P9</span><span class="phase-name">Final Product Completion, Launch Assets, and Handoff</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
       </div>
-      <div class="header-controls">
-        <div class="live-indicator"><span class="pulse"></span>LIVE</div>
-        <button class="refresh-btn" onclick="loadAll()"><span id="refreshIcon">↻</span> Sync</button>
-        <div class="ts" id="ts">—</div>
-      </div>
     </div>
-    <div class="header-strip">
-      <div class="strip-item"><div class="strip-label">Phase</div><div class="strip-val green" id="stripPhase">—</div></div>
-      <div class="strip-item"><div class="strip-label">Open PRs</div><div class="strip-val blue" id="stripPRs">—</div></div>
-      <div class="strip-item"><div class="strip-label">Bot</div><div class="strip-val mid" id="stripBot">BUILD</div></div>
-      <div class="strip-item"><div class="strip-label">In Progress</div><div class="strip-val yellow" id="stripProgress">—</div></div>
-      <div class="strip-item"><div class="strip-label">Last Commit</div><div class="strip-val mid" id="stripCommit">—</div></div>
-    </div>
-    <div class="view-switch">
-      <button class="view-btn active" data-view="internal" onclick="setView('internal')">Engineering</button>
-      <button class="view-btn" data-view="client" onclick="setView('client')">Executive</button>
-    </div>
-  </header>
-
-  <div class="hero" id="hero"></div>
-  <div class="summary-card"><div class="summary-label" id="summaryLabel">Executive Summary</div><div class="summary-text" id="summaryText">Loading...</div></div>
-  <div class="focus-card"><div class="focus-label">Current Focus</div><div class="focus-text" id="focusText">Loading...</div></div>
-
-  <div class="grid-2">
-    <div class="card">
-      <div class="card-head" onclick="tog(this)"><span>📊</span><span class="ch-title" id="progressTitle">Build Progress</span><span class="ch-badge" id="progressBadge">Live</span><span class="ch-chev">▼</span></div>
-      <div class="card-body" id="progressBody">
-        <div class="ptab-bar">
-          <button class="ptab active" id="ptab-phases" onclick="switchProgressTab('phases')">Phases</button>
-          <button class="ptab" id="ptab-sub" onclick="switchProgressTab('sub')">Sub-phases</button>
-        </div>
-        <div id="ptab-phases-body"><div class="loading">Syncing phases…</div></div>
-        <div id="ptab-sub-body" class="hidden"><div class="loading">Syncing sub-phases…</div></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head" onclick="tog(this)"><span id="rightCardIcon">⚡</span><span class="ch-title" id="rightCardTitle">Activity Feed</span><span class="ch-badge" id="rightCardBadge">0</span><span class="ch-chev">▼</span></div>
-      <div class="card-body" id="rightCardBody"><div class="loading">Syncing activity…</div></div>
-    </div>
-  </div>
-
-  <div class="grid-2">
-    <div class="card">
-      <div class="card-head" onclick="tog(this)"><span>🧩</span><span class="ch-title" id="structureTitle">Project Structure</span><span class="ch-badge" id="structureBadge">Live</span><span class="ch-chev">▼</span></div>
-      <div class="card-body" id="structureBody"><div class="loading">Syncing…</div></div>
-    </div>
-    <div class="card">
-      <div class="card-head" onclick="tog(this)"><span>🎯</span><span class="ch-title" id="strategyTitle">Strategy & Capability Status</span><span class="ch-badge" id="strategyBadge">Engineering</span><span class="ch-chev">▼</span></div>
-      <div class="card-body" id="strategyBody"><div class="loading">Syncing…</div></div>
-    </div>
-  </div>
-
-  <div class="grid-2">
-    <div class="card">
-      <div class="card-head" onclick="tog(this)"><span>🛡️</span><span class="ch-title" id="riskTitle">Risk Controls</span><span class="ch-badge">Live</span><span class="ch-chev">▼</span></div>
-      <div class="card-body" id="riskBody"></div>
-    </div>
-    <div class="card">
-      <div class="card-head" onclick="tog(this)"><span>🏁</span><span class="ch-title" id="targetTitle">Performance Targets</span><span class="ch-badge">Beta → Launch</span><span class="ch-chev">▼</span></div>
-      <div class="card-body" id="targetBody"></div>
-    </div>
-  </div>
-
-  <div class="card" id="prCard">
-    <div class="card-head" onclick="tog(this)"><span>🔀</span><span class="ch-title">Open Pull Requests</span><span class="ch-badge" id="prCount">0</span><span class="ch-chev">▼</span></div>
-    <div class="card-body" id="prBody"><div class="loading">Syncing PRs…</div></div>
-  </div>
-  <div class="card mode-hidden" id="workstreamCard">
-    <div class="card-head" onclick="tog(this)"><span>🔁</span><span class="ch-title">Active Workstreams</span><span class="ch-badge">Live</span><span class="ch-chev">▼</span></div>
-    <div class="card-body" id="workstreamBody"><div class="loading">Syncing…</div></div>
   </div>
   <div class="card">
-    <div class="card-head" onclick="tog(this)"><span>⚠️</span><span class="ch-title" id="issuesTitle">Known Issues</span><span class="ch-badge" id="issuesBadge">0</span><span class="ch-chev">▼</span></div>
-    <div class="card-body" id="issuesBody"><div class="loading">Syncing…</div></div>
+    <div class="card-head" onclick="tog(this)">
+      <span>⚡</span><span class="ch-title">Activity Feed</span><span class="ch-badge">5</span><span class="ch-chev">▼</span>
+    </div>
+    <div class="card-body">
+      <div class="feed">
+        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-g"></div><div class="feed-content"><div class="feed-title">Project monitor unified with work checklist inside the same template shell</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-merged">UPDATED</span></div></div></div>
+        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Priority 1 stays the active public-ready paper beta lane</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-open">FORGE</span></div></div></div>
+        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Telegram /start, /help, and /status still need live redeploy validation</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-open">FORGE</span></div></div></div>
+        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Paper-only boundary must stay explicit across onboarding, help, and status</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-info">INFO</span></div></div></div>
+        <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">No live-trading readiness or production-capital readiness claim</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-info">INFO</span></div></div></div>
+      </div>
+    </div>
   </div>
-  <div class="card" id="allProjectsCard">
-    <div class="card-head" onclick="tog(this)"><span>🗂️</span><span class="ch-title">All Projects</span><span class="ch-badge" id="allProjectsBadge">4</span><span class="ch-chev">▼</span></div>
-    <div class="card-body" id="allProjectsBody"><div class="loading">Syncing…</div></div>
-  </div>
-  <div class="card" id="commitHeatmapCard">
-    <div class="card-head" onclick="tog(this)"><span>📅</span><span class="ch-title">Commit Activity</span><span class="ch-badge" id="commitHeatmapBadge">—</span><span class="ch-chev">▼</span></div>
-    <div class="card-body" id="commitHeatmapBody"><div class="loading">Syncing…</div></div>
-  </div>
-
-  <footer>
-    <div class="footer-text">Walker AI Trading Team — CRUSADER Project Monitor<br>Repo: <span>bayuewalker/walker-ai-team</span> · Auto-sync every 5 min · Responsive HTML</div>
-    <div class="agent-row"><span class="atag at-c">COMMANDER</span><span class="atag at-f">FORGE-X</span><span class="atag at-s">SENTINEL</span><span class="atag at-b">BRIEFER</span></div>
-  </footer>
 </div>
-
+<div class="card">
+  <div class="card-head" onclick="tog(this)">
+    <span>🧭</span><span class="ch-title">Priority Lane Summary</span><span class="ch-badge">9</span><span class="ch-chev">▼</span>
+  </div>
+  <div class="card-body">
+    <div class="pr-list">
+      <div class="pr-item"><span class="pr-num">#01</span><span class="phase-name">PRIORITY 1 — Bot Public-Ready Baseline</span><div class="pr-labels"><span class="feed-tag ft-open">active</span><span class="feed-tag ft-info">11/43</span></div></div>
+      <div class="pr-item"><span class="pr-num">#02</span><span class="phase-name">PRIORITY 2 — DB, Persistence, and Runtime Hardening</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/28</span></div></div>
+      <div class="pr-item"><span class="pr-num">#03</span><span class="phase-name">PRIORITY 3 — Paper Trading Product Completion</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/28</span></div></div>
+      <div class="pr-item"><span class="pr-num">#04</span><span class="phase-name">PRIORITY 4 — Wallet Lifecycle Foundation</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/20</span></div></div>
+      <div class="pr-item"><span class="pr-num">#05</span><span class="phase-name">PRIORITY 5 — Portfolio Management Logic</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/20</span></div></div>
+      <div class="pr-item"><span class="pr-num">#06</span><span class="phase-name">PRIORITY 6 — Multi-Wallet Orchestration</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/21</span></div></div>
+      <div class="pr-item"><span class="pr-num">#07</span><span class="phase-name">PRIORITY 7 — Settlement, Retry, Reconciliation, and Ops Automation</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/25</span></div></div>
+      <div class="pr-item"><span class="pr-num">#08</span><span class="phase-name">PRIORITY 8 — Production-Capital Readiness</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/23</span></div></div>
+      <div class="pr-item"><span class="pr-num">#09</span><span class="phase-name">PRIORITY 9 — Final Product Completion, Launch Assets, and Handoff</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/26</span></div></div>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-head" onclick="tog(this)">
+    <span>✅</span><span class="ch-title">Checklist Sections</span><span class="ch-badge">11</span><span class="ch-chev">▼</span>
+  </div>
+  <div class="card-body" id="todoBody">
+    <div class="todo-section" data-search="priority 1 bot public-ready baseline done mostly done fly app is alive telegram runtime is active on fly telegram startup is automatic in the deploy path ready includes telegram runtime truth start replies on deployed environment onboarding public-safe paper-only copy refined fallback error copy refined active current lane fix help command semantics so it reaches real help handler no start collapse fix status command semantics so it reaches real status handler no start collapse ensure command routing precedence no longer collapses non-start commands into start lifecycle session path integrate telegram design presentation layer into live start help status reply builders repo code truth consolidate remaining public-safe replies to shared presentation helpers align help to trusted public-safe command surface only next immediately after code fix ux integration redeploy latest command-routing telegram ux integration to fly verify live telegram behavior for start help and status save fresh deploy evidence baseline public commands make sure responses are not empty or dummy make sure there is no timeout or silent failure path to public telegram ux refinement refine the existing telegram onboarding flow refine the existing telegram command ux refine the current welcome intro for new users refine the current help and status copy refine paper-only messaging across the existing telegram flow refine the next-step guidance for new users refine the unlinked-user flow using the current foundation refine the linked-user flow using the current foundation refine fallback and error messaging refine telegram formatting and readability public command set keep the existing public command baseline clean and useful prepare paper prepare about prepare risk prepare account or link separate public commands from admin operator commands hide commands that are not ready yet public-safe boundaries do not claim live trading readiness do not claim production-capital readiness keep the paper-only boundary visible everywhere guard admin internal paths properly observability baseline add bot startup logs add command received logs add command handled logs add reply success failure logs add missing env disabled mode logs end-to-end validation deploy the latest version confirm health is ok confirm ready is ok confirm start is ok confirm help is ok confirm status is ok save validation evidence done condition the bot is truly usable as a public-ready paper bot baseline">
+      <div class="todo-head"><div><div class="todo-title">PRIORITY 1 — Bot Public-Ready Baseline</div><div class="todo-meta">11/43 complete</div></div><span class="feed-tag ft-open">active</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Done / Active / Next</div><div class="todo-items">
+        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Fly app is alive</div></div>
+        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Telegram runtime is active on Fly</div></div>
+        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Telegram startup is automatic in the deploy path</div></div>
+        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">/ready includes Telegram runtime truth</div></div>
+        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">/start replies on deployed environment</div></div>
+        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Onboarding/public-safe/paper-only copy refined</div></div>
+        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Fallback/error copy refined</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Redeploy latest command-routing + Telegram UX integration to Fly</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Verify live Telegram behavior for /start, /help, and /status</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Save fresh deploy evidence</div></div>
+      </div></div>
+      <div class="todo-sub"><div class="todo-sub-head">Public UX refinement</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine the existing Telegram onboarding flow</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine the existing Telegram command UX</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine the current help and status copy</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine Telegram formatting and readability</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Keep the paper-only boundary visible everywhere</div></div>
+      </div></div>
+    </div>
+    <div class="todo-section" data-search="priority 2 db persistence and runtime hardening finalize a stable database_url db health checks validate required env vars at boot include db state in readiness">
+      <div class="todo-head"><div><div class="todo-title">PRIORITY 2 — DB, Persistence, and Runtime Hardening</div><div class="todo-meta">0/28 complete</div></div><span class="feed-tag ft-info">queued</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Finalize a stable DATABASE_URL</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Add DB health checks</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Validate required env vars at boot</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Include DB state in readiness</div></div>
+      </div></div>
+    </div>
+    <div class="todo-section" data-search="priority 3 paper trading product completion define the paper balance model enable paper entry logic show open paper positions enforce exposure caps">
+      <div class="todo-head"><div><div class="todo-title">PRIORITY 3 — Paper Trading Product Completion</div><div class="todo-meta">0/28 complete</div></div><span class="feed-tag ft-info">queued</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define the paper balance model</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Enable paper entry logic</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Show open paper positions</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Enforce exposure caps</div></div>
+      </div></div>
+    </div>
+    <div class="todo-section" data-search="priority 4 wallet lifecycle foundation finalize wallet entity model build create init wallet lifecycle persist wallet records safely verify ownership clearly">
+      <div class="todo-head"><div><div class="todo-title">PRIORITY 4 — Wallet Lifecycle Foundation</div><div class="todo-meta">0/20 complete</div></div><span class="feed-tag ft-info">queued</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Finalize wallet entity model</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build create/init wallet lifecycle</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Persist wallet records safely</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Verify ownership clearly</div></div>
+      </div></div>
+    </div>
+    <div class="todo-section" data-search="priority 5 portfolio management logic refine portfolio entity model build aggregate exposure logic build realized pnl computation enforce exposure caps">
+      <div class="todo-head"><div><div class="todo-title">PRIORITY 5 — Portfolio Management Logic</div><div class="todo-meta">0/20 complete</div></div><span class="feed-tag ft-info">queued</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine portfolio entity model</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build aggregate exposure logic</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build realized PnL computation</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Enforce exposure caps</div></div>
+      </div></div>
+    </div>
+    <div class="todo-section" data-search="priority 6 multi-wallet orchestration define multi-wallet routing model build balance-aware allocation build unified view across wallets add per-wallet health status">
+      <div class="todo-head"><div><div class="todo-title">PRIORITY 6 — Multi-Wallet Orchestration</div><div class="todo-meta">0/21 complete</div></div><span class="feed-tag ft-info">queued</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define multi-wallet routing model</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build balance-aware allocation</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build unified view across wallets</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Add per-wallet health status</div></div>
+      </div></div>
+    </div>
+    <div class="todo-section" data-search="priority 7 settlement retry reconciliation and ops automation define settlement workflow define retry rules build internal vs external reconciliation persist settlement events">
+      <div class="todo-head"><div><div class="todo-title">PRIORITY 7 — Settlement, Retry, Reconciliation, and Ops Automation</div><div class="todo-meta">0/25 complete</div></div><span class="feed-tag ft-info">queued</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define settlement workflow</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define retry rules</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build internal vs external reconciliation</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Persist settlement events</div></div>
+      </div></div>
+    </div>
+    <div class="todo-section" data-search="priority 8 production-capital readiness audit all paper-only assumptions define capital-mode config harden position sizing audit live execution path">
+      <div class="todo-head"><div><div class="todo-title">PRIORITY 8 — Production-Capital Readiness</div><div class="todo-meta">0/23 complete</div></div><span class="feed-tag ft-info">queued</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Audit all paper-only assumptions</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define capital-mode config</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Harden position sizing</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Audit live execution path</div></div>
+      </div></div>
+    </div>
+    <div class="todo-section" data-search="priority 9 final product completion launch assets and handoff finalize readme prepare deployment guide finalize project monitor organize forge reports get final commander acceptance">
+      <div class="todo-head"><div><div class="todo-title">PRIORITY 9 — Final Product Completion, Launch Assets, and Handoff</div><div class="todo-meta">0/26 complete</div></div><span class="feed-tag ft-info">queued</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Finalize README</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Prepare deployment guide</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Finalize project monitor</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Get final COMMANDER acceptance</div></div>
+      </div></div>
+    </div>
+    <div class="todo-section" data-search="simple execution order right now redeploy restart fly with the latest secrets check telegram startup logs make telegram runtime truly active test start help status">
+      <div class="todo-head"><div><div class="todo-title">Immediate Execution</div><div class="todo-meta">0/15 complete</div></div><span class="feed-tag ft-info">ops</span></div>
+      <div class="todo-sub"><div class="todo-sub-head">Right now</div><div class="todo-items">
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Redeploy/restart Fly with the latest secrets</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Check Telegram startup logs</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Make Telegram runtime truly active</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Test /start</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Test /help</div></div>
+        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Test /status</div></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-head closed" onclick="tog(this)">
+    <span>⚠️</span><span class="ch-title">Known Issues</span><span class="ch-badge">3</span><span class="ch-chev">▼</span>
+  </div>
+  <div class="card-body hidden">
+    <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Latest Fly redeploy for Telegram UX integration still pending.</div></div></div>
+    <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Live /help and /status still need end-to-end validation on deployed environment.</div></div></div>
+    <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Fresh validation evidence bundle is still missing: deploy logs, /health, /ready, /start, /help, /status.</div></div></div>
+  </div>
+</div>
+<footer>
+  <div class="footer-text">CrusaderBot — unified Project Monitor + Work Checklist<br>Walker AI Trading Team · Bayue Walker © 2026 · <span>Canvas preview</span></div>
+  <div class="agent-row"><span class="atag at-c">COMMANDER</span><span class="atag at-f">FORGE-X</span><span class="atag at-s">SENTINEL</span><span class="atag at-b">BRIEFER</span></div>
+</footer>
+</div>
 <script>
-const REPO = 'bayuewalker/walker-ai-team';
-const RAW  = 'https://raw.githubusercontent.com/' + REPO + '/main/';
-const API  = 'https://api.github.com/repos/' + REPO;
-let currentView = 'internal';
-const state = { status: '—', next: '—', inProgress: [], issues: [], phases: [], prs: [], commits: [], allProjects: [] };
-
-function esc(v) {
-  return String(v == null ? '' : v)
-    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+function tog(head) {
+  const body = head.nextElementSibling;
+  const isOpen = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', isOpen);
+  head.classList.toggle('closed', isOpen);
 }
-function normalizeWhitespace(s) { return String(s || '').replace(/\r/g, '').trim(); }
 function setTs() {
-  const el = document.getElementById('ts'); if (!el) return;
-  const d = new Date();
-  el.innerHTML = 'Last sync <span>' + esc(d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' })) + '</span>';
+  const t = new Date().toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('ts').innerHTML = 'Updated: <span>' + t + '</span>';
 }
-function setView(view) {
-  currentView = view === 'client' ? 'client' : 'internal';
-  document.querySelectorAll('.view-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.view === currentView));
-  render();
-}
-function tog(head) { if (!head) return; head.classList.toggle('closed'); const body = head.nextElementSibling; if (body) body.classList.toggle('hidden'); }
-function switchProgressTab(tab) {
-  const isSub = tab === 'sub';
-  document.getElementById('ptab-phases')?.classList.toggle('active', !isSub);
-  document.getElementById('ptab-sub')?.classList.toggle('active', isSub);
-  document.getElementById('ptab-phases-body')?.classList.toggle('hidden', isSub);
-  document.getElementById('ptab-sub-body')?.classList.toggle('hidden', !isSub);
-}
-async function fetchRaw(path) {
-  const res = await fetch(RAW + path + '?t=' + Date.now(), { cache: 'no-store' });
-  if (!res.ok) throw new Error(path + ' ' + res.status);
-  return await res.text();
-}
-function parseStatus(md) { const m = md.match(/^Status\s*:\s*(.+)$/mi); return m ? normalizeWhitespace(m[1]) : 'Awaiting project-state sync.'; }
-function parseNextPriority(md) {
-  const sec = md.match(/\[NEXT PRIORITY\]([\s\S]*?)(?:\n\[[A-Z ]+\]|\s*$)/i);
-  if (!sec) return 'Prepare post-release readiness summary and launch posture assets.';
-  const items = [...sec[1].matchAll(/^\s*-\s+(.+)$/gm)].map(x => normalizeWhitespace(x[1]));
-  return items[0] || 'Prepare post-release readiness summary and launch posture assets.';
-}
-function parseInProgress(md) {
-  const sec = md.match(/\[IN PROGRESS\]([\s\S]*?)(?:\n\[[A-Z ]+\]|\s*$)/i);
-  if (!sec) return [];
-  return [...sec[1].matchAll(/^\s*-\s+(.+)$/gm)].map(x => normalizeWhitespace(x[1]));
-}
-function parseIssues(md) {
-  const sec = md.match(/\[KNOWN ISSUES\]([\s\S]*?)(?:\n\[[A-Z ]+\]|\s*$)/i);
-  if (!sec) return [];
-  return [...sec[1].matchAll(/^\s*-\s+(.+)$/gm)].map(x => normalizeWhitespace(x[1]));
-}
-function phaseBadge(status) { if (status === '✅') return ['Done','ok']; if (status === '🚧') return ['In Progress','prog']; if (status === '❌') return ['Pending','warn']; return [status || 'Unknown','warn']; }
-function simplifyClientIssue(text) {
-  return normalizeWhitespace(text).replace(/^Phase\s+\d+(\.\d+)?\s*/i,'').replace(/\bmerged\b/ig,'completed').replace(/\btruth synced\b/ig,'synchronized').replace(/\bPROJECT_STATE\.md\b/ig,'project state').replace(/\bROADMAP\.md\b/ig,'roadmap').replace(/\bPR\s*#\d+\b/ig,'review item').replace(/\s+/g,' ');
-}
-function feedDot(msg) {
-  const s = (msg || '').toLowerCase();
-  if (s.includes('merge')) return 'fd-g';
-  if (s.includes('fix') || s.includes('hotfix')) return 'fd-y';
-  if (s.includes('docs') || s.includes('state') || s.includes('roadmap')) return 'fd-b';
-  if (s.includes('revert') || s.includes('blocked')) return 'fd-r';
-  return 'fd-b';
-}
-function deriveWorkstreams(prs, inProgress) {
-  const out = [];
-  (inProgress || []).slice(0,4).forEach(item => out.push({ main: simplifyClientIssue(item), sub: 'Current active delivery stream.', badge: 'Active', cls: 'prog' }));
-  (prs || []).slice(0,4).forEach(pr => out.push({ main: '#' + pr.number + ' — ' + simplifyClientIssue(pr.title), sub: 'Open review or merge candidate.', badge: 'Review', cls: pr.cls || 'prog' }));
-  if (!out.length) out.push({ main: 'Post-release readiness and launch posture packaging', sub: 'Primary continuity workstream after paper-beta path completion.', badge: 'Next', cls: 'ok' });
-  return out;
-}
-function parseAllProjects(md) {
-  const rows = [];
-  const tableMatch = md.match(/## Active Projects[\s\S]*?\n((?:\|.*\n)+)/i);
-  if (!tableMatch) return rows;
-  const lines = tableMatch[1].split('\n').filter(Boolean).filter(x => x.trim().startsWith('|'));
-  lines.slice(2).forEach(line => {
-    const parts = line.split('|').map(x => x.trim()).filter((_, i, arr) => !(i === 0 || i === arr.length - 1));
-    if (parts.length < 4) return;
-    const [name, platform, status, phase] = parts;
-    rows.push({
-      name, platform,
-      status: status.includes('✅') || /done|complete|active \(paper beta complete\)/i.test(status) ? '✅' : status.includes('🚧') || /in progress|active/i.test(status) ? '🚧' : '❌',
-      phase
-    });
+const searchInput = document.getElementById('searchInput');
+const hideDone = document.getElementById('hideDone');
+function applyFilters() {
+  const q = searchInput.value.trim().toLowerCase();
+  document.querySelectorAll('.todo-section').forEach(sec => {
+    const text = sec.getAttribute('data-search') || '';
+    sec.style.display = (!q || text.includes(q)) ? '' : 'none';
   });
-  return rows;
-}
-function parsePhases(md) {
-  const phases = [];
-  const board = md.match(/# Board Overview[\s\S]*?\n((?:\|.*\n)+?)(?:\n---|\n## )/i);
-  if (board) {
-    const lines = board[1].split('\n').filter(Boolean).filter(x => x.trim().startsWith('|'));
-    lines.slice(2).forEach(line => {
-      const parts = line.split('|').map(x => x.trim()).filter((_, i, arr) => !(i === 0 || i === arr.length - 1));
-      if (parts.length < 4) return;
-      const [num, name, status] = parts;
-      phases.push({ num, name, status: status.includes('✅') || /done/i.test(status) ? '✅' : status.includes('🚧') || /in progress/i.test(status) ? '🚧' : '❌', isSub: false });
-    });
-  }
-  const sections = [...md.matchAll(/##\s+(.+?)\s+\(Phase\s+(\d+(?:\.\d+)?)\)[\s\S]*?\*\*Status:\*\*\s*(.+?)\n/gi)];
-  sections.forEach(m => {
-    const title = normalizeWhitespace(m[1]); const numOnly = m[2]; const num = 'Phase ' + numOnly; const statusText = m[3];
-    const status = statusText.includes('✅') || /done/i.test(statusText) ? '✅' : statusText.includes('🚧') || /in progress/i.test(statusText) ? '🚧' : '❌';
-    const parentPhase = 'Phase ' + numOnly.split('.')[0];
-    if (!phases.some(p => p.num === num && p.isSub)) phases.push({ num, name: title, status, isSub: numOnly.includes('.'), parentPhase });
-  });
-  const seen = new Set();
-  return phases.filter(p => { const key = p.num + '|' + p.isSub; if (seen.has(key)) return false; seen.add(key); return true; }).sort((a,b) => {
-    const pa = a.num.replace('Phase ','').split('.').map(Number); const pb = b.num.replace('Phase ','').split('.').map(Number);
-    if (pa[0] !== pb[0]) return pa[0] - pb[0];
-    const sa = pa[1] || 0, sb = pb[1] || 0;
-    if (a.isSub !== b.isSub) return a.isSub ? 1 : -1;
-    return sa - sb;
+  document.querySelectorAll('[data-done="1"]').forEach(el => {
+    el.classList.toggle('hidden-item', hideDone.checked);
   });
 }
-function buildStructureItems(view) {
-  const phases = state.phases.filter(p => !p.isSub); const done = phases.filter(p => p.status === '✅').length; const total = phases.length || 1; const pct = Math.round((done / total) * 100); const active = phases.find(p => p.status === '🚧'); const latest = phases[phases.length - 1]; const currentLabel = active ? active.name : (latest ? latest.name : 'Roadmap sync complete'); const currentState = active ? 'in progress' : (done === total ? 'complete on main' : 'synced');
-  if (view === 'internal') {
-    return [
-      { main:'Core runtime domains', sub:'core / data / strategy / intelligence / risk / execution / monitoring', badge:'Structured', cls:'ok', progress:100, meta:'Locked domain layout' },
-      { main:'Platform layer', sub:'platform / gateway / accounts / wallet_auth — ' + currentLabel + ' ' + currentState, badge: active ? 'Building' : 'Done', cls: active ? 'prog' : 'ok', progress: active ? Math.max(45, pct) : 100, meta:'Roadmap-derived state' },
-      { main:'Phase completion', sub: done + ' of ' + total + ' phases complete (' + pct + '%) — ' + (active ? active.name + ' active' : 'Paper-beta path complete'), badge: pct + '%', cls: pct >= 80 ? 'ok' : pct >= 40 ? 'prog' : 'warn', progress: pct, meta:'Roadmap progress' },
-      { main:'Structure hygiene', sub:'No phase*/ folders. Domain structure enforced. Batch commit ≤5 files.', badge:'Enforced', cls:'ok', progress:100, meta:'Ops rules active' }
-    ];
-  }
-  return [
-    { main:'Core platform architecture is in place', sub:'The system is organized into clear, independent layers for data, strategy, risk, execution, and monitoring.', badge:'Ready', cls:'ok', progress:100, meta:'Modular structure' },
-    { main: active ? 'Current delivery lane is active' : 'Public paper-beta path is complete', sub: active ? 'Current roadmap focus: ' + active.name + '.' : 'The public-ready paper-beta path is complete on main while paper-only boundaries remain explicit.', badge: active ? 'Active' : 'Complete', cls: active ? 'prog' : 'ok', progress: active ? Math.max(45, pct) : 100, meta: active ? 'Roadmap-derived focus' : 'Completion truth synced' },
-    { main:'Overall project progress: ' + pct + '%', sub: done + ' of ' + total + ' major milestones completed. Controlled, validated delivery.', badge: pct + '%', cls: pct >= 60 ? 'ok' : 'prog', progress: pct, meta:'Milestone tracking' }
-  ];
-}
-function buildStrategyItems(view) {
-  const active = state.phases.filter(p => !p.isSub).find(p => p.status === '🚧'); const releaseComplete = state.phases.filter(p => !p.isSub).some(p => p.num === 'Phase 9.3' && p.status === '✅'); const readinessLabel = active ? active.num + ' active' : (releaseComplete ? 'Release gate complete' : 'Roadmap synced');
-  if (view === 'internal') {
-    return [
-      { main:'Signal strategies (S1–S5)', sub:'Momentum (S1) · Cross-exchange arb (S2) · Smart-money copy (S3) · Aggregation (S4) · Settlement-gap (S5)', badge:'Complete', cls:'ok', progress:100, meta:'5 strategies built' },
-      { main:'Execution & risk pipeline', sub:'Capital sizing · Exposure guard · Feedback loop · Regime detection · Timing · Analytics · Proof lifecycle', badge:'Complete', cls:'ok', progress:100, meta:'P1–P6 hardened' },
-      { main: active ? 'Current roadmap lane' : 'Public paper-beta release path', sub: active ? active.num + ' — ' + active.name + ' is the current active lane.' : 'Phase 9.1 runtime proof · Phase 9.2 public readiness · Phase 9.3 release gate are complete on main.', badge: active ? 'Building' : 'Complete', cls: active ? 'prog' : 'ok', progress: active ? 70 : 100, meta: readinessLabel },
-      { main:'Validation layer (SENTINEL)', sub:'Pre-flight checks · Max 2 runs per task · Fix-batch protocol · Anti-loop enforced', badge:'Active', cls:'ok', progress:100, meta:'Quality gate active' }
-    ];
-  }
-  return [
-    { main:'Core trading strategy framework is complete', sub:'Five independent strategy models are built and validated — covering momentum, arbitrage, smart-money, and more.', badge:'Delivered', cls:'ok', progress:100, meta:'Strategy foundation' },
-    { main:'Execution and risk controls are hardened', sub:'A full execution pipeline with capital guardrails, position limits, drawdown protection, and kill-switch is active.', badge:'Validated', cls:'ok', progress:100, meta:'Risk enforcement' },
-    { main: active ? 'Current roadmap delivery is in progress' : 'Public paper-beta release gate is complete', sub: active ? 'Current roadmap focus: ' + active.name + '.' : 'Runtime proof, public readiness, and release-gate work are complete for the public paper-beta path.', badge: active ? 'In Progress' : 'Complete', cls: active ? 'prog' : 'ok', progress: active ? 70 : 100, meta: readinessLabel }
-  ];
-}
-function buildData(view) {
-  const openPRs = state.prs.length; const inProgCount = state.inProgress.length; const topPhases = state.phases.filter(p => !p.isSub); const subPhases = state.phases.filter(p => p.isSub); const phaseDone = topPhases.filter(p => p.status === '✅').length; const phaseTotal = topPhases.length || 1; const releaseComplete = topPhases.some(p => p.num === 'Phase 9.3' && p.status === '✅'); const activePhase = releaseComplete ? (topPhases.find(p => p.num === 'Phase 9.3') || topPhases[topPhases.length - 1]) : (topPhases.filter(p => p.status === '🚧').slice(-1)[0] || topPhases[topPhases.length - 1]); const phaseLabel = activePhase ? activePhase.num : '—'; const phaseName = activePhase ? activePhase.name : 'Awaiting sync'; const progressPct = Math.round((phaseDone / phaseTotal) * 100); const majorGate = /sentinel|major/i.test(state.next + ' ' + state.status + ' ' + state.issues.join(' ')) ? 'MAJOR' : 'Review'; const confidence = state.issues.length >= 3 ? 'Watch' : state.issues.length >= 1 ? 'Good' : 'Strong';
-  const progressItems = [];
-  topPhases.forEach(p => {
-    const [badge, cls] = phaseBadge(p.status);
-    progressItems.push({ main: p.num + ' — ' + p.name, sub: p.status === '✅' ? (p.num === 'Phase 9.3' ? 'Public paper-beta release path complete.' : 'Completed phase milestone.') : p.status === '🚧' ? 'Current active build and validation phase.' : 'Pending phase milestone.', badge, cls });
-    subPhases.filter(s => s.parentPhase === p.num).forEach(s => {
-      const [sbadge, scls] = phaseBadge(s.status);
-      progressItems.push({ main:'↳ ' + s.num + ' — ' + s.name, sub:s.status === '✅' ? 'Sub-phase complete.' : s.status === '🚧' ? 'Active sub-phase.' : 'Pending.', badge:sbadge, cls:scls, isSub:true });
-    });
-  });
-  const feedItems = state.commits.slice(0, 5).map(c => ({ dot: feedDot(c.msg), title: c.msg, meta: c.when, tag: c.tag, cls: c.cls }));
-  const prRows = state.prs.map(pr => ({ main:'#' + pr.number + ' — ' + pr.title, sub: pr.sub, badge:'Review', cls: pr.cls || 'prog' }));
-  const issueRows = (state.issues.length ? state.issues : ['No known issues']).slice(0, 6).map((i, idx) => ({ main: view === 'client' ? simplifyClientIssue(i) : i, sub: view === 'client' ? 'Managed through current delivery and review process.' : 'Tracked from PROJECT_STATE current truth.', badge: i === 'No known issues' ? 'Clear' : (idx === 0 ? 'Watch' : 'Open'), cls: i === 'No known issues' ? 'ok' : (idx === 0 ? 'warn' : 'prog') }));
-  if (view === 'internal') {
-    const subDone = state.phases.filter(p => p.isSub && p.status === '✅').length; const subTotal = state.phases.filter(p => p.isSub).length;
-    return {
-      hero:[
-        { label:'Build Phase', value: phaseLabel.replace('Phase ','P'), sub: phaseName, accent:'var(--green)' },
-        { label:'Open PRs', value:String(openPRs), sub:'Awaiting merge or review', accent:'var(--blue)' },
-        { label:'Sub-phases', value: subDone + '/' + subTotal, sub:'Completed sub-milestones', accent:'var(--yellow)' },
-        { label:'Validation Gate', value: majorGate, sub: state.next || 'Awaiting sync', accent:'var(--purple)' }
-      ],
-      summaryLabel:'Internal Summary', summaryText: state.status || 'Awaiting project state sync.', focusText: state.next || 'Awaiting next priority sync.', progressTitle:'Build Progress', progressBadge:'Engineering', progressItems,
-      rightIcon:'⚡', rightTitle:'Activity Feed', rightBadge:String(feedItems.length || 0), rightItems:feedItems, prs:prRows,
-      riskTitle:'Risk Controls', riskGrid:[['Kelly α','0.25'],['Max Position','≤10%'],['Daily Loss','−$2K'],['Drawdown Halt','8%'],['Max Concurrent','5'],['Min Liquidity','$10K'],['Kill Switch','ON'],['Validation Gate',majorGate]],
-      targetTitle:'Performance Targets', targets:[['Win Rate','>65% beta','>70% launch'],['Sharpe Ratio','>1.5','>2.5'],['Execution Success','95%','99%+'],['Reconciliation','<60s','<10s'],['Profit Factor','>1.3','>1.5']],
-      issuesTitle:'Known Issues', issuesBadge:String(state.issues.length), issues:issueRows
-    };
-  }
-  return {
-    hero:[
-      { label:'Current Phase', value: phaseLabel || '—', sub: phaseName, accent:'var(--green)' },
-      { label:'Progress', value: progressPct + '%', sub:'Project milestones completed', accent:'var(--blue)' },
-      { label:'Current Focus', value: inProgCount ? 'Active' : 'Review', sub:'Validation, stability, and delivery', accent:'var(--yellow)' },
-      { label:'Delivery Confidence', value: confidence, sub:'Controlled progress', accent:'var(--purple)' }
-    ],
-    summaryLabel:'Executive Summary', summaryText: state.status && state.status !== '—' ? 'The project is currently in ' + (phaseLabel || 'the active phase') + ' with work focused on validation, stability, and delivery readiness. ' + state.status : 'The project is active and currently focused on validation, stability, and delivery readiness.', focusText: state.next && state.next !== '—' ? simplifyClientIssue(state.next) : 'Current work is focused on moving the next delivery step through review and readiness checks.', progressTitle:'Current Phase', progressBadge:'Client View',
-    progressItems: progressItems.map(x => ({ main:x.main.replace(/^Phase \d+ — /,''), sub:x.sub, badge: x.badge === 'Done' ? 'Complete' : x.badge === 'In Progress' ? 'Active' : x.badge === 'Pending' ? 'Upcoming' : x.badge, cls:x.cls, isSub:x.isSub })),
-    rightIcon:'📈', rightTitle:'Recent Progress', rightBadge:'This Cycle', rightItems: feedItems.map(x => ({ dot:x.dot, title:simplifyClientIssue(x.title), meta:'Recent project activity', tag: x.tag === 'Merged' ? 'Delivered' : 'In Progress', cls:x.cls })), workstreams: deriveWorkstreams(state.prs, state.inProgress),
-    riskTitle:'Risk & Quality Controls', riskGrid:[['Position Limit','Controlled'],['Loss Limit','Hard Stop'],['Kill Switch','Active'],['Validation','Required'],['Execution Guard','Enabled'],['Data Checks','Enabled'],['Review Path','Controlled'],['Release Gate','Strict']],
-    targetTitle:'Target Outcomes', targets:[['System Stability','Strengthening','Release-ready'],['Execution Reliability','High priority','Validated'],['Risk Discipline','Fixed controls','Maintained'],['Delivery Readiness','In review','Approved'],['Operational Confidence',confidence,'High']], issuesTitle:'Current Risks / Dependencies', issuesBadge:String(state.issues.length), issues:issueRows
-  };
-}
-function renderHero(data) { const el = document.getElementById('hero'); if (!el) return; el.innerHTML = data.hero.map(item => `<div class="hero-card" style="--accent:${item.accent}"><div class="hero-label">${esc(item.label)}</div><div class="hero-val">${esc(item.value)}</div><div class="hero-sub">${esc(item.sub)}</div></div>`).join(''); }
-function toggleSubs(groupId, row) { const grp = document.getElementById(groupId); if (!grp) return; const open = grp.classList.toggle('open'); row.classList.toggle('expanded', open); }
-function rows(items) {
-  const out = []; let lastParentIdx = -1;
-  items.forEach((item, i) => { if (!item.isSub) { const hasSubs = items[i + 1] && items[i + 1].isSub; out.push({ item, subs: [], hasSubs }); lastParentIdx = out.length - 1; } else if (lastParentIdx >= 0) out[lastParentIdx].subs.push(item); });
-  const html = out.map(({ item, subs, hasSubs }, idx) => {
-    const groupId = 'sg-' + idx; const phaseClass = hasSubs ? ' phase-row' : ''; const chevron = hasSubs ? '<span class="phase-chevron">▶</span>' : ''; const onclick = hasSubs ? `onclick="toggleSubs('${groupId}', this)"` : '';
-    const subHtml = subs.length ? `<div class="sub-group" id="${groupId}">${subs.map(s => `<div class="row sub-row"><div class="row-left"><div class="row-main">${esc(s.main)}</div><div class="row-sub">${esc(s.sub || '')}</div></div><div class="badge ${s.cls || 'prog'}">${esc(s.badge || '')}</div></div>`).join('')}</div>` : '';
-    return `<div class="row${phaseClass}" ${onclick}><div class="row-left"><div class="row-main">${esc(item.main)}${chevron}</div><div class="row-sub">${esc(item.sub || '')}</div></div><div class="badge ${item.cls || 'prog'}">${esc(item.badge || '')}</div></div>${subHtml}`;
-  }).join('');
-  return '<div class="list">' + html + '</div>';
-}
-function capabilityRows(items) { return '<div class="cap-list">' + items.map(item => `<div class="cap-item"><div class="cap-top"><div class="row-left"><div class="cap-main">${esc(item.main)}</div><div class="cap-sub">${esc(item.sub || '')}</div></div><div class="cap-right"><div class="cap-badge ${item.cls || 'prog'}">${esc(item.badge || '')}</div><div class="cap-meta">${esc(item.meta || '')}</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:${Math.max(0, Math.min(100, item.progress || 0))}%"></div></div></div>`).join('') + '</div>'; }
-function feed(items) { return items.map(item => `<div class="feed-item"><div class="feed-dot ${item.dot}"></div><div class="row-left"><div class="row-main">${esc(item.title)}</div><div class="row-sub">${esc(item.meta)}</div></div><div class="badge ${item.cls || 'prog'}">${esc(item.tag)}</div></div>`).join(''); }
-function riskGrid(items) { return '<div class="spec-grid">' + items.map(([label, value]) => `<div class="spec-item"><div class="spec-label">${esc(label)}</div><div class="spec-val">${esc(value)}</div></div>`).join('') + '</div>'; }
-function targets(items) { return items.map(([label, beta, launch]) => `<div class="target-row"><div class="target-label">${esc(label)}</div><div class="target-val beta">${esc(beta)}</div><div class="target-val launch">${esc(launch)}</div></div>`).join(''); }
-function renderAllProjects() {
-  const projects = state.allProjects; const badge = document.getElementById('allProjectsBadge'); const body = document.getElementById('allProjectsBody');
-  if (!projects.length) { if (badge) badge.textContent = '0'; if (body) body.innerHTML = '<div class="row-sub" style="padding:12px 4px;color:var(--muted)">No project data available.</div>'; return; }
-  if (badge) badge.textContent = String(projects.length);
-  const accentMap = { '✅':'var(--green)', '🚧':'var(--blue)', '❌':'var(--muted)' }; const clsMap = { '✅':'ok', '🚧':'prog', '❌':'warn' }; const labelMap = { '✅':'Complete', '🚧':'Building', '❌':'Not Started' };
-  if (body) body.innerHTML = '<div class="proj-grid">' + projects.map(p => `<div class="proj-item" style="--proj-accent:${accentMap[p.status] || 'var(--muted)'}"><div class="proj-name">${esc(p.name)}</div><div class="proj-platform">${esc(p.platform)}</div><div class="proj-phase">${esc(p.phase)}</div><span class="proj-status-badge ${clsMap[p.status] || 'warn'}">${esc(labelMap[p.status] || p.status)}</span></div>`).join('') + '</div>';
-}
-function renderCommitHeatmap() {
-  const badge = document.getElementById('commitHeatmapBadge'); const body = document.getElementById('commitHeatmapBody'); const commits = state.commits;
-  if (!commits.length) { if (badge) badge.textContent = '0'; if (body) body.innerHTML = '<div class="row-sub" style="padding:12px 4px;color:var(--muted)">No commit data available.</div>'; return; }
-  if (badge) badge.textContent = commits.length + ' recent';
-  const dayCounts = {}; commits.forEach(c => { const key = c.dayKey || c.when.split(' ').slice(0,2).join(' '); dayCounts[key] = (dayCounts[key] || 0) + 1; });
-  const days = Object.keys(dayCounts).sort();
-  const heatBoxes = days.map(day => { const n = dayCounts[day]; const countKey = n >= 5 ? '5+' : String(n); const label = day + ': ' + n + ' commit' + (n > 1 ? 's' : ''); return `<div class="heatmap-day" data-count="${countKey}" title="${label}"></div>`; }).join('');
-  const legendColors = ['var(--surface2)','rgba(0,170,255,.25)','rgba(0,170,255,.45)','rgba(0,245,160,.5)','rgba(0,245,160,.75)','var(--green)'];
-  const legend = legendColors.map(bg => `<div class="hl-box" style="background:${bg};border:1px solid var(--border)"></div>`).join('') + '<span class="hl-label" style="margin-left:4px">less → more commits</span>';
-  const recentList = commits.slice(0,8).map(c => `<div class="commit-row"><div class="commit-sha">●</div><div class="commit-msg">${esc(c.msg)}</div><div class="commit-when">${esc(c.when)}</div></div>`).join('');
-  if (body) body.innerHTML = `<div class="heatmap-meta"><span class="heatmap-label">${days.length} active day${days.length !== 1 ? 's' : ''} tracked — ${commits.length} commits loaded</span></div><div class="heatmap-wrap"><div class="heatmap-grid">${heatBoxes}</div></div><div class="heatmap-legend">${legend}</div><div class="commit-list">${recentList}</div>`;
-}
-function render() {
-  const data = buildData(currentView); renderHero(data);
-  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  const setHTML = (id, val) => { const el = document.getElementById(id); if (el) el.innerHTML = val; };
-  const topP = state.phases.filter(p => !p.isSub); const active = topP.find(p => p.status === '🚧') || topP[topP.length - 1]; const pNum = active ? active.num.replace('Phase ','P') : '—'; const pShort = active ? pNum + ' · ' + active.name.split(' ').slice(0,3).join(' ') : '—';
-  setText('stripPhase', pShort); setText('stripPRs', state.prs.length + ' open'); setText('stripProgress', state.inProgress.length + ' tasks'); setText('stripBot', 'BUILD MODE'); const lastCommit = state.commits[0]; setText('stripCommit', lastCommit ? lastCommit.when : '—');
-  setText('summaryLabel', data.summaryLabel); setText('summaryText', data.summaryText); setText('focusText', data.focusText); setText('progressTitle', data.progressTitle); setText('progressBadge', data.progressBadge);
-  const topItems = data.progressItems.filter(x => !x.isSub); const activeTop = state.phases.filter(p => !p.isSub).find(p => p.status === '🚧'); const activePhaseNum = activeTop ? activeTop.num : null; const subPhases = state.phases.filter(p => p.isSub && (activePhaseNum ? p.parentPhase === activePhaseNum : true)); const subDone = subPhases.filter(p => p.status === '✅').length; const subTotal = subPhases.length; const subItems = subPhases.map(s => { const [badge, cls] = phaseBadge(s.status); return { main:s.num + ' — ' + s.name, sub:s.status === '✅' ? 'Sub-phase complete.' : s.status === '🚧' ? 'Active sub-phase.' : 'Pending.', badge, cls }; });
-  setHTML('ptab-phases-body', rows(topItems));
-  const subBody = document.getElementById('ptab-sub-body');
-  if (subBody) {
-    if (subItems.length) {
-      const pct = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0;
-      subBody.innerHTML = `<div class="subphase-progress" style="margin-bottom:10px"><div class="sp-bar"><div class="sp-fill" style="width:${pct}%"></div></div><span class="sp-label">${subDone}/${subTotal} done (${pct}%)</span></div><div class="list">${subItems.map(s => `<div class="row"><div class="row-left"><div class="row-main">${esc(s.main)}</div><div class="row-sub">${esc(s.sub || '')}</div></div><div class="badge ${s.cls || 'prog'}">${esc(s.badge || '')}</div></div>`).join('')}</div>`;
-    } else {
-      subBody.innerHTML = '<div class="row-sub" style="padding:12px 4px;color:var(--muted)">No sub-phases for current view.</div>';
-    }
-  }
-  setText('ptab-sub', activeTop ? activeTop.num.replace('Phase ','P') + ' Sub-phases' : 'Sub-phases');
-  setText('rightCardTitle', data.rightTitle); setText('rightCardBadge', data.rightBadge); setHTML('rightCardBody', feed(data.rightItems));
-  document.getElementById('rightCardIcon').textContent = data.rightIcon;
-  const isInternal = currentView === 'internal';
-  setText('structureTitle', isInternal ? 'Project Structure' : 'System Architecture'); setText('structureBadge', isInternal ? 'Live' : 'Overview'); setHTML('structureBody', capabilityRows(buildStructureItems(currentView))); setText('strategyTitle', isInternal ? 'Strategy Model Status' : 'Strategy & Capability Status'); setText('strategyBadge', isInternal ? 'Engineering' : 'Executive'); setHTML('strategyBody', capabilityRows(buildStrategyItems(currentView)));
-  setText('riskTitle', data.riskTitle); setHTML('riskBody', riskGrid(data.riskGrid)); setText('targetTitle', data.targetTitle); setHTML('targetBody', targets(data.targets)); setText('issuesTitle', data.issuesTitle); setText('issuesBadge', data.issuesBadge); setHTML('issuesBody', rows(data.issues)); renderAllProjects(); renderCommitHeatmap();
-  const prCard = document.getElementById('prCard'); const workstreamCard = document.getElementById('workstreamCard');
-  if (currentView === 'internal') { prCard?.classList.remove('mode-hidden'); workstreamCard?.classList.add('mode-hidden'); setText('prCount', String(state.prs.length)); setHTML('prBody', rows(data.prs || [])); }
-  else { prCard?.classList.add('mode-hidden'); workstreamCard?.classList.remove('mode-hidden'); setHTML('workstreamBody', rows(data.workstreams || [])); }
-}
-async function loadState() { const md = await fetchRaw('PROJECT_STATE.md'); state.status = parseStatus(md); state.next = parseNextPriority(md); state.inProgress = parseInProgress(md); state.issues = parseIssues(md); }
-async function loadRoadmap() { const md = await fetchRaw('ROADMAP.md'); state.phases = parsePhases(md); state.allProjects = parseAllProjects(md); }
-async function loadPRs() {
-  const [prRes, commitRes] = await Promise.all([
-    fetch(API + '/pulls?state=open&per_page=20&t=' + Date.now(), { headers: { Accept:'application/vnd.github.v3+json' } }),
-    fetch(API + '/commits?per_page=15&t=' + Date.now(), { headers: { Accept:'application/vnd.github.v3+json' } })
-  ]);
-  if (!prRes.ok) throw new Error('PR API ' + prRes.status); if (!commitRes.ok) throw new Error('Commits API ' + commitRes.status);
-  const prs = await prRes.json(); const commits = await commitRes.json();
-  state.prs = prs.map(pr => { const labels = (pr.labels || []).map(l => l.name).join(', '); let sub = labels ? labels : 'Open review item'; if (/needs-fix|blocked/i.test(labels)) sub = 'Blocked · ' + labels; else if (/major/i.test(pr.title + ' ' + labels)) sub = 'Major review item'; return { number: pr.number, title: pr.title, sub, cls: /needs-fix|blocked/i.test(labels) ? 'risk' : 'prog' }; });
-  state.commits = commits.map(c => { const msg = c.commit.message.split('\n')[0]; const m = msg.toLowerCase(); const date = new Date(c.commit.author.date); const when = date.toLocaleDateString('id-ID',{ day:'2-digit', month:'short' }) + ' ' + date.toLocaleTimeString('id-ID',{ hour:'2-digit', minute:'2-digit' }); const dayKey = date.toISOString().slice(0,10); const tag = m.includes('merge') ? 'Merged' : m.includes('sentinel') ? 'Validation' : 'Update'; const cls = m.includes('merge') ? 'ok' : m.includes('sentinel') ? 'warn' : 'prog'; return { msg, when, dayKey, tag, cls }; });
-}
-async function loadAll() {
-  const icon = document.getElementById('refreshIcon'); if (icon) icon.style.animation = 'spin 0.8s linear infinite';
-  try {
-    await Promise.all([loadState(), loadRoadmap(), loadPRs()]); render(); setTs();
-    (function(){ const topPhases = state.phases.filter(p => !p.isSub); const activeIdx = topPhases.findIndex(p => p.status === '🚧'); if (activeIdx < 0) return; const grp = document.getElementById('sg-' + activeIdx); if (!grp) return; grp.classList.add('open'); const allPhaseRows = document.querySelectorAll('.phase-row'); if (allPhaseRows[activeIdx]) allPhaseRows[activeIdx].classList.add('expanded'); })();
-  } catch (e) {
-    const err = '<div class="error-box">⚠️ Failed to load: ' + esc(e.message) + '</div>';
-    ['ptab-phases-body','ptab-sub-body','rightCardBody','prBody','workstreamBody','issuesBody','structureBody','strategyBody','riskBody','targetBody','allProjectsBody','commitHeatmapBody'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = err; });
-    const sumEl = document.getElementById('summaryText'); if (sumEl) sumEl.textContent = 'Live sync failed. Check API access.'; setTs();
-  }
-  if (icon) icon.style.animation = '';
-}
-setInterval(loadAll, 5 * 60 * 1000); loadAll();
+searchInput.addEventListener('input', applyFilters);
+hideDone.addEventListener('change', applyFilters);
+setTs();
+applyFilters();
 </script>
 </body>
 </html>
