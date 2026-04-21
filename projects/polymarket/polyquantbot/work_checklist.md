@@ -64,6 +64,14 @@ NEXT (immediately after code fix + UX integration)
 
 [ ] Save fresh deploy evidence (logs + /health + /ready + command replies, including improved Telegram reply formatting)
 
+Latest attempt (2026-04-22 00:58 Asia/Jakarta)
+
+- Attempted from FORGE-X runner branch `feature/priority-1-live-telegram-baseline-closure`.
+- Blocker: `flyctl` is not installed in this runner, so deploy/restart and Fly logs inspection cannot be executed here.
+- Blocker: external probes to `https://crusaderbot.fly.dev/`, `/health`, and `/ready` return proxy tunnel `403 Forbidden`, so live HTTP baseline could not be verified from this environment.
+- Blocker: no Telegram/Fly credential environment keys are available in this runner for live `/start`, `/help`, `/status` chat verification.
+- Evidence: `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_04_live-baseline-evidence.log`.
+
 
 2. Baseline Public Commands
 
@@ -153,6 +161,8 @@ NEXT (immediately after code fix + UX integration)
 [ ] Confirm /status is OK
 
 [ ] Save validation evidence
+
+Current truth (2026-04-22 00:58 Asia/Jakarta): remains OPEN pending a deploy-capable, Telegram-capable runner. No fake closure applied.
 
 
 Done Condition
