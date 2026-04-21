@@ -303,4 +303,4 @@ def test_polling_loop_non_start_not_found_requires_start_first() -> None:
     asyncio.run(loop.run_once())
     dispatcher.dispatch.assert_not_called()
     onboarding_initiator.start_telegram_onboarding.assert_not_awaited()
-    assert "Use /start first" in adapter.replies[0][1]
+    assert "Use /start to open onboarding" in adapter.replies[0][1]
