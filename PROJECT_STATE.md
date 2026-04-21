@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 13:24
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; live Fly runtime surface is now externally verified responding (`/`, `/health`, `/ready`) with paper-only boundary preserved and no live-trading/production-capital readiness claim.
+Last Updated : 2026-04-21 13:59
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram runtime activation lane for Fly is implemented in code and readiness truth-synced, while external deploy verification is currently blocked in this runner environment.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -34,7 +34,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 
 [IN PROGRESS]
 - Post-launch cleanup + README alignment + announcement polish lane is in progress for paper-beta public-facing clarity (paper-only/no-live-trading boundary preserved).
-- Phase 9.3 final truth-sync lane is in progress to land verified live Fly runtime observations (`/`, `/health`, `/ready`) as canonical repo truth while preserving explicit paper-only execution boundaries.
+- Telegram runtime activation on Fly lane is in progress for external deploy verification (`/start`, `/help`, `/status`) after code-path activation and `/ready` truth-sync landed in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_01_public-ready-runtime-activation.md`.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -42,7 +42,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER review of post-launch cleanup/readme/announcement polish PR for final wording alignment against paper-only public-beta truth.
+- SENTINEL validation of `feature/public-ready-telegram-runtime-on-fly` with deploy-capable environment to verify real Fly startup logs and real Telegram command replies (`/start`, `/help`, `/status`).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

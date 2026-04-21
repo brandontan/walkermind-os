@@ -8,6 +8,9 @@ primary_region = 'iad'
 
 [build]
 
+[env]
+  CRUSADER_TELEGRAM_RUNTIME_REQUIRED = "true"
+
 [http_service]
   internal_port = 8080
   force_https = true

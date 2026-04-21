@@ -1,0 +1,39 @@
+Date (Asia/Jakarta): 2026-04-21 13:59
+Branch: feature/public-ready-telegram-runtime-on-fly
+Validation Tier: MAJOR
+
+[local-check] py_compile
+Command:
+PYTHONIOENCODING=utf-8 python -m py_compile projects/polymarket/polyquantbot/server/core/runtime.py projects/polymarket/polyquantbot/server/main.py projects/polymarket/polyquantbot/server/api/routes.py projects/polymarket/polyquantbot/client/telegram/runtime.py projects/polymarket/polyquantbot/client/telegram/dispatcher.py
+Result: PASS
+
+[local-check] targeted pytest
+Command:
+PYTHONIOENCODING=utf-8 pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py projects/polymarket/polyquantbot/tests/test_phase8_8_telegram_dispatch_20260419.py projects/polymarket/polyquantbot/tests/test_phase8_9_telegram_runtime_20260419.py
+Result: PASS
+Output summary: 32 passed, 1 skipped
+
+[deploy-check] external fly surface probe
+Command:
+for p in / /health /ready; do echo "=== $p ==="; curl -sS -m 20 "https://crusaderbot.fly.dev$p"; echo; echo; done
+Result: BLOCKED (environment network/proxy)
+Output:
+=== / ===
+curl: (56) CONNECT tunnel failed, response 403
+
+=== /health ===
+curl: (56) CONNECT tunnel failed, response 403
+
+=== /ready ===
+curl: (56) CONNECT tunnel failed, response 403
+
+[deploy-check] flyctl availability
+Command:
+which flyctl && flyctl version
+Result: BLOCKED (flyctl unavailable in runner)
+
+[repo-check] full pytest collection
+Command:
+PYTHONIOENCODING=utf-8 pytest -q
+Result: WARNING (environment dependency limitation)
+Summary: collection failed with missing optional dependencies (fastapi, pydantic) in current runner.

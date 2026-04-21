@@ -132,11 +132,12 @@ def test_dispatch_unknown_command() -> None:
     backend.request_handoff.assert_not_awaited()
 
 
-def test_dispatch_unknown_command_help() -> None:
+def test_dispatch_help_command() -> None:
     backend = _make_mock_backend(outcome="issued")
     dispatcher = TelegramDispatcher(backend=backend)
     result: DispatchResult = asyncio.run(dispatcher.dispatch(_make_ctx("/help")))
-    assert result.outcome == "unknown_command"
+    assert result.outcome == "ok"
+    assert "CrusaderBot commands" in result.reply_text
     backend.request_handoff.assert_not_awaited()
 
 

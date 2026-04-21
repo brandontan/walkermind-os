@@ -40,6 +40,10 @@ def build_router(
             "kill_switch_enabled": beta_state.kill_switch,
             "execution_ready_for_paper_entries": execution_ready_for_paper_entries,
         }
+        telegram_runtime_ready = (
+            state.telegram_runtime_startup_complete and state.telegram_runtime_active
+        )
+        telegram_readiness_ok = telegram_runtime_ready if state.telegram_runtime_required else True
         ready_dimensions = {
             "scope": {
                 "contract_version": "phase8-6-public-paper-beta-confidence-pass",
@@ -56,6 +60,16 @@ def build_router(
                 "iterations_total": beta_state.worker_runtime.iterations_total,
                 "last_iteration_visible": beta_state.worker_runtime.iterations_total > 0,
                 "last_error": beta_state.worker_runtime.last_error,
+            },
+            "telegram_runtime": {
+                "required": state.telegram_runtime_required,
+                "enabled": state.telegram_runtime_enabled,
+                "startup_complete": state.telegram_runtime_startup_complete,
+                "active": state.telegram_runtime_active,
+                "shutdown_complete": state.telegram_runtime_shutdown_complete,
+                "iterations_total": state.telegram_runtime_iterations_total,
+                "last_iteration_visible": state.telegram_runtime_iterations_total > 0,
+                "last_error": state.telegram_runtime_last_error,
             },
             "worker_prerequisites": worker_prerequisites,
             "falcon_config_state": {
@@ -77,12 +91,12 @@ def build_router(
         }
         return JSONResponse(
             {
-                "status": "ready" if state.ready else "not_ready",
+                "status": "ready" if state.ready and telegram_readiness_ok else "not_ready",
                 "service": settings.app_name,
                 "validation_errors": state.validation_errors,
                 "readiness": ready_dimensions,
             },
-            status_code=200 if state.ready else 503,
+            status_code=200 if state.ready and telegram_readiness_ok else 503,
         )
 
     return router

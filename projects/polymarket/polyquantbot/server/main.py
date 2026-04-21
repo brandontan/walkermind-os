@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -20,7 +21,12 @@ from projects.polymarket.polyquantbot.server.core.runtime import (
     RuntimeState,
     run_shutdown,
     run_startup_validation,
+    telegram_runtime_required_from_env,
 )
+from projects.polymarket.polyquantbot.client.telegram.backend_client import CrusaderBackendClient
+from projects.polymarket.polyquantbot.client.telegram.bot import TelegramBotSettings, validate_bot_environment
+from projects.polymarket.polyquantbot.client.telegram.dispatcher import TelegramDispatcher
+from projects.polymarket.polyquantbot.client.telegram.runtime import HttpTelegramAdapter, run_polling_loop
 from projects.polymarket.polyquantbot.server.services.account_service import AccountService
 from projects.polymarket.polyquantbot.server.services.auth_session_service import AuthSessionService
 from projects.polymarket.polyquantbot.server.services.telegram_activation_service import TelegramActivationService
@@ -40,6 +46,77 @@ from projects.polymarket.polyquantbot.server.storage.wallet_link_store import Pe
 log = structlog.get_logger(__name__)
 
 
+class RuntimeTelegramObserver:
+    def __init__(self, state: RuntimeState) -> None:
+        self._state = state
+
+    def on_startup(self) -> None:
+        self._state.telegram_runtime_startup_complete = True
+        self._state.telegram_runtime_active = True
+        self._state.telegram_runtime_shutdown_complete = False
+        self._state.telegram_runtime_last_error = ""
+        log.info("crusaderbot_telegram_runtime_started")
+
+    def on_iteration(self, processed_count: int) -> None:
+        self._state.telegram_runtime_iterations_total += processed_count
+
+    def on_reply_sent(self) -> None:
+        log.info("crusaderbot_telegram_reply_sent")
+
+    def on_error(self, error: str) -> None:
+        self._state.telegram_runtime_last_error = error
+        log.error("crusaderbot_telegram_runtime_error", error=error)
+
+    def on_shutdown(self) -> None:
+        self._state.telegram_runtime_active = False
+        self._state.telegram_runtime_shutdown_complete = True
+        log.info("crusaderbot_telegram_runtime_stopped")
+
+
+async def _start_telegram_runtime(state: RuntimeState) -> None:
+    settings = TelegramBotSettings.from_env()
+    validation_errors = validate_bot_environment(settings)
+    state.telegram_runtime_required = telegram_runtime_required_from_env()
+    state.telegram_runtime_enabled = not validation_errors
+    if validation_errors:
+        state.telegram_runtime_last_error = "; ".join(validation_errors)
+        log.error(
+            "crusaderbot_telegram_runtime_disabled",
+            required=state.telegram_runtime_required,
+            errors=validation_errors,
+        )
+        if state.telegram_runtime_required:
+            raise RuntimeError(state.telegram_runtime_last_error)
+        return
+
+    backend = CrusaderBackendClient(
+        base_url=settings.backend_base_url,
+        identity_tenant_id=settings.staging_tenant_id,
+    )
+    dispatcher = TelegramDispatcher(backend=backend)
+    adapter = HttpTelegramAdapter(token=settings.telegram_token)
+    observer = RuntimeTelegramObserver(state=state)
+    state.telegram_runtime_task = asyncio.create_task(
+        run_polling_loop(
+            adapter=adapter,
+            dispatcher=dispatcher,
+            identity_resolver=backend,
+            onboarding_initiator=backend,
+            activation_confirmer=backend,
+            session_issuer=backend,
+            staging_tenant_id=settings.staging_tenant_id,
+            staging_user_id=settings.staging_user_id,
+            observer=observer,
+        )
+    )
+    log.info(
+        "crusaderbot_telegram_runtime_bootstrap_ready",
+        backend_base_url=settings.backend_base_url,
+        chat_id_configured=bool(settings.telegram_chat_id),
+        required=state.telegram_runtime_required,
+    )
+
+
 def create_app() -> FastAPI:
     settings = ApiSettings.from_env()
     falcon_settings = FalconSettings.from_env()
@@ -48,9 +125,16 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         await run_startup_validation(settings=settings, state=state)
+        await _start_telegram_runtime(state=state)
         try:
             yield
         finally:
+            if state.telegram_runtime_task is not None:
+                state.telegram_runtime_task.cancel()
+                try:
+                    await state.telegram_runtime_task
+                except asyncio.CancelledError:
+                    pass
             await run_shutdown(state=state)
 
     app = FastAPI(

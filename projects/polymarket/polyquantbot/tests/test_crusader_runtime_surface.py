@@ -93,6 +93,7 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
 
     assert "scope" in readiness
     assert "worker_runtime" in readiness
+    assert "telegram_runtime" in readiness
     assert "worker_prerequisites" in readiness
     assert "falcon_config_state" in readiness
     assert "control_plane" in readiness
@@ -131,6 +132,20 @@ def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
     assert readiness["falcon_config_state"]["enabled"] is False
     assert readiness["falcon_config_state"]["config_valid_for_enabled_mode"] is True
     assert readiness["control_plane"]["live_mode_execution_allowed"] is False
+
+
+def test_ready_route_not_ready_when_telegram_required_without_token(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_TELEGRAM_RUNTIME_REQUIRED", "true")
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/ready")
+    assert response.status_code == 503
+    readiness = response.json()["readiness"]
+    assert readiness["telegram_runtime"]["required"] is True
+    assert readiness["telegram_runtime"]["enabled"] is False
 
 
 def test_ready_route_falcon_enabled_without_key_is_not_valid(monkeypatch) -> None:

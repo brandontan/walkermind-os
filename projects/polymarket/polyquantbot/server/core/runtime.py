@@ -5,6 +5,7 @@ import asyncio
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Optional
 
 import structlog
 
@@ -59,6 +60,14 @@ class RuntimeState:
     shutdown_at: datetime | None = None
     validation_errors: list[str] = field(default_factory=list)
     ready: bool = False
+    telegram_runtime_required: bool = False
+    telegram_runtime_enabled: bool = False
+    telegram_runtime_startup_complete: bool = False
+    telegram_runtime_active: bool = False
+    telegram_runtime_shutdown_complete: bool = False
+    telegram_runtime_iterations_total: int = 0
+    telegram_runtime_last_error: str = ""
+    telegram_runtime_task: Optional[asyncio.Task[None]] = None
 
     def mark_started(self) -> None:
         self.started_at = datetime.now(timezone.utc)
@@ -76,6 +85,11 @@ def validate_api_environment(settings: ApiSettings) -> list[str]:
         errors.append("CRUSADER_STARTUP_MODE must remain 'strict' at runtime.")
 
     return errors
+
+
+def telegram_runtime_required_from_env() -> bool:
+    raw = os.getenv("CRUSADER_TELEGRAM_RUNTIME_REQUIRED", "false").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
 
 
 async def run_startup_validation(settings: ApiSettings, state: RuntimeState) -> None:
