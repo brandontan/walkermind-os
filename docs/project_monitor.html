@@ -301,22 +301,22 @@ footer {
 <div class="hero">
   <div class="hero-card" style="--accent:var(--green)">
     <div class="hero-label">Completed</div>
-    <div class="hero-val">11</div>
+    <div class="hero-val" id="metricDone">—</div>
     <div class="hero-sub">Checklist items done</div>
   </div>
   <div class="hero-card" style="--accent:var(--blue)">
     <div class="hero-label">Open Items</div>
-    <div class="hero-val">150</div>
+    <div class="hero-val" id="metricOpen">—</div>
     <div class="hero-sub">Still pending</div>
   </div>
   <div class="hero-card" style="--accent:var(--yellow)">
     <div class="hero-label">Completion</div>
-    <div class="hero-val">7%</div>
-    <div class="hero-sub">11/161 checked</div>
+    <div class="hero-val" id="metricPct">—</div>
+    <div class="hero-sub" id="metricRatio">Loading from checklist...</div>
   </div>
   <div class="hero-card" style="--accent:var(--purple)">
     <div class="hero-label">Active Lane</div>
-    <div class="hero-val" style="font-size:16px;padding-top:4px">P1</div>
+    <div class="hero-val" id="metricActive" style="font-size:16px;padding-top:4px">—</div>
     <div class="hero-sub">Public-ready baseline</div>
   </div>
 </div>
@@ -335,27 +335,20 @@ footer {
   </div>
 </div>
 <div class="search-wrap">
+  <a href="worktodo.html" class="refresh-btn" style="text-decoration:none">Open lightweight fallback page</a>
+</div>
+<div class="search-wrap">
   <input id="searchInput" class="search-input" type="search" placeholder="Search checklist text, Telegram, Fly, paper-only, status, risk..." />
   <label class="filter-toggle"><input type="checkbox" id="hideDone" /> Hide completed</label>
 </div>
 <div class="two-col">
   <div class="card">
     <div class="card-head" onclick="tog(this)">
-      <span>📊</span><span class="ch-title">Priority Progress</span><span class="ch-badge">Checklist</span><span class="ch-chev">▼</span>
+      <span>📊</span><span class="ch-title">Checklist Overview (Live)</span><span class="ch-badge" id="laneCountBadge">—</span><span class="ch-chev">▼</span>
     </div>
     <div class="card-body">
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:12px">9 priority lanes tracked</div>
-      <div class="phase-list">
-        <div class="phase-row active"><span class="phase-num">P1</span><span class="phase-name">Bot Public-Ready Baseline</span><span class="phase-badge pb-prog">🚧</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:26%"></div></div></div></div>
-        <div class="phase-row"><span class="phase-num">P2</span><span class="phase-name">DB, Persistence, and Runtime Hardening</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
-        <div class="phase-row"><span class="phase-num">P3</span><span class="phase-name">Paper Trading Product Completion</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
-        <div class="phase-row"><span class="phase-num">P4</span><span class="phase-name">Wallet Lifecycle Foundation</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
-        <div class="phase-row"><span class="phase-num">P5</span><span class="phase-name">Portfolio Management Logic</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
-        <div class="phase-row"><span class="phase-num">P6</span><span class="phase-name">Multi-Wallet Orchestration</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
-        <div class="phase-row"><span class="phase-num">P7</span><span class="phase-name">Settlement, Retry, Reconciliation, and Ops Automation</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
-        <div class="phase-row"><span class="phase-num">P8</span><span class="phase-name">Production-Capital Readiness</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
-        <div class="phase-row"><span class="phase-num">P9</span><span class="phase-name">Final Product Completion, Launch Assets, and Handoff</span><span class="phase-badge pb-pend">❌</span><div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:0%"></div></div></div></div>
-      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:12px">Parsed from <code>projects/polymarket/polyquantbot/work_checklist.md</code></div>
+      <div class="phase-list" id="priorityOverview"></div>
     </div>
   </div>
   <div class="card">
@@ -364,143 +357,21 @@ footer {
     </div>
     <div class="card-body">
       <div class="feed">
-        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-g"></div><div class="feed-content"><div class="feed-title">Project monitor unified with work checklist inside the same template shell</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-merged">UPDATED</span></div></div></div>
-        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Priority 1 stays the active public-ready paper beta lane</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-open">FORGE</span></div></div></div>
-        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Telegram /start, /help, and /status still need live redeploy validation</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-open">FORGE</span></div></div></div>
-        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Paper-only boundary must stay explicit across onboarding, help, and status</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-info">INFO</span></div></div></div>
-        <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">No live-trading readiness or production-capital readiness claim</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-info">INFO</span></div></div></div>
+        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-g"></div><div class="feed-content"><div class="feed-title">Project monitor now renders checklist directly from repository source of truth</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-merged">UPDATED</span></div></div></div>
+        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Use monitor page as primary status + work visibility surface</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-open">FORGE</span></div></div></div>
+        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Checklist content remains sourced from work_checklist.md without hardcoded mirror blocks</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-open">FORGE</span></div></div></div>
+        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Fallback lightweight checklist page remains available via worktodo.html</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-info">INFO</span></div></div></div>
+        <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Paper-only boundary messaging still applies; no live-trading readiness claim</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-info">INFO</span></div></div></div>
       </div>
     </div>
   </div>
 </div>
 <div class="card">
   <div class="card-head" onclick="tog(this)">
-    <span>🧭</span><span class="ch-title">Priority Lane Summary</span><span class="ch-badge">9</span><span class="ch-chev">▼</span>
-  </div>
-  <div class="card-body">
-    <div class="pr-list">
-      <div class="pr-item"><span class="pr-num">#01</span><span class="phase-name">PRIORITY 1 — Bot Public-Ready Baseline</span><div class="pr-labels"><span class="feed-tag ft-open">active</span><span class="feed-tag ft-info">11/43</span></div></div>
-      <div class="pr-item"><span class="pr-num">#02</span><span class="phase-name">PRIORITY 2 — DB, Persistence, and Runtime Hardening</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/28</span></div></div>
-      <div class="pr-item"><span class="pr-num">#03</span><span class="phase-name">PRIORITY 3 — Paper Trading Product Completion</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/28</span></div></div>
-      <div class="pr-item"><span class="pr-num">#04</span><span class="phase-name">PRIORITY 4 — Wallet Lifecycle Foundation</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/20</span></div></div>
-      <div class="pr-item"><span class="pr-num">#05</span><span class="phase-name">PRIORITY 5 — Portfolio Management Logic</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/20</span></div></div>
-      <div class="pr-item"><span class="pr-num">#06</span><span class="phase-name">PRIORITY 6 — Multi-Wallet Orchestration</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/21</span></div></div>
-      <div class="pr-item"><span class="pr-num">#07</span><span class="phase-name">PRIORITY 7 — Settlement, Retry, Reconciliation, and Ops Automation</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/25</span></div></div>
-      <div class="pr-item"><span class="pr-num">#08</span><span class="phase-name">PRIORITY 8 — Production-Capital Readiness</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/23</span></div></div>
-      <div class="pr-item"><span class="pr-num">#09</span><span class="phase-name">PRIORITY 9 — Final Product Completion, Launch Assets, and Handoff</span><div class="pr-labels"><span class="feed-tag ft-info">queued</span><span class="feed-tag ft-info">0/26</span></div></div>
-    </div>
-  </div>
-</div>
-<div class="card">
-  <div class="card-head" onclick="tog(this)">
-    <span>✅</span><span class="ch-title">Checklist Sections</span><span class="ch-badge">11</span><span class="ch-chev">▼</span>
+    <span>✅</span><span class="ch-title">Work Checklist (Source of Truth)</span><span class="ch-badge" id="sectionCountBadge">—</span><span class="ch-chev">▼</span>
   </div>
   <div class="card-body" id="todoBody">
-    <div class="todo-section" data-search="priority 1 bot public-ready baseline done mostly done fly app is alive telegram runtime is active on fly telegram startup is automatic in the deploy path ready includes telegram runtime truth start replies on deployed environment onboarding public-safe paper-only copy refined fallback error copy refined active current lane fix help command semantics so it reaches real help handler no start collapse fix status command semantics so it reaches real status handler no start collapse ensure command routing precedence no longer collapses non-start commands into start lifecycle session path integrate telegram design presentation layer into live start help status reply builders repo code truth consolidate remaining public-safe replies to shared presentation helpers align help to trusted public-safe command surface only next immediately after code fix ux integration redeploy latest command-routing telegram ux integration to fly verify live telegram behavior for start help and status save fresh deploy evidence baseline public commands make sure responses are not empty or dummy make sure there is no timeout or silent failure path to public telegram ux refinement refine the existing telegram onboarding flow refine the existing telegram command ux refine the current welcome intro for new users refine the current help and status copy refine paper-only messaging across the existing telegram flow refine the next-step guidance for new users refine the unlinked-user flow using the current foundation refine the linked-user flow using the current foundation refine fallback and error messaging refine telegram formatting and readability public command set keep the existing public command baseline clean and useful prepare paper prepare about prepare risk prepare account or link separate public commands from admin operator commands hide commands that are not ready yet public-safe boundaries do not claim live trading readiness do not claim production-capital readiness keep the paper-only boundary visible everywhere guard admin internal paths properly observability baseline add bot startup logs add command received logs add command handled logs add reply success failure logs add missing env disabled mode logs end-to-end validation deploy the latest version confirm health is ok confirm ready is ok confirm start is ok confirm help is ok confirm status is ok save validation evidence done condition the bot is truly usable as a public-ready paper bot baseline">
-      <div class="todo-head"><div><div class="todo-title">PRIORITY 1 — Bot Public-Ready Baseline</div><div class="todo-meta">11/43 complete</div></div><span class="feed-tag ft-open">active</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Done / Active / Next</div><div class="todo-items">
-        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Fly app is alive</div></div>
-        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Telegram runtime is active on Fly</div></div>
-        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Telegram startup is automatic in the deploy path</div></div>
-        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">/ready includes Telegram runtime truth</div></div>
-        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">/start replies on deployed environment</div></div>
-        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Onboarding/public-safe/paper-only copy refined</div></div>
-        <div class="todo-item td-done" data-done="1"><div class="todo-dot">✓</div><div class="todo-text">Fallback/error copy refined</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Redeploy latest command-routing + Telegram UX integration to Fly</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Verify live Telegram behavior for /start, /help, and /status</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Save fresh deploy evidence</div></div>
-      </div></div>
-      <div class="todo-sub"><div class="todo-sub-head">Public UX refinement</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine the existing Telegram onboarding flow</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine the existing Telegram command UX</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine the current help and status copy</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine Telegram formatting and readability</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Keep the paper-only boundary visible everywhere</div></div>
-      </div></div>
-    </div>
-    <div class="todo-section" data-search="priority 2 db persistence and runtime hardening finalize a stable database_url db health checks validate required env vars at boot include db state in readiness">
-      <div class="todo-head"><div><div class="todo-title">PRIORITY 2 — DB, Persistence, and Runtime Hardening</div><div class="todo-meta">0/28 complete</div></div><span class="feed-tag ft-info">queued</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Finalize a stable DATABASE_URL</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Add DB health checks</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Validate required env vars at boot</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Include DB state in readiness</div></div>
-      </div></div>
-    </div>
-    <div class="todo-section" data-search="priority 3 paper trading product completion define the paper balance model enable paper entry logic show open paper positions enforce exposure caps">
-      <div class="todo-head"><div><div class="todo-title">PRIORITY 3 — Paper Trading Product Completion</div><div class="todo-meta">0/28 complete</div></div><span class="feed-tag ft-info">queued</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define the paper balance model</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Enable paper entry logic</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Show open paper positions</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Enforce exposure caps</div></div>
-      </div></div>
-    </div>
-    <div class="todo-section" data-search="priority 4 wallet lifecycle foundation finalize wallet entity model build create init wallet lifecycle persist wallet records safely verify ownership clearly">
-      <div class="todo-head"><div><div class="todo-title">PRIORITY 4 — Wallet Lifecycle Foundation</div><div class="todo-meta">0/20 complete</div></div><span class="feed-tag ft-info">queued</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Finalize wallet entity model</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build create/init wallet lifecycle</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Persist wallet records safely</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Verify ownership clearly</div></div>
-      </div></div>
-    </div>
-    <div class="todo-section" data-search="priority 5 portfolio management logic refine portfolio entity model build aggregate exposure logic build realized pnl computation enforce exposure caps">
-      <div class="todo-head"><div><div class="todo-title">PRIORITY 5 — Portfolio Management Logic</div><div class="todo-meta">0/20 complete</div></div><span class="feed-tag ft-info">queued</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Refine portfolio entity model</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build aggregate exposure logic</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build realized PnL computation</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Enforce exposure caps</div></div>
-      </div></div>
-    </div>
-    <div class="todo-section" data-search="priority 6 multi-wallet orchestration define multi-wallet routing model build balance-aware allocation build unified view across wallets add per-wallet health status">
-      <div class="todo-head"><div><div class="todo-title">PRIORITY 6 — Multi-Wallet Orchestration</div><div class="todo-meta">0/21 complete</div></div><span class="feed-tag ft-info">queued</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define multi-wallet routing model</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build balance-aware allocation</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build unified view across wallets</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Add per-wallet health status</div></div>
-      </div></div>
-    </div>
-    <div class="todo-section" data-search="priority 7 settlement retry reconciliation and ops automation define settlement workflow define retry rules build internal vs external reconciliation persist settlement events">
-      <div class="todo-head"><div><div class="todo-title">PRIORITY 7 — Settlement, Retry, Reconciliation, and Ops Automation</div><div class="todo-meta">0/25 complete</div></div><span class="feed-tag ft-info">queued</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define settlement workflow</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define retry rules</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Build internal vs external reconciliation</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Persist settlement events</div></div>
-      </div></div>
-    </div>
-    <div class="todo-section" data-search="priority 8 production-capital readiness audit all paper-only assumptions define capital-mode config harden position sizing audit live execution path">
-      <div class="todo-head"><div><div class="todo-title">PRIORITY 8 — Production-Capital Readiness</div><div class="todo-meta">0/23 complete</div></div><span class="feed-tag ft-info">queued</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Audit all paper-only assumptions</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Define capital-mode config</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Harden position sizing</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Audit live execution path</div></div>
-      </div></div>
-    </div>
-    <div class="todo-section" data-search="priority 9 final product completion launch assets and handoff finalize readme prepare deployment guide finalize project monitor organize forge reports get final commander acceptance">
-      <div class="todo-head"><div><div class="todo-title">PRIORITY 9 — Final Product Completion, Launch Assets, and Handoff</div><div class="todo-meta">0/26 complete</div></div><span class="feed-tag ft-info">queued</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Key items</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Finalize README</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Prepare deployment guide</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Finalize project monitor</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Get final COMMANDER acceptance</div></div>
-      </div></div>
-    </div>
-    <div class="todo-section" data-search="simple execution order right now redeploy restart fly with the latest secrets check telegram startup logs make telegram runtime truly active test start help status">
-      <div class="todo-head"><div><div class="todo-title">Immediate Execution</div><div class="todo-meta">0/15 complete</div></div><span class="feed-tag ft-info">ops</span></div>
-      <div class="todo-sub"><div class="todo-sub-head">Right now</div><div class="todo-items">
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Redeploy/restart Fly with the latest secrets</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Check Telegram startup logs</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Make Telegram runtime truly active</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Test /start</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Test /help</div></div>
-        <div class="todo-item td-open" data-done="0"><div class="todo-dot">○</div><div class="todo-text">Test /status</div></div>
-      </div></div>
-    </div>
+    <div class="todo-meta" id="checklistSourceStatus">Loading checklist...</div>
   </div>
 </div>
 <div class="card">
@@ -519,32 +390,180 @@ footer {
 </footer>
 </div>
 <script>
+const CANDIDATE_PATHS = [
+  '../projects/polymarket/polyquantbot/work_checklist.md',
+  '/walker-ai-team/projects/polymarket/polyquantbot/work_checklist.md',
+  '/projects/polymarket/polyquantbot/work_checklist.md'
+];
+
 function tog(head) {
   const body = head.nextElementSibling;
   const isOpen = !body.classList.contains('hidden');
   body.classList.toggle('hidden', isOpen);
   head.classList.toggle('closed', isOpen);
 }
+
 function setTs() {
   const t = new Date().toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
   document.getElementById('ts').innerHTML = 'Updated: <span>' + t + '</span>';
 }
+
+function esc(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+const state = { sections: [], loadedPath: '' };
 const searchInput = document.getElementById('searchInput');
 const hideDone = document.getElementById('hideDone');
+const todoBody = document.getElementById('todoBody');
+
+function parseChecklist(text) {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const sections = [];
+  let current = null;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    if (/^PRIORITY\s+\d+\s+—/i.test(line)) {
+      current = { title: line, items: [] };
+      sections.push(current);
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(line) && current) {
+      current.items.push({ text: line.replace(/^\d+\.\s+/, ''), done: false, kind: 'note' });
+      continue;
+    }
+
+    const match = line.match(/^\[(x|X| )\]\s+(.+)$/);
+    if (match && current) {
+      current.items.push({ text: match[2], done: match[1].toLowerCase() === 'x', kind: 'check' });
+    }
+  }
+
+  return sections.filter((sec) => sec.items.length > 0);
+}
+
+function renderOverview(filteredSections) {
+  const wrap = document.getElementById('priorityOverview');
+  wrap.innerHTML = '';
+
+  filteredSections.forEach((sec, idx) => {
+    const done = sec.items.filter((item) => item.kind === 'check' && item.done).length;
+    const total = sec.items.filter((item) => item.kind === 'check').length;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    const badgeClass = pct === 100 ? 'pb-done' : (pct > 0 ? 'pb-prog' : 'pb-pend');
+    const row = document.createElement('div');
+    row.className = `phase-row ${idx === 0 ? 'active' : ''}`;
+    row.innerHTML = `
+      <span class="phase-num">P${idx + 1}</span>
+      <span class="phase-name">${esc(sec.title)}</span>
+      <span class="phase-badge ${badgeClass}">${pct}%</span>
+      <div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:${pct}%"></div></div></div>
+    `;
+    wrap.appendChild(row);
+  });
+}
+
+function renderChecklist(filteredSections) {
+  const sourceStatus = document.getElementById('checklistSourceStatus');
+  sourceStatus.textContent = `Loaded from: ${state.loadedPath}`;
+
+  const existingSections = todoBody.querySelectorAll('.todo-section');
+  existingSections.forEach((node) => node.remove());
+
+  filteredSections.forEach((sec, idx) => {
+    const done = sec.items.filter((item) => item.kind === 'check' && item.done).length;
+    const total = sec.items.filter((item) => item.kind === 'check').length;
+
+    const secEl = document.createElement('div');
+    secEl.className = 'todo-section';
+    secEl.setAttribute('data-search', `${sec.title} ${sec.items.map((item) => item.text).join(' ')}`.toLowerCase());
+
+    const statusTag = idx === 0 ? '<span class="feed-tag ft-open">active</span>' : '<span class="feed-tag ft-info">queued</span>';
+
+    secEl.innerHTML = `
+      <div class="todo-head"><div><div class="todo-title">${esc(sec.title)}</div><div class="todo-meta">${done}/${total} complete</div></div>${statusTag}</div>
+      <div class="todo-sub">
+        <div class="todo-sub-head">Checklist items</div>
+        <div class="todo-items">
+          ${sec.items.map((item) => {
+            const isDone = item.kind === 'check' && item.done;
+            const cssClass = isDone ? 'td-done' : (item.kind === 'check' ? 'td-open' : 'td-note');
+            const marker = isDone ? '✓' : (item.kind === 'check' ? '○' : '•');
+            const doneFlag = isDone ? '1' : '0';
+            return `<div class="todo-item ${cssClass}" data-done="${doneFlag}"><div class="todo-dot">${marker}</div><div class="todo-text">${esc(item.text)}</div></div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+
+    todoBody.appendChild(secEl);
+  });
+}
+
+function renderMetrics(filteredSections) {
+  let done = 0;
+  let total = 0;
+
+  filteredSections.forEach((sec) => {
+    sec.items.forEach((item) => {
+      if (item.kind === 'check') {
+        total += 1;
+        if (item.done) done += 1;
+      }
+    });
+  });
+
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  document.getElementById('metricDone').textContent = `${done}`;
+  document.getElementById('metricOpen').textContent = `${Math.max(total - done, 0)}`;
+  document.getElementById('metricPct').textContent = `${pct}%`;
+  document.getElementById('metricRatio').textContent = `${done}/${total} checked`;
+  document.getElementById('metricActive').textContent = filteredSections.length ? 'P1' : '—';
+  document.getElementById('laneCountBadge').textContent = `${filteredSections.length}`;
+  document.getElementById('sectionCountBadge').textContent = `${filteredSections.length}`;
+}
+
 function applyFilters() {
   const q = searchInput.value.trim().toLowerCase();
-  document.querySelectorAll('.todo-section').forEach(sec => {
+  document.querySelectorAll('.todo-section').forEach((sec) => {
     const text = sec.getAttribute('data-search') || '';
     sec.style.display = (!q || text.includes(q)) ? '' : 'none';
   });
-  document.querySelectorAll('[data-done="1"]').forEach(el => {
+  document.querySelectorAll('[data-done="1"]').forEach((el) => {
     el.classList.toggle('hidden-item', hideDone.checked);
   });
 }
+
+async function loadChecklist() {
+  const sourceStatus = document.getElementById('checklistSourceStatus');
+  sourceStatus.textContent = 'Loading checklist...';
+
+  for (const path of CANDIDATE_PATHS) {
+    try {
+      const res = await fetch(path, { cache: 'no-store' });
+      if (!res.ok) continue;
+      const text = await res.text();
+      state.loadedPath = path;
+      state.sections = parseChecklist(text);
+      renderMetrics(state.sections);
+      renderOverview(state.sections);
+      renderChecklist(state.sections);
+      applyFilters();
+      return;
+    } catch (_) {}
+  }
+
+  sourceStatus.textContent = 'Unable to load work_checklist.md from GitHub Pages paths.';
+}
+
 searchInput.addEventListener('input', applyFilters);
 hideDone.addEventListener('change', applyFilters);
 setTs();
-applyFilters();
+loadChecklist();
 </script>
 </body>
 </html>
