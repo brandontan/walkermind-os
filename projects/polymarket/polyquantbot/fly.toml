@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for crusaderbot on 2026-04-20T17:58:53Z
+# fly.toml app configuration file generated for crusaderbot on 2026-04-21T03:47:37Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -7,9 +7,6 @@ app = 'crusaderbot'
 primary_region = 'iad'
 
 [build]
-
-[processes]
-  app = "python -m projects.polymarket.polyquantbot.scripts.run_api"
 
 [http_service]
   internal_port = 8080
@@ -23,4 +20,4 @@ primary_region = 'iad'
   memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 1024
+  memory_mb = 512
