@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 13:59
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram runtime activation lane for Fly is implemented in code and readiness truth-synced, while external deploy verification is currently blocked in this runner environment.
+Last Updated : 2026-04-21 14:17
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram runtime activation lane for Fly is implemented in code and readiness truth-synced, and SENTINEL PR #690 validation is currently BLOCKED pending deploy-capable external proof for startup logs and Telegram command replies.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -34,7 +34,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 
 [IN PROGRESS]
 - Post-launch cleanup + README alignment + announcement polish lane is in progress for paper-beta public-facing clarity (paper-only/no-live-trading boundary preserved).
-- Telegram runtime activation on Fly lane is in progress for external deploy verification (`/start`, `/help`, `/status`) after code-path activation and `/ready` truth-sync landed in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_01_public-ready-runtime-activation.md`.
+- Telegram runtime activation on Fly lane remains in progress: SENTINEL validation for PR #690 is BLOCKED in current runner due Fly endpoint proxy 403 + missing flyctl; rerun in deploy-capable environment must verify startup logs and live Telegram replies (`/start`, `/help`, `/status`) after code-path activation and `/ready` truth-sync (`projects/polymarket/polyquantbot/reports/forge/telegram_runtime_01_public-ready-runtime-activation.md`, `projects/polymarket/polyquantbot/reports/sentinel/telegram_runtime_01_public-ready-runtime-validation-pr690.md`).
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -42,7 +42,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL validation of `feature/public-ready-telegram-runtime-on-fly` with deploy-capable environment to verify real Fly startup logs and real Telegram command replies (`/start`, `/help`, `/status`).
+- Re-run SENTINEL validation of `feature/public-ready-telegram-runtime-on-fly` in deploy-capable environment with reachable Fly and Telegram chat to collect hard evidence for startup logs, `/ready` telegram_runtime truth, and real Telegram command replies (`/start`, `/help`, `/status`).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
