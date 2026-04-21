@@ -40,24 +40,32 @@ This must be finished first.
 [ ] Make sure there is no timeout or silent failure
 
 
-3. Public Onboarding
+3. Path to Public Telegram UX Refinement
 
-[ ] Show a clear intro for new users
+[ ] Refine the existing Telegram onboarding flow
 
-[ ] Clearly explain that the bot is in paper-only mode
+[ ] Refine the existing Telegram command UX
 
-[ ] Clearly explain what is already ready
+[ ] Refine the current welcome intro for new users
 
-[ ] Clearly explain the next step
+[ ] Refine the current help and status copy
 
-[ ] Make the unlinked-user flow clear
+[ ] Refine paper-only messaging across the existing Telegram flow
 
-[ ] Make the linked-user flow clear
+[ ] Refine the next-step guidance for new users
 
-[ ] Add clean fallback onboarding messages
+[ ] Refine the unlinked-user flow using the current foundation
+
+[ ] Refine the linked-user flow using the current foundation
+
+[ ] Refine fallback and error messaging
+
+[ ] Refine Telegram formatting and readability
 
 
 4. Public Command Set
+
+[ ] Keep the existing public command baseline clean and useful
 
 [ ] Prepare /paper
 
@@ -72,20 +80,7 @@ This must be finished first.
 [ ] Hide commands that are not ready yet
 
 
-5. UX Polish
-
-[ ] Improve the welcome message
-
-[ ] Improve the help message
-
-[ ] Make status output short and clear
-
-[ ] Remove raw debug output from user-facing replies
-
-[ ] Clean up Telegram message formatting
-
-
-6. Public-Safe Boundaries
+5. Public-Safe Boundaries
 
 [ ] Do not claim live trading readiness
 
@@ -96,7 +91,7 @@ This must be finished first.
 [ ] Guard admin/internal paths properly
 
 
-7. Observability Baseline
+6. Observability Baseline
 
 [ ] Add bot startup logs
 
@@ -109,7 +104,7 @@ This must be finished first.
 [ ] Add missing env / disabled mode logs
 
 
-8. End-to-End Validation
+7. End-to-End Validation
 
 [ ] Deploy the latest version
 
@@ -129,7 +124,6 @@ This must be finished first.
 Done Condition
 
 [ ] The bot is truly usable as a public-ready paper bot baseline
-
 
 
 ---
@@ -198,7 +192,6 @@ Finish this after the public bot baseline works.
 
 [ ] Add retry handling for non-fatal dependencies
 
-
 14. Logging and Monitoring Hardening
 
 [ ] Keep structured logging consistent
@@ -239,7 +232,6 @@ Done Condition
 [ ] The bot is not just running, but stable and persistent
 
 
-
 ---
 
 PRIORITY 3 — Paper Trading Product Completion
@@ -261,14 +253,13 @@ Finish this after runtime and persistence are stable.
 
 [ ] Define paper order intent flow
 
-[ ] Implement paper entry logic
+[ ] Enable paper entry logic
 
-[ ] Implement paper exit logic
+[ ] Enable paper exit logic
 
 [ ] Make paper fill assumptions clear
 
 [ ] Make paper execution logging clear
-
 
 19. Paper Portfolio Surface
 
@@ -301,7 +292,6 @@ Finish this after runtime and persistence are stable.
 [ ] Show enable/disable visibility
 
 [ ] Show suppressed/blocked reasons
-
 
 22. Admin / Operator Paper Controls
 
@@ -341,7 +331,6 @@ Done Condition
 [ ] The bot is usable as a real paper trading product
 
 
-
 ---
 
 PRIORITY 4 — Wallet Lifecycle Foundation
@@ -352,7 +341,7 @@ Build this after the paper product is solid.
 
 [ ] Finalize wallet entity model
 
-[ ] Finalize ownership model
+[ ] Settle ownership model
 
 [ ] Finalize wallet status/state model
 
@@ -415,7 +404,6 @@ Done Condition
 [ ] Wallet lifecycle is complete and stable
 
 
-
 ---
 
 PRIORITY 5 — Portfolio Management Logic
@@ -424,11 +412,11 @@ Build this after wallet lifecycle is ready.
 
 31. Portfolio Model
 
-[ ] Finalize portfolio entity model
+[ ] Refine portfolio entity model
 
-[ ] Finalize per-user portfolio model
+[ ] Refine per-user portfolio model
 
-[ ] Finalize per-wallet portfolio relation
+[ ] Refine per-wallet portfolio relation
 
 
 32. Exposure Aggregation
@@ -437,7 +425,7 @@ Build this after wallet lifecycle is ready.
 
 [ ] Build per-market exposure logic
 
-[ ] Build per-user exposure logic
+[ ] Buill per-user exposure logic
 
 [ ] Build per-wallet exposure logic
 
@@ -489,7 +477,6 @@ Build this after wallet lifecycle is ready.
 Done Condition
 
 [ ] Portfolio is managed at system level, not manually
-
 
 
 ---
@@ -565,7 +552,6 @@ Build this after wallet and portfolio are ready.
 Done Condition
 
 [ ] The system can coordinate multiple wallets safely and truthfully
-
 
 
 ---
@@ -647,7 +633,6 @@ Build this after orchestration is ready.
 Done Condition
 
 [ ] Ops flow is resilient, observable, and recoverable
-
 
 
 ---
@@ -733,7 +718,6 @@ This is the last major capability layer.
 Done Condition
 
 [ ] The project can truthfully claim production-capital readiness
-
 
 
 ---
@@ -829,7 +813,6 @@ Done Condition
 [ ] Project is finished 100%
 
 
-
 ---
 
 Simple Execution Order
@@ -853,7 +836,6 @@ Simple Execution Order
 [ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
 
 
-
 ---
 
 Right Now
@@ -869,4 +851,3 @@ Right Now
 [ ] Test /help
 
 [ ] Test /status
-
