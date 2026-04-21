@@ -29,6 +29,19 @@ DONE / Mostly Done
 
 ACTIVE (Current lane)
 
+Ops Handoff / Troubleshooting Lane
+
+[x] Publish operator runbook for current runtime posture and public-safe paper-only claims
+
+[x] Publish Fly runtime troubleshooting quick guide
+
+[x] Publish Telegram runtime troubleshooting quick guide
+
+[x] Publish Sentry quick-check note (integration present vs first-event proof pending)
+
+[x] Publish reusable runtime evidence capture checklist
+
+
 [x] Fix /help command semantics so it reaches real help handler (no /start collapse)
 
 [x] Fix /status command semantics so it reaches real status handler (no /start collapse)
@@ -765,11 +778,11 @@ This is the final finish layer.
 
 [ ] Prepare secrets/env guide
 
-[ ] Prepare troubleshooting guide
+[x] Prepare troubleshooting guide
 
-[ ] Prepare incident guide
+[x] Prepare incident guide
 
-[ ] Prepare rollback guide
+[x] Prepare rollback guide
 
 
 57. Monitoring and Admin Surfaces

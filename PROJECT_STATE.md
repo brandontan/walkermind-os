@@ -1,7 +1,8 @@
-Last Updated : 2026-04-21 23:03
+Last Updated : 2026-04-21 23:52
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram command-routing semantics plus expanded public-reply presentation consolidation are implemented at code level, with deploy-capable Fly + live Telegram verification still pending.
 
 [COMPLETED]
+- Ops handoff pack lane is completed with operator runbook + Fly runtime troubleshooting + Telegram runtime troubleshooting + Sentry quick-check + reusable runtime evidence checklist under `projects/polymarket/polyquantbot/docs/`.
 - Phase 6.6.8 public safety hardening merged via PR #565.
 - Phase 6.6.9 minimal execution hook merged via PR #566.
 - Phase 7.0 deterministic public activation cycle orchestration foundation merged and preserved.
