@@ -1,7 +1,7 @@
 # Phase 10.1 Telegram UX Consolidation (Public Paper-Beta Surface)
 
 Date: 2026-04-22 05:38 (Asia/Jakarta)
-Branch: feature/ux-telegram-public-ready-20260422
+Branch: feature/consolidate-telegram-ux-and-clean-legacy-files-2026-04-21
 Project Root: projects/polymarket/polyquantbot/
 
 ## 1. What was built
@@ -18,7 +18,7 @@ Project Root: projects/polymarket/polyquantbot/
 2. Command payloads are rendered only through `telegram.view_handler.render_view(...)`.
 3. `telegram.view_handler` normalizes actions and delegates rendering to `telegram.ui_formatter.render_dashboard(...)`.
 4. `telegram.ui_formatter` remains the single active presentation layer for main states, section cards, empty states, and operator/fallback guidance text.
-5. Legacy `interface/telegram` remains thin compatibility-only shim territory; active UX/runtime ownership is still exclusively under `projects/polymarket/polyquantbot/telegram`.
+5. This PR diff does not add/remove legacy archive files; it only updates active Telegram UX behavior and wording within existing runtime/test/state/report files.
 
 ## 3. Files created / modified (full repo-root paths)
 
@@ -39,13 +39,13 @@ Project Root: projects/polymarket/polyquantbot/
 
 ## 5. Known issues
 
-- This task intentionally keeps compatibility shims in `projects/polymarket/polyquantbot/interface/telegram/` and `projects/polymarket/polyquantbot/interface/ui_formatter.py`; full shim retirement remains out of scope until all downstream legacy imports are migrated.
+- No legacy/archive directory cleanup was delivered in this diff; claims are intentionally limited to Telegram UX command/view consolidation and wording alignment in touched files.
 - Broader onboarding/session repetition UX debt remains tracked separately in PROJECT_STATE and was not expanded here.
 
 ## 6. What is next
 
 - COMMANDER review of this STANDARD lane and merge decision.
-- If approved, optionally continue thin-shim usage audit to identify remaining callers before a dedicated archive/removal pass.
+- Keep follow-up work (if any) on legacy archive/tree cleanup as a separate scoped task with its own diff and evidence.
 
 Validation Tier   : STANDARD
 Claim Level       : NARROW INTEGRATION
