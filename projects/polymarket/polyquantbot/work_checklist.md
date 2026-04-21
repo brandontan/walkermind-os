@@ -8,32 +8,44 @@ PRIORITY 1 — Bot Public-Ready Baseline
 
 This must be finished first.
 
-1. Telegram Runtime Activation
+Status Snapshot (2026-04-21)
 
-[ ] Make sure the Telegram listener/worker is truly active on Fly
+DONE / Mostly Done
 
-[ ] Confirm the runtime mode: polling or webhook
+[x] Fly app is alive
 
-[ ] Make sure the bot starts automatically when the app boots
+[x] Telegram runtime is active on Fly
 
-[ ] Make sure /ready truthfully reflects Telegram runtime state
+[x] Telegram startup is automatic in the deploy path
 
-[ ] Make sure worker_runtime.active is truthful
+[x] /ready includes Telegram runtime truth
 
-[ ] Make sure worker_runtime.startup_complete is truthful
+[x] /start replies on deployed environment
 
-[ ] Add clear Telegram startup logs
+[x] Onboarding/public-safe/paper-only copy refined
 
-[ ] Remove any silent disabled mode
+[x] Fallback/error copy refined
+
+
+ACTIVE (Current lane)
+
+[ ] Fix /help command semantics so it reaches real help handler (no /start collapse)
+
+[ ] Fix /status command semantics so it reaches real status handler (no /start collapse)
+
+[ ] Ensure command routing precedence no longer collapses non-/start commands into /start lifecycle/session path
+
+
+NEXT (immediately after code fix)
+
+[ ] Redeploy latest command-routing fix to Fly
+
+[ ] Verify live Telegram behavior for /start, /help, and /status
+
+[ ] Save fresh deploy evidence (logs + /health + /ready + command replies)
 
 
 2. Baseline Public Commands
-
-[ ] Make sure /start replies successfully
-
-[ ] Make sure /help replies successfully
-
-[ ] Make sure /status replies successfully
 
 [ ] Make sure responses are not empty or dummy
 

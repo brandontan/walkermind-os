@@ -259,3 +259,48 @@ def test_polling_loop_uses_staging_contract() -> None:
     dispatched_ctx: TelegramCommandContext = dispatcher.dispatch.call_args[0][0]
     assert dispatched_ctx.tenant_id == "t-stage"
     assert dispatched_ctx.user_id == "u-stage"
+
+
+def test_polling_loop_non_start_command_bypasses_start_lifecycle_hooks() -> None:
+    update = _make_update(update_id=60, chat_id="c60", from_user_id="tg60", text="/help")
+    adapter = MockTelegramAdapter([update])
+    dispatcher = _mock_dispatcher(reply_text="Help text")
+    resolver = AsyncMock(
+        resolve_telegram_identity=AsyncMock(
+            return_value=MagicMock(outcome="resolved", tenant_id="t1", user_id="u1")
+        )
+    )
+    activation_confirmer = AsyncMock()
+    session_issuer = AsyncMock()
+    loop = TelegramPollingLoop(
+        adapter=adapter,
+        dispatcher=dispatcher,
+        identity_resolver=resolver,
+        activation_confirmer=activation_confirmer,
+        session_issuer=session_issuer,
+    )
+    asyncio.run(loop.run_once())
+    dispatcher.dispatch.assert_called_once()
+    activation_confirmer.confirm_telegram_activation.assert_not_awaited()
+    session_issuer.issue_telegram_session.assert_not_awaited()
+    assert adapter.replies[0] == ("c60", "Help text")
+
+
+def test_polling_loop_non_start_not_found_requires_start_first() -> None:
+    update = _make_update(update_id=61, chat_id="c61", from_user_id="tg61", text="/status")
+    adapter = MockTelegramAdapter([update])
+    dispatcher = _mock_dispatcher(reply_text="Status text")
+    resolver = AsyncMock(
+        resolve_telegram_identity=AsyncMock(return_value=MagicMock(outcome="not_found"))
+    )
+    onboarding_initiator = AsyncMock()
+    loop = TelegramPollingLoop(
+        adapter=adapter,
+        dispatcher=dispatcher,
+        identity_resolver=resolver,
+        onboarding_initiator=onboarding_initiator,
+    )
+    asyncio.run(loop.run_once())
+    dispatcher.dispatch.assert_not_called()
+    onboarding_initiator.start_telegram_onboarding.assert_not_awaited()
+    assert "Use /start first" in adapter.replies[0][1]
