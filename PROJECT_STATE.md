@@ -1,4 +1,4 @@
-Last Updated : 2026-04-22 01:19
+Last Updated : 2026-04-22 01:52
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Telegram command-routing semantics plus expanded public-reply presentation consolidation are implemented at code level, with deploy-capable Fly + live Telegram verification still pending.
 
 [COMPLETED]
@@ -34,7 +34,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Phase 9.3 post-release public-facing launch assets pack is completed with coherent readiness/posture/boundary/onboarding/announcement docs and wording-audit alignment to paper-only truth under `projects/polymarket/polyquantbot/reports/forge/phase9-3_03_post-release-launch-assets-pack.md`.
 
 [IN PROGRESS]
-- Work checklist monitor integration lane is in progress on `feature/integrate-work-checklist-into-project-monitor`: `docs/project_monitor.html` now renders repository-truth `projects/polymarket/polyquantbot/work_checklist.md` directly (with `docs/worktodo.html` retained as fallback and `docs/docs_hub.html` as docs navigation entrypoint) pending COMMANDER review.
+- Work checklist monitor integration hardening lane is in progress on `feature/integrate-work-checklist-into-project-monitor`: malformed `projects/polymarket/polyquantbot/work_checklist.md` structure was repaired and `docs/project_monitor.html` now includes conservative fallback parsing so major checklist sections remain visible under partial markdown-format damage, pending COMMANDER review.
 - Post-launch cleanup + README alignment + announcement polish lane is in progress for paper-beta public-facing clarity (paper-only/no-live-trading boundary preserved).
 - Telegram command-routing + baseline closure lane remains in progress: SENTINEL validation for PR #705 is BLOCKED because deploy/runtime verification is still blocked in this runner (`flyctl` missing, external Fly tunnel 403, no Telegram/Fly credential env keys), so Priority 1 live closure cannot be truthfully marked complete yet. Evidence: `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_04_live-baseline-closure.md`, `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_04_live-baseline-evidence.log`, `projects/polymarket/polyquantbot/reports/sentinel/telegram_runtime_04_live-baseline-validation-pr705.md`.
 - Telegram onboarding + /start /help /status public UX copy refinement is implemented on `feature/refine-telegram-onboarding-and-public-ux-copy` with cleaner onboarding/fallback messaging and explicit paper-only safety wording pending COMMANDER review.
