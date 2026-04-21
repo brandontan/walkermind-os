@@ -1,0 +1,149 @@
+Phase 9.3 Deploy/Runtime Evidence Log
+Generated (Asia/Jakarta): 2026-04-21 05:40
+Branch Context: feature/phase-9-3-deploy-runtime-truth (Codex worktree may show work)
+
+$ which flyctl
+[exit_code=1]
+
+$ which fly
+[exit_code=1]
+
+$ curl -sS -D - https://crusaderbot.fly.dev/health
+[exit_code=56]
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Mon, 20 Apr 2026 22:40:54 GMT
+server: envoy
+connection: close
+[stderr]
+curl: (56) CONNECT tunnel failed, response 403
+
+$ curl -sS -D - https://crusaderbot.fly.dev/ready
+[exit_code=56]
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Mon, 20 Apr 2026 22:40:54 GMT
+server: envoy
+connection: close
+[stderr]
+curl: (56) CONNECT tunnel failed, response 403
+
+# health probe 1 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_health_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/health
+[exit_code=56]
+http_code=000 total_time=0.005757
+
+
+# health probe 2 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_health_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/health
+[exit_code=56]
+http_code=000 total_time=0.005422
+
+
+# health probe 3 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_health_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/health
+[exit_code=56]
+http_code=000 total_time=0.005111
+
+
+# health probe 4 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_health_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/health
+[exit_code=56]
+http_code=000 total_time=0.005306
+
+
+# health probe 5 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_health_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/health
+[exit_code=56]
+http_code=000 total_time=0.004675
+
+
+# ready probe 1 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_ready_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/ready
+[exit_code=56]
+http_code=000 total_time=0.004254
+
+
+# ready probe 2 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_ready_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/ready
+[exit_code=56]
+http_code=000 total_time=0.004667
+
+
+# ready probe 3 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_ready_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/ready
+[exit_code=56]
+http_code=000 total_time=0.005213
+
+
+# ready probe 4 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_ready_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/ready
+[exit_code=56]
+http_code=000 total_time=0.004602
+
+
+# ready probe 5 at 2026-04-21 05:40:54
+$ curl -sS -o /tmp/crusader_ready_body.json -w 'http_code=%{http_code} total_time=%{time_total}\n' https://crusaderbot.fly.dev/ready
+[exit_code=56]
+http_code=000 total_time=0.005335
+
+
+# header probe 1
+$ curl -sSI https://crusaderbot.fly.dev/health | tr -d '\r' | rg -n 'fly-request-id|via|server|date|HTTP/'
+[exit_code=0]
+1:HTTP/1.1 403 Forbidden
+4:date: Mon, 20 Apr 2026 22:40:54 GMT
+5:server: envoy
+[stderr]
+curl: (56) CONNECT tunnel failed, response 403
+
+# header probe 2
+$ curl -sSI https://crusaderbot.fly.dev/health | tr -d '\r' | rg -n 'fly-request-id|via|server|date|HTTP/'
+[exit_code=0]
+1:HTTP/1.1 403 Forbidden
+4:date: Mon, 20 Apr 2026 22:40:54 GMT
+5:server: envoy
+[stderr]
+curl: (56) CONNECT tunnel failed, response 403
+
+# header probe 3
+$ curl -sSI https://crusaderbot.fly.dev/health | tr -d '\r' | rg -n 'fly-request-id|via|server|date|HTTP/'
+[exit_code=0]
+1:HTTP/1.1 403 Forbidden
+4:date: Mon, 20 Apr 2026 22:40:54 GMT
+5:server: envoy
+[stderr]
+curl: (56) CONNECT tunnel failed, response 403
+
+# header probe 4
+$ curl -sSI https://crusaderbot.fly.dev/health | tr -d '\r' | rg -n 'fly-request-id|via|server|date|HTTP/'
+[exit_code=0]
+1:HTTP/1.1 403 Forbidden
+4:date: Mon, 20 Apr 2026 22:40:54 GMT
+5:server: envoy
+[stderr]
+curl: (56) CONNECT tunnel failed, response 403
+
+# header probe 5
+$ curl -sSI https://crusaderbot.fly.dev/health | tr -d '\r' | rg -n 'fly-request-id|via|server|date|HTTP/'
+[exit_code=0]
+1:HTTP/1.1 403 Forbidden
+4:date: Mon, 20 Apr 2026 22:40:54 GMT
+5:server: envoy
+[stderr]
+curl: (56) CONNECT tunnel failed, response 403
+
+
+# proxy bypass attempt
+$ HTTPS_PROXY= HTTP_PROXY= ALL_PROXY= NO_PROXY='*' curl -sS -D - https://crusaderbot.fly.dev/health
+[exit_code=56]
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Mon, 20 Apr 2026 22:41:04 GMT
+server: envoy
+connection: close
+[stderr]
+curl: (56) CONNECT tunnel failed, response 403

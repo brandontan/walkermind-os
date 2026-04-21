@@ -32,6 +32,7 @@ def _build_execution_guard() -> dict[str, object]:
         "blocked_reasons": execution_blocked_reasons,
         "reason_count": len(execution_blocked_reasons),
         "operator_summary": "blocked" if execution_blocked_reasons else "entry_allowed",
+        "paper_beta_boundary": "execution_never_promotes_to_live_in_phase9-2",
     }
 
 
@@ -58,6 +59,10 @@ def _build_exit_criteria(falcon: FalconGateway) -> dict[str, object]:
         "onboarding_session_control_path_functioning": {
             "pass": True,
             "detail": "Telegram onboarding/activation/session routes are available on the backend control plane.",
+        },
+        "operator_admin_semantics_consistent": {
+            "pass": True,
+            "detail": "Telegram + API status wording keeps public paper-beta boundary explicit and rejects live-mode promotion.",
         },
         "required_config_present": {
             "pass": bool(falcon_config["config_valid_for_enabled_mode"]),
@@ -110,6 +115,13 @@ def _build_beta_status_payload(falcon: FalconGateway) -> dict[str, object]:
             "live_trading_ready": False,
             "known_limitations_doc": "projects/polymarket/polyquantbot/docs/public_paper_beta_spine.md",
         },
+        "public_readiness_semantics": {
+            "release_channel": "public_paper_beta",
+            "operator_scope": "managed_control_and_read_surfaces_only",
+            "admin_scope": "status_and_guard_visibility_only",
+            "live_release_gate": "phase9-3_not_started",
+            "live_mode_switch_available": False,
+        },
     }
 
 
@@ -132,6 +144,7 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
             "managed_beta_state": status_payload["managed_beta_state"],
             "exit_criteria": status_payload["exit_criteria"],
             "required_config_state": status_payload["required_config_state"],
+            "public_readiness_semantics": status_payload["public_readiness_semantics"],
             "admin_summary": {
                 "beta_controllable": True,
                 "key_gates_active": not status_payload["execution_guard"]["entry_allowed"],
@@ -144,11 +157,27 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
         mode = payload.mode.strip().lower()
         if mode not in {"paper", "live"}:
             return {"ok": False, "detail": "mode must be paper or live"}
-        previous_mode = STATE.mode
-        STATE.mode = mode
+
         if mode == "live":
+            STATE.mode = "paper"
             STATE.autotrade_enabled = False
             STATE.last_risk_reason = "mode_live_paper_execution_disabled"
+            log.info(
+                "public_beta_mode_live_rejected",
+                requested_mode=mode,
+                enforced_mode=STATE.mode,
+                autotrade_enabled=STATE.autotrade_enabled,
+                execution_boundary="paper_only",
+            )
+            return {
+                "ok": False,
+                "mode": STATE.mode,
+                "execution_boundary": "paper_only",
+                "detail": "mode=live is disabled in public paper beta; use /status and /beta/admin for readiness visibility only.",
+            }
+
+        previous_mode = STATE.mode
+        STATE.mode = "paper"
         log.info(
             "public_beta_mode_changed",
             previous_mode=previous_mode,
@@ -160,7 +189,7 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
             "ok": True,
             "mode": STATE.mode,
             "execution_boundary": "paper_only",
-            "detail": "live mode is control-plane state only in this phase; execution remains paper-only.",
+            "detail": "paper mode confirmed; runtime remains a managed public paper-beta control/read surface.",
         }
 
     @router.post("/autotrade")

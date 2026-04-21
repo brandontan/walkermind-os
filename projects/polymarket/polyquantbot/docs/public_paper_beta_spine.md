@@ -61,7 +61,7 @@ This lane is **NARROW INTEGRATION**. Falcon market/candidate/social data current
 - `/kill`
 
 Manual trade-entry commands are intentionally excluded.
-`/mode live` is accepted as control-plane state only in this phase; execution remains paper-only.
+`/mode live` is explicitly rejected in public paper beta; execution remains paper-only and readiness is exposed through `/status`, `/beta/status`, and `/beta/admin`.
 
 ### Operator-facing command semantics (completion pass)
 - `/status` reports operator guard truth (`entry_allowed`, blocked reasons, last risk reason, mode/autotrade/kill state, and paper-only boundary reminder).
@@ -86,7 +86,7 @@ Fly runtime is paper-mode by default. To activate Falcon-backed candidate genera
 
 ## Operator expectations (public paper beta)
 - Telegram is a **control shell**, not a manual trade terminal.
-- `/mode live` updates control-plane state only; execution stays paper-only in this phase.
+- `/mode live` is blocked by design in this lane to prevent misleading live-readiness interpretation.
 - `/autotrade on` is rejected when mode is `live` to preserve paper-only boundary truth.
 - `/kill` always forces autotrade OFF and sets a hard paper-beta execution block.
 - `/beta/status` includes `execution_guard` with concrete blocked reasons, `reason_count`, and `operator_summary` for operator visibility.
@@ -112,6 +112,7 @@ These checks are exposed under `exit_criteria.checks` with per-check `pass` and 
 - Verify `/beta/status.managed_beta_state` reports whether the beta is currently `managed` or `needs_attention`
 - Verify `/beta/admin.admin_summary.live_execution_privileges_enabled=false`
 - Verify `/beta/status.readiness_interpretation.live_trading_ready=false`
+- Verify `/beta/status.public_readiness_semantics.live_mode_switch_available=false`
 - Verify `/beta/admin.exit_criteria.checks.required_config_present.pass` matches Falcon env reality
 
 ## Phase 8.9 validation truth guard (Paper Beta State Truth Cleanup + Dependency-Complete Validation)

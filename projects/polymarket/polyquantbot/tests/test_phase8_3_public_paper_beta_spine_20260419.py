@@ -95,10 +95,19 @@ class FakeBackend:
         if path == "/beta/autotrade":
             return {"autotrade": payload.get("enabled", False)}
         if path == "/beta/mode":
+            requested_mode = str(payload.get("mode", "paper"))
+            if requested_mode == "live":
+                return {
+                    "ok": False,
+                    "mode": "paper",
+                    "execution_boundary": "paper_only",
+                    "detail": "mode=live is disabled in public paper beta; use /status and /beta/admin for readiness visibility only.",
+                }
             return {
-                "mode": payload.get("mode", "paper"),
+                "ok": True,
+                "mode": "paper",
                 "execution_boundary": "paper_only",
-                "detail": "live mode is control-plane state only in this phase; execution remains paper-only.",
+                "detail": "paper mode confirmed; runtime remains a managed public paper-beta control/read surface.",
             }
         return {"ok": True, "mode": "paper"}
 
@@ -201,11 +210,12 @@ def test_connect_wallet_removed_from_public_shell() -> None:
     assert result.outcome == "unknown_command"
 
 
-def test_mode_command_reply_mentions_paper_only_boundary() -> None:
+def test_mode_command_reply_reports_blocked_live_mode_request() -> None:
     backend = FakeBackend()
     dispatcher = TelegramDispatcher(backend=backend)
     result = asyncio.run(dispatcher.dispatch(_make_ctx("/mode", "live")))
-    assert "paper-only" in result.reply_text
+    assert "Mode change blocked" in result.reply_text
+    assert "mode=live is disabled" in result.reply_text
 
 
 def test_unknown_command_reply_lists_supported_commands() -> None:
@@ -237,23 +247,26 @@ def test_autotrade_reply_preserves_live_mode_boundary_detail() -> None:
     assert "Autotrade" in result.reply_text
 
 
-def test_live_mode_with_autotrade_request_stays_blocked_and_emits_no_events() -> None:
+def test_live_mode_request_is_rejected_and_autotrade_stays_guarded() -> None:
     _reset_state()
     app = create_app()
     with TestClient(app) as client:
         live_response = client.post("/beta/mode", json={"mode": "live"})
         assert live_response.status_code == 200
+        live_payload = live_response.json()
+        assert live_payload["ok"] is False
+        assert live_payload["mode"] == "paper"
+
         auto_response = client.post("/beta/autotrade", json={"enabled": True})
         assert auto_response.status_code == 200
         payload = auto_response.json()
-        assert payload["ok"] is False
-        assert payload["autotrade"] is False
+        assert payload["ok"] is True
+        assert payload["autotrade"] is True
 
     worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
     events = asyncio.run(worker.run_once())
-    assert events == []
-    assert STATE.last_risk_reason == "mode_live_paper_execution_disabled"
-    assert STATE.worker_runtime.last_iteration.skip_mode_count == 1
+    assert events != []
+    assert STATE.last_risk_reason != "mode_live_paper_execution_disabled"
 
 
 def test_kill_switch_keeps_execution_blocked_after_mode_switches() -> None:
@@ -265,7 +278,9 @@ def test_kill_switch_keeps_execution_blocked_after_mode_switches() -> None:
         kill_response = client.post("/beta/kill")
         assert kill_response.status_code == 200
         assert kill_response.json()["kill_switch"] is True
-        assert client.post("/beta/mode", json={"mode": "live"}).status_code == 200
+        live_mode_response = client.post("/beta/mode", json={"mode": "live"})
+        assert live_mode_response.status_code == 200
+        assert live_mode_response.json()["ok"] is False
         assert client.post("/beta/mode", json={"mode": "paper"}).status_code == 200
         reenable_response = client.post("/beta/autotrade", json={"enabled": True})
         assert reenable_response.status_code == 200
@@ -282,12 +297,13 @@ def test_status_reports_control_plane_guard_reasons() -> None:
     _reset_state()
     app = create_app()
     with TestClient(app) as client:
-        client.post("/beta/mode", json={"mode": "live"})
+        rejected_live = client.post("/beta/mode", json={"mode": "live"}).json()
         status_payload = client.get("/beta/status").json()
 
+    assert rejected_live["ok"] is False
     assert status_payload["paper_only_execution_boundary"] is True
     assert status_payload["execution_guard"]["entry_allowed"] is False
-    assert "mode_live_paper_execution_disabled" in status_payload["execution_guard"]["blocked_reasons"]
+    assert status_payload["public_readiness_semantics"]["live_mode_switch_available"] is False
 
 
 def test_status_command_reply_surfaces_execution_guard_and_boundary() -> None:

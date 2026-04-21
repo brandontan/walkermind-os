@@ -25,8 +25,6 @@ class FalconSettings:
 
         if timeout_seconds <= 0:
             raise RuntimeError("FALCON_TIMEOUT must be > 0")
-        if enabled and not api_key:
-            raise RuntimeError("FALCON_API_KEY is required when FALCON_ENABLED=true")
         if enabled and not base_url:
             raise RuntimeError("FALCON_BASE_URL is required when FALCON_ENABLED=true")
 
