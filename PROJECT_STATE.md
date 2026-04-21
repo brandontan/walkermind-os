@@ -1,5 +1,5 @@
-Last Updated : 2026-04-21 00:47
-Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up and Phase 9.1 dependency-complete runtime-proof evidence closure; root-cause diagnostics now confirm current Codex runner egress incapability (proxy 403 + no-proxy network unreachable), with one reproducible dependency-capable external-runner path documented and 9.2/9.3 still pending canonical closure evidence from that capable environment.
+Last Updated : 2026-04-21 10:08
+Status       : Open lanes remain Phase 8.14 launch-planning foundation actionable-source follow-up plus Phase 9 Fly deploy/runtime-proof closure; SENTINEL PR #684 runtime validation is now BLOCKED in current Codex runner due missing Fly CLI and missing task-referenced forge source path, so 9.2/9.3 progression evidence remains pending a Fly-capable rerun.
 
 [COMPLETED]
 - Phase 6.6.8 public safety hardening merged via PR #565.
@@ -30,6 +30,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 [IN PROGRESS]
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION lane is reopened as actionable source truth under feature/reopen-phase-8.14-launch-planning-foundation-2026-04-20; baseline implementation remains in projects/app/walker_devops and dependency-complete runtime verification is still pending package-accessible npm install plus OPENAI_API_KEY in a capable runner.
 - Phase 9.1 Fly startup crash hotfix lane has cleared SENTINEL validation for narrow crash-path correctness (PR #664) with report `projects/polymarket/polyquantbot/reports/sentinel/phase9-1_02_fly-startup-platform-shadow-validation-pr664.md`; Fly deploy/runtime smoke confirmation (`/health`, `/ready`, startup logs) remains pending in a deploy-capable environment before closure claim.
+- Phase 9.3 Fly startup-path fix validation for PR #684 is BLOCKED in current runner; sentinel report `projects/polymarket/polyquantbot/reports/sentinel/phase9-3_03_fly-startup-path-fix-validation-pr684.md` records missing Fly CLI and missing task-referenced forge source path as hard evidence gaps.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -37,7 +38,7 @@ Status       : Open lanes remain Phase 8.14 launch-planning foundation actionabl
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER merge decision for Phase 9.1 hotfix lane (PR #664), then execute deploy-capable Fly smoke/runtime proof (`/health`, `/ready`, startup logs) before any Phase 9.1 closure or Phase 9.2 progression claim.
+- Re-run SENTINEL for PR #684 in Fly-capable environment with authenticated Fly CLI and exact forge-source traceability, then attach deploy logs + `/health` + `/ready` runtime evidence before any 9.x closure progression claim.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
