@@ -1,73 +1,31 @@
-## CrusaderBot Progress Tracker
+## CrusaderBot Work Checklist
 
-CURRENT STATUS
+### From Now to Finish
 
-DONE
+## PRIORITY 1 — Bot Public-Ready Baseline
 
-[x] Phase 8 — Multi-User Foundation complete
+Ini yang harus beres sekarang dulu.
 
-[x] Phase 8.14 repo-truth cleanup complete
+1. Telegram runtime activation
 
-[x] Phase 9.1 runtime-proof closure complete
+[ ] pastikan Telegram listener/worker benar-benar aktif di Fly
 
-[x] Phase 9.2 operational/public readiness + ops hardening complete
+[ ] pastikan mode runtime jelas: polling atau webhook
 
-[x] Phase 9.3 public paper-beta release gate complete
+[ ] pastikan bot startup otomatis saat app boot
 
-[x] Fly app reachable
+[ ] pastikan /ready truthful terhadap runtime Telegram
 
-[x] /ready reachable
+[ ] pastikan worker_runtime.active truthful
 
-[x] baseline secrets di Fly sudah masuk
+[ ] pastikan worker_runtime.startup_complete truthful
 
-[x] DATABASE_URL sudah ditambahkan
+[ ] tambahkan startup log Telegram yang jelas
 
-[x] TELEGRAM_BOT_TOKEN sudah ada
-
-[x] TELEGRAM_CHAT_ID sudah ada
+[ ] hilangkan silent disabled mode
 
 
-IN PROGRESS
-
-[ ] Phase 10 — Public Bot Runtime & Product Readiness
-
-
-BLOCKER RIGHT NOW
-
-[ ] Telegram runtime/listener belum benar-benar aktif
-
-[ ] bot belum reply /start
-
-[ ] readiness masih menunjukkan worker runtime belum jalan truthful penuh
-
-
-
----
-
-PHASE TRACKER
-
-Phase 10 — Public Bot Runtime & Product Readiness
-
-10.1 Telegram runtime activation
-
-[ ] listener/worker Telegram aktif di Fly
-
-[ ] polling/webhook mode dipastikan
-
-[ ] startup Telegram otomatis saat app boot
-
-[ ] /ready truthful terhadap runtime Telegram
-
-[ ] worker_runtime.active truthful
-
-[ ] worker_runtime.startup_complete truthful
-
-[ ] startup logs Telegram jelas
-
-[ ] no silent disabled mode
-
-
-10.2 Baseline public commands
+2. Baseline public commands
 
 [ ] /start reply sukses
 
@@ -75,12 +33,29 @@ Phase 10 — Public Bot Runtime & Product Readiness
 
 [ ] /status reply sukses
 
-[ ] no empty/dummy response
+[ ] tidak ada response kosong/dummy
 
-[ ] no timeout/silent fail
+[ ] tidak ada timeout/silent fail
 
 
-10.3 Public command set
+3. Public onboarding
+
+[ ] intro user baru jelas
+
+[ ] paper-only state dijelaskan
+
+[ ] capability yang ready dijelaskan
+
+[ ] next step dijelaskan
+
+[ ] unlinked-user flow rapi
+
+[ ] linked-user flow rapi
+
+[ ] fallback onboarding tidak membingungkan
+
+
+4. Public command set
 
 [ ] /paper
 
@@ -92,38 +67,23 @@ Phase 10 — Public Bot Runtime & Product Readiness
 
 [ ] public command dipisah dari admin/operator command
 
-[ ] command belum siap disembunyikan
+[ ] command yang belum siap disembunyikan
 
 
-10.4 Onboarding flow
+5. UX polish
 
-[ ] intro user baru jelas
-
-[ ] paper-only state dijelaskan
-
-[ ] capability ready dijelaskan
-
-[ ] next step dijelaskan
-
-[ ] unlinked flow rapi
-
-[ ] linked flow rapi
-
-
-10.5 UX polish
-
-[ ] welcome copy premium
+[ ] welcome copy rapi
 
 [ ] help copy rapi
 
 [ ] status copy singkat dan jelas
 
-[ ] no raw debug ke user
+[ ] tidak ada raw debug ke user
 
 [ ] formatting Telegram rapi
 
 
-10.6 Public-safe boundaries
+6. Public-safe boundaries
 
 [ ] no live-trading claim
 
@@ -131,10 +91,10 @@ Phase 10 — Public Bot Runtime & Product Readiness
 
 [ ] paper-only boundary konsisten
 
-[ ] admin/internal path guarded
+[ ] admin/internal path diberi guard
 
 
-10.7 Observability
+7. Observability baseline
 
 [ ] log startup bot
 
@@ -147,18 +107,7 @@ Phase 10 — Public Bot Runtime & Product Readiness
 [ ] log missing env / disabled mode
 
 
-10.8 Persistence baseline
-
-[ ] session persistence stabil
-
-[ ] onboarding state stabil
-
-[ ] user/account link persistence stabil
-
-[ ] restart deploy tidak merusak state
-
-
-10.9 End-to-end public paper validation
+8. End-to-end validation
 
 [ ] deploy latest
 
@@ -172,35 +121,35 @@ Phase 10 — Public Bot Runtime & Product Readiness
 
 [ ] /status OK
 
-[ ] onboarding OK
-
 [ ] evidence disimpan
 
 
-Phase 10 status
+Done condition PRIORITY 1
 
-Status: IN PROGRESS
-Success condition: bot public-facing benar-benar usable sebagai public-ready paper bot
+[ ] bot benar-benar usable sebagai public-ready paper bot baseline
+
 
 
 ---
 
-Phase 11 — Data, DB, State Persistence & Runtime Hardening
+PRIORITY 2 — DB, Persistence, Runtime Hardening
 
-11.1 Supabase / Postgres integration
+Setelah bot bisa dipakai, bikin stabil.
+
+9. Supabase / Postgres integration hardening
 
 [ ] DATABASE_URL final stabil
 
 [ ] sslmode=require dipastikan
 
-[ ] pooled connection strategy jelas
+[ ] pooled connection dipastikan
 
-[ ] DB connection health check jalan
+[ ] DB health check jalan
 
 [ ] startup tidak crash saat DB lambat
 
 
-11.2 State migration to DB
+10. Persistence stabilization
 
 [ ] audit state yang masih file/tmp
 
@@ -210,8 +159,10 @@ Phase 11 — Data, DB, State Persistence & Runtime Hardening
 
 [ ] no split-brain file vs DB
 
+[ ] restart deploy tidak merusak state
 
-11.3 Runtime config hardening
+
+11. Runtime config hardening
 
 [ ] env wajib tervalidasi saat boot
 
@@ -222,7 +173,7 @@ Phase 11 — Data, DB, State Persistence & Runtime Hardening
 [ ] startup summary aman dan truthful
 
 
-11.4 Health/readiness truth hardening
+12. Health/readiness truth hardening
 
 [ ] /health cek proses utama
 
@@ -235,7 +186,7 @@ Phase 11 — Data, DB, State Persistence & Runtime Hardening
 [ ] no false green status
 
 
-11.5 Error handling & resilience
+13. Error handling & resilience
 
 [ ] graceful shutdown benar
 
@@ -246,7 +197,7 @@ Phase 11 — Data, DB, State Persistence & Runtime Hardening
 [ ] retry non-fatal dependency rapi
 
 
-11.6 Logging & monitoring hardening
+14. Logging & monitoring hardening
 
 [ ] structured logging konsisten
 
@@ -257,7 +208,7 @@ Phase 11 — Data, DB, State Persistence & Runtime Hardening
 [ ] monitoring minimum viable siap
 
 
-11.7 Security baseline
+15. Security baseline
 
 [ ] secrets tidak bocor di log
 
@@ -268,7 +219,7 @@ Phase 11 — Data, DB, State Persistence & Runtime Hardening
 [ ] sensitive routes dibatasi
 
 
-11.8 Deployment hardening
+16. Deployment hardening
 
 [ ] Dockerfile bersih
 
@@ -281,25 +232,19 @@ Phase 11 — Data, DB, State Persistence & Runtime Hardening
 [ ] smoke test pascadeploy jelas
 
 
-11.9 Closure
+Done condition PRIORITY 2
 
-[ ] validation selesai
+[ ] bot tidak cuma hidup, tapi stabil dan persistent
 
-[ ] runtime logs clean
-
-[ ] docs/state/roadmap update jika perlu
-
-
-Phase 11 status
-
-Status: NOT STARTED
 
 
 ---
 
-Phase 12 — Paper Trading Product Completion
+PRIORITY 3 — Paper Trading Product Completion
 
-12.1 Paper account model
+Setelah runtime stabil, bikin produk paper-nya benar-benar siap.
+
+17. Paper account model
 
 [ ] paper balance model
 
@@ -310,7 +255,7 @@ Phase 12 — Paper Trading Product Completion
 [ ] reset/test flow operator
 
 
-12.2 Paper execution engine
+18. Paper execution engine
 
 [ ] paper order intent flow
 
@@ -323,7 +268,7 @@ Phase 12 — Paper Trading Product Completion
 [ ] paper execution logging jelas
 
 
-12.3 Paper portfolio surface
+19. Paper portfolio surface
 
 [ ] open paper positions visible
 
@@ -334,7 +279,7 @@ Phase 12 — Paper Trading Product Completion
 [ ] summary via bot/API
 
 
-12.4 Paper risk controls
+20. Paper risk controls
 
 [ ] exposure caps enforced
 
@@ -345,7 +290,7 @@ Phase 12 — Paper Trading Product Completion
 [ ] risk state visible
 
 
-12.5 Paper strategy visibility
+21. Paper strategy visibility
 
 [ ] strategy state visible
 
@@ -356,18 +301,18 @@ Phase 12 — Paper Trading Product Completion
 [ ] suppressed/blocked reasoning visible
 
 
-12.6 Admin/operator controls
+22. Admin/operator paper controls
 
 [ ] runtime paper summary
 
 [ ] readiness paper state
 
-[ ] pause/resume if supported
+[ ] pause/resume kalau didukung
 
 [ ] admin command separated
 
 
-12.7 Public paper UX completion
+23. Public paper UX completion
 
 [ ] user paham ini paper mode
 
@@ -378,7 +323,7 @@ Phase 12 — Paper Trading Product Completion
 [ ] messaging premium
 
 
-12.8 Validation
+24. Paper validation
 
 [ ] execution test end-to-end
 
@@ -389,235 +334,532 @@ Phase 12 — Paper Trading Product Completion
 [ ] logs/evidence stored
 
 
-12.9 Closure
+Done condition PRIORITY 3
 
-[ ] state/roadmap updated
+[ ] bot usable sebagai real paper trading product
 
-[ ] paper product completion summary dibuat
-
-
-Phase 12 status
-
-Status: NOT STARTED
 
 
 ---
 
-Phase 13 — Wallet Lifecycle Foundation
+PRIORITY 4 — Wallet Lifecycle Foundation
 
-[ ] wallet domain model
+Ini fondasi untuk layer setelah paper product.
 
-[ ] onboarding lifecycle
+25. Wallet domain model
 
-[ ] secure wallet persistence
+[ ] wallet entity model final
 
-[ ] wallet auth boundary
+[ ] ownership model final
 
-[ ] wallet status/API/bot surfaces
-
-[ ] wallet recovery & error handling
-
-[ ] wallet test coverage
-
-[ ] docs & truth sync
-
-[ ] closure
+[ ] wallet status/state model final
 
 
-Phase 13 status
+26. Wallet lifecycle
 
-Status: NOT STARTED
+[ ] create/init wallet lifecycle
+
+[ ] link/unlink lifecycle
+
+[ ] activation/deactivation lifecycle
+
+[ ] invalid/blocked state handling
+
+
+27. Secure wallet persistence
+
+[ ] wallet records persistent
+
+[ ] secret handling aman
+
+[ ] audit trail minimum ada
+
+
+28. Wallet auth boundary
+
+[ ] ownership verification jelas
+
+[ ] admin vs user wallet access dipisah
+
+[ ] no privilege crossover
+
+
+29. Wallet surfaces
+
+[ ] wallet status readable
+
+[ ] wallet lifecycle state readable
+
+[ ] link state readable
+
+[ ] user-facing copy aman
+
+
+30. Wallet recovery & tests
+
+[ ] broken link recovery
+
+[ ] stale wallet recovery
+
+[ ] duplicate wallet handling
+
+[ ] lifecycle tests
+
+[ ] integration tests
+
+
+Done condition PRIORITY 4
+
+[ ] wallet lifecycle utuh dan stabil
+
 
 
 ---
 
-Phase 14 — Portfolio Management Logic
+PRIORITY 5 — Portfolio Management Logic
 
-[ ] portfolio model
+Setelah wallet foundation, baru portfolio.
 
-[ ] exposure aggregation
+31. Portfolio model
 
-[ ] allocation logic
+[ ] portfolio entity model
 
-[ ] PnL logic
+[ ] per-user portfolio model
 
-[ ] portfolio guardrails
+[ ] per-wallet portfolio relation
 
-[ ] portfolio surfaces
+
+32. Exposure aggregation
+
+[ ] aggregate exposure logic
+
+[ ] per-market exposure logic
+
+[ ] per-user exposure logic
+
+[ ] per-wallet exposure logic
+
+
+33. Allocation logic
+
+[ ] bankroll allocation model
+
+[ ] strategy allocation model
+
+[ ] user/wallet aware allocation
+
+
+34. PnL logic
+
+[ ] realized PnL computation
+
+[ ] unrealized PnL computation
+
+[ ] portfolio-level summary
+
+[ ] history/snapshot structure
+
+
+35. Portfolio guardrails
+
+[ ] exposure cap enforcement
+
+[ ] drawdown cap
+
+[ ] concentration cap
+
+[ ] kill switch interaction
+
+
+36. Portfolio surfaces & validation
+
+[ ] bot/API summary
+
+[ ] admin/operator portfolio surface
 
 [ ] persistence & recovery
 
 [ ] validation
 
-[ ] closure
+[ ] closure docs sync
 
 
-Phase 14 status
+Done condition PRIORITY 5
 
-Status: NOT STARTED
+[ ] portfolio dikelola di level sistem, bukan manual/ad hoc
+
 
 
 ---
 
-Phase 15 — Multi-Wallet Orchestration
+PRIORITY 6 — Multi-Wallet Orchestration
 
-[ ] wallet orchestration model
+Baru setelah wallet + portfolio jelas.
 
-[ ] allocation across wallets
+37. Orchestration model
 
-[ ] cross-wallet state truth
+[ ] multi-wallet routing model
 
-[ ] cross-wallet controls
+[ ] wallet selection rules
 
-[ ] multi-wallet UX/API
+[ ] ownership-aware routing
 
-[ ] recovery & conflict handling
 
-[ ] persistence
+38. Allocation across wallets
+
+[ ] balance-aware allocation
+
+[ ] strategy-aware allocation
+
+[ ] risk-aware allocation
+
+[ ] failover wallet selection
+
+
+39. Cross-wallet state truth
+
+[ ] unified view across wallets
+
+[ ] no duplicate/conflicting state
+
+[ ] shared exposure truth
+
+
+40. Cross-wallet controls
+
+[ ] per-wallet enable/disable
+
+[ ] per-wallet health status
+
+[ ] per-wallet risk state
+
+[ ] portfolio-wide control overlay
+
+
+41. UX/API and recovery
+
+[ ] admin/operator visibility
+
+[ ] safe user summaries if needed
+
+[ ] wallet unavailable handling
+
+[ ] routing conflict handling
+
+[ ] degraded mode behavior
+
+
+42. Persistence & validation
+
+[ ] orchestration state persistence
+
+[ ] reconciliation traces
+
+[ ] simulations/tests
+
+[ ] closure docs sync
+
+
+Done condition PRIORITY 6
+
+[ ] system bisa koordinasi lebih dari satu wallet secara truthful dan aman
+
+
+
+---
+
+PRIORITY 7 — Settlement, Retry, Reconciliation & Ops Automation
+
+43. Settlement workflow
+
+[ ] settlement workflow defined
+
+[ ] status transitions defined
+
+[ ] idempotency model defined
+
+
+44. Retry engine
+
+[ ] retry rules
+
+[ ] retry caps
+
+[ ] backoff strategy
+
+[ ] fatal vs retryable distinction
+
+
+45. Batching logic
+
+[ ] settlement batching rules
+
+[ ] queueing model
+
+[ ] partial batch handling
+
+[ ] batch observability
+
+
+46. Reconciliation logic
+
+[ ] internal vs external reconciliation
+
+[ ] mismatch detection
+
+[ ] stuck state detection
+
+[ ] repair/recovery flow
+
+
+47. Operator tooling
+
+[ ] settlement status visibility
+
+[ ] retry visibility
+
+[ ] failed batch visibility
+
+[ ] admin intervention paths
+
+
+48. Persistence, alerts, validation
+
+[ ] settlement events persistent
+
+[ ] retry history persistent
+
+[ ] reconciliation results persistent
+
+[ ] critical alerts
+
+[ ] drift alerts
 
 [ ] validation
 
-[ ] closure
+[ ] closure docs sync
 
 
-Phase 15 status
+Done condition PRIORITY 7
 
-Status: NOT STARTED
+[ ] ops flow resilient, observable, and recoverable
 
-
----
-
-Phase 16 — Settlement, Retry, Reconciliation & Operational Automation
-
-[ ] settlement workflow model
-
-[ ] retry engine
-
-[ ] batching logic
-
-[ ] reconciliation logic
-
-[ ] operator tooling
-
-[ ] persistence & auditability
-
-[ ] alerts / monitoring
-
-[ ] validation
-
-[ ] closure
-
-
-Phase 16 status
-
-Status: NOT STARTED
 
 
 ---
 
-Phase 17 — Production-Capital Readiness
+PRIORITY 8 — Production-Capital Readiness
 
-[ ] capability boundary review
+Ini paling belakang. Jangan dibuka sebelum semua fondasi atas selesai.
 
-[ ] capital-mode configuration model
+49. Capability boundary review
 
-[ ] capital risk controls hardening
+[ ] audit semua paper-only assumptions
 
-[ ] live execution readiness
+[ ] identifikasi semua area belum aman untuk capital
 
-[ ] security hardening
+[ ] define exact capital-readiness criteria
 
-[ ] observability hardening
 
-[ ] capital validation
+50. Capital-mode config model
+
+[ ] capital-mode config defined
+
+[ ] strict feature gating
+
+[ ] explicit enable path
+
+[ ] safeguards default-off
+
+
+51. Capital risk controls hardening
+
+[ ] position sizing hardening
+
+[ ] max loss hardening
+
+[ ] drawdown hardening
+
+[ ] kill switch hardening
+
+[ ] circuit breaker hardening
+
+
+52. Live execution readiness
+
+[ ] live execution path audit
+
+[ ] live order flow truth
+
+[ ] external dependency risk review
+
+[ ] failure mode review
+
+[ ] rollback/disable path
+
+
+53. Security & observability hardening
+
+[ ] secret handling hardened
+
+[ ] permission model hardened
+
+[ ] admin action guardrails hardened
+
+[ ] production-grade alerting
+
+[ ] incident visibility
+
+[ ] runbooks
+
+
+54. Capital validation & claim review
+
+[ ] dry-run validation
+
+[ ] staged rollout validation
 
 [ ] docs/policy/claim review
+
+[ ] no overclaim
 
 [ ] release decision
 
 
-Phase 17 status
+Done condition PRIORITY 8
 
-Status: NOT STARTED
+[ ] project bisa truthfully claim production-capital readiness
+
 
 
 ---
 
-Phase 18 — Product Completion, Launch Assets, Handoff & Long-Term Operability
+PRIORITY 9 — Final Product Completion, Launch Assets, Handoff
 
-[ ] public product assets final
+Tahap finish 100%.
 
-[ ] ops handoff assets
+55. Public product assets
 
-[ ] monitoring/admin surfaces final
+[ ] README final premium
 
-[ ] repo hygiene final
+[ ] docs final sync
 
-[ ] validation archive
+[ ] launch summary
 
-[ ] release polish
+[ ] onboarding docs
 
-[ ] final acceptance review
+[ ] support/help docs
 
-[ ] final closeout
+
+56. Ops handoff assets
+
+[ ] deployment guide
+
+[ ] secrets/env guide
+
+[ ] troubleshooting guide
+
+[ ] incident guide
+
+[ ] rollback guide
+
+
+57. Monitoring/admin surfaces final
+
+[ ] project monitor final
+
+[ ] admin visibility final
+
+[ ] operator checklists final
+
+[ ] release dashboard final
+
+
+58. Repo hygiene final
+
+[ ] stale docs cleaned
+
+[ ] stale reports clarified/archived
+
+[ ] roadmap final sync
+
+[ ] project state final sync
+
+[ ] misleading checklist removed
+
+
+59. Validation archive
+
+[ ] FORGE reports organized
+
+[ ] SENTINEL reports organized
+
+[ ] BRIEFER assets organized
+
+[ ] milestone evidence preserved
+
+
+60. Final acceptance
+
+[ ] runtime stable
+
+[ ] persistence stable
+
+[ ] wallet lifecycle complete
+
+[ ] portfolio complete
+
+[ ] multi-wallet orchestration complete
+
+[ ] settlement/retry/reconciliation complete
+
+[ ] capital readiness complete
+
+[ ] docs and ops complete
+
+[ ] final COMMANDER acceptance
+
+
+Done condition PRIORITY 9
 
 [ ] project finish 100%
 
 
-Phase 18 status
-
-Status: NOT STARTED
-
 
 ---
 
-MASTER MILESTONE TRACKER
+Simple execution order
 
-Milestone A — Public Paper Bot
+Kerjain berurutan:
 
-[ ] Phase 10 complete
+[ ] PRIORITY 1 — Public Bot Runtime & Baseline
 
-[ ] Phase 11 complete
+[ ] PRIORITY 2 — DB, Persistence, Runtime Hardening
 
-[ ] Phase 12 complete
+[ ] PRIORITY 3 — Paper Trading Product Completion
 
+[ ] PRIORITY 4 — Wallet Lifecycle Foundation
 
-Milestone B — Wallet & Portfolio Core
+[ ] PRIORITY 5 — Portfolio Management Logic
 
-[ ] Phase 13 complete
+[ ] PRIORITY 6 — Multi-Wallet Orchestration
 
-[ ] Phase 14 complete
+[ ] PRIORITY 7 — Settlement / Retry / Reconciliation
 
+[ ] PRIORITY 8 — Production-Capital Readiness
 
-Milestone C — Operational Scale
-
-[ ] Phase 15 complete
-
-[ ] Phase 16 complete
+[ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
 
 
-Milestone D — Capital Readiness
+Right now
 
-[ ] Phase 17 complete
+Yang paling dekat dikerjain:
 
-
-Milestone E — Final Product Completion
-
-[ ] Phase 18 complete
-
-
-
----
-
-TODAY / NEXT / LATER
-
-TODAY
-
-[ ] redeploy/restart Fly dengan secret terbaru
+[ ] redeploy/restart Fly dengan env terbaru
 
 [ ] cek startup logs Telegram
 
-[ ] bikin Telegram runtime benar-benar aktif
+[ ] aktifkan Telegram runtime beneran
 
 [ ] test /start
 
@@ -625,55 +867,3 @@ TODAY
 
 [ ] test /status
 
-
-NEXT
-
-[ ] onboarding flow
-
-[ ] public command set
-
-[ ] paper-only UX polish
-
-[ ] persistence hardening
-
-[ ] readiness truth hardening
-
-
-LATER
-
-[ ] wallet lifecycle
-
-[ ] portfolio logic
-
-[ ] multi-wallet orchestration
-
-[ ] settlement/retry/reconciliation
-
-[ ] production-capital readiness
-
-
-
----
-
-OVERALL PROGRESS SNAPSHOT
-
-Completed
-
-Phase 8
-
-Phase 8.14 cleanup
-
-Phase 9.1
-
-Phase 9.2
-
-Phase 9.3
-
-
-Active
-
-Phase 10
-
-
-Overall state
-Project is public-paper-beta complete at repo truth level, but not yet fully product-complete because Telegram public runtime and full bot usability still need to be finished.
