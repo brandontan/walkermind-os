@@ -57,7 +57,10 @@ async def handle_start(
         )
         return HandleStartResult(
             outcome="rejected",
-            reply_text="Could not identify your Telegram account. Please try again.",
+            reply_text=(
+                "I couldn't verify your Telegram identity yet. "
+                "Please send /start again in a moment."
+            ),
         )
 
     request = BackendHandoffRequest(
@@ -80,7 +83,10 @@ async def handle_start(
         return HandleStartResult(
             outcome="session_issued",
             session_id=result.session_id,
-            reply_text="Welcome to CrusaderBot. Your session is ready.",
+            reply_text=(
+                "✅ Welcome to CrusaderBot public paper beta.\n"
+                "Your session is ready. Use /help for commands and /status for runtime info."
+            ),
         )
 
     if result.outcome == "rejected":
@@ -91,7 +97,11 @@ async def handle_start(
         )
         return HandleStartResult(
             outcome="rejected",
-            reply_text=f"Session could not be issued: {result.detail}",
+            reply_text=(
+                "⚠️ Session could not be opened right now.\n"
+                f"Reason: {result.detail or 'not available'}\n"
+                "Please try /start again shortly."
+            ),
         )
 
     log.error(
@@ -101,5 +111,8 @@ async def handle_start(
     )
     return HandleStartResult(
         outcome="error",
-        reply_text="A backend error occurred. Please try again later.",
+        reply_text=(
+            "⚠️ Temporary backend issue while starting your session. "
+            "Please try again shortly."
+        ),
     )

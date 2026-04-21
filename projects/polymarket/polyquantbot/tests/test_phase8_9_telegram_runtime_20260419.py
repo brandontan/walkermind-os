@@ -168,7 +168,7 @@ def test_polling_loop_run_once_help_command_reply() -> None:
     loop = TelegramPollingLoop(adapter=adapter, dispatcher=dispatcher)
     asyncio.run(loop.run_once())
     assert len(adapter.replies) == 1
-    assert "CrusaderBot commands" in adapter.replies[0][1]
+    assert "CrusaderBot Help" in adapter.replies[0][1]
 
 
 def test_polling_loop_run_once_non_command_no_dispatch() -> None:

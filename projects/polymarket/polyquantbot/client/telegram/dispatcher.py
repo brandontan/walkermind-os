@@ -49,11 +49,15 @@ class TelegramDispatcher:
             return DispatchResult(
                 outcome="ok",
                 reply_text=(
-                    "📘 CrusaderBot commands (public paper beta)\n"
-                    "• /start — initialize or refresh your session\n"
-                    "• /help — show command list\n"
-                    "• /status — runtime and guard snapshot\n"
-                    "Boundary: paper-only execution, no live trading, no production capital."
+                    "📘 CrusaderBot Help (Public Paper Beta)\n\n"
+                    "Quick commands:\n"
+                    "• /start - open or refresh your Telegram session\n"
+                    "• /help - view this command guide\n"
+                    "• /status - view runtime, guard, and mode snapshot\n\n"
+                    "Safety boundary:\n"
+                    "• Paper-only execution\n"
+                    "• No live trading\n"
+                    "• Not production-capital ready"
                 ),
             )
         if command == "/mode":
@@ -129,17 +133,20 @@ class TelegramDispatcher:
             return DispatchResult(
                 outcome="ok",
                 reply_text=(
-                    "🧭 Runtime status (public paper beta)\n"
+                    "🧭 CrusaderBot Status (Public Paper Beta)\n\n"
+                    f"Runtime\n"
                     f"• Mode: {data.get('mode', 'unknown')}\n"
-                    f"• Autotrade: {data.get('autotrade', False)}\n"
-                    f"• Kill switch: {data.get('kill_switch', False)}\n"
-                    f"• Position count: {data.get('position_count', 0)}\n"
+                    f"• Managed state: {managed_beta_state.get('state', 'unknown')}\n"
+                    f"• Release channel: {data.get('public_readiness_semantics', {}).get('release_channel', 'unknown')}\n\n"
+                    f"Safety\n"
                     f"• Guard allows entry: {execution_guard.get('entry_allowed', False)}\n"
                     f"• Guard reasons: {reason_text}\n"
                     f"• Last risk reason: {data.get('last_risk_reason', 'n/a')}\n"
-                    f"• Managed beta state: {managed_beta_state.get('state', 'unknown')}\n"
-                    f"• Release channel: {data.get('public_readiness_semantics', {}).get('release_channel', 'unknown')}\n"
-                    "• Boundary: paper-only execution; Telegram is control/read surface"
+                    f"• Kill switch: {data.get('kill_switch', False)}\n\n"
+                    f"Paper metrics\n"
+                    f"• Autotrade: {data.get('autotrade', False)}\n"
+                    f"• Position count: {data.get('position_count', 0)}\n\n"
+                    "Boundary: paper-only execution. No live trading or production-capital readiness."
                 ),
             )
         if command == "/markets":
@@ -189,9 +196,13 @@ class TelegramDispatcher:
         return DispatchResult(
             outcome="unknown_command",
             reply_text=(
-                "Unknown command for CrusaderBot public paper beta.\n"
-                "Supported: /start /help /mode /autotrade /positions /pnl /risk /status /markets /market360 /social /kill\n"
-                "Note: no manual trade-entry commands are available in this beta."
+                "⚠️ I do not recognize that command.\n\n"
+                "Try one of these:\n"
+                "• /start\n"
+                "• /help\n"
+                "• /status\n"
+                "• /mode /autotrade /positions /pnl /risk /markets /market360 /social /kill\n\n"
+                "CrusaderBot is currently public paper beta only (no manual trade-entry, no live trading)."
             ),
         )
 

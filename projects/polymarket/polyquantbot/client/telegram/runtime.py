@@ -42,28 +42,43 @@ _STAGING_TENANT_ID = "staging"
 _STAGING_USER_ID = "staging"
 
 _REPLY_NOT_REGISTERED = (
-    "You are not registered with CrusaderBot yet. This public paper beta supports control/read commands only after onboarding; manual trade-entry is unavailable."
+    "Welcome - your account is not onboarded yet.\n\n"
+    "CrusaderBot is currently public paper beta (paper-only).\n"
+    "We'll start your onboarding first; then send /start again."
 )
 _REPLY_ONBOARDED = (
-    "Your onboarding request is ready. Send /start again to continue into the paper-beta control surface."
+    "✅ Onboarding started successfully.\n"
+    "Send /start again to continue into the paper-beta control surface."
 )
 _REPLY_ALREADY_LINKED = (
-    "Your account is already linked. Please send /start again."
+    "ℹ️ Your account is already linked.\n"
+    "Send /start to continue."
 )
 _REPLY_ACTIVATED = (
-    "Your account is now activated. Please send /start again to continue."
+    "✅ Your account is activated.\n"
+    "Send /start again to open your session."
 )
-_REPLY_SESSION_ISSUED = "Welcome to CrusaderBot public paper beta. Your control session is ready (paper-only execution boundary)."
+_REPLY_SESSION_ISSUED = (
+    "✅ Session ready. Welcome to CrusaderBot public paper beta.\n"
+    "Use /help for commands or /status for runtime + guard status.\n"
+    "Boundary: paper-only execution."
+)
 _REPLY_ALREADY_ACTIVE_SESSION_ISSUED = (
-    "Welcome back. Your account is already active and your control session is ready (paper-only boundary)."
+    "✅ Welcome back. Your session is ready.\n"
+    "Boundary: paper-only execution."
 )
 _REPLY_ACTIVATION_REJECTED = (
-    "Activation was rejected. Please contact the bot administrator."
+    "⚠️ Activation is not available for this account yet.\n"
+    "Please contact support if this seems unexpected."
 )
 _REPLY_ONBOARDING_REJECTED = (
-    "Onboarding could not be started. Please contact the bot administrator."
+    "⚠️ Onboarding could not be started right now.\n"
+    "Please try again later or contact support."
 )
-_REPLY_IDENTITY_ERROR = "Unable to verify your identity. Please try again later."
+_REPLY_IDENTITY_ERROR = (
+    "⚠️ We couldn't verify your identity right now.\n"
+    "Please try again shortly."
+)
 
 
 @dataclass(frozen=True)
@@ -471,7 +486,7 @@ class TelegramPollingLoop:
             )
             await self._safe_send_reply(
                 update.chat_id,
-                "A runtime error occurred. Please try again.",
+                "⚠️ Temporary runtime error. Please try your command again.",
             )
             return
 

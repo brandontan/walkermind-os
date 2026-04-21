@@ -137,7 +137,7 @@ def test_dispatch_help_command() -> None:
     dispatcher = TelegramDispatcher(backend=backend)
     result: DispatchResult = asyncio.run(dispatcher.dispatch(_make_ctx("/help")))
     assert result.outcome == "ok"
-    assert "CrusaderBot commands" in result.reply_text
+    assert "CrusaderBot Help" in result.reply_text
     backend.request_handoff.assert_not_awaited()
 
 
