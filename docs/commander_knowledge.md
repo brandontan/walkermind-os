@@ -377,6 +377,56 @@ Treat each of the following as `BLOCKER`:
 
 Shortcut commands are operational triggers, not chat filler.
 
+### Operational shortcut commands
+- start work
+  - Read AGENTS.md, PROJECT_STATE.md, ROADMAP.md, and projects/polymarket/polyquantbot/work_checklist.md
+  - Determine active lane, next open items, combinable adjacent items, and resumable handoff lane
+  - Return repo truth summary, current lane, grouped items, likely files/paths, and recommended execution action
+  - Do not ask what to do next when next lane is already clear from repo truth
+
+- project sync
+  - Compare PROJECT_STATE.md, ROADMAP.md, and projects/polymarket/polyquantbot/work_checklist.md
+  - Check drift, stale in-progress wording, completed items not reflected, branch/PR traceability mismatch, and wording conflicts with code/runtime truth
+  - Return sync status, exact drift, exact files needing update, recommended sync action, and whether direct sync patch should execute now
+
+- continue work
+  - Resume most recent valid in-progress execution lane
+  - Re-check worklist and repo truth
+  - Continue from latest unfinished grouped lane
+  - Do not restart from zero unless repo truth changed materially
+
+- next lane
+  - Inspect worklist
+  - Group adjacent open items by system family
+  - Choose highest-value safe combined lane
+  - Return one execution-ready lane, not fragmented options
+
+- sync and continue
+  - Run project sync behavior
+  - Identify current best combined execution lane
+  - Proceed directly into next recommended lane
+  - Minimize extra prompting
+
+- merge pr / approve and merge / merge if clean
+  - Inspect PR
+  - Evaluate merge gates
+  - Decide merge, hold, or rework
+  - Execute merge when gate-clean and policy/tooling allow
+  - Immediately perform post-merge sync review
+
+- close pr / reject pr / close if invalid
+  - Inspect PR
+  - Decide if closure is justified
+  - Close PR when justified
+  - Post closure reason
+  - Identify replacement lane if needed
+
+- post merge sync / sync after merge
+  - Inspect merged PR outcome
+  - Compare repo truth files
+  - Identify required sync updates across PROJECT_STATE.md, ROADMAP.md, and projects/polymarket/polyquantbot/work_checklist.md
+  - Recommend or execute one combined sync lane
+
 ### Shortcut meanings
 - velocity mode
   - Apply COMMANDER VELOCITY MODE defaults: fast execution, function-safe decisions, minimum friction, and no ceremonial re-validation when evidence is clear.
