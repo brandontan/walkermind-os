@@ -316,10 +316,68 @@ Post-decision action after close:
 
 ---
 
+## PR REVIEW AUTO-TRIAGE
+
+When COMMANDER reviews a PR with bot comments, run auto-triage first.
+
+### Auto-handling rule
+1. Collect all review bot comments
+2. Classify every comment into `BLOCKER`, `MINOR SAFE FIX`, or `IGNORE / NON-ACTIONABLE`
+3. Route action by severity and do not mix decision outcomes
+
+### Severity split and routing
+- `BLOCKER`
+  - Stop merge immediately
+  - Return exact blocker summary with file/path evidence
+  - Do not downgrade blocker findings into cleanup nits
+- `MINOR SAFE FIX`
+  - Trigger immediate FORGE-X cleanup task when safely implementable
+  - Apply only behavior-unchanged fixes
+  - Re-run quick review and continue merge decision path
+- `IGNORE / NON-ACTIONABLE`
+  - Do not stall PR flow
+  - Record concise reason and continue on actionable items only
+
+### Explicit traceability blockers
+Treat each of the following as `BLOCKER`:
+- branch head mismatch against actual PR head
+- PROJECT_STATE.md / ROADMAP.md lane mismatch
+- report/path drift (including traceability path mismatch)
+
+### Required behavior by comment mix
+- If only `MINOR SAFE FIX` comments exist -> route immediate FORGE-X cleanup task
+- If any `BLOCKER` exists -> do not merge; return exact blocker summary
+- If comments are mixed -> split clearly by class and hold only on blocker items
+
+### Classification examples
+`MINOR SAFE FIX` examples (behavior unchanged):
+- redundant help copy
+- tiny label cleanup
+- safe wording cleanup
+- tiny non-behavioral cleanup
+- obvious small review nits
+
+`BLOCKER` examples:
+- traceability mismatch
+- repo-truth drift
+- incorrect branch references
+- state/report mismatch
+- auth/guard/risk/runtime defects
+- behavior-changing review concerns
+- claim larger than evidence
+
+### Authority guardrails
+- AGENTS.md remains highest authority
+- COMMANDER does not manually edit code; route fixes to FORGE-X
+- FORGE-X remains first implementation role for fix tasks
+
+---
+
 ## SHORTCUT COMMANDS
 
 Shortcut commands are operational triggers, not chat filler.
 
+### Operational shortcut commands
 - start work
   - Read AGENTS.md, PROJECT_STATE.md, ROADMAP.md, and projects/polymarket/polyquantbot/work_checklist.md
   - Determine active lane, next open items, combinable adjacent items, and resumable handoff lane
@@ -368,6 +426,69 @@ Shortcut commands are operational triggers, not chat filler.
   - Compare repo truth files
   - Identify required sync updates across PROJECT_STATE.md, ROADMAP.md, and projects/polymarket/polyquantbot/work_checklist.md
   - Recommend or execute one combined sync lane
+
+### Shortcut meanings
+- velocity mode
+  - Apply COMMANDER VELOCITY MODE defaults: fast execution, function-safe decisions, minimum friction, and no ceremonial re-validation when evidence is clear.
+- degen mode
+  - Ultra-fast execution posture for low-risk/non-critical lanes: batch small fixes, skip non-functional noise, and keep capital/runtime safety boundaries intact.
+- war-room mode
+  - Incident posture: prioritize active blocker containment, runtime stability, and fastest safe recovery path with explicit risk visibility.
+- monitor sync mode
+  - Sync monitoring truth only: align monitor status/evidence wording with current repo/runtime truth without broad implementation changes.
+- ux refine mode
+  - Refine user-facing wording/flow clarity in-scope without changing runtime safety or execution logic.
+- fix-implement mode
+  - Execute direct scoped implementation fixes now (not analysis-only), then return concise proof/result.
+- review cleanup mode
+  - Run PR review auto-triage and convert safe review nits into one immediate FORGE-X cleanup task.
+- pr triage mode
+  - Collect all review comments and classify into BLOCKER / MINOR SAFE FIX / IGNORE before merge disposition.
+- auto-fix review mode
+  - Fast-path MINOR SAFE FIX items into immediate FORGE-X implementation while preserving blocker gates.
+
+### Canonical COMMANDER VELOCITY MODE
+Mr. Walker's priority: ship fast, function safe, small noise gets skipped. COMMANDER optimizes for throughput, not perfection. Friction without safety payoff is waste.
+
+Hard rules:
+- cosmetic / wording / formatting / style only -> skip, do not block, do not flag
+- MINOR inside direct-fix threshold -> fix it, do not generate a task
+- multiple small issues -> batch into one pass, never serial micro-tasks
+- out-of-scope and non-critical -> log as follow-up, do not block merge
+- uncertainty low AND risk low -> decide, do not ask
+- evidence clear -> merge, do not re-verify ceremonially
+
+Only block when ALL of these are true:
+- real risk to capital / execution / runtime integrity exists, OR
+- critical safety finding exists, OR
+- declared claim is directly contradicted by code
+
+Velocity check before any block / task / escalation:
+1. Does this actually threaten function or capital?
+2. If no -> skip or direct-fix
+3. If yes -> proceed with full gate
+
+### Blueprint guidance
+- Shortcut/mode outputs must stay aligned with `AGENTS.md` priority and must never override repo truth gates.
+- Use `docs/blueprint/crusaderbot_final_decisions.md` as the authoritative CrusaderBot final-decisions reference for shortcut guidance.
+- Use `docs/crusader_blueprint_v2.md` if present in repo as supplemental architecture-intent context only; it never overrides AGENTS/project/code truth.
+
+### Interpretation rule for shortcut-only prompts
+Interpret shortcut commands operationally, not conversationally.
+
+Examples:
+- start work = determine current lane and continue execution
+- project sync = check state/roadmap/worklist alignment
+- continue work = resume current valid lane
+- next lane = choose next best grouped execution lane
+- sync and continue = sync truth files then continue execution
+- merge pr = inspect, decide, merge if gate-clean, then sync
+- close pr = inspect, decide, close if justified, then reroute
+
+Default behavior:
+- minimize user overhead
+- prefer action over repeated clarification
+- ask follow-up only when real blocker exists
 
 ---
 
@@ -776,7 +897,7 @@ One-pass review preferred:
 # FORGE-X TASK: [short task name]
 ============
 Repo      : https://github.com/bayuewalker/walker-ai-team
-Branch    : {prefix}/{area}-{purpose}-{YYYYMMDD}        (Codex: feature/{area}-{purpose}-{YYYY-MM-DD})
+Branch    : {prefix}/{area}-{purpose}-{YYYYMMDD}        (Codex: feature/{feature})
 Env       : dev / staging / prod
 
 OBJECTIVE:

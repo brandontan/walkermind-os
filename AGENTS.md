@@ -482,15 +482,16 @@ Wrong:
 
 ### Codex format (Codex platform execution)
 ```text
-feature/{area}-{purpose}-{YYYY-MM-DD}
+feature/{feature}
 ```
 - prefix is always `feature/` — Codex does not support other prefixes
-- date uses `YYYY-MM-DD` with dashes (Codex platform default)
-- all other rules identical (noun area, hyphen purpose, no dots anywhere, phase tokens with hyphens)
+- `{feature}` is a short hyphen-separated slug (noun/adjective based, not a sentence)
+- no dots, no underscores, no date suffix in Codex format
+- phase tokens use hyphens when needed: `phase6-5-3` (never `6.5.3`)
 
 Correct Codex:
-- `feature/wallet-state-read-boundary-2026-04-17`
-- `feature/risk-drawdown-circuit-2026-04-17`
+- `feature/wallet-state-read-boundary`
+- `feature/risk-drawdown-circuit`
 
 ### Traceability
 Branch name in forge report must match actual PR head branch exactly. If Codex generates a different branch than declared, FORGE-X updates the report to match reality — not the task declaration.
