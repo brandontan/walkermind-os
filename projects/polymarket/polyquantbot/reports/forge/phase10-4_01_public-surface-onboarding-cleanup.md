@@ -1,6 +1,6 @@
 ## 1. What was built
 
-- Aligned root `README.md` public-surface wording with current paper-only runtime truth and clarified that `/risk_info` is public informational while `/risk` remains runtime/operator-only.
+- Aligned root `README.md` public-surface wording with current staged-runtime rollout truth and clarified that `/risk_info` is public informational while `/risk` remains runtime/operator-only.
 - Refined Telegram first-run onboarding guidance strings in the active command handler so the next-step path is explicit (`/about -> /paper -> /link -> /start -> /status`) and easier to follow for first-time and unlinked users.
 - Updated public-help surfaces to include `/link` in the trusted public command set across command payload and rendered Help Center output.
 - Added focused test assertions to lock the clearer onboarding flow and `/link` visibility in help output.
@@ -24,7 +24,7 @@
 
 ## 4. What is working
 
-- Public README wording now matches current merged paper-only posture and does not claim live-trading or production-capital readiness.
+- Public README wording now matches current merged rollout posture and does not claim live-trading or production-capital readiness.
 - Telegram onboarding/home decision guidance now gives a clearer first-run path with explicit sequence and return path.
 - `/risk_info` remains public informational and `/risk` remains runtime/operator-only in wording and command behavior.
 - Help surfaces now consistently include `/link` as part of the public-safe command baseline.

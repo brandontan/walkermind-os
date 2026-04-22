@@ -33,7 +33,7 @@
 - Paper-only execution boundary remains explicitly enforced.
 
 ### ACTIVE
-- Post-launch wording cleanup for public/operator surface clarity under the paper-only boundary.
+- Post-launch wording cleanup for public/operator surface clarity under the current staged rollout boundary.
 - Telegram first-run onboarding copy refinement for clearer public-safe navigation.
 
 ### NEXT
@@ -68,7 +68,7 @@ For CrusaderBot, the current public state is **paper beta only** with managed op
 
 - Public-ready for paper beta.
 - Live Fly runtime responding (`/`, `/health`, `/ready`).
-- Paper-only execution boundary is enforced.
+- Execution remains staged and safety-gated.
 - Public-safe Telegram command baseline: `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, `/link`.
 - Runtime/operator `/risk` remains separate from the public-safe informational command set.
 - `/risk_info` is informational/public-safe; `/risk` is runtime/operator-only.

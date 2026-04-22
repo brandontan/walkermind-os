@@ -620,8 +620,8 @@ class CommandHandler:
         onboarding_guidance = {
             "new_user": "New here: Step 1 /about -> Step 2 /paper -> Step 3 /link, then return to /start.",
             "unlinked_user": "Session detected but no account link. Use /link, then /start -> /status.",
-            "linked_user": "Account linked. Next path: /start -> /status for runtime posture (paper-only).",
-            "session_ready": "Session ready. Active path: /status for runtime posture, /paper for boundary recap.",
+            "linked_user": "Account linked. Next path: /start -> /status for runtime posture checks.",
+            "session_ready": "Session ready. Active path: /status for runtime posture, /paper for rollout boundary recap.",
         }
         return {
             "status": snap_state.get("state", "N/A"),
@@ -657,8 +657,8 @@ class CommandHandler:
         payload.update(
             {
                 "mode": "help",
-                "decision": "Use /start, /help, /status, /paper, /about, /risk_info, /account, and /link in the public-safe flow",
-                "operator_note": "Paper-only beta: runtime guidance only, no live trading claims.",
+                "decision": "Use the public-safe command flow from the Help Center for first-run navigation.",
+                "operator_note": "Staged rollout guidance only; no live-trading readiness claim.",
             }
         )
         return payload
@@ -668,7 +668,7 @@ class CommandHandler:
         payload.update(
             {
                 "decision": f"Unknown command '/{cmd}'. Use the trusted public command set.",
-                "operator_note": "Supported commands: /start, /help, /status, /paper, /about, /risk_info, /account, /link",
+                "operator_note": "Use /help to view the trusted public command set.",
             }
         )
         return payload
