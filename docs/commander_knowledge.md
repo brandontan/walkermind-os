@@ -316,6 +316,63 @@ Post-decision action after close:
 
 ---
 
+## PR REVIEW AUTO-TRIAGE
+
+When COMMANDER reviews a PR with bot comments, run auto-triage first.
+
+### Auto-handling rule
+1. Collect all review bot comments
+2. Classify every comment into `BLOCKER`, `MINOR SAFE FIX`, or `IGNORE / NON-ACTIONABLE`
+3. Route action by severity and do not mix decision outcomes
+
+### Severity split and routing
+- `BLOCKER`
+  - Stop merge immediately
+  - Return exact blocker summary with file/path evidence
+  - Do not downgrade blocker findings into cleanup nits
+- `MINOR SAFE FIX`
+  - Trigger immediate FORGE-X cleanup task when safely implementable
+  - Apply only behavior-unchanged fixes
+  - Re-run quick review and continue merge decision path
+- `IGNORE / NON-ACTIONABLE`
+  - Do not stall PR flow
+  - Record concise reason and continue on actionable items only
+
+### Explicit traceability blockers
+Treat each of the following as `BLOCKER`:
+- branch head mismatch against actual PR head
+- PROJECT_STATE.md / ROADMAP.md lane mismatch
+- report/path drift (including traceability path mismatch)
+
+### Required behavior by comment mix
+- If only `MINOR SAFE FIX` comments exist -> route immediate FORGE-X cleanup task
+- If any `BLOCKER` exists -> do not merge; return exact blocker summary
+- If comments are mixed -> split clearly by class and hold only on blocker items
+
+### Classification examples
+`MINOR SAFE FIX` examples (behavior unchanged):
+- redundant help copy
+- tiny label cleanup
+- safe wording cleanup
+- tiny non-behavioral cleanup
+- obvious small review nits
+
+`BLOCKER` examples:
+- traceability mismatch
+- repo-truth drift
+- incorrect branch references
+- state/report mismatch
+- auth/guard/risk/runtime defects
+- behavior-changing review concerns
+- claim larger than evidence
+
+### Authority guardrails
+- AGENTS.md remains highest authority
+- COMMANDER does not manually edit code; route fixes to FORGE-X
+- FORGE-X remains first implementation role for fix tasks
+
+---
+
 ## SHORTCUT COMMANDS
 
 Shortcut commands are operational triggers, not chat filler.
@@ -333,6 +390,12 @@ Shortcut commands are operational triggers, not chat filler.
   - Refine user-facing wording/flow clarity in-scope without changing runtime safety or execution logic.
 - fix-implement mode
   - Execute direct scoped implementation fixes now (not analysis-only), then return concise proof/result.
+- review cleanup mode
+  - Run PR review auto-triage and convert safe review nits into one immediate FORGE-X cleanup task.
+- pr triage mode
+  - Collect all review comments and classify into BLOCKER / MINOR SAFE FIX / IGNORE before merge disposition.
+- auto-fix review mode
+  - Fast-path MINOR SAFE FIX items into immediate FORGE-X implementation while preserving blocker gates.
 
 ### Canonical COMMANDER VELOCITY MODE
 Mr. Walker's priority: ship fast, function safe, small noise gets skipped. COMMANDER optimizes for throughput, not perfection. Friction without safety payoff is waste.
