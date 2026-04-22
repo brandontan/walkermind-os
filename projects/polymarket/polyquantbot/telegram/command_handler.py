@@ -222,7 +222,9 @@ class CommandHandler:
     ) -> CommandResult:
         """Route command string to the corresponding handler method."""
         if cmd in ("start", "menu", "main_menu"):
-            payload = self._build_home_payload()
+            payload = self._build_home_payload(
+                start_context=self._derive_onboarding_context(value)
+            )
             return CommandResult(
                 success=True,
                 message=await render_view("home", payload),
@@ -237,6 +239,14 @@ class CommandHandler:
             )
         if cmd == "status":
             return await self._handle_status()
+        if cmd == "paper":
+            return await self._handle_paper()
+        if cmd == "about":
+            return await self._handle_about()
+        if cmd == "risk":
+            return await self._handle_public_risk()
+        if cmd in {"account", "link"}:
+            return await self._handle_account()
         if cmd == "home":
             return await self._handle_home()
         if cmd == "pause":
@@ -265,8 +275,6 @@ class CommandHandler:
             return await self._handle_health()
         if cmd == "exposure":
             return await self._handle_exposure()
-        if cmd == "risk":
-            return await self._handle_risk()
         if cmd == "settings":
             return await self._handle_settings()
         if cmd == "set_markets":
@@ -584,12 +592,35 @@ class CommandHandler:
         except Exception:
             return {}
 
-    def _build_home_payload(self) -> dict[str, object]:
+    @staticmethod
+    def _derive_onboarding_context(value: Optional[float | str]) -> str:
+        if not isinstance(value, str):
+            return "session_ready"
+        token = value.strip().lower().replace("-", "_")
+        mapping = {
+            "new": "new_user",
+            "welcome": "new_user",
+            "onboarding": "new_user",
+            "unlinked": "unlinked_user",
+            "link": "unlinked_user",
+            "linked": "linked_user",
+            "ready": "session_ready",
+            "resume": "session_ready",
+        }
+        return mapping.get(token, "session_ready")
+
+    def _build_home_payload(self, start_context: str = "session_ready") -> dict[str, object]:
         metrics = self._get_metrics_snapshot()
         snap_state = self._state.snapshot()
         snap_cfg = self._config.snapshot()
         risk_multiplier = safe_number(getattr(snap_cfg, "risk_multiplier", 0.25), 0.25)
         max_position = safe_number(getattr(snap_cfg, "max_position", 0.10), 0.10)
+        onboarding_guidance = {
+            "new_user": "New here: review /about, then /paper, then /link to attach account context.",
+            "unlinked_user": "Session detected but no account link. Use /link to continue onboarding.",
+            "linked_user": "Account linked. Use /paper to review simulation boundary, then /status.",
+            "session_ready": "Session ready. Use /status for runtime posture or /paper for mode boundary.",
+        }
         return {
             "status": snap_state.get("state", "N/A"),
             "mode": self._mode,
@@ -603,8 +634,9 @@ class CommandHandler:
             "insight": (
                 f"Risk {risk_multiplier:.2f} • Max Pos {max_position:.2f}"
             ),
-            "operator_note": "Paper-only public beta; use /status for runtime posture.",
-            "decision": "Public-safe surface active",
+            "operator_note": "Paper-only public beta; no live-capital actions are exposed.",
+            "decision": onboarding_guidance.get(start_context, onboarding_guidance["session_ready"]),
+            "onboarding_state": start_context,
         }
 
     def _build_status_payload(self) -> dict[str, object]:
@@ -623,7 +655,7 @@ class CommandHandler:
         payload.update(
             {
                 "mode": "help",
-                "decision": "Use /start, /help, and /status for the public-safe flow",
+                "decision": "Use /start, /help, /status, /paper, /about, /risk, and /account in the public-safe flow",
                 "operator_note": "Paper-only beta: runtime guidance only, no live trading claims.",
             }
         )
@@ -634,10 +666,60 @@ class CommandHandler:
         payload.update(
             {
                 "decision": f"Unknown command '/{cmd}'. Use the trusted public command set.",
-                "operator_note": "Supported commands: /start, /help, /status",
+                "operator_note": "Supported commands: /start, /help, /status, /paper, /about, /risk, /account",
             }
         )
         return payload
+
+    async def _handle_paper(self) -> CommandResult:
+        payload = self._build_help_payload()
+        payload.update(
+            {
+                "mode": "help",
+                "decision": "Paper mode is the only public runtime boundary in this beta.",
+                "operator_note": "Simulation only; no live capital execution or wallet transfers.",
+                "insight": "Use /status for runtime posture while staying in paper-only mode.",
+            }
+        )
+        return CommandResult(success=True, message=await render_view("help", payload), payload=payload)
+
+    async def _handle_about(self) -> CommandResult:
+        payload = self._build_help_payload()
+        payload.update(
+            {
+                "mode": "bot_info",
+                "decision": "CrusaderBot public beta exposes runtime visibility and paper simulation surfaces.",
+                "operator_note": "No live-trading or production-capital readiness claim is made.",
+                "insight": "Pipeline remains DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING.",
+            }
+        )
+        return CommandResult(success=True, message=await render_view("bot_info", payload), payload=payload)
+
+    async def _handle_public_risk(self) -> CommandResult:
+        payload = self._build_home_payload()
+        payload.update(
+            {
+                "mode": "risk",
+                "risk_level": "fractional-kelly-0.25",
+                "risk_state": "hard-guarded-paper-beta",
+                "decision": "Risk controls remain active in paper mode before any execution path.",
+                "operator_note": "Public command surface is informational only; no capital-risk toggles here.",
+                "insight": "Hard limits and kill-switch posture are monitored continuously.",
+            }
+        )
+        return CommandResult(success=True, message=await render_view("risk", payload), payload=payload)
+
+    async def _handle_account(self) -> CommandResult:
+        payload = self._build_help_payload()
+        payload.update(
+            {
+                "mode": "guidance",
+                "decision": "Account-link guidance only: use /link to complete paper-beta onboarding context.",
+                "operator_note": "No admin/internal account controls are exposed on public commands.",
+                "insight": "If already linked, return to /start then /status for session-ready flow.",
+            }
+        )
+        return CommandResult(success=True, message=await render_view("guidance", payload), payload=payload)
 
     async def _handle_home(self) -> CommandResult:
         payload = self._build_home_payload()

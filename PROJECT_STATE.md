@@ -1,5 +1,5 @@
-Last Updated : 2026-04-22 06:03
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; live Telegram baseline command proof is now recorded for /start, /help, /status, and unknown fallback with paper-only boundary preserved.
+Last Updated : 2026-04-22 07:07
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #712 Telegram UX consolidation is merged truth and Phase 10.2 public onboarding/command surface refinement is now implemented on active Telegram runtime path.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -34,11 +34,11 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Phase 9.2 operational/public readiness and ops-hardening truth is now treated as landed for release-gate continuity with FORGE report `projects/polymarket/polyquantbot/reports/forge/phase9-2_01_public-readiness-and-ops-hardening.md` and SENTINEL validation `projects/polymarket/polyquantbot/reports/sentinel/phase9-2_01_public-readiness-and-ops-hardening-validation-pr675.md` as the canonical evidence pair.
 - Phase 9.3 public paper-beta release gate is completed on main with SENTINEL validation recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase9-3_01_public-release-gate-validation-pr677.md`; public-ready paper beta path is now complete with explicit paper-only boundary and no live-trading/production-capital readiness claim.
 - Phase 9.3 post-release public-facing launch assets pack is completed with coherent readiness/posture/boundary/onboarding/announcement docs and wording-audit alignment to paper-only truth under `projects/polymarket/polyquantbot/reports/forge/phase9-3_03_post-release-launch-assets-pack.md`.
+- PR #712 Telegram UX consolidation lane is merged on main as closed truth: active Telegram `/start`, `/help`, `/status`, unknown-command fallback, and home/system empty-state wording are consolidated in the active runtime path with evidence in `projects/polymarket/polyquantbot/reports/forge/phase10-1_01_telegram-ux-consolidation.md`.
 
 [IN PROGRESS]
 - Work checklist monitor integration hardening lane is in progress on `feature/integrate-work-checklist-into-project-monitor`: malformed `projects/polymarket/polyquantbot/work_checklist.md` structure was repaired and `docs/project_monitor.html` now includes conservative fallback parsing so major checklist sections remain visible under partial markdown-format damage, pending COMMANDER review.
 - Post-launch cleanup + README alignment + announcement polish lane is in progress for paper-beta public-facing clarity (paper-only/no-live-trading boundary preserved).
-- Telegram UX consolidation lane is implemented on `feature/consolidate-telegram-ux-and-clean-legacy-files-2026-04-21`: delivered scope is limited to active Telegram `/start`, `/help`, `/status`, unknown-command, and home/system empty-state wording/render alignment; no legacy archive/tree cleanup was delivered in this diff; pending COMMANDER review with evidence in `projects/polymarket/polyquantbot/reports/forge/phase10-1_01_telegram-ux-consolidation.md`.
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
 
 [NOT STARTED]
@@ -47,10 +47,10 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Execute Telegram onboarding/session UX refinement pass to reduce repetitive multi-step `/start` progression while preserving current paper-only public-safe baseline behavior.
+- COMMANDER review for Phase 10.2 post-merge sync + onboarding/command-surface refinement (`projects/polymarket/polyquantbot/reports/forge/phase10-2_01_postmerge-sync-onboarding-command-surface.md`).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 6.4 narrow monitoring remains intentionally scoped and not yet the active implementation lane.
 - [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning -- carried forward as non-runtime higiene backlog.
-- [DEFERRED] Telegram onboarding/session UX can feel repetitive on repeated `/start` progression; tracked as follow-up refinement debt after Priority 1 live baseline closure proof.
+- [DEFERRED] Telegram account-link lifecycle still remains guidance-only on the public surface; full auth/session productization is intentionally out of scope for this lane.
