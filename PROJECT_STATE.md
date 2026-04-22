@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 06:49
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #724 source branch `feature/close-pr-#724-blockers-for-db-readiness` now has FORGE-X Priority 2 DB readiness/startup blocker-closure implementation completed and is queued for required SENTINEL MAJOR validation before merge decision.
+Last Updated : 2026-04-23 06:54
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725 source branch `feature/close-pr-#724-blockers-for-db-readiness` DB readiness/startup blocker-closure lane is SENTINEL APPROVED and returned to COMMANDER for final merge decision.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -38,10 +38,10 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - PR #713 Phase 10.2 onboarding/public command-surface refinement lane is merged on main as closed truth: active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`, while runtime/operator `/risk` remains a separate non-public informational control path with no live-trading claim.
 - PR #719 Phase 10.3 monitor integration + observability hardening lane is merged on main as closed truth: admin/internal path guarding, startup/command/reply logging baseline, missing-env/disabled-mode logging, and monitor/admin visibility wiring are landed while paper-only and public-safe command boundaries remain explicit.
 - PR #721 Phase 10 post-launch public-surface cleanup lane is merged on main as closed historical truth from exact head branch `feature/align-readme-and-refine-telegram-onboarding-2026-04-22`: README/public wording and Telegram first-run onboarding guidance are aligned, `/risk_info` remains public informational, and `/risk` remains runtime/operator-only.
+- PR #725 Priority 2 DB readiness/startup blocker-closure lane on exact source branch `feature/close-pr-#724-blockers-for-db-readiness` is SENTINEL APPROVED for declared NARROW INTEGRATION scope; canonical validation report: `projects/polymarket/polyquantbot/reports/sentinel/phase10-5_01_pr725-db-readiness-startup-validation.md`.
 
 [IN PROGRESS]
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
-- PR #724 Priority 2 DB readiness/startup blocker-closure FORGE-X implementation is completed on exact source branch `feature/close-pr-#724-blockers-for-db-readiness`; awaiting required SENTINEL MAJOR validation with report continuity at `projects/polymarket/polyquantbot/reports/forge/phase10-5_02_priority2-db-readiness-pr724-blocker-closure.md`.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -49,7 +49,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL MAJOR validation gate for PR #724 on exact source branch `feature/close-pr-#724-blockers-for-db-readiness`, validating Priority 2 DB readiness + startup handling lane from `projects/polymarket/polyquantbot/work_checklist.md`.
+- COMMANDER merge decision for PR #725 (`feature/close-pr-#724-blockers-for-db-readiness`) after SENTINEL APPROVED gate closure on Priority 2 DB readiness/startup handling path.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
