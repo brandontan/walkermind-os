@@ -847,7 +847,7 @@ One-pass review preferred:
 # FORGE-X TASK: [short task name]
 ============
 Repo      : https://github.com/bayuewalker/walker-ai-team
-Branch    : {prefix}/{area}-{purpose}-{YYYYMMDD}        (Codex: feature/{area}-{purpose}-{YYYY-MM-DD})
+Branch    : {prefix}/{area}-{purpose}-{YYYYMMDD}        (Codex: feature/{feature})
 Env       : dev / staging / prod
 
 OBJECTIVE:
