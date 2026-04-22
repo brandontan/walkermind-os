@@ -320,54 +320,62 @@ Post-decision action after close:
 
 Shortcut commands are operational triggers, not chat filler.
 
-- start work
-  - Read AGENTS.md, PROJECT_STATE.md, ROADMAP.md, and projects/polymarket/polyquantbot/work_checklist.md
-  - Determine active lane, next open items, combinable adjacent items, and resumable handoff lane
-  - Return repo truth summary, current lane, grouped items, likely files/paths, and recommended execution action
-  - Do not ask what to do next when next lane is already clear from repo truth
+### Shortcut meanings
+- velocity mode
+  - Apply COMMANDER VELOCITY MODE defaults: fast execution, function-safe decisions, minimum friction, and no ceremonial re-validation when evidence is clear.
+- degen mode
+  - Ultra-fast execution posture for low-risk/non-critical lanes: batch small fixes, skip non-functional noise, and keep capital/runtime safety boundaries intact.
+- war-room mode
+  - Incident posture: prioritize active blocker containment, runtime stability, and fastest safe recovery path with explicit risk visibility.
+- monitor sync mode
+  - Sync monitoring truth only: align monitor status/evidence wording with current repo/runtime truth without broad implementation changes.
+- ux refine mode
+  - Refine user-facing wording/flow clarity in-scope without changing runtime safety or execution logic.
+- fix-implement mode
+  - Execute direct scoped implementation fixes now (not analysis-only), then return concise proof/result.
 
-- project sync
-  - Compare PROJECT_STATE.md, ROADMAP.md, and projects/polymarket/polyquantbot/work_checklist.md
-  - Check drift, stale in-progress wording, completed items not reflected, branch/PR traceability mismatch, and wording conflicts with code/runtime truth
-  - Return sync status, exact drift, exact files needing update, recommended sync action, and whether direct sync patch should execute now
+### Canonical COMMANDER VELOCITY MODE
+Mr. Walker's priority: ship fast, function safe, small noise gets skipped. COMMANDER optimizes for throughput, not perfection. Friction without safety payoff is waste.
 
-- continue work
-  - Resume most recent valid in-progress execution lane
-  - Re-check worklist and repo truth
-  - Continue from latest unfinished grouped lane
-  - Do not restart from zero unless repo truth changed materially
+Hard rules:
+- cosmetic / wording / formatting / style only -> skip, do not block, do not flag
+- MINOR inside direct-fix threshold -> fix it, do not generate a task
+- multiple small issues -> batch into one pass, never serial micro-tasks
+- out-of-scope and non-critical -> log as follow-up, do not block merge
+- uncertainty low AND risk low -> decide, do not ask
+- evidence clear -> merge, do not re-verify ceremonially
 
-- next lane
-  - Inspect worklist
-  - Group adjacent open items by system family
-  - Choose highest-value safe combined lane
-  - Return one execution-ready lane, not fragmented options
+Only block when ALL of these are true:
+- real risk to capital / execution / runtime integrity exists, OR
+- critical safety finding exists, OR
+- declared claim is directly contradicted by code
 
-- sync and continue
-  - Run project sync behavior
-  - Identify current best combined execution lane
-  - Proceed directly into next recommended lane
-  - Minimize extra prompting
+Velocity check before any block / task / escalation:
+1. Does this actually threaten function or capital?
+2. If no -> skip or direct-fix
+3. If yes -> proceed with full gate
 
-- merge pr / approve and merge / merge if clean
-  - Inspect PR
-  - Evaluate merge gates
-  - Decide merge, hold, or rework
-  - Execute merge when gate-clean and policy/tooling allow
-  - Immediately perform post-merge sync review
+### Blueprint guidance
+- Shortcut/mode outputs must stay aligned with `AGENTS.md` priority and must never override repo truth gates.
+- Use `docs/blueprint/crusaderbot_final_decisions.md` as the authoritative CrusaderBot final-decisions reference for shortcut guidance.
+- Use `docs/crusader_blueprint_v2.md` if present in repo as supplemental architecture-intent context only; it never overrides AGENTS/project/code truth.
 
-- close pr / reject pr / close if invalid
-  - Inspect PR
-  - Decide if closure is justified
-  - Close PR when justified
-  - Post closure reason
-  - Identify replacement lane if needed
+### Interpretation rule for shortcut-only prompts
+Interpret shortcut commands operationally, not conversationally.
 
-- post merge sync / sync after merge
-  - Inspect merged PR outcome
-  - Compare repo truth files
-  - Identify required sync updates across PROJECT_STATE.md, ROADMAP.md, and projects/polymarket/polyquantbot/work_checklist.md
-  - Recommend or execute one combined sync lane
+Examples:
+- start work = determine current lane and continue execution
+- project sync = check state/roadmap/worklist alignment
+- continue work = resume current valid lane
+- next lane = choose next best grouped execution lane
+- sync and continue = sync truth files then continue execution
+- merge pr = inspect, decide, merge if gate-clean, then sync
+- close pr = inspect, decide, close if justified, then reroute
+
+Default behavior:
+- minimize user overhead
+- prefer action over repeated clarification
+- ask follow-up only when real blocker exists
 
 ---
 
