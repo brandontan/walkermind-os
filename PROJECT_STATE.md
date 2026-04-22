@@ -1,5 +1,5 @@
-Last Updated : 2026-04-22 11:00
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #713 Phase 10.2 onboarding/public command-surface refinement is merged truth, and current execution focus is monitor integration + observability hardening under the paper-only boundary.
+Last Updated : 2026-04-22 19:27
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #713 Phase 10.2 onboarding/public command-surface refinement is merged truth, and blueprint template restore + source-lock sync lane is now prepared on branch `work` for COMMANDER review.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -38,6 +38,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - PR #713 Phase 10.2 onboarding/public command-surface refinement lane is merged on main as closed truth: active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`, while runtime/operator `/risk` remains a separate non-public informational control path with no live-trading claim.
 
 [IN PROGRESS]
+- Blueprint visual-shell restore + source-lock content sync lane for `docs/crusader_blueprint_v2.html` is completed on branch `work` and pending COMMANDER review (MINOR / FOUNDATION).
 - Monitor integration hardening + observability baseline lane remains in progress: admin/internal path guarding, startup/command/reply logging baseline, and monitor/admin visibility completion are still open on the paper-only runtime surface.
 - Post-launch cleanup + README/public-surface wording alignment lane remains in progress for paper-beta clarity (`/risk_info` public-safe informational command vs runtime/operator `/risk` distinction preserved).
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
@@ -48,7 +49,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Execute monitor integration hardening / observability hardening follow-up lane and close admin/internal path guarding plus monitor/admin visibility gaps in `projects/polymarket/polyquantbot/work_checklist.md`.
+- COMMANDER review for blueprint template restore + source-lock sync in `docs/crusader_blueprint_v2.html` (branch `work`).
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
