@@ -29,7 +29,7 @@ This must be finished first.
 
 #### ACTIVE (Current lane)
 
-Telegram UX Refinement Follow-up Lane
+Monitor Integration + Observability Hardening Lane
 
 [x] Publish operator runbook for current runtime posture and public-safe paper-only claims
 
@@ -54,6 +54,24 @@ Telegram UX Refinement Follow-up Lane
 [x] Consolidate remaining public-safe replies (onboarding required, already-linked/activated/session-ready variants, unknown command, temporary identity/runtime/backend errors) to shared presentation helpers
 
 [x] Align `/help` to trusted public-safe command surface only (hide operator-managed or not-ready commands from public guide)
+[x] Close Phase 10.2 public-safe command expansion lane on main (PR #713 merged truth)
+
+
+#### RIGHT NOW (post-merge sync lane)
+
+[ ] Guard admin/internal paths properly
+
+[ ] Add bot startup logs
+
+[ ] Add command received logs
+
+[ ] Add command handled logs
+
+[ ] Add reply success/failure logs
+
+[ ] Add missing env / disabled mode logs
+
+[ ] Complete monitor/admin visibility wiring for checklist/state parity
 
 
 #### NEXT (immediately after code fix + UX integration)
@@ -110,13 +128,15 @@ Telegram UX Refinement Follow-up Lane
 
 [x] Keep the existing public command baseline clean and useful
 
-[ ] Prepare /paper
+[x] Prepare /paper
 
-[ ] Prepare /about
+[x] Prepare /about
 
-[ ] Prepare /risk
+[x] Prepare /risk_info (public informational command)
 
-[ ] Prepare /account or /link
+[x] Prepare /account and /link
+
+[x] Keep `/risk` limited to runtime/operator path (not public-safe command baseline)
 
 [x] Separate public commands from admin/operator commands
 
