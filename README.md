@@ -33,11 +33,11 @@
 - Paper-only execution boundary remains explicitly enforced.
 
 ### ACTIVE
-- Post-launch documentation and communication polishing for founder/operator/public clarity.
-- Monitor integration and observability hardening follow-up (admin/internal path guardrails + runtime visibility completion).
+- Post-launch wording cleanup for public/operator surface clarity under the current staged rollout boundary.
+- Telegram first-run onboarding copy refinement for clearer public-safe navigation.
 
 ### NEXT
-- Controlled paper-beta hardening lane execution focused on observability and monitor/admin visibility closure.
+- COMMANDER review for Phase 10 post-launch public-surface cleanup lane closure.
 
 ### NOT STARTED
 - Live-trading authority rollout.
@@ -49,7 +49,7 @@
 
 Walker AI Trading Team is a multi-agent development system led by COMMANDER. The team builds and validates trading infrastructure across multiple platforms while preserving strict safety and scope boundaries.
 
-For CrusaderBot, the current public state is **paper beta only** with managed operator posture.
+For CrusaderBot, the current public state is **staged and safety-gated** with managed operator posture.
 
 ---
 
@@ -66,11 +66,12 @@ For CrusaderBot, the current public state is **paper beta only** with managed op
 
 ## Current Public Boundary (CrusaderBot)
 
-- Public-ready for paper beta.
+- Public-ready under the current staged rollout.
 - Live Fly runtime responding (`/`, `/health`, `/ready`).
-- Paper-only execution boundary is enforced.
+- Execution remains staged and safety-gated.
 - Public-safe Telegram command baseline: `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, `/link`.
 - Runtime/operator `/risk` remains separate from the public-safe informational command set.
+- `/risk_info` is informational/public-safe; `/risk` is runtime/operator-only.
 - Not live-trading ready.
 - Not production-capital ready.
 

@@ -220,6 +220,7 @@ def test_command_router_help_uses_public_command_guidance() -> None:
     assert result is not None
     assert "❓ Help Center" in result.message
     assert "/risk_info" in result.message
+    assert "/link" in result.message
 
 
 def test_command_router_status_routes_to_system_snapshot() -> None:
@@ -243,7 +244,7 @@ def test_command_router_status_routes_to_system_snapshot() -> None:
 
     assert result is not None
     assert "🧠 System Status" in result.message
-    assert "paper-only boundary enforced" in result.message.lower()
+    assert "staged rollout boundary enforced" in result.message.lower()
 
 
 def test_unknown_command_returns_help_style_fallback() -> None:
@@ -292,6 +293,7 @@ def test_start_deep_link_unlinked_reduces_onboarding_friction_guidance() -> None
     assert result is not None
     assert "🏠 Home Command" in result.message
     assert "no account link" in result.message.lower()
+    assert "/link, then /start -> /status" in result.message
 
 
 @pytest.mark.parametrize(

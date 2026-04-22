@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; Phase 10.2 onboarding/public command-surface lane is merged, and Phase 10.3 monitor integration plus observability hardening is merged on main via PR #719 (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-22 22:33
+**Last Updated:** 2026-04-23 02:02
 
 # Board Overview
 
@@ -52,7 +52,7 @@
 - Phase 10.2 post-merge sync and public command-surface refinement is merged on main (PR #713) with paper-only/non-custodial posture preserved.
 - Active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`; runtime/operator `/risk` remains separate and is not part of the public-safe informational set.
 - Phase 10.3 monitor integration hardening + observability baseline is merged on main via PR #719 (admin/internal path guarding, startup/command/reply logging baseline, missing-env/disabled-mode visibility logging, and monitor/admin visibility closure).
-- Next execution lane is post-launch cleanup + README/public-surface wording alignment while preserving `/risk_info` public-safe informational wording vs runtime/operator `/risk` separation.
+- Phase 10 post-launch cleanup + public-surface wording alignment implementation is complete on `feature/public-surface-cleanup`; next gate is COMMANDER review before merge.
 
 ### Execution Tracking Source
 - Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/work_checklist.md](projects/polymarket/polyquantbot/work_checklist.md).

@@ -618,10 +618,10 @@ class CommandHandler:
         risk_multiplier = safe_number(getattr(snap_cfg, "risk_multiplier", 0.25), 0.25)
         max_position = safe_number(getattr(snap_cfg, "max_position", 0.10), 0.10)
         onboarding_guidance = {
-            "new_user": "New here: review /about, then /paper, then /link to attach account context.",
-            "unlinked_user": "Session detected but no account link. Use /link to continue onboarding.",
-            "linked_user": "Account linked. Use /paper to review simulation boundary, then /status.",
-            "session_ready": "Session ready. Use /status for runtime posture or /paper for mode boundary.",
+            "new_user": "New here: Step 1 /about -> Step 2 /paper -> Step 3 /link, then return to /start.",
+            "unlinked_user": "Session detected but no account link. Use /link, then /start -> /status.",
+            "linked_user": "Account linked. Next path: /start -> /status for runtime posture checks.",
+            "session_ready": "Session ready. Active path: /status for runtime posture, /paper for rollout boundary recap.",
         }
         return {
             "status": snap_state.get("state", "N/A"),
@@ -636,7 +636,7 @@ class CommandHandler:
             "insight": (
                 f"Risk {risk_multiplier:.2f} • Max Pos {max_position:.2f}"
             ),
-            "operator_note": "Paper-only public beta; no live-capital actions are exposed.",
+            "operator_note": "Current rollout is staged and safety-gated; no live-capital actions are exposed.",
             "decision": onboarding_guidance.get(start_context, onboarding_guidance["session_ready"]),
             "onboarding_state": start_context,
         }
@@ -647,7 +647,7 @@ class CommandHandler:
             {
                 "mode": "system",
                 "decision": "Runtime health snapshot for paper-beta monitoring",
-                "operator_note": "Paper-only boundary enforced; no live capital actions.",
+                "operator_note": "Staged rollout boundary enforced; no live capital actions.",
             }
         )
         return payload
@@ -657,8 +657,8 @@ class CommandHandler:
         payload.update(
             {
                 "mode": "help",
-                "decision": "Use /start, /help, /status, /paper, /about, /risk_info, and /account in the public-safe flow",
-                "operator_note": "Paper-only beta: runtime guidance only, no live trading claims.",
+                "decision": "Use the public-safe command flow from the Help Center for first-run navigation.",
+                "operator_note": "Staged rollout guidance only; no live-trading readiness claim.",
             }
         )
         return payload
@@ -668,7 +668,7 @@ class CommandHandler:
         payload.update(
             {
                 "decision": f"Unknown command '/{cmd}'. Use the trusted public command set.",
-                "operator_note": "Supported commands: /start, /help, /status, /paper, /about, /risk_info, /account",
+                "operator_note": "Use /help to view the trusted public command set.",
             }
         )
         return payload
