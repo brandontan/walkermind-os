@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
+from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 from projects.polymarket.polyquantbot.infra.db.runtime_config import load_database_runtime_config
 
 
@@ -36,3 +39,22 @@ def test_load_database_runtime_config_rejects_non_require_sslmode_for_remote_hos
 
     with pytest.raises(ValueError, match="sslmode=require"):
         load_database_runtime_config()
+
+
+def test_database_client_connect_with_retry_calls_connect_and_ensure_schema(monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/crusader")
+    calls = {"connect": 0, "ensure_schema": 0}
+
+    async def _connect_ok(self) -> None:
+        calls["connect"] += 1
+
+    async def _ensure_schema_ok(self) -> None:
+        calls["ensure_schema"] += 1
+
+    monkeypatch.setattr(DatabaseClient, "connect", _connect_ok)
+    monkeypatch.setattr(DatabaseClient, "ensure_schema", _ensure_schema_ok)
+
+    client = DatabaseClient()
+    asyncio.run(client.connect_with_retry(max_attempts=1))
+
+    assert calls == {"connect": 1, "ensure_schema": 1}

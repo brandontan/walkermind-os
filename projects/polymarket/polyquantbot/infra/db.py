@@ -209,6 +209,48 @@ class DatabaseClient:
                 )
                 raise RuntimeError(f"Database unavailable — cannot connect: {exc}") from exc
 
+    async def connect_with_retry(
+        self,
+        max_attempts: int = 4,
+        base_backoff_s: float = 1.0,
+    ) -> None:
+        """Connect to PostgreSQL with bounded retries and exponential backoff."""
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be >= 1")
+
+        last_exc: Exception | None = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                log.info(
+                    "db_connect_attempt",
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                )
+                await self.connect()
+                await self.ensure_schema()
+                log.info(
+                    "db_connect_ready",
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                )
+                return
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                wait_s = round(base_backoff_s * (2 ** (attempt - 1)), 2)
+                log.warning(
+                    "db_connect_attempt_failed",
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    backoff_s=wait_s,
+                    error=str(exc),
+                )
+                if attempt < max_attempts:
+                    await asyncio.sleep(wait_s)
+
+        raise RuntimeError(
+            f"Database unavailable after {max_attempts} attempts: {last_exc}"
+        ) from last_exc
+
     async def ensure_schema(self) -> None:
         """Ensure all tables exist.  Raises if pool is not connected."""
         if self._pool is None:
@@ -623,6 +665,10 @@ class DatabaseClient:
             return True
         except Exception:
             return False
+
+    async def healthcheck(self) -> bool:
+        """Return True when DB pool can answer a lightweight ping."""
+        return await self.ping()
 
     def __repr__(self) -> str:
         connected = self._pool is not None

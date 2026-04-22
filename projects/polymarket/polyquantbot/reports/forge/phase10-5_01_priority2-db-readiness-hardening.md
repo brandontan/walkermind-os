@@ -2,6 +2,7 @@
 
 - Introduced a canonical DB runtime config contract via `DATABASE_URL` with explicit `DB_DSN` compatibility fallback, plus normalized SSL behavior (`sslmode=require`) for non-local database hosts.
 - Hardened active DB clients (`infra/db.py` and `infra/db/database.py`) to consume the same canonical runtime DSN resolver so active runtime DB paths no longer diverge in env source semantics.
+- Closed runtime-truth mismatch by adding `connect_with_retry` and `healthcheck` directly to `infra/db.py` `DatabaseClient`, matching the startup path used in `server/main.py`.
 - Wired truthful DB dependency startup/readiness handling in `server/main.py` and `server/api/routes.py`:
   - startup now records explicit DB config/connection status without crashing the API process on DB unavailability,
   - `/ready` now includes `database_runtime` readiness dimensions and returns `503` when DB dependency is not truly connected.
