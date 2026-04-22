@@ -618,10 +618,10 @@ class CommandHandler:
         risk_multiplier = safe_number(getattr(snap_cfg, "risk_multiplier", 0.25), 0.25)
         max_position = safe_number(getattr(snap_cfg, "max_position", 0.10), 0.10)
         onboarding_guidance = {
-            "new_user": "New here: review /about, then /paper, then /link to attach account context.",
-            "unlinked_user": "Session detected but no account link. Use /link to continue onboarding.",
-            "linked_user": "Account linked. Use /paper to review simulation boundary, then /status.",
-            "session_ready": "Session ready. Use /status for runtime posture or /paper for mode boundary.",
+            "new_user": "New here: Step 1 /about -> Step 2 /paper -> Step 3 /link, then return to /start.",
+            "unlinked_user": "Session detected but no account link. Use /link, then /start -> /status.",
+            "linked_user": "Account linked. Next path: /start -> /status for runtime posture (paper-only).",
+            "session_ready": "Session ready. Active path: /status for runtime posture, /paper for boundary recap.",
         }
         return {
             "status": snap_state.get("state", "N/A"),
@@ -657,7 +657,7 @@ class CommandHandler:
         payload.update(
             {
                 "mode": "help",
-                "decision": "Use /start, /help, /status, /paper, /about, /risk_info, and /account in the public-safe flow",
+                "decision": "Use /start, /help, /status, /paper, /about, /risk_info, /account, and /link in the public-safe flow",
                 "operator_note": "Paper-only beta: runtime guidance only, no live trading claims.",
             }
         )
@@ -668,7 +668,7 @@ class CommandHandler:
         payload.update(
             {
                 "decision": f"Unknown command '/{cmd}'. Use the trusted public command set.",
-                "operator_note": "Supported commands: /start, /help, /status, /paper, /about, /risk_info, /account",
+                "operator_note": "Supported commands: /start, /help, /status, /paper, /about, /risk_info, /account, /link",
             }
         )
         return payload
