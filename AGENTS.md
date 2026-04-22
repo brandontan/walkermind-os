@@ -67,6 +67,24 @@ Conflict rules:
 - `docs/crusader_blueprint_v2.html` is an architecture-intent reference for CrusaderBot only — it never overrides this file, PROJECT_STATE.md, ROADMAP.md, or current code truth
 - If Crusader blueprint and current code differ, code defines current reality and blueprint defines intended target architecture
 
+## EXACT BRANCH TRACEABILITY (GLOBAL — AUTHORITATIVE)
+
+Branch references are exact-match only across repo-truth artifacts.
+
+Rules:
+- If a PR exists, the exact PR head branch is the source of truth
+- If no PR exists, the exact current working branch is the source of truth
+- Applies to FORGE reports, SENTINEL reports, BRIEFER reports, PROJECT_STATE.md, PR summaries, and related repo-truth artifacts
+- Never write branch names from memory
+- Never use shorthand, lane labels, or substitute names in place of the exact branch string
+- Any mismatch is a repo-truth defect
+- Do not proceed with inconsistent artifact updates
+- Mismatch must be fixed before traceability is considered clean
+
+## SHORTCUT COMMAND SUPPORT (GLOBAL NOTE)
+
+Shortcut command behavior may be defined in `docs/commander_knowledge.md`, but every shortcut still obeys AGENTS.md truth order and all system rules in this file.
+
 ## TIMESTAMPS (AUTHORITATIVE)
 
 - Timezone: Asia/Jakarta (UTC+7) — always
