@@ -244,7 +244,9 @@ class CommandHandler:
         if cmd == "about":
             return await self._handle_about()
         if cmd == "risk":
-            return await self._handle_public_risk()
+            return await self._handle_risk()
+        if cmd == "risk_info":
+            return await self._handle_public_risk_info()
         if cmd in {"account", "link"}:
             return await self._handle_account()
         if cmd == "home":
@@ -655,7 +657,7 @@ class CommandHandler:
         payload.update(
             {
                 "mode": "help",
-                "decision": "Use /start, /help, /status, /paper, /about, /risk, and /account in the public-safe flow",
+                "decision": "Use /start, /help, /status, /paper, /about, /risk_info, and /account in the public-safe flow",
                 "operator_note": "Paper-only beta: runtime guidance only, no live trading claims.",
             }
         )
@@ -666,7 +668,7 @@ class CommandHandler:
         payload.update(
             {
                 "decision": f"Unknown command '/{cmd}'. Use the trusted public command set.",
-                "operator_note": "Supported commands: /start, /help, /status, /paper, /about, /risk, /account",
+                "operator_note": "Supported commands: /start, /help, /status, /paper, /about, /risk_info, /account",
             }
         )
         return payload
@@ -695,19 +697,31 @@ class CommandHandler:
         )
         return CommandResult(success=True, message=await render_view("bot_info", payload), payload=payload)
 
-    async def _handle_public_risk(self) -> CommandResult:
+    async def _handle_risk(self) -> CommandResult:
         payload = self._build_home_payload()
         payload.update(
             {
                 "mode": "risk",
                 "risk_level": "fractional-kelly-0.25",
                 "risk_state": "hard-guarded-paper-beta",
-                "decision": "Risk controls remain active in paper mode before any execution path.",
-                "operator_note": "Public command surface is informational only; no capital-risk toggles here.",
-                "insight": "Hard limits and kill-switch posture are monitored continuously.",
+                "decision": "Operator runtime risk view is active; enforce risk guard before execution.",
+                "operator_note": "Runtime/operator risk posture remains available on /risk.",
+                "insight": "Use this command for live runtime posture checks on risk boundaries.",
             }
         )
         return CommandResult(success=True, message=await render_view("risk", payload), payload=payload)
+
+    async def _handle_public_risk_info(self) -> CommandResult:
+        payload = self._build_help_payload()
+        payload.update(
+            {
+                "mode": "help",
+                "decision": "Risk controls remain active in paper mode before any execution path.",
+                "operator_note": "Informational risk summary only; runtime/operator path remains on /risk.",
+                "insight": "Public-safe paper boundary: no live-capital risk toggles are exposed.",
+            }
+        )
+        return CommandResult(success=True, message=await render_view("help", payload), payload=payload)
 
     async def _handle_account(self) -> CommandResult:
         payload = self._build_help_payload()

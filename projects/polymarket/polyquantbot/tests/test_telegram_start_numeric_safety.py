@@ -219,7 +219,7 @@ def test_command_router_help_uses_public_command_guidance() -> None:
 
     assert result is not None
     assert "❓ Help Center" in result.message
-    assert "/start · /help · /status · /paper · /about · /risk · /account" in result.message
+    assert "/risk_info" in result.message
 
 
 def test_command_router_status_routes_to_system_snapshot() -> None:
@@ -299,7 +299,7 @@ def test_start_deep_link_unlinked_reduces_onboarding_friction_guidance() -> None
     [
         ("/paper", "paper mode is the only public runtime boundary"),
         ("/about", "public beta exposes runtime visibility"),
-        ("/risk", "risk controls remain active in paper mode"),
+        ("/risk_info", "risk controls remain active in paper mode"),
         ("/account", "account-link guidance only"),
         ("/link", "account-link guidance only"),
     ],
@@ -325,6 +325,30 @@ def test_public_safe_commands_resolve_on_active_runtime_path(command: str, marke
 
     assert result is not None
     assert marker in result.message.lower()
+
+
+def test_risk_runtime_operator_path_remains_reachable() -> None:
+    state_manager = SystemStateManager()
+    config_manager = ConfigManager()
+    handler = CommandHandler(
+        state_manager=state_manager,
+        config_manager=config_manager,
+        mode="PAPER",
+    )
+    router = CommandRouter(handler=handler)
+
+    result = asyncio.run(
+        router.route_update(
+            {
+                "update_id": 67,
+                "message": {"text": "/risk", "from": {"id": 1001}, "chat": {"id": 1001}},
+            }
+        )
+    )
+
+    assert result is not None
+    assert "⚠️ Risk" in result.message
+    assert "runtime/operator risk posture remains available on /risk".lower() in result.message.lower()
 
 
 def test_reply_keyboard_routes_align_with_root_menu_actions() -> None:

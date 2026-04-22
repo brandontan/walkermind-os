@@ -50,7 +50,7 @@
 
 ### Current Focus Summary (paper-only boundary preserved)
 - Telegram runtime activation on Fly (startup lifecycle, truthful `/ready`, runtime state visibility).
-- Public command baseline now includes `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk`, and `/account`/`/link` on the active Telegram runtime path.
+- Public command baseline now includes `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, and `/account`/`/link` on the active Telegram runtime path (runtime/operator `/risk` path preserved).
 - `/start` onboarding/session guidance is refined to reduce repeated multi-step friction across new/unlinked/linked/session-ready states.
 - Persistence/readiness hardening continuity aligned with current checklist priorities.
 
