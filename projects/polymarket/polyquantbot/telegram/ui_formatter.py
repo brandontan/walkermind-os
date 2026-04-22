@@ -373,7 +373,7 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
         "help": (
             "❓ Help Center",
             [
-                ("Public Commands", "/start · /help · /status · /paper · /about · /risk · /account"),
+                ("Public Commands", "/start · /help · /status · /paper · /about · /risk_info · /account"),
                 ("Navigation", "Home menu + section callbacks"),
                 ("Boundary", "Paper-only beta, no live-capital control"),
             ],
