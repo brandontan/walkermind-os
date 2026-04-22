@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CrusaderBot | Master Blueprint v2.2 Final</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#020408',
+                        surface: '#0a0f18',
+                        border: '#1e293b',
+                        accent: '#00f5a0',
+                        poly: '#0af',
+                        risk: '#ff3c5f',
+                        falcon: '#2dd4bf',
+                        warning: '#ffd60a'
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #020408; color: #e2e8f0; -webkit-tap-highlight-color: transparent; scrollbar-width: none; }
+        body::-webkit-scrollbar { display: none; }
+        .glass { background: rgba(10, 15, 24, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .nav-active { color: #00f5a0; border-bottom: 2px solid #00f5a0; background: rgba(0, 245, 160, 0.05); }
+        .grid-pattern { background-image: radial-gradient(rgba(0, 245, 160, 0.05) 1px, transparent 1px); background-size: 30px 30px; }
+        .scroll-hide::-webkit-scrollbar { display: none; }
+        .scroll-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .page-transition { animation: fadeIn 0.3s ease-out forwards; }
+        .copy-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #00f5a0; color: #020408; padding: 8px 16px; border-radius: 99px; font-weight: 700; font-size: 12px; z-index: 1000; display: none; }
+        .table-row:not(:last-child){border-bottom:1px solid rgba(255,255,255,.05)}
+        pre { white-space: pre-wrap; word-break: break-word; }
+    </style>
+</head>
+<body class="font-sans antialiased selection:bg-accent/30">
+
+    <div class="copy-toast" id="copyToast">Copied to clipboard</div>
+
+    <header class="fixed top-0 left-0 right-0 z-50 glass border-b border-white/5">
+        <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-accent to-poly rounded-xl flex items-center justify-center text-bg text-xl font-bold shadow-lg shadow-accent/20">⚔</div>
+                <div>
+                    <h1 class="text-sm font-black tracking-tight leading-none uppercase italic text-white">CrusaderBot</h1>
+                    <p class="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">Walker AI Team</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="px-2 py-1 rounded-md bg-accent/10 border border-accent/20 text-[10px] font-mono text-accent font-bold">V2.2 FINAL</span>
+                <div id="statusDot" class="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
+            </div>
+        </div>
+        <nav class="flex overflow-x-auto scroll-hide border-t border-white/5 bg-black/20">
+            <div class="flex px-2">
+                <button onclick="showPage('overview', this)" class="nav-btn nav-active px-4 py-3 text-[10px] font-mono uppercase tracking-wider whitespace-nowrap transition-all">Overview</button>
+                <button onclick="showPage('architecture', this)" class="nav-btn px-4 py-3 text-[10px] font-mono uppercase tracking-wider whitespace-nowrap transition-all">Architecture</button>
+                <button onclick="showPage('falcon', this)" class="nav-btn px-4 py-3 text-[10px] font-mono uppercase tracking-wider whitespace-nowrap transition-all">Falcon Intel</button>
+                <button onclick="showPage('risk', this)" class="nav-btn px-4 py-3 text-[10px] font-mono uppercase tracking-wider whitespace-nowrap transition-all">Risk Engine</button>
+                <button onclick="showPage('telegram', this)" class="nav-btn px-4 py-3 text-[10px] font-mono uppercase tracking-wider whitespace-nowrap transition-all">Controls</button>
+                <button onclick="showPage('roadmap', this)" class="nav-btn px-4 py-3 text-[10px] font-mono uppercase tracking-wider whitespace-nowrap transition-all">Roadmap</button>
+            </div>
+        </nav>
+    </header>
+
+    <main class="pt-32 pb-24 px-4 max-w-5xl mx-auto grid-pattern min-h-screen">
+
+        <section id="overview" class="page-transition block">
+            <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-surface to-bg border border-white/5 p-6 mb-6">
+                <div class="absolute -top-24 -right-24 w-64 h-64 bg-accent/10 rounded-full blur-3xl"></div>
+                <h2 class="text-xs font-mono text-accent mb-2 uppercase tracking-widest font-bold">Autonomous Deployment</h2>
+                <h3 class="text-3xl font-extrabold text-white leading-tight mb-4">The Prediction Market<br><span class="text-poly italic">Execution Matrix.</span></h3>
+                <p class="text-slate-400 text-sm leading-relaxed mb-6 max-w-2xl">
+                    CrusaderBot is a multi-user, non-custodial prediction market trading system built around a strict separation of concerns: Telegram as the user control surface, FastAPI as the control-plane backend, Falcon MCP as the read-side intelligence layer, and Polymarket CLOB as the write-side execution venue. Users link wallets, authorize sessions, and control automation through Telegram; Crusader does not take custody of user funds. The system is designed to run continuously, evaluate opportunities automatically, enforce risk synchronously, execute only through approved paths, and keep every user scope isolated.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-accent border border-accent/20">FULLY AUTOMATED</span>
+                    <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-poly border border-poly/20">TELEGRAM CONTROL SURFACE</span>
+                    <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-warning border border-warning/20">RISK-FIRST</span>
+                    <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-falcon border border-falcon/20">FALCON INTEL</span>
+                    <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-white border border-white/10">NON-CUSTODIAL</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+                <div class="glass p-4 rounded-2xl border border-white/5"><div class="text-[10px] font-mono text-slate-500 uppercase mb-1">Max Position</div><div class="text-xl font-bold text-white">10.0% <span class="text-[10px] font-normal text-slate-500">of NAV</span></div></div>
+                <div class="glass p-4 rounded-2xl border border-white/5"><div class="text-[10px] font-mono text-slate-500 uppercase mb-1">Kelly Alpha</div><div class="text-xl font-bold text-accent">0.25 <span class="text-[10px] font-normal text-slate-500">Fract</span></div></div>
+                <div class="glass p-4 rounded-2xl border border-white/5"><div class="text-[10px] font-mono text-slate-500 uppercase mb-1">Daily Cap</div><div class="text-xl font-bold text-risk">-$2.0k <span class="text-[10px] font-normal text-slate-500">Limit</span></div></div>
+                <div class="glass p-4 rounded-2xl border border-white/5"><div class="text-[10px] font-mono text-slate-500 uppercase mb-1">Liquidity Floor</div><div class="text-xl font-bold text-poly">$10k <span class="text-[10px] font-normal text-slate-500">Min</span></div></div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-4 mb-8">
+                <div class="glass p-5 rounded-2xl border border-white/5">
+                    <div class="text-[10px] font-mono text-accent uppercase tracking-widest mb-2">Principle 01</div>
+                    <div class="text-white font-bold text-sm mb-2">Risk-First</div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">A profitable-looking signal is still rejected if it breaches drawdown, exposure, liquidity, or execution-safety constraints. Risk is enforced in code, not implied by documentation.</p>
+                </div>
+                <div class="glass p-5 rounded-2xl border border-white/5">
+                    <div class="text-[10px] font-mono text-poly uppercase tracking-widest mb-2">Principle 02</div>
+                    <div class="text-white font-bold text-sm mb-2">Control, Not Manual Entry</div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">Users do not place discretionary one-off trades via Telegram. Users control automation, safety, mode, and monitoring through Telegram while the backend remains the decision authority.</p>
+                </div>
+                <div class="glass p-5 rounded-2xl border border-white/5">
+                    <div class="text-[10px] font-mono text-falcon uppercase tracking-widest mb-2">Principle 03</div>
+                    <div class="text-white font-bold text-sm mb-2">Read / Write Separation</div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">Falcon enriches intelligence and discovery. CLOB executes. They do not overlap. This boundary is one of the core safety guarantees of the system.</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 mb-8">
+                <h4 class="text-xs font-mono text-slate-500 uppercase tracking-widest px-1">Runtime Lifecycle</h4>
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-4 p-4 glass rounded-2xl border-l-4 border-l-falcon"><div class="w-8 h-8 rounded-lg bg-falcon/10 flex items-center justify-center text-falcon font-bold text-sm">01</div><div><div class="text-xs font-bold text-white uppercase tracking-tight">Falcon Intel Ingest</div><div class="text-[11px] text-slate-500">Market discovery, candles, trades, market quality, wallet and social context</div></div></div>
+                    <div class="flex items-center gap-4 p-4 glass rounded-2xl border-l-4 border-l-poly"><div class="w-8 h-8 rounded-lg bg-poly/10 flex items-center justify-center text-poly font-bold text-sm">02</div><div><div class="text-xs font-bold text-white uppercase tracking-tight">Signal Analysis (S1-S5)</div><div class="text-[11px] text-slate-500">Feature build, strategy scoring, p_model, edge and EV ranking</div></div></div>
+                    <div class="flex items-center gap-4 p-4 glass rounded-2xl border-l-4 border-l-risk"><div class="w-8 h-8 rounded-lg bg-risk/10 flex items-center justify-center text-risk font-bold text-sm">03</div><div><div class="text-xs font-bold text-white uppercase tracking-tight">Risk Approval Gate</div><div class="text-[11px] text-slate-500">Kelly sizing, drawdown checks, exposure caps, liquidity floors, idempotency</div></div></div>
+                    <div class="flex items-center gap-4 p-4 glass rounded-2xl border-l-4 border-l-accent"><div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent font-bold text-sm">04</div><div><div class="text-xs font-bold text-white uppercase tracking-tight">CLOB Execution + Monitoring</div><div class="text-[11px] text-slate-500">Atomic submit, fill lifecycle, portfolio updates, alert dispatch, audit logging</div></div></div>
+                </div>
+            </div>
+
+            <div class="glass p-5 rounded-2xl border-l-4 border-l-warning mb-4">
+                <p class="text-[11px] text-slate-300 leading-relaxed"><strong class="text-white">Operational definition:</strong> fully automated 24/7 means CrusaderBot continuously scans markets, evaluates signals, enforces risk, enters approved positions, monitors open exposure, and dispatches alerts without manual trade-by-trade user input. Telegram remains the control console for START, PAUSE, RESUME, HALT, and emergency safety actions.</p>
+            </div>
+
+            <div class="glass p-5 rounded-2xl border border-white/5 mb-8">
+                <div class="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-2">Locked Boundary</div>
+                <p class="text-[11px] text-slate-300 leading-relaxed mb-2"><strong class="text-white">Non-custodial:</strong> wallet link and session authorization do not transfer custody. Crusader orchestrates approved actions but does not hold user funds.</p>
+                <p class="text-[11px] text-slate-300 leading-relaxed"><strong class="text-white">On-chain truth:</strong> exchange settlement and resulting user proxy wallet state are final truth. Backend portfolio state is derived operational truth and must reconcile to chain.</p>
+            </div>
+
+            <div class="glass p-5 rounded-2xl border border-white/5">
+                <div class="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-3">Decision Flow</div>
+                <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono">
+                    <span class="px-2 py-1 rounded bg-poly/10 text-poly border border-poly/20">Data</span>
+                    <span class="text-slate-600">→</span>
+                    <span class="px-2 py-1 rounded bg-indigo-400/10 text-indigo-300 border border-indigo-300/20">Features</span>
+                    <span class="text-slate-600">→</span>
+                    <span class="px-2 py-1 rounded bg-accent/10 text-accent border border-accent/20">p_model</span>
+                    <span class="text-slate-600">→</span>
+                    <span class="px-2 py-1 rounded bg-falcon/10 text-falcon border border-falcon/20">Edge / EV</span>
+                    <span class="text-slate-600">→</span>
+                    <span class="px-2 py-1 rounded bg-risk/10 text-risk border border-risk/20">Risk Gate</span>
+                    <span class="text-slate-600">→</span>
+                    <span class="px-2 py-1 rounded bg-warning/10 text-warning border border-warning/20">Execution</span>
+                    <span class="text-slate-600">→</span>
+                    <span class="px-2 py-1 rounded bg-white/5 text-slate-300 border border-white/10">Portfolio</span>
+                    <span class="text-slate-600">→</span>
+                    <span class="px-2 py-1 rounded bg-white/5 text-slate-300 border border-white/10">Monitor</span>
+                </div>
+            </div>
+        </section>
+
+        <section id="architecture" class="page-transition hidden">
+            <div class="mb-6 border-b border-white/10 pb-4">
+                <span class="text-[10px] font-mono text-accent uppercase tracking-[4px]">02</span>
+                <h2 class="text-2xl font-black text-white">System Architecture</h2>
+            </div>
+
+            <div class="space-y-6">
+                <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                    <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Tech Stack Matrix</div>
+                    <table class="w-full text-xs font-mono">
+                        <tr class="table-row"><td class="p-4 text-slate-500 uppercase tracking-tighter">Core Runtime</td><td class="p-4 text-white">Python 3.11+ <span class="text-accent">AsyncIO</span></td></tr>
+                        <tr class="table-row"><td class="p-4 text-slate-500 uppercase tracking-tighter">API / Control Plane</td><td class="p-4 text-white">FastAPI + Uvicorn</td></tr>
+                        <tr class="table-row"><td class="p-4 text-slate-500 uppercase tracking-tighter">Bot Framework</td><td class="p-4 text-white">python-telegram-bot async</td></tr>
+                        <tr class="table-row"><td class="p-4 text-slate-500 uppercase tracking-tighter">Storage</td><td class="p-4 text-white">PostgreSQL 15 + Redis 7</td></tr>
+                        <tr class="table-row"><td class="p-4 text-slate-500 uppercase tracking-tighter">Infrastructure</td><td class="p-4 text-white">Fly.io / Docker</td></tr>
+                        <tr class="table-row"><td class="p-4 text-slate-500 uppercase tracking-tighter">Read-Side Intel</td><td class="p-4 text-falcon">Falcon MCP / Ketanalytics</td></tr>
+                        <tr><td class="p-4 text-slate-500 uppercase tracking-tighter">Execution Venue</td><td class="p-4 text-warning">Polymarket CLOB API</td></tr>
+                    </table>
+                </div>
+
+
+                <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                    <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Canonical Master Map (Locked)</div>
+                    <div class="p-5">
+                        <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono mb-4">
+                            <span class="px-2 py-1 rounded bg-white/5 text-slate-300 border border-white/10">User</span>
+                            <span class="text-slate-600">→</span>
+                            <span class="px-2 py-1 rounded bg-poly/10 text-poly border border-poly/20">Crusader Bot</span>
+                            <span class="text-slate-600">→</span>
+                            <span class="px-2 py-1 rounded bg-accent/10 text-accent border border-accent/20">Crusader Backend</span>
+                            <span class="text-slate-600">→</span>
+                            <span class="px-2 py-1 rounded bg-warning/10 text-warning border border-warning/20">Polymarket CLOB API</span>
+                            <span class="text-slate-600">→</span>
+                            <span class="px-2 py-1 rounded bg-risk/10 text-risk border border-risk/20">Exchange Contract (On-Chain Settlement)</span>
+                            <span class="text-slate-600">→</span>
+                            <span class="px-2 py-1 rounded bg-white/5 text-slate-300 border border-white/10">User Proxy Wallet (Polygon)</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 leading-relaxed">This is the canonical settlement chain. Falcon MCP is a read-side intelligence sidecar to the backend, not a node in the locked settlement path.</p>
+                    </div>
+                </div>
+
+                <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                    <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Operational Read / Write View</div>
+                    <div class="p-4 border-b border-white/5">
+                        <p class="text-[11px] text-slate-400 leading-relaxed">Falcon enriches discovery and intelligence on the read side. Polymarket CLOB remains the only write-side execution venue after backend approval.</p>
+                    </div>
+                    <div class="flex flex-col items-center gap-0 bg-surface/50 p-6">
+
+                    <div class="w-full max-w-sm p-4 glass rounded-xl border border-poly/30 text-center">
+                        <span class="text-[10px] font-mono text-poly uppercase tracking-widest">User Surface</span>
+                        <div class="font-bold text-white">Telegram Control Surface</div>
+                    </div>
+                    <div class="w-[2px] h-6 bg-gradient-to-b from-poly to-accent/50"></div>
+                    <div class="w-full max-w-sm p-6 glass rounded-2xl border-2 border-accent/30 text-center relative shadow-2xl shadow-accent/5">
+                        <div class="absolute -left-2 top-1/2 -translate-y-1/2 w-1 h-12 bg-accent rounded-full"></div>
+                        <span class="text-[10px] font-mono text-accent uppercase tracking-widest">Control Plane</span>
+                        <div class="font-bold text-white text-lg">Crusader Backend</div>
+                        <div class="text-[9px] text-slate-500 mt-1 uppercase">Signal · Risk · Execution · Portfolio · Audit</div>
+                    </div>
+                    <div class="w-[2px] h-8 bg-accent/20"></div>
+                    <div class="flex gap-4 w-full">
+                        <div class="flex-1 p-3 glass rounded-xl border border-falcon/30 text-center">
+                            <span class="text-[9px] font-mono text-falcon uppercase tracking-widest">Read Side</span>
+                            <div class="font-bold text-white text-xs">Falcon MCP</div>
+                        </div>
+                        <div class="flex-1 p-3 glass rounded-xl border border-warning/30 text-center">
+                            <span class="text-[9px] font-mono text-warning uppercase tracking-widest">Write Side</span>
+                            <div class="font-bold text-white text-xs">CLOB API</div>
+                        </div>
+                    </div>
+                    <div class="w-[2px] h-8 bg-accent/20"></div>
+                    <div class="w-full max-w-sm p-4 glass rounded-xl border border-risk/30 text-center">
+                        <span class="text-[10px] font-mono text-risk uppercase tracking-widest">Settlement Layer</span>
+                        <div class="font-bold text-white">Exchange Contract + User Proxy Wallet</div>
+                    </div>
+                </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                        <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Bot Structure</div>
+                        <div class="p-4 space-y-3 text-xs">
+                            <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/5"><div class="w-8 h-8 rounded-lg bg-poly/10 text-poly font-bold flex items-center justify-center text-[10px] font-mono">01</div><div><div class="text-white font-bold uppercase tracking-tight text-[11px]">Telegram Client Layer</div><div class="text-slate-500 text-[11px] leading-relaxed">Bot bootstrap, command routing, settings UX, notification delivery, and control commands such as <span class="text-white font-mono">/authorize</span>, <span class="text-white font-mono">/control</span>, and <span class="text-white font-mono">/control emergency_stop</span>.</div></div></div>
+                            <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/5"><div class="w-8 h-8 rounded-lg bg-accent/10 text-accent font-bold flex items-center justify-center text-[10px] font-mono">02</div><div><div class="text-white font-bold uppercase tracking-tight text-[11px]">FastAPI Backend Core</div><div class="text-slate-500 text-[11px] leading-relaxed">The decision authority. Handles auth, signal orchestration, risk approval, execution routing, portfolio state, and audit logging.</div></div></div>
+                            <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/5"><div class="w-8 h-8 rounded-lg bg-falcon/10 text-falcon font-bold flex items-center justify-center text-[10px] font-mono">03</div><div><div class="text-white font-bold uppercase tracking-tight text-[11px]">Read-Side Intelligence</div><div class="text-slate-500 text-[11px] leading-relaxed">Falcon MCP for markets, candles, trades, wallet analytics, social pulse, and anomaly signals. Intelligence only — no order writes.</div></div></div>
+                            <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/5"><div class="w-8 h-8 rounded-lg bg-warning/10 text-warning font-bold flex items-center justify-center text-[10px] font-mono">04</div><div><div class="text-white font-bold uppercase tracking-tight text-[11px]">Write-Side Execution</div><div class="text-slate-500 text-[11px] leading-relaxed">Polymarket CLOB as the only execution venue for submit, cancel, fill tracking, and position lifecycle after backend approval.</div></div></div>
+                            <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/5"><div class="w-8 h-8 rounded-lg bg-risk/10 text-risk font-bold flex items-center justify-center text-[10px] font-mono">05</div><div><div class="text-white font-bold uppercase tracking-tight text-[11px]">Worker + Monitoring Layer</div><div class="text-slate-500 text-[11px] leading-relaxed">Scheduled jobs for market scans, signal loops, risk checks, reconciliation, notifications, and health supervision.</div></div></div>
+                        </div>
+                    </div>
+                    <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                        <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Directory Tree</div>
+                        <div class="p-4 overflow-x-auto"><pre class="text-[10px] leading-6 font-mono text-slate-300 whitespace-pre">projects/polymarket/polyquantbot/
+├── client/
+│   ├── telegram/   # bot bootstrap, handlers, notifications
+│   └── web/        # future dashboard client
+├── server/
+│   ├── api/        # health, ready, auth, dashboard
+│   ├── core/       # settings, lifecycle, tenancy
+│   ├── services/   # orchestration and business logic
+│   ├── risk/       # kelly, exposure, drawdown, approvals
+│   ├── execution/  # order planner, router, fills, guards
+│   ├── integrations/ # Falcon, CLOB, Polygon, external
+│   ├── portfolio/  # positions, pnl, bankroll, recon
+│   ├── storage/    # models, repositories, migrations
+│   ├── schemas/    # contracts
+│   ├── workers/    # schedulers, monitors, dispatchers
+│   └── utils/      # logging, crypto, ids, helpers
+├── configs/        # app, risk, trading, telegram, falcon
+├── scripts/        # run_api.py, run_bot.py, run_worker.py
+├── docs/           # blueprint, architecture, runtime notes
+├── tests/          # unit, integration, multi-user, e2e
+├── legacy/         # compatibility boundary
+└── main.py         # compatibility shim if needed</pre></div>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="glass p-5 rounded-2xl border border-white/5">
+                        <h5 class="text-falcon font-bold text-xs uppercase mb-3">Read / Write Boundary</h5>
+                        <p class="text-xs text-slate-400 leading-relaxed">Falcon is strictly read-only intelligence: markets, candles, trades, wallet analytics, social pulse, and anomaly signals. It enriches strategy evaluation and portfolio visibility. It does not place, cancel, or manage orders.</p>
+                    </div>
+                    <div class="glass p-5 rounded-2xl border border-white/5">
+                        <h5 class="text-warning font-bold text-xs uppercase mb-3">Execution Authority</h5>
+                        <p class="text-xs text-slate-400 leading-relaxed">All trade writes route through the backend into Polymarket CLOB after signal approval and risk validation. Telegram does not act as a manual order terminal.</p>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div class="glass p-5 rounded-2xl border border-white/5"><div class="text-accent font-bold text-xs uppercase mb-3">Signal Engine</div><p class="text-[11px] text-slate-400 leading-relaxed">FeatureBuilder, ProbabilityModel, EdgeEngine, EVEngine, regime filters, and strategy selectors turn raw market data into ranked opportunities.</p></div>
+                    <div class="glass p-5 rounded-2xl border border-white/5"><div class="text-risk font-bold text-xs uppercase mb-3">Risk Engine</div><p class="text-[11px] text-slate-400 leading-relaxed">SizingEngine, fractional Kelly, exposure controls, drawdown guards, user-tier limits, and trade approval gates enforce capital preservation.</p></div>
+                    <div class="glass p-5 rounded-2xl border border-white/5"><div class="text-warning font-bold text-xs uppercase mb-3">Execution Engine</div><p class="text-[11px] text-slate-400 leading-relaxed">Order planning, routing, fill handling, slippage checks, settlement tracking, and idempotent guards keep execution deterministic and safe.</p></div>
+                </div>
+
+                <div class="p-4 glass rounded-2xl border-l-4 border-l-warning">
+                    <p class="text-[11px] text-warning/80 leading-relaxed italic"><strong>Security Protocol:</strong> intelligence layers are read-only, execution lives behind backend risk approval, and user controls are separated from trade authority.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="falcon" class="page-transition hidden">
+            <div class="mb-6 border-b border-white/10 pb-4">
+                <span class="text-[10px] font-mono text-falcon uppercase tracking-[4px]">03</span>
+                <h2 class="text-2xl font-black text-white">Falcon MCP Intel</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="glass p-5 rounded-2xl border border-falcon/20">
+                    <h5 class="text-falcon font-bold text-xs uppercase mb-3 flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-falcon animate-pulse"></span> Agent Registry</h5>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-mono">#574</span><span class="text-white font-bold">Poly Markets</span></div>
+                        <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-mono">#568</span><span class="text-white font-bold">Candlesticks (OHLC)</span></div>
+                        <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-mono">#556</span><span class="text-white font-bold">Trade Flow</span></div>
+                        <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-mono">#575</span><span class="text-white font-bold">Market 360</span></div>
+                        <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-mono">#579</span><span class="text-white font-bold">Leaderboard</span></div>
+                        <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-mono">#581</span><span class="text-white font-bold">Wallet 360 Profiling</span></div>
+                        <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-mono">#584</span><span class="text-white font-bold">Heisenberg Board</span></div>
+                        <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-mono">#585</span><span class="text-white font-bold">Social Pulse</span></div>
+                        <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-mono">#596</span><span class="text-white font-bold">Price Jumps</span></div>
+                    </div>
+                </div>
+                <div class="glass p-5 rounded-2xl border border-poly/20">
+                    <h5 class="text-poly font-bold text-xs uppercase mb-3">Feature Enrichment</h5>
+                    <p class="text-[11px] text-slate-400 leading-relaxed mb-4">Falcon transforms venue data into usable signal context for discovery, ranking, filtering, and operator visibility. It powers market selection, momentum context, liquidity quality, wallet behavior, and narrative acceleration.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="text-[9px] font-mono px-2 py-1 bg-white/5 rounded">Smart Money Flow</span>
+                        <span class="text-[9px] font-mono px-2 py-1 bg-white/5 rounded">Volume Divergence</span>
+                        <span class="text-[9px] font-mono px-2 py-1 bg-white/5 rounded">Narrative Sentiment</span>
+                        <span class="text-[9px] font-mono px-2 py-1 bg-white/5 rounded">Liquidity Depth</span>
+                        <span class="text-[9px] font-mono px-2 py-1 bg-white/5 rounded">Wallet Profiling</span>
+                        <span class="text-[9px] font-mono px-2 py-1 bg-white/5 rounded">Anomaly Signals</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass p-6 rounded-2xl bg-gradient-to-br from-falcon/5 to-transparent border border-falcon/10 mb-6">
+                <h5 class="text-white font-bold text-sm mb-4">Per-User Falcon Keys</h5>
+                <div class="space-y-4">
+                    <div class="p-3 bg-black/40 rounded-xl border border-white/5 font-mono text-[10px] text-falcon leading-relaxed">
+                        # SECURE STORAGE PATTERN<br>
+                        DB_COL: user_settings.falcon_api_key<br>
+                        ENC_TYPE: AES-256-GCM<br>
+                        SCOPE: Decrypt on-demand per request / worker session<br>
+                        RULE: No global Falcon key in server .env
+                    </div>
+                    <p class="text-xs text-slate-400">Each user registers their own key via <code class="text-white">/setkey</code>. The backend stores it encrypted and injects a per-user Falcon client when needed. That preserves multi-user isolation, avoids shared rate limits, and keeps Falcon as a user-owned intelligence dependency.</p>
+                </div>
+            </div>
+
+            <div class="glass rounded-2xl overflow-hidden border border-white/5 mb-6">
+                <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Agent Mapping</div>
+                <table class="w-full text-xs font-mono">
+                    <tr class="table-row"><td class="p-4 text-falcon">#574</td><td class="p-4 text-white">Polymarket Markets</td><td class="p-4 text-slate-400">Market discovery, watchlists, filtering</td></tr>
+                    <tr class="table-row"><td class="p-4 text-falcon">#568</td><td class="p-4 text-white">Candlesticks</td><td class="p-4 text-slate-400">Momentum and volatility features</td></tr>
+                    <tr class="table-row"><td class="p-4 text-falcon">#556</td><td class="p-4 text-white">Trades</td><td class="p-4 text-slate-400">Flow imbalance and aggressor behavior</td></tr>
+                    <tr class="table-row"><td class="p-4 text-falcon">#575</td><td class="p-4 text-white">Market 360</td><td class="p-4 text-slate-400">Liquidity and market-quality gate</td></tr>
+                    <tr class="table-row"><td class="p-4 text-falcon">#581</td><td class="p-4 text-white">Wallet 360</td><td class="p-4 text-slate-400">Wallet profiling and risk context</td></tr>
+                    <tr class="table-row"><td class="p-4 text-falcon">#584</td><td class="p-4 text-white">Heisenberg Board</td><td class="p-4 text-slate-400">Smart-money style features</td></tr>
+                    <tr class="table-row"><td class="p-4 text-falcon">#585</td><td class="p-4 text-white">Social Pulse</td><td class="p-4 text-slate-400">Narrative and social acceleration context</td></tr>
+                    <tr><td class="p-4 text-falcon">#596</td><td class="p-4 text-white">Price Jumps</td><td class="p-4 text-slate-400">Anomaly detection and event flags</td></tr>
+                </table>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="glass p-5 rounded-2xl border border-white/5">
+                    <div class="text-[10px] font-mono text-falcon uppercase tracking-widest mb-2">Read-Side Policy</div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">Falcon is the primary intelligence and analytics layer for CrusaderBot. It powers discovery, filtering, wallet intelligence, market quality gating, and social awareness.</p>
+                </div>
+                <div class="glass p-5 rounded-2xl border border-white/5">
+                    <div class="text-[10px] font-mono text-warning uppercase tracking-widest mb-2">Write-Side Policy</div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">Order submission, cancellation, fills, and settlement tracking belong exclusively to Polymarket CLOB routing through the backend execution path.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="risk" class="page-transition hidden">
+            <div class="mb-6 border-b border-white/10 pb-4">
+                <span class="text-[10px] font-mono text-risk uppercase tracking-[4px]">04</span>
+                <h2 class="text-2xl font-black text-white">Risk Control Engine</h2>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 mb-6">
+                <div class="glass p-6 rounded-3xl border-l-8 border-l-risk overflow-hidden relative">
+                    <div class="absolute top-0 right-0 p-8 opacity-5 text-8xl text-risk font-black">!</div>
+                    <h4 class="text-white font-bold text-lg mb-2">Control State & Emergency Protocol</h4>
+                    <p class="text-slate-400 text-sm mb-6 max-w-md leading-relaxed">Crusader prioritizes capital preservation over alpha. The Risk Engine is the synchronous approval gate between signal generation and execution.</p>
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between text-[10px] font-mono text-slate-500 uppercase mb-2"><span>Drawdown Threshold (MDD)</span><span class="text-risk">8.0% MAX</span></div>
+                            <div class="w-full h-2 bg-white/5 rounded-full overflow-hidden"><div class="w-[75%] h-full bg-gradient-to-r from-poly to-risk"></div></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="p-4 bg-white/5 rounded-2xl border border-white/5"><div class="text-[10px] font-mono text-slate-500 uppercase mb-1">Kelly Sizing</div><div class="text-sm font-bold text-white italic">Fract 0.25α</div></div>
+                            <div class="p-4 bg-white/5 rounded-2xl border border-white/5"><div class="text-[10px] font-mono text-slate-500 uppercase mb-1">Exposure Cap</div><div class="text-sm font-bold text-white italic">40% Cluster</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4 mb-6">
+                <h4 class="text-xs font-mono text-slate-500 uppercase tracking-widest">Enforced Logic Rules</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="p-4 glass rounded-2xl flex items-start gap-3"><div class="text-risk font-bold text-lg">·</div><div class="text-[11px] text-slate-400 leading-relaxed"><strong>Positive EV Gate:</strong> orders rejected if EV is not positive after slippage and fee modeling.</div></div>
+                    <div class="p-4 glass rounded-2xl flex items-start gap-3"><div class="text-risk font-bold text-lg">·</div><div class="text-[11px] text-slate-400 leading-relaxed"><strong>Minimum Edge:</strong> mispricing must pass configured edge threshold before a trade becomes eligible.</div></div>
+                    <div class="p-4 glass rounded-2xl flex items-start gap-3"><div class="text-risk font-bold text-lg">·</div><div class="text-[11px] text-slate-400 leading-relaxed"><strong>Liquidity Floor:</strong> target market must meet minimum executable depth before entry approval.</div></div>
+                    <div class="p-4 glass rounded-2xl flex items-start gap-3"><div class="text-risk font-bold text-lg">·</div><div class="text-[11px] text-slate-400 leading-relaxed"><strong>Idempotency:</strong> duplicate intent hashing prevents repeated order submission within the same event window.</div></div>
+                    <div class="p-4 glass rounded-2xl flex items-start gap-3"><div class="text-risk font-bold text-lg">·</div><div class="text-[11px] text-slate-400 leading-relaxed"><strong>MDD Auto-Pause:</strong> live auto-trading is disabled automatically if session loss exceeds threshold.</div></div>
+                    <div class="p-4 glass rounded-2xl flex items-start gap-3"><div class="text-risk font-bold text-lg">·</div><div class="text-[11px] text-slate-400 leading-relaxed"><strong>Cross-User Isolation:</strong> all user-facing activity and execution state must be scoped by user, account, or wallet boundary.</div></div>
+                </div>
+            </div>
+
+            <div class="glass rounded-2xl overflow-hidden border border-white/5 mb-6">
+                <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Hard Rules</div>
+                <table class="w-full text-xs font-mono">
+                    <tr class="table-row"><td class="p-4 text-white">Positive EV</td><td class="p-4 text-slate-400">Required before approval</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Minimum edge</td><td class="p-4 text-slate-400">Config-driven threshold, default direction aligned to 6%</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Z-score gate</td><td class="p-4 text-slate-400">Mispricing / volatility threshold before entry</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Max drawdown stop</td><td class="p-4 text-slate-400">MDD &gt; 8% blocks new trades</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Max correlated exposure</td><td class="p-4 text-slate-400">&lt; 40% bankroll cluster</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Fractional Kelly only</td><td class="p-4 text-slate-400">Kelly α = 0.25</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Max concurrent</td><td class="p-4 text-slate-400">5 active positions default</td></tr>
+                    <tr><td class="p-4 text-white">Emergency controls</td><td class="p-4 text-slate-400">EMERGENCY_STOP by authorized actor; KILL restricted to highest authority</td></tr>
+                </table>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="glass p-5 rounded-2xl border border-white/5">
+                    <div class="text-[10px] font-mono text-warning uppercase tracking-widest mb-2">Safety & Failure</div>
+                    <ul class="text-[11px] text-slate-400 leading-6 list-disc pl-4">
+                        <li>Stale market data → safe mode fallback</li>
+                        <li>Falcon unavailable → retry and cached degradation</li>
+                        <li>Bankroll desync → HALT and resync</li>
+                        <li>Position mismatch → reconcile before RESUME</li>
+                        <li>Cross-user leakage detected → EMERGENCY_STOP, then highest-authority KILL path if required</li>
+                    </ul>
+                </div>
+                <div class="glass p-5 rounded-2xl border border-white/5">
+                    <div class="text-[10px] font-mono text-risk uppercase tracking-widest mb-2">Live Trading Guard</div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">Paper-first default. Live should only be enabled after monitoring, reconciliation, execution reliability, and operator controls are validated.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="telegram" class="page-transition hidden">
+            <div class="mb-6 border-b border-white/10 pb-4">
+                <span class="text-[10px] font-mono text-poly uppercase tracking-[4px]">05</span>
+                <h2 class="text-2xl font-black text-white">Telegram Control Surface</h2>
+            </div>
+
+            
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+                <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                    <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Locked Glossary · Control Verbs</div>
+                    <div class="p-4 space-y-3 text-[11px]">
+                        <div><div class="text-white font-mono font-bold">START</div><div class="text-slate-500">Transition user bot into active operation.</div></div>
+                        <div><div class="text-white font-mono font-bold">PAUSE</div><div class="text-slate-500">Stop new trades while monitoring continues.</div></div>
+                        <div><div class="text-white font-mono font-bold">RESUME</div><div class="text-slate-500">Exit PAUSE and return to active operation.</div></div>
+                        <div><div class="text-white font-mono font-bold">HALT</div><div class="text-slate-500">Stop all activity, hold positions, and require explicit controlled recovery.</div></div>
+                        <div><div class="text-white font-mono font-bold">EMERGENCY_STOP</div><div class="text-slate-500">High-severity halt path under critical safety conditions.</div></div>
+                        <div><div class="text-white font-mono font-bold">KILL</div><div class="text-slate-500">Terminal shutdown / re-init required. Restricted to highest authority only.</div></div>
+                    </div></div>
+                </div>
+                <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                    <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Locked Glossary · Human Roles</div>
+                    <div class="p-4 flex flex-wrap gap-2">
+                        <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-white border border-white/10">User</span>
+                        <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-white border border-white/10">Moderator</span>
+                        <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-white border border-white/10">Operator</span>
+                        <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-white border border-white/10">Admin</span>
+                        <span class="px-3 py-1.5 rounded-full glass text-[10px] font-bold text-white border border-white/10">Super Admin</span>
+                    </div>
+                    <div class="px-4 pb-4 text-[11px] text-slate-500 leading-relaxed">Human roles are distinct from system actors in audit logs. Public role vocabulary stops here.</div>
+                </div>
+                <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                    <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Locked Glossary · Auth Tiers</div>
+                    <div class="p-4 space-y-3 text-[11px]">
+                        <div><div class="text-white font-mono font-bold">T0 Anonymous</div><div class="text-slate-500">No identity established.</div></div>
+                        <div><div class="text-white font-mono font-bold">T1 TG_AUTHENTICATED</div><div class="text-slate-500">Telegram session authenticated.</div></div>
+                        <div><div class="text-white font-mono font-bold">T2 PIN_VERIFIED</div><div class="text-slate-500">Step-up via valid PIN challenge.</div></div>
+                        <div><div class="text-white font-mono font-bold">T3 STEP_UP_VERIFIED</div><div class="text-slate-500">High-sensitivity verification path, such as 2FA and/or wallet-signature flow where required.</div></div>
+                    </div>
+                </div>
+            </div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                <div>
+                    <h5 class="text-xs font-mono text-slate-500 uppercase mb-4 tracking-widest px-1">Command Reference</h5>
+                    <div class="relative mb-4"><input type="text" id="cmdSearch" onkeyup="filterCommands()" placeholder="Filter commands..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-poly transition-all font-mono"></div>
+                    <div class="space-y-2 max-h-[400px] overflow-y-auto scroll-hide" id="commandList">
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/start')"><div class="font-mono text-poly text-xs font-bold">/start</div><div class="text-[10px] text-slate-500 uppercase">Entry Point</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/account')"><div class="font-mono text-poly text-xs font-bold">/account</div><div class="text-[10px] text-slate-500 uppercase">Account Summary</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/link')"><div class="font-mono text-poly text-xs font-bold">/link</div><div class="text-[10px] text-slate-500 uppercase">Link Account</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/authorize')"><div class="font-mono text-falcon text-xs font-bold">/authorize</div><div class="text-[10px] text-slate-500 uppercase">Authorization Readiness</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/permissions')"><div class="font-mono text-falcon text-xs font-bold">/permissions</div><div class="text-[10px] text-slate-500 uppercase">Permission State</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/mode')"><div class="font-mono text-poly text-xs font-bold">/mode</div><div class="text-[10px] text-slate-500 uppercase">Operating Mode</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/control')"><div class="font-mono text-poly text-xs font-bold">/control</div><div class="text-[10px] text-slate-500 uppercase">Start / Pause / Stop</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/strategy')"><div class="font-mono text-falcon text-xs font-bold">/strategy</div><div class="text-[10px] text-slate-500 uppercase">Strategy Profile</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/risk')"><div class="font-mono text-warning text-xs font-bold">/risk</div><div class="text-[10px] text-slate-500 uppercase">Risk Policy</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/portfolio')"><div class="font-mono text-poly text-xs font-bold">/portfolio</div><div class="text-[10px] text-slate-500 uppercase">Portfolio Snapshot</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/positions')"><div class="font-mono text-poly text-xs font-bold">/positions</div><div class="text-[10px] text-slate-500 uppercase">Position Visibility</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/orders')"><div class="font-mono text-poly text-xs font-bold">/orders</div><div class="text-[10px] text-slate-500 uppercase">Order State</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/analytics')"><div class="font-mono text-falcon text-xs font-bold">/analytics</div><div class="text-[10px] text-slate-500 uppercase">Analytics Home</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/signals')"><div class="font-mono text-falcon text-xs font-bold">/signals</div><div class="text-[10px] text-slate-500 uppercase">Signal Analytics</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/notifications')"><div class="font-mono text-falcon text-xs font-bold">/notifications</div><div class="text-[10px] text-slate-500 uppercase">Notifications</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/control emergency_stop')"><div class="font-mono text-risk text-xs font-bold">/control emergency_stop</div><div class="text-[10px] text-slate-500 uppercase">Emergency Stop</div></div>
+                        <div class="cmd-item glass p-3 rounded-xl border border-white/5 flex justify-between items-center group cursor-pointer hover:border-poly/30 transition-all" onclick="copyText('/admin')"><div class="font-mono text-risk text-xs font-bold">/admin</div><div class="text-[10px] text-slate-500 uppercase">Restricted Ops</div></div>
+</div>
+                    <div class="mt-4 space-y-3">
+                        <div class="p-4 glass rounded-2xl border-l-4 border-l-warning"><p class="text-[11px] text-slate-400 leading-relaxed"><strong class="text-white">Control philosophy:</strong> Telegram is the primary control surface for onboarding, account link, authorization readiness, mode selection, status review, and controlled state changes. It is not the custody layer and not a manual trade-entry terminal.</p></div>
+                        <div class="p-4 glass rounded-2xl border border-white/5">
+                            <div class="text-[10px] font-mono text-slate-500 uppercase mb-2">Allowed through Telegram</div>
+                            <div class="text-[11px] text-slate-400 leading-relaxed">Onboarding · account link · authorize · mode switching · control changes · status inspection · portfolio visibility · alerts · EMERGENCY_STOP. KILL remains restricted to highest authority only.</div>
+                        </div>
+                        <div class="p-4 glass rounded-2xl border border-white/5">
+                            <div class="text-[10px] font-mono text-slate-500 uppercase mb-2">Not allowed through Telegram</div>
+                            <div class="text-[11px] text-slate-400 leading-relaxed">Custody transfer, direct one-off buy/sell entry, risk bypass, cross-user data access, or execution outside backend approval and CLOB routing.</div>
+                        </div>
+                        <div class="p-4 glass rounded-2xl border border-white/5">
+                            <div class="text-[10px] font-mono text-slate-500 uppercase mb-2">State Truth</div>
+                            <div class="text-[11px] text-slate-400 leading-relaxed">Telegram shows derived operational state. On-chain truth is authoritative for balances, positions, and settlement-relevant state; Telegram and backend views must reconcile to the resulting user proxy wallet state.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hidden lg:block relative mx-auto w-[280px] h-[540px] bg-[#111] rounded-[3rem] border-[6px] border-[#222] shadow-2xl overflow-hidden p-2">
+                    <div class="w-full h-full bg-[#0a0f18] rounded-[2.2rem] overflow-hidden flex flex-col">
+                        <div class="h-6 w-full flex justify-center"><div class="w-24 h-4 bg-[#222] rounded-b-xl"></div></div>
+                        <div class="px-4 pt-2 pb-3 border-b border-white/5 flex items-center gap-2"><div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-bg font-bold">⚔</div><div><div class="text-[10px] font-bold text-white">CrusaderBot</div><div class="text-[8px] text-accent">● Control Surface Online</div></div></div>
+                        <div class="flex-1 p-3 flex flex-col gap-3 overflow-y-auto scroll-hide">
+                            <div class="self-start max-w-[85%] bg-white/5 p-2 rounded-2xl rounded-tl-sm text-[9px] text-slate-300 leading-relaxed">🛡 <b class="text-white uppercase">STARTED</b><br>Mode: PAPER<br>Control: ACTIVE<br>Drawdown: 0.00%</div>
+                            <div class="self-start max-w-[85%] bg-accent/10 border border-accent/20 p-2 rounded-2xl rounded-tl-sm text-[9px] text-accent leading-relaxed">⚡ <b class="text-white uppercase">Position Entered</b><br>MKT: “Bitcoin &gt; 100k?”<br>Side: YES · Size: $420.00<br>Edge: 8.4% · EV: 0.12</div>
+                            <div class="self-end max-w-[85%] bg-poly/20 border border-poly/20 p-2 rounded-2xl rounded-tr-sm text-[9px] text-white leading-relaxed">/control</div>
+                            <div class="self-start max-w-[85%] bg-white/5 p-2 rounded-2xl rounded-tl-sm text-[9px] text-slate-300 leading-relaxed">🔘 <b class="text-white uppercase">PAUSED</b><br>New entries paused by user. Monitoring, alerts, and reconciliation continue.</div>
+                        </div>
+                        <div class="p-3 bg-black/40 grid grid-cols-2 gap-2 pb-6"><div class="bg-white/5 rounded-lg py-2 text-[8px] text-center text-white font-mono uppercase tracking-widest border border-white/5">Portfolio</div><div class="bg-white/5 rounded-lg py-2 text-[8px] text-center text-white font-mono uppercase tracking-widest border border-white/5">Settings</div><div class="bg-white/5 rounded-lg py-2 text-[8px] text-center text-white font-mono uppercase tracking-widest border border-white/5 col-span-2">EMERGENCY_STOP</div></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="roadmap" class="page-transition hidden">
+            <div class="mb-6 border-b border-white/10 pb-4">
+                <span class="text-[10px] font-mono text-warning uppercase tracking-[4px]">06</span>
+                <h2 class="text-2xl font-black text-white">Development Roadmap</h2>
+            </div>
+
+            <div class="space-y-6 mb-8">
+                <div class="relative pl-8 border-l border-white/10">
+                    <div class="absolute -left-1.5 top-0 w-3 h-3 bg-accent rounded-full shadow-[0_0_10px_#00f5a0]"></div>
+                    <div class="mb-1 text-[10px] font-mono text-accent uppercase tracking-widest">Phase 1: Foundation</div>
+                    <h6 class="text-sm font-bold text-white mb-2">Non-Custodial Multi-User Core</h6>
+                    <p class="text-xs text-slate-500 leading-relaxed">FastAPI control plane, Telegram control surface, paper-first execution baseline, tenancy model, risk gate, identity/wallet scopes, and portfolio state.</p>
+                </div>
+
+                <div class="relative pl-8 border-l border-white/10 opacity-90">
+                    <div class="absolute -left-1.5 top-0 w-3 h-3 bg-poly rounded-full"></div>
+                    <div class="mb-1 text-[10px] font-mono text-poly uppercase tracking-widest">Phase 2: Signal Upgrade</div>
+                    <h6 class="text-sm font-bold text-white mb-2">Narrative, Wallet, and Market Quality Weighting</h6>
+                    <p class="text-xs text-slate-500 leading-relaxed">Full Falcon read-side integration for markets, wallet behavior, social pulse, and anomaly features. Stronger ranking, filtering, and model support.</p>
+                </div>
+
+                <div class="relative pl-8 border-l border-white/10 opacity-90">
+                    <div class="absolute -left-1.5 top-0 w-3 h-3 bg-warning rounded-full"></div>
+                    <div class="mb-1 text-[10px] font-mono text-warning uppercase tracking-widest">Phase 3: Monitoring and Live Readiness</div>
+                    <h6 class="text-sm font-bold text-white mb-2">Reconciliation, Alerts, and Safety Maturity</h6>
+                    <p class="text-xs text-slate-500 leading-relaxed">Health endpoints, audit depth, reconciliation, worker reliability, auto-pause logic, and safer live-mode activation path.</p>
+                </div>
+
+                <div class="relative pl-8 border-l border-white/10 opacity-80">
+                    <div class="absolute -left-1.5 top-0 w-3 h-3 bg-falcon rounded-full"></div>
+                    <div class="mb-1 text-[10px] font-mono text-falcon uppercase tracking-widest">Phase 4: Intelligence Expansion</div>
+                    <h6 class="text-sm font-bold text-white mb-2">Smart-Money and Anomaly Features</h6>
+                    <p class="text-xs text-slate-500 leading-relaxed">Wallet profiling, Heisenberg ranking, social acceleration, and price-jump anomaly signals move from passive analytics into stronger signal support layers.</p>
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4 mb-6">
+                <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                    <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Database Domains</div>
+                    <div class="p-4 grid grid-cols-2 gap-2 text-[10px] font-mono">
+                        <span class="px-2 py-2 rounded bg-poly/10 text-poly border border-poly/20">users</span>
+                        <span class="px-2 py-2 rounded bg-poly/10 text-poly border border-poly/20">accounts</span>
+                        <span class="px-2 py-2 rounded bg-warning/10 text-warning border border-warning/20">wallets</span>
+                        <span class="px-2 py-2 rounded bg-warning/10 text-warning border border-warning/20">proxy_wallet_mappings</span>
+                        <span class="px-2 py-2 rounded bg-accent/10 text-accent border border-accent/20">markets</span>
+                        <span class="px-2 py-2 rounded bg-accent/10 text-accent border border-accent/20">feature_snapshots</span>
+                        <span class="px-2 py-2 rounded bg-risk/10 text-risk border border-risk/20">orders</span>
+                        <span class="px-2 py-2 rounded bg-risk/10 text-risk border border-risk/20">risk_decisions</span>
+                        <span class="px-2 py-2 rounded bg-indigo-400/10 text-indigo-300 border border-indigo-300/20">portfolio_snapshots</span>
+                        <span class="px-2 py-2 rounded bg-falcon/10 text-falcon border border-falcon/20">user_settings + falcon_api_key</span>
+                        <span class="px-2 py-2 rounded bg-white/5 text-slate-300 border border-white/10">notification_events</span>
+                        <span class="px-2 py-2 rounded bg-white/5 text-slate-300 border border-white/10">audit_logs</span>
+                    </div>
+                </div>
+
+                <div class="glass rounded-2xl overflow-hidden border border-white/5">
+                    <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Config Contracts</div>
+                    <div class="p-4 space-y-3 text-[11px] text-slate-400">
+                        <div><span class="text-white font-mono">configs/falcon.yaml</span> → Falcon base URL, timeouts, retry policy, cache TTLs</div>
+                        <div><span class="text-white font-mono">configs/risk.yaml</span> → Kelly fraction, MDD stop, exposure cap, edge / EV thresholds</div>
+                        <div><span class="text-white font-mono">configs/trading.yaml</span> → paper/live mode, liquidity floor, scan interval, market filters</div>
+                        <div><span class="text-white font-mono">configs/app.yaml</span> → runtime settings, environment, service wiring</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass rounded-2xl overflow-hidden border border-white/5 mb-6">
+                <div class="bg-white/5 px-4 py-2 text-[10px] font-mono text-slate-400 uppercase tracking-widest">Safety & Failure Handling</div>
+                <table class="w-full text-xs font-mono">
+                    <tr class="table-row"><td class="p-4 text-white">Stale market data</td><td class="p-4 text-slate-400">safe mode fallback, disable live execution</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">MDD breach</td><td class="p-4 text-slate-400">auto-disable live, notify user</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Duplicate order intent</td><td class="p-4 text-slate-400">idempotency_key check, reject silently</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Cross-user leakage detected</td><td class="p-4 text-slate-400">emergency halt, audit log, admin alert</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Falcon API unavailable</td><td class="p-4 text-slate-400">retry x3, fallback to cached data if policy allows</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Position book mismatch</td><td class="p-4 text-slate-400">portfolio_reconciler worker, force resync</td></tr>
+                    <tr class="table-row"><td class="p-4 text-white">Excessive order failures</td><td class="p-4 text-slate-400">circuit breaker, manual reconcile job</td></tr>
+                    <tr><td class="p-4 text-white">Bankroll desync</td><td class="p-4 text-slate-400">halt execution, force wallet resync per user</td></tr>
+                </table>
+            </div>
+
+            <div class="glass p-5 rounded-2xl border-l-4 border-l-risk">
+                <p class="text-[11px] text-slate-300 leading-relaxed"><strong class="text-white">MVP scope reminder:</strong> paper execution comes first. Live trading should only be enabled after monitoring, reconciliation, risk gates, and execution reliability have been validated under controlled conditions.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="max-w-5xl mx-auto px-6 py-8 border-t border-white/5 text-center">
+        <p class="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+            CrusaderBot · Project PolyQuant<br>
+            <span class="text-accent">Execution is everything.</span>
+        </p>
+    </footer>
+
+    <script>
+        function showPage(id, btn) {
+            document.querySelectorAll('main section').forEach(page => page.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('nav-active'));
+            if (btn) {
+                btn.classList.add('nav-active');
+                btn.scrollIntoView({behavior: 'smooth', inline: 'center', block: 'nearest'});
+            }
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }
+
+        function filterCommands() {
+            const input = document.getElementById('cmdSearch').value.toLowerCase();
+            const items = document.querySelectorAll('.cmd-item');
+            items.forEach(item => {
+                const text = item.innerText.toLowerCase();
+                item.style.display = text.includes(input) ? 'flex' : 'none';
+            });
+        }
+
+        function copyText(text) {
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            const toast = document.getElementById('copyToast');
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+        }
+
+        setInterval(() => {
+            const dot = document.getElementById('statusDot');
+            dot.style.opacity = Math.random() > 0.5 ? '1' : '0.5';
+        }, 1000);
+    </script>
+</body>
+</html>
