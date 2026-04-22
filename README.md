@@ -33,11 +33,11 @@
 - Paper-only execution boundary remains explicitly enforced.
 
 ### ACTIVE
-- Post-launch wording cleanup for public/operator surface clarity under the current staged rollout boundary.
-- Telegram first-run onboarding copy refinement for clearer public-safe navigation.
+- Post-launch wording cleanup for public/operator surface clarity is merged-main historical truth via PR #721 (head branch `feature/align-readme-and-refine-telegram-onboarding-2026-04-22`).
+- Priority 2 combined lane from `projects/polymarket/polyquantbot/work_checklist.md`: DB, persistence, and runtime hardening baseline.
 
 ### NEXT
-- COMMANDER review for Phase 10 post-launch public-surface cleanup lane closure.
+- Execute Priority 2 DB + persistence + runtime hardening baseline lane.
 
 ### NOT STARTED
 - Live-trading authority rollout.
