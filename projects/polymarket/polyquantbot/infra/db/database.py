@@ -298,6 +298,18 @@ class DatabaseClient:
         await self._apply_schema()
         log.info("db_ensure_schema_ok")
 
+    async def healthcheck(self) -> bool:
+        """Return True when the DB pool is connected and responds to a ping."""
+        if self._pool is None:
+            return False
+        try:
+            async with self._pool.acquire() as conn:
+                await asyncio.wait_for(conn.execute("SELECT 1"), timeout=self._op_timeout_s)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            log.warning("db_healthcheck_failed", error=str(exc))
+            return False
+
     async def close(self) -> None:
         """Close the connection pool gracefully."""
         if self._pool is not None:

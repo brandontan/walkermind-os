@@ -68,6 +68,15 @@ class RuntimeState:
     telegram_runtime_iterations_total: int = 0
     telegram_runtime_last_error: str = ""
     telegram_runtime_task: Optional[asyncio.Task[None]] = None
+    db_runtime_required: bool = False
+    db_runtime_enabled: bool = False
+    db_runtime_connected: bool = False
+    db_runtime_healthcheck_ok: bool = False
+    db_runtime_last_error: str = ""
+    db_connect_max_attempts: int = 0
+    db_connect_base_backoff_s: float = 0.0
+    db_connect_timeout_s: float = 0.0
+    db_client: object | None = None
 
     def mark_started(self) -> None:
         self.started_at = datetime.now(timezone.utc)

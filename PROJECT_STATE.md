@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 04:22
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #713 (Phase 10.2), PR #719 (Phase 10.3), and PR #721 (Phase 10.4) are all merged-main truth, with PR #721 traced to exact head branch `feature/align-readme-and-refine-telegram-onboarding-2026-04-22` and Phase 10 cleanup now recorded as historical-complete under the same staged rollout boundary.
+Last Updated : 2026-04-23 06:37
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #724 source branch `feature/harden-db-readiness-and-startup-handling` now has FORGE-X Priority 2 DB readiness/startup blocker-closure implementation completed and is queued for required SENTINEL MAJOR validation before merge decision.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -41,6 +41,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 
 [IN PROGRESS]
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
+- PR #724 Priority 2 DB readiness/startup blocker-closure FORGE-X implementation is completed on exact source branch `feature/harden-db-readiness-and-startup-handling`; awaiting required SENTINEL MAJOR validation with report continuity at `projects/polymarket/polyquantbot/reports/forge/phase10-5_02_priority2-db-readiness-pr724-blocker-closure.md`.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -48,7 +49,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Priority 2 combined lane from `projects/polymarket/polyquantbot/work_checklist.md`: DB, persistence, and runtime hardening baseline.
+- SENTINEL MAJOR validation gate for PR #724 on exact source branch `feature/harden-db-readiness-and-startup-handling`, validating Priority 2 DB readiness + startup handling lane from `projects/polymarket/polyquantbot/work_checklist.md`.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
