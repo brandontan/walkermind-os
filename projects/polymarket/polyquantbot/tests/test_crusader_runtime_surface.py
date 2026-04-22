@@ -10,6 +10,25 @@ from fastapi.testclient import TestClient
 
 from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, validate_api_environment
 from projects.polymarket.polyquantbot.server.main import create_app
+from projects.polymarket.polyquantbot.infra.db import DatabaseClient
+
+
+def _set_runtime_base_env(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example.com:5432/crusader")
+
+
+async def _db_connect_ok(self) -> None:
+    return None
+
+
+async def _db_health_ok(self) -> bool:
+    return True
+
+
+async def _db_health_fail(self) -> bool:
+    return False
 
 
 @pytest.mark.parametrize(
@@ -22,8 +41,9 @@ from projects.polymarket.polyquantbot.server.main import create_app
     ],
 )
 def test_runtime_surface_contract_keys_are_present(monkeypatch, route: str, required_keys: set[str]) -> None:
-    monkeypatch.setenv("PORT", "8080")
-    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    _set_runtime_base_env(monkeypatch)
+    monkeypatch.setattr(DatabaseClient, "connect_with_retry", _db_connect_ok)
+    monkeypatch.setattr(DatabaseClient, "healthcheck", _db_health_ok)
     app = create_app()
     with TestClient(app) as client:
         response = client.get(route)
@@ -59,8 +79,9 @@ def test_validate_api_environment_accepts_paper_defaults(monkeypatch) -> None:
 
 
 def test_health_route_reports_crusaderbot_service(monkeypatch) -> None:
-    monkeypatch.setenv("PORT", "8080")
-    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    _set_runtime_base_env(monkeypatch)
+    monkeypatch.setattr(DatabaseClient, "connect_with_retry", _db_connect_ok)
+    monkeypatch.setattr(DatabaseClient, "healthcheck", _db_health_ok)
     app = create_app()
     with TestClient(app) as client:
         response = client.get("/health")
@@ -71,8 +92,9 @@ def test_health_route_reports_crusaderbot_service(monkeypatch) -> None:
 
 
 def test_ready_route_reports_ready_after_startup(monkeypatch) -> None:
-    monkeypatch.setenv("PORT", "8080")
-    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    _set_runtime_base_env(monkeypatch)
+    monkeypatch.setattr(DatabaseClient, "connect_with_retry", _db_connect_ok)
+    monkeypatch.setattr(DatabaseClient, "healthcheck", _db_health_ok)
     app = create_app()
     with TestClient(app) as client:
         response = client.get("/ready")
@@ -83,8 +105,9 @@ def test_ready_route_reports_ready_after_startup(monkeypatch) -> None:
 
 
 def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
-    monkeypatch.setenv("PORT", "8080")
-    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    _set_runtime_base_env(monkeypatch)
+    monkeypatch.setattr(DatabaseClient, "connect_with_retry", _db_connect_ok)
+    monkeypatch.setattr(DatabaseClient, "healthcheck", _db_health_ok)
     app = create_app()
     with TestClient(app) as client:
         response = client.get("/ready")
@@ -97,12 +120,14 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
     assert "worker_prerequisites" in readiness
     assert "falcon_config_state" in readiness
     assert "control_plane" in readiness
+    assert "database_runtime" in readiness
     assert readiness["control_plane"]["paper_only_execution_boundary"] is True
 
 
 def test_beta_admin_route_exists_and_preserves_paper_boundary(monkeypatch) -> None:
-    monkeypatch.setenv("PORT", "8080")
-    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    _set_runtime_base_env(monkeypatch)
+    monkeypatch.setattr(DatabaseClient, "connect_with_retry", _db_connect_ok)
+    monkeypatch.setattr(DatabaseClient, "healthcheck", _db_health_ok)
     app = create_app()
     with TestClient(app) as client:
         response = client.get("/beta/admin")
@@ -113,9 +138,10 @@ def test_beta_admin_route_exists_and_preserves_paper_boundary(monkeypatch) -> No
 
 
 def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
-    monkeypatch.setenv("PORT", "8080")
-    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    _set_runtime_base_env(monkeypatch)
     monkeypatch.setenv("FALCON_ENABLED", "false")
+    monkeypatch.setattr(DatabaseClient, "connect_with_retry", _db_connect_ok)
+    monkeypatch.setattr(DatabaseClient, "healthcheck", _db_health_ok)
     app = create_app()
     with TestClient(app) as client:
         response = client.get("/ready")
@@ -132,13 +158,16 @@ def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
     assert readiness["falcon_config_state"]["enabled"] is False
     assert readiness["falcon_config_state"]["config_valid_for_enabled_mode"] is True
     assert readiness["control_plane"]["live_mode_execution_allowed"] is False
+    assert readiness["database_runtime"]["required"] is True
+    assert readiness["database_runtime"]["connected"] is True
 
 
 def test_ready_route_not_ready_when_telegram_required_without_token(monkeypatch) -> None:
-    monkeypatch.setenv("PORT", "8080")
-    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    _set_runtime_base_env(monkeypatch)
     monkeypatch.setenv("CRUSADER_TELEGRAM_RUNTIME_REQUIRED", "true")
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.setattr(DatabaseClient, "connect_with_retry", _db_connect_ok)
+    monkeypatch.setattr(DatabaseClient, "healthcheck", _db_health_ok)
     app = create_app()
     with TestClient(app) as client:
         response = client.get("/ready")
@@ -149,10 +178,11 @@ def test_ready_route_not_ready_when_telegram_required_without_token(monkeypatch)
 
 
 def test_ready_route_falcon_enabled_without_key_is_not_valid(monkeypatch) -> None:
-    monkeypatch.setenv("PORT", "8080")
-    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    _set_runtime_base_env(monkeypatch)
     monkeypatch.setenv("FALCON_ENABLED", "true")
     monkeypatch.delenv("FALCON_API_KEY", raising=False)
+    monkeypatch.setattr(DatabaseClient, "connect_with_retry", _db_connect_ok)
+    monkeypatch.setattr(DatabaseClient, "healthcheck", _db_health_ok)
     app = create_app()
     with TestClient(app) as client:
         response = client.get("/ready")
@@ -161,3 +191,30 @@ def test_ready_route_falcon_enabled_without_key_is_not_valid(monkeypatch) -> Non
     assert readiness["falcon_config_state"]["api_key_configured"] is False
     assert readiness["falcon_config_state"]["enabled_without_api_key"] is True
     assert readiness["falcon_config_state"]["config_valid_for_enabled_mode"] is False
+
+
+def test_ready_route_not_ready_when_database_url_missing(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("DB_DSN", raising=False)
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/ready")
+    assert response.status_code == 503
+    readiness = response.json()["readiness"]["database_runtime"]
+    assert readiness["config_present"] is False
+    assert "Missing required DATABASE_URL" in readiness["last_error"]
+
+
+def test_ready_route_not_ready_when_database_healthcheck_fails(monkeypatch) -> None:
+    _set_runtime_base_env(monkeypatch)
+    monkeypatch.setattr(DatabaseClient, "connect_with_retry", _db_connect_ok)
+    monkeypatch.setattr(DatabaseClient, "healthcheck", _db_health_fail)
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/ready")
+    assert response.status_code == 503
+    readiness = response.json()["readiness"]["database_runtime"]
+    assert readiness["config_present"] is True
+    assert readiness["connected"] is False

@@ -46,6 +46,8 @@ from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import 
 from projects.polymarket.polyquantbot.server.storage.multi_user_store import PersistentMultiUserStore
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
 from projects.polymarket.polyquantbot.server.storage.wallet_link_store import PersistentWalletLinkStore
+from projects.polymarket.polyquantbot.infra.db import DatabaseClient
+from projects.polymarket.polyquantbot.infra.db.runtime_config import load_database_runtime_config
 
 log = structlog.get_logger(__name__)
 
@@ -130,6 +132,39 @@ async def _start_telegram_runtime(state: RuntimeState) -> None:
     )
 
 
+async def _start_db_runtime(state: RuntimeState) -> DatabaseClient | None:
+    state.db_runtime_required = True
+    try:
+        db_config = load_database_runtime_config()
+    except Exception as exc:
+        state.db_config_present = False
+        state.db_connected = False
+        state.db_dsn_source = "missing"
+        state.db_last_error = str(exc)
+        log.error("crusaderbot_db_config_invalid", error=str(exc))
+        return None
+
+    state.db_config_present = True
+    state.db_dsn_source = db_config.source
+
+    db = DatabaseClient(dsn=db_config.dsn)
+    try:
+        await asyncio.wait_for(db.connect_with_retry(max_attempts=2, base_backoff_s=0.5), timeout=4.0)
+        healthcheck_ok = await db.healthcheck()
+        if not healthcheck_ok:
+            raise RuntimeError("db_healthcheck_failed")
+        state.db_connected = True
+        state.db_last_error = ""
+        log.info("crusaderbot_db_ready", dsn_source=db_config.source, host=db_config.host)
+        return db
+    except Exception as exc:
+        state.db_connected = False
+        state.db_last_error = str(exc)
+        log.error("crusaderbot_db_unavailable", error=str(exc), dsn_source=db_config.source)
+        await db.close()
+        return None
+
+
 def create_app() -> FastAPI:
     initialize_sentry()
     settings = ApiSettings.from_env()
@@ -139,6 +174,8 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         await run_startup_validation(settings=settings, state=state)
+        db_client = await _start_db_runtime(state=state)
+        _app.state.db_client = db_client
         try:
             await _start_telegram_runtime(state=state)
         except Exception as exc:
@@ -154,6 +191,8 @@ def create_app() -> FastAPI:
                 except asyncio.CancelledError:
                     pass
             await run_shutdown(state=state)
+            if db_client is not None:
+                await db_client.close()
 
     app = FastAPI(
         title=settings.app_name,

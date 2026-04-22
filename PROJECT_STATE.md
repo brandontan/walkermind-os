@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 04:22
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #713 (Phase 10.2), PR #719 (Phase 10.3), and PR #721 (Phase 10.4) are all merged-main truth, with PR #721 traced to exact head branch `feature/align-readme-and-refine-telegram-onboarding-2026-04-22` and Phase 10 cleanup now recorded as historical-complete under the same staged rollout boundary.
+Last Updated : 2026-04-23 05:35
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Priority 2 DB/readiness hardening lane is now implemented on `feature/infra-db-readiness-hardening` with canonical DATABASE_URL contract wiring, DB readiness truth integration, and SENTINEL gate pending before merge.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -41,6 +41,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 
 [IN PROGRESS]
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
+- Priority 2 execution lane `priority2-db-readiness-hardening` is implementation-complete on `feature/infra-db-readiness-hardening` with canonical DSN normalization (`DATABASE_URL` + `DB_DSN` compatibility), startup DB bootstrap hardening, and DB-backed `/ready` dependency truth; awaiting SENTINEL validation before merge.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation including secure rotation, vault integration, and production orchestration.
@@ -48,7 +49,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Priority 2 combined lane from `projects/polymarket/polyquantbot/work_checklist.md`: DB, persistence, and runtime hardening baseline.
+- SENTINEL validation gate for `feature/infra-db-readiness-hardening` (MAJOR / NARROW INTEGRATION) using forge evidence `projects/polymarket/polyquantbot/reports/forge/phase10-5_01_priority2-db-readiness-hardening.md`.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

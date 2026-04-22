@@ -9,7 +9,8 @@ Environment variables:
     DASHBOARD_API_KEY     — Bearer token for dashboard auth
     PORT                  — TCP port for dashboard (Railway injects this)
     REDIS_URL             — Redis connection URL
-    DB_DSN                — PostgreSQL DSN
+    DATABASE_URL          — PostgreSQL DSN (canonical)
+    DB_DSN                — Compatibility fallback only
     TELEGRAM_BOT_TOKEN    — Telegram bot token (optional)
     TELEGRAM_CHAT_ID      — Telegram chat ID (optional)
 
@@ -102,7 +103,7 @@ async def main() -> None:
         log.error(
             "polyquantbot_config_error",
             error=str(exc),
-            hint="Validate DB_DSN, required secrets, and paper/live mode consistency",
+            hint="Validate DATABASE_URL, required secrets, and paper/live mode consistency",
             **startup_state.snapshot(),
         )
         sys.exit(1)
@@ -550,7 +551,7 @@ async def main() -> None:
         log.error(
             "db_init_failed",
             error=str(db_exc),
-            hint="Check DB_DSN and PostgreSQL network reachability; execution remains blocked",
+            hint="Check DATABASE_URL and PostgreSQL network reachability; execution remains blocked",
             final_reason="database_required_for_audit_and_trade_safety",
             **startup_state.snapshot(),
         )

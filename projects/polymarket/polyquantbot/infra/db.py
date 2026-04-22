@@ -19,17 +19,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import time
 from typing import Any, Dict, List, Optional
 
 import structlog
 
+from projects.polymarket.polyquantbot.infra.db.runtime_config import load_database_runtime_config
+
 log = structlog.get_logger(__name__)
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 
-_DEFAULT_DSN = "postgresql://polyquantbot:polyquantbot@localhost:5432/polyquantbot"
 _POOL_MIN: int = 2
 _POOL_MAX: int = 10
 _OP_TIMEOUT_S: float = 5.0
@@ -144,7 +144,7 @@ class DatabaseClient:
     first :meth:`connect` call.
 
     Args:
-        dsn: PostgreSQL DSN (default: env DB_DSN or localhost default).
+        dsn: PostgreSQL DSN (default: env DATABASE_URL, with DB_DSN compatibility fallback).
         pool_min: Minimum pool connections.
         pool_max: Maximum pool connections.
         op_timeout_s: Timeout per DB operation in seconds.
@@ -157,7 +157,13 @@ class DatabaseClient:
         pool_max: int = _POOL_MAX,
         op_timeout_s: float = _OP_TIMEOUT_S,
     ) -> None:
-        self._dsn = dsn or os.environ.get("DB_DSN", _DEFAULT_DSN)
+        if dsn:
+            self._dsn = dsn
+            self._dsn_source = "constructor"
+        else:
+            runtime_db_config = load_database_runtime_config()
+            self._dsn = runtime_db_config.dsn
+            self._dsn_source = runtime_db_config.source
         self._pool_min = pool_min
         self._pool_max = pool_max
         self._op_timeout_s = op_timeout_s
@@ -167,6 +173,7 @@ class DatabaseClient:
         log.info(
             "db_client_initialized",
             dsn=self._dsn[:32] + "..." if len(self._dsn) > 32 else self._dsn,
+            dsn_source=self._dsn_source,
             pool_min=pool_min,
             pool_max=pool_max,
         )

@@ -44,6 +44,7 @@ def build_router(
             state.telegram_runtime_startup_complete and state.telegram_runtime_active
         )
         telegram_readiness_ok = telegram_runtime_ready if state.telegram_runtime_required else True
+        db_readiness_ok = state.db_connected if state.db_runtime_required else True
         ready_dimensions = {
             "scope": {
                 "contract_version": "phase8-6-public-paper-beta-confidence-pass",
@@ -71,6 +72,13 @@ def build_router(
                 "last_iteration_visible": state.telegram_runtime_iterations_total > 0,
                 "last_error": state.telegram_runtime_last_error,
             },
+            "database_runtime": {
+                "required": state.db_runtime_required,
+                "config_present": state.db_config_present,
+                "connected": state.db_connected,
+                "dsn_source": state.db_dsn_source,
+                "last_error": state.db_last_error,
+            },
             "worker_prerequisites": worker_prerequisites,
             "falcon_config_state": {
                 "enabled": falcon_settings.enabled,
@@ -91,12 +99,12 @@ def build_router(
         }
         return JSONResponse(
             {
-                "status": "ready" if state.ready and telegram_readiness_ok else "not_ready",
+                "status": "ready" if state.ready and telegram_readiness_ok and db_readiness_ok else "not_ready",
                 "service": settings.app_name,
                 "validation_errors": state.validation_errors,
                 "readiness": ready_dimensions,
             },
-            status_code=200 if state.ready and telegram_readiness_ok else 503,
+            status_code=200 if state.ready and telegram_readiness_ok and db_readiness_ok else 503,
         )
 
     return router

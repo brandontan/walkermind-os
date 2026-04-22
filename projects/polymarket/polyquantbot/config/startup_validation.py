@@ -4,7 +4,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import List
-from urllib.parse import urlparse
+
+from projects.polymarket.polyquantbot.infra.db.runtime_config import (
+    load_database_runtime_config,
+    parse_database_runtime_dsn,
+)
 
 
 @dataclass(frozen=True)
@@ -39,43 +43,25 @@ def _get_telegram_token() -> str:
 
 
 def parse_db_dsn(db_dsn: str) -> StartupConfig:
-    parsed = urlparse(db_dsn)
-    if parsed.scheme not in {"postgres", "postgresql"}:
-        raise ValueError("DB_DSN must use postgres/postgresql scheme")
-
-    db_host = (parsed.hostname or "").strip()
-    db_port = int(parsed.port or 5432)
-    db_name = parsed.path.lstrip("/").strip()
-    db_user = (parsed.username or "").strip()
-
-    missing: List[str] = []
-    if not db_host:
-        missing.append("DB host")
-    if not db_name:
-        missing.append("DB name")
-    if not db_user:
-        missing.append("DB user")
-    if db_port <= 0 or db_port > 65535:
-        raise ValueError("DB port must be between 1 and 65535")
-
-    if missing:
-        raise ValueError("Invalid DB_DSN; missing " + ", ".join(missing))
-
+    """Compatibility parser for legacy call sites using DB_DSN naming."""
+    cfg = parse_database_runtime_dsn(raw_dsn=db_dsn, source="DB_DSN_COMPAT")
     return StartupConfig(
-        db_host=db_host,
-        db_port=db_port,
-        db_name=db_name,
-        db_user=db_user,
+        db_host=cfg.host,
+        db_port=cfg.port,
+        db_name=cfg.database,
+        db_user=cfg.user,
     )
 
 
 def validate_startup_environment(mode: str) -> StartupConfig:
     """Validate startup environment consistency before runtime begins."""
-    db_dsn = _read_env("DB_DSN")
-    if not db_dsn:
-        raise ValueError("Missing required DB_DSN environment variable")
-
-    cfg = parse_db_dsn(db_dsn)
+    db_cfg = load_database_runtime_config()
+    cfg = StartupConfig(
+        db_host=db_cfg.host,
+        db_port=db_cfg.port,
+        db_name=db_cfg.database,
+        db_user=db_cfg.user,
+    )
 
     missing_secrets: List[str] = []
     if not _get_telegram_token():
