@@ -636,7 +636,7 @@ class CommandHandler:
             "insight": (
                 f"Risk {risk_multiplier:.2f} • Max Pos {max_position:.2f}"
             ),
-            "operator_note": "Paper-only public beta; no live-capital actions are exposed.",
+            "operator_note": "Current rollout is staged and safety-gated; no live-capital actions are exposed.",
             "decision": onboarding_guidance.get(start_context, onboarding_guidance["session_ready"]),
             "onboarding_state": start_context,
         }
@@ -647,7 +647,7 @@ class CommandHandler:
             {
                 "mode": "system",
                 "decision": "Runtime health snapshot for paper-beta monitoring",
-                "operator_note": "Paper-only boundary enforced; no live capital actions.",
+                "operator_note": "Staged rollout boundary enforced; no live capital actions.",
             }
         )
         return payload

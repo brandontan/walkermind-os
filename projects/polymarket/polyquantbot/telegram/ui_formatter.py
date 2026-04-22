@@ -375,7 +375,7 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
             [
                 ("Public Commands", "/start · /help · /status · /paper · /about · /risk_info · /account · /link"),
                 ("Navigation", "Home menu + section callbacks"),
-                ("Boundary", "Paper-only beta, no live-capital control"),
+                ("Boundary", "Staged and safety-gated rollout; no live-capital control"),
             ],
         ),
         "guidance": (

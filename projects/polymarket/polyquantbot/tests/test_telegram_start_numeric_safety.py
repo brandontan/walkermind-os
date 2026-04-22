@@ -244,7 +244,7 @@ def test_command_router_status_routes_to_system_snapshot() -> None:
 
     assert result is not None
     assert "🧠 System Status" in result.message
-    assert "paper-only boundary enforced" in result.message.lower()
+    assert "staged rollout boundary enforced" in result.message.lower()
 
 
 def test_unknown_command_returns_help_style_fallback() -> None:

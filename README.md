@@ -49,7 +49,7 @@
 
 Walker AI Trading Team is a multi-agent development system led by COMMANDER. The team builds and validates trading infrastructure across multiple platforms while preserving strict safety and scope boundaries.
 
-For CrusaderBot, the current public state is **paper beta only** with managed operator posture.
+For CrusaderBot, the current public state is **staged and safety-gated** with managed operator posture.
 
 ---
 
@@ -66,7 +66,7 @@ For CrusaderBot, the current public state is **paper beta only** with managed op
 
 ## Current Public Boundary (CrusaderBot)
 
-- Public-ready for paper beta.
+- Public-ready under the current staged rollout.
 - Live Fly runtime responding (`/`, `/health`, `/ready`).
 - Execution remains staged and safety-gated.
 - Public-safe Telegram command baseline: `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, `/link`.
