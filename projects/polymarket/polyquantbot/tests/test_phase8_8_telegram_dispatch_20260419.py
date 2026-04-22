@@ -155,6 +155,25 @@ def test_dispatch_unknown_command_empty_string() -> None:
     backend.request_handoff.assert_not_awaited()
 
 
+def test_internal_command_guarded_when_operator_chat_not_configured() -> None:
+    backend = _make_mock_backend(outcome="issued")
+    backend.beta_post = AsyncMock(return_value={"ok": True, "mode": "paper"})
+    dispatcher = TelegramDispatcher(backend=backend)
+    result: DispatchResult = asyncio.run(dispatcher.dispatch(_make_ctx("/mode", chat_id="public-chat")))
+    assert result.outcome == "unknown_command"
+    backend.beta_post.assert_not_awaited()
+
+
+def test_internal_command_allowed_for_configured_operator_chat() -> None:
+    backend = _make_mock_backend(outcome="issued")
+    backend.beta_post = AsyncMock(return_value={"ok": True, "mode": "paper", "detail": "ok"})
+    dispatcher = TelegramDispatcher(backend=backend, operator_chat_id="operator-chat")
+    result: DispatchResult = asyncio.run(dispatcher.dispatch(_make_ctx("/mode", chat_id="operator-chat")))
+    assert result.outcome == "ok"
+    assert "Mode updated" in result.reply_text
+    backend.beta_post.assert_awaited_once()
+
+
 # ---------------------------------------------------------------------------
 # Reply text contract — all outcomes must return non-empty reply_text
 # ---------------------------------------------------------------------------

@@ -97,7 +97,16 @@ async def _start_telegram_runtime(state: RuntimeState) -> None:
         base_url=settings.backend_base_url,
         identity_tenant_id=settings.staging_tenant_id,
     )
-    dispatcher = TelegramDispatcher(backend=backend)
+    dispatcher = TelegramDispatcher(
+        backend=backend,
+        operator_chat_id=settings.telegram_chat_id,
+    )
+    if not settings.telegram_chat_id:
+        log.warning(
+            "crusaderbot_telegram_operator_chat_guard_disabled",
+            reason="missing_TELEGRAM_CHAT_ID",
+            internal_command_surface="blocked_for_public_runtime",
+        )
     adapter = HttpTelegramAdapter(token=settings.telegram_token)
     observer = RuntimeTelegramObserver(state=state)
     state.telegram_runtime_task = asyncio.create_task(

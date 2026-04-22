@@ -59,19 +59,19 @@ Monitor Integration + Observability Hardening Lane
 
 #### RIGHT NOW (post-merge sync lane)
 
-[ ] Guard admin/internal paths properly
+[x] Guard admin/internal paths properly
 
-[ ] Add bot startup logs
+[x] Add bot startup logs
 
-[ ] Add command received logs
+[x] Add command received logs
 
-[ ] Add command handled logs
+[x] Add command handled logs
 
-[ ] Add reply success/failure logs
+[x] Add reply success/failure logs
 
-[ ] Add missing env / disabled mode logs
+[x] Add missing env / disabled mode logs
 
-[ ] Complete monitor/admin visibility wiring for checklist/state parity
+[x] Complete monitor/admin visibility wiring for checklist/state parity
 
 
 #### NEXT (immediately after code fix + UX integration)
@@ -151,20 +151,20 @@ Monitor Integration + Observability Hardening Lane
 
 [x] Keep the paper-only boundary visible everywhere
 
-[ ] Guard admin/internal paths properly
+[x] Guard admin/internal paths properly
 
 
 ### 6. Observability Baseline
 
-[ ] Add bot startup logs
+[x] Add bot startup logs
 
-[ ] Add command received logs
+[x] Add command received logs
 
-[ ] Add command handled logs
+[x] Add command handled logs
 
-[ ] Add reply success/failure logs
+[x] Add reply success/failure logs
 
-[ ] Add missing env / disabled mode logs
+[x] Add missing env / disabled mode logs
 
 [x] Add Sentry Python runtime initialization + exception capture guardrails (env-only `SENTRY_DSN`, FastAPI + Telegram/runtime exception surfaces)
 

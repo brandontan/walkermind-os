@@ -189,14 +189,14 @@ def test_monitoring_stages_still_run_when_entries_blocked() -> None:
 
 def test_positions_command_maps_to_positions_endpoint() -> None:
     backend = FakeBackend()
-    dispatcher = TelegramDispatcher(backend=backend)
+    dispatcher = TelegramDispatcher(backend=backend, operator_chat_id="chat-1")
     asyncio.run(dispatcher.dispatch(_make_ctx("/positions")))
     assert backend.last_get_path == "/beta/positions"
 
 
 def test_pnl_and_risk_commands_map_to_dedicated_endpoints() -> None:
     backend = FakeBackend()
-    dispatcher = TelegramDispatcher(backend=backend)
+    dispatcher = TelegramDispatcher(backend=backend, operator_chat_id="chat-1")
     asyncio.run(dispatcher.dispatch(_make_ctx("/pnl")))
     assert backend.last_get_path == "/beta/pnl"
     asyncio.run(dispatcher.dispatch(_make_ctx("/risk")))
@@ -212,7 +212,7 @@ def test_connect_wallet_removed_from_public_shell() -> None:
 
 def test_mode_command_reply_reports_blocked_live_mode_request() -> None:
     backend = FakeBackend()
-    dispatcher = TelegramDispatcher(backend=backend)
+    dispatcher = TelegramDispatcher(backend=backend, operator_chat_id="chat-1")
     result = asyncio.run(dispatcher.dispatch(_make_ctx("/mode", "live")))
     assert "Mode change blocked" in result.reply_text
     assert "mode=live is disabled" in result.reply_text
@@ -223,7 +223,7 @@ def test_unknown_command_reply_lists_supported_commands() -> None:
     dispatcher = TelegramDispatcher(backend=backend)
     result = asyncio.run(dispatcher.dispatch(_make_ctx("/noop")))
     assert result.outcome == "unknown_command"
-    assert "/kill" in result.reply_text
+    assert "/kill" not in result.reply_text
 
 
 def test_autotrade_and_kill_interaction_forces_autotrade_off() -> None:
@@ -233,7 +233,7 @@ def test_autotrade_and_kill_interaction_forces_autotrade_off() -> None:
     STATE.kill_switch = False
 
     backend = FakeBackend()
-    dispatcher = TelegramDispatcher(backend=backend)
+    dispatcher = TelegramDispatcher(backend=backend, operator_chat_id="chat-1")
     asyncio.run(dispatcher.dispatch(_make_ctx("/kill")))
 
     assert backend.last_post_path == "/beta/kill"
@@ -242,7 +242,7 @@ def test_autotrade_and_kill_interaction_forces_autotrade_off() -> None:
 
 def test_autotrade_reply_preserves_live_mode_boundary_detail() -> None:
     backend = FakeBackend()
-    dispatcher = TelegramDispatcher(backend=backend)
+    dispatcher = TelegramDispatcher(backend=backend, operator_chat_id="chat-1")
     result = asyncio.run(dispatcher.dispatch(_make_ctx("/autotrade", "on")))
     assert "Autotrade" in result.reply_text
 
@@ -317,7 +317,7 @@ def test_status_command_reply_surfaces_execution_guard_and_boundary() -> None:
 
 def test_positions_pnl_risk_replies_keep_paper_beta_boundaries_visible() -> None:
     backend = FakeBackend()
-    dispatcher = TelegramDispatcher(backend=backend)
+    dispatcher = TelegramDispatcher(backend=backend, operator_chat_id="chat-1")
 
     positions_reply = asyncio.run(dispatcher.dispatch(_make_ctx("/positions"))).reply_text
     pnl_reply = asyncio.run(dispatcher.dispatch(_make_ctx("/pnl"))).reply_text
