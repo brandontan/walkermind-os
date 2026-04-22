@@ -1,5 +1,5 @@
-Last Updated : 2026-04-22 22:16
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #713 Phase 10.2 onboarding/public command-surface refinement is merged truth, and Phase 10.3 monitor integration + observability hardening is completed on PR #718 and pending COMMANDER review / merge under the paper-only boundary.
+Last Updated : 2026-04-22 22:33
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #713 Phase 10.2 onboarding/public command-surface refinement is merged truth, and Phase 10.3 monitor integration + observability hardening is merged-main truth via PR #719 under the paper-only boundary.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -36,9 +36,9 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Phase 9.3 post-release public-facing launch assets pack is completed with coherent readiness/posture/boundary/onboarding/announcement docs and wording-audit alignment to paper-only truth under `projects/polymarket/polyquantbot/reports/forge/phase9-3_03_post-release-launch-assets-pack.md`.
 - PR #712 Telegram UX consolidation lane is merged on main as closed truth: active Telegram `/start`, `/help`, `/status`, unknown-command fallback, and home/system empty-state wording are consolidated in the active runtime path with evidence in `projects/polymarket/polyquantbot/reports/forge/phase10-1_01_telegram-ux-consolidation.md`.
 - PR #713 Phase 10.2 onboarding/public command-surface refinement lane is merged on main as closed truth: active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`, while runtime/operator `/risk` remains a separate non-public informational control path with no live-trading claim.
+- PR #719 Phase 10.3 monitor integration + observability hardening lane is merged on main as closed truth: admin/internal path guarding, startup/command/reply logging baseline, missing-env/disabled-mode logging, and monitor/admin visibility wiring are landed while paper-only and public-safe command boundaries remain explicit.
 
 [IN PROGRESS]
-- Monitor integration hardening + observability baseline lane is completed on PR #718 and pending COMMANDER review / merge: admin/internal path guarding, startup/command/reply logging baseline, missing-env/disabled-mode logging, and monitor/admin visibility wiring are delivered on the paper-only runtime surface.
 - Post-launch cleanup + README/public-surface wording alignment lane remains in progress for paper-beta clarity (`/risk_info` public-safe informational command vs runtime/operator `/risk` distinction preserved).
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
 
@@ -48,7 +48,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Merge PR #718, then run post-merge sync so Phase 10.3 moves from pending-review truth to merged-main truth before advancing to post-launch cleanup.
+- Continue post-launch cleanup + README/public-surface wording alignment after Phase 10.3 merged-main closure via PR #719.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

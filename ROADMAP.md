@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active (Paper Beta Complete + Phase 10 Execution) | Phase 10.3 — Monitor Integration + Observability Hardening |
+| Crusader | Polymarket | Active (Paper Beta Complete + Phase 10 Post-Merge Cleanup) | Phase 10 — Post-Launch Cleanup + Public-Surface Wording Alignment |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; Phase 10.2 onboarding/public command-surface lane is merged, and Phase 10.3 monitor integration plus observability hardening is completed on PR #718 and pending COMMANDER review / merge (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-22 22:16
+**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; Phase 10.2 onboarding/public command-surface lane is merged, and Phase 10.3 monitor integration plus observability hardening is merged on main via PR #719 (paper-only boundary preserved, no live-trading or production-capital claim).
+**Last Updated:** 2026-04-22 22:33
 
 # Board Overview
 
@@ -51,8 +51,8 @@
 ### Current Focus Summary (paper-only boundary preserved)
 - Phase 10.2 post-merge sync and public command-surface refinement is merged on main (PR #713) with paper-only/non-custodial posture preserved.
 - Active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`; runtime/operator `/risk` remains separate and is not part of the public-safe informational set.
-- Phase 10.3 monitor integration hardening + observability baseline is completed on PR #718 and pending COMMANDER review / merge (admin/internal path guarding, startup/command/reply logging baseline, and monitor/admin visibility closure).
-- Next execution lane remains PR #718 merge + post-merge sync; post-launch cleanup starts only after merge truth is confirmed.
+- Phase 10.3 monitor integration hardening + observability baseline is merged on main via PR #719 (admin/internal path guarding, startup/command/reply logging baseline, missing-env/disabled-mode visibility logging, and monitor/admin visibility closure).
+- Next execution lane is post-launch cleanup + README/public-surface wording alignment while preserving `/risk_info` public-safe informational wording vs runtime/operator `/risk` separation.
 
 ### Execution Tracking Source
 - Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/work_checklist.md](projects/polymarket/polyquantbot/work_checklist.md).
