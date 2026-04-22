@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active (Paper Beta Complete + Phase 10 Execution) | Phase 10.3 — Monitor Integration + Observability Hardening |
+| Crusader | Polymarket | Active (Paper Beta Complete + Phase 10 Execution) | Phase 10.3 Complete — Post-launch Cleanup + Public-Surface Alignment |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; Phase 10.2 onboarding/public command-surface lane is merged, and current execution lane is Phase 10.3 monitor integration plus observability hardening (paper-only boundary preserved, no live-trading or production-capital claim)
-**Last Updated:** 2026-04-22 11:00
+**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; Phase 10.2 onboarding/public command-surface lane and Phase 10.3 monitor integration plus observability hardening lane are merged truth, and current execution lane is post-launch cleanup plus public-surface alignment (paper-only boundary preserved, no live-trading or production-capital claim)
+**Last Updated:** 2026-04-22 20:57
 
 # Board Overview
 
@@ -51,8 +51,8 @@
 ### Current Focus Summary (paper-only boundary preserved)
 - Phase 10.2 post-merge sync and public command-surface refinement is merged on main (PR #713) with paper-only/non-custodial posture preserved.
 - Active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`; runtime/operator `/risk` remains separate and is not part of the public-safe informational set.
-- Next execution lane is monitor integration hardening + observability baseline completion (admin/internal path guarding, startup/command/reply logging baseline, and monitor/admin visibility closure).
-- Persistence/readiness hardening continuity remains aligned with `projects/polymarket/polyquantbot/work_checklist.md`.
+- Phase 10.3 monitor integration hardening + observability baseline completion is now closed (admin/internal path guarding, startup/command/reply lifecycle logs, missing-env/disabled-mode logs, and monitor/admin visibility closure).
+- Next execution lane is post-launch cleanup + public-surface wording alignment while preserving the paper-only boundary and current public-safe command truth.
 
 ### Execution Tracking Source
 - Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/work_checklist.md](projects/polymarket/polyquantbot/work_checklist.md).

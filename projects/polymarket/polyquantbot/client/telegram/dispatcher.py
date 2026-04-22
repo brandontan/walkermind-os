@@ -42,12 +42,42 @@ class DispatchResult:
 
 
 class TelegramDispatcher:
-    def __init__(self, backend: CrusaderBackendClient) -> None:
+    _INTERNAL_COMMANDS = {
+        "/mode",
+        "/autotrade",
+        "/positions",
+        "/pnl",
+        "/risk",
+        "/markets",
+        "/market360",
+        "/social",
+        "/kill",
+    }
+
+    def __init__(self, backend: CrusaderBackendClient, operator_chat_id: str = "") -> None:
         self._backend = backend
+        self._operator_chat_id = operator_chat_id.strip()
+        self._internal_commands_enabled = bool(self._operator_chat_id)
+        if not self._internal_commands_enabled:
+            log.info(
+                "crusaderbot_telegram_internal_commands_disabled",
+                reason="missing_operator_chat_id",
+            )
 
     async def dispatch(self, ctx: TelegramCommandContext) -> DispatchResult:
         command = ctx.command.strip().lower()
         arg = ctx.argument.strip()
+        if command in self._INTERNAL_COMMANDS and not self._is_internal_command_allowed(ctx):
+            log.warning(
+                "crusaderbot_telegram_internal_command_guarded",
+                command=command,
+                chat_id=ctx.chat_id,
+                guard_mode=("chat_id_match" if self._internal_commands_enabled else "disabled"),
+            )
+            return DispatchResult(
+                outcome="unknown_command",
+                reply_text=format_unknown_command_reply(),
+            )
         if command == "/start":
             return await self._dispatch_start(ctx)
         if command == "/help":
@@ -200,3 +230,8 @@ class TelegramDispatcher:
         )
         result: HandleStartResult = await handle_start(context=handoff_ctx, backend=self._backend)
         return DispatchResult(outcome=result.outcome, reply_text=result.reply_text, session_id=result.session_id)
+
+    def _is_internal_command_allowed(self, ctx: TelegramCommandContext) -> bool:
+        if not self._internal_commands_enabled:
+            return False
+        return ctx.chat_id == self._operator_chat_id
