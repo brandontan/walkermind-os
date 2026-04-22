@@ -324,14 +324,14 @@ footer {
   <div>📋</div>
   <div class="banner-content">
     <div class="banner-label">Current Status</div>
-    <div class="banner-text">Priority 1 remains the active lane. Telegram public-ready refinement is in progress, with paper-only boundary kept explicit and runtime truth separated from any live-trading claim.</div>
+    <div class="banner-text" id="currentStatusText">Loading current status from source truth...</div>
   </div>
 </div>
 <div class="next-card">
   <div>🎯</div>
   <div class="banner-content">
     <div class="banner-label">Next Priority</div>
-    <div class="next-text">Redeploy latest command-routing + Telegram UX integration to Fly, then verify live /start, /help, and /status end-to-end.</div>
+    <div class="next-text" id="nextPriorityText">Loading next priority from source truth...</div>
   </div>
 </div>
 <div class="search-wrap">
@@ -354,16 +354,11 @@ footer {
   </div>
   <div class="card">
     <div class="card-head" onclick="tog(this)">
-      <span>⚡</span><span class="ch-title">Activity Feed</span><span class="ch-badge">5</span><span class="ch-chev">▼</span>
+      <span>⚡</span><span class="ch-title">Activity Feed</span><span class="ch-badge" id="activityFeedCount">—</span><span class="ch-chev">▼</span>
     </div>
     <div class="card-body">
-      <div class="feed">
-        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-g"></div><div class="feed-content"><div class="feed-title">Project monitor now renders checklist directly from repository source of truth</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-merged">UPDATED</span></div></div></div>
-        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Use monitor page as primary status + work visibility surface</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-open">FORGE</span></div></div></div>
-        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Checklist content remains sourced from work_checklist.md without hardcoded mirror blocks</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-open">FORGE</span></div></div></div>
-        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Fallback lightweight checklist page remains available via worktodo.html</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-info">INFO</span></div></div></div>
-        <div class="feed-item"><div class="feed-line"></div><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">New docs hub provides one-tap access to monitor, checklist, runbook, and troubleshooting docs</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-info">INFO</span></div></div></div>
-        <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Paper-only boundary messaging still applies; no live-trading readiness claim</div><div class="feed-meta"><span class="feed-time">NOW</span><span class="feed-tag ft-info">INFO</span></div></div></div>
+      <div class="feed" id="activityFeed">
+        <div class="feed-item"><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Loading activity feed from source truth...</div><div class="feed-meta"><span class="feed-time">WAIT</span><span class="feed-tag ft-info">LOAD</span></div></div></div>
       </div>
     </div>
   </div>
@@ -378,12 +373,10 @@ footer {
 </div>
 <div class="card">
   <div class="card-head closed" onclick="tog(this)">
-    <span>⚠️</span><span class="ch-title">Known Issues</span><span class="ch-badge">3</span><span class="ch-chev">▼</span>
+    <span>⚠️</span><span class="ch-title">Known Issues</span><span class="ch-badge" id="knownIssuesCount">—</span><span class="ch-chev">▼</span>
   </div>
-  <div class="card-body hidden">
-    <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Latest Fly redeploy for Telegram UX integration still pending.</div></div></div>
-    <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Live /help and /status still need end-to-end validation on deployed environment.</div></div></div>
-    <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Fresh validation evidence bundle is still missing: deploy logs, /health, /ready, /start, /help, /status.</div></div></div>
+  <div class="card-body hidden" id="knownIssuesBody">
+    <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Loading known issues from source truth...</div></div></div>
   </div>
 </div>
 <footer>
@@ -392,11 +385,47 @@ footer {
 </footer>
 </div>
 <script>
-const CANDIDATE_PATHS = [
-  '../projects/polymarket/polyquantbot/work_checklist.md',
-  '/walker-ai-team/projects/polymarket/polyquantbot/work_checklist.md',
-  '/projects/polymarket/polyquantbot/work_checklist.md'
-];
+const SOURCES = {
+  checklist: {
+    label: 'Checklist',
+    url: 'https://raw.githubusercontent.com/bayuewalker/walker-ai-team/main/projects/polymarket/polyquantbot/work_checklist.md',
+    fallbacks: [
+      '../projects/polymarket/polyquantbot/work_checklist.md',
+      '/walker-ai-team/projects/polymarket/polyquantbot/work_checklist.md',
+      '/projects/polymarket/polyquantbot/work_checklist.md'
+    ]
+  },
+  projectState: {
+    label: 'Project State',
+    url: 'https://raw.githubusercontent.com/bayuewalker/walker-ai-team/main/PROJECT_STATE.md',
+    fallbacks: [
+      '../PROJECT_STATE.md',
+      '/walker-ai-team/PROJECT_STATE.md',
+      '/PROJECT_STATE.md'
+    ]
+  },
+  roadmap: {
+    label: 'Roadmap',
+    url: 'https://raw.githubusercontent.com/bayuewalker/walker-ai-team/main/ROADMAP.md',
+    fallbacks: [
+      '../ROADMAP.md',
+      '/walker-ai-team/ROADMAP.md',
+      '/ROADMAP.md'
+    ]
+  }
+};
+
+const CACHE_PREFIX = 'crusader-project-monitor-v4-';
+const state = {
+  loaded: {},
+  checklist: { sections: [], total: 0, done: 0, active: null },
+  projectState: { activeProject: '', currentStatus: '', nextPriority: '', blockers: [], updatedAt: '' },
+  roadmap: { phases: [] }
+};
+
+const searchInput = document.getElementById('searchInput');
+const hideDone = document.getElementById('hideDone');
+const todoBody = document.getElementById('todoBody');
 
 function tog(head) {
   const body = head.nextElementSibling;
@@ -405,167 +434,384 @@ function tog(head) {
   head.classList.toggle('closed', isOpen);
 }
 
+function esc(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function compact(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
 function setTs() {
-  const t = new Date().toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const t = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   document.getElementById('ts').innerHTML = 'Updated: <span>' + t + '</span>';
 }
 
-function esc(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function saveCache(key, payload) {
+  try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(payload)); } catch (_) {}
 }
 
-const state = { sections: [], loadedPath: '' };
-const searchInput = document.getElementById('searchInput');
-const hideDone = document.getElementById('hideDone');
-const todoBody = document.getElementById('todoBody');
+function readCache(key) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
 
-function cleanLine(raw) {
-  return raw
-    .replace(/^#{1,6}\s*/, '')
-    .replace(/^[-*]\s+/, '')
+async function fetchText(url, ms = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const response = await fetch(url, {
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: { Accept: 'text/plain, text/markdown, */*' }
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function loadSource(key, spec) {
+  const attempts = [spec.url, ...(spec.fallbacks || [])];
+  let lastError = null;
+
+  for (const base of attempts) {
+    const separator = base.includes('?') ? '&' : '?';
+    const url = base + separator + 'v=' + Date.now();
+    try {
+      const text = await fetchText(url);
+      const payload = { ok: true, cached: false, url: base, at: Date.now(), text };
+      state.loaded[key] = payload;
+      saveCache(key, payload);
+      return payload;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  const cached = readCache(key);
+  if (cached && cached.text) {
+    state.loaded[key] = { ...cached, ok: true, cached: true };
+    return state.loaded[key];
+  }
+
+  state.loaded[key] = {
+    ok: false,
+    cached: false,
+    url: spec.url,
+    at: Date.now(),
+    text: '',
+    error: lastError ? String(lastError.message || lastError) : 'Unknown fetch error'
+  };
+  return state.loaded[key];
+}
+
+function cleanTextLine(raw) {
+  return String(raw || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/^\s{0,3}#{1,6}\s*/, '')
+    .replace(/^\s*>\s?/, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
     .trim();
 }
 
-function parseChecklistLines(text) {
-  const lines = text.replace(/\r/g, "").split("\n");
+function parseChecklist(text) {
+  const lines = String(text || '').split(/\r?\n/);
   const sections = [];
   let current = null;
-  let currentSubhead = '';
 
   for (const rawLine of lines) {
-    const line = cleanLine(rawLine);
+    const line = cleanTextLine(rawLine);
     if (!line) continue;
 
-    if (/^PRIORITY\s+\d+\s+—/i.test(line)) {
-      current = { title: line, items: [] };
-      currentSubhead = '';
+    const sectionMatch = line.match(/^PRIORITY\s+(\d+)\s*[—-]\s*(.+)$/i);
+    if (sectionMatch) {
+      current = {
+        number: Number(sectionMatch[1]),
+        title: 'PRIORITY ' + sectionMatch[1] + ' — ' + compact(sectionMatch[2]),
+        items: []
+      };
       sections.push(current);
       continue;
     }
 
     if (!current) continue;
 
-    if (/^(Status Snapshot|Latest attempt|Done Condition|Simple Execution Order|Right Now)\b/i.test(line)) {
-      current.items.push({ text: line, done: false, kind: 'note' });
+    const checkMatch = rawLine.match(/^\s*(?:[-*+]\s*)?\[(x|X| )\]\s+(.+?)\s*$/);
+    if (checkMatch) {
+      current.items.push({
+        kind: 'check',
+        done: checkMatch[1].toLowerCase() === 'x',
+        text: compact(cleanTextLine(checkMatch[2]))
+      });
       continue;
     }
 
-    if (/^(DONE \/ Mostly Done|ACTIVE \(Current lane\)|NEXT \(immediately after code fix \+ UX integration\))$/i.test(line)) {
-      currentSubhead = line;
-      current.items.push({ text: line, done: false, kind: 'note' });
+    if (/^(Status Snapshot|Latest attempt|Done Condition|Simple Execution Order|Right Now|Current truth|Purpose|Validation|Execution notes?|Acceptance)\b/i.test(line)) {
+      current.items.push({ kind: 'note', done: false, text: compact(line) });
+      continue;
+    }
+
+    if (/^(DONE|ACTIVE|NEXT)\b/i.test(line)) {
+      current.items.push({ kind: 'note', done: false, text: compact(line) });
       continue;
     }
 
     if (/^\d+\.\s+/.test(line)) {
-      currentSubhead = line;
-      current.items.push({ text: line.replace(/^\d+\.\s+/, ''), done: false, kind: 'note' });
+      current.items.push({ kind: 'note', done: false, text: compact(line.replace(/^\d+\.\s+/, '')) });
       continue;
     }
 
-    const match = line.match(/^\[(x|X| )\]\s+(.+)$/);
+    if (/^[A-Za-z].{0,180}$/.test(line)) {
+      current.items.push({ kind: 'note', done: false, text: compact(line) });
+    }
+  }
+
+  const normalized = sections
+    .map((section) => {
+      const seen = new Set();
+      const items = section.items.filter((item) => {
+        const key = item.kind + '|' + item.done + '|' + item.text;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const total = items.filter((item) => item.kind === 'check').length;
+      const done = items.filter((item) => item.kind === 'check' && item.done).length;
+      const percent = total ? Math.round((done / total) * 100) : 0;
+      return {
+        ...section,
+        items,
+        total,
+        done,
+        percent,
+        isActive: total > 0 ? done < total : false
+      };
+    })
+    .filter((section) => section.items.length > 0);
+
+  const total = normalized.reduce((sum, section) => sum + section.total, 0);
+  const done = normalized.reduce((sum, section) => sum + section.done, 0);
+  const active = normalized.find((section) => section.isActive) || normalized[0] || null;
+
+  return { sections: normalized, total, done, active };
+}
+
+function extractBlock(text, patterns, maxLines = 8) {
+  const lines = String(text || '').split(/\r?\n/);
+  const knownHeadings = /^(Current status|Overall status|Status snapshot|Next priority|Immediate next|Next step|Right now|Current project|Active project|Project focus|Focus|Roadmap|Phase|Blockers?|Risks?|Known issues|Open issues)\b/i;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const raw = lines[i];
+    const clean = cleanTextLine(raw);
+    if (!clean) continue;
+    if (!patterns.some((pattern) => pattern.test(clean))) continue;
+
+    const out = [];
+    const inline = clean.includes(':') ? clean.split(':').slice(1).join(':').trim() : '';
+    if (inline && inline !== clean) out.push(inline);
+
+    for (let j = i + 1; j < lines.length && out.length < maxLines; j += 1) {
+      const rawNext = lines[j];
+      const next = cleanTextLine(rawNext);
+      if (!next) {
+        if (out.length) break;
+        continue;
+      }
+      if (/^\s{0,3}#{1,6}\s+/.test(rawNext)) break;
+      if (knownHeadings.test(next)) break;
+      out.push(next.replace(/^[-*+]\s+/, '').trim());
+    }
+
+    if (out.length) return compact(out.join(' '));
+  }
+
+  return '';
+}
+
+function extractList(text, patterns, maxItems = 6) {
+  const block = extractBlock(text, patterns, maxItems);
+  if (!block) return [];
+  return block
+    .split(/\s+(?:(?:\d+\.)|[•\-–])\s+/)
+    .map((item) => compact(item))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function parseProjectState(text) {
+  const activeProject = extractBlock(text, [/^(Active project|Current project|Project focus|Focus|Project)\b/i], 4);
+  const currentStatus = extractBlock(text, [/^(Current status|Overall status|Status snapshot|Project status|Current truth)\b/i], 8);
+  const nextPriority = extractBlock(text, [/^(Next priority|Immediate next|Next step|Right now|Next)\b/i], 8);
+  const blockers = extractList(text, [/^(Blockers?|Risks?|Known issues|Open issues)\b/i], 6);
+  const updatedMatch = String(text || '').match(/(?:Last updated|Updated|Timestamp)\s*[:\-]\s*(.+)/i);
+  return {
+    activeProject: activeProject || 'projects/polymarket/polyquantbot',
+    currentStatus: currentStatus || '',
+    nextPriority: nextPriority || '',
+    blockers,
+    updatedAt: updatedMatch ? compact(updatedMatch[1]) : ''
+  };
+}
+
+function parseRoadmap(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const phases = [];
+  let current = null;
+
+  function finalize() {
+    if (!current) return;
+    const blob = compact(current.lines.join(' '));
+    let status = 'pending';
+    if (/\b(done|complete|completed|accepted|merged)\b/i.test(current.statusText || blob)) status = 'done';
+    else if (/\b(in progress|current|active|ongoing|next|priority)\b/i.test(current.statusText || blob)) status = 'progress';
+    current.summary = blob.slice(0, 240);
+    current.status = status;
+    phases.push(current);
+    current = null;
+  }
+
+  for (const rawLine of lines) {
+    const clean = cleanTextLine(rawLine);
+    if (!clean) continue;
+
+    const match = clean.match(/^(?:\[(?:x|X| )\]\s*)?(Phase\s+[\d.]+)\s*[—:\-]?\s*(.*)$/i);
     if (match) {
-      const textValue = match[2];
-      current.items.push({ text: textValue, done: match[1].toLowerCase() === 'x', kind: 'check' });
+      finalize();
+      current = {
+        phase: match[1],
+        name: compact(match[2] || match[1]),
+        lines: [],
+        statusText: /^\[(x|X)\]/.test(clean) ? 'done' : ''
+      };
       continue;
     }
 
-    if (/^[A-Za-z].*:$/.test(line) || /^This\b/i.test(line) || /^Current truth\b/i.test(line)) {
-      current.items.push({ text: line, done: false, kind: 'note' });
-    }
+    if (!current) continue;
+    current.lines.push(clean);
+    if (/^(Status|State)\s*[:\-]/i.test(clean)) current.statusText += ' ' + clean;
   }
 
-  return sections.filter((sec) => sec.items.length > 0);
+  finalize();
+  return { phases: phases.slice(0, 14) };
 }
 
-function parseChecklistFallback(text) {
-  const normalized = text
-    .replace(/\r/g, "")
-    .replace(/#{1,6}\s*/g, "")
-    .replace(/(^|[\s])(-|\*)\s+/g, '$1')
-    .replace(/(^|\n)\s*(PRIORITY\s+\d+\s+—)/gim, "\n$2")
-    .replace(/(\[(?:x|X| )\])/g, "\n$1");
-  const sections = [];
-  const matcher = /(?:^|\n)\s*(PRIORITY\s+\d+\s+—[\s\S]*?)(?=(?:\n\s*PRIORITY\s+\d+\s+—)|$)/gi;
-  let blocks = normalized.match(matcher) || [];
-  if (blocks.length === 0) {
-    const looseBlocks = normalized.match(/PRIORITY\s+\d+\s+—[\s\S]*?(?=PRIORITY\s+\d+\s+—|$)/gi) || [];
-    blocks = looseBlocks.filter((block) => /(This must be finished first\.|Finish this after|Build this after|This is the (?:last|final))/i.test(block));
-  }
-
-  blocks.forEach((block) => {
-    const titleMatch = block.match(/^\s*PRIORITY\s+\d+\s+—[^\n\[]+/im);
-    const title = (titleMatch ? titleMatch[0] : 'PRIORITY').trim();
-    const items = [];
-
-    const noteMatches = block.match(/(?:^|\n)\s*\d+\.\s+[^\n]+/g) || [];
-    noteMatches.forEach((note) => {
-      items.push({ text: note.replace(/^\s*\d+\.\s+/, '').trim(), done: false, kind: 'note' });
-    });
-
-    const checksRegex = /\[(x|X| )\]\s*([^\n]+?)(?=(?:\n\[(?:x|X| )\])|$)/g;
-    let m;
-    while ((m = checksRegex.exec(block)) !== null) {
-      items.push({ text: m[2].trim(), done: m[1].toLowerCase() === 'x', kind: 'check' });
+function firstOpenChecks(max = 6) {
+  const out = [];
+  for (const section of state.checklist.sections) {
+    for (const item of section.items) {
+      if (item.kind === 'check' && !item.done) out.push(item.text);
+      if (out.length >= max) return out;
     }
-
-    if (items.length > 0) sections.push({ title, items });
-  });
-
-  return sections;
+  }
+  return out;
 }
 
-function parseChecklist(text) {
-  const parsed = parseChecklistLines(text);
-  const checkItems = parsed.reduce((acc, sec) => acc + sec.items.filter((item) => item.kind === 'check').length, 0);
-  if (parsed.length >= 2 && checkItems >= 8) return parsed;
-  const fallback = parseChecklistFallback(text);
-  return fallback.length ? fallback : parsed;
+function unique(items) {
+  return Array.from(new Set(items.map((item) => compact(item)).filter(Boolean)));
 }
 
-function renderOverview(filteredSections) {
+function deriveCurrentStatus() {
+  if (state.projectState.currentStatus) return state.projectState.currentStatus;
+  if (state.checklist.active) {
+    return state.checklist.active.title + ' is the active lane with ' + state.checklist.active.done + '/' + state.checklist.active.total + ' checks complete.';
+  }
+  return 'Live source truth loaded, but no explicit current status block was found.';
+}
+
+function deriveNextPriority() {
+  if (state.projectState.nextPriority) return state.projectState.nextPriority;
+  const firstOpen = firstOpenChecks(1)[0];
+  if (firstOpen) return firstOpen;
+  const roadmapActive = state.roadmap.phases.find((phase) => phase.status === 'progress');
+  if (roadmapActive) return roadmapActive.phase + ' — ' + roadmapActive.name;
+  return 'No explicit next priority found in the loaded source truth.';
+}
+
+function inferIssues() {
+  return unique([...(state.projectState.blockers || []), ...firstOpenChecks(6)]).slice(0, 6);
+}
+
+function sourceStateLabel(info) {
+  if (!info || !info.ok) return 'UNAVAILABLE';
+  return info.cached ? 'CACHED' : 'LIVE';
+}
+
+function renderMetrics() {
+  const done = state.checklist.done || 0;
+  const total = state.checklist.total || 0;
+  const open = Math.max(total - done, 0);
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  document.getElementById('metricDone').textContent = String(done);
+  document.getElementById('metricOpen').textContent = String(open);
+  document.getElementById('metricPct').textContent = total ? pct + '%' : '—';
+  document.getElementById('metricRatio').textContent = total ? done + '/' + total + ' checked' : 'No checklist items parsed';
+  document.getElementById('metricActive').textContent = state.checklist.active ? 'P' + state.checklist.active.number : '—';
+  document.getElementById('laneCountBadge').textContent = String(state.checklist.sections.length || 0);
+  document.getElementById('sectionCountBadge').textContent = String(state.checklist.sections.length || 0);
+}
+
+function renderSummary() {
+  document.getElementById('currentStatusText').textContent = deriveCurrentStatus();
+  document.getElementById('nextPriorityText').textContent = deriveNextPriority();
+}
+
+function renderOverview() {
   const wrap = document.getElementById('priorityOverview');
   wrap.innerHTML = '';
 
-  filteredSections.forEach((sec, idx) => {
-    const done = sec.items.filter((item) => item.kind === 'check' && item.done).length;
-    const total = sec.items.filter((item) => item.kind === 'check').length;
-    const pct = total ? Math.round((done / total) * 100) : 0;
-    const badgeClass = pct === 100 ? 'pb-done' : (pct > 0 ? 'pb-prog' : 'pb-pend');
+  if (!state.checklist.sections.length) {
+    wrap.innerHTML = '<div class="phase-row"><span class="phase-name">Unable to parse checklist lanes from source truth.</span></div>';
+    return;
+  }
+
+  state.checklist.sections.forEach((section, idx) => {
+    const badgeClass = section.percent === 100 ? 'pb-done' : (section.percent > 0 ? 'pb-prog' : 'pb-pend');
     const row = document.createElement('div');
-    row.className = `phase-row ${idx === 0 ? 'active' : ''}`;
+    row.className = 'phase-row ' + (idx === 0 ? 'active' : '') + ' ' + (section.percent === 100 ? 'done' : '');
     row.innerHTML = `
-      <span class="phase-num">P${idx + 1}</span>
-      <span class="phase-name">${esc(sec.title)}</span>
-      <span class="phase-badge ${badgeClass}">${pct}%</span>
-      <div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:${pct}%"></div></div></div>
+      <span class="phase-num">P${section.number}</span>
+      <span class="phase-name">${esc(section.title)}</span>
+      <span class="phase-badge ${badgeClass}">${section.total ? section.percent + '%' : 'notes'}</span>
+      <div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:${section.percent}%"></div></div></div>
     `;
     wrap.appendChild(row);
   });
 }
 
-function renderChecklist(filteredSections) {
-  const sourceStatus = document.getElementById('checklistSourceStatus');
-  sourceStatus.textContent = `Loaded from: ${state.loadedPath}`;
+function renderChecklist() {
+  const sourceBits = Object.entries(SOURCES).map(([key, spec]) => spec.label + ': ' + sourceStateLabel(state.loaded[key]));
+  document.getElementById('checklistSourceStatus').textContent = sourceBits.join(' · ');
 
-  const existingSections = todoBody.querySelectorAll('.todo-section');
-  existingSections.forEach((node) => node.remove());
+  todoBody.querySelectorAll('.todo-section').forEach((node) => node.remove());
 
-  filteredSections.forEach((sec, idx) => {
-    const done = sec.items.filter((item) => item.kind === 'check' && item.done).length;
-    const total = sec.items.filter((item) => item.kind === 'check').length;
+  if (!state.checklist.sections.length) return;
 
+  state.checklist.sections.forEach((section, idx) => {
     const secEl = document.createElement('div');
     secEl.className = 'todo-section';
-    secEl.setAttribute('data-search', `${sec.title} ${sec.items.map((item) => item.text).join(' ')}`.toLowerCase());
-
-    const statusTag = idx === 0 ? '<span class="feed-tag ft-open">active</span>' : '<span class="feed-tag ft-info">queued</span>';
+    secEl.setAttribute('data-search', (section.title + ' ' + section.items.map((item) => item.text).join(' ')).toLowerCase());
+    const statusTag = section.percent === 100
+      ? '<span class="feed-tag ft-merged">done</span>'
+      : (idx === 0 ? '<span class="feed-tag ft-open">active</span>' : '<span class="feed-tag ft-info">queued</span>');
 
     secEl.innerHTML = `
-      <div class="todo-head"><div><div class="todo-title">${esc(sec.title)}</div><div class="todo-meta">${done}/${total} complete</div></div>${statusTag}</div>
+      <div class="todo-head"><div><div class="todo-title">${esc(section.title)}</div><div class="todo-meta">${section.done}/${section.total} complete</div></div>${statusTag}</div>
       <div class="todo-sub">
         <div class="todo-sub-head">Checklist items</div>
         <div class="todo-items">
-          ${sec.items.map((item) => {
+          ${section.items.map((item) => {
             const isDone = item.kind === 'check' && item.done;
             const cssClass = isDone ? 'td-done' : (item.kind === 'check' ? 'td-open' : 'td-note');
             const marker = isDone ? '✓' : (item.kind === 'check' ? '○' : '•');
@@ -575,71 +821,93 @@ function renderChecklist(filteredSections) {
         </div>
       </div>
     `;
-
     todoBody.appendChild(secEl);
   });
 }
 
-function renderMetrics(filteredSections) {
-  let done = 0;
-  let total = 0;
+function renderActivityFeed() {
+  const feed = document.getElementById('activityFeed');
+  const items = [];
 
-  filteredSections.forEach((sec) => {
-    sec.items.forEach((item) => {
-      if (item.kind === 'check') {
-        total += 1;
-        if (item.done) done += 1;
-      }
-    });
-  });
+  items.push({ dot: 'fd-g', time: sourceStateLabel(state.loaded.checklist), tagClass: 'ft-merged', tag: 'CHECKLIST', title: (state.loaded.checklist && state.loaded.checklist.ok ? 'Checklist source loaded from ' + state.loaded.checklist.url : 'Checklist source unavailable') });
+  items.push({ dot: 'fd-b', time: sourceStateLabel(state.loaded.projectState), tagClass: 'ft-open', tag: 'STATE', title: (state.projectState.activeProject || 'projects/polymarket/polyquantbot') + ' remains the active project context' });
 
-  const pct = total ? Math.round((done / total) * 100) : 0;
-  document.getElementById('metricDone').textContent = `${done}`;
-  document.getElementById('metricOpen').textContent = `${Math.max(total - done, 0)}`;
-  document.getElementById('metricPct').textContent = `${pct}%`;
-  document.getElementById('metricRatio').textContent = `${done}/${total} checked`;
-  document.getElementById('metricActive').textContent = filteredSections.length ? 'P1' : '—';
-  document.getElementById('laneCountBadge').textContent = `${filteredSections.length}`;
-  document.getElementById('sectionCountBadge').textContent = `${filteredSections.length}`;
+  if (state.checklist.active) {
+    items.push({ dot: 'fd-b', time: 'P' + state.checklist.active.number, tagClass: 'ft-open', tag: 'LANE', title: state.checklist.active.title + ' is the active checklist lane' });
+  }
+
+  const roadmapActive = state.roadmap.phases.find((phase) => phase.status === 'progress') || state.roadmap.phases[0];
+  if (roadmapActive) {
+    items.push({ dot: roadmapActive.status === 'done' ? 'fd-g' : 'fd-y', time: sourceStateLabel(state.loaded.roadmap), tagClass: roadmapActive.status === 'done' ? 'ft-merged' : 'ft-info', tag: 'ROADMAP', title: roadmapActive.phase + ' — ' + roadmapActive.name });
+  }
+
+  items.push({ dot: 'fd-y', time: 'NEXT', tagClass: 'ft-info', tag: 'FOCUS', title: deriveNextPriority() });
+
+  document.getElementById('activityFeedCount').textContent = String(items.length);
+  feed.innerHTML = items.map((item, idx) => `
+    <div class="feed-item">
+      ${idx < items.length - 1 ? '<div class="feed-line"></div>' : ''}
+      <div class="feed-dot ${item.dot}"></div>
+      <div class="feed-content">
+        <div class="feed-title">${esc(item.title)}</div>
+        <div class="feed-meta"><span class="feed-time">${esc(item.time)}</span><span class="feed-tag ${item.tagClass}">${esc(item.tag)}</span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderKnownIssues() {
+  const wrap = document.getElementById('knownIssuesBody');
+  const issues = inferIssues();
+  document.getElementById('knownIssuesCount').textContent = String(issues.length);
+
+  if (!issues.length) {
+    wrap.innerHTML = '<div class="feed-item"><div class="feed-dot fd-g"></div><div class="feed-content"><div class="feed-title">No explicit blockers were extracted from the loaded source truth.</div></div></div>';
+    return;
+  }
+
+  wrap.innerHTML = issues.map((issue) => `
+    <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">${esc(issue)}</div></div></div>
+  `).join('');
 }
 
 function applyFilters() {
   const q = searchInput.value.trim().toLowerCase();
-  document.querySelectorAll('.todo-section').forEach((sec) => {
-    const text = sec.getAttribute('data-search') || '';
-    sec.style.display = (!q || text.includes(q)) ? '' : 'none';
+  document.querySelectorAll('.todo-section').forEach((section) => {
+    const text = section.getAttribute('data-search') || '';
+    section.style.display = (!q || text.includes(q)) ? '' : 'none';
   });
   document.querySelectorAll('[data-done="1"]').forEach((el) => {
     el.classList.toggle('hidden-item', hideDone.checked);
   });
 }
 
-async function loadChecklist() {
-  const sourceStatus = document.getElementById('checklistSourceStatus');
-  sourceStatus.textContent = 'Loading checklist...';
+async function loadAll() {
+  document.getElementById('checklistSourceStatus').textContent = 'Loading source truth...';
 
-  for (const path of CANDIDATE_PATHS) {
-    try {
-      const res = await fetch(path, { cache: 'no-store' });
-      if (!res.ok) continue;
-      const text = await res.text();
-      state.loadedPath = path;
-      state.sections = parseChecklist(text);
-      renderMetrics(state.sections);
-      renderOverview(state.sections);
-      renderChecklist(state.sections);
-      applyFilters();
-      return;
-    } catch (_) {}
-  }
+  const [checklistSrc, projectStateSrc, roadmapSrc] = await Promise.all([
+    loadSource('checklist', SOURCES.checklist),
+    loadSource('projectState', SOURCES.projectState),
+    loadSource('roadmap', SOURCES.roadmap)
+  ]);
 
-  sourceStatus.textContent = 'Unable to load work_checklist.md from GitHub Pages paths.';
+  state.checklist = parseChecklist(checklistSrc.text);
+  state.projectState = parseProjectState(projectStateSrc.text);
+  state.roadmap = parseRoadmap(roadmapSrc.text);
+
+  renderMetrics();
+  renderSummary();
+  renderOverview();
+  renderChecklist();
+  renderActivityFeed();
+  renderKnownIssues();
+  applyFilters();
 }
 
 searchInput.addEventListener('input', applyFilters);
 hideDone.addEventListener('change', applyFilters);
 setTs();
-loadChecklist();
+loadAll();
 </script>
 </body>
 </html>
