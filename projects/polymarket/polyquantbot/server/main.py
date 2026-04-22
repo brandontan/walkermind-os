@@ -46,6 +46,7 @@ from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import 
 from projects.polymarket.polyquantbot.server.storage.multi_user_store import PersistentMultiUserStore
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
 from projects.polymarket.polyquantbot.server.storage.wallet_link_store import PersistentWalletLinkStore
+from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 
 log = structlog.get_logger(__name__)
 
@@ -130,6 +131,90 @@ async def _start_telegram_runtime(state: RuntimeState) -> None:
     )
 
 
+def _db_runtime_required_from_env() -> bool:
+    raw = os.getenv("CRUSADER_DB_RUNTIME_REQUIRED", "false").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _db_runtime_enabled_from_env() -> bool:
+    raw = os.getenv("CRUSADER_DB_RUNTIME_ENABLED", "false").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _db_retry_budget_s(max_attempts: int, base_backoff_s: float, per_attempt_timeout_s: float = 10.0) -> float:
+    if max_attempts < 1:
+        raise RuntimeError("CRUSADER_DB_CONNECT_MAX_ATTEMPTS must be >= 1.")
+    if base_backoff_s < 0:
+        raise RuntimeError("CRUSADER_DB_CONNECT_BASE_BACKOFF_S must be >= 0.")
+    backoff_total = sum(base_backoff_s * (2 ** attempt) for attempt in range(max_attempts - 1))
+    return (max_attempts * per_attempt_timeout_s) + backoff_total
+
+
+async def _start_database_runtime(state: RuntimeState) -> None:
+    state.db_runtime_required = _db_runtime_required_from_env()
+    state.db_runtime_enabled = _db_runtime_enabled_from_env()
+    state.db_runtime_last_error = ""
+    state.db_runtime_connected = False
+    state.db_runtime_healthcheck_ok = False
+
+    if not state.db_runtime_enabled:
+        return
+
+    max_attempts = int(os.getenv("CRUSADER_DB_CONNECT_MAX_ATTEMPTS", "4").strip() or "4")
+    base_backoff_s = float(os.getenv("CRUSADER_DB_CONNECT_BASE_BACKOFF_S", "1.0").strip() or "1.0")
+    configured_timeout_s = float(os.getenv("CRUSADER_DB_CONNECT_TIMEOUT_S", "30.0").strip() or "30.0")
+    retry_budget_s = _db_retry_budget_s(max_attempts=max_attempts, base_backoff_s=base_backoff_s)
+    timeout_s = max(configured_timeout_s, retry_budget_s + 1.0)
+
+    state.db_connect_max_attempts = max_attempts
+    state.db_connect_base_backoff_s = base_backoff_s
+    state.db_connect_timeout_s = timeout_s
+    db_client = DatabaseClient()
+    state.db_client = db_client
+
+    if timeout_s > configured_timeout_s:
+        log.warning(
+            "crusaderbot_db_connect_timeout_adjusted",
+            configured_timeout_s=configured_timeout_s,
+            adjusted_timeout_s=timeout_s,
+            retry_budget_s=retry_budget_s,
+        )
+
+    try:
+        await asyncio.wait_for(
+            db_client.connect_with_retry(max_attempts=max_attempts, base_backoff_s=base_backoff_s),
+            timeout=timeout_s,
+        )
+        state.db_runtime_connected = True
+        state.db_runtime_healthcheck_ok = await db_client.healthcheck()
+        if not state.db_runtime_healthcheck_ok:
+            raise RuntimeError("Database healthcheck failed after startup connect path.")
+        log.info("crusaderbot_db_runtime_ready")
+    except Exception as exc:
+        state.db_runtime_last_error = str(exc)
+        state.db_runtime_connected = False
+        state.db_runtime_healthcheck_ok = False
+        if state.db_client is not None:
+            await state.db_client.close()
+            state.db_client = None
+        log.error(
+            "crusaderbot_db_runtime_startup_failed",
+            required=state.db_runtime_required,
+            error=state.db_runtime_last_error,
+        )
+        if state.db_runtime_required:
+            raise
+
+
+async def _stop_database_runtime(state: RuntimeState) -> None:
+    if state.db_client is None:
+        return
+    await state.db_client.close()
+    state.db_client = None
+    state.db_runtime_connected = False
+    state.db_runtime_healthcheck_ok = False
+
+
 def create_app() -> FastAPI:
     initialize_sentry()
     settings = ApiSettings.from_env()
@@ -138,13 +223,14 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        await run_startup_validation(settings=settings, state=state)
         try:
-            await _start_telegram_runtime(state=state)
-        except Exception as exc:
-            capture_runtime_exception(exc, surface="telegram_runtime_startup")
-            raise
-        try:
+            await run_startup_validation(settings=settings, state=state)
+            await _start_database_runtime(state=state)
+            try:
+                await _start_telegram_runtime(state=state)
+            except Exception as exc:
+                capture_runtime_exception(exc, surface="telegram_runtime_startup")
+                raise
             yield
         finally:
             if state.telegram_runtime_task is not None:
@@ -153,6 +239,7 @@ def create_app() -> FastAPI:
                     await state.telegram_runtime_task
                 except asyncio.CancelledError:
                     pass
+            await _stop_database_runtime(state=state)
             await run_shutdown(state=state)
 
     app = FastAPI(

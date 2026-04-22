@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import pytest
 
 pytest.importorskip(
@@ -94,6 +95,7 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
     assert "scope" in readiness
     assert "worker_runtime" in readiness
     assert "telegram_runtime" in readiness
+    assert "db_runtime" in readiness
     assert "worker_prerequisites" in readiness
     assert "falcon_config_state" in readiness
     assert "control_plane" in readiness
@@ -124,7 +126,7 @@ def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
     readiness = payload["readiness"]
 
     assert readiness["scope"]["runtime_assertion"] == "local_runtime_only"
-    assert readiness["scope"]["external_dependencies_probed"] is False
+    assert readiness["scope"]["external_dependencies_probed"] is True
     assert readiness["scope"]["worker_state_visibility"] == "in_process_state_snapshot"
     assert readiness["worker_runtime"]["last_iteration_visible"] is False
     assert readiness["worker_prerequisites"]["paper_mode_enforced"] is True
@@ -134,18 +136,160 @@ def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
     assert readiness["control_plane"]["live_mode_execution_allowed"] is False
 
 
+def test_startup_success_path_sets_db_runtime_ready(monkeypatch) -> None:
+    class _HealthyDBClient:
+        async def connect_with_retry(self, max_attempts: int = 4, base_backoff_s: float = 1.0) -> None:
+            return None
+
+        async def healthcheck(self) -> bool:
+            return True
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "true")
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _HealthyDBClient)
+    app = create_app()
+
+    with TestClient(app) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    readiness = response.json()["readiness"]
+    assert readiness["db_runtime"]["enabled"] is True
+    assert readiness["db_runtime"]["required"] is True
+    assert readiness["db_runtime"]["connected"] is True
+    assert readiness["db_runtime"]["healthcheck_ok"] is True
+
+
+def test_startup_failure_before_yield_closes_db_client(monkeypatch) -> None:
+    class _DBClient:
+        close_called = False
+
+        async def connect_with_retry(self, max_attempts: int = 4, base_backoff_s: float = 1.0) -> None:
+            return None
+
+        async def healthcheck(self) -> bool:
+            return True
+
+        async def close(self) -> None:
+            _DBClient.close_called = True
+
+    async def _boom(state) -> None:  # noqa: ANN001
+        raise RuntimeError("telegram_startup_failed")
+
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "true")
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _DBClient)
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main._start_telegram_runtime", _boom)
+    app = create_app()
+
+    with pytest.raises(RuntimeError, match="telegram_startup_failed"):
+        with TestClient(app):
+            pass
+
+    assert _DBClient.close_called is True
+
+
+def test_bounded_retry_timeout_alignment_preserves_retry_path(monkeypatch) -> None:
+    class _SlowFailingDBClient:
+        seen_max_attempts = 0
+
+        async def connect_with_retry(self, max_attempts: int = 4, base_backoff_s: float = 1.0) -> None:
+            _SlowFailingDBClient.seen_max_attempts = max_attempts
+            await asyncio.sleep(0.01)
+            raise RuntimeError("db_unavailable")
+
+        async def healthcheck(self) -> bool:
+            return False
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "false")
+    monkeypatch.setenv("CRUSADER_DB_CONNECT_MAX_ATTEMPTS", "3")
+    monkeypatch.setenv("CRUSADER_DB_CONNECT_BASE_BACKOFF_S", "0.01")
+    monkeypatch.setenv("CRUSADER_DB_CONNECT_TIMEOUT_S", "0.02")
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _SlowFailingDBClient)
+    app = create_app()
+
+    with TestClient(app) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    readiness = response.json()["readiness"]["db_runtime"]
+    assert _SlowFailingDBClient.seen_max_attempts == 3
+    assert readiness["connect_timeout_s"] > 0.02
+
+
+def test_ready_status_after_db_unavailable_when_required(monkeypatch) -> None:
+    class _UnhealthyDBClient:
+        async def connect_with_retry(self, max_attempts: int = 4, base_backoff_s: float = 1.0) -> None:
+            return None
+
+        async def healthcheck(self) -> bool:
+            return False
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "true")
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _UnhealthyDBClient)
+    app = create_app()
+
+    with pytest.raises(RuntimeError, match="Database healthcheck failed"):
+        with TestClient(app):
+            pass
+
+
+def test_ready_status_after_db_unavailable_when_not_required(monkeypatch) -> None:
+    class _UnavailableDBClient:
+        async def connect_with_retry(self, max_attempts: int = 4, base_backoff_s: float = 1.0) -> None:
+            raise RuntimeError("db_unavailable")
+
+        async def healthcheck(self) -> bool:
+            return False
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "false")
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _UnavailableDBClient)
+    app = create_app()
+
+    with TestClient(app) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    readiness = response.json()["readiness"]["db_runtime"]
+    assert readiness["connected"] is False
+    assert readiness["healthcheck_ok"] is False
+    assert readiness["last_error"] != ""
+
+
 def test_ready_route_not_ready_when_telegram_required_without_token(monkeypatch) -> None:
     monkeypatch.setenv("PORT", "8080")
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_TELEGRAM_RUNTIME_REQUIRED", "true")
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     app = create_app()
-    with TestClient(app) as client:
-        response = client.get("/ready")
-    assert response.status_code == 503
-    readiness = response.json()["readiness"]
-    assert readiness["telegram_runtime"]["required"] is True
-    assert readiness["telegram_runtime"]["enabled"] is False
+    with pytest.raises(RuntimeError, match="TELEGRAM_BOT_TOKEN is required"):
+        with TestClient(app):
+            pass
 
 
 def test_ready_route_falcon_enabled_without_key_is_not_valid(monkeypatch) -> None:
