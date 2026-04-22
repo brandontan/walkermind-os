@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active (Paper Beta Complete + Phase 10 Execution) | Phase 10.1 — Telegram Runtime/Public Baseline |
+| Crusader | Polymarket | Active (Paper Beta Complete + Phase 10 Execution) | Phase 10.2 — Post-Merge Sync + Onboarding/Public Command Surface |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; current execution lane is Phase 10 paper-only hardening and public baseline completion (no live-trading or production-capital claim)
-**Last Updated:** 2026-04-21 15:49
+**Last Updated:** 2026-04-22 07:07
 
 # Board Overview
 
@@ -50,8 +50,8 @@
 
 ### Current Focus Summary (paper-only boundary preserved)
 - Telegram runtime activation on Fly (startup lifecycle, truthful `/ready`, runtime state visibility).
-- Public command validation baseline (`/start`, `/help`, `/status`) with non-dummy replies and no silent failure.
-- Refinement of existing Telegram UX foundation (onboarding, help/status copy, fallback messaging, readability).
+- Public command baseline now includes `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, and `/account`/`/link` on the active Telegram runtime path (runtime/operator `/risk` path preserved).
+- `/start` onboarding/session guidance is refined to reduce repeated multi-step friction across new/unlinked/linked/session-ready states.
 - Persistence/readiness hardening continuity aligned with current checklist priorities.
 
 ### Execution Tracking Source

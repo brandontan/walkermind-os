@@ -373,7 +373,7 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
         "help": (
             "❓ Help Center",
             [
-                ("Public Commands", "/start · /help · /status"),
+                ("Public Commands", "/start · /help · /status · /paper · /about · /risk_info · /account"),
                 ("Navigation", "Home menu + section callbacks"),
                 ("Boundary", "Paper-only beta, no live-capital control"),
             ],
@@ -383,6 +383,7 @@ def _primary_block(mode: str, payload: Mapping[str, Any]) -> str:
             [
                 ("Start", "/start opens home overview and section menu"),
                 ("Status", "/status shows runtime posture and health summary"),
+                ("Onboarding", "/account or /link for account-context guidance"),
                 ("Unknown Input", "Unsupported commands route back to help safely"),
             ],
         ),

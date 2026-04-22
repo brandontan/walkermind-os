@@ -180,7 +180,8 @@ class CommandRouter:
 
         value: Optional[float | str] = None
         if arg_str:
-            if raw_cmd.lstrip("/").lower() == "trade":
+            command_name = raw_cmd.lstrip("/").lower()
+            if command_name in {"trade", "start"}:
                 value = arg_str
             else:
                 try:
