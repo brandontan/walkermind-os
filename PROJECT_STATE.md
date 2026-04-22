@@ -1,5 +1,5 @@
-Last Updated : 2026-04-22 20:57
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #713 Phase 10.2 onboarding/public command-surface refinement and the Phase 10.3 monitor integration + observability hardening lane are merged truth under the paper-only boundary.
+Last Updated : 2026-04-22 21:20
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #713 Phase 10.2 onboarding/public command-surface refinement is merged truth, and PR #718 Phase 10.3 monitor integration + observability is completed and pending COMMANDER review / merge under the paper-only boundary.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -31,15 +31,15 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Phase 8.13 Telegram session-issuance gate re-land lane is merged with validation record preserved as historical truth and no longer an active in-progress source lane.
 - Phase 8.14 Walker DevOps launch-planning app FOUNDATION implementation is treated as completed historical truth; active-lane wording has been retired from PROJECT_STATE and ROADMAP sync surfaces.
 - Phase 9.1 dependency-complete runtime-proof closure is completed with refreshed canonical evidence log (`projects/polymarket/polyquantbot/reports/forge/phase9-1_01_runtime-proof-evidence.log`) and closure report (`projects/polymarket/polyquantbot/reports/forge/phase9-1_09_runtime-proof-closure-pass.md`).
-- Phase 9.2 operational/public readiness and ops-hardening truth is now treated as landed for release-gate continuity with FORGE report `projects/polymarket/polyquantbot/reports/forge/phase9-2_01_public-readiness-and-ops-hardening.md` and SENTINEL validation `projects/polymarket/polyquantbot/reports/sentinel/phase9-2_01_public-readiness-and-ops-hardening-validation-pr675.md` as the canonical evidence pair.
+- Phase 9.2 operational/public readiness and ops-hardening truth is now treated as landed for release-gate continuity with FORGE report `projects/polymarket/polyquantbot/reports/forge/phase9-2_01_public-readiness-and-ops-hardening.md` and SENTINEL ¾alidation `projects/polymarket/polyquantbot/reports/sentinel/phase9-2_01_public-readiness-and-ops-hardening-validation-pr675.md` as the canonical evidence pair.
 - Phase 9.3 public paper-beta release gate is completed on main with SENTINEL validation recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase9-3_01_public-release-gate-validation-pr677.md`; public-ready paper beta path is now complete with explicit paper-only boundary and no live-trading/production-capital readiness claim.
 - Phase 9.3 post-release public-facing launch assets pack is completed with coherent readiness/posture/boundary/onboarding/announcement docs and wording-audit alignment to paper-only truth under `projects/polymarket/polyquantbot/reports/forge/phase9-3_03_post-release-launch-assets-pack.md`.
 - PR #712 Telegram UX consolidation lane is merged on main as closed truth: active Telegram `/start`, `/help`, `/status`, unknown-command fallback, and home/system empty-state wording are consolidated in the active runtime path with evidence in `projects/polymarket/polyquantbot/reports/forge/phase10-1_01_telegram-ux-consolidation.md`.
 - PR #713 Phase 10.2 onboarding/public command-surface refinement lane is merged on main as closed truth: active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`, while runtime/operator `/risk` remains a separate non-public informational control path with no live-trading claim.
 
 [IN PROGRESS]
-- Monitor integration hardening + observability baseline lane is completed: admin/internal path guarding, startup/command/reply lifecycle logs, missing-env/disabled-mode logging, and monitor/admin visibility wiring are now enforced on the paper-only runtime surface.
-- Post-launch cleanup + README/public-surface wording alignment lane remains in progress for paper-beta clarity (`/risk_info` public-safe informational command vs runtime/operator `/risk` distinction preserved).
+- Monitor integration hardening + observability baseline lane is completed on PR #718 and pending COMMANDER review / merge: admin/internal path guarding, startup/command/reply lifecycle logs, missing-env/disabled-mode logging, and monitor/admin visibility wiring are implemented on the paper-only runtime surface.
+- Post-launch cleanup + README/public-surface wording alignment lane remains in progress for paper-beta clarity (`\/risk_info`\ public-safe informational command vs runtime/operator `\/risk` distinction preserved).
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
 
 [NOT STARTED]
@@ -48,10 +48,9 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Continue post-launch cleanup + README/public-surface wording alignment lane and keep `/risk_info` public-safe informational command vs runtime/operator `/risk` separation explicit.
-
+- Complete COMMANDER review / merge for PR #718, run post-merge sync, then continue post-launch cleanup + README/public-surface wording alignment while keeping ``/risk_info`` public-safe informational command vs runtime/operator ``/risk` separation explicit.
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
 - Phase 6.4 narrow monitoring remains intentionally scoped and not yet the active implementation lane.
-- [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning -- carried forward as non-runtime higiene backlog.
+- [DEFERRED] Pytest config emits Unknown config option: asyncio_mode warning -- carried forward as non-runtime hygiene backlog.
 - [DEFERRED] Telegram account-link lifecycle still remains guidance-only on the public surface; full auth/session productization is intentionally out of scope for this lane.
