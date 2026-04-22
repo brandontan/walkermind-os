@@ -1,4 +1,4 @@
-# CrusaderBot Blueprint V.2
+# CrusaderBot Blueprint - V.2
 
 ## Directory Tree ✅
 
