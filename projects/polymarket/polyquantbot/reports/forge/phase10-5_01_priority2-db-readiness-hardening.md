@@ -7,7 +7,7 @@
   - startup now records explicit DB config/connection status without crashing the API process on DB unavailability,
   - `/ready` now includes `database_runtime` readiness dimensions and returns `503` when DB dependency is not truly connected.
 - Updated root runtime messaging (`main.py`) from `DB_DSN` wording to canonical `DATABASE_URL` wording for startup failures.
-- Added targeted tests for canonical DB config contract and DB readiness behavior.
+- Added targeted tests for canonical DB config contract, startup retry/health behavior, and server-main DB client contract alignment.
 
 ## 2. Current system architecture (relevant slice)
 

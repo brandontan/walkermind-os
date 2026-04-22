@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import sys
+import types
 
 import pytest
 
@@ -58,3 +60,14 @@ def test_database_client_connect_with_retry_calls_connect_and_ensure_schema(monk
     asyncio.run(client.connect_with_retry(max_attempts=1))
 
     assert calls == {"connect": 1, "ensure_schema": 1}
+
+
+def test_server_main_uses_database_client_with_retry_and_healthcheck_methods() -> None:
+    pytest.importorskip("fastapi")
+    if "uvicorn" not in sys.modules:
+        sys.modules["uvicorn"] = types.ModuleType("uvicorn")
+    from projects.polymarket.polyquantbot.server import main as server_main
+
+    assert server_main.DatabaseClient is DatabaseClient
+    assert hasattr(DatabaseClient, "connect_with_retry")
+    assert hasattr(DatabaseClient, "healthcheck")
