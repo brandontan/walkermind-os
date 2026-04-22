@@ -341,6 +341,14 @@ class TelegramPollingLoop:
             )
             return
 
+        log.info(
+            "crusaderbot_telegram_command_received",
+            update_id=update.update_id,
+            chat_id=update.chat_id,
+            from_user_id=update.from_user_id,
+            command=ctx.command,
+        )
+
         requires_start_lifecycle = ctx.command == "/start"
 
         if self._identity_resolver is not None:
@@ -523,11 +531,25 @@ class TelegramPollingLoop:
             )
             return
 
+        log.info(
+            "crusaderbot_telegram_command_handled",
+            update_id=update.update_id,
+            chat_id=update.chat_id,
+            command=ctx.command,
+            outcome=result.outcome,
+            has_reply_text=bool(result.reply_text.strip()),
+        )
+
         await self._safe_send_reply(update.chat_id, result.reply_text)
 
     async def _safe_send_reply(self, chat_id: str, text: str) -> None:
         try:
             await self._adapter.send_reply(chat_id, text)
+            log.info(
+                "crusaderbot_telegram_reply_send_succeeded",
+                chat_id=chat_id,
+                reply_length=len(text),
+            )
             if self._observer is not None:
                 self._observer.on_reply_sent()
         except Exception as exc:
