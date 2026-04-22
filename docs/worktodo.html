@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Crusader — Work To‑Do</title>
+  <!-- External fonts to match the main project monitor -->
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      /* colour palette copied from project_monitor.html for consistency */
+      --bg: #07090f;
+      --surface: #0c1018;
+      --surface2: #10161f;
+      --border: #182030;
+      --border2: #1f2d42;
+      --green: #00f5a0;
+      --blue: #0af;
+      --yellow: #ffd60a;
+      --red: #ff3c5f;
+      --text: #e8f0fa;
+      --muted: #3d5570;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Syne', sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 14px 80px;
+    }
+
+    header {
+      padding: 28px 0 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--green), var(--blue));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--bg);
+      letter-spacing: -0.5px;
+    }
+
+    .brand-sub {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .brand-name {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, var(--text), var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Hero metrics grid */
+    .hero {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    @media (min-width: 600px) {
+      .hero {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .hero-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 14px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .hero-card:hover {
+      border-color: var(--border2);
+    }
+    .hero-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent, var(--green));
+      opacity: 0.6;
+    }
+    .hero-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .hero-val {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1;
+      color: var(--accent, var(--green));
+      margin-bottom: 4px;
+    }
+    .hero-sub {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--muted);
+    }
+
+    /* Section styling */
+    section {
+      margin-bottom: 32px;
+    }
+    section h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      border-left: 4px solid var(--blue);
+      padding-left: 10px;
+    }
+    ul.task-list {
+      list-style: none;
+      padding-left: 0;
+    }
+    ul.task-list li {
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    ul.task-list li span {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      display: block;
+      margin-top: 4px;
+    }
+
+    /* status icons for checklist items */
+    .status-icon {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      margin-right: 8px;
+      font-size: 12px;
+      line-height: 14px;
+      text-align: center;
+      border-radius: 2px;
+      font-family: var(--mono);
+    }
+    .status-icon.completed {
+      color: var(--green);
+    }
+    .status-icon.progress {
+      color: var(--yellow);
+    }
+    .status-icon.pending {
+      color: var(--red);
+    }
+
+    /* Status banner for next priority */
+    .status-banner {
+      background: linear-gradient(135deg, rgba(0,245,160,0.05), rgba(0,170,255,0.05));
+      border: 1px solid rgba(0,245,160,0.15);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .status-banner .icon {
+      font-size: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .status-banner .content {
+      flex: 1;
+      min-width: 0;
+    }
+    .status-banner .label {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--green);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .status-banner .title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .status-banner .desc {
+      font-size: 13px;
+      color: var(--mid);
+      line-height: 1.4;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">CB</div>
+        <div class="brand-text">
+          <div class="brand-sub">Crusader</div>
+          <div class="brand-name">Work Plan</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <!-- Could add refresh/time if desired -->
+      </div>
+    </header>
+
+    <!-- Hero metrics -->
+    <div class="hero">
+      <div class="hero-card" style="--accent: var(--green);">
+        <div class="hero-label">Completed</div>
+        <div class="hero-val">25</div>
+        <div class="hero-sub">tasks completed</div>
+      </div>
+      <div class="hero-card" style="--accent: var(--yellow);">
+        <div class="hero-label">In Progress</div>
+        <div class="hero-val">6</div>
+        <div class="hero-sub">tasks underway</div>
+      </div>
+      <div class="hero-card" style="--accent: var(--red);">
+        <div class="hero-label">Not Started</div>
+        <div class="hero-val">10</div>
+        <div class="hero-sub">tasks pending</div>
+      </div>
+      <div class="hero-card" style="--accent: var(--blue);">
+        <div class="hero-label">Completion</div>
+        <div class="hero-val">61%</div>
+        <div class="hero-sub">progress estimate</div>
+      </div>
+    </div>
+
+    <!-- Next Priority banner -->
+    <div class="status-banner">
+      <div class="icon">🚩</div>
+      <div class="content">
+        <div class="label">Next Priority</div>
+        <div class="title">Monitor Integration &amp; Observability Hardening</div>
+        <div class="desc">Complete Phase&nbsp;10.3 by adding startup, command and reply logs, enforcing admin/internal guards, and ensuring monitor parity.</div>
+      </div>
+    </div>
+
+    <!-- Completed tasks -->
+    <section id="completed">
+      <h2>Completed</h2>
+      <ul class="task-list">
+        <li>
+          <span class="status-icon completed">✔</span>
+          Public command baseline finalised
+          <span>Commands: /start, /help, /status, /paper, /about, /risk_info, /account, /link</span>
+        </li>
+        <li>
+          <span class="status-icon completed">✔</span>
+          Multi‑user store & session foundation
+          <span>Support for parallel user sessions and state isolation.</span>
+        </li>
+        <li>
+          <span class="status-icon completed">✔</span>
+          Account link & cross‑surface auth session
+          <span>Telegram bot linking flow across surfaces has been implemented.</span>
+        </li>
+        <li>
+          <span class="status-icon completed">✔</span>
+          Command routing consolidation & UX refinement
+          <span>Unified command surface and improved user‑facing copy.</span>
+        </li>
+        <li>
+          <span class="status-icon completed">✔</span>
+          Risk & policy watchers baseline
+          <span>Initial risk limits and policy enforcement integrated.</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- In Progress tasks -->
+    <section id="in-progress">
+      <h2>In&nbsp;Progress</h2>
+      <ul class="task-list">
+        <li>
+          <span class="status-icon progress">⏳</span>
+          Monitor integration hardening &amp; observability baseline
+          <span>Implement logging for startup, command handling, reply success/failure and missing env.</span>
+        </li>
+        <li>
+          <span class="status-icon progress">⏳</span>
+          Post‑launch cleanup &amp; config sanitisation
+          <span>Remove unused config, secrets and temporary scaffolding.</span>
+        </li>
+        <li>
+          <span class="status-icon progress">⏳</span>
+          End‑to‑end validation of Telegram flows
+          <span>Collect runtime proof for /start, /help and /status on production Fly deployment.</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Not Started tasks -->
+    <section id="not-started">
+      <h2>Not Started</h2>
+      <ul class="task-list">
+        <li>
+          <span class="status-icon pending">○</span>
+          Full wallet lifecycle implementation
+          <span>Create, link/unlink, activate/deactivate and persist wallets securely.</span>
+        </li>
+        <li>
+          <span class="status-icon pending">○</span>
+          Portfolio management logic &amp; risk controls
+          <span>Build aggregation, PnL calculation and risk guardrails across positions.</span>
+        </li>
+        <li>
+          <span class="status-icon pending">○</span>
+          Multi‑wallet orchestration
+          <span>Route orders and manage allocation across multiple user wallets.</span>
+        </li>
+        <li>
+          <span class="status-icon pending">○</span>
+          Settlement, retry &amp; ops automation
+          <span>Implement settlement workflow, retries and operator tooling.</span>
+        </li>
+        <li>
+          <span class="status-icon pending">○</span>
+          Capital readiness &amp; live trading gating
+          <span>Audit paper assumptions, harden risk controls and prepare live execution gating.</span>
+        </li>
+        <li>
+          <span class="status-icon pending">○</span>
+          Final docs &amp; launch assets
+          <span>Prepare public documentation, onboarding guides and marketing assets.</span>
+        </li>
+      </ul>
+    </section>
+
+  </div>
+</body>
+</html>
