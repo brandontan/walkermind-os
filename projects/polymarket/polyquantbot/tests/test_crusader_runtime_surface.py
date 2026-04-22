@@ -287,12 +287,9 @@ def test_ready_route_not_ready_when_telegram_required_without_token(monkeypatch)
     monkeypatch.setenv("CRUSADER_TELEGRAM_RUNTIME_REQUIRED", "true")
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     app = create_app()
-    with TestClient(app) as client:
-        response = client.get("/ready")
-    assert response.status_code == 503
-    readiness = response.json()["readiness"]
-    assert readiness["telegram_runtime"]["required"] is True
-    assert readiness["telegram_runtime"]["enabled"] is False
+    with pytest.raises(RuntimeError, match="TELEGRAM_BOT_TOKEN is required"):
+        with TestClient(app):
+            pass
 
 
 def test_ready_route_falcon_enabled_without_key_is_not_valid(monkeypatch) -> None:
