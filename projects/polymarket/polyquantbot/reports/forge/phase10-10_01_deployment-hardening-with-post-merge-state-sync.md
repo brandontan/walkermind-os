@@ -4,6 +4,7 @@
 - Performed post-merge repo-truth sync for merged PR #752 by replacing stale `PROJECT_STATE.md` pre-merge wording with merged-main truth and explicit active Priority 2 Deployment Hardening lane tracking.
 - Hardened deployment contract in `projects/polymarket/polyquantbot/Dockerfile` so container layout and runtime entrypoint are truthful (`python -m projects.polymarket.polyquantbot.scripts.run_api`) without nested copy-path ambiguity, with exception-safe healthcheck exit behavior.
 - Hardened `projects/polymarket/polyquantbot/fly.toml` to match single-machine API+Telegram process model, explicit `/health` liveness check, and explicit `/ready` readiness check.
+- Added a repo-root `.dockerignore` for the actual repo-root Docker build context used by this lane, while preserving the project-local `projects/polymarket/polyquantbot/.dockerignore` as a matching project-scoped mirror.
 - Updated bounded deploy documentation (`projects/polymarket/polyquantbot/docs/operator_runbook.md` and `projects/polymarket/polyquantbot/docs/crusader_runtime_surface.md`) for restart-policy truth, rollback procedure truth, and reproducible post-deploy smoke tests, including portable log filtering examples.
 
 ## 2) Current system architecture (relevant slice)
@@ -17,6 +18,7 @@
 
 ## 3) Files created / modified (full repo-root paths)
 - Modified: `PROJECT_STATE.md`
+- Added: `.dockerignore`
 - Modified: `projects/polymarket/polyquantbot/Dockerfile`
 - Modified: `projects/polymarket/polyquantbot/fly.toml`
 - Modified: `projects/polymarket/polyquantbot/docs/operator_runbook.md`
@@ -28,6 +30,7 @@
 - `PROJECT_STATE.md` now reflects merged-main truth for PR #752 and tracks Deployment Hardening as active Priority 2 lane.
 - Docker runtime command is aligned with actual app package layout and no longer depends on nested copy target assumptions.
 - Docker healthcheck no longer depends on unavailable curl binary in runtime stage; it now uses Python stdlib HTTP probe to `/health` with explicit exception-safe non-zero failure behavior.
+- Repo-root Docker build context now has an effective `.dockerignore`; the project-local mirror remains available for project-scoped local builds.
 - Fly runtime contract now explicitly checks both liveness (`/health`) and readiness (`/ready`) while keeping single-machine polling-safe posture.
 - Operator runbook now includes bounded restart policy truth, rollback command path, and explicit post-deploy smoke test steps (`/health`, `/ready`, Telegram startup visibility, Telegram baseline commands) using portable `grep -E` log filtering in the smoke-test example.
 
@@ -36,11 +39,11 @@
 - `python3 -c "from datetime import datetime; import pytz; ..."` could not run because `pytz` is unavailable in this runner; timestamp derivation used standard library `zoneinfo` for Asia/Jakarta equivalent output.
 
 ## 6) What is next
-- COMMANDER review of deployment artifact coherence (`Dockerfile`, `fly.toml`, deploy docs) and post-merge truth sync closure.
+- COMMANDER review of deployment artifact coherence (`Dockerfile`, `fly.toml`, deploy docs, `.dockerignore`) and post-merge truth sync closure.
 - If approved, open/continue PR from exact lane `nwap/execute-deployment-hardening-and-state-sync` and preserve paper-only/public-safe boundary language.
 
 Validation Tier   : STANDARD
 Claim Level       : FOUNDATION
-Validation Target : Post-merge state sync for PR #752 plus deployment artifact coherence across Dockerfile, fly.toml, and directly related deployment documentation
+Validation Target : Post-merge state sync for PR #752 plus deployment artifact coherence across Dockerfile, fly.toml, `.dockerignore`, and directly related deployment documentation
 Not in Scope      : Trading logic, risk logic, wallet/account flow, strategy behavior, security-baseline rework, infra redesign, secrets migration, new runtime features, broad doc cleanup
 Suggested Next    : COMMANDER review
