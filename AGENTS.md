@@ -450,22 +450,22 @@ Any code/report conflicting with these values = drift or critical violation.
 Single authoritative format:
 
 ```text
-NWAP/{feature}
+nwap/{feature}
 ```
 
 Rules:
-- prefix is always `NWAP/`
+- prefix is always `nwap/`
 - `{feature}` is a short hyphen-separated slug (noun/adjective based, not a sentence)
 - no dots, no underscores, no date suffix
 - phase tokens use hyphens when needed: `phase6-5-3` (never `6.5.3`)
 
 Correct:
-- `NWAP/wallet-state-read-boundary`
-- `NWAP/risk-drawdown-circuit`
+- `nwap/wallet-state-read-boundary`
+- `nwap/risk-drawdown-circuit`
 
 Wrong:
-- `NWAP/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, dashed date, sentence)
-- `NWAP/implement_wallet_state_read_boundary` (underscores)
+- `nwap/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, dashed date, sentence)
+- `nwap/implement_wallet_state_read_boundary` (underscores)
 - `fix/risk-drawdown-circuit-20260417` (non-authoritative prefix)
 
 ### Traceability
@@ -531,7 +531,7 @@ Use the checklist matching the declared Validation Tier. Do not run MAJOR checkl
 [ ] Last Updated not earlier than previous value
 [ ] Repo-root relative paths in all outputs
 [ ] Branch name matches actual git branch (verified with git rev-parse)
-[ ] Branch format valid (`NWAP/{feature}`)
+[ ] Branch format valid (`nwap/{feature}`)
 [ ] Forge report exists at correct path with required sections for this tier
 [ ] PROJECT_STATE.md updated to current truth
 [ ] Runner locale = C.UTF-8 or en_US.UTF-8 (verified with `locale`)
@@ -730,7 +730,7 @@ Fix in one batch on a later dedicated FORGE-X pass.
 
 ### Branch
 ```text
-NWAP/briefer-{purpose}
+nwap/briefer-{purpose}
 ```
 
 ## PROJECT_STATE RULE (AUTHORITATIVE)
@@ -856,7 +856,7 @@ Reports older than 7 days move under:
 {PROJECT_ROOT}/reports/archive/briefer/
 ```
 
-Archive moves use a `NWAP/{feature}` branch, preserve original naming, and do not mix with other content changes.
+Archive moves use a `nwap/{feature}` branch, preserve original naming, and do not mix with other content changes.
 
 ## COPY-READY TASK OUTPUT RULE
 
