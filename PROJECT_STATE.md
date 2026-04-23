@@ -1,4 +1,4 @@
-Last Updated : 2026-04-23 18:47
+Last Updated : 2026-04-23 18:55
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, and PR #741 are merged-main truth, and Phase 10.9 Priority 2 security baseline hardening is implemented on the source lane pending SENTINEL gate under paper-only boundary posture.
 
 [COMPLETED]
@@ -49,7 +49,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - PR #733 is merged on main as post-merge checklist/state continuity sync for the completed Phase 10.7 lane.
 
 [IN PROGRESS]
-- Phase 10.9 Priority 2 security baseline hardening is implemented on source lane `feature/security-phase10-9-baseline-hardening-20260423` with secret redaction hardening (including Telegram backend helper exception/response sanitization) + explicit operator-key route protection for `/beta/admin`, `/beta/mode`, `/beta/autotrade`, `/beta/kill`, and `/beta/risk`; SENTINEL validation is required before merge decision.
+- Phase 10.9 Priority 2 security baseline hardening is implemented on source lane `feature/harden-security-baseline-for-phase-10.9` with secret redaction hardening (including Telegram backend helper exception/response sanitization) + explicit operator-key route protection for `/beta/admin`, `/beta/mode`, `/beta/autotrade`, `/beta/kill`, and `/beta/risk`; SENTINEL validation is required before merge decision.
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
 
 [NOT STARTED]
@@ -58,7 +58,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL MAJOR validation gate for Phase 10.9 Priority 2 security baseline hardening on source lane `feature/security-phase10-9-baseline-hardening-20260423` before merge decision.
+- SENTINEL MAJOR validation gate for Phase 10.9 Priority 2 security baseline hardening on source lane `feature/harden-security-baseline-for-phase-10.9` before merge decision.
 - After SENTINEL gate closure, advance to Priority 2 Deployment Hardening lane continuity (paper-only boundary preserved).
 
 [KNOWN ISSUES]

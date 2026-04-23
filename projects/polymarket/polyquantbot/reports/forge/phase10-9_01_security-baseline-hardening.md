@@ -1,7 +1,7 @@
 # FORGE-X Report — phase10-9_01_security-baseline-hardening
 
-- Timestamp: 2026-04-23 18:47 (Asia/Jakarta)
-- Branch: feature/security-phase10-9-baseline-hardening-20260423
+- Timestamp: 2026-04-23 18:55 (Asia/Jakarta)
+- Branch: feature/harden-security-baseline-for-phase-10.9
 - Scope lane: Priority 2 Phase 10.9 security baseline hardening over control-plane runtime surfaces
 
 ## 1) What was built
@@ -43,7 +43,10 @@
 - Unauthorized calls return deterministic 403 behavior with stable denial detail values.
 - `/ready` continues to avoid raw secret leakage while preserving bounded error categories/references.
 - Runtime error persistence/logging now redacts secret-like strings before state/log exposure.
-- Targeted security baseline tests pass for guarded-route behavior and payload boundary checks.
+- Dependency-complete evidence (executed):
+  - `python3 -m py_compile projects/polymarket/polyquantbot/client/telegram/backend_client.py projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py projects/polymarket/polyquantbot/tests/test_phase8_10_telegram_identity_20260419.py` (pass)
+  - `pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` → `33 passed in 3.86s`
+  - `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_10_telegram_identity_20260419.py` → `22 passed in 0.37s`
 
 ## 5) Known issues
 - Python Sentry runtime integration lane remains externally blocked pending deploy-environment proof (`SENTRY_DSN` secret presence proof, `/health` + `/ready` reachability, event receipt confirmation).
@@ -55,4 +58,4 @@ Validation Tier   : MAJOR
 Claim Level       : NARROW INTEGRATION
 Validation Target : control-plane security baseline over active public-safe and operator-only runtime surfaces
 Not in Scope      : broad platform security certification, production-capital readiness, live-trading authority, wallet lifecycle expansion, strategy logic
-Suggested Next    : SENTINEL validation on branch `feature/security-phase10-9-baseline-hardening-20260423`
+Suggested Next    : SENTINEL validation on branch `feature/harden-security-baseline-for-phase-10.9`
