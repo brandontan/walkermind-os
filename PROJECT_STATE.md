@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 14:54
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, and PR #733 are merged-main truth, and Phase 10.8 logging/monitoring hardening is the active Priority 2 lane under paper-only boundary posture.
+Last Updated : 2026-04-23 15:26
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, and PR #733 remain merged-main truth, and PR #734 SENTINEL rerun remains BLOCKED on Phase 10.8 due to public /ready raw dependency/runtime error exposure.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -58,7 +58,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 
 [NEXT PRIORITY]
 - Phase 10.8 Priority 2 lane: harden structured logging consistency, startup/shutdown trace readability, and minimum viable monitoring outputs in control-plane runtime (paper-only boundary preserved).
-- COMMANDER review gate for PR lane `feature/postmerge-sync-and-logging-monitoring-hardening` before SENTINEL validation handoff.
+- FORGE-X blocker closure for PR #734: sanitize public `/ready` telegram/db raw error fields while preserving operator-usable failure categories/surfaces, then rerun SENTINEL.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
