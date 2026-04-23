@@ -8,190 +8,90 @@
 
 This must be finished first.
 
-### Status Snapshot (2026-04-22)
+### Status Snapshot (2026-04-23)
 
 #### DONE / Mostly Done
 
-[x] Fly app is alive
+- [x] Fly app is alive
+- [x] Telegram runtime is active on Fly
+- [x] Telegram startup is automatic in the deploy path
+- [x] `/ready` includes Telegram runtime truth
+- [x] `/start` replies on deployed environment
+- [x] Onboarding/public-safe/paper-only copy refined
+- [x] Fallback/error copy refined
+- [x] Monitor Integration + Observability Hardening lane closed on main
+- [x] Phase 10.2 public-safe command expansion lane closed on main (PR #713 merged truth)
 
-[x] Telegram runtime is active on Fly
+#### Latest merged truth (2026-04-23 14:15 Asia/Jakarta)
 
-[x] Telegram startup is automatic in the deploy path
-
-[x] /ready includes Telegram runtime truth
-
-[x] /start replies on deployed environment
-
-[x] Onboarding/public-safe/paper-only copy refined
-
-[x] Fallback/error copy refined
-
-
-#### ACTIVE (Current lane)
-
-Monitor Integration + Observability Hardening Lane
-
-[x] Publish operator runbook for current runtime posture and public-safe paper-only claims
-
-[x] Publish Fly runtime troubleshooting quick guide
-
-[x] Publish Telegram runtime troubleshooting quick guide
-
-[x] Publish Sentry quick-check note (integration present vs first-event proof pending)
-
-[x] Publish reusable runtime evidence capture checklist
-
-[x] Add lightweight docs hub / navigation pack so monitor, checklist, and operator troubleshooting docs are discoverable from one page
-
-[x] Fix /help command semantics so it reaches real help handler (no /start collapse)
-
-[x] Fix /status command semantics so it reaches real status handler (no /start collapse)
-
-[x] Ensure command routing precedence no longer collapses non-/start commands into /start lifecycle/session path
-
-[x] Integrate Telegram design/presentation layer into live `/start`, `/help`, `/status` reply builders (repo code truth)
-
-[x] Consolidate remaining public-safe replies (onboarding required, already-linked/activated/session-ready variants, unknown command, temporary identity/runtime/backend errors) to shared presentation helpers
-
-[x] Align `/help` to trusted public-safe command surface only (hide operator-managed or not-ready commands from public guide)
-[x] Close Phase 10.2 public-safe command expansion lane on main (PR #713 merged truth)
-
-
-#### RIGHT NOW (post-merge sync lane)
-
-[x] Guard admin/internal paths properly
-
-[x] Add bot startup logs
-
-[x] Add command received logs
-
-[x] Add command handled logs
-
-[x] Add reply success/failure logs
-
-[x] Add missing env / disabled mode logs
-
-[x] Complete monitor/admin visibility wiring for checklist/state parity
-
-
-#### NEXT (immediately after code fix + UX integration)
-
-[x] Redeploy latest command-routing + Telegram UX integration to Fly
-
-[x] Verify live Telegram behavior for /start, /help, and /status
-
-[x] Save fresh deploy evidence (live command replies and baseline runtime proof captured)
-
-### Latest attempt (2026-04-22 02:58 Asia/Jakarta)
-
-- Public Telegram copy layer is now consolidated through shared presentation helpers in `client/telegram/presentation.py` so `/start`, onboarding-required, onboarding-started, linked/active-session variants, temporary backend/runtime issues, and unknown-command fallback share one structure.
-- `/help` and `/status` now keep a consistent boundary block with the same public paper-beta posture and no live-trading/production-capital readiness overclaim.
-- Remaining debt is unchanged: repeated `/start` progression flow still feels stepwise and should be refined further without expanding runtime activation scope.
-
-- Live Telegram baseline evidence is now available and recorded in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.md` with supporting log in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.log`.
-- Verified from live runtime evidence: `/start`, `/help`, `/status`, and unknown command fallback all returned non-empty/non-dummy responses.
+- Public Telegram copy layer is consolidated through shared presentation helpers in `client/telegram/presentation.py` so `/start`, onboarding-required, onboarding-started, linked/active-session variants, temporary backend/runtime issues, and unknown-command fallback share one structure.
+- `/help` and `/status` keep a consistent boundary block with the same public paper-beta posture and no live-trading/production-capital readiness overclaim.
+- Live Telegram baseline evidence is recorded in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.md` with supporting log in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.log`.
+- Verified from live runtime evidence: `/start`, `/help`, `/status`, and unknown-command fallback all returned non-empty/non-dummy responses.
 - Public baseline path showed no silent fail behavior during the verified command checks.
 - Paper-only public-safe boundary remained visible in live replies; no live-trading or production-capital readiness claim is introduced.
-
+- Remaining debt is unchanged: repeated `/start` progression flow still feels stepwise and should be refined further without expanding runtime activation scope.
 
 ### 2. Baseline Public Commands
 
-[x] Make sure responses are not empty or dummy
-
-[x] Make sure there is no timeout or silent failure
-
+- [x] Make sure responses are not empty or dummy
+- [x] Make sure there is no timeout or silent failure
 
 ### 3. Path to Public Telegram UX Refinement
 
-[ ] Refine the existing Telegram onboarding flow
-
-[x] Refine the existing Telegram command UX
-
-[x] Refine the current welcome intro for new users
-
-[x] Refine the current help and status copy
-
-[x] Refine paper-only messaging across the existing Telegram flow
-
-[x] Refine the next-step guidance for new users
-
-[x] Refine the unlinked-user flow using the current foundation
-
-[x] Refine the linked-user flow using the current foundation
-
-[x] Refine fallback and error messaging
-
-[x] Refine Telegram formatting and readability
-
+- [ ] Refine the existing Telegram onboarding flow
+- [x] Refine the existing Telegram command UX
+- [x] Refine the current welcome intro for new users
+- [x] Refine the current help and status copy
+- [x] Refine paper-only messaging across the existing Telegram flow
+- [x] Refine the next-step guidance for new users
+- [x] Refine the unlinked-user flow using the current foundation
+- [x] Refine the linked-user flow using the current foundation
+- [x] Refine fallback and error messaging
+- [x] Refine Telegram formatting and readability
 
 ### 4. Public Command Set
 
-[x] Keep the existing public command baseline clean and useful
-
-[x] Prepare /paper
-
-[x] Prepare /about
-
-[x] Prepare /risk_info (public informational command)
-
-[x] Prepare /account and /link
-
-[x] Keep `/risk` limited to runtime/operator path (not public-safe command baseline)
-
-[x] Separate public commands from admin/operator commands
-
-[x] Hide commands that are not ready yet
-
+- [x] Keep the existing public command baseline clean and useful
+- [x] Prepare `/paper`
+- [x] Prepare `/about`
+- [x] Prepare `/risk_info` (public informational command)
+- [x] Prepare `/account` and `/link`
+- [x] Keep `/risk` limited to runtime/operator path (not public-safe command baseline)
+- [x] Separate public commands from admin/operator commands
+- [x] Hide commands that are not ready yet
 
 ### 5. Public-Safe Boundaries
 
-[x] Do not claim live trading readiness
-
-[x] Do not claim production-capital readiness
-
-[x] Keep the paper-only boundary visible everywhere
-
-[x] Guard admin/internal paths properly
-
+- [x] Do not claim live trading readiness
+- [x] Do not claim production-capital readiness
+- [x] Keep the paper-only boundary visible everywhere
+- [x] Guard admin/internal paths properly
 
 ### 6. Observability Baseline
 
-[x] Add bot startup logs
-
-[x] Add command received logs
-
-[x] Add command handled logs
-
-[x] Add reply success/failure logs
-
-[x] Add missing env / disabled mode logs
-
-[x] Add Sentry Python runtime initialization + exception capture guardrails (env-only `SENTRY_DSN`, FastAPI + Telegram/runtime exception surfaces)
-
+- [x] Add bot startup logs
+- [x] Add command received logs
+- [x] Add command handled logs
+- [x] Add reply success/failure logs
+- [x] Add missing env / disabled mode logs
+- [x] Add Sentry Python runtime initialization + exception capture guardrails (env-only `SENTRY_DSN`, FastAPI + Telegram/runtime exception surfaces)
 
 ### 7. End-to-End Validation
 
-[x] Deploy the latest version
-
-[x] Confirm /health is OK
-
-[x] Confirm /ready is OK
-
-[x] Confirm /start is OK
-
-[x] Confirm /help is OK
-
-[x] Confirm /status is OK
-
-[x] Save validation evidence
+- [x] Deploy the latest version
+- [x] Confirm `/health` is OK
+- [x] Confirm `/ready` is OK
+- [x] Confirm `/start` is OK
+- [x] Confirm `/help` is OK
+- [x] Confirm `/status` is OK
+- [x] Save validation evidence
 
 Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now exists for `/start`, `/help`, `/status`, and unknown fallback on deployed runtime; onboarding/session UX repetition on repeated `/start` remains open as follow-up refinement debt only.
 
-
 ### Done Condition
 
-[x] The bot is truly usable as a public-ready paper bot baseline
-
+- [x] The bot is truly usable as a public-ready paper bot baseline
 
 ---
 
@@ -199,105 +99,93 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
+### Status Snapshot (2026-04-23 14:15 Asia/Jakarta)
+
+#### MERGED ON MAIN
+
+- [x] Phase 10.4 / Priority 2 DB readiness/startup hardening closed on main via PR #725 and PR #726
+- [x] Phase 10.5 / Priority 2 persistence stabilization baseline closed on main via PR #727 and PR #728
+- [x] Phase 10.6 / Priority 2 runtime config + readiness truth hardening closed on main via PR #729 and PR #730
+- [x] Phase 10.7 / Priority 2 shutdown/restart/dependency resilience hardening closed on main via PR #731 and PR #732
+
+#### ACTIVE (Current lane)
+
+Logging and Monitoring Hardening lane
+
+- [ ] Keep structured logging consistent
+- [ ] Improve startup logs
+- [ ] Make error traces easy to follow
+- [ ] Prepare minimum viable monitoring
+
+#### NEXT
+
+- [ ] Security baseline hardening
+- [ ] Deployment hardening
+- [ ] Close Priority 2 done condition after logging/monitoring, security, and deployment lanes are merged
+
 ### 9. Supabase / Postgres Integration Hardening
 
-[ ] Finalize a stable DATABASE_URL
-
-[ ] Make sure sslmode=require is used where needed
-
-[ ] Confirm pooled connection strategy
-
-[ ] Add DB health checks
-
-[ ] Make sure startup does not fail when DB is slow
-
+- [x] Finalize a stable `DATABASE_URL`
+- [x] Make sure `sslmode=require` is used where needed
+- [x] Confirm pooled connection strategy
+- [x] Add DB health checks
+- [x] Make sure startup does not fail when DB is slow
 
 ### 10. Persistence Stabilization
 
-[ ] Audit any state still stored in files or temp storage
-
-[ ] Move critical user/session state into DB
-
-[ ] Move link/account state into DB
-
-[ ] Remove split-brain state between file storage and DB
-
-[ ] Make sure restart/redeploy does not break state
-
+- [x] Audit any state still stored in files or temp storage
+- [x] Move critical user/session state into DB
+- [x] Move link/account state into DB
+- [x] Remove split-brain state between file storage and DB
+- [x] Make sure restart/redeploy does not break state
 
 ### 11. Runtime Config Hardening
 
-[ ] Validate required env vars at boot
-
-[ ] Make missing-secret errors clear
-
-[ ] Reduce unsafe defaults
-
-[ ] Make startup config summary safe and truthful
-
+- [x] Validate required env vars at boot
+- [x] Make missing-secret errors clear
+- [x] Reduce unsafe defaults
+- [x] Make startup config summary safe and truthful
 
 ### 12. Health / Readiness Truth Hardening
 
-[ ] Make /health check the main process properly
-
-[ ] Make /ready check relevant dependencies properly
-
-[ ] Include Telegram runtime state in readiness
-
-[ ] Include DB state in readiness
-
-[ ] Remove false green status
-
+- [x] Make `/health` check the main process properly
+- [x] Make `/ready` check relevant dependencies properly
+- [x] Include Telegram runtime state in readiness
+- [x] Include DB state in readiness
+- [x] Remove false green status
 
 ### 13. Error Handling and Resilience
 
-[ ] Make graceful shutdown work properly
-
-[ ] Make restart safety reliable
-
-[ ] Prevent worker crash from corrupting state
-
-[ ] Add retry handling for non-fatal dependencies
+- [x] Make graceful shutdown work properly
+- [x] Make restart safety reliable
+- [x] Prevent worker crash from corrupting state
+- [x] Add retry handling for non-fatal dependencies
 
 ### 14. Logging and Monitoring Hardening
 
-[ ] Keep structured logging consistent
-
-[ ] Improve startup logs
-
-[ ] Make error traces easy to follow
-
-[ ] Prepare minimum viable monitoring
-
+- [ ] Keep structured logging consistent
+- [ ] Improve startup logs
+- [ ] Make error traces easy to follow
+- [ ] Prepare minimum viable monitoring
 
 ### 15. Security Baseline
 
-[ ] Make sure secrets never appear in logs
-
-[ ] Remove any hardcoded credentials
-
-[ ] Protect admin access properly
-
-[ ] Restrict sensitive routes
-
+- [ ] Make sure secrets never appear in logs
+- [ ] Remove any hardcoded credentials
+- [ ] Protect admin access properly
+- [ ] Restrict sensitive routes
 
 ### 16. Deployment Hardening
 
-[ ] Clean up the Dockerfile
-
-[ ] Keep fly.toml in sync
-
-[ ] Define restart policy clearly
-
-[ ] Define rollback strategy clearly
-
-[ ] Define post-deploy smoke tests clearly
-
+- [ ] Clean up the Dockerfile
+- [ ] Keep `fly.toml` in sync
+- [ ] Define restart policy clearly
+- [ ] Define rollback strategy clearly
+- [ ] Define post-deploy smoke tests clearly
 
 ### Done Condition
 
-[ ] The bot is not just running, but stable and persistent
-
+- [ ] The bot is not just running, but stable and persistent
 
 ---
 
@@ -307,96 +195,64 @@ Finish this after runtime and persistence are stable.
 
 ### 17. Paper Account Model
 
-[ ] Define the paper balance model
-
-[ ] Define paper position tracking
-
-[ ] Define paper PnL tracking
-
-[ ] Add reset/test flow for operators
-
+- [ ] Define the paper balance model
+- [ ] Define paper position tracking
+- [ ] Define paper PnL tracking
+- [ ] Add reset/test flow for operators
 
 ### 18. Paper Execution Engine
 
-[ ] Define paper order intent flow
-
-[ ] Enable paper entry logic
-
-[ ] Enable paper exit logic
-
-[ ] Make paper fill assumptions clear
-
-[ ] Make paper execution logging clear
+- [ ] Define paper order intent flow
+- [ ] Enable paper entry logic
+- [ ] Enable paper exit logic
+- [ ] Make paper fill assumptions clear
+- [ ] Make paper execution logging clear
 
 ### 19. Paper Portfolio Surface
 
-[ ] Show open paper positions
-
-[ ] Show realized PnL
-
-[ ] Show unrealized PnL
-
-[ ] Show summary through bot/API
-
+- [ ] Show open paper positions
+- [ ] Show realized PnL
+- [ ] Show unrealalized PnL
+- [ ] Show summary through bot/API
 
 ### 20. Paper Risk Controls
 
-[ ] Enforce exposure caps
-
-[ ] Enforce drawdown caps
-
-[ ] Enforce kill switch
-
-[ ] Show risk state clearly
-
+- [ ] Enforce exposure caps
+- [ ] Enforce drawdown caps
+- [ ] Enforce kill switch
+- [ ] Show risk state clearly
 
 ### 21. Paper Strategy Visibility
 
-[ ] Show strategy state
-
-[ ] Show signal state
-
-[ ] Show enable/disable visibility
-
-[ ] Show suppressed/blocked reasons
+- [ ] Show strategy state
+- [ ] Show signal state
+- [ ] Show enable/disable visibility
+- [ ] Show suppressed/blocked reasons
 
 ### 22. Admin / Operator Paper Controls
 
-[ ] Show runtime paper summary
-
-[ ] Show readiness paper state
-
-[ ] Add pause/resume if supported
-
-[ ] Keep admin commands separate
-
+- [ ] Show runtime paper summary
+- [ ] Show readiness paper state
+- [ ] Add pause/resume if supported
+- [ ] Keep admin commands separate
 
 ### 23. Public Paper UX Completion
 
-[ ] Make sure users understand paper mode
-
-[ ] Show paper product status clearly
-
-[ ] Show product limitations clearly
-
-[ ] Keep messaging premium and clear
-
+- [ ] Make sure users understand paper mode
+- [ ] Show paper product status clearly
+- [ ] Show product limitations clearly
+- [ ] Keep messaging premium and clear
 
 ### 24. Paper Validation
 
-[ ] Run end-to-end execution tests
-
-[ ] Run persistence tests
-
-[ ] Run restart/redeploy tests
-
-[ ] Store logs and evidence
-
+- [ ] Run end-to-end execution tests
+- [ ] Run persistence tests
+- [ ] Run restart/redeploy tests
+- [ ] Store logs and evidence
 
 ### Done Condition
 
-[ ] The bot is usable as a real paper trading product
-
+- [ ] The bot is usable as a real paper trading product
 
 ---
 
@@ -406,70 +262,47 @@ Build this after the paper product is solid.
 
 ### 25. Wallet Domain Model
 
-[ ] Finalize wallet entity model
-
-[ ] Settle ownership model
-
-[ ] Finalize wallet status/state model
-
+- [ ] Finalize wallet entity model
+- [ ] Settle ownership model
+- [ ] Finalize wallet status/state model
 
 ### 26. Wallet Lifecycle
 
-[ ] Build create/init wallet lifecycle
-
-[ ] Build link/unlink lifecycle
-
-[ ] Build activation/deactivation lifecycle
-
-[ ] Handle invalid/blocked wallet states
-
+- [ ] Build create/init wallet lifecycle
+- [ ] Build link/unlink lifecycle
+- [ ] Build activation/deactivation lifecycle
+- [ ] Handle invalid/blocked wallet states
 
 ### 27. Secure Wallet Persistence
 
-[ ] Persist wallet records safely
-
-[ ] Handle secrets safely
-
-[ ] Add minimum audit trail
-
+- [ ] Persist wallet records safely
+- [ ] Handle secrets safely
+- [ ] Add minimum audit trail
 
 ### 28. Wallet Auth Boundary
 
-[ ] Verify ownership clearly
-
-[ ] Separate admin vs user wallet access
-
-[ ] Prevent privilege crossover
-
+- [ ] Verify ownership clearly
+- [ ] Separate admin vs user wallet access
+- [ ] Prevent privilege crossover
 
 ### 29. Wallet Surfaces
 
-[ ] Show wallet status clearly
-
-[ ] Show wallet lifecycle state clearly
-
-[ ] Show link state clearly
-
-[ ] Keep user-facing copy safe
-
+- [ ] Show wallet status clearly
+- [ ] Show wallet lifecycle state clearly
+- [ ] Show link state clearly
+- [ ] Keep user-facing copy safe
 
 ### 30. Wallet Recovery and Tests
 
-[ ] Handle broken-link recovery
-
-[ ] Handle stale wallet recovery
-
-[ ] Handle duplicate wallet conflicts
-
-[ ] Add lifecycle tests
-
-[ ] Add integration tests
-
+- [ ] Handle broken-link recovery
+- [ ] Handle stale wallet recovery
+- [ ] Handle duplicate wallet conflicts
+- [ ] Add lifecycle tests
+- [ ] Add integration tests
 
 ### Done Condition
 
-[ ] Wallet lifecycle is complete and stable
-
+- [ ] Wallet lifecycle is complete and stable
 
 ---
 
@@ -479,72 +312,48 @@ Build this after wallet lifecycle is ready.
 
 ### 31. Portfolio Model
 
-[ ] Refine portfolio entity model
-
-[ ] Refine per-user portfolio model
-
-[ ] Refine per-wallet portfolio relation
-
+- [ ] Refine portfolio entity model
+- [ ] Refine per-user portfolio model
+- [ ] Refine per-wallet portfolio relation
 
 ### 32. Exposure Aggregation
 
-[ ] Build aggregate exposure logic
-
-[ ] Build per-market exposure logic
-
-[ ] Buill per-user exposure logic
-
-[ ] Build per-wallet exposure logic
-
+- [ ] Build aggregate exposure logic
+- [ ] Build per-market exposure logic
+- [ ] Build per-user exposure logic
+- [ ] Build per-wallet exposure logic
 
 ### 33. Allocation Logic
 
-[ ] Build bankroll allocation model
-
-[ ] Build strategy allocation model
-
-[ ] Build user/wallet-aware allocation
-
+- [ ] Build bankroll allocation model
+- [ ] Build strategy allocation model
+- [ ] Build user/wallet-aware allocation
 
 ### 34. PnL Logic
 
-[ ] Build realized PnL computation
-
-[ ] Build unrealized PnL computation
-
-[ ] Build portfolio-level summary
-
-[ ] Build history/snapshot structure
-
+- [ ] Build realized PnL computation
+- [ ] Build unrealized PnL computation
+- [ ] Build portfolio-level summary
+- [ ] Build history/snapshot structure
 
 ### 35. Portfolio Guardrails
 
-[ ] Enforce exposure caps
-
-[ ] Enforce drawdown caps
-
-[ ] Enforce concentration caps
-
-[ ] Connect portfolio logic to kill switch
-
+- [ ] Enforce exposure caps
+- [ ] Enforce drawdown caps
+- [ ] Enforce concentration caps
+- [ ] Connect portfolio logic to kill switch
 
 ### 36. Portfolio Surfaces and Validation
 
-[ ] Show portfolio summary in bot/API
-
-[ ] Show admin/operator portfolio surface
-
-[ ] Add persistence and recovery
-
-[ ] Validate all calculations
-
-[ ] Sync docs after completion
-
+- [ ] Show portfolio summary in bot/API
+- [ ] Show admin/operator portfolio surface
+- [ ] Add persistence and recovery
+- [ ] Validate all calculations
+- [ ] Sync docs after completion
 
 ### Done Condition
 
-[ ] Portfolio is managed at system level, not manually
-
+- [ ] Portfolio is managed at system level, not manually
 
 ---
 
@@ -554,72 +363,48 @@ Build this after wallet and portfolio are ready.
 
 ### 37. Orchestration Model
 
-[ ] Define multi-wallet routing model
-
-[ ] Define wallet selection rules
-
-[ ] Define ownership-aware routing
-
+- [ ] Define multi-wallet routing model
+- [ ] Define wallet selection rules
+- [ ] Define ownership-aware routing
 
 ### 38. Allocation Across Wallets
 
-[ ] Build balance-aware allocation
-
-[ ] Build strategy-aware allocation
-
-[ ] Build risk-aware allocation
-
-[ ] Build failover wallet selection
-
+- [ ] Build balance-aware allocation
+- [ ] Build strategy-aware allocation
+- [ ] Build risk-aware allocation
+- [ ] Build failover wallet selection
 
 ### 39. Cross-Wallet State Truth
 
-[ ] Build unified view across wallets
-
-[ ] Prevent duplicate/conflicting state
-
-[ ] Build shared exposure truth
-
+- [ ] Build unified view across wallets
+- [ ] Prevent duplicate/conflicting state
+- [ ] Build shared exposure truth
 
 ### 40. Cross-Wallet Controls
 
-[ ] Add per-wallet enable/disable
-
-[ ] Add per-wallet health status
-
-[ ] Add per-wallet risk state
-
-[ ] Add portfolio-wide control overlay
-
+- [ ] Add per-wallet enable/disable
+- [ ] Add per-wallet health status
+- [ ] Add per-wallet risk state
+- [ ] Add portfolio-wide control overlay
 
 ### 41. UX/API and Recovery
 
-[ ] Add admin/operator visibility
-
-[ ] Add safe user summaries if needed
-
-[ ] Handle unavailable wallet cases
-
-[ ] Handle routing conflicts
-
-[ ] Handle degraded mode behavior
-
+- [ ] Add admin/operator visibility
+- [ ] Add safe user summaries if needed
+- [ ] Handle unavailable wallet cases
+- [ ] Handle routing conflicts
+- [ ] Handle degraded mode behavior
 
 ### 42. Persistence and Validation
 
-[ ] Persist orchestration state
-
-[ ] Persist reconciliation traces where needed
-
-[ ] Add simulations/tests
-
-[ ] Sync docs after completion
-
+- [ ] Persist orchestration state
+- [ ] Persist reconciliation traces where needed
+- [ ] Add simulations/tests
+- [ ] Sync docs after completion
 
 ### Done Condition
 
-[ ] The system can coordinate multiple wallets safely and truthfully
-
+- [ ] The system can coordinate multiple wallets safely and truthfully
 
 ---
 
@@ -629,78 +414,51 @@ Build this after orchestration is ready.
 
 ### 43. Settlement Workflow
 
-[ ] Define settlement workflow
-
-[ ] Define status transitions
-
-[ ] Define idempotency model
-
+- [ ] Define settlement workflow
+- [ ] Define status transitions
+- [ ] Define idempotency model
 
 ### 44. Retry Engine
 
-[ ] Define retry rules
-
-[ ] Define retry caps
-
-[ ] Define backoff strategy
-
-[ ] Distinguish fatal vs retryable failures
-
+- [ ] Define retry rules
+- [ ] Define retry caps
+- [ ] Define backoff strategy
+- [ ] Distinguish fatal vs retryable failures
 
 ### 45. Batching Logic
 
-[ ] Define settlement batching rules
-
-[ ] Define queueing model
-
-[ ] Handle partial batches
-
-[ ] Add batch observability
-
+- [ ] Define settlement batching rules
+- [ ] Define queueing model
+- [ ] Handle partial batches
+- [ ] Add batch observability
 
 ### 46. Reconciliation Logic
 
-[ ] Build internal vs external reconciliation
-
-[ ] Detect mismatches
-
-[ ] Detect stuck states
-
-[ ] Add repair/recovery flow
-
+- [ ] Build internal vs external reconciliation
+- [ ] Detect mismatches
+- [ ] Detect stuck states
+- [ ] Add repair/recovery flow
 
 ### 47. Operator Tooling
 
-[ ] Show settlement status
-
-[ ] Show retry status
-
-[ ] Show failed batches
-
-[ ] Add admin intervention paths
-
+- [ ] Show settlement status
+- [ ] Show retry status
+- [ ] Show failed batches
+- [ ] Add admin intervention paths
 
 ### 48. Persistence, Alerts, and Validation
 
-[ ] Persist settlement events
-
-[ ] Persist retry history
-
-[ ] Persist reconciliation results
-
-[ ] Add critical alerts
-
-[ ] Add drift alerts
-
-[ ] Validate all flows
-
-[ ] Sync docs after completion
-
+- [ ] Persist settlement events
+- [ ] Persist retry history
+- [ ] Persist reconciliation results
+- [ ] Add critical alerts
+- [ ] Add drift alerts
+- [ ] Validate all flows
+- [ ] Sync docs after completion
 
 ### Done Condition
 
-[ ] Ops flow is resilient, observable, and recoverable
-
+- [ ] Ops flow is resilient, observable, and recoverable
 
 ---
 
@@ -710,82 +468,53 @@ This is the last major capability layer.
 
 ### 49. Capability Boundary Review
 
-[ ] Audit all paper-only assumptions
-
-[ ] Identify all unsafe areas for capital mode
-
-[ ] Define exact capital-readiness criteria
-
+- [ ] Audit all paper-only assumptions
+- [ ] Identify all unsafe areas for capital mode
+- [ ] Define exact capital-readiness criteria
 
 ### 50. Capital-Mode Config Model
 
-[ ] Define capital-mode config
-
-[ ] Add strict feature gating
-
-[ ] Add explicit enable path
-
-[ ] Keep safeguards default-off
-
+- [ ] Define capital-mode config
+- [ ] Add strict feature gating
+- [ ] Add explicit enable path
+- [ ] Keep safeguards default-off
 
 ### 51. Capital Risk Controls Hardening
 
-[ ] Harden position sizing
-
-[ ] Harden max loss protection
-
-[ ] Harden drawdown protection
-
-[ ] Harden kill switch
-
-[ ] Harden circuit breakers
-
+- [ ] Harden position sizing
+- [ ] Harden max loss protection
+- [ ] Harden drawdown protection
+- [ ] Harden kill switch
+- [ ] Harden circuit breakers
 
 ### 52. Live Execution Readiness
 
-[ ] Audit live execution path
-
-[ ] Verify live order flow truth
-
-[ ] Review external dependency risks
-
-[ ] Review failure modes
-
-[ ] Add rollback/disable path
-
+- [ ] Audit live execution path
+- [ ] Verify live order flow truth
+- [ ] Review external dependency risks
+- [ ] Review failure modes
+- [ ] Add rollback/disable path
 
 ### 53. Security and Observability Hardening
 
-[ ] Harden secret handling
-
-[ ] Harden permission model
-
-[ ] Harden admin action guardrails
-
-[ ] Add production-grade alerting
-
-[ ] Add incident visibility
-
-[ ] Prepare runbooks
-
+- [ ] Harden secret handling
+- [ ] Harden permission model
+- [ ] Harden admin action guardrails
+- [ ] Add production-grade alerting
+- [ ] Add incident visibility
+- [ ] Prepare runbooks
 
 ### 54. Capital Validation and Claim Review
 
-[ ] Run dry-run validation
-
-[ ] Run staged rollout validation
-
-[ ] Review docs/policy/claims
-
-[ ] Remove overclaim
-
-[ ] Make release decision
-
+- [ ] Run dry-run validation
+- [ ] Run staged rollout validation
+- [ ] Review docs/policy/claims
+- [ ] Remove overclaim
+- [ ] Make release decision
 
 ### Done Condition
 
-[ ] The project can truthfully claim production-capital readiness
-
+- [ ] The project can truthfully claim production-capital readiness
 
 ---
 
@@ -795,126 +524,77 @@ This is the final finish layer.
 
 ### 55. Public Product Assets
 
-[ ] Finalize README
-
-[ ] Finalize docs sync
-
-[ ] Finalize launch summary
-
-[ ] Finalize onboarding docs
-
-[ ] Finalize support/help docs
-
+- [ ] Finalize README
+- [ ] Finalize docs sync
+- [ ] Finalize launch summary
+- [ ] Finalize onboarding docs
+- [ ] Finalize support/help docs
 
 ### 56. Ops Handoff Assets
 
-[ ] Prepare deployment guide
-
-[ ] Prepare secrets/env guide
-
-[x] Prepare troubleshooting guide
-
-[x] Prepare incident guide
-
-[x] Prepare rollback guide
-
+- [ ] Prepare deployment guide
+- [ ] Prepare secrets/env guide
+- [x] Prepare troubleshooting guide
+- [x] Prepare incident guide
+- [x] Prepare rollback guide
 
 ### 57. Monitoring and Admin Surfaces
 
-[ ] Finalize project monitor
-
-[ ] Finalize admin visibility
-
-[ ] Finalize operator checklists
-
-[ ] Finalize release dashboard
-
+- [ ] Finalize project monitor
+- [ ] Finalize admin visibility
+- [ ] Finalize operator checklists
+- [ ] Finalize release dashboard
 
 ### 58. Repo Hygiene Final
 
-[ ] Clean stale docs
-
-[ ] Clarify/archive stale reports
-
-[ ] Finalize roadmap sync
-
-[ ] Finalize project state sync
-
-[ ] Remove misleading checklists
-
+- [ ] Clean stale docs
+- [ ] Clarify/archive stale reports
+- [ ] Finalize roadmap sync
+- [ ] Finalize project state sync
+- [ ] Remove misleading checklists
 
 ### 59. Validation Archive
 
-[ ] Organize FORGE reports
-
-[ ] Organize SENTINEL reports
-
-[ ] Organize BRIEFER assets
-
-[ ] Preserve milestone evidence
-
+- [ ] Organize FORGE reports
+- [ ] Organize SENTINEL reports
+- [ ] Organize BRIEFER assets
+- [ ] Preserve milestone evidence
 
 ### 60. Final Acceptance
 
-[ ] Confirm runtime stability
-
-[ ] Confirm persistence stability
-
-[ ] Confirm wallet lifecycle completion
-
-[ ] Confirm portfolio completion
-
-[ ] Confirm multi-wallet orchestration completion
-
-[ ] Confirm settlement/retry/reconciliation completion
-
-[ ] Confirm capital readiness completion
-
-[ ] Confirm docs and ops completion
-
-[ ] Get final COMMANDER acceptance
-
+- [ ] Confirm runtime stability
+- [ ] Confirm persistence stability
+- [ ] Confirm wallet lifecycle completion
+- [ ] Confirm portfolio completion
+- [ ] Confirm multi-wallet orchestration completion
+- [ ] Confirm settlement/retry/reconciliation completion
+- [ ] Confirm capital readiness completion
+- [ ] Confirm docs and ops completion
+- [ ] Get final COMMANDER acceptance
 
 ### Done Condition
 
-[ ] Project is finished 100%
-
+- [ ] Project is finished 100%
 
 ---
 
 ### Simple Execution Order
 
-[ ] PRIORITY 1 — Public Bot Runtime and Baseline
-
-[ ] PRIORITY 2 — DB, Persistence, and Runtime Hardening
-
-[ ] PRIORITY 3 — Paper Trading Product Completion
-
-[ ] PRIORITY 4 — Wallet Lifecycle Foundation
-
-[ ] PRIORITY 5 — Portfolio Management Logic
-
-[ ] PRIORITY 6 — Multi-Wallet Orchestration
-
-[ ] PRIORITY 7 — Settlement / Retry / Reconciliation
-
-[ ] PRIORITY 8 — Production-Capital Readiness
-
-[ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
-
+- [x] PRIORITY 1 — Public Bot Runtime and Baseline
+- [ ] PRIORITY 2 — DB, Persistence, and Runtime Hardening
+- [ ] PRIORITY 3 — Paper Trading Product Completion
+- [ ] PRIORITY 4 — Wallet Lifecycle Foundation
+- [ ] PRIORITY 5 — Portfolio Management Logic
+- [ ] PRIORITY 6 — Multi-Wallet Orchestration
+- [ ] PRIORITY 7 — Settlement / Retry / Reconciliation
+- [ ] PRIORITY 8 — Production-Capital Readiness
+- [ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
 
 ---
 
 ### Right Now
 
-[ ] Redeploy/restart Fly with the latest secrets
-
-[ ] Check Telegram startup logs
-
-[ ] Make Telegram runtime truly active
-
-[ ] Test /start
-
-[ ] Test /help
-
-[ ] Test /status
+- [ ] Start Priority 2 logging and monitoring hardening lane
+- [ ] Normalize structured logs across active runtime surfaces
+- [ ] Improve startup/shutdown failure trace readability
+- [ ] Define minimum viable monitoring outputs and evidence targets
