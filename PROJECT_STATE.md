@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 14:15
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, and PR #730 are merged-main truth, Phase 10.7 shutdown/restart/dependency resilience hardening remains the active Priority 2 lane, and PR #731 SENTINEL rerun is APPROVED pending COMMANDER merge decision.
+Last Updated : 2026-04-23 15:17
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, and PR #733 are merged-main truth, and Phase 10.8 logging/monitoring hardening is the active Priority 2 lane under paper-only boundary posture.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -44,9 +44,11 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - PR #728 is merged on main as SENTINEL sync closure for PR #727 and stale pre-merge gate wording for PR #727 is retired from active state/roadmap lanes.
 - PR #729 Phase 10.6 runtime config/readiness hardening lane is merged on main as closed truth from exact head branch `feature/sync-post-merge-repo-truth-and-harden-runtime-config`; SENTINEL approval record is preserved in `projects/polymarket/polyquantbot/reports/sentinel/phase10-6_01_pr729-runtime-config-and-readiness-validation.md`.
 - PR #730 is merged on main as SENTINEL sync closure for PR #729 and stale pre-merge gate wording for PR #729 is retired from active state/roadmap lanes.
+- PR #731 Phase 10.7 resilience hardening lane is merged on main as closed truth from exact head branch `feature/sync-post-merge-repo-truth-and-harden-resilience`; SENTINEL approval record is preserved in `projects/polymarket/polyquantbot/reports/sentinel/phase10-7_01_pr731-runtime-resilience-validation.md`.
+- PR #732 is merged on main as SENTINEL sync closure for PR #731 and stale pre-merge decision wording for PR #731 is retired from active state/roadmap lanes.
+- PR #733 is merged on main as post-merge checklist/state continuity sync for the completed Phase 10.7 lane.
 
 [IN PROGRESS]
-- PR #731 SENTINEL rerun gate is APPROVED for declared MAJOR narrow-resilience scope; awaiting COMMANDER merge decision on source branch `feature/sync-post-merge-repo-truth-and-harden-resilience`.
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
 
 [NOT STARTED]
@@ -55,8 +57,8 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER decision gate for PR #731 after SENTINEL APPROVED rerun on `feature/sync-post-merge-repo-truth-and-harden-resilience`.
-- Phase 10.7 Priority 2 lane: harden graceful shutdown, restart safety, bounded dependency retry/failure handling, and explicit operator-readable resilience posture in control-plane runtime (paper-only boundary preserved).
+- Phase 10.8 Priority 2 lane: harden structured logging consistency, startup/shutdown trace readability, and minimum viable monitoring outputs in control-plane runtime (paper-only boundary preserved).
+- COMMANDER review gate for PR lane `feature/update-repository-state-and-logging-monitoring` before SENTINEL validation handoff.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

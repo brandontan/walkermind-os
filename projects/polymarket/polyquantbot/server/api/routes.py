@@ -9,6 +9,28 @@ from projects.polymarket.polyquantbot.server.core.public_beta_state import Publi
 from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, RuntimeState
 
 
+def _dependency_failure_category(raw_error: str) -> str:
+    if not raw_error:
+        return "none"
+    lowered = raw_error.lower()
+    if "timeout" in lowered:
+        return "timeout"
+    if "healthcheck" in lowered:
+        return "healthcheck_failed"
+    if "refused" in lowered or "unavailable" in lowered:
+        return "connection_failed"
+    return "runtime_error"
+
+
+def _public_error_view(raw_error: str, reference: str) -> dict[str, str | bool]:
+    category = _dependency_failure_category(raw_error)
+    return {
+        "error_present": bool(raw_error),
+        "error_category": category,
+        "error_reference": reference if raw_error else "",
+    }
+
+
 def build_router(
     settings: ApiSettings,
     state: RuntimeState,
@@ -77,7 +99,10 @@ def build_router(
                 "shutdown_complete": state.telegram_runtime_shutdown_complete,
                 "iterations_total": state.telegram_runtime_iterations_total,
                 "last_iteration_visible": state.telegram_runtime_iterations_total > 0,
-                "last_error": state.telegram_runtime_last_error,
+                **_public_error_view(
+                    raw_error=state.telegram_runtime_last_error,
+                    reference="telegram_runtime",
+                ),
             },
             "db_runtime": {
                 "relevant": db_runtime_relevant,
@@ -88,7 +113,10 @@ def build_router(
                 "connect_max_attempts": state.db_connect_max_attempts,
                 "connect_base_backoff_s": state.db_connect_base_backoff_s,
                 "connect_timeout_s": state.db_connect_timeout_s,
-                "last_error": state.db_runtime_last_error,
+                **_public_error_view(
+                    raw_error=state.db_runtime_last_error,
+                    reference="db_runtime",
+                ),
             },
             "worker_prerequisites": worker_prerequisites,
             "falcon_config_state": {
@@ -111,6 +139,17 @@ def build_router(
                 "kill_switch_enabled": beta_state.kill_switch,
                 "live_mode_execution_allowed": False,
                 "paper_only_execution_boundary": True,
+            },
+            "monitoring_outputs": {
+                "lifecycle_phase": state.lifecycle_phase,
+                "lifecycle_transitions_total": state.lifecycle_transitions_total,
+                "dependency_failures_total": state.dependency_failures_total,
+                "failure_present": bool(state.last_dependency_failure_error),
+                "last_dependency_failure_category": _dependency_failure_category(
+                    state.last_dependency_failure_error
+                ),
+                "last_dependency_failure_surface": state.last_dependency_failure_surface,
+                "operator_trace_contract": "startup_shutdown_dependency_monitoring_minimum_v1",
             },
         }
         return JSONResponse(
