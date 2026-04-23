@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#020508">
+    <title>{{REPORT_TITLE}} — Walker AI Trading</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
+
+    <style>
+        /* ═══════════════════════════════════════════════════════
+           WALKER AI — INTERACTIVE REPORT TEMPLATE v1.0
+           Cross-device: iOS Safari, Android Chrome, Desktop
+           BRIEFER: Replace {{PLACEHOLDER}} only. Do not edit CSS.
+        ═══════════════════════════════════════════════════════ */
+
+        :root {
+            --bg:        #020508;
+            --surface:   #0a1017;
+            --surface2:  #111b27;
+            --border:    #1a2c40;
+            --accent:    #00d4ff;
+            --success:   #00ffb3;
+            --warn:      #f59e0b;
+            --danger:    #ff3355;
+            --muted:     #4b6982;
+            --text-main: #e2e8f0;
+            --text-dim:  #94a3b8;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+            --font-mono: 'JetBrains Mono', 'Menlo', 'Courier New', monospace;
+            --font-disp: 'Rajdhani', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* ── RESET ── */
+        *, *::before, *::after {
+            margin: 0; padding: 0; box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html {
+            width: 100%; overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        body {
+            width: 100%; max-width: 100%; overflow-x: hidden;
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            line-height: 1.4;
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+        }
+
+        /* ── GRID BG — absolute, bukan fixed (iOS fix) ── */
+        .cyber-grid {
+            position: absolute;
+            inset: 0; z-index: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+
+        /* ── WRAPPER ── */
+        .page-root {
+            position: relative;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+        }
+
+        /* ── BOOT SCREEN ── */
+        #boot-screen {
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            position: relative;
+        }
+
+        .boot-inner { width: 100%; max-width: 600px; }
+
+        #boot-text {
+            font-family: var(--font-mono);
+            color: var(--accent);
+            font-size: clamp(11px, 2.5vw, 14px);
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.8;
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+        }
+
+        .boot-cursor {
+            display: inline-block;
+            width: 8px; height: 1em;
+            background: var(--accent);
+            vertical-align: text-bottom;
+            animation: cursor-blink 1s step-end infinite;
+            margin-left: 2px;
+        }
+
+        @keyframes cursor-blink {
+            0%, 100% { opacity: 1; } 50% { opacity: 0; }
+        }
+
+        /* ── DASHBOARD ── */
+        #dashboard { display: none; position: relative; z-index: 10; }
+
+        .container {
+            width: 100%; max-width: 1000px;
+            margin: 0 auto; padding: 12px;
+            position: relative;
+        }
+
+        /* ── PANELS ── */
+        .glass-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 14px;
+            width: 100%; overflow: hidden;
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+        }
+
+        h1, h2, h3 {
+            font-family: var(--font-disp);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .text-accent  { color: var(--accent); }
+        .text-success { color: var(--success); }
+        .text-warn    { color: var(--warn); }
+        .text-danger  { color: var(--danger); }
+        .text-muted   { color: var(--muted); }
+        .font-mono    { font-family: var(--font-mono); }
+
+        /* ── HEADER ── */
+        .header-top { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+
+        .badge {
+            font-family: var(--font-mono); font-size: 9px;
+            padding: 4px 8px; border-radius: 3px;
+            display: inline-flex; align-items: center; gap: 6px;
+            white-space: nowrap;
+        }
+
+        /* BRIEFER: badge variants */
+        .badge-accent  { color: var(--accent);  border: 1px solid rgba(0,212,255,0.3);  background: rgba(0,212,255,0.08);  }
+        .badge-warn    { color: var(--warn);    border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.08); }
+        .badge-success { color: var(--success); border: 1px solid rgba(0,255,179,0.3);  background: rgba(0,255,179,0.08);  }
+        .badge-danger  { color: var(--danger);  border: 1px solid rgba(255,51,85,0.3);  background: rgba(255,51,85,0.08);  }
+        .badge-muted   { color: var(--muted);   border: 1px solid rgba(75,105,130,0.3); background: rgba(75,105,130,0.08); }
+
+        .pulse-dot {
+            width: 5px; height: 5px; border-radius: 50%;
+            background: var(--accent); flex-shrink: 0;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%,100% { opacity:1; transform:scale(1); }
+            50%      { opacity:.4; transform:scale(.8); }
+        }
+
+        .header-title {
+            font-size: clamp(22px, 6vw, 36px);
+            font-weight: 700; color: #fff; line-height: 1.1;
+            margin-bottom: 4px;
+        }
+
+        .header-subtitle {
+            font-family: var(--font-mono); font-size: 10px;
+            color: var(--muted); margin-bottom: 10px;
+            text-transform: uppercase; letter-spacing: 0.08em;
+        }
+
+        .meta-data {
+            margin-top: 12px; border-top: 1px solid var(--border);
+            padding-top: 12px; display: flex;
+            flex-direction: column; gap: 4px;
+        }
+
+        .meta-data p { font-family: var(--font-mono); font-size: 10px; }
+
+        /* ── TABS ── */
+        .tabs-nav {
+            display: flex; flex-wrap: nowrap; overflow-x: auto;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 14px; padding-bottom: 1px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none; -ms-overflow-style: none;
+        }
+
+        .tabs-nav::-webkit-scrollbar { display: none; }
+
+        .tab-btn {
+            background: transparent; border: none; color: var(--muted);
+            padding: 10px 14px;
+            font-family: var(--font-mono); font-size: 10px;
+            cursor: pointer; border-bottom: 2px solid transparent;
+            white-space: nowrap; flex: 0 0 auto;
+            letter-spacing: 0.1em; min-height: 44px;
+            display: flex; align-items: center;
+            touch-action: manipulation;
+            transition: color 0.2s;
+        }
+
+        .tab-btn.active {
+            color: var(--accent); border-bottom-color: var(--accent);
+            background: rgba(0,212,255,0.05);
+        }
+
+        .tab-content { display: none; }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeUp 0.25s ease-out forwards;
+        }
+
+        @keyframes fadeUp {
+            from { opacity:0; transform:translateY(8px); }
+            to   { opacity:1; transform:translateY(0); }
+        }
+
+        /* ── GRIDS ── */
+        /* BRIEFER: gunakan class grid-2, grid-3, atau grid-4 */
+        .grid-2, .grid-3, .grid-4 {
+            display: grid; grid-template-columns: 1fr;
+            gap: 10px; width: 100%;
+        }
+
+        /* ── METRIC CARDS ── */
+        .metric-card {
+            padding: 12px; background: var(--surface2);
+            border-left: 2px solid var(--muted);
+            border-radius: 0 4px 4px 0;
+        }
+
+        /* BRIEFER: variant classes */
+        .metric-card.success { border-color: var(--success); }
+        .metric-card.warn    { border-color: var(--warn); }
+        .metric-card.accent  { border-color: var(--accent); }
+        .metric-card.danger  { border-color: var(--danger); }
+        .metric-card.muted   { border-color: var(--muted); }
+        .metric-card.info    { border-color: #0088cc; }
+
+        .m-label {
+            font-family: var(--font-mono); font-size: 9px;
+            color: var(--muted); text-transform: uppercase;
+            margin-bottom: 4px; display: block; letter-spacing: 0.05em;
+        }
+
+        .m-val {
+            font-family: var(--font-disp); font-size: 22px;
+            font-weight: 700; line-height: 1; display: block;
+        }
+
+        .success .m-val { color: var(--success); }
+        .warn    .m-val { color: var(--warn); }
+        .accent  .m-val { color: var(--accent); }
+        .danger  .m-val { color: var(--danger); }
+        .info    .m-val { color: #0088cc; }
+
+        .m-note {
+            font-family: var(--font-mono); font-size: 8px;
+            color: var(--text-dim); margin-top: 4px; display: block;
+        }
+
+        /* ── NOTICE / NOTE BOXES ── */
+        /* BRIEFER: gunakan .notice-warn .notice-success .notice-info .notice-danger */
+        .notice-box {
+            margin-top: 14px; padding: 10px 12px;
+            border-left: 2px solid; border-radius: 0 3px 3px 0;
+            font-family: var(--font-mono); font-size: 10px; line-height: 1.5;
+        }
+
+        .notice-warn    { border-color: var(--warn);    background: rgba(245,158,11,0.05); color: var(--warn); }
+        .notice-success { border-color: var(--success); background: rgba(0,255,179,0.05);  color: var(--success); }
+        .notice-info    { border-color: var(--accent);  background: rgba(0,212,255,0.05);  color: var(--accent); }
+        .notice-danger  { border-color: var(--danger);  background: rgba(255,51,85,0.05);  color: var(--danger); }
+
+        /* ── PROGRESS BARS ── */
+        .prog-row { margin-bottom: 12px; width: 100%; }
+
+        .prog-labels {
+            display: flex; justify-content: space-between;
+            font-family: var(--font-mono); font-size: 9px;
+            margin-bottom: 4px; width: 100%; gap: 8px;
+        }
+
+        .prog-labels span:first-child {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        .prog-labels span:last-child { white-space: nowrap; flex-shrink: 0; }
+
+        .prog-track {
+            height: 5px; background: var(--surface2);
+            border-radius: 3px; overflow: hidden; width: 100%;
+        }
+
+        .prog-fill {
+            height: 100%; border-radius: 3px;
+            transform: translateZ(0); -webkit-transform: translateZ(0);
+        }
+
+        /* ── HORIZONTAL SCROLL WRAPPER ── */
+        .scroll-x {
+            width: 100%; overflow-x: auto;
+            -webkit-overflow-scrolling: touch; padding-bottom: 6px;
+        }
+
+        /* ── DATA LIST ── */
+        .data-list { list-style: none; }
+
+        .data-list li {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-mono); font-size: 10px; gap: 12px;
+        }
+
+        .data-list li:last-child { border-bottom: none; }
+        .data-list span:first-child { flex: 1; color: var(--text-dim); }
+        .data-list span:last-child, .data-list strong { white-space: nowrap; text-align: right; }
+
+        /* ── FILE LIST ── */
+        .file-list { list-style: none; }
+
+        .file-list li {
+            display: flex; align-items: baseline; gap: 8px;
+            padding: 7px 0; border-bottom: 1px solid var(--border);
+            font-size: 12px; flex-wrap: wrap;
+        }
+
+        .file-list li:last-child { border-bottom: none; }
+
+        .file-path {
+            font-family: var(--font-mono); font-size: 10px;
+            color: var(--accent); flex-shrink: 0;
+            word-break: break-all;
+        }
+
+        .file-tag {
+            font-family: var(--font-mono); font-size: 9px;
+            padding: 1px 6px; border-radius: 2px; flex-shrink: 0;
+        }
+
+        .tag-new { background: rgba(0,255,179,0.1);  color: var(--success); border: 1px solid rgba(0,255,179,0.3);  }
+        .tag-mod { background: rgba(0,212,255,0.1);  color: var(--accent);  border: 1px solid rgba(0,212,255,0.3);  }
+        .tag-del { background: rgba(255,51,85,0.1);  color: var(--danger);  border: 1px solid rgba(255,51,85,0.3);  }
+
+        .file-desc { color: var(--text-dim); font-size: 11px; }
+
+        /* ── TABLE ── */
+        .scroll-x table {
+            width: 100%; min-width: 380px;
+            border-collapse: collapse;
+            font-family: var(--font-mono); font-size: 9px; text-align: left;
+        }
+
+        th {
+            color: var(--muted); padding: 8px 6px;
+            border-bottom: 1px solid var(--border);
+            font-weight: normal; text-transform: uppercase;
+            letter-spacing: 0.05em; white-space: nowrap;
+        }
+
+        td {
+            padding: 10px 6px;
+            border-bottom: 1px solid rgba(26,44,64,0.4);
+            vertical-align: top;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(0,212,255,0.02); }
+
+        td.td-success { color: var(--success); font-weight: bold; }
+        td.td-warn    { color: var(--warn); }
+        td.td-danger  { color: var(--danger); }
+        td.td-accent  { color: var(--accent); }
+        td.td-muted   { color: var(--muted); }
+        td.td-right   { text-align: right; }
+
+        /* ── PIPELINE ── */
+        .pipeline {
+            display: flex; align-items: center; gap: 6px;
+            min-width: max-content; padding: 4px 0;
+        }
+
+        .pipe-node {
+            padding: 5px 10px;
+            font-family: var(--font-mono); font-size: 9px;
+            border-radius: 3px; border: 1px solid; white-space: nowrap;
+            letter-spacing: 0.05em;
+        }
+
+        /* BRIEFER: pipe-node variants */
+        .pipe-active   { color: var(--accent);  border-color: rgba(0,212,255,0.5);  background: rgba(0,212,255,0.08);  }
+        .pipe-success  { color: var(--success); border-color: rgba(0,255,179,0.5);  background: rgba(0,255,179,0.08);  }
+        .pipe-warn     { color: var(--warn);    border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.08); }
+        .pipe-inactive { color: var(--muted);   border-color: var(--border);        background: var(--surface2);       }
+
+        /* ── CHECKLIST ── */
+        .checklist { list-style: none; }
+
+        .checklist li {
+            padding: 6px 0 6px 22px; position: relative;
+            font-size: 12px; color: var(--text-main);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .checklist li:last-child { border-bottom: none; }
+
+        .checklist li::before {
+            content: "✓"; position: absolute; left: 0;
+            color: var(--success); font-family: var(--font-mono);
+        }
+
+        .checklist li.warn::before  { content: "!"; color: var(--warn); }
+        .checklist li.error::before { content: "✗"; color: var(--danger); }
+        .checklist li.next::before  { content: "›"; color: var(--accent); }
+        .checklist li.info::before  { content: "·"; color: var(--muted); }
+
+        /* ── RISK LIMITATION ITEM ── */
+        .limit-item { margin-bottom: 14px; }
+        .limit-item:last-child { margin-bottom: 0; }
+
+        .limit-title {
+            font-family: var(--font-mono); font-size: 10px;
+            font-weight: bold; letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .limit-desc {
+            font-size: 11px; color: var(--text-dim); line-height: 1.5;
+        }
+
+        /* ── SECTION DIVIDER ── */
+        .section-div {
+            font-family: var(--font-mono); font-size: 9px;
+            color: var(--muted); letter-spacing: 2px;
+            text-transform: uppercase; margin: 16px 0 10px;
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .section-div::after {
+            content: ''; flex: 1; height: 1px; background: var(--border);
+        }
+
+        /* ── FOOTER ── */
+        .report-footer {
+            margin-top: 32px; padding: 16px;
+            border-top: 1px solid var(--border);
+            font-family: var(--font-mono); font-size: 9px;
+            color: var(--muted); text-align: center; line-height: 1.8;
+        }
+
+        /* ══════════════════════════════════════════
+           RESPONSIVE
+        ══════════════════════════════════════════ */
+        @media (min-width: 480px) {
+            .grid-2 { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (min-width: 640px) {
+            .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (min-width: 768px) {
+            .container { padding: 24px; }
+            .header-title { font-size: 36px; }
+            .meta-data {
+                flex-direction: row; justify-content: space-between;
+                align-items: center; border-top: none;
+                padding-top: 0; margin-top: 0;
+            }
+            .meta-data p { text-align: right; }
+            .m-val { font-size: 26px; }
+            .tab-btn { padding: 12px 16px; }
+            .grid-4 { grid-template-columns: repeat(4, 1fr); }
+            .glass-panel { padding: 20px; }
+        }
+
+        @media (min-width: 1024px) {
+            .glass-panel { padding: 24px; }
+        }
+
+        @media print {
+            body { background: #000; }
+            .glass-panel { border: 1px solid #1a2c40; }
+            .tabs-nav { display: none; }
+            .tab-content { display: block !important; margin-bottom: 24px; }
+            #boot-screen { display: none !important; }
+            #dashboard { display: block !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="page-root">
+    <div class="cyber-grid"></div>
+
+    <!-- ══════════════════════════════════════════
+         BOOT SCREEN
+         BRIEFER: Edit bootLines array di <script>
+    ══════════════════════════════════════════ -->
+    <div id="boot-screen">
+        <div class="boot-inner">
+            <pre id="boot-text"></pre><span id="boot-cursor" class="boot-cursor"></span>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         DASHBOARD
+    ══════════════════════════════════════════ -->
+    <div id="dashboard">
+        <div class="container">
+
+            <!-- ── HEADER ──────────────────────────────
+                 BRIEFER: Ganti semua {{PLACEHOLDER}}
+            ─────────────────────────────────────────── -->
+            <header class="glass-panel">
+                <div class="header-top">
+                    <!-- BRIEFER: tambah/hapus badge sesuai kebutuhan -->
+                    <!-- badge variants: badge-accent badge-warn badge-success badge-danger badge-muted -->
+                    <span class="badge badge-accent"><span class="pulse-dot"></span>{{BADGE_1_LABEL}}</span>
+                    <span class="badge badge-warn">{{BADGE_2_LABEL}}</span>
+                    <!-- <span class="badge badge-success">{{BADGE_3_LABEL}}</span> -->
+                </div>
+
+                <h1 class="header-title">Walker AI <span class="text-accent">Trading</span></h1>
+                <p class="header-subtitle">{{SYSTEM_NAME}} // {{REPORT_CODENAME}} // {{REPORT_FOCUS}}</p>
+
+                <div class="meta-data">
+                    <p><span class="text-muted">OWNER:</span> <span class="text-accent">{{OWNER}}</span></p>
+                    <p><span class="text-muted">DATE:</span> <span>{{REPORT_DATE}}</span></p>
+                    <p><span class="text-muted">STATUS:</span> <span class="text-success">{{SYSTEM_STATUS}}</span></p>
+                </div>
+            </header>
+
+            <!-- ── TABS NAV ────────────────────────────
+                 BRIEFER: sesuaikan jumlah dan label tab
+                 Format tab id: tab-[tabId]
+                 Tambah/hapus <button> sesuai section
+            ─────────────────────────────────────────── -->
+            <nav class="tabs-nav" role="tablist">
+                <button class="tab-btn active" onclick="switchTab('overview', this)" role="tab">01_{{TAB_1_LABEL}}</button>
+                <button class="tab-btn" onclick="switchTab('execution', this)" role="tab">02_{{TAB_2_LABEL}}</button>
+                <button class="tab-btn" onclick="switchTab('risk', this)" role="tab">03_{{TAB_3_LABEL}}</button>
+                <!-- <button class="tab-btn" onclick="switchTab('tab4', this)" role="tab">04_{{TAB_4_LABEL}}</button> -->
+            </nav>
+
+            <!-- ══════════════════════════════════════════
+                 TAB 1: OVERVIEW / EXECUTIVE SUMMARY
+                 BRIEFER: Tab pertama selalu aktif
+            ══════════════════════════════════════════ -->
+            <div id="tab-overview" class="tab-content active" role="tabpanel">
+
+                <!-- Summary text panel -->
+                <div class="glass-panel">
+                    <h2 style="font-size:15px; margin-bottom:10px;"><span class="text-accent">///</span> {{TAB_1_HEADING}}</h2>
+                    <p style="font-size:12px; color:var(--text-dim); line-height:1.6; margin-bottom:10px;">
+                        {{SUMMARY_PARAGRAPH_1}}
+                    </p>
+                    <p style="font-size:12px; color:var(--text-dim); line-height:1.6;">
+                        {{SUMMARY_PARAGRAPH_2}}
+                    </p>
+                    <!-- notice-box variants: notice-warn notice-success notice-info notice-danger -->
+                    <div class="notice-box notice-warn">⚠ {{NOTICE_TEXT}}</div>
+                </div>
+
+                <!-- KV metrics — grid-2, grid-3, atau grid-4 -->
+                <!-- metric-card variants: success warn accent danger muted info -->
+                <div class="grid-2">
+                    <div class="metric-card success">
+                        <span class="m-label">{{M1_LABEL}}</span>
+                        <span class="m-val">{{M1_VALUE}}</span>
+                        <span class="m-note">{{M1_NOTE}}</span>
+                    </div>
+                    <div class="metric-card success">
+                        <span class="m-label">{{M2_LABEL}}</span>
+                        <span class="m-val">{{M2_VALUE}}</span>
+                        <span class="m-note">{{M2_NOTE}}</span>
+                    </div>
+                    <div class="metric-card warn">
+                        <span class="m-label">{{M3_LABEL}}</span>
+                        <span class="m-val">{{M3_VALUE}}</span>
+                        <span class="m-note">{{M3_NOTE}}</span>
+                    </div>
+                    <div class="metric-card info">
+                        <span class="m-label">{{M4_LABEL}}</span>
+                        <span class="m-val" style="color:#0088cc">{{M4_VALUE}}</span>
+                        <span class="m-note">{{M4_NOTE}}</span>
+                    </div>
+                    <!-- BRIEFER: tambah/hapus metric-card sesuai data -->
+                </div>
+
+                <!-- Secondary metrics panel (opsional) -->
+                <div class="glass-panel">
+                    <h2 style="font-size:14px; margin-bottom:12px; letter-spacing:0.08em;">{{SECONDARY_SECTION_TITLE}}</h2>
+                    <div class="grid-2">
+                        <div class="metric-card success">
+                            <span class="m-label">{{M5_LABEL}}</span>
+                            <span class="m-val">{{M5_VALUE}}</span>
+                            <span class="m-note">{{M5_NOTE}}</span>
+                        </div>
+                        <div class="metric-card success">
+                            <span class="m-label">{{M6_LABEL}}</span>
+                            <span class="m-val">{{M6_VALUE}}</span>
+                            <span class="m-note">{{M6_NOTE}}</span>
+                        </div>
+                        <div class="metric-card warn">
+                            <span class="m-label">{{M7_LABEL}}</span>
+                            <span class="m-val">{{M7_VALUE}}</span>
+                            <span class="m-note">{{M7_NOTE}}</span>
+                        </div>
+                        <div class="metric-card muted">
+                            <span class="m-label">{{M8_LABEL}}</span>
+                            <span class="m-val" style="color:var(--text-main)">{{M8_VALUE}}</span>
+                            <span class="m-note">{{M8_NOTE}}</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /tab-overview -->
+
+            <!-- ══════════════════════════════════════════
+                 TAB 2: EXECUTION / ACTIVITY / PROGRESS
+            ══════════════════════════════════════════ -->
+            <div id="tab-execution" class="tab-content" role="tabpanel">
+
+                <!-- Pipeline (horizontal scroll on mobile) -->
+                <div class="glass-panel">
+                    <span class="m-label" style="display:block; margin-bottom:10px;">Execution Pipeline</span>
+                    <div class="scroll-x">
+                        <div class="pipeline">
+                            <!-- BRIEFER: pipe-node variants: pipe-active pipe-success pipe-warn pipe-inactive -->
+                            <div class="pipe-node pipe-active">DATA_INGEST</div>
+                            <span class="text-muted">→</span>
+                            <div class="pipe-node pipe-active">STRATEGY</div>
+                            <span class="text-muted">→</span>
+                            <div class="pipe-node pipe-active">INTELLIGENCE</div>
+                            <span class="text-muted">→</span>
+                            <div class="pipe-node pipe-warn">RISK_GATE</div>
+                            <span class="text-muted">→</span>
+                            <div class="pipe-node pipe-success">EXECUTION</div>
+                            <span class="text-muted">→</span>
+                            <div class="pipe-node pipe-inactive">MONITORING</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress bars panel -->
+                <div class="glass-panel">
+                    <h3 style="font-size:14px; margin-bottom:14px; letter-spacing:0.06em;">{{PROGRESS_SECTION_TITLE}}</h3>
+
+                    <!-- BRIEFER: tambah/hapus .prog-row sesuai data -->
+                    <!-- prog-fill color: var(--success) var(--warn) var(--danger) var(--muted) var(--accent) -->
+                    <div class="prog-row">
+                        <div class="prog-labels">
+                            <span>{{PROG_1_LABEL}}</span>
+                            <span class="text-success">{{PROG_1_VALUE}}</span>
+                        </div>
+                        <div class="prog-track">
+                            <div class="prog-fill" style="width:{{PROG_1_PCT}}%; background:var(--success)"></div>
+                        </div>
+                    </div>
+                    <div class="prog-row">
+                        <div class="prog-labels">
+                            <span>{{PROG_2_LABEL}}</span>
+                            <span class="text-warn">{{PROG_2_VALUE}}</span>
+                        </div>
+                        <div class="prog-track">
+                            <div class="prog-fill" style="width:{{PROG_2_PCT}}%; background:var(--warn)"></div>
+                        </div>
+                    </div>
+                    <div class="prog-row">
+                        <div class="prog-labels">
+                            <span>{{PROG_3_LABEL}}</span>
+                            <span class="text-muted">{{PROG_3_VALUE}}</span>
+                        </div>
+                        <div class="prog-track">
+                            <div class="prog-fill" style="width:{{PROG_3_PCT}}%; background:var(--muted)"></div>
+                        </div>
+                    </div>
+                    <div class="prog-row">
+                        <div class="prog-labels">
+                            <span>{{PROG_4_LABEL}}</span>
+                            <span class="text-danger">{{PROG_4_VALUE}}</span>
+                        </div>
+                        <div class="prog-track">
+                            <div class="prog-fill" style="width:{{PROG_4_PCT}}%; background:var(--danger)"></div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                        <span class="font-mono text-muted" style="font-size:10px;">{{PROG_TOTAL_LABEL}}</span>
+                        <span class="font-mono" style="font-size:18px; color:#fff; font-weight:bold;">{{PROG_TOTAL_VALUE}}</span>
+                    </div>
+                </div>
+
+                <!-- Data list panel -->
+                <div class="glass-panel">
+                    <h3 style="font-size:14px; margin-bottom:12px; letter-spacing:0.06em;">{{LIST_SECTION_TITLE}}</h3>
+                    <ul class="data-list">
+                        <!-- BRIEFER: tambah/hapus <li> sesuai data -->
+                        <!-- text class: text-success text-warn text-danger text-accent text-muted -->
+                        <li><span>{{LIST_1_LABEL}}</span><strong class="text-success">{{LIST_1_VALUE}}</strong></li>
+                        <li><span>{{LIST_2_LABEL}}</span><strong class="text-warn">{{LIST_2_VALUE}}</strong></li>
+                        <li><span>{{LIST_3_LABEL}}</span><strong class="text-danger">{{LIST_3_VALUE}}</strong></li>
+                        <li><span>{{LIST_4_LABEL}}</span><strong style="color:#0088cc">{{LIST_4_VALUE}}</strong></li>
+                        <li><span>{{LIST_5_LABEL}}</span><strong class="text-success">{{LIST_5_VALUE}}</strong></li>
+                    </ul>
+                    <div style="margin-top:12px; padding:10px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:3px; font-family:var(--font-mono); font-size:9px; color:var(--muted); line-height:1.5;">
+                        {{LIST_FOOTNOTE}}
+                    </div>
+                </div>
+
+            </div><!-- /tab-execution -->
+
+            <!-- ══════════════════════════════════════════
+                 TAB 3: RISK / VALIDATION / LOGS
+            ══════════════════════════════════════════ -->
+            <div id="tab-risk" class="tab-content" role="tabpanel">
+
+                <!-- Risk controls list -->
+                <div class="glass-panel">
+                    <h3 style="font-size:14px; margin-bottom:12px; letter-spacing:0.06em;" class="text-success">{{RISK_SECTION_TITLE}}</h3>
+                    <ul class="data-list">
+                        <!-- BRIEFER: risk controls — values FIXED per Walker AI standards -->
+                        <li><span>Kelly Fraction (α)</span><span class="text-success">0.25 — fractional only</span></li>
+                        <li><span>Max Position Size</span><span class="text-success">≤ 10% capital</span></li>
+                        <li><span>Daily Loss Limit</span><span class="text-success">−$2,000 hard stop</span></li>
+                        <li><span>Drawdown Circuit-Breaker</span><span class="text-success">&gt; 8% → auto-halt</span></li>
+                        <li><span>Min Orderbook Liquidity</span><span class="text-success">$10,000 depth</span></li>
+                        <li><span>Signal Deduplication</span><span class="text-success">Active</span></li>
+                        <li><span>Kill Switch</span><span class="text-success">Telegram-accessible</span></li>
+                        <!-- BRIEFER: tambah phase-specific rules di bawah ini -->
+                        <!-- <li><span>{{EXTRA_RULE_LABEL}}</span><span class="text-success">{{EXTRA_RULE_VALUE}}</span></li> -->
+                    </ul>
+                </div>
+
+                <!-- Limitations panel -->
+                <div class="glass-panel" style="border-left:2px solid var(--warn);">
+                    <h3 style="font-size:14px; margin-bottom:14px; letter-spacing:0.06em;" class="text-warn">{{LIMITATIONS_TITLE}}</h3>
+
+                    <!-- BRIEFER: tambah/hapus .limit-item sesuai known issues -->
+                    <div class="limit-item">
+                        <div class="limit-title text-warn">{{LIMIT_1_TITLE}}</div>
+                        <div class="limit-desc">{{LIMIT_1_DESC}}</div>
+                    </div>
+                    <div class="limit-item">
+                        <div class="limit-title text-warn">{{LIMIT_2_TITLE}}</div>
+                        <div class="limit-desc">{{LIMIT_2_DESC}}</div>
+                    </div>
+                    <div class="limit-item">
+                        <div class="limit-title text-warn">{{LIMIT_3_TITLE}}</div>
+                        <div class="limit-desc">{{LIMIT_3_DESC}}</div>
+                    </div>
+                </div>
+
+                <!-- SENTINEL validation table -->
+                <div class="glass-panel">
+                    <h3 style="font-size:14px; margin-bottom:12px; letter-spacing:0.06em;">SENTINEL Validation Logs</h3>
+                    <div class="scroll-x">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>PHASE</th>
+                                    <th>MODULE</th>
+                                    <th>TESTS</th>
+                                    <th style="text-align:right;">VERDICT</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- BRIEFER: tambah/hapus <tr> sesuai SENTINEL history -->
+                                <!-- verdict classes: td-success td-warn td-danger -->
+                                <tr>
+                                    <td class="font-mono td-muted">{{S1_PHASE}}</td>
+                                    <td>{{S1_MODULE}}</td>
+                                    <td class="td-muted">{{S1_TESTS}}</td>
+                                    <td class="td-success td-right font-mono">{{S1_VERDICT}}</td>
+                                </tr>
+                                <tr style="background:var(--surface2)">
+                                    <td class="font-mono td-muted">{{S2_PHASE}}</td>
+                                    <td><strong>{{S2_MODULE}}</strong></td>
+                                    <td class="td-muted">{{S2_TESTS}}</td>
+                                    <td class="td-success td-right font-mono" style="font-weight:bold;">{{S2_VERDICT}}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-mono td-muted">{{S3_PHASE}}</td>
+                                    <td>{{S3_MODULE}}</td>
+                                    <td class="td-muted">{{S3_TESTS}}</td>
+                                    <td class="td-warn td-right font-mono">{{S3_VERDICT}}</td>
+                                </tr>
+                                <!-- Tambah <tr> lebih banyak sesuai history -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div><!-- /tab-risk -->
+
+            <!-- ══════════════════════════════════════════
+                 TAB 4 (OPSIONAL) — uncomment jika perlu
+                 Contoh: milestones, files, checklist
+            ══════════════════════════════════════════ -->
+            <!--
+            <div id="tab-tab4" class="tab-content" role="tabpanel">
+                <div class="glass-panel">
+                    <h3 style="font-size:14px; margin-bottom:12px;">{{TAB4_HEADING}}</h3>
+
+                    CHECKLIST
+                    <ul class="checklist">
+                        <li>{{CHECK_1}}</li>
+                        <li class="warn">{{CHECK_2}}</li>
+                        <li class="next">{{CHECK_3}}</li>
+                        <li class="error">{{CHECK_4}}</li>
+                    </ul>
+
+                    FILE LIST
+                    <div class="section-div" style="margin-top:16px;">Files</div>
+                    <ul class="file-list">
+                        <li>
+                            <span class="file-path">{{FILE_PATH}}</span>
+                            <span class="file-tag tag-new">NEW</span>
+                            <span class="file-desc">{{FILE_DESC}}</span>
+                        </li>
+                        tag variants: tag-new tag-mod tag-del
+                    </ul>
+                </div>
+            </div>
+            -->
+
+            <!-- ── FOOTER ── -->
+            <div class="report-footer">
+                WALKER AI TRADING TEAM · {{SYSTEM_NAME}} · {{REPORT_CODENAME}}<br>
+                {{REPORT_DATE}} · Owner: {{OWNER}}<br><br>
+                <span style="opacity:0.6;">{{FOOTER_DISCLAIMER}}</span>
+            </div>
+
+        </div><!-- /container -->
+    </div><!-- /dashboard -->
+</div><!-- /page-root -->
+
+<script>
+(function() {
+    'use strict';
+
+    /* ══════════════════════════════════════════════
+       BOOT TEXT
+       BRIEFER: Edit baris-baris di bootLines sesuai konteks report
+       Jangan ubah logika di bawahnya.
+    ══════════════════════════════════════════════ */
+    var bootLines = [
+        "INITIALIZING {{SYSTEM_NAME}} OS...",
+        "LOADING NEURAL WEIGHTS.............. [OK]",
+        "CONNECTING TO POLYMARKET CLOB....... [OK]",
+        "VALIDATING RISK PARAMETERS.......... [OK]",
+        "LOADING {{REPORT_CODENAME}}......... [OK]",
+        "",
+        "SYSTEM READY.",
+        "ACCESSING {{REPORT_TITLE}}."
+    ];
+
+    /* ── BOOT ENGINE — jangan edit di bawah ini ── */
+    var bootText = bootLines.join('\n');
+    var pre      = document.getElementById('boot-text');
+    var cursor   = document.getElementById('boot-cursor');
+    var boot     = document.getElementById('boot-screen');
+    var dash     = document.getElementById('dashboard');
+
+    dash.style.display = 'none';
+
+    var idx = 0;
+    var lastTime = 0;
+    var INTERVAL = 28;
+
+    function step(ts) {
+        if (idx > bootText.length) {
+            cursor.style.display = 'none';
+            setTimeout(show, 500);
+            return;
+        }
+        if (ts - lastTime >= INTERVAL) {
+            pre.textContent = bootText.substring(0, idx);
+            idx++;
+            lastTime = ts;
+        }
+        requestAnimationFrame(step);
+    }
+
+    function show() {
+        boot.style.display = 'none';
+        dash.style.display = 'block';
+        void dash.offsetWidth;
+    }
+
+    setTimeout(function() { requestAnimationFrame(step); }, 100);
+
+    /* Failsafe: 8 detik → skip boot */
+    setTimeout(function() {
+        if (boot.style.display !== 'none') { show(); }
+    }, 8000);
+
+})();
+
+/* ── TAB SWITCHER — jangan edit ── */
+function switchTab(tabId, btn) {
+    var contents = document.getElementsByClassName('tab-content');
+    for (var i = 0; i < contents.length; i++) {
+        contents[i].classList.remove('active');
+    }
+    var btns = document.getElementsByClassName('tab-btn');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.remove('active');
+        btns[i].setAttribute('aria-selected', 'false');
+    }
+    var target = document.getElementById('tab-' + tabId);
+    if (target) target.classList.add('active');
+    if (btn) {
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+    }
+}
+</script>
+</body>
+</html>
