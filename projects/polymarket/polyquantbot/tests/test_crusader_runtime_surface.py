@@ -121,6 +121,14 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
         "connection_failed",
     }
     assert "last_dependency_failure_error" not in readiness["monitoring_outputs"]
+    assert "last_error" not in readiness["telegram_runtime"]
+    assert "last_error" not in readiness["db_runtime"]
+    assert "error_present" in readiness["telegram_runtime"]
+    assert "error_category" in readiness["telegram_runtime"]
+    assert "error_reference" in readiness["telegram_runtime"]
+    assert "error_present" in readiness["db_runtime"]
+    assert "error_category" in readiness["db_runtime"]
+    assert "error_reference" in readiness["db_runtime"]
 
 
 @pytest.mark.parametrize(
@@ -323,7 +331,45 @@ def test_ready_status_after_db_unavailable_when_not_required(monkeypatch) -> Non
     assert readiness["relevant"] is True
     assert readiness["connected"] is False
     assert readiness["healthcheck_ok"] is False
-    assert readiness["last_error"] != ""
+    assert readiness["error_present"] is True
+    assert readiness["error_category"] == "connection_failed"
+    assert readiness["error_reference"] == "db_runtime"
+    assert "last_error" not in readiness
+
+
+def test_ready_payload_sanitizes_telegram_and_db_error_surfaces(monkeypatch) -> None:
+    class _UnavailableDBClient:
+        async def connect_with_retry(self, max_attempts: int = 4, base_backoff_s: float = 1.0) -> None:
+            raise RuntimeError("db_unavailable")
+
+        async def healthcheck(self) -> bool:
+            return False
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "false")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _UnavailableDBClient)
+    app = create_app()
+
+    with TestClient(app) as client:
+        payload = client.get("/ready").json()
+
+    telegram_runtime = payload["readiness"]["telegram_runtime"]
+    db_runtime = payload["readiness"]["db_runtime"]
+    assert telegram_runtime["error_present"] is True
+    assert telegram_runtime["error_category"] == "runtime_error"
+    assert telegram_runtime["error_reference"] == "telegram_runtime"
+    assert "last_error" not in telegram_runtime
+    assert db_runtime["error_present"] is True
+    assert db_runtime["error_category"] == "connection_failed"
+    assert db_runtime["error_reference"] == "db_runtime"
+    assert "last_error" not in db_runtime
 
 
 def test_ready_route_not_ready_when_telegram_required_without_token(monkeypatch) -> None:

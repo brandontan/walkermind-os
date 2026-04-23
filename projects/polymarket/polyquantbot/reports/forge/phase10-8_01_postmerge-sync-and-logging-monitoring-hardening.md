@@ -1,6 +1,6 @@
 # FORGE-X Report — phase10-8_01_postmerge-sync-and-logging-monitoring-hardening
 
-- Timestamp: 2026-04-23 15:17 (Asia/Jakarta)
+- Timestamp: 2026-04-23 15:37 (Asia/Jakarta)
 - Branch: feature/update-repository-state-and-logging-monitoring
 - Scope lane: post-merge repo-truth sync for PR #731 / PR #732 / PR #733 + Priority 2 logging/monitoring hardening
 
@@ -10,6 +10,7 @@
 - Added structured runtime transition logs across startup/shutdown/dependency boundaries with consistent event naming (`crusaderbot_runtime_transition`) and monitoring snapshots.
 - Added explicit dependency-failure trace recording in runtime state (`dependency_failures_total`, last surface/error) for operator-readable debugging.
 - Added minimum viable monitoring outputs to `/ready` payload under `readiness.monitoring_outputs` for lifecycle/dependency trace continuity while removing raw dependency error text from public payloads.
+- Sanitized `readiness.telegram_runtime` and `readiness.db_runtime` public error surfaces by replacing `last_error` raw text with bounded public-safe fields: `error_present`, `error_category`, `error_reference`.
 
 ## 2) Current system architecture (relevant slice)
 - Runtime lifecycle now emits deterministic transition markers with monitoring snapshots across:
@@ -46,6 +47,7 @@
 - Startup/shutdown/dependency lifecycle transitions emit consistent structured logs with aligned transition keys and runtime monitoring snapshots.
 - Dependency startup/shutdown failures now record traceable surface + error metadata in runtime state for easier follow-through.
 - `/ready` now includes minimum viable monitoring outputs for operator-visible lifecycle and dependency-failure truth without exposing raw dependency exception strings.
+- `/ready` telegram/db readiness sections now expose only bounded safe error metadata and no longer expose raw exception text.
 - Scoped tests for structured logging, shutdown trace continuity, dependency-failure readability, and monitoring-output visibility pass.
 
 ## 5) Known issues
@@ -56,6 +58,6 @@
 
 Validation Tier   : MAJOR
 Claim Level       : NARROW INTEGRATION
-Validation Target : post-merge repo-truth sync plus Priority 2 logging and monitoring hardening in control-plane runtime
+Validation Target : public-safe readiness exposure closure for Phase 10.8 logging/monitoring hardening
 Not in Scope      : wallet lifecycle expansion, portfolio logic, execution engine changes, broad DB architecture rewrite, unrelated UX cleanup
 Suggested Next    : SENTINEL validation on branch `feature/update-repository-state-and-logging-monitoring`

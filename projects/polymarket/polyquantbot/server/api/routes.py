@@ -22,6 +22,15 @@ def _dependency_failure_category(raw_error: str) -> str:
     return "runtime_error"
 
 
+def _public_error_view(raw_error: str, reference: str) -> dict[str, str | bool]:
+    category = _dependency_failure_category(raw_error)
+    return {
+        "error_present": bool(raw_error),
+        "error_category": category,
+        "error_reference": reference if raw_error else "",
+    }
+
+
 def build_router(
     settings: ApiSettings,
     state: RuntimeState,
@@ -90,7 +99,10 @@ def build_router(
                 "shutdown_complete": state.telegram_runtime_shutdown_complete,
                 "iterations_total": state.telegram_runtime_iterations_total,
                 "last_iteration_visible": state.telegram_runtime_iterations_total > 0,
-                "last_error": state.telegram_runtime_last_error,
+                **_public_error_view(
+                    raw_error=state.telegram_runtime_last_error,
+                    reference="telegram_runtime",
+                ),
             },
             "db_runtime": {
                 "relevant": db_runtime_relevant,
@@ -101,7 +113,10 @@ def build_router(
                 "connect_max_attempts": state.db_connect_max_attempts,
                 "connect_base_backoff_s": state.db_connect_base_backoff_s,
                 "connect_timeout_s": state.db_connect_timeout_s,
-                "last_error": state.db_runtime_last_error,
+                **_public_error_view(
+                    raw_error=state.db_runtime_last_error,
+                    reference="db_runtime",
+                ),
             },
             "worker_prerequisites": worker_prerequisites,
             "falcon_config_state": {
