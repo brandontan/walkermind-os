@@ -37,7 +37,8 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
 
   return (
     <div className="lp" ref={rootRef}>
-      <nav className="lp-nav">
+      <div className="lp-cyber-grid" />
+      <nav className="lp-nav glass-panel scroll-reveal is-visible">
         <span className="lp-nav-logo">
           WALKER <span className="lp-nav-logo-accent">AI DEVTRADE TEAM</span>
         </span>
@@ -46,16 +47,24 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
         </button>
       </nav>
 
-      <section className="lp-hero scroll-reveal">
-        <div className="lp-badge">Paper Beta</div>
-        <h1 className="lp-hero-title">Multi-Agent AI Build System</h1>
-        <p className="lp-hero-sub">
-          Polymarket&nbsp;&middot;&nbsp;TradingView&nbsp;&middot;&nbsp;MT4/MT5&nbsp;&middot;&nbsp;Kalshi
-        </p>
-        <p className="lp-hero-desc">
-          A disciplined, repo-truth-driven trading ecosystem where autonomous agents plan, build,
-          validate, and report — so capital never moves without full audit trail.
-        </p>
+      <section className="lp-hero glass-panel scroll-reveal is-visible">
+        <div className="header-top">
+          <span className="badge badge-accent">
+            <span className="pulse-dot" />
+            PAPER BETA
+          </span>
+          <span className="badge badge-warn">MULTI-AGENT</span>
+        </div>
+        <div className="lp-hero-inner">
+          <h1 className="header-title lp-hero-title">Multi-Agent AI Build System</h1>
+          <p className="header-subtitle lp-hero-subtitle">
+            Polymarket · TradingView · MT4/MT5 · Kalshi
+          </p>
+          <p className="lp-hero-desc">
+            A disciplined, repo-truth-driven trading ecosystem where autonomous agents plan,
+            build, validate, and report — so capital never moves without full audit trail.
+          </p>
+        </div>
         <div className="lp-hero-ctas">
           <button className="lp-btn lp-btn-primary" onClick={onLaunch}>
             Open Launch Planner
@@ -72,150 +81,84 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
       </section>
 
       <section className="lp-section">
-        <h2 className="lp-section-title scroll-reveal">Agent Hierarchy</h2>
-        <p className="lp-section-sub scroll-reveal delay-1">
-          A strict chain of command where every decision is traceable back to repo truth.
-        </p>
-        <div className="lp-agents">
-          <div className="lp-agent lp-agent-owner scroll-reveal delay-1">
-            <div className="lp-agent-tag">Owner</div>
-            <h3 className="lp-agent-name">Mr. Walker</h3>
-            <p className="lp-agent-role">Owner / Final Decision-Maker</p>
-            <p className="lp-agent-desc">
+        <div className="section-div scroll-reveal is-visible">01 · Agent Hierarchy</div>
+        <div className="lp-grid">
+          <article className="glass-panel scroll-reveal delay-1 lp-card">
+            <div className="badge badge-accent">Owner</div>
+            <h3 className="lp-card-title">Mr. Walker</h3>
+            <p className="lp-card-kicker">Owner / Final Decision-Maker</p>
+            <p className="lp-card-copy">
               Ultimate authority. Sets direction, priorities, and makes final calls. Mr. Walker
               should only be involved in decisions that genuinely require owner authority — not
               minor issues.
             </p>
-          </div>
-
-          <div className="lp-agent-arrow scroll-reveal delay-2">↓</div>
-
-          <div className="lp-agent lp-agent-commander scroll-reveal delay-2">
-            <div className="lp-agent-tag">Orchestrator</div>
-            <h3 className="lp-agent-name">COMMANDER</h3>
-            <p className="lp-agent-role">Systems Architect / Gatekeeper / Orchestrator</p>
-            <p className="lp-agent-desc">
+          </article>
+          <article className="glass-panel scroll-reveal delay-2 lp-card">
+            <div className="badge badge-success">Orchestrator</div>
+            <h3 className="lp-card-title">COMMANDER</h3>
+            <p className="lp-card-kicker">Systems Architect / Gatekeeper / Orchestrator</p>
+            <p className="lp-card-copy">
               COMMANDER operates in direct chat with Mr. Walker — this is where decisions,
               reviews, and steering happen. Reads repo truth, identifies active lanes, merges
               adjacent work when safe, routes tasks to FORGE-X / SENTINEL / BRIEFER, reviews
-              outputs, auto-merges / closes PRs by own decision. Fixes minor bugs, small errors,
-              and cosmetic issues directly — no escalation. Escalates to Mr. Walker only for
-              large scope, risk, capital, safety, or decisions requiring owner authority.
+              outputs, auto-merges / closes PRs by own decision.
             </p>
-          </div>
-
-          <div className="lp-agent-arrow scroll-reveal delay-3">↓</div>
-
-          <div className="lp-nexus scroll-reveal delay-3">
-            <div className="lp-nexus-label">NEXUS — Multi-Agent Specialist Team</div>
-            <div className="lp-nexus-grid">
-              <div className="lp-agent lp-agent-forge">
-                <div className="lp-agent-tag">Builder</div>
-                <h3 className="lp-agent-name">FORGE-X</h3>
-                <p className="lp-agent-role">Builder / Implementer / Refactor / Fix Specialist</p>
-                <p className="lp-agent-desc">
-                  Implement, patch, refactor, fix, update state/report, open PR.
-                </p>
-              </div>
-              <div className="lp-agent lp-agent-sentinel">
-                <div className="lp-agent-tag">Validator</div>
-                <h3 className="lp-agent-name">SENTINEL</h3>
-                <p className="lp-agent-role">Validator / Auditor / Safety Enforcer</p>
-                <p className="lp-agent-desc">
-                  Validate, audit, test, enforce safety. Only active for MAJOR tasks or when
-                  COMMANDER explicitly requests audit.
-                </p>
-              </div>
-              <div className="lp-agent lp-agent-briefer">
-                <div className="lp-agent-tag">Reporter</div>
-                <h3 className="lp-agent-name">BRIEFER</h3>
-                <p className="lp-agent-role">Reporter / Visualizer / Communication Layer</p>
-                <p className="lp-agent-desc">
-                  HTML reports, prompt artifacts, visual summaries, UI/report transforms. Only
-                  works from validated data. Runs after required validation path is satisfied.
-                </p>
-              </div>
-            </div>
-          </div>
+          </article>
+          <article className="glass-panel scroll-reveal delay-3 lp-card lp-card-wide">
+            <div className="badge badge-warn">NEXUS</div>
+            <h3 className="lp-card-title">FORGE-X · SENTINEL · BRIEFER</h3>
+            <p className="lp-card-kicker">Multi-Agent Specialist Team</p>
+            <p className="lp-card-copy">
+              FORGE-X implements, patches, refactors, fixes, updates state/report, and opens PR.
+              SENTINEL validates, audits, tests, and enforces safety. BRIEFER produces reports,
+              visual summaries, and UI/report transforms from validated data.
+            </p>
+          </article>
         </div>
       </section>
 
       <section className="lp-section lp-section-alt">
-        <h2 className="lp-section-title scroll-reveal">Operating Modes</h2>
-        <p className="lp-section-sub scroll-reveal delay-1">
-          Two modes govern execution speed and review depth.
-        </p>
-        <div className="lp-modes">
-          <div className="lp-mode scroll-reveal delay-1">
-            <div className="lp-mode-icon">⬤</div>
-            <h3 className="lp-mode-name">Normal Mode</h3>
-            <div className="lp-mode-status">Default — always active</div>
-            <p className="lp-mode-desc">
+        <div className="section-div scroll-reveal is-visible">02 · Operating Modes</div>
+        <div className="lp-grid lp-grid-2">
+          <article className="glass-panel scroll-reveal delay-1 lp-card">
+            <div className="badge badge-muted">Default</div>
+            <h3 className="lp-card-title">Normal Mode</h3>
+            <p className="lp-card-copy">
               Used for reviews, task generation, sync, and validation. Applied whenever scope
-              isn't fully clear yet. Prioritises accuracy and full repo-truth alignment over
-              delivery speed.
+              isn't fully clear yet.
             </p>
-          </div>
-          <div className="lp-mode lp-mode-degen scroll-reveal delay-2">
-            <div className="lp-mode-icon">⚡</div>
-            <h3 className="lp-mode-name">Degen Mode</h3>
-            <div className="lp-mode-status">Explicit trigger by Mr. Walker only</div>
-            <p className="lp-mode-desc">
+          </article>
+          <article className="glass-panel scroll-reveal delay-2 lp-card">
+            <div className="badge badge-danger">Explicit trigger only</div>
+            <h3 className="lp-card-title">Degen Mode</h3>
+            <p className="lp-card-copy">
               Batches small safe fixes, reduces back-and-forth, skips cosmetic noise, and keeps
-              pushing until the lane closes. Does <strong>not</strong> override AGENTS.md,
-              ignore repo truth, or bypass safety and validation gates.
+              pushing until the lane closes. Does not override AGENTS.md or bypass safety gates.
             </p>
-          </div>
+          </article>
         </div>
       </section>
 
       <section className="lp-section">
-        <h2 className="lp-section-title scroll-reveal">Workflow Pipeline</h2>
-        <p className="lp-section-sub scroll-reveal delay-1">
-          Every lane follows the same disciplined sequence — no shortcuts on safety.
-        </p>
+        <div className="section-div scroll-reveal is-visible">03 · Workflow Pipeline</div>
         <div className="lp-pipeline">
           {[
-            { step: '01', label: 'Direction Set', desc: 'Mr. Walker issues direction or task.' },
-            {
-              step: '02',
-              label: 'Repo Truth Read',
-              desc: 'COMMANDER checks: PROJECT_REGISTRY.md → active project → state/ files → active lane → blockers → tier → claim level.',
-            },
-            {
-              step: '03',
-              label: 'Lane Formed',
-              desc: 'Adjacent open items in the same family merged into one lane. Prefer lane closure over fragmented progress.',
-            },
-            {
-              step: '04',
-              label: 'Task Routed by Tier',
-              desc: 'MINOR → FORGE-X → COMMANDER auto-merge.  STANDARD → FORGE-X → COMMANDER review + merge.  MAJOR → FORGE-X → SENTINEL → COMMANDER validate + merge.',
-            },
-            {
-              step: '05',
-              label: 'FORGE-X Implements',
-              desc: 'Work within scope, verify actual branch, update forge report + state files, commit and open PR.',
-            },
-            {
-              step: '06',
-              label: 'PR Reviewed',
-              desc: 'COMMANDER reviews files changed, bot comments, forge report, branch traceability, state drift, and claim vs actual code.',
-            },
-            {
-              step: '07',
-              label: 'COMMANDER Merges',
-              desc: 'COMMANDER auto-merges or closes by own decision. NEXUS does not merge independently. Post-merge: verify result → sync state files → determine next lane.',
-            },
-          ].map((item, i, arr) => (
-            <div key={item.step} className={`lp-pipeline-row scroll-reveal delay-${Math.min(i % 3 + 1, 4)}`}>
+            ['01', 'Direction Set', 'Mr. Walker issues direction or task.'],
+            ['02', 'Repo Truth Read', 'COMMANDER checks registry, state files, active lane, blockers, tier, and claim level.'],
+            ['03', 'Lane Formed', 'Adjacent items are merged into one lane to avoid fragmentation.'],
+            ['04', 'Task Routed by Tier', 'MINOR, STANDARD, and MAJOR follow different validation paths.'],
+            ['05', 'FORGE-X Implements', 'Work within scope, verify branch, update reports, commit, and open PR.'],
+            ['06', 'PR Reviewed', 'COMMANDER reviews files changed, bot comments, branch traceability, and state drift.'],
+            ['07', 'COMMANDER Merges', 'COMMANDER auto-merges or closes by own decision and syncs the next lane.'],
+          ].map(([step, label, desc], index) => (
+            <div key={step} className={`lp-pipeline-row scroll-reveal delay-${Math.min(index + 1, 4)}`}>
               <div className="lp-pipeline-step">
-                <div className="lp-pipeline-num">{item.step}</div>
-                {i < arr.length - 1 && <div className="lp-pipeline-line" />}
+                <div className="lp-pipeline-num">{step}</div>
+                {index < 6 ? <div className="lp-pipeline-line" /> : null}
               </div>
-              <div className="lp-pipeline-content">
-                <div className="lp-pipeline-label">{item.label}</div>
-                <div className="lp-pipeline-desc">{item.desc}</div>
+              <div className="glass-panel lp-pipeline-content">
+                <div className="lp-pipeline-label">{label}</div>
+                <div className="lp-pipeline-desc">{desc}</div>
               </div>
             </div>
           ))}
@@ -223,54 +166,35 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
       </section>
 
       <section className="lp-section lp-section-alt">
-        <h2 className="lp-section-title scroll-reveal">Supported Platforms</h2>
-        <p className="lp-section-sub scroll-reveal delay-1">
-          Strategy signals flow across four platforms under unified agent governance.
-        </p>
-        <div className="lp-platforms">
+        <div className="section-div scroll-reveal is-visible">04 · Supported Platforms</div>
+        <div className="lp-grid lp-grid-4">
           {[
-            {
-              name: 'Polymarket',
-              desc: 'Prediction market execution — CLOB-based, probability-driven strategies.',
-              icon: '📈',
-            },
-            {
-              name: 'Kalshi',
-              desc: 'Regulated event contract trading with strict risk controls.',
-              icon: '🏛️',
-            },
-            {
-              name: 'TradingView',
-              desc: 'Pine Script signals, indicators, and strategy backtesting.',
-              icon: '📊',
-            },
-            {
-              name: 'MetaTrader 4/5',
-              desc: 'MQL5 Expert Advisors for automated Forex and CFD execution.',
-              icon: '⚙️',
-            },
-          ].map((p, i) => (
-            <div key={p.name} className={`lp-platform scroll-reveal delay-${i + 1}`}>
-              <div className="lp-platform-icon">{p.icon}</div>
-              <h3 className="lp-platform-name">{p.name}</h3>
-              <p className="lp-platform-desc">{p.desc}</p>
-            </div>
+            ['Polymarket', 'Prediction market execution.', '📈'],
+            ['Kalshi', 'Regulated event contract trading.', '🏛️'],
+            ['TradingView', 'Pine Script signals and backtesting.', '📊'],
+            ['MetaTrader 4/5', 'MQL5 Expert Advisors for FX/CFD automation.', '⚙️'],
+          ].map(([name, desc, icon], index) => (
+            <article key={name} className={`glass-panel scroll-reveal delay-${index + 1} lp-platform-card`}>
+              <div className="lp-platform-icon">{icon}</div>
+              <h3 className="lp-card-title">{name}</h3>
+              <p className="lp-card-copy">{desc}</p>
+            </article>
           ))}
         </div>
       </section>
 
-      <section className="lp-cta scroll-reveal">
+      <section className="lp-cta glass-panel scroll-reveal">
         <h2 className="lp-cta-title">Ready to plan your launch?</h2>
         <p className="lp-cta-sub">
-          Use the AI-powered Launch Planner to transform a rough brief into a structured,
-          actionable release plan in seconds.
+          Use the AI-powered Launch Planner to turn a rough brief into a structured, actionable
+          release plan in seconds.
         </p>
         <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={onLaunch}>
           Open Launch Planner
         </button>
       </section>
 
-      <footer className="lp-footer">
+      <footer className="lp-footer glass-panel scroll-reveal is-visible">
         <span className="lp-footer-name">Walker AI DevTrade Team</span>
         <span className="lp-footer-sep">·</span>
         <span>v1.0</span>
