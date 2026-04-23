@@ -72,69 +72,70 @@ walker-ai-team/
 ```
 
 
+
 ### 2.2 Layer Functions
 
 **Root repo — Global governance**
 
-- `AGENTS.md` = highest authority, applies across all projects  
-- `PROJECT_REGISTRY.md` = project list + active status  
+- `AGENTS.md` = highest authority, applies across all projects
+- `PROJECT_REGISTRY.md` = project list + active status
 
 These are the system's decision center. Not supplementary files.
 
-...
-(And so on continuing with section 2.2 content from the full doc)
+**PROJECT_REGISTRY.md — Project navigation**
 
 Single file that tells which projects exist, where they live, and which are active. Agent reads this → immediately knows where to work.
 
 Rules:
+- 1 active project → NEXUS defaults to it, no tag needed
+- Multi-project active → every task must tag the project
+- No tag + multi-project → NEXUS asks, never assumes
 
-1 active project → NEXUS defaults to it, no tag needed
-Multi-project active → every task must tag the project
-No tag + multi-project → NEXUS asks, never assumes
-docs/ — Knowledge, reference, blueprint, templates
+**docs/ — Knowledge, reference, blueprint, templates**
 
-COMMANDER.md = COMMANDER operating reference
-CLAUDE.md = rules for Claude Code agent
-KNOWLEDGE_BASE.md = architecture, infra, API, conventions reference
-blueprint/ = target architecture / system-shape guidance
-templates/ = templates for state, roadmap, and reports
+- `COMMANDER.md` = COMMANDER operating reference
+- `CLAUDE.md` = rules for Claude Code agent
+- `KNOWLEDGE_BASE.md` = architecture, infra, API, conventions reference
+- `blueprint/` = target architecture / system-shape guidance
+- `templates/` = templates for state, roadmap, and reports
+
 Blueprint is a target architecture reference — not current truth. When blueprint and code differ, code defines current reality, blueprint defines the direction.
 
-lib/ — Shared libraries
+**lib/ — Shared libraries**
 
 Shared libraries and utilities across projects.
 
-projects/ — Multi-project workspace
+**projects/ — Multi-project workspace**
 
-Repo is designed for multiple workstreams. Each project has its own structure under projects/. Which project is active is determined by PROJECT_REGISTRY.md.
+Repo is designed for multiple workstreams. Each project has its own structure under `projects/`. Which project is active is determined by `PROJECT_REGISTRY.md`.
 
-state/ — Project operational truth
+**state/ — Project operational truth**
 
-Each project has its own state/ folder under PROJECT_ROOT:
+Each project has its own `state/` folder under PROJECT_ROOT:
 
-PROJECT_STATE.md — current operational condition
-ROADMAP.md — phase / milestone truth
-work_checklist.md — granular task tracking
+- `PROJECT_STATE.md` — current operational condition
+- `ROADMAP.md` — phase / milestone truth
+- `work_checklist.md` — granular task tracking
+
 These three files must always stay in sync. If one says done but the others haven't been updated, that's drift.
 
-Domain structure enforcement
+**Domain structure enforcement**
 
-Inside the active PROJECT_ROOT, folder structure follows the domain structure enforced by AGENTS.md: core/, data/, strategy/, intelligence/, risk/, execution/, monitoring/, api/, infra/, backtest/, and reports/. No phase*/ folders or legacy structure allowed.
+Inside the active PROJECT_ROOT, folder structure follows the domain structure enforced by `AGENTS.md`: `core/`, `data/`, `strategy/`, `intelligence/`, `risk/`, `execution/`, `monitoring/`, `api/`, `infra/`, `backtest/`, and `reports/`. No `phase*/` folders or legacy structure allowed.
 
-reports/ — Evidence trail
+**reports/ — Evidence trail**
 
-Each project has its own reports/ folder under PROJECT_ROOT:
+Each project has its own `reports/` folder under PROJECT_ROOT:
 
-forge/ — build reports from FORGE-X
-sentinel/ — validation reports from SENTINEL
-briefer/ — communication artifacts from BRIEFER
-archive/ — reports older than 7 days moved here
+- `forge/` — build reports from FORGE-X
+- `sentinel/` — validation reports from SENTINEL
+- `briefer/` — communication artifacts from BRIEFER
+- `archive/` — reports older than 7 days moved here
+
 Reports are the evidence trail used by COMMANDER for review, SENTINEL for validation, and BRIEFER for transformation.
 
 ---
 
-## 3. Who Does What
-Mr. Walker
 ## 3. Who Does What
 
 ### Mr. Walker
@@ -184,41 +185,46 @@ Validate, audit, test, enforce safety. Only active for MAJOR tasks or when COMMA
 **Role:** Reporter / Visualizer / Communication Layer
 
 HTML reports, prompt artifacts, visual summaries, UI/report transforms. Only works from validated data. Runs after required validation path is satisfied.
+
 ---
 
 ## 4. Operating Modes
-Normal Mode (Default)
+
+### Normal Mode (Default)
+
 Always active unless Mr. Walker explicitly triggers degen mode.
 
 Used for: reviews, task generation, sync, validation, work where scope isn't 100% clear yet.
 
-Degen Mode (Explicit Trigger Only)
+### Degen Mode (Explicit Trigger Only)
+
 Only active when Mr. Walker triggers it explicitly. COMMANDER must not self-activate.
 
-Why it exists:
+**Why it exists:**
 
 Degen mode exists to reduce wasted time from recurring drift and review noise while keeping repo-truth and safety gates intact.
 
-What degen mode does:
+**What degen mode does:**
+- Prioritizes implementation over repeated discussion
+- Batches small safe fixes into one pass
+- Skips cosmetic / non-functional noise unless explicitly requested
+- Reduces micro-task fragmentation
+- Minimizes back-and-forth
+- Keeps pushing until lane is closed or one real blocker remains
 
-Prioritizes implementation over repeated discussion
-Batches small safe fixes into one pass
-Skips cosmetic / non-functional noise unless explicitly requested
-Reduces micro-task fragmentation
-Minimizes back-and-forth
-Keeps pushing until lane is closed or one real blocker remains
-What degen mode does NOT do:
+**What degen mode does NOT do:**
+- Override `AGENTS.md`
+- Ignore repo truth
+- Allow overclaiming
+- Bypass safety, validation, or runtime-integrity gates
+- Excuse drift
 
-What degen mode does NOT do:
+**Deactivation:** Lane complete, or Mr. Walker says stop / normal / reset.
 
-Override AGENTS.md
-Ignore repo truth
-Allow overclaiming
-Bypass safety, validation, or runtime-integrity gates
-Excuse drift
-Deactivation: Lane complete, or Mr. Walker says stop / normal / reset.
+---
 
 ## 5. Repo Truth — Foundation Before Work
+
 Priority
 
 Source
