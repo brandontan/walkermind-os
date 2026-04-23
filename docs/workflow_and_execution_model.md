@@ -354,4 +354,84 @@ Drift + noise = lane drag, over-review, branch confusion, delayed closure.
 
 ---
 
-9. Cost Discipline
+## 9. Cost Discipline
+Rules
+Rule
+
+Detail
+
+COMMANDER compact output
+
+Default compact. Detailed only when Mr. Walker asks or complex decision.
+
+Batch over serial
+
+One PR for multiple minor fixes.
+
+Reduce explanation loops
+
+Fix directly, report briefly.
+
+NEXUS task efficiency
+
+What + scope + ref only. Don't duplicate repo content.
+
+COMMANDER self-resolve
+
+Minor bug / error / cosmetic → fix directly.
+
+Degen mode = cost saver
+
+Preferred for clear lanes.
+
+Quick handoff
+
+When session limit is near, generate 5-line handoff.
+
+COMMANDER Output Modes
+Mode
+
+When
+
+Format
+
+Compact** (default)
+
+Daily ops, clear scope
+
+Short, direct, action-oriented
+
+Detailed
+
+Mr. Walker asks, complex decision
+
+Full analysis + options
+
+### NEXUS Task Format
+```code
+FORGE-X: [what to do]
+Project: [name — only if multi-project active]
+Scope: [boundary]
+Ref: [relevant file]
+```
+### Quick Handoff
+```code
+📍 HANDOFF
+Lane: [active lane]
+Status: [where we stopped]
+Next: [immediate next action]
+Blocker: [any — or none]
+Context: [1 line max]
+```
+
+---
+
+## 10. Key Lessons
+Speed is often lost not because coding is hard, but because of drift and noise
+GitHub workflow must be exact — branch, PR, report, state
+Repo truth must stay synchronized — PROJECT_STATE.md, ROADMAP.md, work_checklist.md, PR outcomes
+Fast mode is needed, but always subordinate to AGENTS.md
+Minor issues must not reach Mr. Walker — COMMANDER resolves independently
+Maximize delivery per token spent
+End of document.
+
