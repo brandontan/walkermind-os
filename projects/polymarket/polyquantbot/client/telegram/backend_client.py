@@ -11,6 +11,16 @@ import structlog
 log = structlog.get_logger(__name__)
 
 SUPPORTED_CLIENT_TYPES: frozenset[str] = frozenset({"telegram", "web"})
+_SENSITIVE_ERROR_MARKERS: tuple[str, ...] = (
+    "token",
+    "secret",
+    "password",
+    "dsn",
+    "api_key",
+    "apikey",
+    "authorization",
+    "bearer",
+)
 
 HandoffOutcome = Literal["issued", "rejected", "error"]
 TelegramIdentityOutcome = Literal["resolved", "not_found", "error"]
@@ -106,6 +116,17 @@ class CrusaderBackendClient:
             else {}
         )
 
+    def _sanitize_error_detail(self, detail: str) -> str:
+        raw = (detail or "").strip()
+        if not raw:
+            return "backend_runtime_error"
+        lowered = raw.lower()
+        if any(marker in lowered for marker in _SENSITIVE_ERROR_MARKERS):
+            return "sensitive_runtime_error_redacted"
+        if len(raw) > 240:
+            return f"{raw[:240]}..."
+        return raw
+
     async def request_handoff(self, request: BackendHandoffRequest) -> BackendHandoffResult:
         """Call POST /auth/handoff and return a typed outcome.
 
@@ -143,14 +164,15 @@ class CrusaderBackendClient:
             ) as http_client:
                 resp = await http_client.post("/auth/handoff", json=payload)
         except Exception as exc:
+            safe_detail = self._sanitize_error_detail(str(exc))
             log.error(
                 "crusaderbot_backend_handoff_http_error",
                 client_type=request.client_type,
-                error=str(exc),
+                error=safe_detail,
             )
             return BackendHandoffResult(
                 outcome="error",
-                detail=f"backend call failed: {exc}",
+                detail=f"backend call failed: {safe_detail}",
             )
 
         if resp.status_code == 200:
@@ -162,7 +184,7 @@ class CrusaderBackendClient:
             log.info(
                 "crusaderbot_backend_handoff_issued",
                 client_type=request.client_type,
-                session_id=session_id,
+                session_id_present=bool(session_id),
             )
             return BackendHandoffResult(outcome="issued", session_id=session_id)
 
@@ -171,16 +193,17 @@ class CrusaderBackendClient:
             detail = resp.json().get("detail", "")
         except Exception:
             detail = resp.text or f"http {resp.status_code}"
+        safe_detail = self._sanitize_error_detail(detail)
 
         log.warning(
             "crusaderbot_backend_handoff_rejected",
             client_type=request.client_type,
             status_code=resp.status_code,
-            detail=detail,
+            detail=safe_detail,
         )
         return BackendHandoffResult(
             outcome="rejected" if resp.status_code < 500 else "error",
-            detail=detail,
+            detail=safe_detail,
         )
 
     async def resolve_telegram_identity(
@@ -204,10 +227,11 @@ class CrusaderBackendClient:
                     params={"tenant_id": self._identity_tenant_id},
                 )
         except Exception as exc:
+            safe_detail = self._sanitize_error_detail(str(exc))
             log.error(
                 "crusaderbot_backend_identity_resolve_http_error",
                 telegram_user_id=telegram_user_id,
-                error=str(exc),
+                error=safe_detail,
             )
             return TelegramIdentityResolution(outcome="error")
 
@@ -254,12 +278,13 @@ class CrusaderBackendClient:
             ) as http_client:
                 resp = await http_client.post("/auth/telegram-onboarding/start", json=payload)
         except Exception as exc:
+            safe_detail = self._sanitize_error_detail(str(exc))
             log.error(
                 "crusaderbot_backend_onboarding_http_error",
                 telegram_user_id=telegram_user_id,
-                error=str(exc),
+                error=safe_detail,
             )
-            return TelegramOnboardingResult(outcome="error", detail=str(exc))
+            return TelegramOnboardingResult(outcome="error", detail=safe_detail)
 
         if resp.status_code == 200:
             try:
@@ -279,9 +304,10 @@ class CrusaderBackendClient:
             detail = str(resp.json().get("detail", ""))
         except Exception:
             detail = resp.text or f"http {resp.status_code}"
+        safe_detail = self._sanitize_error_detail(detail)
         return TelegramOnboardingResult(
             outcome="error" if resp.status_code >= 500 else "rejected",
-            detail=detail,
+            detail=safe_detail,
         )
 
     async def confirm_telegram_activation(
@@ -306,12 +332,13 @@ class CrusaderBackendClient:
             ) as http_client:
                 resp = await http_client.post("/auth/telegram-onboarding/confirm", json=payload)
         except Exception as exc:
+            safe_detail = self._sanitize_error_detail(str(exc))
             log.error(
                 "crusaderbot_backend_activation_http_error",
                 telegram_user_id=telegram_user_id,
-                error=str(exc),
+                error=safe_detail,
             )
-            return TelegramActivationResult(outcome="error", detail=str(exc))
+            return TelegramActivationResult(outcome="error", detail=safe_detail)
 
         if resp.status_code == 200:
             try:
@@ -331,9 +358,10 @@ class CrusaderBackendClient:
             detail = str(resp.json().get("detail", ""))
         except Exception:
             detail = resp.text or f"http {resp.status_code}"
+        safe_detail = self._sanitize_error_detail(detail)
         return TelegramActivationResult(
             outcome="error" if resp.status_code >= 500 else "rejected",
-            detail=detail,
+            detail=safe_detail,
         )
 
     async def issue_telegram_session(
@@ -363,12 +391,13 @@ class CrusaderBackendClient:
                     "/auth/telegram-onboarding/session-issue", json=payload
                 )
         except Exception as exc:
+            safe_detail = self._sanitize_error_detail(str(exc))
             log.error(
                 "crusaderbot_backend_session_issuance_http_error",
                 telegram_user_id=telegram_user_id,
-                error=str(exc),
+                error=safe_detail,
             )
-            return TelegramSessionIssuanceResult(outcome="error", detail=str(exc))
+            return TelegramSessionIssuanceResult(outcome="error", detail=safe_detail)
 
         if resp.status_code == 200:
             try:
@@ -392,9 +421,10 @@ class CrusaderBackendClient:
             detail = str(resp.json().get("detail", ""))
         except Exception:
             detail = resp.text or f"http {resp.status_code}"
+        safe_detail = self._sanitize_error_detail(detail)
         return TelegramSessionIssuanceResult(
             outcome="error" if resp.status_code >= 500 else "rejected",
-            detail=detail,
+            detail=safe_detail,
         )
 
     async def beta_get(self, path: str, params: dict[str, object] | None = None) -> dict[str, object]:
@@ -411,7 +441,7 @@ class CrusaderBackendClient:
                 return payload if isinstance(payload, dict) else {"ok": False, "detail": "invalid_payload"}
             return {"ok": False, "detail": f"http_{resp.status_code}"}
         except Exception as exc:
-            return {"ok": False, "detail": str(exc)}
+            return {"ok": False, "detail": self._sanitize_error_detail(str(exc))}
 
     async def beta_post(self, path: str, payload: dict[str, object]) -> dict[str, object]:
         """Write helper for beta control plane endpoints."""
@@ -427,4 +457,4 @@ class CrusaderBackendClient:
                 return body if isinstance(body, dict) else {"ok": False, "detail": "invalid_payload"}
             return {"ok": False, "detail": f"http_{resp.status_code}"}
         except Exception as exc:
-            return {"ok": False, "detail": str(exc)}
+            return {"ok": False, "detail": self._sanitize_error_detail(str(exc))}

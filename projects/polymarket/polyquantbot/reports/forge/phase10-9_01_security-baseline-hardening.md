@@ -1,6 +1,6 @@
 # FORGE-X Report — phase10-9_01_security-baseline-hardening
 
-- Timestamp: 2026-04-23 17:57 (Asia/Jakarta)
+- Timestamp: 2026-04-23 18:47 (Asia/Jakarta)
 - Branch: feature/security-phase10-9-baseline-hardening-20260423
 - Scope lane: Priority 2 Phase 10.9 security baseline hardening over control-plane runtime surfaces
 
@@ -10,6 +10,7 @@
 - Hardened runtime error handling by sanitizing secret-like error strings before storing/logging dependency and runtime error surfaces.
 - Added operator-key header propagation for Telegram backend beta helper calls so operator-only surfaces remain reachable only under configured key.
 - Added and updated targeted tests for protected-route denial behavior and public-safe payload non-exposure boundaries.
+- Hardened Telegram backend helper error surfaces by redacting secret-like exception details before operator-facing response payloads and runtime logs.
 
 ## 2) Current system architecture (relevant slice)
 - Public-safe control/read surfaces:
@@ -32,6 +33,7 @@
 - `projects/polymarket/polyquantbot/client/telegram/backend_client.py`
 - `projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py`
 - `projects/polymarket/polyquantbot/tests/test_phase8_8_public_paper_beta_exit_criteria_20260420.py`
+- `projects/polymarket/polyquantbot/tests/test_phase8_10_telegram_identity_20260419.py`
 - `projects/polymarket/polyquantbot/reports/forge/phase10-9_01_security-baseline-hardening.md`
 - `PROJECT_STATE.md`
 - `ROADMAP.md`

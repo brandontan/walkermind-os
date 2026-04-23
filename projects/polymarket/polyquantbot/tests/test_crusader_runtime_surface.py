@@ -183,6 +183,44 @@ def test_beta_sensitive_routes_reject_when_operator_key_not_configured(monkeypat
     assert admin_response.json()["detail"] == "operator_route_disabled_missing_operator_api_key"
 
 
+@pytest.mark.parametrize(
+    ("method", "route", "payload"),
+    [
+        ("get", "/beta/admin", None),
+        ("post", "/beta/mode", {"mode": "paper"}),
+        ("post", "/beta/autotrade", {"enabled": True}),
+        ("post", "/beta/kill", None),
+        ("get", "/beta/risk", None),
+    ],
+)
+def test_beta_sensitive_routes_reject_invalid_operator_key(monkeypatch, method: str, route: str, payload) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_OPERATOR_API_KEY", "operator-test-key")
+    app = create_app()
+    with TestClient(app) as client:
+        if method == "post":
+            response = client.post(route, json=payload, headers={"X-Operator-Api-Key": "wrong-key"})
+        else:
+            response = client.get(route, headers={"X-Operator-Api-Key": "wrong-key"})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "operator_route_forbidden_invalid_operator_api_key"
+
+
+def test_beta_status_payload_does_not_expose_operator_api_key_value(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_OPERATOR_API_KEY", "super-secret-operator-key")
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/beta/status")
+    assert response.status_code == 200
+    payload = response.json()
+    serialized = str(payload).lower()
+    assert "super-secret-operator-key" not in serialized
+    assert "operator_api_key" not in serialized
+
+
 def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
     monkeypatch.setenv("PORT", "8080")
     monkeypatch.setenv("TRADING_MODE", "PAPER")

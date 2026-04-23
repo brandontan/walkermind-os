@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from projects.polymarket.polyquantbot.client.telegram.backend_client import (
+    BackendHandoffRequest,
     CrusaderBackendClient,
     TelegramIdentityResolution,
 )
@@ -268,6 +269,47 @@ def test_backend_client_resolve_telegram_identity_empty_id() -> None:
     resolution = asyncio.get_event_loop().run_until_complete(run())
 
     assert resolution.outcome == "error"
+
+
+def test_backend_client_beta_get_redacts_secret_like_exception_detail() -> None:
+    client = CrusaderBackendClient(base_url="http://localhost:8080")
+
+    async def run() -> dict[str, object]:
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_http = AsyncMock()
+            mock_http.get = AsyncMock(side_effect=RuntimeError("Authorization bearer secret-token-value"))
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_http
+            return await client.beta_get("/beta/admin")
+
+    payload = asyncio.get_event_loop().run_until_complete(run())
+    assert payload["ok"] is False
+    assert payload["detail"] == "sensitive_runtime_error_redacted"
+
+
+def test_backend_client_request_handoff_redacts_secret_like_exception_detail() -> None:
+    client = CrusaderBackendClient(base_url="http://localhost:8080")
+    request = BackendHandoffRequest(
+        client_type="telegram",
+        client_identity_claim="tg_12345678",
+        tenant_id="t1",
+        user_id="usr_abc",
+    )
+
+    async def run():
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_http = AsyncMock()
+            mock_http.post = AsyncMock(side_effect=RuntimeError("DB_DSN=postgres://user:pass@host/db"))
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_http
+            return await client.request_handoff(request)
+
+    result = asyncio.get_event_loop().run_until_complete(run())
+    assert result.outcome == "error"
+    assert "sensitive_runtime_error_redacted" in result.detail
+    assert "postgres://user:pass@host/db" not in result.detail
 
 
 # ---------------------------------------------------------------------------
