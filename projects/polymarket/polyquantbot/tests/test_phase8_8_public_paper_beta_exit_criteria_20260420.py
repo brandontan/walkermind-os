@@ -45,9 +45,10 @@ def test_beta_admin_surface_reports_managed_state_without_live_authority(monkeyp
     monkeypatch.setenv("PORT", "8080")
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("FALCON_ENABLED", "false")
+    monkeypatch.setenv("CRUSADER_OPERATOR_API_KEY", "operator-test-key")
     app = create_app()
     with TestClient(app) as client:
-        payload = client.get("/beta/admin").json()
+        payload = client.get("/beta/admin", headers={"X-Operator-Api-Key": "operator-test-key"}).json()
 
     assert payload["paper_only_execution_boundary"] is True
     assert payload["managed_beta_state"]["state"] in {"managed", "needs_attention"}
@@ -63,9 +64,10 @@ def test_beta_admin_surface_exposes_required_config_truth_when_falcon_enabled(mo
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("FALCON_ENABLED", "true")
     monkeypatch.setenv("FALCON_API_KEY", "test-key")
+    monkeypatch.setenv("CRUSADER_OPERATOR_API_KEY", "operator-test-key")
     app = create_app()
     with TestClient(app) as client:
-        payload = client.get("/beta/admin").json()
+        payload = client.get("/beta/admin", headers={"X-Operator-Api-Key": "operator-test-key"}).json()
 
     config_state = payload["required_config_state"]
     criteria_checks = payload["exit_criteria"]["checks"]
@@ -74,3 +76,15 @@ def test_beta_admin_surface_exposes_required_config_truth_when_falcon_enabled(mo
     assert config_state["api_key_configured"] is True
     assert config_state["config_valid_for_enabled_mode"] is True
     assert criteria_checks["required_config_present"]["pass"] is True
+
+
+def test_beta_admin_surface_denies_invalid_operator_key(monkeypatch) -> None:
+    _reset_state()
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_OPERATOR_API_KEY", "operator-test-key")
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/beta/admin", headers={"X-Operator-Api-Key": "wrong-key"})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "operator_route_forbidden_invalid_operator_api_key"

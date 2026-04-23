@@ -25,7 +25,6 @@ _TEST_DB_DSN = "postgresql://test-user:test-pass@localhost:5432/test_crusader"
         ("/health", {"service", "runtime", "status"}),
         ("/ready", {"status", "validation_errors", "readiness"}),
         ("/beta/status", {"paper_only_execution_boundary", "execution_guard", "managed_beta_state", "exit_criteria"}),
-        ("/beta/admin", {"paper_only_execution_boundary", "admin_summary", "managed_beta_state", "exit_criteria"}),
     ],
 )
 def test_runtime_surface_contract_keys_are_present(monkeypatch, route: str, required_keys: set[str]) -> None:
@@ -148,13 +147,40 @@ def test_dependency_failure_category_is_sanitized(raw_error: str, expected: str)
 def test_beta_admin_route_exists_and_preserves_paper_boundary(monkeypatch) -> None:
     monkeypatch.setenv("PORT", "8080")
     monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_OPERATOR_API_KEY", "operator-test-key")
     app = create_app()
     with TestClient(app) as client:
-        response = client.get("/beta/admin")
+        response = client.get("/beta/admin", headers={"X-Operator-Api-Key": "operator-test-key"})
     assert response.status_code == 200
     payload = response.json()
     assert payload["paper_only_execution_boundary"] is True
     assert payload["admin_summary"]["live_execution_privileges_enabled"] is False
+
+
+def test_beta_admin_route_rejects_missing_operator_key(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.setenv("CRUSADER_OPERATOR_API_KEY", "operator-test-key")
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/beta/admin")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "operator_route_forbidden_invalid_operator_api_key"
+
+
+def test_beta_sensitive_routes_reject_when_operator_key_not_configured(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    monkeypatch.delenv("CRUSADER_OPERATOR_API_KEY", raising=False)
+    app = create_app()
+    with TestClient(app) as client:
+        admin_response = client.get("/beta/admin")
+        kill_response = client.post("/beta/kill")
+        risk_response = client.get("/beta/risk")
+    assert admin_response.status_code == 403
+    assert kill_response.status_code == 403
+    assert risk_response.status_code == 403
+    assert admin_response.json()["detail"] == "operator_route_disabled_missing_operator_api_key"
 
 
 def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
@@ -177,6 +203,25 @@ def test_ready_route_reports_readiness_semantics(monkeypatch) -> None:
     assert readiness["falcon_config_state"]["enabled"] is False
     assert readiness["falcon_config_state"]["config_valid_for_enabled_mode"] is True
     assert readiness["control_plane"]["live_mode_execution_allowed"] is False
+
+
+def test_ready_route_redacts_secret_like_runtime_errors(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("TRADING_MODE", "PAPER")
+    app = create_app()
+    with TestClient(app) as client:
+        app.state.crusader_runtime.telegram_runtime_last_error = "TELEGRAM_BOT_TOKEN=secret-value"
+        app.state.crusader_runtime.db_runtime_last_error = "DB_DSN=postgres://user:pass@host/db"
+        app.state.crusader_runtime.last_dependency_failure_error = "FALCON_API_KEY=super-secret"
+        payload = client.get("/ready").json()
+
+    readiness = payload["readiness"]
+    assert readiness["telegram_runtime"]["error_present"] is True
+    assert readiness["db_runtime"]["error_present"] is True
+    assert readiness["monitoring_outputs"]["failure_present"] is True
+    assert "secret-value" not in str(readiness)
+    assert "postgres://user:pass@host/db" not in str(readiness)
+    assert "super-secret" not in str(readiness)
 
 
 def test_startup_success_path_sets_db_runtime_ready(monkeypatch) -> None:

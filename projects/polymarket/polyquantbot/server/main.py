@@ -51,6 +51,19 @@ from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 log = structlog.get_logger(__name__)
 
 
+def _sanitize_runtime_error(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    lowered = raw.lower()
+    secret_markers = ("token", "secret", "password", "dsn", "api_key", "apikey")
+    if any(marker in lowered for marker in secret_markers):
+        return "sensitive_runtime_error_redacted"
+    if len(raw) > 240:
+        return f"{raw[:240]}..."
+    return raw
+
+
 def _runtime_monitoring_snapshot(state: RuntimeState) -> dict[str, object]:
     return {
         "lifecycle_phase": state.lifecycle_phase,
@@ -82,7 +95,7 @@ def _transition_runtime_phase(state: RuntimeState, phase: str) -> None:
 def _record_dependency_failure(state: RuntimeState, surface: str, error: str) -> None:
     state.dependency_failures_total += 1
     state.last_dependency_failure_surface = surface
-    state.last_dependency_failure_error = error
+    state.last_dependency_failure_error = _sanitize_runtime_error(error)
 
 
 class RuntimeTelegramObserver:
@@ -103,8 +116,9 @@ class RuntimeTelegramObserver:
         log.info("crusaderbot_telegram_reply_sent")
 
     def on_error(self, error: str) -> None:
-        self._state.telegram_runtime_last_error = error
-        log.error("crusaderbot_telegram_runtime_error", error=error)
+        sanitized_error = _sanitize_runtime_error(error)
+        self._state.telegram_runtime_last_error = sanitized_error
+        log.error("crusaderbot_telegram_runtime_error", error=sanitized_error)
 
     def on_shutdown(self) -> None:
         self._state.telegram_runtime_active = False
@@ -134,10 +148,11 @@ async def _start_telegram_runtime(state: RuntimeState) -> None:
     log.info("crusaderbot_runtime_transition", transition="telegram_startup", monitoring=_runtime_monitoring_snapshot(state))
     settings = TelegramBotSettings.from_env()
     validation_errors = validate_bot_environment(settings)
+    raw_validation_error = "; ".join(validation_errors)
     state.telegram_runtime_required = telegram_runtime_required_from_env()
     state.telegram_runtime_enabled = not validation_errors
     if validation_errors:
-        state.telegram_runtime_last_error = "; ".join(validation_errors)
+        state.telegram_runtime_last_error = _sanitize_runtime_error(raw_validation_error)
         _record_dependency_failure(
             state=state,
             surface="telegram_runtime_startup",
@@ -150,7 +165,7 @@ async def _start_telegram_runtime(state: RuntimeState) -> None:
             failure_surface="telegram_runtime_startup",
         )
         if state.telegram_runtime_required:
-            raise RuntimeError(state.telegram_runtime_last_error)
+            raise RuntimeError(raw_validation_error)
         return
 
     backend = CrusaderBackendClient(
@@ -280,7 +295,7 @@ async def _start_database_runtime(state: RuntimeState) -> None:
             raise RuntimeError("Database healthcheck failed after startup connect path.")
         log.info("crusaderbot_db_runtime_ready")
     except Exception as exc:
-        state.db_runtime_last_error = str(exc)
+        state.db_runtime_last_error = _sanitize_runtime_error(str(exc))
         _record_dependency_failure(
             state=state,
             surface="db_runtime_startup",
@@ -315,7 +330,9 @@ async def _stop_database_runtime(state: RuntimeState) -> None:
             state.db_runtime_healthcheck_ok = False
             return
         except Exception as exc:  # noqa: BLE001
-            state.db_runtime_last_error = f"db_close_attempt_{attempt}_failed: {exc}"
+            state.db_runtime_last_error = _sanitize_runtime_error(
+                f"db_close_attempt_{attempt}_failed: {exc}"
+            )
             _record_dependency_failure(
                 state=state,
                 surface="db_runtime_shutdown",
@@ -325,7 +342,7 @@ async def _stop_database_runtime(state: RuntimeState) -> None:
                 "crusaderbot_db_runtime_shutdown_retry",
                 attempt=attempt,
                 max_attempts=close_attempts,
-                error=str(exc),
+                error=state.db_runtime_last_error,
             )
             if attempt < close_attempts:
                 await asyncio.sleep(0.05)

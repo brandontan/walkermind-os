@@ -1,14 +1,17 @@
 """Public paper beta control routes used by Telegram control shell."""
 from __future__ import annotations
 
+import os
 import structlog
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Header, HTTPException
+from starlette import status as http_status
 from pydantic import BaseModel
 
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
 
 log = structlog.get_logger(__name__)
+_OPERATOR_API_KEY_HEADER = "X-Operator-Api-Key"
 
 
 class ModeRequest(BaseModel):
@@ -128,12 +131,29 @@ def _build_beta_status_payload(falcon: FalconGateway) -> dict[str, object]:
 def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
     router = APIRouter(prefix="/beta", tags=["beta"])
 
+    def _require_operator_api_key(
+        x_operator_api_key: str = Header(default="", alias=_OPERATOR_API_KEY_HEADER),
+    ) -> None:
+        expected = os.getenv("CRUSADER_OPERATOR_API_KEY", "").strip()
+        if not expected:
+            raise HTTPException(
+                status_code=http_status.HTTP_403_FORBIDDEN,
+                detail="operator_route_disabled_missing_operator_api_key",
+            )
+        if not x_operator_api_key or x_operator_api_key.strip() != expected:
+            raise HTTPException(
+                status_code=http_status.HTTP_403_FORBIDDEN,
+                detail="operator_route_forbidden_invalid_operator_api_key",
+            )
+
     @router.get("/status")
     async def status() -> dict[str, object]:
         return _build_beta_status_payload(falcon=falcon)
 
     @router.get("/admin")
-    async def admin() -> dict[str, object]:
+    async def admin(
+        __: None = Depends(_require_operator_api_key),
+    ) -> dict[str, object]:
         status_payload = _build_beta_status_payload(falcon=falcon)
         return {
             "mode": status_payload["mode"],
@@ -153,7 +173,10 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
         }
 
     @router.post("/mode")
-    async def set_mode(payload: ModeRequest) -> dict[str, object]:
+    async def set_mode(
+        payload: ModeRequest,
+        __: None = Depends(_require_operator_api_key),
+    ) -> dict[str, object]:
         mode = payload.mode.strip().lower()
         if mode not in {"paper", "live"}:
             return {"ok": False, "detail": "mode must be paper or live"}
@@ -193,7 +216,10 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
         }
 
     @router.post("/autotrade")
-    async def set_autotrade(payload: ToggleRequest) -> dict[str, object]:
+    async def set_autotrade(
+        payload: ToggleRequest,
+        __: None = Depends(_require_operator_api_key),
+    ) -> dict[str, object]:
         if STATE.mode == "live" and payload.enabled:
             STATE.last_risk_reason = "mode_live_paper_execution_disabled"
             log.info(
@@ -217,7 +243,9 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
         return {"ok": True, "autotrade": STATE.autotrade_enabled, "mode": STATE.mode}
 
     @router.post("/kill")
-    async def kill() -> dict[str, object]:
+    async def kill(
+        __: None = Depends(_require_operator_api_key),
+    ) -> dict[str, object]:
         STATE.kill_switch = True
         STATE.autotrade_enabled = False
         STATE.last_risk_reason = "kill_switch_enabled"
@@ -238,7 +266,9 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
         return {"pnl": STATE.pnl}
 
     @router.get("/risk")
-    async def risk() -> dict[str, object]:
+    async def risk(
+        __: None = Depends(_require_operator_api_key),
+    ) -> dict[str, object]:
         return {
             "drawdown": STATE.drawdown,
             "exposure": STATE.exposure,
