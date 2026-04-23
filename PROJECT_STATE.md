@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 18:47
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, and PR #741 are merged-main truth, and Phase 10.9 Priority 2 security baseline hardening is implemented on the source lane pending SENTINEL gate under paper-only boundary posture.
+Last Updated : 2026-04-23 19:04
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, and PR #741 are merged-main truth, and PR #742 Phase 10.9 Priority 2 security baseline hardening remains BLOCKED at SENTINEL due to unverified PR-head branch traceability in this runner context.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -49,7 +49,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - PR #733 is merged on main as post-merge checklist/state continuity sync for the completed Phase 10.7 lane.
 
 [IN PROGRESS]
-- Phase 10.9 Priority 2 security baseline hardening is implemented on source lane `feature/security-phase10-9-baseline-hardening-20260423` with secret redaction hardening (including Telegram backend helper exception/response sanitization) + explicit operator-key route protection for `/beta/admin`, `/beta/mode`, `/beta/autotrade`, `/beta/kill`, and `/beta/risk`; SENTINEL validation is required before merge decision.
+- Phase 10.9 Priority 2 security baseline hardening remains BLOCKED at SENTINEL gate for PR #742 because exact PR-head branch truth is unverified in this runner context (`gh` unavailable and no `origin` remote), so exact-match branch traceability cannot be proven; code-level security checks passed but merge decision remains blocked until PR-head branch is verified and artifacts are synced as needed.
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
 
 [NOT STARTED]
@@ -58,7 +58,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- SENTINEL MAJOR validation gate for Phase 10.9 Priority 2 security baseline hardening on source lane `feature/security-phase10-9-baseline-hardening-20260423` before merge decision.
+- FORGE-X traceability correction is required for PR #742: branch truth must be exact-match across PR head, forge report, and PROJECT_STATE before SENTINEL rerun/merge decision.
 - After SENTINEL gate closure, advance to Priority 2 Deployment Hardening lane continuity (paper-only boundary preserved).
 
 [KNOWN ISSUES]
