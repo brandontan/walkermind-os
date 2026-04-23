@@ -4,7 +4,7 @@
 ██╗    ██╗ █████╗ ██╗     ██╗  ██╗███████╗██████╗
 ██║    ██║██╔══██╗██║     ██║ ██╔╝██╔════╝██╔══██╗
 ██║ █╗ ██║███████║██║     █████╔╝ █████╗  ██████╔╝
-██║███╗██║██╔══██║██║     ██╔═██╗ ██╔══██╗██╔══██╗
+██║███╗██║██╔══██║██║     ██╔═██╗ ██╔══╝  ██╔══██╗
 ╚███╔███╔╝██║  ██║███████╗██║  ██╗███████╗██║  ██║
  ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
            AI  D E V T R A D E  T E A M
@@ -24,242 +24,142 @@
 </div>
 
 ---
-# Walker AI DevTrade Team — Operational Workflow and Execution Model
 
-> **Document type:** Internal operational reference  
-> **Authority:** Supporting document — `AGENTS.md` is the authoritative rule source  
-> **Version:** 1.0 | Last Updated: 2025-07-11
+## Overview
 
----
+Walker AI DevTrade is a multi-agent system for building, validating, and operating algorithmic trading infrastructure across prediction markets and financial platforms. The system runs under a structured authority chain — COMMANDER orchestrates, NEXUS executes — with strict repo-truth governance and safety gates at every tier.
 
-## 1. Big Picture
-
-Mr. Walker sets direction  
-→ COMMANDER reads repo truth, determines lane, resolves minor issues independently  
-→ NEXUS executes via the appropriate role (FORGE-X / SENTINEL / BRIEFER)  
-→ returns to COMMANDER for review and decision  
-→ COMMANDER auto merges / closes / routes next lane
-
-Principles:
-
-- Tasks come from COMMANDER  
-- Scope stays controlled  
-- Repo truth = center of all decisions  
-- Code truth wins over report wording  
-- Minor issues = COMMANDER handles directly, do not bother Mr. Walker  
+**Active project:** `projects/polymarket/polyquantbot` — CrusaderBot on Polymarket.
 
 ---
 
-## 🗂️ Repo Structure
+## Authority Chain
 
-```plaintext
-walker-ai-team/
-├── AGENTS.md                 # Global rules & authority
-├── PROJECT_REGISTRY.md       # Project list & active status
-├── docs/                    # Knowledge, blueprints, templates
-│   ├── COMMANDER.md           # COMMANDER reference guide
-│   └── blueprint/             # System architecture guidance
-├── lib/                     # Shared cross-project libraries
-└── projects/                # Multi-project workspace
-    ├── polymarket/
-    │   └── polyquantbot/     # ACTIVE PROJECT_ROOT
-    │       ├── state/
-    │       │   ├── PROJECT_STATE.md
-    │       │   ├── ROADMAP.md
-    │       │   └── work_checklist.md
-    │       ├── core/
-    │       ├── ... (domain folders)
-    │       └── reports/
-    │           ├── forge/
-    │           ├── sentinel/
-    │           ├── briefer/
-    │           └── archive/
 ```
-Each project follows strict domain folder structure enforced by global rules.
+Mr. Walker  →  COMMANDER  →  NEXUS (FORGE-X / SENTINEL / BRIEFER)
+```
 
-
-### 2.2 Layer Functions
-
-**Root repo — Global governance**
-
-- `AGENTS.md` = highest authority, applies across all projects  
-- `PROJECT_REGISTRY.md` = project list + active status  
-
-These are the system's decision center. Not supplementary files.
-
-**PROJECT_REGISTRY.md — Project navigation**
-
-Single file that tells which projects exist, where they live, and which are active. Agents read this → immediately knows where to work.
-
-Rules:  
-- 1 active project → NEXUS defaults to it, no tag needed  
-- Multi-project active → every task must tag the project  
-- No tag + multi-project → NEXUS asks, never assumes  
-
-**docs/ — Knowledge, reference, blueprint, templates**
-
-- `COMMANDER.md` = COMMANDER operating reference  
-- `CLAUDE.md` = rules for Claude Code agent  
-- `KNOWLEDGE_BASE.md` = architecture, infra, API, conventions reference  
-- `blueprint/` = target architecture / system-shape guidance  
-- `templates/` = templates for state, roadmap, and reports  
-
-Blueprint is a target architecture reference — not current truth. When blueprint and code differ, code defines current reality, blueprint defines the direction.
-
-**lib/ — Shared libraries**
-
-Shared libraries and utilities across projects.
-
-**projects/ — Multi-project workspace**
-
-Each project has its own structure under `projects/`. Which project is active is determined by `PROJECT_REGISTRY.md`.
-
-**state/ — Project operational truth**
-
-Each project has a `state/` folder under PROJECT_ROOT containing:
-
-- `PROJECT_STATE.md` — current operational condition  
-- `ROADMAP.md` — phase / milestone truth  
-- `work_checklist.md` — granular task tracking  
-
-These files must always stay in sync. Discrepancies constitute drift.
-
-**Domain structure enforcement**
-
-Active PROJECT_ROOT follows domain folder structure enforced by `AGENTS.md`:  
-`core/`, `data/`, `strategy/`, `intelligence/`, `risk/`, `execution/`, `monitoring/`, `api/`, `infra/`, `backtest/`, and `reports/`.  
-No legacy or arbitrary folders allowed.
-
-**reports/ — Evidence trail**
-
-Contains:  
-- `forge/` (FORGE-X build reports)  
-- `sentinel/` (SENTINEL validation reports)  
-- `briefer/` (BRIEFER communication artifacts)  
-- `archive/` (reports >7 days archived)  
+| Role | Function |
+|---|---|
+| **Mr. Walker** | Owner. Final authority on scope, risk, and capital decisions. |
+| **COMMANDER** | Architect and gatekeeper. Reads repo truth, routes tasks, reviews and merges PRs. |
+| **FORGE-X** | Builder. Implements, patches, refactors, opens PRs. |
+| **SENTINEL** | Validator. Audits MAJOR changes before merge. |
+| **BRIEFER** | Reporter. Produces HTML reports and communication artifacts from validated data. |
 
 ---
 
-## 3. Who Does What
+## Repo Structure
 
-### Mr. Walker
-
-Owner / final decision maker; only involved on major or high-risk decisions.
-
-### COMMANDER
-
-Architect, gatekeeper, orchestrator interfacing directly with Mr. Walker.  
-
-Responsibilities:
-
-- Read repo truth  
-- Identify active lanes  
-- Merge adjacent work when safe  
-- Route tasks to FORGE-X, SENTINEL, BRIEFER  
-- Review work  
-- Auto merge / close PRs  
-- Fix minor bugs and cosmetic issues without escalation  
-
-Escalates only scope/risk/safety/capital decisions to Mr. Walker.
-
-### NEXUS
-
-Multi-agent execution team comprising FORGE-X (builder), SENTINEL (validator), BRIEFER (reporter) executing scoped tasks under COMMANDER's supervision.
-
-### FORGE-X
-
-Build, patch, refactor, fix, update state and reports, open PRs.
-
-### SENTINEL
-
-Validate and audit major changes or upon explicit command.
-
-### BRIEFER
-
-Produce reports and visual summaries from validated data post-validation.
-
----
-
-## 4. Operating Modes
-
-### Normal Mode (default)
-
-Always active unless overridden explicitly. Used for complex or unclear scope.
-
-### Degen Mode (explicit trigger only)
-
-Activated only by explicit command from Mr. Walker. Speeds execution on clear, low-risk lanes.
+```
+walker-ai-team/
+├── AGENTS.md                           ← highest authority — global rules
+├── PROJECT_REGISTRY.md                 ← active project registry
+├── docs/
+│   ├── COMMANDER.md                    ← COMMANDER operating reference
+│   ├── CLAUDE.md                       ← Claude Code agent rules
+│   ├── KNOWLEDGE_BASE.md               ← architecture, infra, API reference
+│   ├── workflow_and_execution_model.md ← operational protocol
+│   ├── blueprint/                      ← target architecture guidance
+│   └── templates/                      ← state, roadmap, and report templates
+├── lib/                                ← shared libraries across projects
+└── projects/
+    ├── polymarket/
+    │   └── polyquantbot/               ← PROJECT_ROOT (active)
+    │       ├── state/
+    │       │   ├── PROJECT_STATE.md    ← operational truth
+    │       │   ├── ROADMAP.md          ← milestone truth
+    │       │   └── work_checklist.md   ← task tracking
+    │       ├── core/ · data/ · strategy/ · intelligence/
+    │       ├── risk/ · execution/ · monitoring/
+    │       ├── api/ · infra/ · backtest/
+    │       └── reports/
+    │           ├── forge/              ← FORGE-X build reports
+    │           ├── sentinel/           ← SENTINEL validation reports
+    │           ├── briefer/            ← BRIEFER communication artifacts
+    │           └── archive/            ← reports older than 7 days
+    ├── tradingview/
+    │   ├── indicators/
+    │   └── strategies/
+    └── mt5/
+        ├── ea/
+        └── indicators/
+```
 
 ---
 
-## 5. Repo Truth — Foundations
+## Source of Truth — Priority Order
 
-Priority list of files establishing system “truth”:
+| # | File | Role |
+|---|---|---|
+| 1 | `AGENTS.md` | Highest authority — overrides everything |
+| 2 | `PROJECT_REGISTRY.md` | Active project navigation |
+| 3 | `{PROJECT_ROOT}/state/PROJECT_STATE.md` | Current operational state |
+| 4 | `{PROJECT_ROOT}/state/ROADMAP.md` | Phase and milestone truth |
+| 5 | `{PROJECT_ROOT}/state/work_checklist.md` | Granular task tracking |
+| 6 | `reports/forge/`, `reports/sentinel/` | Build and validation evidence |
 
-1. `AGENTS.md` (highest authority)  
-2. `PROJECT_REGISTRY.md` (project and status registry)  
-3. `{PROJECT_ROOT}/state/PROJECT_STATE.md` (operational state)  
-4. `{PROJECT_ROOT}/state/ROADMAP.md` (milestones)  
-5. `{PROJECT_ROOT}/state/work_checklist.md` (task tracking)  
-6. Reports in `reports/` folders (evidence trails)  
-
----
-
-## 6. Normal Workflow
-
-Steps:
-
-- Mr. Walker issues task/direction  
-- COMMANDER reads truth files, analyzes lanes, blockers, tiers/claims  
-- COMMANDER merges related items into lane  
-- Tasks assigned per tier and routed to correct agents  
-- FORGE-X implements within scope and opens PR  
-- Minor fixes handled directly by COMMANDER
+When sources conflict: `AGENTS.md` wins. Code truth wins over report wording.
 
 ---
 
-## 7. GitHub Workflow
+## Validation Tiers
 
-- Branch naming convention: `feature/{feature}`  
-- PRs contain code + reports + updated state files  
-- COMMANDER reviews code, bots, reports, branch correctness, claims  
-- Bots are advisory, COMMANDER triages comments accordingly  
-- COMMANDER auto merges or closes PRs; NEXUS only executes on command  
-- Post-merge sync state files and plan next lane  
-
----
-
-## 8. Drift & Noise
-
-Drift = repo truth inconsistencies with patterns like branch mismatches, unsynced state/roadmap/checklists, report/code divergences, overclaims, mixed surface boundaries, blueprint vs code inconsistencies, premature lane closure, malformed artifacts.
-
-Noise = wasteful minor frictions like cosmetic debates, micro-task fragmentation, repeated explanations, nitpicks, redundant re-checks, scope creep disguised as cleanup, excessive user overhead.
-
-Their combined effect decreases delivery speed and increases confusion.
+| Tier | Scope | Gate |
+|---|---|---|
+| **MINOR** | Wording, docs, templates, non-runtime cleanup | COMMANDER review |
+| **STANDARD** | User-facing runtime behavior outside trading core | COMMANDER review |
+| **MAJOR** | Execution, risk, capital, async core, pipeline, live-trading | SENTINEL required before merge |
 
 ---
 
-## 9. Cost Discipline
+## Branch Naming
 
-- COMMANDER outputs are compact by default; detailed only on request  
-- Batch multiple minor fixes to reduce overhead  
-- Minimize explanation loops  
-- Tasks to NEXUS are concise, focused, with references; avoid duplicating repo content  
-- COMMANDER resolves minor issues independently to cut communication rounds  
-- Prefer degen mode for cost-effective throughput without sacrificing accuracy  
-- Generate brief handoffs near session limits using a standard 5-line format  
+```
+nwap/{feature}
+```
 
----
+Short hyphen-separated slug. No dots, underscores, or date suffixes.
 
-## 10. Key Lessons
-
-- Delivery speed is hindered more by drift and noise than coding difficulty  
-- Strict GitHub workflow adherence ensures trustworthy repo truth  
-- Consistent synchronization of state, roadmap, checklist, and reports is crucial  
-- Fast execution modes remain subject to authoritative rules and safety  
-- Minor fixes must not escalate to owner; COMMANDER is empowered to resolve  
-- Efficient token usage maximizes AI-assisted delivery
+```
+nwap/wallet-state-read-boundary   ✓
+nwap/risk-drawdown-circuit        ✓
+nwap/implement_wallet_state       ✗  (underscores)
+nwap/phase6.5.3-fix-2026-04-16   ✗  (dots, date)
+```
 
 ---
 
-*End of document.*
+## Risk Constants
+
+These values are fixed. No code or report may deviate.
+
+| Rule | Value |
+|---|---|
+| Kelly fraction (α) | `0.25` — fractional only; `1.0` is forbidden |
+| Max position size | `≤ 10%` of total capital |
+| Max concurrent trades | `5` |
+| Daily loss limit | `−$2,000` hard stop |
+| Max drawdown | `> 8%` → system halt |
+| Liquidity minimum | `$10,000` orderbook depth |
+| Signal deduplication | Mandatory |
+| Kill switch | Mandatory and testable |
+
+---
+
+## Key References
+
+| Document | Purpose |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) | Master rules — read before every task |
+| [`docs/workflow_and_execution_model.md`](docs/workflow_and_execution_model.md) | Full operational protocol and execution model |
+| [`docs/KNOWLEDGE_BASE.md`](docs/KNOWLEDGE_BASE.md) | Architecture, infra, API, and conventions |
+| [`PROJECT_REGISTRY.md`](PROJECT_REGISTRY.md) | Active project list |
+
+---
+
+<div align="center">
+
+*Walker AI DevTrade · Bayue Walker · Private Repository*
+
+</div>
