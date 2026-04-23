@@ -13,6 +13,7 @@ from projects.polymarket.polyquantbot.server.core.runtime import (
     ApiSettings,
     validate_api_environment,
 )
+from projects.polymarket.polyquantbot.server.api.routes import _dependency_failure_category
 from projects.polymarket.polyquantbot.server.main import create_app
 
 _TEST_DB_DSN = "postgresql://test-user:test-pass@localhost:5432/test_crusader"
@@ -111,6 +112,29 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
     assert readiness["monitoring_outputs"]["operator_trace_contract"] == (
         "startup_shutdown_dependency_monitoring_minimum_v1"
     )
+    assert isinstance(readiness["monitoring_outputs"]["failure_present"], bool)
+    assert readiness["monitoring_outputs"]["last_dependency_failure_category"] in {
+        "none",
+        "runtime_error",
+        "timeout",
+        "healthcheck_failed",
+        "connection_failed",
+    }
+    assert "last_dependency_failure_error" not in readiness["monitoring_outputs"]
+
+
+@pytest.mark.parametrize(
+    ("raw_error", "expected"),
+    [
+        ("", "none"),
+        ("telegram_shutdown_timeout", "timeout"),
+        ("Database healthcheck failed after startup connect path.", "healthcheck_failed"),
+        ("db_connect_refused", "connection_failed"),
+        ("unexpected_runtime_boom", "runtime_error"),
+    ],
+)
+def test_dependency_failure_category_is_sanitized(raw_error: str, expected: str) -> None:
+    assert _dependency_failure_category(raw_error) == expected
 
 
 def test_beta_admin_route_exists_and_preserves_paper_boundary(monkeypatch) -> None:

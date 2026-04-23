@@ -9,6 +9,19 @@ from projects.polymarket.polyquantbot.server.core.public_beta_state import Publi
 from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, RuntimeState
 
 
+def _dependency_failure_category(raw_error: str) -> str:
+    if not raw_error:
+        return "none"
+    lowered = raw_error.lower()
+    if "timeout" in lowered:
+        return "timeout"
+    if "healthcheck" in lowered:
+        return "healthcheck_failed"
+    if "refused" in lowered or "unavailable" in lowered:
+        return "connection_failed"
+    return "runtime_error"
+
+
 def build_router(
     settings: ApiSettings,
     state: RuntimeState,
@@ -116,8 +129,11 @@ def build_router(
                 "lifecycle_phase": state.lifecycle_phase,
                 "lifecycle_transitions_total": state.lifecycle_transitions_total,
                 "dependency_failures_total": state.dependency_failures_total,
+                "failure_present": bool(state.last_dependency_failure_error),
+                "last_dependency_failure_category": _dependency_failure_category(
+                    state.last_dependency_failure_error
+                ),
                 "last_dependency_failure_surface": state.last_dependency_failure_surface,
-                "last_dependency_failure_error": state.last_dependency_failure_error,
                 "operator_trace_contract": "startup_shutdown_dependency_monitoring_minimum_v1",
             },
         }

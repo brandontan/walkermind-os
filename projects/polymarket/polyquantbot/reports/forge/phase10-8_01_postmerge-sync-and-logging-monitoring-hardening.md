@@ -1,15 +1,15 @@
 # FORGE-X Report — phase10-8_01_postmerge-sync-and-logging-monitoring-hardening
 
-- Timestamp: 2026-04-23 14:54 (Asia/Jakarta)
-- Branch: feature/postmerge-sync-and-logging-monitoring-hardening
+- Timestamp: 2026-04-23 15:17 (Asia/Jakarta)
+- Branch: feature/update-repository-state-and-logging-monitoring
 - Scope lane: post-merge repo-truth sync for PR #731 / PR #732 / PR #733 + Priority 2 logging/monitoring hardening
 
 ## 1) What was built
 - Synced repo-truth artifacts after merged PR #731, PR #732, and PR #733 so PROJECT_STATE.md and ROADMAP.md now treat Phase 10.7 as merged-main history and no longer as pending COMMANDER merge decision.
 - Promoted Phase 10.8 logging/monitoring hardening as the active Priority 2 lane.
 - Added structured runtime transition logs across startup/shutdown/dependency boundaries with consistent event naming (`crusaderbot_runtime_transition`) and monitoring snapshots.
-- Added explicit dependency-failure trace recording in runtime state (`dependency_failures_total`, last surface/error) for operator-readable debugging without secret leakage.
-- Added minimum viable monitoring outputs to `/ready` payload under `readiness.monitoring_outputs` for lifecycle/dependency trace continuity.
+- Added explicit dependency-failure trace recording in runtime state (`dependency_failures_total`, last surface/error) for operator-readable debugging.
+- Added minimum viable monitoring outputs to `/ready` payload under `readiness.monitoring_outputs` for lifecycle/dependency trace continuity while removing raw dependency error text from public payloads.
 
 ## 2) Current system architecture (relevant slice)
 - Runtime lifecycle now emits deterministic transition markers with monitoring snapshots across:
@@ -27,7 +27,8 @@
 - Dependency failure traces are stateful and operator-visible through `/ready` monitoring outputs:
   - failure count
   - last failure surface
-  - last failure error text
+  - failure_present boolean
+  - sanitized failure category
 - Paper-only boundary remains unchanged and no wallet lifecycle / execution engine expansion was introduced.
 
 ## 3) Files created / modified (full repo-root paths)
@@ -44,7 +45,7 @@
 - PROJECT_STATE.md and ROADMAP.md now record merged-main truth for PR #731 / PR #732 / PR #733 and align on Phase 10.8 as the active lane.
 - Startup/shutdown/dependency lifecycle transitions emit consistent structured logs with aligned transition keys and runtime monitoring snapshots.
 - Dependency startup/shutdown failures now record traceable surface + error metadata in runtime state for easier follow-through.
-- `/ready` now includes minimum viable monitoring outputs for operator-visible lifecycle and dependency-failure truth.
+- `/ready` now includes minimum viable monitoring outputs for operator-visible lifecycle and dependency-failure truth without exposing raw dependency exception strings.
 - Scoped tests for structured logging, shutdown trace continuity, dependency-failure readability, and monitoring-output visibility pass.
 
 ## 5) Known issues
@@ -57,4 +58,4 @@ Validation Tier   : MAJOR
 Claim Level       : NARROW INTEGRATION
 Validation Target : post-merge repo-truth sync plus Priority 2 logging and monitoring hardening in control-plane runtime
 Not in Scope      : wallet lifecycle expansion, portfolio logic, execution engine changes, broad DB architecture rewrite, unrelated UX cleanup
-Suggested Next    : SENTINEL validation on branch `feature/postmerge-sync-and-logging-monitoring-hardening`
+Suggested Next    : SENTINEL validation on branch `feature/update-repository-state-and-logging-monitoring`

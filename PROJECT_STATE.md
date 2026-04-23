@@ -1,4 +1,4 @@
-Last Updated : 2026-04-23 14:54
+Last Updated : 2026-04-23 15:17
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, and PR #733 are merged-main truth, and Phase 10.8 logging/monitoring hardening is the active Priority 2 lane under paper-only boundary posture.
 
 [COMPLETED]
@@ -58,7 +58,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 
 [NEXT PRIORITY]
 - Phase 10.8 Priority 2 lane: harden structured logging consistency, startup/shutdown trace readability, and minimum viable monitoring outputs in control-plane runtime (paper-only boundary preserved).
-- COMMANDER review gate for PR lane `feature/postmerge-sync-and-logging-monitoring-hardening` before SENTINEL validation handoff.
+- COMMANDER review gate for PR lane `feature/update-repository-state-and-logging-monitoring` before SENTINEL validation handoff.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
