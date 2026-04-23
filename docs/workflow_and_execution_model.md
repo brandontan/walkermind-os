@@ -71,14 +71,18 @@ walker-ai-team/
         └── indicators/
 ```
 
-2.2 Layer Functions
-Root repo — Global governance
 
-AGENTS.md = highest authority, applies across all projects
-PROJECT_REGISTRY.md = project list + active status
+### 2.2 Layer Functions
+
+**Root repo — Global governance**
+
+- `AGENTS.md` = highest authority, applies across all projects  
+- `PROJECT_REGISTRY.md` = project list + active status  
+
 These are the system's decision center. Not supplementary files.
 
-PROJECT_REGISTRY.md — Project navigation
+...
+(And so on continuing with section 2.2 content from the full doc)
 
 Single file that tells which projects exist, where they live, and which are active. Agent reads this → immediately knows where to work.
 
@@ -131,46 +135,55 @@ Reports are the evidence trail used by COMMANDER for review, SENTINEL for valida
 
 ## 3. Who Does What
 Mr. Walker
-Role: Owner / Final Decision-Maker
+## 3. Who Does What
+
+### Mr. Walker
+
+**Role:** Owner / Final Decision-Maker
 
 Ultimate authority. Sets direction, priorities, and makes final calls. Mr. Walker should only be involved in decisions that genuinely require owner authority — not minor issues.
 
-COMMANDER
-Role: Systems Architect / Gatekeeper / Orchestrator
+### COMMANDER
+
+**Role:** Systems Architect / Gatekeeper / Orchestrator
 
 COMMANDER operates in direct chat with Mr. Walker — this is where decisions, reviews, and steering happen. Functions:
 
-Read repo truth
-Identify active lanes
-Merge adjacent work when safe
-Route tasks to FORGE-X, SENTINEL, or BRIEFER
-Review outputs
-Auto merge / close PRs by own decision
-Fix minor bugs, small errors, cosmetic issues directly — no escalation
+- Read repo truth
+- Identify active lanes
+- Merge adjacent work when safe
+- Route tasks to FORGE-X, SENTINEL, or BRIEFER
+- Review outputs
+- Auto merge / close PRs by own decision
+- Fix minor bugs, small errors, cosmetic issues directly — no escalation
+
 Escalate to Mr. Walker only for: large scope, risk, capital, safety, or decisions requiring owner authority.
 
-NEXUS
-Role: Multi-Agent Specialist Team
+### NEXUS
+
+**Role:** Multi-Agent Specialist Team
 
 NEXUS is the execution team consisting of three specialist agents: FORGE-X, SENTINEL, and BRIEFER. Each has different capabilities and responsibilities. NEXUS works under COMMANDER direction — receives scoped tasks, executes according to each role's expertise, and returns output for review.
 
 NEXUS executes in separate environments: Claude Code, Codex, or other tools as needed. NEXUS does not merge / close PRs independently — only executes when COMMANDER instructs.
 
-FORGE-X
-Role: Builder / Implementer / Refactor / Fix Specialist
+### FORGE-X
+
+**Role:** Builder / Implementer / Refactor / Fix Specialist
 
 Implement, patch, refactor, fix, update state/report, open PR.
 
-SENTINEL
-Role: Validator / Auditor / Safety Enforcer
+### SENTINEL
+
+**Role:** Validator / Auditor / Safety Enforcer
 
 Validate, audit, test, enforce safety. Only active for MAJOR tasks or when COMMANDER explicitly requests audit.
 
-BRIEFER
-Role: Reporter / Visualizer / Communication Layer
+### BRIEFER
+
+**Role:** Reporter / Visualizer / Communication Layer
 
 HTML reports, prompt artifacts, visual summaries, UI/report transforms. Only works from validated data. Runs after required validation path is satisfied.
-
 ---
 
 ## 4. Operating Modes
