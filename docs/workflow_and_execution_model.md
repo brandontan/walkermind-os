@@ -1,6 +1,10 @@
-## Walker AI DevTrade Team 
-### Operational Workflow and Execution Model
-#### Document type: Internal operational reference Authority: Supporting document — AGENTS.md is the authoritative rule source Version: 1.0 | Last Updated: 2025-07-11
+# Walker AI DevTrade Team — Operational Workflow and Execution Model
+
+> **Document type:** Internal operational reference
+> **Authority:** Supporting document — `AGENTS.md` is the authoritative rule source
+> **Version:** 1.0 | Last Updated: 2025-07-11
+
+---
 
 ## 1. Big Picture
 
