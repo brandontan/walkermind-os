@@ -16,4 +16,4 @@ Validation Tier   : MINOR
 Claim Level       : FOUNDATION
 Validation Target : GitHub PR/branch reality update actions for PR #748 replacement and exact traceability status only
 Not in Scope      : deployment/runtime logic changes, Phase 10.9 SENTINEL validation, ROADMAP milestone edits, non-traceability refactors
-Suggested Next    : COMMANDER to run GitHub write operations in a runner/account with PR write permission (create compliant branch and replacement PR, close PR #748), then return this lane for FORGE-X repo-truth sync finalization
+Suggested Next    : Historical blocked attempt retained for continuity only; active source-of-truth lane remains PR #748 on `feature/implement-phase-11.1-deployment-hardening` until COMMANDER explicitly reopens replacement-PR flow

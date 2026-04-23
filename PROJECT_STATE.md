@@ -1,5 +1,5 @@
-Last Updated : 2026-04-24 00:19
-Status       : Phase 11.1 deployment-hardening PR traceability replacement is BLOCKED in this runner: GitHub write operations are forbidden by the environment (HTTP 403 "Method forbidden"), PR #748 remains OPEN on head `feature/implement-phase-11.1-deployment-hardening`, and no replacement PR exists on `feature/phase11-1-deployment-hardening`.
+Last Updated : 2026-04-24 00:44
+Status       : Phase 11.1 deployment-hardening runtime fix lane is active on PR #748 (head `feature/implement-phase-11.1-deployment-hardening`) for Dockerfile/module-resolution contract hardening and deploy-contract test tightening; replacement-PR flow is not the active lane in this pass.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -25,3 +25,15 @@ Status       : Phase 11.1 deployment-hardening PR traceability replacement is BL
 - Phase 8.7 Telegram/Web runtime handoff integration foundation merged: CrusaderBackendClient HTTP bridge, handle_start Telegram handler, handle_web_handoff web handler, client/telegram/bot.py backend wiring. SENTINEL CONDITIONAL gate satisfied. Pytest gate: 62/62 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-7_01_telegram-web-runtime-handoff-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-7_02_pytest-evidence-pass.md`. SENTINEL report: `projects/polymarket/polyquantbot/reports/sentinel/phase8-7_01_runtime-handoff-validation-pr604.md`.
 - Phase 8.8 real Telegram dispatch integration foundation merged: TelegramDispatcher command router, /start -> handle_start() dispatch boundary, DispatchResult reply mapping, unknown command safe fallback, bot.py dispatcher wiring. SENTINEL CONDITIONAL gate satisfied via phase8-8_02_pytest-evidence-pass.md. Pytest gate: 77/77 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-8_01_telegram-dispatch-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-8_02_pytest-evidence-pass.md`. SENTINEL: PR #607 (CONDITIONAL gate satisfied).
 - Phase 8.9 real Telegram polling / runtime loop foundation merged: TelegramRuntimeAdapter abstract boundary, HttpTelegramAdapter concrete implementation, extract_command_context staging identity contract, TelegramPollingLoop dispatch + reply routing, run_polling_loop top-level wiring, bot.py adapter/loop wiring. SENTINEL CONDITIONAL gate satisfied via phase8-9_02_pytest-evidence-pass.md. Pytest gate: 94/94 pass. Evidence: `projects/polymarket/polyquantbot/reports/forge/phase8-9_01_telegram-runtime-loop-foundation.md`, `projects/polymarket/polyquantbot/reports/forge/phase8-9_02_pytest-evidence-pass.md`. SENTINEL""
+
+[IN PROGRESS]
+- Phase 11.1 PR #748 runtime/deploy contract fix and exact active-branch truth sync is in progress on `feature/implement-phase-11.1-deployment-hardening`.
+
+[NOT STARTED]
+- Deployment hardening follow-up tasks outside Dockerfile/module-resolution contract remain pending per `projects/polymarket/polyquantbot/work_checklist.md`.
+
+[NEXT PRIORITY]
+- Complete PR #748 runtime contract validation, then return to COMMANDER and proceed to SENTINEL MAJOR validation if approved.
+
+[KNOWN ISSUES]
+- PROJECT_STATE.md historical content was previously truncated and requires dedicated normalization pass outside this scoped runtime-fix task.
