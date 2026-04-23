@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 06:54
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725 source branch `feature/close-pr-#724-blockers-for-db-readiness` DB readiness/startup blocker-closure lane is SENTINEL APPROVED and returned to COMMANDER for final merge decision.
+Last Updated : 2026-04-23 15:17
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, and PR #733 are merged-main truth, and Phase 10.8 logging/monitoring hardening is the active Priority 2 lane under paper-only boundary posture.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -38,7 +38,15 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - PR #713 Phase 10.2 onboarding/public command-surface refinement lane is merged on main as closed truth: active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`, while runtime/operator `/risk` remains a separate non-public informational control path with no live-trading claim.
 - PR #719 Phase 10.3 monitor integration + observability hardening lane is merged on main as closed truth: admin/internal path guarding, startup/command/reply logging baseline, missing-env/disabled-mode logging, and monitor/admin visibility wiring are landed while paper-only and public-safe command boundaries remain explicit.
 - PR #721 Phase 10 post-launch public-surface cleanup lane is merged on main as closed historical truth from exact head branch `feature/align-readme-and-refine-telegram-onboarding-2026-04-22`: README/public wording and Telegram first-run onboarding guidance are aligned, `/risk_info` remains public informational, and `/risk` remains runtime/operator-only.
-- PR #725 Priority 2 DB readiness/startup blocker-closure lane on exact source branch `feature/close-pr-#724-blockers-for-db-readiness` is SENTINEL APPROVED for declared NARROW INTEGRATION scope; canonical validation report: `projects/polymarket/polyquantbot/reports/sentinel/phase10-5_01_pr725-db-readiness-startup-validation.md`.
+- PR #725 Priority 2 DB readiness/startup blocker-closure lane is merged on main as closed truth, with canonical validation record preserved in `projects/polymarket/polyquantbot/reports/sentinel/phase10-5_01_pr725-db-readiness-startup-validation.md`.
+- PR #726 is merged on main as post-merge closure sync for PR #725 gate completion; stale pre-merge decision wording for PR #725 is retired from active state/roadmap lanes.
+- PR #727 Phase 10.5 post-merge persistence stabilization lane is merged on main as closed truth from exact head branch `feature/sync-repo-truth-and-stabilize-persistence`; SENTINEL approval record is preserved in `projects/polymarket/polyquantbot/reports/sentinel/phase10-5_02_pr727-persistence-boundary-validation.md`.
+- PR #728 is merged on main as SENTINEL sync closure for PR #727 and stale pre-merge gate wording for PR #727 is retired from active state/roadmap lanes.
+- PR #729 Phase 10.6 runtime config/readiness hardening lane is merged on main as closed truth from exact head branch `feature/sync-post-merge-repo-truth-and-harden-runtime-config`; SENTINEL approval record is preserved in `projects/polymarket/polyquantbot/reports/sentinel/phase10-6_01_pr729-runtime-config-and-readiness-validation.md`.
+- PR #730 is merged on main as SENTINEL sync closure for PR #729 and stale pre-merge gate wording for PR #729 is retired from active state/roadmap lanes.
+- PR #731 Phase 10.7 resilience hardening lane is merged on main as closed truth from exact head branch `feature/sync-post-merge-repo-truth-and-harden-resilience`; SENTINEL approval record is preserved in `projects/polymarket/polyquantbot/reports/sentinel/phase10-7_01_pr731-runtime-resilience-validation.md`.
+- PR #732 is merged on main as SENTINEL sync closure for PR #731 and stale pre-merge decision wording for PR #731 is retired from active state/roadmap lanes.
+- PR #733 is merged on main as post-merge checklist/state continuity sync for the completed Phase 10.7 lane.
 
 [IN PROGRESS]
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
@@ -49,7 +57,8 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- COMMANDER merge decision for PR #725 (`feature/close-pr-#724-blockers-for-db-readiness`) after SENTINEL APPROVED gate closure on Priority 2 DB readiness/startup handling path.
+- Phase 10.8 Priority 2 lane: harden structured logging consistency, startup/shutdown trace readability, and minimum viable monitoring outputs in control-plane runtime (paper-only boundary preserved).
+- COMMANDER review gate for PR lane `feature/update-repository-state-and-logging-monitoring` before SENTINEL validation handoff.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.

@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; Phase 10.2 onboarding/public command-surface lane is merged, and Phase 10.3 monitor integration plus observability hardening is merged on main via PR #719 (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-23 04:22
+**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, and PR #733 are merged-main truth, and Phase 10.8 logging/monitoring hardening is the active Priority 2 lane (paper-only boundary preserved, no live-trading or production-capital claim).
+**Last Updated:** 2026-04-23 14:54
 
 # Board Overview
 
@@ -52,7 +52,12 @@
 - Phase 10.2 post-merge sync and public command-surface refinement is merged on main (PR #713) with paper-only/non-custodial posture preserved.
 - Active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`; runtime/operator `/risk` remains separate and is not part of the public-safe informational set.
 - Phase 10.3 monitor integration hardening + observability baseline is merged on main via PR #719 (admin/internal path guarding, startup/command/reply logging baseline, missing-env/disabled-mode visibility logging, and monitor/admin visibility closure).
-- Phase 10 post-launch cleanup + public-surface wording alignment is merged on main via PR #721, with exact historical head branch traceability `feature/align-readme-and-refine-telegram-onboarding-2026-04-22`; next combined lane is Priority 2 DB, persistence, and runtime hardening baseline from `projects/polymarket/polyquantbot/work_checklist.md`.
+- Phase 10 post-launch cleanup + public-surface wording alignment is merged on main via PR #721, with exact historical head branch traceability `feature/align-readme-and-refine-telegram-onboarding-2026-04-22`.
+- Priority 2 DB readiness/startup hardening lane is merged on main via PR #725, and PR #726 post-merge repo-truth sync is also merged on main.
+- Phase 10.6 post-merge runtime config/readiness truth hardening is merged on main via PR #729 and PR #730 sync closure as historical truth.
+- Phase 10.7 resilience hardening is merged on main via PR #731 and PR #732 sync closure as historical truth.
+- PR #733 is merged on main as post-merge work-checklist continuity sync for completed Phase 10.7 truth.
+- Active lane is Phase 10.8 logging/monitoring hardening focused on structured log consistency, startup/shutdown trace readability, dependency-failure trace clarity, and minimum operator-visible monitoring outputs from `projects/polymarket/polyquantbot/work_checklist.md`.
 
 ### Execution Tracking Source
 - Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/work_checklist.md](projects/polymarket/polyquantbot/work_checklist.md).

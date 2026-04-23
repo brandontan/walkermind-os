@@ -77,6 +77,11 @@ class RuntimeState:
     db_connect_base_backoff_s: float = 0.0
     db_connect_timeout_s: float = 0.0
     db_client: object | None = None
+    lifecycle_phase: str = "created"
+    lifecycle_transitions_total: int = 0
+    dependency_failures_total: int = 0
+    last_dependency_failure_surface: str = ""
+    last_dependency_failure_error: str = ""
 
     def mark_started(self) -> None:
         self.started_at = datetime.now(timezone.utc)
@@ -96,13 +101,67 @@ def validate_api_environment(settings: ApiSettings) -> list[str]:
     return errors
 
 
+def validate_runtime_dependencies_from_env() -> list[str]:
+    errors: list[str] = []
+    db_runtime_enabled = os.getenv("CRUSADER_DB_RUNTIME_ENABLED", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    falcon_enabled = os.getenv("FALCON_ENABLED", "false").strip().lower() == "true"
+
+    if db_runtime_enabled and not os.getenv("DB_DSN", "").strip():
+        errors.append(
+            "DB_DSN is required when CRUSADER_DB_RUNTIME_ENABLED=true to avoid unsafe local-default persistence targets."
+        )
+
+    if falcon_enabled and not os.getenv("FALCON_API_KEY", "").strip():
+        errors.append(
+            "FALCON_API_KEY is required when FALCON_ENABLED=true; disabled or missing-key mode is not startup-valid."
+        )
+
+    return errors
+
+
+def startup_config_summary(settings: ApiSettings) -> dict[str, object]:
+    db_runtime_enabled = os.getenv("CRUSADER_DB_RUNTIME_ENABLED", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    db_runtime_required = os.getenv("CRUSADER_DB_RUNTIME_REQUIRED", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    telegram_runtime_required = telegram_runtime_required_from_env()
+    falcon_enabled = os.getenv("FALCON_ENABLED", "false").strip().lower() == "true"
+
+    return {
+        "startup_mode": settings.startup_mode,
+        "trading_mode": settings.trading_mode,
+        "environment": settings.environment,
+        "paper_only_boundary": settings.trading_mode == "PAPER",
+        "db_runtime_enabled": db_runtime_enabled,
+        "db_runtime_required": db_runtime_required,
+        "db_dsn_configured": bool(os.getenv("DB_DSN", "").strip()),
+        "telegram_runtime_required": telegram_runtime_required,
+        "telegram_token_configured": bool(os.getenv("TELEGRAM_BOT_TOKEN", "").strip()),
+        "falcon_enabled": falcon_enabled,
+        "falcon_api_key_configured": bool(os.getenv("FALCON_API_KEY", "").strip()),
+    }
+
+
 def telegram_runtime_required_from_env() -> bool:
     raw = os.getenv("CRUSADER_TELEGRAM_RUNTIME_REQUIRED", "false").strip().lower()
     return raw in {"1", "true", "yes", "on"}
 
 
 async def run_startup_validation(settings: ApiSettings, state: RuntimeState) -> None:
-    validation_errors = validate_api_environment(settings)
+    validation_errors = validate_api_environment(settings) + validate_runtime_dependencies_from_env()
     state.validation_errors = validation_errors
 
     if validation_errors:
@@ -115,11 +174,12 @@ async def run_startup_validation(settings: ApiSettings, state: RuntimeState) -> 
 
     await asyncio.sleep(0)
     state.mark_started()
+    summary = startup_config_summary(settings)
     log.info(
         "crusaderbot_api_ready",
         app_name=settings.app_name,
         port=settings.port,
-        trading_mode=settings.trading_mode,
+        startup_config_summary=summary,
     )
 
 
