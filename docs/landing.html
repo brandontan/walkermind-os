@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>Walker AI DevTrade Team</title>
+  <meta name="description" content="Multi-agent AI trading development team building modern trading infrastructure with execution speed, runtime integrity, and validation discipline." />
+  <meta property="og:title" content="Walker AI DevTrade Team" />
+  <meta property="og:description" content="Multi-agent AI trading development team building modern trading infrastructure with execution speed, runtime integrity, and validation discipline." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://bayuewalker.github.io/walker-ai-team" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M6 8 L16 24 L26 8' stroke='%2300a8ff' stroke-width='3' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ══════════════════════════════════════════════
+       WALKER AI DEVTRADE TEAM — LANDING PAGE
+       Single-file. GitHub Pages ready.
+    ══════════════════════════════════════════════ */
+
+    :root {
+      --bg:      #0a0a0a;
+      --bg2:     #111111;
+      --bg3:     #161616;
+      --border:  #222222;
+      --border2: #2a2a2a;
+      --blue:    #00a8ff;
+      --blue-dim:#0080cc;
+      --green:   #00d4aa;
+      --white:   #ffffff;
+      --gray:    #a0a0a0;
+      --gray2:   #666666;
+      --font-h:  'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-b:  'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-m:  'JetBrains Mono', 'Menlo', 'Courier New', monospace;
+      --max:     1200px;
+      --rad:     8px;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--white);
+      font-family: var(--font-b);
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── UTILITY ── */
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 0 32px; }
+
+    .label {
+      font-family: var(--font-m);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-m); font-size: 10px;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 3px;
+      border: 1px solid rgba(0,168,255,0.3);
+      background: rgba(0,168,255,0.06);
+      color: var(--blue);
+    }
+
+    .tag-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--blue);
+      animation: tagpulse 2s ease-in-out infinite;
+    }
+
+    @keyframes tagpulse {
+      0%,100% { opacity:1; } 50% { opacity:0.3; }
+    }
+
+    /* ── SCROLL REVEAL ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+    .reveal-delay-5 { transition-delay: 0.5s; }
+    .reveal-delay-6 { transition-delay: 0.6s; }
+
+    /* ══════════════════════════════════════════════
+       NAV
+    ══════════════════════════════════════════════ */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 18px 0;
+      border-bottom: 1px solid transparent;
+      transition: background 0.3s, border-color 0.3s, padding 0.3s;
+    }
+
+    nav.scrolled {
+      background: rgba(10,10,10,0.95);
+      border-color: var(--border);
+      padding: 14px 0;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      max-width: var(--max); margin: 0 auto; padding: 0 32px;
+    }
+
+    .nav-logo {
+      font-family: var(--font-h);
+      font-size: 15px; font-weight: 700;
+      letter-spacing: 0.04em;
+      text-decoration: none; color: var(--white);
+    }
+
+    .nav-logo span { color: var(--blue); }
+
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+
+    .nav-links a {
+      font-size: 13px; font-weight: 500;
+      color: var(--gray); text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--white); }
+
+    .nav-cta {
+      font-size: 13px; font-weight: 600;
+      color: var(--blue) !important;
+      border: 1px solid rgba(0,168,255,0.4);
+      padding: 8px 18px; border-radius: var(--rad);
+      background: rgba(0,168,255,0.06);
+      transition: background 0.2s, border-color 0.2s !important;
+    }
+
+    .nav-cta:hover { background: rgba(0,168,255,0.14) !important; border-color: rgba(0,168,255,0.6) !important; }
+
+    /* ══════════════════════════════════════════════
+       HERO
+    ══════════════════════════════════════════════ */
+    .hero {
+      min-height: 100vh;
+      display: flex; align-items: center;
+      position: relative; overflow: hidden;
+      padding: 140px 0 100px;
+    }
+
+    /* Animated dot grid */
+    .hero-bg {
+      position: absolute; inset: 0; z-index: 0;
+      background-image:
+        radial-gradient(circle at 25% 40%, rgba(0,168,255,0.08) 0%, transparent 55%),
+        radial-gradient(circle at 75% 70%, rgba(0,212,170,0.05) 0%, transparent 50%);
+    }
+
+    .dot-grid {
+      position: absolute; inset: 0; z-index: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+      animation: dotdrift 20s ease-in-out infinite alternate;
+    }
+
+    @keyframes dotdrift {
+      from { background-position: 0 0; }
+      to   { background-position: 28px 28px; }
+    }
+
+    /* Horizontal scan line */
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(0,168,255,0.4) 50%, transparent 100%);
+      animation: scan 6s ease-in-out infinite;
+      z-index: 1;
+    }
+
+    @keyframes scan {
+      0%   { top: 20%; opacity: 0; }
+      20%  { opacity: 1; }
+      80%  { opacity: 1; }
+      100% { top: 80%; opacity: 0; }
+    }
+
+    .hero-content { position: relative; z-index: 2; }
+
+    .hero-tag { margin-bottom: 32px; }
+
+    .hero-h1 {
+      font-family: var(--font-h);
+      font-size: clamp(42px, 7vw, 80px);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin-bottom: 24px;
+      max-width: 900px;
+    }
+
+    .hero-h1 .hl { color: var(--blue); }
+
+    .hero-sub {
+      font-size: clamp(15px, 2vw, 19px);
+      color: var(--gray);
+      max-width: 620px;
+      line-height: 1.7;
+      margin-bottom: 44px;
+    }
+
+    .hero-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--blue);
+      color: #000; font-weight: 700; font-size: 14px;
+      padding: 14px 28px; border-radius: var(--rad);
+      text-decoration: none; border: none; cursor: pointer;
+      font-family: var(--font-b);
+      transition: background 0.2s, transform 0.15s;
+    }
+
+    .btn-primary:hover { background: #33bbff; transform: translateY(-1px); }
+
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent;
+      color: var(--gray); font-weight: 500; font-size: 14px;
+      padding: 14px 28px; border-radius: var(--rad);
+      text-decoration: none;
+      border: 1px solid var(--border2);
+      font-family: var(--font-b);
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .btn-secondary:hover { color: var(--white); border-color: var(--gray2); }
+
+    .hero-stats {
+      display: flex; gap: 40px; margin-top: 60px;
+      padding-top: 40px; border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .stat-item {}
+    .stat-num {
+      font-family: var(--font-h);
+      font-size: 32px; font-weight: 700; color: var(--white);
+      line-height: 1; margin-bottom: 4px;
+    }
+    .stat-num span { color: var(--blue); }
+    .stat-label { font-size: 12px; color: var(--gray2); font-family: var(--font-m); letter-spacing: 0.06em; text-transform: uppercase; }
+
+    /* ══════════════════════════════════════════════
+       SECTIONS — SHARED
+    ══════════════════════════════════════════════ */
+    section { padding: 100px 0; }
+    section.alt { background: var(--bg2); }
+
+    .section-head { margin-bottom: 60px; }
+    .section-head h2 {
+      font-family: var(--font-h);
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700; line-height: 1.15;
+      letter-spacing: -0.02em; margin-bottom: 16px;
+    }
+    .section-head p { font-size: 16px; color: var(--gray); max-width: 580px; line-height: 1.7; }
+
+    /* ══════════════════════════════════════════════
+       ABOUT
+    ══════════════════════════════════════════════ */
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+
+    .about-text p {
+      font-size: 17px; color: var(--gray);
+      line-height: 1.8; margin-bottom: 20px;
+    }
+
+    .about-text p strong { color: var(--white); }
+
+    .about-visual {
+      position: relative;
+      aspect-ratio: 4/3;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg3);
+    }
+
+    .terminal {
+      position: absolute; inset: 0;
+      padding: 20px 24px;
+      font-family: var(--font-m);
+      font-size: 12px;
+      color: var(--green);
+      overflow: hidden;
+    }
+
+    .terminal-bar {
+      display: flex; align-items: center; gap: 6px;
+      margin-bottom: 20px;
+    }
+
+    .t-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .t-dot.r { background: #ff5f57; }
+    .t-dot.y { background: #febc2e; }
+    .t-dot.g { background: #28c840; }
+
+    .t-line { color: var(--green); line-height: 2; white-space: nowrap; overflow: hidden; }
+    .t-dim  { color: var(--gray2); }
+    .t-blue { color: var(--blue); }
+    .t-cursor { display: inline-block; width: 7px; height: 13px; background: var(--blue); vertical-align: text-bottom; animation: blink 1.1s step-end infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    .terminal-grid {
+      position: absolute; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(0,168,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,168,255,0.03) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    /* ══════════════════════════════════════════════
+       WORKFLOW
+    ══════════════════════════════════════════════ */
+    .flow-steps { display: flex; flex-direction: column; gap: 0; }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 24px;
+      position: relative;
+    }
+
+    .flow-step:not(:last-child) .flow-num::after {
+      content: '';
+      position: absolute; left: 31px; top: 56px; bottom: -1px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--border2), transparent);
+    }
+
+    .flow-num-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      position: relative; padding-bottom: 32px;
+    }
+
+    .flow-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      border: 1px solid var(--border2);
+      background: var(--bg3);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-m); font-size: 12px;
+      color: var(--blue); flex-shrink: 0;
+    }
+
+    .flow-connector {
+      width: 2px; flex: 1; min-height: 24px;
+      background: linear-gradient(180deg, var(--border2) 0%, transparent 100%);
+      margin-top: 4px;
+    }
+
+    .flow-body { padding-bottom: 32px; }
+
+    .flow-title {
+      font-family: var(--font-h);
+      font-size: 18px; font-weight: 700;
+      margin-bottom: 8px; padding-top: 12px;
+    }
+
+    .flow-desc { font-size: 14px; color: var(--gray); line-height: 1.7; }
+
+    .flow-agent {
+      display: inline-block; margin-top: 10px;
+      font-family: var(--font-m); font-size: 9px;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--blue); padding: 3px 8px;
+      border: 1px solid rgba(0,168,255,0.25);
+      border-radius: 3px; background: rgba(0,168,255,0.05);
+    }
+
+    /* ══════════════════════════════════════════════
+       TEAM
+    ══════════════════════════════════════════════ */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .team-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px 24px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.25s, transform 0.2s;
+    }
+
+    .team-card:hover { border-color: var(--border2); transform: translateY(-3px); }
+
+    .team-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--blue), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .team-card:hover::before { opacity: 1; }
+
+    .team-icon {
+      width: 44px; height: 44px; border-radius: 8px;
+      background: rgba(0,168,255,0.08);
+      border: 1px solid rgba(0,168,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .team-icon svg { width: 22px; height: 22px; }
+
+    .team-card.founder { grid-column: 1 / -1; display: grid; grid-template-columns: 48px 1fr; gap: 24px; align-items: start; }
+    .team-card.founder .team-icon { width: 48px; height: 48px; margin-bottom: 0; border-radius: 10px; background: rgba(0,168,255,0.12); border-color: rgba(0,168,255,0.35); }
+    .team-card.founder .team-icon svg { width: 26px; height: 26px; }
+
+    .team-role {
+      font-family: var(--font-m); font-size: 9px;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--blue); margin-bottom: 6px;
+    }
+
+    .team-name {
+      font-family: var(--font-h); font-size: 20px; font-weight: 700;
+      margin-bottom: 10px; letter-spacing: -0.01em;
+    }
+
+    .team-card.founder .team-name { font-size: 24px; }
+
+    .team-desc { font-size: 13px; color: var(--gray); line-height: 1.7; }
+
+    /* ══════════════════════════════════════════════
+       WHAT WE BUILD
+    ══════════════════════════════════════════════ */
+    .build-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .build-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px 24px;
+      transition: border-color 0.25s;
+    }
+
+    .build-card:hover { border-color: var(--border2); }
+
+    .build-icon {
+      width: 40px; height: 40px; border-radius: 6px;
+      margin-bottom: 18px; display: flex; align-items: center; justify-content: center;
+    }
+
+    .build-icon.blue  { background: rgba(0,168,255,0.1);  border: 1px solid rgba(0,168,255,0.2); }
+    .build-icon.green { background: rgba(0,212,170,0.1);  border: 1px solid rgba(0,212,170,0.2); }
+    .build-icon.gray  { background: rgba(160,160,160,0.07); border: 1px solid rgba(160,160,160,0.15); }
+
+    .build-icon svg { width: 20px; height: 20px; }
+
+    .build-title {
+      font-family: var(--font-h); font-size: 16px; font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .build-desc { font-size: 13px; color: var(--gray); line-height: 1.7; }
+
+    /* ══════════════════════════════════════════════
+       PRINCIPLES
+    ══════════════════════════════════════════════ */
+    .principles { background: var(--bg2); }
+
+    .principles-list {
+      display: flex; flex-direction: column; gap: 0;
+    }
+
+    .principle-item {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 20px;
+      padding: 28px 0;
+      border-bottom: 1px solid var(--border);
+      align-items: start;
+      transition: background 0.2s;
+    }
+
+    .principle-item:last-child { border-bottom: none; }
+
+    .principle-num {
+      font-family: var(--font-m); font-size: 10px;
+      color: var(--blue); padding-top: 4px;
+      letter-spacing: 0.05em;
+    }
+
+    .principle-text {
+      font-family: var(--font-h);
+      font-size: clamp(16px, 2vw, 22px);
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--white);
+    }
+
+    .principle-text span { color: var(--blue); }
+
+    /* ══════════════════════════════════════════════
+       TECH & TOOLS
+    ══════════════════════════════════════════════ */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    .tech-chip {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      font-family: var(--font-m); font-size: 12px;
+      color: var(--gray);
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .tech-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+    .tech-dot.green { background: var(--green); }
+    .tech-dot.gray  { background: var(--gray2); }
+
+    .tech-note {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--blue);
+      border-radius: 0 6px 6px 0;
+      padding: 20px 24px;
+      font-family: var(--font-m); font-size: 12px;
+      color: var(--gray); line-height: 1.8;
+    }
+
+    /* ══════════════════════════════════════════════
+       FOOTER
+    ══════════════════════════════════════════════ */
+    footer {
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      padding: 48px 0;
+    }
+
+    .footer-inner {
+      display: flex; justify-content: space-between;
+      align-items: flex-start; gap: 40px; flex-wrap: wrap;
+    }
+
+    .footer-brand {
+      font-family: var(--font-h);
+      font-size: 16px; font-weight: 700;
+    }
+
+    .footer-brand span { color: var(--blue); }
+
+    .footer-tagline {
+      font-size: 12px; color: var(--gray2);
+      margin-top: 6px; font-family: var(--font-m);
+      letter-spacing: 0.04em;
+    }
+
+    .footer-links { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+    .footer-links a {
+      font-size: 13px; color: var(--gray2); text-decoration: none;
+      font-family: var(--font-m); transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--blue); }
+
+    .footer-copy {
+      width: 100%; font-size: 12px; color: var(--gray2);
+      font-family: var(--font-m); margin-top: 32px;
+      padding-top: 24px; border-top: 1px solid var(--border);
+    }
+
+    /* ══════════════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════════════ */
+    @media (max-width: 960px) {
+      .about-grid { grid-template-columns: 1fr; gap: 40px; }
+      .team-grid  { grid-template-columns: 1fr 1fr; }
+      .team-card.founder { grid-column: 1 / -1; }
+      .build-grid { grid-template-columns: 1fr 1fr; }
+      .tech-grid  { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 640px) {
+      .wrap { padding: 0 20px; }
+      section { padding: 72px 0; }
+      .hero { padding: 100px 0 72px; }
+      .nav-links { display: none; }
+      .team-grid  { grid-template-columns: 1fr; }
+      .team-card.founder { grid-template-columns: 1fr; }
+      .build-grid { grid-template-columns: 1fr; }
+      .tech-grid  { grid-template-columns: 1fr 1fr; }
+      .hero-stats { gap: 24px; }
+      .footer-inner { flex-direction: column; gap: 24px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+      .scan-line, .dot-grid { animation: none; }
+      .t-cursor { animation: none; }
+      .tagpulse { animation: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     NAV
+══════════════════════════════════════════════ -->
+<nav id="main-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">WALKER <span>AI</span> DEVTRADE</a>
+    <div class="nav-links">
+      <a href="#about">About</a>
+      <a href="#workflow">Workflow</a>
+      <a href="#team">Team</a>
+      <a href="#build">What We Build</a>
+      <a href="https://github.com/bayuewalker/walker-ai-team" target="_blank" rel="noreferrer" class="nav-cta">GitHub →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════
+     SECTION 1 — HERO
+══════════════════════════════════════════════ -->
+<section class="hero" id="top" aria-labelledby="hero-heading">
+  <div class="hero-bg"></div>
+  <div class="dot-grid" aria-hidden="true"></div>
+  <div class="scan-line" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <div class="hero-content">
+      <div class="hero-tag reveal">
+        <div class="tag"><span class="tag-dot" aria-hidden="true"></span>Paper Beta · System Active</div>
+      </div>
+      <h1 class="hero-h1 reveal reveal-delay-1" id="hero-heading">
+        Multi-agent AI<br />
+        <span class="hl">trading infrastructure.</span><br />
+        Built to hold.
+      </h1>
+      <p class="hero-sub reveal reveal-delay-2">
+        Walker AI DevTrade Team engineers precision trading systems — Polymarket,
+        TradingView, MT5 — under a truth-centric execution model where every
+        decision is traceable and every deployment is validated.
+      </p>
+      <div class="hero-actions reveal reveal-delay-3">
+        <a href="https://github.com/bayuewalker/walker-ai-team" target="_blank" rel="noreferrer" class="btn-primary" aria-label="View the project on GitHub">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.29-.01-1.05-.01-2.06-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.13 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          View on GitHub
+        </a>
+        <a href="#about" class="btn-secondary" aria-label="Learn about the team">
+          How it works ↓
+        </a>
+      </div>
+      <div class="hero-stats reveal reveal-delay-4">
+        <div class="stat-item">
+          <div class="stat-num">4<span>+</span></div>
+          <div class="stat-label">Specialist Agents</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">3<span>+</span></div>
+          <div class="stat-label">Trading Platforms</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">100<span>%</span></div>
+          <div class="stat-label">Audit Trail</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">0<span>x</span></div>
+          <div class="stat-label">Unvalidated Deploys</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     SECTION 2 — ABOUT
+══════════════════════════════════════════════ -->
+<section id="about" aria-labelledby="about-heading">
+  <div class="wrap">
+    <div class="about-grid">
+      <div class="about-text">
+        <span class="label reveal">About the Team</span>
+        <div class="section-head" style="margin-bottom:28px;">
+          <h2 id="about-heading" class="reveal">We build trading systems that hold up under pressure.</h2>
+        </div>
+        <p class="reveal reveal-delay-1">
+          Walker AI DevTrade Team is a <strong>truth-centric multi-agent development operation</strong>.
+          Every decision, every line of code, and every deployment is anchored to verifiable repo truth —
+          not reports, not memory, not assumptions.
+        </p>
+        <p class="reveal reveal-delay-2">
+          We are not a typical team. Our agents operate with <strong>clear roles, strict gates, and
+          disciplined execution</strong>. When something ships from this team, it has been
+          implemented, validated, and reviewed. No exceptions.
+        </p>
+        <p class="reveal reveal-delay-3">
+          Speed without discipline is waste. Speed <em>with</em> discipline is competitive advantage.
+          That is the model we operate under, and the infrastructure we build reflects it.
+        </p>
+      </div>
+      <div class="about-visual reveal reveal-delay-2" role="img" aria-label="Walker AI system terminal interface">
+        <div class="terminal-grid" aria-hidden="true"></div>
+        <div class="terminal" aria-hidden="true">
+          <div class="terminal-bar">
+            <div class="t-dot r"></div>
+            <div class="t-dot y"></div>
+            <div class="t-dot g"></div>
+          </div>
+          <div class="t-line t-dim">// WALKER_AI_OS v1.0</div>
+          <div class="t-line"><span class="t-blue">→</span> LOADING COMMANDER............. <span class="t-dim">[OK]</span></div>
+          <div class="t-line"><span class="t-blue">→</span> READING REPO TRUTH............ <span class="t-dim">[OK]</span></div>
+          <div class="t-line"><span class="t-blue">→</span> FORMING EXECUTION LANE........ <span class="t-dim">[OK]</span></div>
+          <div class="t-line"><span class="t-blue">→</span> SENTINEL VALIDATION GATE...... <span class="t-dim">[OK]</span></div>
+          <div class="t-line"><span class="t-blue">→</span> KELLY FRACTION (α=0.25)....... <span class="t-dim">[OK]</span></div>
+          <div class="t-line"><span class="t-blue">→</span> CIRCUIT BREAKER (&gt;8%)......... <span class="t-dim">[SET]</span></div>
+          <div class="t-line">&nbsp;</div>
+          <div class="t-line">SYSTEM READY. AWAITING DIRECTION.<span class="t-cursor"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     SECTION 3 — HOW WE WORK
+══════════════════════════════════════════════ -->
+<section id="workflow" class="alt" aria-labelledby="workflow-heading">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="label reveal">Execution Model</span>
+      <h2 id="workflow-heading" class="reveal">Precision from direction to delivery.</h2>
+      <p class="reveal reveal-delay-1">Every task flows through a defined chain. Nothing ships without passing its gate.</p>
+    </div>
+    <div class="flow-steps" role="list">
+      <div class="flow-step reveal" role="listitem">
+        <div class="flow-num-wrap">
+          <div class="flow-num">01</div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">Direction Set</div>
+          <div class="flow-desc">Bayue Walker issues direction or scoped task. Clear scope, clear priority. No ambiguity left unresolved at this stage.</div>
+          <div class="flow-agent">Mr. Walker</div>
+        </div>
+      </div>
+      <div class="flow-step reveal reveal-delay-1" role="listitem">
+        <div class="flow-num-wrap">
+          <div class="flow-num">02</div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">Repo Truth Read</div>
+          <div class="flow-desc">COMMANDER reads the full repo state — registry, active lanes, blockers, tier, claim level. Decisions are made from evidence, not assumption.</div>
+          <div class="flow-agent">COMMANDER</div>
+        </div>
+      </div>
+      <div class="flow-step reveal reveal-delay-2" role="listitem">
+        <div class="flow-num-wrap">
+          <div class="flow-num">03</div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">Lane Formed</div>
+          <div class="flow-desc">Adjacent work items are merged into a single coherent execution lane. Fragmentation eliminated. Scope locked.</div>
+          <div class="flow-agent">COMMANDER</div>
+        </div>
+      </div>
+      <div class="flow-step reveal reveal-delay-3" role="listitem">
+        <div class="flow-num-wrap">
+          <div class="flow-num">04</div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">Task Routed by Tier</div>
+          <div class="flow-desc">MINOR, STANDARD, and MAJOR changes follow distinct validation paths. The tier determines the depth of review required before anything can merge.</div>
+          <div class="flow-agent">COMMANDER → NEXUS</div>
+        </div>
+      </div>
+      <div class="flow-step reveal reveal-delay-1" role="listitem">
+        <div class="flow-num-wrap">
+          <div class="flow-num">05</div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">FORGE-X Implements</div>
+          <div class="flow-desc">FORGE-X works within the scoped lane — verifies branch, writes code, updates state, generates report, commits, and opens the pull request.</div>
+          <div class="flow-agent">FORGE-X</div>
+        </div>
+      </div>
+      <div class="flow-step reveal reveal-delay-2" role="listitem">
+        <div class="flow-num-wrap">
+          <div class="flow-num">06</div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">PR Reviewed</div>
+          <div class="flow-desc">COMMANDER reviews files changed, bot comments, branch traceability, and state drift. High-impact changes escalate through SENTINEL's safety gate.</div>
+          <div class="flow-agent">COMMANDER / SENTINEL</div>
+        </div>
+      </div>
+      <div class="flow-step reveal reveal-delay-3" role="listitem">
+        <div class="flow-num-wrap">
+          <div class="flow-num">07</div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">Merged and Synced</div>
+          <div class="flow-desc">COMMANDER auto-merges or closes by own decision. State files are synchronized. Next lane is determined. The cycle continues.</div>
+          <div class="flow-agent">COMMANDER</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     SECTION 4 — THE TEAM
+══════════════════════════════════════════════ -->
+<section id="team" aria-labelledby="team-heading">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="label reveal">The Team</span>
+      <h2 id="team-heading" class="reveal">Built like a system. Runs like one too.</h2>
+      <p class="reveal reveal-delay-1">Each role is precisely scoped. No overlap. No ambiguity. Clear ownership at every layer.</p>
+    </div>
+    <div class="team-grid" role="list">
+
+      <!-- Founder -->
+      <div class="team-card founder reveal" role="listitem">
+        <div class="team-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00a8ff" stroke-width="1.5" aria-hidden="true">
+            <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          </svg>
+        </div>
+        <div>
+          <div class="team-role">Founder &amp; Owner</div>
+          <div class="team-name">Bayue Walker</div>
+          <div class="team-desc">
+            The strategic mind behind the operation. Bayue sets all direction, priorities, and holds
+            final authority over every decision. Not a figurehead — an active operator who drives the
+            system forward and ensures the team's output aligns with the mission at every step.
+          </div>
+        </div>
+      </div>
+
+      <!-- COMMANDER -->
+      <div class="team-card reveal reveal-delay-1" role="listitem">
+        <div class="team-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00a8ff" stroke-width="1.5" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5.2 5.2l2.1 2.1m9.4 9.4 2.1 2.1M5.2 18.8l2.1-2.1m9.4-9.4 2.1-2.1"/>
+          </svg>
+        </div>
+        <div class="team-role">Systems Architect &amp; Orchestrator</div>
+        <div class="team-name">COMMANDER</div>
+        <div class="team-desc">
+          The operational brain. COMMANDER reads repo truth, determines execution lanes, reviews all
+          outputs, and makes autonomous merge and closure decisions. The bridge between strategic vision
+          and tactical execution — resolving minor issues without disturbing the founder.
+        </div>
+      </div>
+
+      <!-- FORGE-X -->
+      <div class="team-card reveal reveal-delay-2" role="listitem">
+        <div class="team-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00a8ff" stroke-width="1.5" aria-hidden="true">
+            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+          </svg>
+        </div>
+        <div class="team-role">Builder &amp; Implementation Specialist</div>
+        <div class="team-name">FORGE-X</div>
+        <div class="team-desc">
+          The hands of the team. Every line of code, every patch, every refactor flows through FORGE-X.
+          Responsible for implementation, state updates, report generation, and pull request creation.
+          Operates within strict scope — no drift, no overreach.
+        </div>
+      </div>
+
+      <!-- SENTINEL -->
+      <div class="team-card reveal reveal-delay-3" role="listitem">
+        <div class="team-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00a8ff" stroke-width="1.5" aria-hidden="true">
+            <path d="M12 2L3 7v6c0 5 4 9.3 9 10.3C17 22.3 21 18 21 13V7L12 2z"/>
+          </svg>
+        </div>
+        <div class="team-role">Validator &amp; Safety Enforcer</div>
+        <div class="team-name">SENTINEL</div>
+        <div class="team-desc">
+          The guardian. Activated for high-impact changes touching trading logic, risk controls, or
+          capital flow. SENTINEL ensures that what ships is not just functional but genuinely safe.
+          Nothing bypasses this gate when safety is on the line.
+        </div>
+      </div>
+
+      <!-- BRIEFER -->
+      <div class="team-card reveal reveal-delay-4" role="listitem">
+        <div class="team-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00a8ff" stroke-width="1.5" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+          </svg>
+        </div>
+        <div class="team-role">Reporter &amp; Visualizer</div>
+        <div class="team-name">BRIEFER</div>
+        <div class="team-desc">
+          The translator. Converts complex technical outputs into actionable artifacts — HTML reports,
+          visual dashboards, operational summaries. Works exclusively from validated data. Never
+          fabricates. Never assumes. Every output is evidence-backed.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     SECTION 5 — WHAT WE BUILD
+══════════════════════════════════════════════ -->
+<section id="build" class="alt" aria-labelledby="build-heading">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="label reveal">What We Build</span>
+      <h2 id="build-heading" class="reveal">Infrastructure that executes across real markets.</h2>
+      <p class="reveal reveal-delay-1">Precision systems covering prediction markets, FX, and equity derivatives — with full validation pipelines on every build.</p>
+    </div>
+    <div class="build-grid" role="list">
+      <div class="build-card reveal reveal-delay-1" role="listitem">
+        <div class="build-icon blue" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00a8ff" stroke-width="1.5" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="build-title">Polymarket Trading Bots</div>
+        <div class="build-desc">On-chain prediction market execution via Polymarket's CLOB API. Kelly-sized positions, signal deduplication, real-time order lifecycle management.</div>
+      </div>
+      <div class="build-card reveal reveal-delay-2" role="listitem">
+        <div class="build-icon green" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="1.5" aria-hidden="true"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+        </div>
+        <div class="build-title">TradingView Signal Systems</div>
+        <div class="build-desc">Pine Script strategy development, automated webhook routing, backtesting pipelines, and alert-to-execution bridges for TradingView platforms.</div>
+      </div>
+      <div class="build-card reveal reveal-delay-3" role="listitem">
+        <div class="build-icon gray" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#a0a0a0" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        </div>
+        <div class="build-title">MetaTrader 4/5 Systems</div>
+        <div class="build-desc">MQL5 Expert Advisor development for FX and CFD instruments. Structured automation with runtime safety, drawdown controls, and live monitoring.</div>
+      </div>
+      <div class="build-card reveal reveal-delay-1" role="listitem">
+        <div class="build-icon blue" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00a8ff" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        </div>
+        <div class="build-title">Operational Dashboards</div>
+        <div class="build-desc">Real-time monitoring surfaces and interactive HTML reports that maintain full transparency across the entire development and trading lifecycle.</div>
+      </div>
+      <div class="build-card reveal reveal-delay-2" role="listitem">
+        <div class="build-icon green" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="1.5" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="build-title">Validation Pipelines</div>
+        <div class="build-desc">Structured SENTINEL-gated review chains for every high-impact change. Runtime safety enforcement, audit trail generation, and post-merge sync protocols.</div>
+      </div>
+      <div class="build-card reveal reveal-delay-3" role="listitem">
+        <div class="build-icon gray" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#a0a0a0" stroke-width="1.5" aria-hidden="true"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+        </div>
+        <div class="build-title">Multi-Project Architecture</div>
+        <div class="build-desc">GitHub-centric workspace supporting simultaneous development across multiple projects. Truth-synced state management with exact branch traceability.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     SECTION 6 — PRINCIPLES
+══════════════════════════════════════════════ -->
+<section id="principles" class="principles" aria-labelledby="principles-heading">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="label reveal">Core Principles</span>
+      <h2 id="principles-heading" class="reveal">The rules we build by.</h2>
+      <p class="reveal reveal-delay-1">Not guidelines. Not suggestions. These are the operating constraints that every decision passes through.</p>
+    </div>
+    <ol class="principles-list" role="list">
+      <li class="principle-item reveal" role="listitem">
+        <div class="principle-num" aria-hidden="true">01</div>
+        <div class="principle-text"><span>Repo truth</span> is the single source of reality — not reports, not memory, not assumptions.</div>
+      </li>
+      <li class="principle-item reveal reveal-delay-1" role="listitem">
+        <div class="principle-num" aria-hidden="true">02</div>
+        <div class="principle-text"><span>Code truth</span> always wins over report wording.</div>
+      </li>
+      <li class="principle-item reveal reveal-delay-2" role="listitem">
+        <div class="principle-num" aria-hidden="true">03</div>
+        <div class="principle-text">Speed without discipline is waste. Speed <span>with</span> discipline is competitive advantage.</div>
+      </li>
+      <li class="principle-item reveal reveal-delay-3" role="listitem">
+        <div class="principle-num" aria-hidden="true">04</div>
+        <div class="principle-text">Every change must be <span>traceable, validated,</span> and properly scoped before it ships.</div>
+      </li>
+      <li class="principle-item reveal reveal-delay-1" role="listitem">
+        <div class="principle-num" aria-hidden="true">05</div>
+        <div class="principle-text">Minor issues are resolved <span>autonomously.</span> Major decisions go through proper gates with founder authority.</div>
+      </li>
+      <li class="principle-item reveal reveal-delay-2" role="listitem">
+        <div class="principle-num" aria-hidden="true">06</div>
+        <div class="principle-text"><span>Drift</span> is the enemy. <span>Noise</span> is the distraction. Both are actively managed and eliminated.</div>
+      </li>
+      <li class="principle-item reveal reveal-delay-3" role="listitem">
+        <div class="principle-num" aria-hidden="true">07</div>
+        <div class="principle-text">Maximize <span>delivery per token spent.</span> Efficiency is not optional — it is architectural.</div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     SECTION 7 — TECHNOLOGY & TOOLS
+══════════════════════════════════════════════ -->
+<section id="tech" aria-labelledby="tech-heading">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="label reveal">Technology &amp; Tools</span>
+      <h2 id="tech-heading" class="reveal">The stack behind the system.</h2>
+      <p class="reveal reveal-delay-1">No unnecessary dependencies. Every tool earns its place in the architecture.</p>
+    </div>
+    <div class="tech-grid" role="list">
+      <div class="tech-chip reveal" role="listitem"><span class="tech-dot"></span>GitHub Actions</div>
+      <div class="tech-chip reveal reveal-delay-1" role="listitem"><span class="tech-dot"></span>Polymarket CLOB API</div>
+      <div class="tech-chip reveal reveal-delay-2" role="listitem"><span class="tech-dot green"></span>Kalshi API</div>
+      <div class="tech-chip reveal reveal-delay-3" role="listitem"><span class="tech-dot green"></span>TradingView Webhooks</div>
+      <div class="tech-chip reveal" role="listitem"><span class="tech-dot"></span>MQL5 / MetaTrader 5</div>
+      <div class="tech-chip reveal reveal-delay-1" role="listitem"><span class="tech-dot"></span>Pine Script</div>
+      <div class="tech-chip reveal reveal-delay-2" role="listitem"><span class="tech-dot gray"></span>Python 3.11</div>
+      <div class="tech-chip reveal reveal-delay-3" role="listitem"><span class="tech-dot gray"></span>TypeScript / Node.js</div>
+      <div class="tech-chip reveal" role="listitem"><span class="tech-dot green"></span>Kelly Criterion Engine</div>
+      <div class="tech-chip reveal reveal-delay-1" role="listitem"><span class="tech-dot"></span>Multi-Agent Orchestration</div>
+      <div class="tech-chip reveal reveal-delay-2" role="listitem"><span class="tech-dot"></span>Structured State Sync</div>
+      <div class="tech-chip reveal reveal-delay-3" role="listitem"><span class="tech-dot green"></span>Telegram Kill Switch</div>
+    </div>
+    <div class="tech-note reveal reveal-delay-2">
+      Every component operates under a GitHub-centric workflow with exact branch traceability,
+      automated review triage, and truth-synced state management. Multi-environment execution
+      across paper and live phases. Structured validation pipelines from SENTINEL before any
+      capital-touching change reaches production.
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════════ -->
+<footer role="contentinfo">
+  <div class="wrap">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">WALKER <span>AI</span> DEVTRADE TEAM</div>
+        <div class="footer-tagline">Built with discipline. Deployed with precision.</div>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/bayuewalker/walker-ai-team" target="_blank" rel="noreferrer" aria-label="Walker AI GitHub repository">GitHub</a>
+        <a href="#about">About</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#team">Team</a>
+        <a href="#principles">Principles</a>
+      </div>
+    </div>
+    <div class="footer-copy">
+      © 2025 Walker AI DevTrade Team · Bayue Walker · Paper Beta Phase ·
+      All execution simulated. No real capital at risk during this phase.
+    </div>
+  </div>
+</footer>
+
+<script>
+  'use strict';
+
+  /* ── SCROLL REVEAL (IntersectionObserver) ── */
+  (function () {
+    var elements = document.querySelectorAll('.reveal');
+
+    if (!('IntersectionObserver' in window)) {
+      elements.forEach(function (el) { el.classList.add('visible'); });
+      return;
+    }
+
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          obs.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+    elements.forEach(function (el) { obs.observe(el); });
+  })();
+
+  /* ── NAV SCROLL STATE ── */
+  (function () {
+    var nav = document.getElementById('main-nav');
+    var threshold = 40;
+
+    function update() {
+      if (window.scrollY > threshold) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+    }
+
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+</script>
+</body>
+</html>

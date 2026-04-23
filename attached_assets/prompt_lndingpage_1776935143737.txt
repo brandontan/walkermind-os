@@ -1,0 +1,279 @@
+You are a world-class web designer, brand strategist, and senior copywriter
+specializing in fintech, AI, and trading technology.
+
+Your task is to design and write a complete, premium-grade landing page
+for Walker AI DevTrade Team, output as a single production-ready HTML file
+optimized for GitHub Pages deployment.
+
+====================================================================
+CONTEXT
+====================================================================
+
+Walker AI DevTrade Team is a precision-engineered multi-agent AI development
+team that builds, validates, and ships modern trading infrastructure. The team
+operates under a strict truth-centric execution model where every decision,
+every line of code, and every deployment is anchored to verifiable repo truth.
+
+The founder, Bayue Walker, leads a system where AI agents operate with clear
+roles, strict gates, and disciplined execution. This is not a team that moves
+fast and breaks things. This is a team that moves fast and builds things
+that hold.
+
+====================================================================
+BRAND IDENTITY
+====================================================================
+
+Voice: Confident, precise, technical but accessible. Not corporate jargon.
+Not startup hype. Speaks like an engineering leader who ships real systems.
+
+Tone: Professional authority with quiet confidence. Every word earns its
+place. No filler. No fluff. No empty promises.
+
+Visual identity: Dark premium theme. Think Bloomberg terminal meets modern
+SaaS. Deep blacks, charcoal grays, with sharp accent colors in electric blue
+or emerald green. Clean sans-serif typography. Generous whitespace.
+Data-informed aesthetic.
+
+====================================================================
+TEAM STRUCTURE
+====================================================================
+
+Bayue Walker
+Founder and Owner. The strategic mind behind the operation. Sets all
+direction, priorities, and holds final authority over every decision.
+Not a figurehead — an active operator who drives the system forward.
+
+COMMANDER
+Systems Architect, Gatekeeper, and Orchestrator. The operational brain
+of the team. Reads repo truth, determines execution lanes, reviews all
+outputs, makes autonomous merge and closure decisions, and resolves minor
+issues without disturbing the founder. COMMANDER is the bridge between
+strategic vision and tactical execution.
+
+NEXUS
+Multi-Agent Specialist Team. The execution arm consisting of three
+specialist agents, each with distinct capabilities. NEXUS operates under
+COMMANDER direction in separate execution environments, receiving scoped
+tasks and returning validated outputs.
+
+FORGE-X
+Builder and Implementation Specialist. The hands of the team. Every line
+of code, every patch, every refactor, every fix flows through FORGE-X.
+Responsible for implementation, state updates, report generation, and
+pull request creation.
+
+SENTINEL
+Validator, Auditor, and Safety Enforcer. The guardian. Activated only for
+high-impact changes that touch trading logic, risk controls, capital flow,
+or runtime safety. SENTINEL ensures that what ships is not just functional
+but genuinely safe.
+
+BRIEFER
+Reporter, Visualizer, and Communication Layer. The translator. Converts
+complex technical outputs into actionable artifacts — HTML reports, visual
+dashboards, operational summaries. Works exclusively from validated data.
+Never fabricates. Never assumes.
+
+====================================================================
+OPERATIONAL MODEL
+====================================================================
+
+The team operates on a truth-centric execution model with two modes.
+
+Normal Mode is the default operating posture. Structured, methodical,
+with full review gates. Used when scope requires assessment, risk is
+unclear, or the lane is new.
+
+Degen Mode is a fast execution posture activated only by explicit founder
+command. Designed to eliminate wasted time from review noise, cosmetic
+debates, micro-task fragmentation, and explanation loops. Degen mode
+batches fixes, prioritizes implementation over discussion, and pushes
+lane closure — while still respecting every safety gate, validation
+requirement, and repo truth boundary.
+
+The workflow follows a clear chain:
+Mr. Walker sets direction
+COMMANDER reads repo truth and forms execution lanes
+NEXUS executes through the right specialist
+COMMANDER reviews, validates, and merges
+Post-merge, all state files are synchronized and the next lane is determined
+Every decision is traceable. Every output is evidence-backed.
+
+====================================================================
+WHAT WE BUILD
+====================================================================
+
+AI-powered trading bots with structured validation pipelines and runtime
+safety enforcement.
+
+Multi-project workspace architecture supporting Polymarket, TradingView,
+and MT5 platforms simultaneously.
+
+Disciplined GitHub workflow with exact branch traceability, automated
+review triage, and truth-synced state management.
+
+Operational reporting systems that maintain full transparency across the
+entire development lifecycle.
+
+Dashboard and monitoring surfaces for real-time operational visibility.
+
+====================================================================
+CORE PRINCIPLES
+====================================================================
+
+Repo truth is the single source of reality — not reports, not memory,
+not assumptions.
+
+Code truth always wins over report wording.
+
+Speed without discipline is waste. Speed with discipline is competitive
+advantage.
+
+Every change must be traceable, validated, and properly scoped before
+it ships.
+
+Minor issues are resolved autonomously by COMMANDER. Major decisions go
+through proper gates with founder authority.
+
+Drift is the enemy. Noise is the distraction. Both are actively managed
+and eliminated.
+
+Maximize delivery per token spent. Efficiency is not optional — it is
+architectural.
+
+====================================================================
+LANDING PAGE STRUCTURE
+====================================================================
+
+Section 1 — Hero
+Full-width dark hero with a powerful headline, a concise subheadline,
+and a subtle animated background suggesting data flow or market movement.
+No stock photos. No generic illustrations. The visual should feel like
+looking at a live system. Include a call-to-action button linking to the
+GitHub repository.
+
+Section 2 — About
+Brief, high-impact paragraph explaining who we are and why we exist.
+Emphasize the truth-centric model and the multi-agent approach. This
+section should make the reader understand in 10 seconds that this is
+not a typical team.
+
+Section 3 — How We Work
+Visual workflow diagram or step-by-step flow showing the execution model
+from direction to delivery. Clean, minimal, with icons or subtle
+animations. Should communicate precision and structure without feeling
+rigid.
+
+Section 4 — The Team
+Individual cards or panels for each role. Each card has the role name,
+title, and a sharp one-paragraph description. Use subtle iconography or
+abstract visuals — no photos, no avatars. The design should feel like a
+system architecture diagram, not a corporate team page.
+
+Section 5 — What We Build
+Grid or card layout showing the key deliverables and platforms. Each card
+has a title, brief description, and relevant icon. Platforms include
+Polymarket, TradingView, and MT5.
+
+Section 6 — Principles
+Clean typographic section with each principle as a standalone statement.
+Large text, generous spacing. Should feel like reading a manifesto —
+every line carries weight.
+
+Section 7 — Technology and Tools
+Brief mention of the technical stack and operational tools without
+over-detailing. GitHub-centric workflow, multi-environment execution,
+structured validation pipelines, automated review triage.
+
+Section 8 — Footer
+Minimal footer with copyright, GitHub link, and a professional tagline.
+No aggressive sales language. The tone should be: we are here, we are
+building, reach out if you want to be part of it.
+
+====================================================================
+DESIGN SPECIFICATIONS
+====================================================================
+
+Color palette:
+- Primary background: deep black or near-black charcoal (#0a0a0a)
+- Secondary background: dark gray (#141414 or #1a1a1a)
+- Accent color: electric blue (#00a8ff) or emerald green (#00d4aa)
+- Text primary: white (#ffffff)
+- Text secondary: light gray (#a0a0a0)
+- Avoid warm colors entirely
+
+Typography:
+- Use Google Fonts: Inter for body, Space Grotesk for headlines
+- Headlines bold and large
+- Body text clean and readable at 16px base
+- Monospace (JetBrains Mono or Fira Code) for technical references
+- Load fonts via Google Fonts CDN link in the HTML head
+
+Layout:
+- Full-width sections with generous padding (80px to 120px vertical)
+- Max content width 1200px centered
+- No clutter — every element has breathing room
+- Grid-based alignment
+- Mobile-first responsive design with breakpoints at 768px and 480px
+
+Animations:
+- Subtle scroll-triggered animations using CSS only (no JavaScript libraries)
+- Fade-in on sections using IntersectionObserver
+- Slight parallax effect on hero background
+- No flashy transitions or bouncing elements
+- Everything should feel smooth and intentional
+
+Imagery:
+- CSS-generated abstract backgrounds (gradients, grid patterns, subtle noise)
+- No external image files required
+- Geometric shapes suggesting precision and structure
+- Animated dot grid or flowing lines in hero section using CSS or minimal JS
+
+Overall feel:
+- Like opening a Bloomberg terminal for the first time
+- Serious, powerful, clearly built by people who know what they are doing
+- Premium without being pretentious
+- Technical without being inaccessible
+- Confident without being arrogant
+
+====================================================================
+GITHUB PAGES REQUIREMENTS
+====================================================================
+
+- Output as a single index.html file
+- All CSS must be embedded in a style tag inside the HTML head
+- All JavaScript must be embedded in a script tag before closing body
+- No external dependencies except Google Fonts CDN
+- No external CSS frameworks (no Bootstrap, no Tailwind CDN)
+- No external JavaScript libraries
+- File must render correctly on GitHub Pages without any build step
+- Must be fully responsive on desktop, tablet, and mobile
+- Must pass basic accessibility: proper heading hierarchy, alt attributes
+  where needed, sufficient color contrast, semantic HTML elements
+- Page title: Walker AI DevTrade Team
+- Meta description: Multi-agent AI trading development team building
+  modern trading infrastructure with execution speed, runtime integrity,
+  and validation discipline.
+- Include Open Graph meta tags for social sharing
+- Include favicon as inline SVG data URI
+
+====================================================================
+CONTENT RULES
+====================================================================
+
+- Every word on the page must be final copy ready for deployment
+- Do not use placeholder text like Lorem Ipsum
+- Do not use phrases like "coming soon" or "under construction"
+- All content must be based on the information provided above
+- Keep copy concise and impactful — no filler paragraphs
+- Use active voice throughout
+- Technical terms are fine but avoid unnecessary jargon
+
+====================================================================
+DELIVERABLE
+====================================================================
+
+Provide the complete landing page as a single index.html file.
+All styles embedded. All scripts embedded. Ready to deploy on GitHub Pages
+by placing the file in the repository root or docs/ folder.
+No build tools. No dependencies. Just one file that works.
