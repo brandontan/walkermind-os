@@ -48,10 +48,11 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
           <div className="lp-agent lp-agent-owner">
             <div className="lp-agent-tag">Owner</div>
             <h3 className="lp-agent-name">Mr. Walker</h3>
-            <p className="lp-agent-role">Final Decision-Maker</p>
+            <p className="lp-agent-role">Owner / Final Decision-Maker</p>
             <p className="lp-agent-desc">
-              Ultimate authority. Sets direction, priorities, and makes final calls. Only involved
-              in decisions that genuinely require owner authority — not minor issues.
+              Ultimate authority. Sets direction, priorities, and makes final calls. Mr. Walker
+              should only be involved in decisions that genuinely require owner authority — not
+              minor issues.
             </p>
           </div>
 
@@ -60,10 +61,14 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
           <div className="lp-agent lp-agent-commander">
             <div className="lp-agent-tag">Orchestrator</div>
             <h3 className="lp-agent-name">COMMANDER</h3>
-            <p className="lp-agent-role">Systems Architect / Gatekeeper</p>
+            <p className="lp-agent-role">Systems Architect / Gatekeeper / Orchestrator</p>
             <p className="lp-agent-desc">
-              Reads repo truth, identifies active lanes, merges adjacent work, routes tasks,
-              reviews outputs, auto-merges PRs. Fixes minor bugs directly without escalation.
+              COMMANDER operates in direct chat with Mr. Walker — this is where decisions,
+              reviews, and steering happen. Reads repo truth, identifies active lanes, merges
+              adjacent work when safe, routes tasks to FORGE-X / SENTINEL / BRIEFER, reviews
+              outputs, auto-merges / closes PRs by own decision. Fixes minor bugs, small errors,
+              and cosmetic issues directly — no escalation. Escalates to Mr. Walker only for
+              large scope, risk, capital, safety, or decisions requiring owner authority.
             </p>
           </div>
 
@@ -75,28 +80,27 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
               <div className="lp-agent lp-agent-forge">
                 <div className="lp-agent-tag">Builder</div>
                 <h3 className="lp-agent-name">FORGE-X</h3>
-                <p className="lp-agent-role">Implementer / Refactor / Fix</p>
+                <p className="lp-agent-role">Builder / Implementer / Refactor / Fix Specialist</p>
                 <p className="lp-agent-desc">
-                  Implements, patches, refactors, updates state files, and opens PRs within
-                  scoped lanes.
+                  Implement, patch, refactor, fix, update state/report, open PR.
                 </p>
               </div>
               <div className="lp-agent lp-agent-sentinel">
                 <div className="lp-agent-tag">Validator</div>
                 <h3 className="lp-agent-name">SENTINEL</h3>
-                <p className="lp-agent-role">Auditor / Safety Enforcer</p>
+                <p className="lp-agent-role">Validator / Auditor / Safety Enforcer</p>
                 <p className="lp-agent-desc">
-                  Validates, audits, and enforces safety. Active only for MAJOR tasks or on
-                  COMMANDER's explicit request.
+                  Validate, audit, test, enforce safety. Only active for MAJOR tasks or when
+                  COMMANDER explicitly requests audit.
                 </p>
               </div>
               <div className="lp-agent lp-agent-briefer">
                 <div className="lp-agent-tag">Reporter</div>
                 <h3 className="lp-agent-name">BRIEFER</h3>
-                <p className="lp-agent-role">Visualizer / Communication Layer</p>
+                <p className="lp-agent-role">Reporter / Visualizer / Communication Layer</p>
                 <p className="lp-agent-desc">
-                  Produces HTML reports, visual summaries, and prompt artifacts — always from
-                  validated data after the required validation path is satisfied.
+                  HTML reports, prompt artifacts, visual summaries, UI/report transforms. Only
+                  works from validated data. Runs after required validation path is satisfied.
                 </p>
               </div>
             </div>
@@ -144,27 +148,32 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
             {
               step: '02',
               label: 'Repo Truth Read',
-              desc: 'COMMANDER reads PROJECT_REGISTRY → state files → active lane → blockers.',
+              desc: 'COMMANDER checks: PROJECT_REGISTRY.md → active project → state/ files → active lane → blockers → tier → claim level.',
             },
             {
               step: '03',
               label: 'Lane Formed',
-              desc: 'COMMANDER merges adjacent open items into one execution lane.',
+              desc: 'Adjacent open items in the same family merged into one lane. Prefer lane closure over fragmented progress.',
             },
             {
               step: '04',
-              label: 'Task Routed',
-              desc: 'MINOR → FORGE-X only.  STANDARD → FORGE-X + review.  MAJOR → FORGE-X + SENTINEL validation.',
+              label: 'Task Routed by Tier',
+              desc: 'MINOR → FORGE-X → COMMANDER auto-merge.  STANDARD → FORGE-X → COMMANDER review + merge.  MAJOR → FORGE-X → SENTINEL → COMMANDER validate + merge.',
             },
             {
               step: '05',
               label: 'FORGE-X Implements',
-              desc: 'Code, forge report, and state-file updates committed — PR opened.',
+              desc: 'Work within scope, verify actual branch, update forge report + state files, commit and open PR.',
             },
             {
               step: '06',
+              label: 'PR Reviewed',
+              desc: 'COMMANDER reviews files changed, bot comments, forge report, branch traceability, state drift, and claim vs actual code.',
+            },
+            {
+              step: '07',
               label: 'COMMANDER Merges',
-              desc: 'COMMANDER reviews and auto-merges. NEXUS never merges independently.',
+              desc: 'COMMANDER auto-merges or closes by own decision. NEXUS does not merge independently. Post-merge: verify result → sync state files → determine next lane.',
             },
           ].map((item, i, arr) => (
             <div key={item.step} className="lp-pipeline-row">
