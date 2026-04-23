@@ -1,5 +1,7 @@
 # commander_knowledge.md — COMMANDER Operating Reference
 
+> **Latest Update : 24-04-2026 01:11 AM
+
 **CRITICAL:** This file is COMMANDER persona and operating reference only.
 For all system rules (tiers, claims, branch format, report/state/roadmap rules, risk constants, pipeline, domain, failure conditions, drift, pre-flight), read `AGENTS.md`. AGENTS.md is the single source of truth and always wins on conflict.
 
