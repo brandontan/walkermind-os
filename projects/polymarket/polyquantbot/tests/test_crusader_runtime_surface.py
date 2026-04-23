@@ -229,7 +229,8 @@ def test_bounded_retry_timeout_alignment_preserves_retry_path(monkeypatch) -> No
     with TestClient(app) as client:
         response = client.get("/ready")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
+    assert response.json()["status"] == "not_ready"
     readiness = response.json()["readiness"]["db_runtime"]
     assert _SlowFailingDBClient.seen_max_attempts == 3
     assert readiness["connect_timeout_s"] > 0.02

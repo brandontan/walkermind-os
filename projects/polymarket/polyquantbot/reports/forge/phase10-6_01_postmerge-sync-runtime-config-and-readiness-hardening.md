@@ -1,7 +1,7 @@
 # FORGE-X Report — phase10-6_01_postmerge-sync-runtime-config-and-readiness-hardening
 
-- Timestamp: 2026-04-23 12:56 (Asia/Jakarta)
-- Branch: feature/runtime-config-and-readiness-hardening
+- Timestamp: 2026-04-23 13:07 (Asia/Jakarta)
+- Branch: feature/sync-post-merge-repo-truth-and-harden-runtime-config
 - Scope lane: post-merge repo-truth sync + Priority 2 runtime config/readiness hardening
 
 ## 1) What was built
@@ -15,6 +15,10 @@
   - `/health` now reports `degraded` with `503` when process readiness is false.
   - `/ready` now treats DB/Telegram dependencies as readiness-relevant when either required **or** enabled (removes false-green posture).
   - `/ready` now includes explicit `dependency_gates` and dependency `relevant` flags for Telegram/DB, and includes Falcon config gate in top-level readiness decision.
+- PR #729 traceability/validation closure updates:
+  - corrected forge report branch traceability to exact PR #729 head branch;
+  - re-ran `projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` in dependency-complete environment where FastAPI executes (no skip);
+  - aligned one stale test expectation with already-landed readiness semantics (`db_runtime_enabled=true` + DB unavailable now returns `503 not_ready`).
 
 ## 2) Current system architecture (relevant slice)
 - Boot sequence remains: runtime settings parse -> startup validation -> DB runtime bootstrap -> Telegram runtime bootstrap.
@@ -40,9 +44,11 @@
 - Startup runtime summary remains minimal and safe (presence/state only, no secret value disclosure).
 - `/health` truthfully reflects process readiness state.
 - `/ready` truthfully degrades when DB runtime is enabled but unavailable, and reports dependency gates explicitly.
+- Dependency-complete runtime surface validation now executes in this runner with real result: `19 passed in 2.40s` for `projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` (no import skip).
 
 ## 5) Known issues
 - None introduced in this scoped lane.
+- Validation rerun required dependency installation in runner (`fastapi`, `starlette`, `uvicorn`, `pytest-asyncio`) to move from import-skip to real execution.
 
 ## 6) What is next
 - Required next gate: SENTINEL MAJOR validation for post-merge repo-truth sync + runtime config/readiness hardening before merge decision.
@@ -51,4 +57,4 @@ Validation Tier   : MAJOR
 Claim Level       : NARROW INTEGRATION
 Validation Target : post-merge repo-truth sync plus Priority 2 runtime config and health/readiness truth hardening in control-plane runtime
 Not in Scope      : wallet lifecycle expansion, portfolio logic, execution engine changes, broad DB architecture rewrite, unrelated UX cleanup
-Suggested Next    : SENTINEL validation on branch `feature/runtime-config-and-readiness-hardening`
+Suggested Next    : SENTINEL validation on branch `feature/sync-post-merge-repo-truth-and-harden-runtime-config`
