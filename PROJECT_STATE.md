@@ -1,4 +1,4 @@
-Last Updated : 2026-04-23 11:52
+Last Updated : 2026-04-23 12:16
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725 and PR #726 are merged-main truth, and Phase 10.5 post-merge persistence baseline is now the active Priority 2 lane.
 
 [COMPLETED]
@@ -39,7 +39,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - PR #719 Phase 10.3 monitor integration + observability hardening lane is merged on main as closed truth: admin/internal path guarding, startup/command/reply logging baseline, missing-env/disabled-mode logging, and monitor/admin visibility wiring are landed while paper-only and public-safe command boundaries remain explicit.
 - PR #721 Phase 10 post-launch public-surface cleanup lane is merged on main as closed historical truth from exact head branch `feature/align-readme-and-refine-telegram-onboarding-2026-04-22`: README/public wording and Telegram first-run onboarding guidance are aligned, `/risk_info` remains public informational, and `/risk` remains runtime/operator-only.
 - PR #725 Priority 2 DB readiness/startup blocker-closure lane is merged on main as closed truth, with canonical validation record preserved in `projects/polymarket/polyquantbot/reports/sentinel/phase10-5_01_pr725-db-readiness-startup-validation.md`.
-- PR #726 post-merge repo-truth sync lane is merged on main as closed truth; stale pre-merge decision wording for PR #725 is retired from active state/roadmap lanes.
+- PR #726 is merged on main as post-merge closure sync for PR #725 gate completion; stale pre-merge decision wording for PR #725 is retired from active state/roadmap lanes.
 
 [IN PROGRESS]
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
