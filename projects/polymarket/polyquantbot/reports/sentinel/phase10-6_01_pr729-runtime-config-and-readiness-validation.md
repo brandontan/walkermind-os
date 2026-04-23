@@ -1,6 +1,6 @@
 # SENTINEL Report — phase10-6_01_pr729-runtime-config-and-readiness-validation
 
-- Timestamp: 2026-04-23 13:09 (Asia/Jakarta)
+- Timestamp: 2026-04-23 13:17 (Asia/Jakarta)
 - PR: #729
 - Source forge report: `projects/polymarket/polyquantbot/reports/forge/phase10-6_01_postmerge-sync-runtime-config-and-readiness-hardening.md`
 - Validation Tier: MAJOR
@@ -14,91 +14,95 @@
 - Local checkout branch label: `work` (Codex worktree normalized)
 - Verified PR #729 head branch (GitHub API): `feature/sync-post-merge-repo-truth-and-harden-runtime-config`
 - Verified PR #729 base branch (GitHub API): `main`
+- PR head commit validated by source pull API: `18b1a90c9be259b0e0d64e75bb35971564fecaec`
+- Note: direct `git fetch` of remote branch was blocked in this runner (`HTTP 403`), so source-of-truth validation used GitHub PR API + raw file snapshots at the exact PR head SHA.
 - Locale: `LANG=C.UTF-8`, `LC_ALL=C.UTF-8`
 
 ## Validation Context
-This validation audits PR #729 against declared MAJOR / NARROW INTEGRATION scope for runtime configuration and readiness truth. Checks cover branch/artifact traceability, post-merge truth sync for PR #727/#728, startup env guards for DB/Falcon, startup summary secrecy boundaries, and readiness truth semantics for `/health` and `/ready`.
+This is a rerun validation after reported traceability closure and updated test-evidence claims. Scope remains strictly on branch/repo-truth consistency and control-plane runtime config/readiness behavior for DB/Falcon/Telegram relevance surfaces.
 
 ## Phase 0 Checks
-- Forge report exists at the declared path and includes required MAJOR sections.
-- PROJECT_STATE.md and ROADMAP.md are present and parseable.
-- Mojibake scan passed on scoped files (no `â€`, `â†`, `ðŸ`, `�` patterns).
+- Forge report exists and now states the exact PR #729 head branch.
+- PROJECT_STATE.md and ROADMAP.md are present and repo-truth aligned for PR #727/#728 merged status.
+- Mojibake scan passed on scoped files.
 - py_compile passed on touched runtime/API/tests files.
-- Targeted pytest execution ran for scoped files (`4 passed, 1 skipped`).
+- Runtime-surface tests were re-executed with dependency-complete test environment (`fastapi`, `starlette`, `uvicorn`, `pytest-asyncio`) and with/without explicit `DB_DSN` to validate real behavior.
 
 ## Findings
-1) **Exact branch traceability across PR head/forge/state/roadmap: BLOCKER**
-- PR #729 head branch is `feature/sync-post-merge-repo-truth-and-harden-runtime-config`.
-- Forge report branch field is `feature/runtime-config-and-readiness-hardening` and Suggested Next repeats this mismatched branch.
-- This violates exact-branch traceability policy and is a repo-truth defect.
+1) **Exact branch traceability across PR head/forge/state/roadmap: PASS**
+- PR #729 head branch: `feature/sync-post-merge-repo-truth-and-harden-runtime-config`.
+- Forge report branch + Suggested Next now match this exact branch.
+- PROJECT_STATE.md and ROADMAP.md have no conflicting PR #729 branch reference and remain consistent with merged #727/#728 truth.
 
 2) **Post-merge sync truth for PR #727 / PR #728: PASS**
-- PROJECT_STATE.md status and completed items record both PR #727 and PR #728 as merged-main truth and retire stale pre-merge gate wording.
-- ROADMAP.md status/focus sections also record PR #727 and PR #728 as merged-main truth and promote Phase 10.6 as active lane.
-- No remaining active wording found that frames PR #727 as pending merge decision.
+- PROJECT_STATE.md and ROADMAP.md both consistently represent PR #727 and PR #728 as merged-main truth.
+- No stale pending-merge wording remains for PR #727 in active state/roadmap surfaces.
 
-3) **Boot-time env validation for DB/Falcon enabled paths: PASS**
-- `validate_runtime_dependencies_from_env()` now requires `DB_DSN` when `CRUSADER_DB_RUNTIME_ENABLED=true`.
-- Same validator requires `FALCON_API_KEY` when `FALCON_ENABLED=true`.
-- `run_startup_validation()` composes API + runtime dependency checks and raises startup `RuntimeError` on violations.
-- Tests cover both guard paths in `test_phase10_6_runtime_config_validation_20260423.py` and Falcon startup-fail behavior in `test_crusader_runtime_surface.py`.
+3) **Boot-time env validation behaves correctly for DB/Falcon enabled paths: PASS**
+- `validate_runtime_dependencies_from_env()` enforces `DB_DSN` when `CRUSADER_DB_RUNTIME_ENABLED=true`.
+- The same validator enforces `FALCON_API_KEY` when `FALCON_ENABLED=true`.
+- `run_startup_validation()` composes these checks into startup-blocking runtime validation.
 
-4) **Startup config summary secret safety: PASS**
-- `startup_config_summary()` logs presence/state booleans only (`*_configured`, enabled/required flags) and does not return secret values.
-- Test asserts no secret tokens/DSN substrings are leaked into summary string representation.
+4) **Startup config summary secrecy posture: PASS**
+- Startup summary reports safe presence/state booleans only (`*_configured`, enabled/required flags).
+- Secret values are not returned by summary fields.
 
 5) **`/health` readiness truth: PASS**
-- `/health` returns `status=ok` and HTTP 200 only when `state.ready=True`.
-- `/health` returns `status=degraded` and HTTP 503 when `state.ready=False`.
-- This removes prior false-green behavior where health always returned OK.
+- `/health` reports `status=ok` with HTTP 200 only when process is ready.
+- `/health` reports `status=degraded` with HTTP 503 when process is not ready.
 
-6) **`/ready` dependency truth + false-green prevention (DB/Telegram relevance): PASS**
-- `/ready` now computes dependency relevance as `required OR enabled` for Telegram and DB.
-- DB and Telegram readiness gates are enforced only when relevant; non-relevant dependencies no longer force false negatives.
-- Falcon config validity is now part of overall readiness gate.
-- Response includes explicit `dependency_gates` and per-dependency `relevant` flags.
+6) **`/ready` dependency truth and false-green prevention semantics: PASS**
+- Telegram and DB relevance are computed as `required OR enabled`.
+- Readiness gate includes explicit dependency gates and Falcon config validity.
+- DB-enabled-unavailable path is degraded (`503 not_ready`) and no longer false-green.
 
-7) **Claimed tests ran and support declared narrow scope: CONDITIONAL PASS (with evidence caveat)**
-- Executed suite: `pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py projects/polymarket/polyquantbot/tests/test_phase10_6_runtime_config_validation_20260423.py`.
-- Result in this environment: `4 passed, 1 skipped`.
-- The skipped module is gated by `pytest.importorskip("fastapi")`; thus runtime-surface endpoint assertions were not re-executed locally in this run.
-- Narrow integration claim is still materially supported by static code inspection + passing runtime-config guard tests, but full endpoint runtime proof remains dependency-bound for this environment.
+7) **Updated test-evidence claim verification: BLOCKER**
+- Forge report claims dependency-complete execution result: `19 passed in 2.40s` for `projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py`.
+- Re-execution in this validation run found claim instability:
+  - Without `DB_DSN`: `14 passed, 5 failed` (startup blocked by new DB_DSN requirement in DB-enabled tests).
+  - With explicit `DB_DSN`: `18 passed, 1 failed`.
+- Remaining failing test under explicit `DB_DSN` is `test_bounded_retry_timeout_alignment_preserves_retry_path`, which still expects HTTP 200 while current readiness behavior correctly returns HTTP 503 (`not_ready`) for DB-enabled unavailable path.
+- Result: updated evidence claim is not reproducible as stated, and one runtime-surface expectation remains stale versus current code truth.
 
 ## Score Breakdown
-- Branch/artifact traceability integrity: 0/20
-- Post-merge repo-truth sync integrity (#727/#728): 20/20
+- Branch/repo-truth traceability integrity: 20/20
+- Post-merge sync truth (#727/#728): 20/20
 - Runtime dependency guard correctness (DB/Falcon): 20/20
-- Health/readiness truthfulness semantics: 20/20
-- Test evidence sufficiency for narrow claim: 14/20
+- Health/readiness semantics correctness: 20/20
+- Reproducible test evidence sufficiency for narrow claim: 4/20
 
-**Total: 74/100**
+**Total: 84/100**
 
 ## Critical Issues
-- **CRITICAL-1 (BLOCKER):** Forge report branch traceability mismatch against actual PR #729 head branch.
+- **CRITICAL-1 (BLOCKER):** Updated runtime-surface test evidence claim (`19 passed`) is not reproducible from current PR head code truth.
+- **CRITICAL-2 (BLOCKER):** `test_bounded_retry_timeout_alignment_preserves_retry_path` expectation conflicts with current readiness contract (`503 not_ready` when DB runtime is enabled and unavailable).
 
 ## Status
 - **BLOCKED**
 
 ## PR Gate Result
-- Do not merge PR #729 until branch traceability defect is corrected in the forge artifact(s) that declare branch identity.
+- PR #729 remains blocked until runtime-surface test evidence is reproducibly aligned with current code truth and stale readiness expectation is corrected.
 
 ## Broader Audit Finding
-- Runtime config and readiness hardening logic itself is aligned with the declared narrow scope and improves false-green resistance.
-- The current gate failure is traceability governance, not runtime behavior correctness.
+- Traceability closure is now clean and runtime behavior gates are directionally correct.
+- Block is now purely evidence/validation integrity: test contract drift against landed readiness semantics.
 
 ## Reasoning
-MAJOR/SENTINEL gate requires exact artifact traceability. A wrong branch string in the source forge report violates repo-truth policy and is explicitly classified as blocker. Runtime behavior checks largely pass, but governance blocker prevents approval.
+For MAJOR / NARROW INTEGRATION gate, claims must be supported by reproducible scoped evidence. Branch governance blocker is closed, but test-evidence claim remains larger than reproducible proof and includes one stale assertion that contradicts current readiness behavior.
 
 ## Fix Recommendations
-1. Update forge report `projects/polymarket/polyquantbot/reports/forge/phase10-6_01_postmerge-sync-runtime-config-and-readiness-hardening.md` so branch references exactly match PR #729 head branch: `feature/sync-post-merge-repo-truth-and-harden-runtime-config`.
-2. Re-run SENTINEL validation after artifact traceability correction.
-3. (Optional hardening) Run the same pytest command in a FastAPI-available environment to convert the skipped runtime-surface module into executed endpoint proof.
+1. Update `projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py::test_bounded_retry_timeout_alignment_preserves_retry_path` to assert `503/not_ready` for DB-enabled unavailable readiness semantics.
+2. Ensure DB-enabled tests set explicit `DB_DSN` when they are intended to exercise post-startup DB behaviors instead of startup validation failures.
+3. Re-run and attach deterministic evidence for:
+   - `pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py`
+   - `pytest -q projects/polymarket/polyquantbot/tests/test_phase10_6_runtime_config_validation_20260423.py`
+4. After evidence alignment, rerun SENTINEL for final gate decision.
 
 ## Out-of-scope Advisory
-- No additional out-of-scope blockers detected. Wallet lifecycle, portfolio logic, and execution engine remain untouched in this lane.
+- No out-of-scope subsystem defects identified (wallet lifecycle, portfolio logic, execution engine remain untouched).
 
 ## Deferred Minor Backlog
-- None added by this validation pass.
+- None.
 
 ## Telegram Visual Preview
 - N/A (no BRIEFER artifact requested for this SENTINEL gate).
