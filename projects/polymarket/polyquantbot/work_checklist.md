@@ -99,7 +99,7 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
-### Status Snapshot (2026-04-23 14:15 Asia/Jakarta)
+### Status Snapshot (2026-04-23 17:42 Asia/Jakarta)
 
 #### MERGED ON MAIN
 
@@ -108,20 +108,23 @@ Finish this after the public bot baseline works.
 - [x] Phase 10.6 / Priority 2 runtime config + readiness truth hardening closed on main via PR #729 and PR #730
 - [x] Phase 10.7 / Priority 2 shutdown/restart/dependency resilience hardening closed on main via PR #731 and PR #732
 
+#### MERGED ON MAIN (latest)
+
+- [x] Phase 10.8 / Priority 2 logging and monitoring hardening closed on main via PR #734, PR #736, and PR #737
+
 #### ACTIVE (Current lane)
 
-Logging and Monitoring Hardening lane
+Security Baseline Hardening lane
 
-- [ ] Keep structured logging consistent
-- [ ] Improve startup logs
-- [ ] Make error traces easy to follow
-- [ ] Prepare minimum viable monitoring
+- [ ] Make sure secrets never appear in logs
+- [ ] Remove any hardcoded credentials
+- [ ] Protect admin access properly
+- [ ] Restrict sensitive routes
 
 #### NEXT
 
-- [ ] Security baseline hardening
 - [ ] Deployment hardening
-- [ ] Close Priority 2 done condition after logging/monitoring, security, and deployment lanes are merged
+- [ ] Close Priority 2 done condition after security and deployment lanes are merged
 
 ### 9. Supabase / Postgres Integration Hardening
 
@@ -163,12 +166,12 @@ Logging and Monitoring Hardening lane
 
 ### 14. Logging and Monitoring Hardening
 
-- [ ] Keep structured logging consistent
-- [ ] Improve startup logs
-- [ ] Make error traces easy to follow
-- [ ] Prepare minimum viable monitoring
+- [x] Keep structured logging consistent
+- [x] Improve startup logs
+- [x] Make error traces easy to follow
+- [x] Prepare minimum viable monitoring
 
-### 15. Security Baseline
+### 15. Security Baseline (ACTIVE)
 
 - [ ] Make sure secrets never appear in logs
 - [ ] Remove any hardcoded credentials
@@ -594,7 +597,7 @@ This is the final finish layer.
 
 ### Right Now
 
-- [ ] Start Priority 2 logging and monitoring hardening lane
-- [ ] Normalize structured logs across active runtime surfaces
-- [ ] Improve startup/shutdown failure trace readability
-- [ ] Define minimum viable monitoring outputs and evidence targets
+- [ ] Start Priority 2 security baseline hardening lane
+- [ ] Ensure secrets are redacted across logs and runtime status surfaces
+- [ ] Verify admin/sensitive route protections stay explicit and testable
+- [ ] Prepare deployment hardening kickoff once security baseline lane is complete

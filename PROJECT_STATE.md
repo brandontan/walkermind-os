@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 15:17
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, and PR #733 are merged-main truth, and Phase 10.8 logging/monitoring hardening is the active Priority 2 lane under paper-only boundary posture.
+Last Updated : 2026-04-23 17:42
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, and PR #737 are merged-main truth, and Priority 2 now advances to Security Baseline Hardening with Deployment Hardening next under paper-only boundary posture.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -57,8 +57,8 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Phase 10.8 Priority 2 lane: harden structured logging consistency, startup/shutdown trace readability, and minimum viable monitoring outputs in control-plane runtime (paper-only boundary preserved).
-- COMMANDER review gate for PR lane `feature/update-repository-state-and-logging-monitoring` before SENTINEL validation handoff.
+- Phase 10.9 Priority 2 lane: security baseline hardening is the active current lane (paper-only boundary preserved), with deployment hardening as the immediate following lane.
+- COMMANDER review gate for Priority 2 Security Baseline Hardening lane planning and sequencing continuity after merged PR #734 / #736 / #737 repo-truth closure.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
