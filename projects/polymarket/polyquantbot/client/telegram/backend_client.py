@@ -1,6 +1,7 @@
 """Thin async HTTP client bridging Telegram/Web client runtimes to CrusaderBot backend."""
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -91,10 +92,19 @@ class CrusaderBackendClient:
         base_url: str,
         timeout: float = 10.0,
         identity_tenant_id: str = "staging",
+        operator_api_key: str = "",
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._identity_tenant_id = identity_tenant_id
+        configured_operator_api_key = operator_api_key.strip() or os.getenv(
+            "CRUSADER_OPERATOR_API_KEY", ""
+        ).strip()
+        self._operator_headers: dict[str, str] = (
+            {"X-Operator-Api-Key": configured_operator_api_key}
+            if configured_operator_api_key
+            else {}
+        )
 
     async def request_handoff(self, request: BackendHandoffRequest) -> BackendHandoffResult:
         """Call POST /auth/handoff and return a typed outcome.
@@ -391,7 +401,11 @@ class CrusaderBackendClient:
         """Read helper for beta control plane endpoints."""
         try:
             async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as http_client:
-                resp = await http_client.get(path, params=params)
+                resp = await http_client.get(
+                    path,
+                    params=params,
+                    headers=self._operator_headers or None,
+                )
             if resp.status_code == 200:
                 payload = resp.json()
                 return payload if isinstance(payload, dict) else {"ok": False, "detail": "invalid_payload"}
@@ -403,7 +417,11 @@ class CrusaderBackendClient:
         """Write helper for beta control plane endpoints."""
         try:
             async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as http_client:
-                resp = await http_client.post(path, json=payload)
+                resp = await http_client.post(
+                    path,
+                    json=payload,
+                    headers=self._operator_headers or None,
+                )
             if resp.status_code == 200:
                 body = resp.json()
                 return body if isinstance(body, dict) else {"ok": False, "detail": "invalid_payload"}
