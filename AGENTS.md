@@ -447,51 +447,26 @@ Any code/report conflicting with these values = drift or critical violation.
 
 ## BRANCH NAMING (AUTHORITATIVE)
 
-Two valid formats depending on execution environment.
+Authoritative format (all environments):
 
-### Standard format (manual / non-Codex)
-```text
-{prefix}/{area}-{purpose}-{YYYYMMDD}
-```
-
-Prefixes: `feature/`, `fix/`, `update/`, `hotfix/`, `refactor/`, `chore/`
-
-Areas: `ui`, `ux`, `execution`, `risk`, `monitoring`, `data`, `infra`, `core`, `strategy`, `sentinel`, `briefer`, `wallet`, `lifecycle`, `signal`, `pipeline`, `backtest`, `report`
-
-- area must be a noun (use `core`, not `implement`; `wallet`, not `create`)
-- if no area fits, pick the closest noun
-- do not invent verb-based areas
-
-Date rules: `YYYYMMDD`, no dashes, no dots. Correct `20260417`. Wrong `2026-04-17`, `2026.04.17`.
-
-Purpose rules:
-- short, noun/adjective based — not a sentence
-- max 4 words, hyphen-separated
-- no dots, no underscores anywhere in branch name
-- phase tokens use hyphens: `phase6-5-3` (never `6.5.3`)
-
-Correct:
-- `feature/wallet-state-read-boundary-20260417`
-- `update/core-agents-naming-20260417`
-- `fix/risk-drawdown-circuit-20260417`
-
-Wrong:
-- `feature/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, dashed date, sentence)
-- `feature/implement-wallet-state-read-boundary-2026-04-16` (verb area, dashed date)
-- `feature/sync-project_state-and-roadmap-for-6.5.2-2026-04-15` (underscore, dashed date, dots)
-
-### Codex format (Codex platform execution)
 ```text
 feature/{feature}
 ```
-- prefix is always `feature/` — Codex does not support other prefixes
+
+Rules:
+- prefix is always `feature/`
 - `{feature}` is a short hyphen-separated slug (noun/adjective based, not a sentence)
-- no dots, no underscores, no date suffix in Codex format
+- no dots, no underscores, no date suffix
 - phase tokens use hyphens when needed: `phase6-5-3` (never `6.5.3`)
 
-Correct Codex:
+Correct:
 - `feature/wallet-state-read-boundary`
 - `feature/risk-drawdown-circuit`
+
+Wrong:
+- `feature/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, dashed date, sentence)
+- `feature/sync_project-state` (underscore)
+- `fix/risk-drawdown-circuit-20260417` (wrong prefix)
 
 ### Traceability
 Branch name in forge report must match actual PR head branch exactly. If Codex generates a different branch than declared, FORGE-X updates the report to match reality — not the task declaration.
@@ -755,7 +730,7 @@ Fix in one batch on a later dedicated FORGE-X pass.
 
 ### Branch
 ```text
-chore/briefer-{purpose}-{YYYYMMDD}
+feature/briefer-{purpose}
 ```
 
 ## PROJECT_STATE RULE (AUTHORITATIVE)
