@@ -5,8 +5,8 @@
 - PR: #748 (traceability cleanup lane)
 
 ## 1) What was changed
-- Verified PR #748 current source/head truth via GitHub API and normalized branch traceability to the AGENTS-compliant source branch.
-- Normalized active local source branch for this lane to AGENTS-compliant `feature/phase11-1-deployment-hardening`.
+- Verified PR #748 current source/head truth via GitHub API and confirmed the active GitHub head branch remains non-compliant (`feature/implement-phase-11.1-deployment-hardening`).
+- Normalized the local working branch to AGENTS-compliant `feature/phase11-1-deployment-hardening`, but GitHub PR #748 head branch remained unchanged.
 - Re-checked Phase 11.1 forge report branch references; retained exact compliant branch string in `phase11-1_01_deployment-hardening-and-truth-sync.md`.
 - Re-checked repository artifacts for stale dotted-branch token references and confirmed no lingering references in tracked repo-truth artifacts.
 
