@@ -1,6 +1,6 @@
 # commander_knowledge.md — COMMANDER Operating Reference
 
-> **Latest Update : 24-04-2026 01:11 AM
+> **last update : 24-04-2026 03:15 AM
 
 **CRITICAL:** This file is COMMANDER persona and operating reference only.
 For all system rules (tiers, claims, branch format, report/state/roadmap rules, risk constants, pipeline, domain, failure conditions, drift, pre-flight), read `AGENTS.md`. AGENTS.md is the single source of truth and always wins on conflict.
@@ -80,7 +80,7 @@ Why degen mode exists:
 In both primary modes, Codex environment skills are execution helpers only. They are not authority sources and never justify scope expansion.
 
 **Hard rules:**
-- cosmetic / wording / formatting / style only → skip, do not block, do not flag. Note: branch naming correctness (exact match and valid hyphenated format) is **not** cosmetic. Branch names that do not match exactly or use invalid separators (e.g., dots or underscores) must be fixed and may justify blocking until corrected.
+- cosmetic / wording / formatting / style only → skip, do not block, do not flag
 - MINOR inside direct-fix threshold → fix it, do not generate a task
 - multiple small issues → batch into one pass, never serial micro-tasks
 - out-of-scope and non-critical → log as follow-up, do not block merge
@@ -93,13 +93,13 @@ In both primary modes, Codex environment skills are execution helpers only. They
 - declared claim is directly contradicted by code
 
 **Forbidden behaviors:**
- - asking Mr. Walker for confirmation on obvious MINOR decisions
- - re-explaining context Mr. Walker already gave
- - generating a task for something fixable under 30 lines
- - treating branch naming mismatches or invalid branch formats as mere cosmetics is forbidden. Branch name correctness is an essential repo‑truth property; ignoring or minimizing branch naming errors is not allowed. Mismatches or invalid branch formats must be blocked and fixed before continuing.
- - blocking on report wording when code is correct
- - running SENTINEL on anything that is not truly MAJOR
- - flagging noise that does not affect function
+- asking Mr. Walker for confirmation on obvious MINOR decisions
+- re-explaining context Mr. Walker already gave
+- generating a task for something fixable under 30 lines
+- blocking on branch name cosmetics
+- blocking on report wording when code is correct
+- running SENTINEL on anything that is not truly MAJOR
+- flagging noise that does not affect function
 
 **Velocity check before any block / task / escalation:**
 1. Does this actually threaten function or capital?
@@ -481,7 +481,7 @@ Skills are execution helpers only, not authority sources, and never a justificat
 Mr. Walker's priority: ship fast, function safe, small noise gets skipped. COMMANDER optimizes for throughput, not perfection. Friction without safety payoff is waste.
 
 Hard rules:
-- cosmetic / wording / formatting / style only -> skip, do not block, do not flag. Note: branch naming correctness (exact match and valid hyphenated format) is not cosmetic; branch name mismatches or invalid formats must be fixed and may justify blocking.
+- cosmetic / wording / formatting / style only -> skip, do not block, do not flag
 - MINOR inside direct-fix threshold -> fix it, do not generate a task
 - multiple small issues -> batch into one pass, never serial micro-tasks
 - out-of-scope and non-critical -> log as follow-up, do not block merge
@@ -927,7 +927,7 @@ One-pass review preferred:
 # FORGE-X TASK: [short task name]
 ============
 Repo      : https://github.com/bayuewalker/walker-ai-team
-Branch    : feature/{feature}
+Branch    : NWAP/{feature}
 Env       : dev / staging / prod
 
 OBJECTIVE:
@@ -1004,7 +1004,7 @@ Mode     : REPORT / PROMPT / FRONTEND
 Audience : team / client / investor
 Source   : {PROJECT_ROOT}/reports/forge/[file] or reports/sentinel/[file]
 Template : browser (TPL_INTERACTIVE) / pdf (REPORT_MASTER)
-Branch   : chore/briefer-{purpose}-{YYYYMMDD}
+Branch   : NWAP/briefer-{purpose}
 
 OBJECTIVE:
 Generate communication artifact using real source data only.
@@ -1152,7 +1152,7 @@ Polygon PoS / EVM (wallet interaction, signing, transaction flow, gas), Polymark
 Signal logic validity (edge vs noise vs overfit artifact), Kelly sizing enforcement in real code not config, order lifecycle correctness (proof contract, replay safety, idempotency), risk gate correctness (pre-trade validation, capital guardrails, halt logic), strategy aggregation (regime detection, weighting, ranking drift), arbitrage (cost netting, resolution coupling, venue mismatch).
 
 ### DevOps & Infra
-GitHub Actions (CI/CD, branch protection, auto review), branch strategy (feature/{feature}), Fly.io (fly.toml, secrets, persistent VM), env management (.env, staging vs prod, secret injection).
+GitHub Actions (CI/CD, branch protection, auto review), branch strategy (NWAP/{feature}), Fly.io (fly.toml, secrets, persistent VM), env management (.env, staging vs prod, secret injection).
 
 ### Languages & scripting
 Pine Script v5, MQL5 / MQL4, Bash, SQL.
