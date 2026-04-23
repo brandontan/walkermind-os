@@ -13,13 +13,13 @@ Validates the strategy toggle system end-to-end:
   ST-08  is_active() returns False for unknown strategy
   ST-09  Disabling last strategy auto-enables all (failsafe)
   ST-10  load() uses DB data when db provided and non-empty
-  ST-11  load() falls back to Redis when DB returns empty
+  ST-11  load() does not fall back to Redis when DB is authoritative and empty
   ST-12  load() uses in-memory defaults when neither backend provides data
   ST-13  load() falls back to defaults when DB raises error
   ST-14  save() writes to DB when db provided
   ST-15  save() writes to Redis when redis provided
   ST-16  save() returns False when neither backend provided
-  ST-17  save() returns True if at least one backend succeeds
+  ST-17  save() uses DB-only write path when DB is provided
 
   ── DatabaseClient strategy_state methods ──
   ST-18  load_strategy_state() returns empty dict when no rows
@@ -142,6 +142,7 @@ class TestSTManagerCore:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.asyncio
 class TestSTManagerPersistence:
     """Persistence load/save tests using async mocks."""
 
@@ -159,8 +160,8 @@ class TestSTManagerPersistence:
         assert mgr.is_active("mean_reversion") is True
         db.load_strategy_state.assert_called_once()
 
-    async def test_st11_load_falls_back_to_redis_when_db_empty(self) -> None:
-        """ST-11: load() uses Redis when DB returns empty dict."""
+    async def test_st11_load_db_authoritative_does_not_read_redis_when_db_empty(self) -> None:
+        """ST-11: DB-authoritative load() keeps defaults and skips Redis on empty DB state."""
         mgr = _make_manager()
         db = MagicMock()
         db.load_strategy_state = AsyncMock(return_value={})
@@ -172,8 +173,8 @@ class TestSTManagerPersistence:
 
         await mgr.load(redis=redis, db=db)
 
-        assert mgr.is_active("ev_momentum") is False
-        redis._get_json.assert_called_once()
+        assert all(mgr.is_active(s) for s in KNOWN_STRATEGIES)
+        redis._get_json.assert_not_called()
 
     async def test_st12_load_uses_defaults_when_no_backend(self) -> None:
         """ST-12: load() keeps in-memory defaults when neither backend is provided."""
@@ -219,17 +220,19 @@ class TestSTManagerPersistence:
         result = await mgr.save()
         assert result is False
 
-    async def test_st17_save_returns_true_if_at_least_one_succeeds(self) -> None:
-        """ST-17: save() returns True if DB fails but Redis succeeds."""
+    async def test_st17_save_db_authoritative_skips_redis_when_db_present(self) -> None:
+        """ST-17: save() writes only to DB when DB is provided (split-brain prevention)."""
         mgr = _make_manager()
         db = MagicMock()
-        db.save_strategy_state = AsyncMock(return_value=False)
+        db.save_strategy_state = AsyncMock(return_value=True)
         redis = MagicMock()
         redis._set_json = AsyncMock(return_value=True)
 
         result = await mgr.save(redis=redis, db=db)
 
         assert result is True
+        db.save_strategy_state.assert_called_once_with(mgr.get_state())
+        redis._set_json.assert_not_called()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -237,6 +240,7 @@ class TestSTManagerPersistence:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.asyncio
 class TestDBClientStrategyState:
     """DatabaseClient.load_strategy_state / save_strategy_state behaviour."""
 
@@ -266,6 +270,7 @@ class TestDBClientStrategyState:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.asyncio
 class TestSignalEngineStrategyGuard:
     """generate_signals() respects the active strategy guard."""
 

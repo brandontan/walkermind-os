@@ -56,8 +56,9 @@ _DEFAULT_STATE: Dict[str, bool] = {name: True for name in KNOWN_STRATEGIES}
 class StrategyStateManager:
     """Manages per-strategy toggle state with Redis and/or DB persistence.
 
-    Persistence priority on load: DB → Redis → in-memory defaults.
-    On save, all available backends are written (DB first, then Redis).
+    Authoritative persistence boundary:
+    - When a DB client is provided, DB is the only persistence backend used.
+    - Redis is used only when DB is not provided.
 
     Thread-safety: designed for single asyncio event loop.  Protect shared
     state with an asyncio.Lock for concurrent toggle operations.
@@ -163,20 +164,20 @@ class StrategyStateManager:
         redis: Optional["RedisClient"] = None,
         db: Optional["DatabaseClient"] = None,
     ) -> None:
-        """Load strategy state, preferring DB over Redis over in-memory defaults.
+        """Load strategy state from one authoritative backend.
 
         Load order:
-          1. DB (``DatabaseClient``) — if provided and data exists.
-          2. Redis — if provided and no DB data found.
-          3. In-memory defaults — if neither backend returns data.
+          1. DB (``DatabaseClient``) — when provided.
+          2. Redis — only when DB is not provided.
+          3. In-memory defaults — if selected backend returns no data.
 
         Falls back silently to the current in-memory state on any error.
 
         Args:
-            redis: Connected RedisClient.  Used when DB is unavailable or empty.
-            db: Connected DatabaseClient.  Preferred persistence backend.
+            redis: Connected RedisClient. Used only when DB is not provided.
+            db: Connected DatabaseClient. Authoritative persistence backend.
         """
-        # ── Try DB first ──────────────────────────────────────────────────────
+        # ── DB authoritative path ─────────────────────────────────────────────
         if db is not None:
             try:
                 db_state = await asyncio.wait_for(
@@ -186,7 +187,7 @@ class StrategyStateManager:
                 log.warning(
                     "strategy_state_load_db_error",
                     error=str(exc),
-                    fallback="redis_or_memory",
+                    fallback="memory_default",
                 )
                 db_state = {}
 
@@ -210,7 +211,15 @@ class StrategyStateManager:
                 )
                 return
 
-        # ── Fall back to Redis ────────────────────────────────────────────────
+            log.info(
+                "strategy_state_loaded",
+                source="memory_default",
+                reason="db_authoritative_no_persisted_state",
+                state=self.get_state(),
+            )
+            return
+
+        # ── Redis fallback path (only when DB is absent) ─────────────────────
         if redis is not None:
             try:
                 data: Optional[Any] = await asyncio.wait_for(
@@ -256,17 +265,17 @@ class StrategyStateManager:
         redis: Optional["RedisClient"] = None,
         db: Optional["DatabaseClient"] = None,
     ) -> bool:
-        """Persist current strategy state to DB and/or Redis.
+        """Persist current strategy state to one authoritative backend.
 
-        Both backends are attempted when provided.  Returns True only if at
-        least one backend successfully persists the state.
+        If DB is provided, Redis is intentionally not written to prevent
+        split-brain state across persistence backends.
 
         Args:
-            redis: Connected RedisClient.
-            db: Connected DatabaseClient.
+            redis: Connected RedisClient. Used only when DB is not provided.
+            db: Connected DatabaseClient. Authoritative persistence backend.
 
         Returns:
-            True if at least one write succeeded, False if all failed.
+            True if the selected backend write succeeded, False otherwise.
         """
         if redis is None and db is None:
             log.warning(
@@ -275,10 +284,9 @@ class StrategyStateManager:
             )
             return False
 
-        any_ok = False
         current_state = self.get_state()
 
-        # ── DB ────────────────────────────────────────────────────────────────
+        # ── DB authoritative path ─────────────────────────────────────────────
         if db is not None:
             try:
                 ok: bool = await asyncio.wait_for(
@@ -288,9 +296,12 @@ class StrategyStateManager:
                 log.warning("strategy_state_save_db_error", error=str(exc))
                 ok = False
             if ok:
-                any_ok = True
+                log.info("strategy_state_saved", backend="db", state=current_state)
+            else:
+                log.warning("strategy_state_save_failed", backend="db", state=current_state)
+            return ok
 
-        # ── Redis ─────────────────────────────────────────────────────────────
+        # ── Redis fallback path (only when DB is absent) ─────────────────────
         if redis is not None:
             try:
                 redis_ok: bool = await asyncio.wait_for(
@@ -300,11 +311,9 @@ class StrategyStateManager:
                 log.warning("strategy_state_save_redis_error", error=str(exc))
                 redis_ok = False
             if redis_ok:
-                any_ok = True
+                log.info("strategy_state_saved", backend="redis", state=current_state)
+            else:
+                log.warning("strategy_state_save_failed", backend="redis", state=current_state)
+            return redis_ok
 
-        if any_ok:
-            log.info("strategy_state_saved", state=current_state)
-        else:
-            log.warning("strategy_state_save_failed", state=current_state)
-        return any_ok
-
+        return False
