@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LandingPage } from './components/LandingPage';
 import { LaunchForm } from './components/LaunchForm';
 import { StreamPanel } from './components/StreamPanel';
@@ -20,6 +20,13 @@ export function App() {
   const [output, setOutput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    document.title =
+      view === 'planner'
+        ? 'Launch Planner — Walker AI DevTrade Team'
+        : 'Walker AI DevTrade Team';
+  }, [view]);
 
   const onSubmit = async () => {
     setLoading(true);
