@@ -99,7 +99,7 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
-### Status Snapshot (2026-04-23 17:42 Asia/Jakarta)
+### Status Snapshot (2026-04-24 03:48 Asia/Jakarta)
 
 #### MERGED ON MAIN
 
@@ -112,19 +112,23 @@ Finish this after the public bot baseline works.
 
 - [x] Phase 10.8 / Priority 2 logging and monitoring hardening closed on main via PR #734, PR #736, and PR #737
 
+#### MERGED ON MAIN (latest security lane closure)
+
+- [x] Phase 10.9 / Priority 2 security baseline hardening closed with final SENTINEL APPROVED gate for PR #742 (59-pass targeted rerun + exact branch-truth sync)
+
 #### ACTIVE (Current lane)
 
-Security Baseline Hardening lane
+Deployment Hardening lane
 
-- [ ] Make sure secrets never appear in logs
-- [ ] Remove any hardcoded credentials
-- [ ] Protect admin access properly
-- [ ] Restrict sensitive routes
+- [ ] Clean up the Dockerfile
+- [ ] Keep `fly.toml` in sync
+- [ ] Define restart policy clearly
+- [ ] Define rollback strategy clearly
+- [ ] Define post-deploy smoke tests clearly
 
 #### NEXT
 
-- [ ] Deployment hardening
-- [ ] Close Priority 2 done condition after security and deployment lanes are merged
+- [ ] Close Priority 2 done condition after deployment lane is merged
 
 ### 9. Supabase / Postgres Integration Hardening
 
@@ -171,12 +175,12 @@ Security Baseline Hardening lane
 - [x] Make error traces easy to follow
 - [x] Prepare minimum viable monitoring
 
-### 15. Security Baseline (ACTIVE)
+### 15. Security Baseline (DONE)
 
-- [ ] Make sure secrets never appear in logs
-- [ ] Remove any hardcoded credentials
-- [ ] Protect admin access properly
-- [ ] Restrict sensitive routes
+- [x] Make sure secrets never appear in logs
+- [x] Remove any hardcoded credentials
+- [x] Protect admin access properly
+- [x] Restrict sensitive routes
 
 ### 16. Deployment Hardening
 
