@@ -78,6 +78,19 @@ class RuntimeTelegramObserver:
         log.info("crusaderbot_telegram_runtime_stopped")
 
 
+def _reset_runtime_state_for_startup(state: RuntimeState) -> None:
+    state.validation_errors = []
+    state.telegram_runtime_startup_complete = False
+    state.telegram_runtime_active = False
+    state.telegram_runtime_shutdown_complete = False
+    state.telegram_runtime_last_error = ""
+    state.telegram_runtime_task = None
+    state.db_runtime_connected = False
+    state.db_runtime_healthcheck_ok = False
+    state.db_runtime_last_error = ""
+    state.db_client = None
+
+
 async def _start_telegram_runtime(state: RuntimeState) -> None:
     settings = TelegramBotSettings.from_env()
     validation_errors = validate_bot_environment(settings)
@@ -129,6 +142,30 @@ async def _start_telegram_runtime(state: RuntimeState) -> None:
         chat_id_configured=bool(settings.telegram_chat_id),
         required=state.telegram_runtime_required,
     )
+
+
+async def _shutdown_telegram_runtime(state: RuntimeState, timeout_s: float = 5.0) -> None:
+    task = state.telegram_runtime_task
+    if task is None:
+        state.telegram_runtime_active = False
+        state.telegram_runtime_shutdown_complete = True
+        return
+
+    task.cancel()
+    try:
+        await asyncio.wait_for(task, timeout=timeout_s)
+    except asyncio.CancelledError:
+        pass
+    except asyncio.TimeoutError:
+        state.telegram_runtime_last_error = "telegram_shutdown_timeout"
+        log.error("crusaderbot_telegram_runtime_shutdown_timeout", timeout_s=timeout_s)
+    except Exception as exc:  # noqa: BLE001
+        state.telegram_runtime_last_error = str(exc)
+        log.error("crusaderbot_telegram_runtime_shutdown_error", error=state.telegram_runtime_last_error)
+    finally:
+        state.telegram_runtime_task = None
+        state.telegram_runtime_active = False
+        state.telegram_runtime_shutdown_complete = True
 
 
 def _db_runtime_required_from_env() -> bool:
@@ -209,10 +246,32 @@ async def _start_database_runtime(state: RuntimeState) -> None:
 async def _stop_database_runtime(state: RuntimeState) -> None:
     if state.db_client is None:
         return
-    await state.db_client.close()
+    close_attempts = 2
+    for attempt in range(1, close_attempts + 1):
+        try:
+            await state.db_client.close()
+            state.db_client = None
+            state.db_runtime_connected = False
+            state.db_runtime_healthcheck_ok = False
+            return
+        except Exception as exc:  # noqa: BLE001
+            state.db_runtime_last_error = f"db_close_attempt_{attempt}_failed: {exc}"
+            log.warning(
+                "crusaderbot_db_runtime_shutdown_retry",
+                attempt=attempt,
+                max_attempts=close_attempts,
+                error=str(exc),
+            )
+            if attempt < close_attempts:
+                await asyncio.sleep(0.05)
     state.db_client = None
     state.db_runtime_connected = False
     state.db_runtime_healthcheck_ok = False
+
+
+async def _shutdown_runtime_components(state: RuntimeState) -> None:
+    await _shutdown_telegram_runtime(state=state)
+    await _stop_database_runtime(state=state)
 
 
 def create_app() -> FastAPI:
@@ -224,6 +283,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         try:
+            _reset_runtime_state_for_startup(state)
             await run_startup_validation(settings=settings, state=state)
             await _start_database_runtime(state=state)
             try:
@@ -233,13 +293,7 @@ def create_app() -> FastAPI:
                 raise
             yield
         finally:
-            if state.telegram_runtime_task is not None:
-                state.telegram_runtime_task.cancel()
-                try:
-                    await state.telegram_runtime_task
-                except asyncio.CancelledError:
-                    pass
-            await _stop_database_runtime(state=state)
+            await _shutdown_runtime_components(state=state)
             await run_shutdown(state=state)
 
     app = FastAPI(
