@@ -1,10 +1,12 @@
 # FORGE-X Report — phase11-1_01_deploy-hardening-clean-rebuild
 
-- Timestamp: 2026-04-24 01:39 (Asia/Jakarta)
-- Branch: feature/phase11-1-deploy-hardening
-- Scope lane: clean Phase 11.1 deployment/runtime rebuild with repo-truth continuity sync
+- Timestamp: 2026-04-24 02:22 (Asia/Jakarta)
+- Branch: feature/phase11-1-deploy-hardening (local target)
+- Scope lane: clean Phase 11.1 deployment/runtime rebuild plus PR #750 rehome truth-sync attempt
 
 ## 1) What was built
+- Verified exact GitHub truth: PR #750 is currently open on head `feature/restart-phase-11.1-deployment-hardening`.
+- Attempted compliant-branch rehome actions (create ref, create replacement PR, close PR #750), but all write endpoints returned HTTP 403 `Method forbidden` in this runner.
 - Rebuilt the Phase 11.1 deployment/runtime contract on AGENTS-compliant branch `feature/phase11-1-deploy-hardening`.
 - Hardened container contract in `projects/polymarket/polyquantbot/Dockerfile`:
   - runtime copy layout set to `COPY . /app`
@@ -18,7 +20,7 @@
   - rolling deploy strategy declared
 - Added deploy/runtime contract tests in `projects/polymarket/polyquantbot/tests/test_phase11_1_deploy_runtime_contract.py`.
 - Added rollback and post-deploy smoke guidance to `projects/polymarket/polyquantbot/docs/fly_runtime_troubleshooting.md`.
-- Synced `PROJECT_STATE.md`, `ROADMAP.md`, and `projects/polymarket/polyquantbot/work_checklist.md` to fresh-lane truth without reviving closed PR #748/#749 storyline.
+- Synced `PROJECT_STATE.md`, `ROADMAP.md`, and `projects/polymarket/polyquantbot/work_checklist.md` to exact current PR #750 truth while preserving the compliant-branch rehome target and without reviving PR #748/#749 storyline.
 
 ## 2) Current system architecture (relevant slice)
 - Runtime process entrypoint is `python3 -m projects.polymarket.polyquantbot.scripts.run_api`.
@@ -43,14 +45,16 @@
 - Scoped py_compile and pytest checks for this lane pass.
 
 ## 5) Known issues
+- GitHub write operations are blocked in this runner (HTTP 403 `Method forbidden`), so replacement PR creation and PR #750 closure could not be completed here.
 - Remote Fly staging/prod smoke evidence is not executed in this local run and remains required for SENTINEL MAJOR gate closure.
 
 ## 6) What is next
-- COMMANDER review of fresh Phase 11.1 PR.
-- SENTINEL MAJOR validation on the same fresh PR if approved.
+- Publish `feature/phase11-1-deploy-hardening` and open replacement PR to `main` from an authenticated environment.
+- Close PR #750 only after replacement PR confirmation.
+- COMMANDER review, then SENTINEL MAJOR validation on the replacement PR.
 
 Validation Tier   : MAJOR
 Claim Level       : NARROW INTEGRATION
 Validation Target : deploy/runtime contract consistency across Dockerfile, fly.toml, run_api entrypoint, and scoped tests
 Not in Scope      : replacement-PR storyline, unrelated deployment feature expansion, strategy/risk/execution logic changes
-Suggested Next    : COMMANDER review, then SENTINEL MAJOR validation on fresh Phase 11.1 PR
+Suggested Next    : COMMANDER executes authenticated PR rehome flow, then SENTINEL MAJOR validation on the replacement PR

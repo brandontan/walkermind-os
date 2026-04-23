@@ -20,8 +20,7 @@ COPY --from=builder /install /usr/local
 COPY . /app
 
 RUN useradd -m -u 1000 appuser \
-    && mkdir -p /tmp/crusaderbot/runtime \
-    && chown -R appuser:appuser /app /tmp/crusaderbot
+    && chown -R appuser:appuser /app
 USER appuser
 
 ENV PYTHONDONTWRITEBYTECODE=1

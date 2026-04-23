@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, and PR #742 are merged-main truth, with fresh Phase 11.1 deployment hardening now active (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-24 01:39
+**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, and PR #742 are merged-main truth, while active Phase 11.1 lane remains PR #750 on head `feature/restart-phase-11.1-deployment-hardening` until compliant-branch rehome succeeds (paper-only boundary preserved, no live-trading or production-capital claim).
+**Last Updated:** 2026-04-24 02:22
 
 # Board Overview
 
@@ -59,7 +59,7 @@
 - PR #733 is merged on main as post-merge work-checklist continuity sync for completed Phase 10.7 truth.
 - Phase 10.8 logging/monitoring hardening is closed as merged-main truth (PR #734 / #736 / #737).
 - Phase 10.9 security baseline hardening is closed as merged-main truth via PR #742.
-- Phase 11.1 deployment hardening is the active Priority 2 lane and is being rebuilt cleanly on AGENTS-compliant branch `feature/phase11-1-deploy-hardening`.
+- Phase 11.1 deployment hardening remains active on PR #750 with current head `feature/restart-phase-11.1-deployment-hardening`; compliant rehome to `feature/phase11-1-deploy-hardening` is blocked in this runner by GitHub write restrictions (`Method forbidden`).
 
 ### Execution Tracking Source
 - Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/work_checklist.md](projects/polymarket/polyquantbot/work_checklist.md).

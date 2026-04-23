@@ -1,0 +1,16 @@
+# Phase 11.1 deploy image scope hardening
+.git
+.github
+.pytest_cache
+.mypy_cache
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+reports/
+docs/
+tests/
+*.md

@@ -99,7 +99,7 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
-### Status Snapshot (2026-04-24 01:39 Asia/Jakarta)
+### Status Snapshot (2026-04-24 02:22 Asia/Jakarta)
 
 #### MERGED ON MAIN
 
@@ -128,6 +128,7 @@ Phase 11.1 Deployment Hardening lane
 
 #### NEXT
 
+- [ ] Open replacement PR from `feature/phase11-1-deploy-hardening` to `main` and close PR #750
 - [ ] Capture Fly staging deploy evidence (`/health`, `/ready`, startup logs) for SENTINEL MAJOR validation
 - [ ] Close Priority 2 done condition after Phase 11.1 deployment hardening validation/merge
 
@@ -603,6 +604,7 @@ This is the final finish layer.
 ### Right Now
 
 - [x] Security baseline hardening lane is merged-main truth (PR #742)
-- [x] Phase numbering normalized to fresh lane: Phase 11.1 deployment hardening
-- [ ] Capture Fly staging evidence for `/health` + `/ready` after deployment-hardening sync
-- [ ] Hand off the fresh Phase 11.1 lane to SENTINEL MAJOR validation
+- [x] Phase 11.1 deploy/runtime contract code is prepared for compliant-branch lane
+- [ ] Publish `feature/phase11-1-deploy-hardening` and open replacement PR to `main`
+- [ ] Close PR #750 after replacement PR is confirmed
+- [ ] Capture Fly staging evidence for `/health` + `/ready` after replacement PR sync
