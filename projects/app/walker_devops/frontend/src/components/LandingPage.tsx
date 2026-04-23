@@ -1,10 +1,42 @@
+import { useEffect, useRef } from 'react';
+
 type LandingPageProps = {
   onLaunch: () => void;
 };
 
 export function LandingPage({ onLaunch }: LandingPageProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const elements = root.querySelectorAll<HTMLElement>('.scroll-reveal');
+
+    if (!('IntersectionObserver' in window)) {
+      elements.forEach((el) => el.classList.add('is-visible'));
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+
+    elements.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="lp">
+    <div className="lp" ref={rootRef}>
       <nav className="lp-nav">
         <span className="lp-nav-logo">
           WALKER <span className="lp-nav-logo-accent">AI DEVTRADE TEAM</span>
@@ -14,7 +46,7 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
         </button>
       </nav>
 
-      <section className="lp-hero">
+      <section className="lp-hero scroll-reveal">
         <div className="lp-badge">Paper Beta</div>
         <h1 className="lp-hero-title">Multi-Agent AI Build System</h1>
         <p className="lp-hero-sub">
@@ -40,12 +72,12 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
       </section>
 
       <section className="lp-section">
-        <h2 className="lp-section-title">Agent Hierarchy</h2>
-        <p className="lp-section-sub">
+        <h2 className="lp-section-title scroll-reveal">Agent Hierarchy</h2>
+        <p className="lp-section-sub scroll-reveal delay-1">
           A strict chain of command where every decision is traceable back to repo truth.
         </p>
         <div className="lp-agents">
-          <div className="lp-agent lp-agent-owner">
+          <div className="lp-agent lp-agent-owner scroll-reveal delay-1">
             <div className="lp-agent-tag">Owner</div>
             <h3 className="lp-agent-name">Mr. Walker</h3>
             <p className="lp-agent-role">Owner / Final Decision-Maker</p>
@@ -56,9 +88,9 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
             </p>
           </div>
 
-          <div className="lp-agent-arrow">↓</div>
+          <div className="lp-agent-arrow scroll-reveal delay-2">↓</div>
 
-          <div className="lp-agent lp-agent-commander">
+          <div className="lp-agent lp-agent-commander scroll-reveal delay-2">
             <div className="lp-agent-tag">Orchestrator</div>
             <h3 className="lp-agent-name">COMMANDER</h3>
             <p className="lp-agent-role">Systems Architect / Gatekeeper / Orchestrator</p>
@@ -72,9 +104,9 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
             </p>
           </div>
 
-          <div className="lp-agent-arrow">↓</div>
+          <div className="lp-agent-arrow scroll-reveal delay-3">↓</div>
 
-          <div className="lp-nexus">
+          <div className="lp-nexus scroll-reveal delay-3">
             <div className="lp-nexus-label">NEXUS — Multi-Agent Specialist Team</div>
             <div className="lp-nexus-grid">
               <div className="lp-agent lp-agent-forge">
@@ -109,12 +141,12 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
       </section>
 
       <section className="lp-section lp-section-alt">
-        <h2 className="lp-section-title">Operating Modes</h2>
-        <p className="lp-section-sub">
+        <h2 className="lp-section-title scroll-reveal">Operating Modes</h2>
+        <p className="lp-section-sub scroll-reveal delay-1">
           Two modes govern execution speed and review depth.
         </p>
         <div className="lp-modes">
-          <div className="lp-mode">
+          <div className="lp-mode scroll-reveal delay-1">
             <div className="lp-mode-icon">⬤</div>
             <h3 className="lp-mode-name">Normal Mode</h3>
             <div className="lp-mode-status">Default — always active</div>
@@ -124,7 +156,7 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
               delivery speed.
             </p>
           </div>
-          <div className="lp-mode lp-mode-degen">
+          <div className="lp-mode lp-mode-degen scroll-reveal delay-2">
             <div className="lp-mode-icon">⚡</div>
             <h3 className="lp-mode-name">Degen Mode</h3>
             <div className="lp-mode-status">Explicit trigger by Mr. Walker only</div>
@@ -138,8 +170,8 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
       </section>
 
       <section className="lp-section">
-        <h2 className="lp-section-title">Workflow Pipeline</h2>
-        <p className="lp-section-sub">
+        <h2 className="lp-section-title scroll-reveal">Workflow Pipeline</h2>
+        <p className="lp-section-sub scroll-reveal delay-1">
           Every lane follows the same disciplined sequence — no shortcuts on safety.
         </p>
         <div className="lp-pipeline">
@@ -176,7 +208,7 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
               desc: 'COMMANDER auto-merges or closes by own decision. NEXUS does not merge independently. Post-merge: verify result → sync state files → determine next lane.',
             },
           ].map((item, i, arr) => (
-            <div key={item.step} className="lp-pipeline-row">
+            <div key={item.step} className={`lp-pipeline-row scroll-reveal delay-${Math.min(i % 3 + 1, 4)}`}>
               <div className="lp-pipeline-step">
                 <div className="lp-pipeline-num">{item.step}</div>
                 {i < arr.length - 1 && <div className="lp-pipeline-line" />}
@@ -191,8 +223,8 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
       </section>
 
       <section className="lp-section lp-section-alt">
-        <h2 className="lp-section-title">Supported Platforms</h2>
-        <p className="lp-section-sub">
+        <h2 className="lp-section-title scroll-reveal">Supported Platforms</h2>
+        <p className="lp-section-sub scroll-reveal delay-1">
           Strategy signals flow across four platforms under unified agent governance.
         </p>
         <div className="lp-platforms">
@@ -217,8 +249,8 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
               desc: 'MQL5 Expert Advisors for automated Forex and CFD execution.',
               icon: '⚙️',
             },
-          ].map((p) => (
-            <div key={p.name} className="lp-platform">
+          ].map((p, i) => (
+            <div key={p.name} className={`lp-platform scroll-reveal delay-${i + 1}`}>
               <div className="lp-platform-icon">{p.icon}</div>
               <h3 className="lp-platform-name">{p.name}</h3>
               <p className="lp-platform-desc">{p.desc}</p>
@@ -227,7 +259,7 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
         </div>
       </section>
 
-      <section className="lp-cta">
+      <section className="lp-cta scroll-reveal">
         <h2 className="lp-cta-title">Ready to plan your launch?</h2>
         <p className="lp-cta-sub">
           Use the AI-powered Launch Planner to transform a rough brief into a structured,
