@@ -29,6 +29,6 @@
 ## Fly.io runtime contract
 - Fly now targets the FastAPI surface through `projects/polymarket/polyquantbot/scripts/run_api.py`.
 - Fly and Docker health checks target `GET /health`.
-- The API also exposes `GET /ready` for runtime lifecycle visibility, but `/ready` is not currently configured as a Fly health probe.
+- Fly readiness check now also probes `GET /ready` so deployment health reflects both liveness and runtime-readiness visibility.
 - The API binds Fly-injected `PORT`.
 - `CRUSADER_STARTUP_MODE` is currently a strict-only contract on the API and Telegram bootstrap surfaces.

@@ -4,7 +4,6 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /tmp/requirements.txt
@@ -17,8 +16,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
-RUN mkdir -p /app/projects/polymarket/polyquantbot
-COPY . /app/projects/polymarket/polyquantbot
+COPY . /app
 
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
@@ -26,7 +24,15 @@ USER appuser
 ENV PORT=8080
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:${PORT}/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD python -c "import os, sys, urllib.request
+url = 'http://127.0.0.1:' + os.environ.get('PORT', '8080') + '/health'
+status = 1
+try:
+    with urllib.request.urlopen(url, timeout=5) as response:
+        status = 0 if response.status == 200 else 1
+except Exception:
+    status = 1
+sys.exit(status)"
 
 CMD ["python", "-m", "projects.polymarket.polyquantbot.scripts.run_api"]
