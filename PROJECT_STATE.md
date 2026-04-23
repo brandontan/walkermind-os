@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 13:55
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, and PR #730 are merged-main truth, and Phase 10.7 shutdown/restart/dependency resilience hardening is now the active Priority 2 lane.
+Last Updated : 2026-04-23 14:10
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, and PR #730 are merged-main truth, and PR #731 SENTINEL validation is currently BLOCKED on branch-traceability mismatch while Phase 10.7 shutdown/restart/dependency resilience hardening remains the active Priority 2 lane.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -46,6 +46,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - PR #730 is merged on main as SENTINEL sync closure for PR #729 and stale pre-merge gate wording for PR #729 is retired from active state/roadmap lanes.
 
 [IN PROGRESS]
+- PR #731 SENTINEL validation is BLOCKED: source FORGE report branch string does not exactly match PR head branch `feature/sync-post-merge-repo-truth-and-harden-resilience` and must be corrected before merge decision.
 - Python Sentry runtime integration lane validated by SENTINEL on PR #700 is currently BLOCKED pending deploy-environment evidence: Fly `SENTRY_DSN` secret presence proof, reachable `/health` + `/ready`, and at least one confirmed Sentry event receipt (`projects/polymarket/polyquantbot/reports/sentinel/sentry_01_python-runtime-validation-pr700.md`).
 
 [NOT STARTED]
@@ -54,6 +55,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
+- Fix PR #731 source FORGE branch traceability to exact head branch `feature/sync-post-merge-repo-truth-and-harden-resilience`, then rerun SENTINEL MAJOR validation gate.
 - Phase 10.7 Priority 2 lane: harden graceful shutdown, restart safety, bounded dependency retry/failure handling, and explicit operator-readable resilience posture in control-plane runtime (paper-only boundary preserved).
 
 [KNOWN ISSUES]
