@@ -203,6 +203,8 @@ def test_startup_failure_before_yield_closes_db_client(monkeypatch) -> None:
             pass
 
     assert _DBClient.close_called is True
+    assert app.state.crusader_runtime.ready is False
+    assert app.state.crusader_runtime.db_client is None
 
 
 def test_bounded_retry_timeout_alignment_preserves_retry_path(monkeypatch) -> None:
