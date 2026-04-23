@@ -9,8 +9,13 @@ pytest.importorskip(
 )
 from fastapi.testclient import TestClient
 
-from projects.polymarket.polyquantbot.server.core.runtime import ApiSettings, validate_api_environment
+from projects.polymarket.polyquantbot.server.core.runtime import (
+    ApiSettings,
+    validate_api_environment,
+)
 from projects.polymarket.polyquantbot.server.main import create_app
+
+_TEST_DB_DSN = "postgresql://test-user:test-pass@localhost:5432/test_crusader"
 
 
 @pytest.mark.parametrize(
@@ -69,6 +74,7 @@ def test_health_route_reports_crusaderbot_service(monkeypatch) -> None:
     payload = response.json()
     assert payload["service"] == "CrusaderBot"
     assert payload["runtime"] == "server.main"
+    assert payload["status"] == "ok"
 
 
 def test_ready_route_reports_ready_after_startup(monkeypatch) -> None:
@@ -98,6 +104,7 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
     assert "db_runtime" in readiness
     assert "worker_prerequisites" in readiness
     assert "falcon_config_state" in readiness
+    assert "dependency_gates" in readiness
     assert "control_plane" in readiness
     assert readiness["control_plane"]["paper_only_execution_boundary"] is True
 
@@ -151,6 +158,7 @@ def test_startup_success_path_sets_db_runtime_ready(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "true")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _HealthyDBClient)
     app = create_app()
 
@@ -185,6 +193,7 @@ def test_startup_failure_before_yield_closes_db_client(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "true")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _DBClient)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main._start_telegram_runtime", _boom)
     app = create_app()
@@ -215,6 +224,7 @@ def test_bounded_retry_timeout_alignment_preserves_retry_path(monkeypatch) -> No
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "false")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setenv("CRUSADER_DB_CONNECT_MAX_ATTEMPTS", "3")
     monkeypatch.setenv("CRUSADER_DB_CONNECT_BASE_BACKOFF_S", "0.01")
     monkeypatch.setenv("CRUSADER_DB_CONNECT_TIMEOUT_S", "0.02")
@@ -224,7 +234,8 @@ def test_bounded_retry_timeout_alignment_preserves_retry_path(monkeypatch) -> No
     with TestClient(app) as client:
         response = client.get("/ready")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
+    assert response.json()["status"] == "not_ready"
     readiness = response.json()["readiness"]["db_runtime"]
     assert _SlowFailingDBClient.seen_max_attempts == 3
     assert readiness["connect_timeout_s"] > 0.02
@@ -245,6 +256,7 @@ def test_ready_status_after_db_unavailable_when_required(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "true")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _UnhealthyDBClient)
     app = create_app()
 
@@ -268,14 +280,17 @@ def test_ready_status_after_db_unavailable_when_not_required(monkeypatch) -> Non
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "false")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _UnavailableDBClient)
     app = create_app()
 
     with TestClient(app) as client:
         response = client.get("/ready")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
+    assert response.json()["status"] == "not_ready"
     readiness = response.json()["readiness"]["db_runtime"]
+    assert readiness["relevant"] is True
     assert readiness["connected"] is False
     assert readiness["healthcheck_ok"] is False
     assert readiness["last_error"] != ""
@@ -298,10 +313,9 @@ def test_ready_route_falcon_enabled_without_key_is_not_valid(monkeypatch) -> Non
     monkeypatch.setenv("FALCON_ENABLED", "true")
     monkeypatch.delenv("FALCON_API_KEY", raising=False)
     app = create_app()
-    with TestClient(app) as client:
-        response = client.get("/ready")
-    readiness = response.json()["readiness"]
-    assert readiness["falcon_config_state"]["enabled"] is True
-    assert readiness["falcon_config_state"]["api_key_configured"] is False
-    assert readiness["falcon_config_state"]["enabled_without_api_key"] is True
-    assert readiness["falcon_config_state"]["config_valid_for_enabled_mode"] is False
+    with pytest.raises(
+        RuntimeError,
+        match="FALCON_API_KEY is required when FALCON_ENABLED=true",
+    ):
+        with TestClient(app):
+            pass
