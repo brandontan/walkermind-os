@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LandingPage } from './components/LandingPage';
 import { LaunchForm } from './components/LaunchForm';
 import { StreamPanel } from './components/StreamPanel';
 import { streamLaunchPlan } from './lib/streamClient';
@@ -13,6 +14,7 @@ const initialForm: LaunchFormInput = {
 };
 
 export function App() {
+  const [view, setView] = useState<'landing' | 'planner'>('landing');
   const [form, setForm] = useState<LaunchFormInput>(initialForm);
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [output, setOutput] = useState('');
@@ -42,12 +44,18 @@ export function App() {
     }
   };
 
+  if (view === 'landing') {
+    return <LandingPage onLaunch={() => setView('planner')} />;
+  }
+
   return (
     <main className="shell">
-      <header>
-        <h1>Walker DevOps</h1>
-        <p>Launch-planning agent that transforms rough briefs into actionable release plans.</p>
-      </header>
+      <div className="shell-header">
+        <button className="shell-back" onClick={() => setView('landing')}>
+          ← Back
+        </button>
+        <h1>Launch Planner</h1>
+      </div>
       {error ? <p className="error">{error}</p> : null}
       <div className="grid">
         <LaunchForm form={form} loading={loading} onChange={setForm} onSubmit={onSubmit} />
