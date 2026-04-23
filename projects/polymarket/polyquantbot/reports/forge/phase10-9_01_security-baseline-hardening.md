@@ -1,6 +1,6 @@
 # FORGE-X Report — phase10-9_01_security-baseline-hardening
 
-- Timestamp: 2026-04-23 18:55 (Asia/Jakarta)
+- Timestamp: 2026-04-23 19:14 (Asia/Jakarta)
 - Branch: feature/harden-security-baseline-for-phase-10.9
 - Scope lane: Priority 2 Phase 10.9 security baseline hardening over control-plane runtime surfaces
 
@@ -11,6 +11,7 @@
 - Added operator-key header propagation for Telegram backend beta helper calls so operator-only surfaces remain reachable only under configured key.
 - Added and updated targeted tests for protected-route denial behavior and public-safe payload non-exposure boundaries.
 - Hardened Telegram backend helper error surfaces by redacting secret-like exception details before operator-facing response payloads and runtime logs.
+- Hardened sanitizer type-safety by allowing non-string backend `detail` inputs to be normalized safely before redaction checks (prevents `.strip()` AttributeError risk on rejected-response paths).
 
 ## 2) Current system architecture (relevant slice)
 - Public-safe control/read surfaces:
@@ -45,8 +46,8 @@
 - Runtime error persistence/logging now redacts secret-like strings before state/log exposure.
 - Dependency-complete evidence (executed):
   - `python3 -m py_compile projects/polymarket/polyquantbot/client/telegram/backend_client.py projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py projects/polymarket/polyquantbot/tests/test_phase8_10_telegram_identity_20260419.py` (pass)
-  - `pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` → `33 passed in 3.86s`
-  - `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_10_telegram_identity_20260419.py` → `22 passed in 0.37s`
+  - `pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` → `33 passed in 3.68s`
+  - `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_10_telegram_identity_20260419.py` → `23 passed in 0.45s`
 
 ## 5) Known issues
 - Python Sentry runtime integration lane remains externally blocked pending deploy-environment proof (`SENTRY_DSN` secret presence proof, `/health` + `/ready` reachability, event receipt confirmation).

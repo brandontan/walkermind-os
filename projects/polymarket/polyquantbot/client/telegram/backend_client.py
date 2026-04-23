@@ -116,8 +116,13 @@ class CrusaderBackendClient:
             else {}
         )
 
-    def _sanitize_error_detail(self, detail: str) -> str:
-        raw = (detail or "").strip()
+    def _sanitize_error_detail(self, detail: object) -> str:
+        if detail is None:
+            raw = ""
+        elif isinstance(detail, str):
+            raw = detail.strip()
+        else:
+            raw = str(detail).strip()
         if not raw:
             return "backend_runtime_error"
         lowered = raw.lower()
