@@ -1,12 +1,13 @@
-# Walker AI DevTrade Team — Operational Workflow and Execution Model
+# N.W.A.P — Operational Protocol & Execution Model
 
-> **Document type:** Internal operational reference
-> **Authority:** Supporting document — `AGENTS.md` is the authoritative rule source
-> **Version:** 1.0 | Last Updated: 2025-07-11
+> **// DOCUMENT_TYPE:** Internal operational reference
+> **// AUTHORITY:** Supporting document — `AGENTS.md` is the authoritative rule source
+> **// VERSION:** 1.0 | Last Updated: 2025-07-11
+> **// PARENT:** Walker AI DevTrade
 
 ---
 
-## 1. Big Picture
+## // SECTION_01 — BIG_PICTURE
 
 Mr. Walker sets direction
 → COMMANDER reads repo truth, determines lane, resolves minor issues independently
@@ -14,24 +15,27 @@ Mr. Walker sets direction
 → returns to COMMANDER for review and decision
 → COMMANDER auto merges / closes / routes next lane
 
-Principles:
+**Principles:**
 
-Tasks come from COMMANDER
-Scope stays controlled
-Repo truth = center of all decisions
-Code truth wins over report wording
-Minor issues = COMMANDER handles directly, don't bother Mr. Walker
+- Tasks come from COMMANDER
+- Scope stays controlled
+- Repo truth = center of all decisions
+- Code truth wins over report wording
+- Minor issues = COMMANDER handles directly — do not escalate to Mr. Walker
 
+---
 
-## 2. Repo Structure
-### 2.1 Tree
+## // SECTION_02 — REPO_STRUCTURE
+
+### // TREE
+
 ```text
 walker-ai-team/
 ├── AGENTS.md                          ← highest authority (global rules)
 ├── PROJECT_REGISTRY.md                ← project list + active status
 ├── docs/
 │   ├── CLAUDE.md                      ← rules for Claude Code agent
-│   ├── KNOWLEDGE_BASE.md             ← architecture, infra, API reference
+│   ├── KNOWLEDGE_BASE.md              ← architecture, infra, API reference
 │   ├── COMMANDER.md                   ← COMMANDER operating reference
 │   ├── blueprint/
 │   │   └── crusaderbot_final_decisions.md
@@ -71,20 +75,18 @@ walker-ai-team/
         └── indicators/
 ```
 
-
-
-### 2.2 Layer Functions
+### // LAYER_FUNCTIONS
 
 **Root repo — Global governance**
 
 - `AGENTS.md` = highest authority, applies across all projects
 - `PROJECT_REGISTRY.md` = project list + active status
 
-These are the system's decision center. Not supplementary files.
+Decision center. Not supplementary files.
 
 **PROJECT_REGISTRY.md — Project navigation**
 
-Single file that tells which projects exist, where they live, and which are active. Agent reads this → immediately knows where to work.
+Single file: which projects exist, where they live, which are active. Agent reads this → immediately knows where to work.
 
 Rules:
 - 1 active project → NEXUS defaults to it, no tag needed
@@ -99,15 +101,15 @@ Rules:
 - `blueprint/` = target architecture / system-shape guidance
 - `templates/` = templates for state, roadmap, and reports
 
-Blueprint is a target architecture reference — not current truth. When blueprint and code differ, code defines current reality, blueprint defines the direction.
+Blueprint is a direction reference — not current truth. When blueprint and code differ: code = current reality, blueprint = target direction.
 
 **lib/ — Shared libraries**
 
-Shared libraries and utilities across projects.
+Shared utilities across projects.
 
 **projects/ — Multi-project workspace**
 
-Repo is designed for multiple workstreams. Each project has its own structure under `projects/`. Which project is active is determined by `PROJECT_REGISTRY.md`.
+Repo is designed for multiple workstreams. Each project has its own structure under `projects/`. Active project determined by `PROJECT_REGISTRY.md`.
 
 **state/ — Project operational truth**
 
@@ -117,7 +119,7 @@ Each project has its own `state/` folder under PROJECT_ROOT:
 - `ROADMAP.md` — phase / milestone truth
 - `work_checklist.md` — granular task tracking
 
-These three files must always stay in sync. If one says done but the others haven't been updated, that's drift.
+These three files must always stay in sync. If one says done and the others haven't been updated — that is drift.
 
 **Domain structure enforcement**
 
@@ -136,20 +138,21 @@ Reports are the evidence trail used by COMMANDER for review, SENTINEL for valida
 
 ---
 
-## 3. Who Does What
+## // SECTION_03 — WHO_DOES_WHAT
 
 ### Mr. Walker
 
-**Role:** Owner / Final Decision-Maker
+**// ROLE:** Owner / Final Decision-Maker
 
-Ultimate authority. Sets direction, priorities, and makes final calls. Mr. Walker should only be involved in decisions that genuinely require owner authority — not minor issues.
+Ultimate authority. Sets direction, priorities, and makes final calls. Mr. Walker is involved only in decisions that genuinely require owner authority — not minor issues.
 
 ### COMMANDER
 
-**Role:** Systems Architect / Gatekeeper / Orchestrator
+**// ROLE:** Systems Architect / Gatekeeper / Orchestrator
 
-COMMANDER operates in direct chat with Mr. Walker — this is where decisions, reviews, and steering happen. Functions:
+COMMANDER operates in direct chat with Mr. Walker — decisions, reviews, and steering happen here.
 
+Functions:
 - Read repo truth
 - Identify active lanes
 - Merge adjacent work when safe
@@ -162,49 +165,48 @@ Escalate to Mr. Walker only for: large scope, risk, capital, safety, or decision
 
 ### NEXUS
 
-**Role:** Multi-Agent Specialist Team
+**// ROLE:** Multi-Agent Specialist Team
 
-NEXUS is the execution team consisting of three specialist agents: FORGE-X, SENTINEL, and BRIEFER. Each has different capabilities and responsibilities. NEXUS works under COMMANDER direction — receives scoped tasks, executes according to each role's expertise, and returns output for review.
+Execution team: FORGE-X, SENTINEL, BRIEFER. Each has distinct capabilities and responsibilities. NEXUS works under COMMANDER direction — receives scoped tasks, executes per role expertise, returns output for review.
 
-NEXUS executes in separate environments: Claude Code, Codex, or other tools as needed. NEXUS does not merge / close PRs independently — only executes when COMMANDER instructs.
+NEXUS executes in separate environments: Claude Code, Codex, or other tools as needed. NEXUS does not merge / close PRs independently — only executes on COMMANDER instruction.
 
 ### FORGE-X
 
-**Role:** Builder / Implementer / Refactor / Fix Specialist
+**// ROLE:** Builder / Implementer / Refactor / Fix Specialist
 
-Implement, patch, refactor, fix, update state/report, open PR.
+Implement, patch, refactor, fix, update state / reports, open PR.
 
 ### SENTINEL
 
-**Role:** Validator / Auditor / Safety Enforcer
+**// ROLE:** Validator / Auditor / Safety Enforcer
 
-Validate, audit, test, enforce safety. Only active for MAJOR tasks or when COMMANDER explicitly requests audit.
+Validate, audit, test, enforce safety. Active only for MAJOR tasks or on explicit COMMANDER request.
 
 ### BRIEFER
 
-**Role:** Reporter / Visualizer / Communication Layer
+**// ROLE:** Reporter / Visualizer / Communication Layer
 
-HTML reports, prompt artifacts, visual summaries, UI/report transforms. Only works from validated data. Runs after required validation path is satisfied.
+HTML reports, prompt artifacts, visual summaries, UI / report transforms. Works from validated data only. Runs after required validation path is satisfied.
 
 ---
 
-## 4. Operating Modes
+## // SECTION_04 — OPERATING_MODES
 
-### Normal Mode (Default)
+### Normal Mode — Default
 
 Always active unless Mr. Walker explicitly triggers degen mode.
 
-Used for: reviews, task generation, sync, validation, work where scope isn't 100% clear yet.
+Used for: reviews, task generation, sync, validation, work where scope isn't fully defined.
 
-### Degen Mode (Explicit Trigger Only)
+### Degen Mode — Explicit Trigger Only
 
 Only active when Mr. Walker triggers it explicitly. COMMANDER must not self-activate.
 
-**Why it exists:**
+**// WHY_IT_EXISTS:**
+Reduces wasted time from recurring drift and review noise — while keeping repo-truth and safety gates intact.
 
-Degen mode exists to reduce wasted time from recurring drift and review noise while keeping repo-truth and safety gates intact.
-
-**What degen mode does:**
+**// WHAT_IT_DOES:**
 - Prioritizes implementation over repeated discussion
 - Batches small safe fixes into one pass
 - Skips cosmetic / non-functional noise unless explicitly requested
@@ -212,233 +214,162 @@ Degen mode exists to reduce wasted time from recurring drift and review noise wh
 - Minimizes back-and-forth
 - Keeps pushing until lane is closed or one real blocker remains
 
-**What degen mode does NOT do:**
+**// WHAT_IT_DOES_NOT_DO:**
 - Override `AGENTS.md`
 - Ignore repo truth
 - Allow overclaiming
 - Bypass safety, validation, or runtime-integrity gates
 - Excuse drift
 
-**Deactivation:** Lane complete, or Mr. Walker says stop / normal / reset.
+**// DEACTIVATION:** Lane complete, or Mr. Walker says stop / normal / reset.
 
 ---
 
-## 5. Repo Truth — Foundation Before Work
+## // SECTION_05 — REPO_TRUTH
 
-Priority
+Priority order — source of system truth before any work begins:
 
-Source
-
-Function
-
-1
-
-AGENTS.md
-
-Highest authority
-
-2
-
-PROJECT_REGISTRY.md
-
-Project navigation
-
-3
-
-{PROJECT_ROOT}/state/PROJECT_STATE.md
-
-Operational truth
-
-4
-
-{PROJECT_ROOT}/state/ROADMAP.md
-
-Milestone truth
-
-5
-
-{PROJECT_ROOT}/state/work_checklist.md
-
-Granular task tracking
-
-6
-
-Reports (reports/forge/, reports/sentinel/)
-
-Supporting evidence
+| Priority | Source | Function |
+|----------|--------|----------|
+| 1 | `AGENTS.md` | Highest authority |
+| 2 | `PROJECT_REGISTRY.md` | Project navigation |
+| 3 | `{PROJECT_ROOT}/state/PROJECT_STATE.md` | Operational truth |
+| 4 | `{PROJECT_ROOT}/state/ROADMAP.md` | Milestone truth |
+| 5 | `{PROJECT_ROOT}/state/work_checklist.md` | Granular task tracking |
+| 6 | `reports/forge/`, `reports/sentinel/` | Supporting evidence |
 
 ---
 
-## 6. Normal Workflow
-Step A — Mr. Walker sets direction
-Step B — COMMANDER reads repo truth
-Checks: PROJECT_REGISTRY.md → active project → state/ files → active lane → blockers → tier → claim level.
+## // SECTION_06 — NORMAL_WORKFLOW
 
-Step C — COMMANDER forms execution lane
+**Step A — Mr. Walker sets direction**
+
+**Step B — COMMANDER reads repo truth**
+Checks: `PROJECT_REGISTRY.md` → active project → `state/` files → active lane → blockers → tier → claim level.
+
+**Step C — COMMANDER forms execution lane**
 Adjacent open items in the same family → merge into one lane. Prefer lane closure over fragmented progress.
 
-Step D — Task routed to the right role
+**Step D — Task routed to correct role**
 
-Tier
-
-Flow
-
-MINOR
-
-COMMANDER → FORGE-X → COMMANDER (auto merge)
-
-STANDARD
-
-COMMANDER → FORGE-X → COMMANDER (review + merge)
-
-MAJOR
-
-COMMANDER → FORGE-X → SENTINEL → COMMANDER (validate + merge)
-
-BRIEFER
-
-Runs after required validation path is satisfied
+| Tier | Flow |
+|------|------|
+| MINOR | COMMANDER → FORGE-X → COMMANDER (auto merge) |
+| STANDARD | COMMANDER → FORGE-X → COMMANDER (review + merge) |
+| MAJOR | COMMANDER → FORGE-X → SENTINEL → COMMANDER (validate + merge) |
+| BRIEFER | Runs after required validation path is satisfied |
 
 Minor bug / error / cosmetic → COMMANDER fixes directly, skips task creation.
 
-Step E — FORGE-X implements
+**Step E — FORGE-X implements**
 Required: work within scope, verify actual branch, update forge report + state files, commit and open PR.
 
 ---
 
-## 7. GitHub Workflow
-7.1 Branch
+## // SECTION_07 — GITHUB_WORKFLOW
 
-Format: feature/{feature}
+### // BRANCH
+
+Format: `feature/{feature}`
 
 Applies to all environments. Branch reference must be exact actual branch / exact PR head — never from memory or task title.
 
-7.2 Commit + Report + State
+### // COMMIT_REPORT_STATE
+
 PR must carry a complete package: code + forge report + state files update.
 
-7.3 Pull Request
-PR contains: motivation, testing, report path, state updates, claim/tier context.
+### // PULL_REQUEST
+
+PR contains: motivation, testing, report path, state updates, claim / tier context.
 
 COMMANDER reviews: files changed, bot comments, report, branch traceability, state drift, claim vs actual code.
 
-7.4 Bot Reviews
+### // BOT_REVIEWS
+
 Auto PR review bots = optional support only.
 
 COMMANDER classifies:
 
-Classification
+| Classification | Action |
+|---------------|--------|
+| BLOCKER | Hold merge |
+| MINOR_SAFE_FIX | Resolve quickly |
+| IGNORE / NON-ACTIONABLE | Do not stall PR |
 
-Action
+### // MERGE_HOLD_CLOSE
 
-BLOCKER
-
-Hold merge
-
-MINOR SAFE FIX
-
-Resolve quickly
-
-IGNORE / NON-ACTIONABLE
-
-Don't stall PR
-
-7.5 Merge / Hold / Close
 COMMANDER auto merges / closes by own decision. NEXUS does not merge independently.
 
 After merge: verify result → sync state files → determine next lane.
 
 ---
 
-## 8. Drift & Noise
-8.1 Drift
+## // SECTION_08 — DRIFT_AND_NOISE
+
+### // DRIFT
 
 Drift = repo truth out of sync.
 
-Branch traceability drift — PR head and written references don't match
-State / roadmap / checklist drift — PROJECT_STATE.md, ROADMAP.md, work_checklist.md say different things
-Report / code drift — report claims complete, actual code is narrower
-Claim drift / overclaim — wording implies readiness that repo truth doesn't support
-Surface-boundary drift — public/operator/admin paths get mixed
-Blueprint / implementation drift — target architecture treated as current truth
-Phase / lane drift — lane marked complete too early or still shown active after closure
-Encoding / artifact drift — mojibake, bad formatting, invalid artifact structure
-8.2 Noise
+- **Branch traceability drift** — PR head and written references don't match
+- **State / roadmap / checklist drift** — `PROJECT_STATE.md`, `ROADMAP.md`, `work_checklist.md` say different things
+- **Report / code drift** — report claims complete, actual code is narrower
+- **Claim drift / overclaim** — wording implies readiness that repo truth doesn't support
+- **Surface-boundary drift** — public / operator / admin paths get mixed
+- **Blueprint / implementation drift** — target architecture treated as current truth
+- **Phase / lane drift** — lane marked complete too early or still shown active after closure
+- **Encoding / artifact drift** — mojibake, bad formatting, invalid artifact structure
+
+### // NOISE
+
 Noise = small friction with no material improvement.
 
-Cosmetic wording debates — tiny style issues with no behavior impact
-Micro-task fragmentation — one fix becomes multiple tiny tasks
-Explanation loops — repeating context without implementing
-Review-nit inflation — minor comments treated as blockers
-Redundant review churn — evidence is clear but ceremonial re-checking continues
-Scope creep disguised as cleanup — small tasks expand into broad rewrites
-User-overhead drag — too many decisions pushed to user for obvious low-risk items
-8.3 Impact
+- **Cosmetic wording debates** — style issues with no behavior impact
+- **Micro-task fragmentation** — one fix split into multiple tiny tasks
+- **Explanation loops** — repeating context without implementing
+- **Review-nit inflation** — minor comments treated as blockers
+- **Redundant review churn** — evidence is clear but ceremonial re-checking continues
+- **Scope creep disguised as cleanup** — small tasks expand into broad rewrites
+- **User-overhead drag** — too many obvious low-risk decisions pushed to Mr. Walker
+
+### // IMPACT
+
 Drift + noise = lane drag, over-review, branch confusion, delayed closure.
 
 ---
 
-## 9. Cost Discipline
-Rules
-Rule
+## // SECTION_09 — COST_DISCIPLINE
 
-Detail
+### // RULES
 
-COMMANDER compact output
+| Rule | Detail |
+|------|--------|
+| COMMANDER compact output | Default compact. Detailed only when Mr. Walker asks or complex decision. |
+| Batch over serial | One PR for multiple minor fixes. |
+| Reduce explanation loops | Fix directly, report briefly. |
+| NEXUS task efficiency | What + scope + ref only. Don't duplicate repo content. |
+| COMMANDER self-resolve | Minor bug / error / cosmetic → fix directly. |
+| Degen mode = cost saver | Preferred for clear lanes. |
+| Quick handoff | When session limit is near, generate 5-line handoff. |
 
-Default compact. Detailed only when Mr. Walker asks or complex decision.
+### // COMMANDER_OUTPUT_MODES
 
-Batch over serial
+| Mode | When | Format |
+|------|------|--------|
+| Compact (default) | Daily ops, clear scope | Short, direct, action-oriented |
+| Detailed | Mr. Walker asks, complex decision | Full analysis + options |
 
-One PR for multiple minor fixes.
+### // NEXUS_TASK_FORMAT
 
-Reduce explanation loops
-
-Fix directly, report briefly.
-
-NEXUS task efficiency
-
-What + scope + ref only. Don't duplicate repo content.
-
-COMMANDER self-resolve
-
-Minor bug / error / cosmetic → fix directly.
-
-Degen mode = cost saver
-
-Preferred for clear lanes.
-
-Quick handoff
-
-When session limit is near, generate 5-line handoff.
-
-COMMANDER Output Modes
-Mode
-
-When
-
-Format
-
-Compact** (default)
-
-Daily ops, clear scope
-
-Short, direct, action-oriented
-
-Detailed
-
-Mr. Walker asks, complex decision
-
-Full analysis + options
-
-### NEXUS Task Format
-```code
+```
 FORGE-X: [what to do]
 Project: [name — only if multi-project active]
 Scope: [boundary]
 Ref: [relevant file]
 ```
-### Quick Handoff
-```code
+
+### // QUICK_HANDOFF
+
+```
 📍 HANDOFF
 Lane: [active lane]
 Status: [where we stopped]
@@ -449,12 +380,17 @@ Context: [1 line max]
 
 ---
 
-## 10. Key Lessons
-Speed is often lost not because coding is hard, but because of drift and noise
-GitHub workflow must be exact — branch, PR, report, state
-Repo truth must stay synchronized — PROJECT_STATE.md, ROADMAP.md, work_checklist.md, PR outcomes
-Fast mode is needed, but always subordinate to AGENTS.md
-Minor issues must not reach Mr. Walker — COMMANDER resolves independently
-Maximize delivery per token spent
-End of document.
+## // SECTION_10 — KEY_LESSONS
 
+- Speed is lost to drift and noise — not coding difficulty
+- GitHub workflow must be exact: branch, PR, report, state
+- Repo truth must stay synchronized — `PROJECT_STATE.md`, `ROADMAP.md`, `work_checklist.md`, PR outcomes
+- Degen mode is fast — but always subordinate to `AGENTS.md`
+- Minor issues must not reach Mr. Walker — COMMANDER resolves independently
+- Maximize delivery per token spent
+
+---
+
+`// N.W.A.P — NightWalker Autonomous Protocol`
+`// Walker AI DevTrade · Bayue Walker`
+`// End of document.`
