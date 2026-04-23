@@ -31,12 +31,12 @@
 - Operator runbook now includes bounded restart policy truth, rollback command path, and explicit post-deploy smoke test steps (`/health`, `/ready`, Telegram startup visibility, Telegram baseline commands).
 
 ## 5) Known issues
-- `git rev-parse --abbrev-ref HEAD` returns `work` in Codex worktree context; per AGENTS.md normalization, branch traceability for this task is carried as declared COMMANDER branch `nwap/deployment-hardening`.
+- `git rev-parse --abbrev-ref HEAD` returns `work` in Codex worktree context; per AGENTS.md normalization, branch traceability for this task is carried as declared COMMANDER branch `nwap/execute-deployment-hardening-and-state-sync`.
 - `python3 -c "from datetime import datetime; import pytz; ..."` could not run because `pytz` is unavailable in this runner; timestamp derivation used standard library `zoneinfo` for Asia/Jakarta equivalent output.
 
 ## 6) What is next
 - COMMANDER review of deployment artifact coherence (`Dockerfile`, `fly.toml`, deploy docs) and post-merge truth sync closure.
-- If approved, open/continue PR from exact lane `nwap/deployment-hardening` and preserve paper-only/public-safe boundary language.
+- If approved, open/continue PR from exact lane `nwap/execute-deployment-hardening-and-state-sync` and preserve paper-only/public-safe boundary language.
 
 Validation Tier   : STANDARD
 Claim Level       : FOUNDATION
