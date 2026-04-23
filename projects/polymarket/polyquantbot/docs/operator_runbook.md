@@ -56,7 +56,7 @@ Run immediately after deploy or rollback:
 
 1. `curl -fsS https://crusaderbot.fly.dev/health`
 2. `curl -fsS https://crusaderbot.fly.dev/ready`
-3. `fly logs -a crusaderbot | rg -n "crusaderbot_telegram_runtime_started|crusaderbot_runtime_transition"`
+3. `fly logs -a crusaderbot | grep -E "crusaderbot_telegram_runtime_started|crusaderbot_runtime_transition"`
 4. Baseline command sanity in Telegram chat: `/start`, `/help`, `/status`
 
 Pass condition (bounded scope):

@@ -25,6 +25,14 @@ ENV PORT=8080
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-  CMD python -c "import os,sys,urllib.request; p=os.environ.get('PORT','8080'); u=f'http://127.0.0.1:{p}/health'; sys.exit(0 if urllib.request.urlopen(u,timeout=5).status==200 else 1)"
+  CMD python -c "import os, sys, urllib.request
+url = 'http://127.0.0.1:' + os.environ.get('PORT', '8080') + '/health'
+status = 1
+try:
+    with urllib.request.urlopen(url, timeout=5) as response:
+        status = 0 if response.status == 200 else 1
+except Exception:
+    status = 1
+sys.exit(status)"
 
 CMD ["python", "-m", "projects.polymarket.polyquantbot.scripts.run_api"]
