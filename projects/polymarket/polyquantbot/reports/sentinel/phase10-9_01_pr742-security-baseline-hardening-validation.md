@@ -1,10 +1,10 @@
 # SENTINEL Report — phase10-9_01_pr742-security-baseline-hardening-validation
 
 ## Environment
-- Timestamp: 2026-04-23 19:04 (Asia/Jakarta)
+- Timestamp: 2026-04-23 19:18 (Asia/Jakarta)
 - Repo: `walker-ai-team`
 - PR: #742
-- PR head branch: `unverified` (runner lacks `gh` CLI and has no `origin` remote for PR-head lookup)
+- PR head branch (task/PR context): `feature/harden-security-baseline-for-phase-10.9`
 - Validation tier: MAJOR
 - Claim level: NARROW INTEGRATION
 
@@ -14,62 +14,73 @@
 - Not in scope: deployment hardening, wallet lifecycle expansion, portfolio logic, execution engine changes, broad auth redesign.
 
 ## Phase 0 Checks
-- AGENTS preload completed: `AGENTS.md`, `PROJECT_STATE.md`, forge source report.
+- AGENTS preload completed: `AGENTS.md`, `PROJECT_STATE.md`, forge source report, latest sentinel report.
 - Locale check: `LANG=C.UTF-8`, `LC_ALL=C.UTF-8`.
-- Dependency-complete rerun enabled by installing project requirements from `projects/polymarket/polyquantbot/requirements.txt`.
-- Py-compile gate for touched security/runtime/test files: PASS.
+- Dependency-complete environment restored via `python3 -m pip install -r projects/polymarket/polyquantbot/requirements.txt`.
+- Required scoped evidence commands rerun exactly as requested.
 
 ## Findings
-1. **Traceability proof unavailable (BLOCKER)**
-   - Exact PR-head branch for PR #742 could not be verified in this runner (`gh` unavailable; `origin` remote unavailable).
-   - Forge report contains `feature/security-phase10-9-baseline-hardening-20260423`, but PR-head exact-match proof is unavailable.
-   - Under branch-truth rules, unresolved PR-head verification blocks traceability closure and merge gate verdict cannot advance to APPROVED/CONDITIONAL.
-2. **Operator-only route guard behavior (PASS)**
-   - Protected routes (`/beta/admin`, `/beta/mode`, `/beta/autotrade`, `/beta/kill`, `/beta/risk`) enforce deterministic 403 behavior for missing/invalid operator key.
-   - `/beta/status` remains public-safe.
-3. **Secret-like error text exposure control (PASS)**
-   - Runtime and Telegram backend client sanitize secret-like strings to `sensitive_runtime_error_redacted`.
-   - Tests cover redaction behavior and operator-facing payload boundaries.
-4. **Touched pytest evidence rerun (PASS)**
-   - Targeted rerun passed: 59 passed.
-   - Coverage aligns to declared narrow claim (control-plane security baseline surfaces only).
-5. **New leakage in logs/payloads (NO NEW LEAK FOUND ON VALIDATED PATHS)**
-   - Reviewed touched route/client/runtime surfaces; no new direct secret echo path observed in validated scope.
+1. **Branch traceability mismatch (BLOCKER)**
+   - Required PR head branch: `feature/harden-security-baseline-for-phase-10.9`.
+   - Forge report branch: `feature/security-phase10-9-baseline-hardening-20260423`.
+   - PROJECT_STATE scoped wording still reflects a different traceability state than required PR head truth.
+   - Exact branch traceability across PR head/forge/state is not clean.
+
+2. **Operator-only beta route denial behavior (PASS)**
+   - `pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` passed (33/33).
+   - Deterministic 403 denial behavior for invalid/missing operator keys is covered for `/beta/admin`, `/beta/mode`, `/beta/autotrade`, `/beta/kill`, `/beta/risk`.
+
+3. **`/beta/status` operator key non-exposure (PASS)**
+   - Scoped runtime-surface test confirms `/beta/status` does not expose operator key values.
+
+4. **Telegram backend helper redaction behavior (PASS for string secret-like values)**
+   - `pytest -q projects/polymarket/polyquantbot/tests/test_phase8_10_telegram_identity_20260419.py` passed (22/22).
+   - Existing tests confirm redaction for secret-like exception text in `beta_get` and handoff exception paths.
+
+5. **Sanitizer type-safety closure (BLOCKER)**
+   - `_sanitize_error_detail(self, detail: str)` still executes `(detail or "").strip()`.
+   - Reproduction with non-string detail values (`dict`, `list`, `int`) raises `AttributeError` on touched error paths.
+   - Required type-safe sanitizer closure for non-string backend `detail` values is **not complete**.
+
+6. **No new secret leakage observed on validated paths (PASS)**
+   - Within covered tests and touched surfaces, no new raw secret-like values were observed in returned payloads/log-facing details.
 
 ## Score Breakdown
-- Traceability integrity: 0/20 (blocked by unverified PR-head branch truth)
+- Traceability integrity: 0/20 (branch mismatch blocker)
 - Operator-route deterministic denial: 20/20
-- Public/Operator surface boundary hygiene: 20/20
-- Secret-redaction behavior: 20/20
-- Test evidence rerun quality: 20/20
-- **Total: 80/100**
+- `/beta/status` key non-exposure: 20/20
+- Telegram helper redaction baseline: 20/20
+- Sanitizer type-safety for non-string detail values: 0/20 (AttributeError blocker)
+- **Total: 60/100**
 
 ## Critical Issues
-- CRITICAL-1: Exact PR-head branch is unverified in the current runner context, so required branch traceability proof is incomplete and merge is blocked under AGENTS exact-match rules.
+- CRITICAL-1: Exact PR head branch traceability mismatch across PR context vs forge/state artifacts.
+- CRITICAL-2: Sanitizer type-safety gap — non-string `detail` values can raise `AttributeError` in touched error-handling paths.
 
 ## Status
 - **BLOCKED**
 
 ## PR Gate Result
-- Merge gate for PR #742 is **BLOCKED** pending traceability correction and rerun confirmation.
+- Merge gate for PR #742 is **BLOCKED**.
 
 ## Broader Audit Finding
-- No additional MAJOR safety regression detected within validated narrow control-plane security slice.
+- Narrow security claim is only partially satisfied: guard/redaction behavior is supported by tests, but traceability and sanitizer type-safety closure fail MAJOR gate requirements.
 
 ## Reasoning
-- SENTINEL can only approve when evidence and traceability both satisfy MAJOR gate requirements.
-- Even with passing runtime/security checks, branch truth mismatch is a hard blocker by repository governance rules.
+- MAJOR validation requires both evidence-backed behavior and traceability correctness.
+- Remaining sanitizer type-safety defect contradicts the declared final closure requirement.
 
 ## Fix Recommendations
-1. Re-run SENTINEL in a runner with PR-head visibility (or provide exact PR-head evidence), then align forge/state artifacts to that exact verified branch string if mismatch remains.
-2. Re-run the same targeted security test pack after traceability correction and re-issue SENTINEL gate.
-3. Keep secret-redaction and operator-route denial behavior unchanged unless a new scoped requirement is introduced.
+1. Align branch traceability to exact PR head branch `feature/harden-security-baseline-for-phase-10.9` across forge/state artifacts.
+2. Make `_sanitize_error_detail` robust for non-string `detail` inputs (convert safely to string before `.strip()` or equivalent guard).
+3. Add/extend tests for non-string backend `detail` values on touched error paths to prevent regression.
+4. Re-run required scoped evidence commands and re-submit SENTINEL gate.
 
 ## Out-of-scope Advisory
-- Deployment hardening, auth redesign, and non-targeted runtime architecture changes remain intentionally out of this validation.
+- Deployment hardening, auth redesign, and non-targeted runtime architecture changes remain out of scope.
 
 ## Deferred Minor Backlog
-- None added in this validation pass.
+- None.
 
 ## Telegram Visual Preview
-- Verdict preview for operator channel: `PR #742 SENTINEL BLOCKED — PR-head branch unverified (exact-match proof required). Security checks passed in scoped rerun; merge remains blocked pending branch-truth verification.`
+- `PR #742 SENTINEL BLOCKED — branch traceability mismatch plus sanitizer type-safety failure for non-string backend detail values. Guard and redaction baseline tests pass, but MAJOR gate remains blocked.`
