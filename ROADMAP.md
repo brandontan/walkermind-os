@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, and PR #741 are merged-main truth, and Phase 10.9 Priority 2 security baseline hardening is in active MAJOR validation flow before deployment hardening (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-23 17:57
+**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, and PR #741 are merged-main truth, and Phase 11.1 deployment hardening traceability correction is active on `feature/phase11-1-deploy-hardening` with replacement PR number currently unverified from this runner (paper-only boundary preserved, no live-trading or production-capital claim).
+**Last Updated:** 2026-04-24 02:51
 
 # Board Overview
 
@@ -58,7 +58,8 @@
 - Phase 10.7 resilience hardening is merged on main via PR #731 and PR #732 sync closure as historical truth.
 - PR #733 is merged on main as post-merge work-checklist continuity sync for completed Phase 10.7 truth.
 - Phase 10.8 logging/monitoring hardening is closed as merged-main truth (PR #734 / #736 / #737).
-- Phase 10.9 security baseline hardening implementation is complete on source lane and now sits in required SENTINEL MAJOR validation flow before merge decision; Deployment Hardening remains the next-following Priority 2 lane per `projects/polymarket/polyquantbot/work_checklist.md`.
+- Phase 10.9 security baseline hardening implementation remains complete and waiting for merge-order finalization.
+- Phase 11.1 deployment hardening replacement-lane traceability correction is active on `feature/phase11-1-deploy-hardening`; replacement PR open/number verification and PR #750 closure require authenticated GitHub write access and remain unverified from this runner.
 
 ### Execution Tracking Source
 - Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/work_checklist.md](projects/polymarket/polyquantbot/work_checklist.md).

@@ -99,7 +99,7 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
-### Status Snapshot (2026-04-23 17:42 Asia/Jakarta)
+### Status Snapshot (2026-04-24 02:49 Asia/Jakarta)
 
 #### MERGED ON MAIN
 
@@ -121,9 +121,14 @@ Security Baseline Hardening lane
 - [ ] Protect admin access properly
 - [ ] Restrict sensitive routes
 
+Deployment Hardening traceability correction lane (active)
+
+- [ ] Open replacement PR from `feature/phase11-1-deploy-hardening` to `main`
+- [ ] Record exact replacement PR number in PROJECT_STATE.md, ROADMAP.md, checklist, and forge report
+- [ ] Close PR #750 after replacement PR is confirmed open
+
 #### NEXT
 
-- [ ] Deployment hardening
 - [ ] Close Priority 2 done condition after security and deployment lanes are merged
 
 ### 9. Supabase / Postgres Integration Hardening
@@ -180,11 +185,12 @@ Security Baseline Hardening lane
 
 ### 16. Deployment Hardening
 
-- [ ] Clean up the Dockerfile
-- [ ] Keep `fly.toml` in sync
-- [ ] Define restart policy clearly
-- [ ] Define rollback strategy clearly
-- [ ] Define post-deploy smoke tests clearly
+- [x] Clean up the Dockerfile
+- [x] Keep `fly.toml` in sync
+- [x] Define restart policy clearly
+- [x] Define rollback strategy clearly
+- [x] Define post-deploy smoke tests clearly
+- [ ] Complete exact GitHub traceability correction with replacement PR on `feature/phase11-1-deploy-hardening` and closure of PR #750
 
 ### Done Condition
 
@@ -597,7 +603,7 @@ This is the final finish layer.
 
 ### Right Now
 
-- [ ] Start Priority 2 security baseline hardening lane
-- [ ] Ensure secrets are redacted across logs and runtime status surfaces
-- [ ] Verify admin/sensitive route protections stay explicit and testable
-- [ ] Prepare deployment hardening kickoff once security baseline lane is complete
+- [ ] Open and verify replacement PR from `feature/phase11-1-deploy-hardening` to `main` in authenticated GitHub environment
+- [ ] Close PR #750 after replacement PR is confirmed open and correct
+- [ ] Sync exact replacement PR number across PROJECT_STATE.md, ROADMAP.md, checklist, and forge report
+- [ ] Continue Priority 2 security baseline hardening merge-order flow
