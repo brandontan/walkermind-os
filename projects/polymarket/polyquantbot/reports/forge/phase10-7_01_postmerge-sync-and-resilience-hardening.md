@@ -1,7 +1,7 @@
 # FORGE-X Report — phase10-7_01_postmerge-sync-and-resilience-hardening
 
-- Timestamp: 2026-04-23 13:56 (Asia/Jakarta)
-- Branch: feature/postmerge-sync-and-resilience-hardening
+- Timestamp: 2026-04-23 14:10 (Asia/Jakarta)
+- Branch: feature/sync-post-merge-repo-truth-and-harden-resilience
 - Scope lane: post-merge repo-truth sync for PR #729 / PR #730 + Priority 2 runtime resilience hardening
 
 ## 1) What was built
@@ -12,7 +12,7 @@
   - added bounded DB close retry handling for transient shutdown-close failures.
 - Hardened restart-safety posture across startup/shutdown transitions by explicitly resetting runtime transient state before startup validation.
 - Preserved explicit operator-readable failure posture by recording shutdown-time errors into runtime state fields and structured logs.
-- Added resilience-focused tests for shutdown cleanup, shutdown timeout posture, reset-before-startup safety, and startup-failure no-false-ready assertions.
+- Consolidated resilience-focused tests into one authoritative file (`test_phase10_7_runtime_resilience_20260423.py`) and removed duplicate helper-level resilience tests from `test_crusader_runtime_surface.py`.
 
 ## 2) Current system architecture (relevant slice)
 - Runtime lifecycle now applies deterministic transition phases:
@@ -29,6 +29,7 @@
 - `ROADMAP.md`
 - `projects/polymarket/polyquantbot/server/main.py`
 - `projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py`
+- `projects/polymarket/polyquantbot/tests/test_phase10_7_runtime_resilience_20260423.py`
 - `projects/polymarket/polyquantbot/reports/forge/phase10-7_01_postmerge-sync-and-resilience-hardening.md`
 
 ## 4) What is working
@@ -36,7 +37,9 @@
 - Runtime shutdown now handles active Telegram + DB components with bounded, operator-visible failure posture.
 - Restart path clears stale transient state before startup, reducing stale false-state carryover risk.
 - Startup failure path continues to close DB client and now has explicit test assertion that runtime state is not left false-ready.
-- Scoped tests for shutdown/restart/retry/failure posture pass locally.
+- Scoped tests after dedup cleanup pass locally:
+  - `pytest -q projects/polymarket/polyquantbot/tests/test_phase10_7_runtime_resilience_20260423.py projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` -> `22 passed`
+  - `pytest -q projects/polymarket/polyquantbot/tests/test_phase10_6_runtime_config_validation_20260423.py` -> `4 passed`
 
 ## 5) Known issues
 - None introduced in this scoped lane.
@@ -48,4 +51,4 @@ Validation Tier   : MAJOR
 Claim Level       : NARROW INTEGRATION
 Validation Target : post-merge repo-truth sync plus Priority 2 runtime resilience hardening in control-plane runtime
 Not in Scope      : wallet lifecycle expansion, portfolio logic, execution engine changes, broad DB architecture rewrite, unrelated UX cleanup
-Suggested Next    : SENTINEL validation on branch `feature/postmerge-sync-and-resilience-hardening`
+Suggested Next    : SENTINEL validation on branch `feature/sync-post-merge-repo-truth-and-harden-resilience`

@@ -1,7 +1,7 @@
 # SENTINEL Report — phase10-7_01_pr731-runtime-resilience-validation
 
 ## Environment
-- Timestamp: 2026-04-23 14:10 (Asia/Jakarta)
+- Timestamp: 2026-04-23 14:15 (Asia/Jakarta)
 - Repository: `bayuewalker/walker-ai-team`
 - PR: #731 (`https://github.com/bayuewalker/walker-ai-team/pull/731`)
 - PR head branch (verified): `feature/sync-post-merge-repo-truth-and-harden-resilience`
@@ -12,92 +12,84 @@
 - Not in scope: wallet lifecycle expansion, portfolio logic, execution engine changes, broad DB architecture rewrite, unrelated UX cleanup
 
 ## Validation Context
-Validated the declared narrow resilience claim on the control-plane runtime slice (`server/main.py`) and traceability artifacts (`PROJECT_STATE.md`, `ROADMAP.md`, source FORGE report). Checks were limited to:
-- exact branch traceability across PR head and repo-truth artifacts;
-- PR #729 / #730 merged-main sync continuity;
-- startup reset behavior for stale transient failure posture;
-- bounded Telegram shutdown timeout/error posture;
-- bounded DB shutdown retry/close behavior;
-- restart/failure posture integrity (no false-ready carryover);
-- test evidence relevance to declared narrow claim.
+Rerun performed after traceability closure and resilience test dedup cleanup. Validation scope remained the declared narrow control-plane resilience surface only:
+- exact branch traceability across PR head, FORGE report, PROJECT_STATE.md, ROADMAP.md;
+- PR #729 / #730 merged-main truth sync continuity;
+- startup reset semantics for stale transient failure posture;
+- Telegram shutdown timeout/error truthfulness;
+- DB shutdown bounded retry/final-state behavior;
+- executed pytest evidence for the declared narrow claim in dependency-complete environment.
 
 ## Phase 0 Checks
-- Source FORGE report exists at declared path: `projects/polymarket/polyquantbot/reports/forge/phase10-7_01_postmerge-sync-and-resilience-hardening.md`.
-- FORGE report structure has required 6 sections.
-- PROJECT_STATE.md has full timestamp format.
-- Branch truth from PR API verified (`feature/sync-post-merge-repo-truth-and-harden-resilience`).
-- Local compile check: `python3 -m py_compile` on touched runtime/test files passed.
-- Local pytest verification attempt on claimed tests failed in this runner due missing dependency (`ModuleNotFoundError: uvicorn`) during collection.
+- Source FORGE report exists with required MAJOR sections at `projects/polymarket/polyquantbot/reports/forge/phase10-7_01_postmerge-sync-and-resilience-hardening.md`.
+- Branch truth reverified from PR API: `feature/sync-post-merge-repo-truth-and-harden-resilience`.
+- FORGE branch string and Suggested Next branch now exactly match PR #731 head branch.
+- PROJECT_STATE.md and ROADMAP.md both preserve PR #729/#730 merged-main truth and Phase 10.7 active-lane truth.
+- Runner configured and dependency-complete for scoped tests (`uvicorn`, `fastapi`, `pytest`, `pytest-asyncio`, `structlog`, `httpx` installed locally in this runner).
+- `python3 -m py_compile` on scoped runtime/test files passed.
+- Claimed pytest suites executed successfully in this environment.
 
 ## Findings
-1) **BLOCKER — exact branch traceability mismatch in FORGE artifact**
-- Expected: FORGE branch references must exactly match PR #731 head branch `feature/sync-post-merge-repo-truth-and-harden-resilience`.
-- Actual: FORGE report records `feature/postmerge-sync-and-resilience-hardening` (header + suggested next line), which is not the PR head branch.
-- Evidence: `projects/polymarket/polyquantbot/reports/forge/phase10-7_01_postmerge-sync-and-resilience-hardening.md`.
+1) **PASS — exact branch traceability is now clean**
+- FORGE report branch field and Suggested Next branch exactly match PR #731 head branch `feature/sync-post-merge-repo-truth-and-harden-resilience`.
+- No branch mismatch detected across PR head, FORGE report, PROJECT_STATE.md, and ROADMAP.md.
 
-2) **PASS — PR #729 / PR #730 merged-main truth remains synced**
-- PROJECT_STATE.md and ROADMAP.md both preserve PR #729/#730 as merged-main historical truth and set Phase 10.7 as active Priority 2 lane.
+2) **PASS — PR #729 / PR #730 merged-main truth remains correctly synced**
+- PROJECT_STATE.md and ROADMAP.md consistently preserve merged-main truth for PR #729/#730 and keep Phase 10.7 as active lane.
 
-3) **PASS — startup reset clears stale transient failure posture**
-- `_reset_runtime_state_for_startup` clears validation errors, telegram/db transient flags, last errors, and db client pointer.
-- Reset is called before startup validation in lifespan startup path.
+3) **PASS — startup reset clears stale transient runtime failure posture**
+- `_reset_runtime_state_for_startup` clears stale validation/runtime error fields and dependency state.
+- Lifespan startup sequence calls reset before validation/dependency startup.
 
-4) **PASS — Telegram shutdown is bounded and truthfully records timeout/error posture**
-- `_shutdown_telegram_runtime` uses `asyncio.wait_for(..., timeout_s)` with explicit timeout and exception branches.
-- Timeout path records `telegram_shutdown_timeout`; generic error path records exception text and always marks shutdown complete in `finally`.
+4) **PASS — Telegram shutdown timeout/error posture is truthful and bounded**
+- `_shutdown_telegram_runtime` uses `asyncio.wait_for(..., timeout_s)` with explicit timeout and exception handling.
+- Timeout/error posture is recorded into runtime state and shutdown completion is finalized in all branches.
 
-5) **PASS — DB shutdown retry is bounded and leaves no false-ready DB posture**
-- `_stop_database_runtime` retries close with fixed bounded attempts (`close_attempts = 2`) and bounded inter-attempt sleep.
-- Final state after retry exhaustion forcibly clears db client pointer and connected/health flags.
+5) **PASS — DB shutdown retry is bounded and leaves no false-ready state**
+- `_stop_database_runtime` uses bounded close retries (`close_attempts = 2`) with short bounded backoff.
+- Final fallback clears db client and DB readiness/health flags to avoid false-ready carryover.
 
-6) **PASS — restart/failure paths avoid stale broken runtime posture**
-- Startup path resets runtime state first.
-- Startup failure during DB bring-up closes DB client and clears connected/health state.
-- Lifespan `finally` always runs shutdown components then `run_shutdown`, marking runtime stopped.
-
-7) **CONDITIONAL EVIDENCE GAP — claimed tests are relevant but not fully reproducible in current runner**
-- New tests are directly aligned with narrow resilience claim (shutdown cleanup, cancel-error recording, startup reset).
-- Runner cannot fully execute suite because `uvicorn` is missing, so full local reproduction of claimed pytest pass could not be completed in this environment.
+6) **PASS — claimed pytest evidence executed in dependency-complete environment**
+- `pytest -q projects/polymarket/polyquantbot/tests/test_phase10_7_runtime_resilience_20260423.py projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` => `22 passed`.
+- `pytest -q projects/polymarket/polyquantbot/tests/test_phase10_6_runtime_config_validation_20260423.py` => `4 passed`.
+- Executed coverage is directly aligned with declared narrow resilience claim (shutdown/restart/retry/failure posture on control-plane runtime).
 
 ## Score Breakdown
-- Branch traceability: 0/30 (BLOCKER mismatch)
+- Branch traceability: 30/30
 - Runtime resilience logic checks: 30/30
 - Restart/failure posture integrity: 20/20
-- Evidence/test support quality: 12/20 (relevance good, full reproducibility limited in current runner)
+- Executed evidence quality (dependency-complete runner): 20/20
 
-**Total: 62/100**
+**Total: 100/100**
 
 ## Critical Issues
-- C1: FORGE report branch mismatch against exact PR #731 head branch.
+- None.
 
 ## Status
-**BLOCKED**
+**APPROVED**
 
 ## PR Gate Result
-- Merge gate: **BLOCKED** pending branch traceability fix in FORGE artifact(s).
-- Required fix: update all branch references in source FORGE report to exact PR head branch string.
-- After fix: rerun SENTINEL focused validation on traceability + regression checks.
+- Merge gate result for SENTINEL scope: **APPROVED**.
+- COMMANDER decision remains required for final merge action.
 
 ## Broader Audit Finding
-- No runtime-safety contradiction found inside the scoped control-plane resilience code path.
-- Block is strictly repo-truth/traceability criticality (authoritative rule breach), not execution-risk behavior regression.
+- Scoped control-plane resilience hardening is coherent with declared narrow claim and does not over-claim broader runtime or trading-engine authority.
 
 ## Reasoning
-This lane declares MAJOR validation with strict branch traceability as an explicit authoritative requirement. A non-exact branch string in a source-of-truth artifact is a mandatory blocker even when runtime code behavior appears correct, because it breaks artifact continuity and auditability.
+The previous blocker (branch-traceability mismatch) is closed. The rerun confirms repo-truth alignment and reproduces the claimed resilience test evidence in a dependency-complete environment, with direct behavioral coverage on startup reset, Telegram shutdown posture, and bounded DB shutdown/failure-state clearing.
 
 ## Fix Recommendations
-1. Update `projects/polymarket/polyquantbot/reports/forge/phase10-7_01_postmerge-sync-and-resilience-hardening.md` branch references to exact PR head branch: `feature/sync-post-merge-repo-truth-and-harden-resilience`.
-2. Keep runtime code unchanged unless new evidence appears; current scoped resilience implementation is behaviorally aligned with claim.
-3. Re-run targeted pytest in dependency-complete environment including `uvicorn` to restore fully reproducible test evidence.
+1. Keep FORGE branch-traceability discipline unchanged for subsequent phase reports.
+2. Preserve current resilience test layout (deduped authoritative resilience file + broader runtime surface suite) unless future scope demands expansion.
 
 ## Out-of-scope Advisory
-- Duplicate resilience tests exist in both `test_crusader_runtime_surface.py` and `test_phase10_7_runtime_resilience_20260423.py`; consolidation can be considered later as non-blocking maintenance.
+- This validation does not assert wallet lifecycle completion, execution engine expansion, or broader DB architecture changes.
 
 ## Deferred Minor Backlog
-- [DEFERRED] Consolidate duplicate Phase 10.7 resilience test cases into one canonical module to reduce maintenance drift risk.
+- [DEFERRED] Continue carrying non-runtime `pytest.ini` warning cleanup (`asyncio_mode`) as backlog hygiene.
 
 ## Telegram Visual Preview
-- Verdict: BLOCKED
-- Score: 62/100
-- Critical: 1
-- Gate: Fix FORGE branch traceability mismatch before merge decision.
+- Verdict: APPROVED
+- Score: 100/100
+- Critical: 0
+- Gate: SENTINEL MAJOR validation satisfied for declared scope.
