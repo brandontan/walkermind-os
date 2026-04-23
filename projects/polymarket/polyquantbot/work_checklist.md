@@ -112,19 +112,24 @@ Finish this after the public bot baseline works.
 
 - [x] Phase 10.8 / Priority 2 logging and monitoring hardening closed on main via PR #734, PR #736, and PR #737
 
+#### MERGED ON MAIN (latest security closure)
+
+- [x] Phase 10.9 / Priority 2 security baseline hardening closed on main via PR #742
+
 #### ACTIVE (Current lane)
 
-Security Baseline Hardening lane
+Phase 11.1 Deployment Hardening lane
 
-- [ ] Make sure secrets never appear in logs
-- [ ] Remove any hardcoded credentials
-- [ ] Protect admin access properly
-- [ ] Restrict sensitive routes
+- [x] Align Docker runtime image with actual startup contract (`python3 -m projects.polymarket.polyquantbot.scripts.run_api`)
+- [x] Replace image healthcheck dependency on missing runtime curl with Python-based `/health` probe
+- [x] Keep Fly machine availability aligned with Telegram/runtime expectations (`auto_stop_machines=off`, `min_machines_running=1`)
+- [x] Add Fly readiness check against `/ready`
+- [x] Define rolling deploy strategy in Fly config
 
 #### NEXT
 
-- [ ] Deployment hardening
-- [ ] Close Priority 2 done condition after security and deployment lanes are merged
+- [ ] Capture Fly staging deploy evidence (`/health`, `/ready`, startup logs) for SENTINEL MAJOR validation
+- [ ] Close Priority 2 done condition after Phase 11.1 deployment hardening validation/merge
 
 ### 9. Supabase / Postgres Integration Hardening
 
@@ -171,20 +176,20 @@ Security Baseline Hardening lane
 - [x] Make error traces easy to follow
 - [x] Prepare minimum viable monitoring
 
-### 15. Security Baseline (ACTIVE)
+### 15. Security Baseline (MERGED)
 
-- [ ] Make sure secrets never appear in logs
-- [ ] Remove any hardcoded credentials
-- [ ] Protect admin access properly
-- [ ] Restrict sensitive routes
+- [x] Make sure secrets never appear in logs
+- [x] Remove any hardcoded credentials
+- [x] Protect admin access properly
+- [x] Restrict sensitive routes
 
-### 16. Deployment Hardening
+### 16. Deployment Hardening (Phase 11.1 ACTIVE)
 
-- [ ] Clean up the Dockerfile
-- [ ] Keep `fly.toml` in sync
-- [ ] Define restart policy clearly
-- [ ] Define rollback strategy clearly
-- [ ] Define post-deploy smoke tests clearly
+- [x] Clean up the Dockerfile
+- [x] Keep `fly.toml` in sync
+- [x] Define restart policy clearly
+- [x] Define rollback strategy clearly
+- [x] Define post-deploy smoke tests clearly
 
 ### Done Condition
 
@@ -597,7 +602,7 @@ This is the final finish layer.
 
 ### Right Now
 
-- [ ] Start Priority 2 security baseline hardening lane
-- [ ] Ensure secrets are redacted across logs and runtime status surfaces
-- [ ] Verify admin/sensitive route protections stay explicit and testable
-- [ ] Prepare deployment hardening kickoff once security baseline lane is complete
+- [x] Security baseline hardening lane is merged-main truth (PR #742)
+- [x] Phase numbering normalized: next lane is Phase 11.1 deployment hardening
+- [ ] Capture Fly staging evidence for `/health` + `/ready` after deployment-hardening config sync
+- [ ] Hand off Phase 11.1 lane to SENTINEL MAJOR validation

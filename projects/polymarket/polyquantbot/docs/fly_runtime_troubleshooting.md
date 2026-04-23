@@ -56,3 +56,16 @@ Prioritize, in order:
 3. Telegram polling/session lines.
 4. Exception traces around startup window.
 5. Readiness-related warnings/errors.
+
+## G) Rollback and post-deploy smoke contract (Phase 11.1)
+
+Rollback baseline:
+1. `fly releases` to identify the previous healthy release.
+2. `fly deploy --image <previous-image-ref>` to pin rollback to known-good image when config did not change.
+3. Re-run smoke checks immediately after rollback completion.
+
+Post-deploy smoke checks (staging/prod):
+1. `curl -fsS https://<app-host>/health` returns HTTP 200.
+2. `curl -fsS https://<app-host>/ready` returns HTTP 200 with readiness payload.
+3. `fly logs --no-tail` shows startup path `projects.polymarket.polyquantbot.scripts.run_api` and no secret-like value leakage.
+4. If Telegram runtime is required, verify a single active machine and no polling conflict errors.

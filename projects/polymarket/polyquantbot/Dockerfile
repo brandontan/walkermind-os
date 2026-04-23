@@ -17,16 +17,19 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
-RUN mkdir -p /app/projects/polymarket/polyquantbot
-COPY . /app/projects/polymarket/polyquantbot
+COPY . /app
 
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN useradd -m -u 1000 appuser \
+    && mkdir -p /tmp/crusaderbot/runtime \
+    && chown -R appuser:appuser /app /tmp/crusaderbot
 USER appuser
 
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:${PORT}/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD python3 -c "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:%s/health' % os.getenv('PORT','8080'), timeout=5)" || exit 1
 
-CMD ["python", "-m", "projects.polymarket.polyquantbot.scripts.run_api"]
+CMD ["python3", "-m", "projects.polymarket.polyquantbot.scripts.run_api"]
