@@ -1,5 +1,5 @@
-Last Updated : 2026-04-23 12:16
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725 and PR #726 are merged-main truth, and Phase 10.5 post-merge persistence baseline is now the active Priority 2 lane.
+Last Updated : 2026-04-23 12:24
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725 and PR #726 are merged-main truth, and PR #727 persistence-boundary validation is now complete with SENTINEL verdict ready for COMMANDER merge decision.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on `feature/consolidate-telegram-ui-ux-layer`: active Telegram source of truth remains `projects/polymarket/polyquantbot/telegram`, deprecated `interface/telegram/__init__.py` legacy marker is archived under `projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/`, and only thin compatibility shims remain under `projects/polymarket/polyquantbot/interface/telegram/view_handler.py` + `projects/polymarket/polyquantbot/interface/ui_formatter.py` + `projects/polymarket/polyquantbot/interface/telegram/__init__.py`.
@@ -50,7 +50,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Automation, retry, and batching for settlement and wallet operations.
 
 [NEXT PRIORITY]
-- Execute Priority 2 persistence stabilization baseline: audit restart-sensitive runtime state and enforce one authoritative persistence boundary per scoped category while preserving paper-only posture.
+- COMMANDER final gate on PR #727: review SENTINEL persistence-boundary verdict and decide merge/hold for `feature/sync-repo-truth-and-stabilize-persistence` into `main`.
 
 [KNOWN ISSUES]
 - Phase 5.2 only supports single-order transport and intentionally excludes retry, batching, and async workers.
