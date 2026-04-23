@@ -1,6 +1,6 @@
 # FORGE-X Report — phase10-6_01_postmerge-sync-runtime-config-and-readiness-hardening
 
-- Timestamp: 2026-04-23 13:07 (Asia/Jakarta)
+- Timestamp: 2026-04-23 13:31 (Asia/Jakarta)
 - Branch: feature/sync-post-merge-repo-truth-and-harden-runtime-config
 - Scope lane: post-merge repo-truth sync + Priority 2 runtime config/readiness hardening
 
@@ -18,7 +18,8 @@
 - PR #729 traceability/validation closure updates:
   - corrected forge report branch traceability to exact PR #729 head branch;
   - re-ran `projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` in dependency-complete environment where FastAPI executes (no skip);
-  - aligned one stale test expectation with already-landed readiness semantics (`db_runtime_enabled=true` + DB unavailable now returns `503 not_ready`).
+  - aligned one stale test expectation with already-landed readiness semantics (`db_runtime_enabled=true` + DB unavailable now returns `503 not_ready`);
+  - added explicit `DB_DSN` setup in DB-enabled runtime-surface tests that are intended to validate post-startup DB behavior instead of startup-validation failure.
 
 ## 2) Current system architecture (relevant slice)
 - Boot sequence remains: runtime settings parse -> startup validation -> DB runtime bootstrap -> Telegram runtime bootstrap.
@@ -44,7 +45,9 @@
 - Startup runtime summary remains minimal and safe (presence/state only, no secret value disclosure).
 - `/health` truthfully reflects process readiness state.
 - `/ready` truthfully degrades when DB runtime is enabled but unavailable, and reports dependency gates explicitly.
-- Dependency-complete runtime surface validation now executes in this runner with real result: `19 passed in 2.40s` for `projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` (no import skip).
+- Reproducible scoped validation now executes cleanly in this runner:
+  - `pytest -q projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py` -> `19 passed in 2.84s`
+  - `pytest -q projects/polymarket/polyquantbot/tests/test_phase10_6_runtime_config_validation_20260423.py` -> `4 passed in 0.08s`
 
 ## 5) Known issues
 - None introduced in this scoped lane.

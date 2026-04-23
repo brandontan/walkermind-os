@@ -15,6 +15,8 @@ from projects.polymarket.polyquantbot.server.core.runtime import (
 )
 from projects.polymarket.polyquantbot.server.main import create_app
 
+_TEST_DB_DSN = "postgresql://test-user:test-pass@localhost:5432/test_crusader"
+
 
 @pytest.mark.parametrize(
     ("route", "required_keys"),
@@ -156,6 +158,7 @@ def test_startup_success_path_sets_db_runtime_ready(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "true")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _HealthyDBClient)
     app = create_app()
 
@@ -190,6 +193,7 @@ def test_startup_failure_before_yield_closes_db_client(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "true")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _DBClient)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main._start_telegram_runtime", _boom)
     app = create_app()
@@ -220,6 +224,7 @@ def test_bounded_retry_timeout_alignment_preserves_retry_path(monkeypatch) -> No
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "false")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setenv("CRUSADER_DB_CONNECT_MAX_ATTEMPTS", "3")
     monkeypatch.setenv("CRUSADER_DB_CONNECT_BASE_BACKOFF_S", "0.01")
     monkeypatch.setenv("CRUSADER_DB_CONNECT_TIMEOUT_S", "0.02")
@@ -251,6 +256,7 @@ def test_ready_status_after_db_unavailable_when_required(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "true")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _UnhealthyDBClient)
     app = create_app()
 
@@ -274,6 +280,7 @@ def test_ready_status_after_db_unavailable_when_not_required(monkeypatch) -> Non
     monkeypatch.setenv("TRADING_MODE", "PAPER")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "false")
+    monkeypatch.setenv("DB_DSN", _TEST_DB_DSN)
     monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _UnavailableDBClient)
     app = create_app()
 
