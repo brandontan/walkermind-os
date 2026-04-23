@@ -12,7 +12,7 @@
 
 ## 1. What Was Built
 
-Premium documentation treatment applied to `README.md` and `docs/workflow_and_execution_model.md`. Sharper information hierarchy, cleaner section rhythm, stronger heading structure, tighter wording, and more polished tables throughout. No operational rules, workflow semantics, commands, process truth, or path references were changed.
+Premium documentation treatment applied to `README.md` and `docs/workflow_and_execution_model.md`. Sharper information hierarchy, cleaner section rhythm, stronger heading structure, tighter wording, and more polished tables throughout. Presentation, hierarchy, and document framing were upgraded. Operational meaning — rules, role definitions, workflow steps, tier logic, and file path references — was preserved.
 
 ---
 
@@ -53,7 +53,7 @@ The previous README duplicated the full workflow doc content verbatim (sections 
 - Cost discipline rules table tightened
 - Degen mode split into clear what-it-does / what-it-does-not-do lists
 - Trailing `// End of document.` line removed (redundant)
-- All operational meaning, commands, paths, and process semantics preserved verbatim
+- Operational meaning preserved: role definitions, workflow steps, tier routing, file paths, and process rules are unchanged in substance
 
 ---
 
@@ -61,7 +61,7 @@ The previous README duplicated the full workflow doc content verbatim (sections 
 
 - `README.md` now functions as a proper project entry point — not a workflow doc duplicate
 - `docs/workflow_and_execution_model.md` has cleaner hierarchy and executive-grade readability
-- All repo-truth references, file paths, and operational rules are intact
+- Presentation and framing upgraded; operational meaning intact
 - No unrelated files touched
 
 ---
