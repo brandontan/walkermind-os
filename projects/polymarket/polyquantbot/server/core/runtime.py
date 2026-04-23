@@ -77,6 +77,11 @@ class RuntimeState:
     db_connect_base_backoff_s: float = 0.0
     db_connect_timeout_s: float = 0.0
     db_client: object | None = None
+    lifecycle_phase: str = "created"
+    lifecycle_transitions_total: int = 0
+    dependency_failures_total: int = 0
+    last_dependency_failure_surface: str = ""
+    last_dependency_failure_error: str = ""
 
     def mark_started(self) -> None:
         self.started_at = datetime.now(timezone.utc)

@@ -51,6 +51,40 @@ from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 log = structlog.get_logger(__name__)
 
 
+def _runtime_monitoring_snapshot(state: RuntimeState) -> dict[str, object]:
+    return {
+        "lifecycle_phase": state.lifecycle_phase,
+        "lifecycle_transitions_total": state.lifecycle_transitions_total,
+        "dependency_failures_total": state.dependency_failures_total,
+        "last_dependency_failure_surface": state.last_dependency_failure_surface,
+        "telegram_runtime": {
+            "required": state.telegram_runtime_required,
+            "enabled": state.telegram_runtime_enabled,
+            "active": state.telegram_runtime_active,
+            "shutdown_complete": state.telegram_runtime_shutdown_complete,
+            "last_error_present": bool(state.telegram_runtime_last_error),
+        },
+        "db_runtime": {
+            "required": state.db_runtime_required,
+            "enabled": state.db_runtime_enabled,
+            "connected": state.db_runtime_connected,
+            "healthcheck_ok": state.db_runtime_healthcheck_ok,
+            "last_error_present": bool(state.db_runtime_last_error),
+        },
+    }
+
+
+def _transition_runtime_phase(state: RuntimeState, phase: str) -> None:
+    state.lifecycle_phase = phase
+    state.lifecycle_transitions_total += 1
+
+
+def _record_dependency_failure(state: RuntimeState, surface: str, error: str) -> None:
+    state.dependency_failures_total += 1
+    state.last_dependency_failure_surface = surface
+    state.last_dependency_failure_error = error
+
+
 class RuntimeTelegramObserver:
     def __init__(self, state: RuntimeState) -> None:
         self._state = state
@@ -79,6 +113,7 @@ class RuntimeTelegramObserver:
 
 
 def _reset_runtime_state_for_startup(state: RuntimeState) -> None:
+    _transition_runtime_phase(state=state, phase="startup_reset")
     state.validation_errors = []
     state.telegram_runtime_startup_complete = False
     state.telegram_runtime_active = False
@@ -89,19 +124,30 @@ def _reset_runtime_state_for_startup(state: RuntimeState) -> None:
     state.db_runtime_healthcheck_ok = False
     state.db_runtime_last_error = ""
     state.db_client = None
+    state.last_dependency_failure_surface = ""
+    state.last_dependency_failure_error = ""
+    log.info("crusaderbot_runtime_transition", transition="startup_reset", monitoring=_runtime_monitoring_snapshot(state))
 
 
 async def _start_telegram_runtime(state: RuntimeState) -> None:
+    _transition_runtime_phase(state=state, phase="telegram_startup")
+    log.info("crusaderbot_runtime_transition", transition="telegram_startup", monitoring=_runtime_monitoring_snapshot(state))
     settings = TelegramBotSettings.from_env()
     validation_errors = validate_bot_environment(settings)
     state.telegram_runtime_required = telegram_runtime_required_from_env()
     state.telegram_runtime_enabled = not validation_errors
     if validation_errors:
         state.telegram_runtime_last_error = "; ".join(validation_errors)
+        _record_dependency_failure(
+            state=state,
+            surface="telegram_runtime_startup",
+            error=state.telegram_runtime_last_error,
+        )
         log.error(
             "crusaderbot_telegram_runtime_disabled",
             required=state.telegram_runtime_required,
             errors=validation_errors,
+            failure_surface="telegram_runtime_startup",
         )
         if state.telegram_runtime_required:
             raise RuntimeError(state.telegram_runtime_last_error)
@@ -145,6 +191,8 @@ async def _start_telegram_runtime(state: RuntimeState) -> None:
 
 
 async def _shutdown_telegram_runtime(state: RuntimeState, timeout_s: float = 5.0) -> None:
+    _transition_runtime_phase(state=state, phase="telegram_shutdown")
+    log.info("crusaderbot_runtime_transition", transition="telegram_shutdown", monitoring=_runtime_monitoring_snapshot(state))
     task = state.telegram_runtime_task
     if task is None:
         state.telegram_runtime_active = False
@@ -158,9 +206,11 @@ async def _shutdown_telegram_runtime(state: RuntimeState, timeout_s: float = 5.0
         pass
     except asyncio.TimeoutError:
         state.telegram_runtime_last_error = "telegram_shutdown_timeout"
+        _record_dependency_failure(state=state, surface="telegram_runtime_shutdown", error=state.telegram_runtime_last_error)
         log.error("crusaderbot_telegram_runtime_shutdown_timeout", timeout_s=timeout_s)
     except Exception as exc:  # noqa: BLE001
         state.telegram_runtime_last_error = str(exc)
+        _record_dependency_failure(state=state, surface="telegram_runtime_shutdown", error=state.telegram_runtime_last_error)
         log.error("crusaderbot_telegram_runtime_shutdown_error", error=state.telegram_runtime_last_error)
     finally:
         state.telegram_runtime_task = None
@@ -188,6 +238,8 @@ def _db_retry_budget_s(max_attempts: int, base_backoff_s: float, per_attempt_tim
 
 
 async def _start_database_runtime(state: RuntimeState) -> None:
+    _transition_runtime_phase(state=state, phase="db_startup")
+    log.info("crusaderbot_runtime_transition", transition="db_startup", monitoring=_runtime_monitoring_snapshot(state))
     state.db_runtime_required = _db_runtime_required_from_env()
     state.db_runtime_enabled = _db_runtime_enabled_from_env()
     state.db_runtime_last_error = ""
@@ -229,6 +281,11 @@ async def _start_database_runtime(state: RuntimeState) -> None:
         log.info("crusaderbot_db_runtime_ready")
     except Exception as exc:
         state.db_runtime_last_error = str(exc)
+        _record_dependency_failure(
+            state=state,
+            surface="db_runtime_startup",
+            error=state.db_runtime_last_error,
+        )
         state.db_runtime_connected = False
         state.db_runtime_healthcheck_ok = False
         if state.db_client is not None:
@@ -238,12 +295,15 @@ async def _start_database_runtime(state: RuntimeState) -> None:
             "crusaderbot_db_runtime_startup_failed",
             required=state.db_runtime_required,
             error=state.db_runtime_last_error,
+            failure_surface="db_runtime_startup",
         )
         if state.db_runtime_required:
             raise
 
 
 async def _stop_database_runtime(state: RuntimeState) -> None:
+    _transition_runtime_phase(state=state, phase="db_shutdown")
+    log.info("crusaderbot_runtime_transition", transition="db_shutdown", monitoring=_runtime_monitoring_snapshot(state))
     if state.db_client is None:
         return
     close_attempts = 2
@@ -256,6 +316,11 @@ async def _stop_database_runtime(state: RuntimeState) -> None:
             return
         except Exception as exc:  # noqa: BLE001
             state.db_runtime_last_error = f"db_close_attempt_{attempt}_failed: {exc}"
+            _record_dependency_failure(
+                state=state,
+                surface="db_runtime_shutdown",
+                error=state.db_runtime_last_error,
+            )
             log.warning(
                 "crusaderbot_db_runtime_shutdown_retry",
                 attempt=attempt,
@@ -270,8 +335,12 @@ async def _stop_database_runtime(state: RuntimeState) -> None:
 
 
 async def _shutdown_runtime_components(state: RuntimeState) -> None:
+    _transition_runtime_phase(state=state, phase="shutdown_begin")
+    log.info("crusaderbot_runtime_transition", transition="shutdown_begin", monitoring=_runtime_monitoring_snapshot(state))
     await _shutdown_telegram_runtime(state=state)
     await _stop_database_runtime(state=state)
+    _transition_runtime_phase(state=state, phase="shutdown_complete")
+    log.info("crusaderbot_runtime_transition", transition="shutdown_complete", monitoring=_runtime_monitoring_snapshot(state))
 
 
 def create_app() -> FastAPI:
@@ -283,7 +352,15 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         try:
+            _transition_runtime_phase(state=state, phase="startup_begin")
+            log.info("crusaderbot_runtime_transition", transition="startup_begin", monitoring=_runtime_monitoring_snapshot(state))
             _reset_runtime_state_for_startup(state)
+            _transition_runtime_phase(state=state, phase="startup_validation")
+            log.info(
+                "crusaderbot_runtime_transition",
+                transition="startup_validation",
+                monitoring=_runtime_monitoring_snapshot(state),
+            )
             await run_startup_validation(settings=settings, state=state)
             await _start_database_runtime(state=state)
             try:
@@ -291,10 +368,14 @@ def create_app() -> FastAPI:
             except Exception as exc:
                 capture_runtime_exception(exc, surface="telegram_runtime_startup")
                 raise
+            _transition_runtime_phase(state=state, phase="runtime_ready")
+            log.info("crusaderbot_runtime_transition", transition="runtime_ready", monitoring=_runtime_monitoring_snapshot(state))
             yield
         finally:
             await _shutdown_runtime_components(state=state)
             await run_shutdown(state=state)
+            _transition_runtime_phase(state=state, phase="stopped")
+            log.info("crusaderbot_runtime_transition", transition="stopped", monitoring=_runtime_monitoring_snapshot(state))
 
     app = FastAPI(
         title=settings.app_name,

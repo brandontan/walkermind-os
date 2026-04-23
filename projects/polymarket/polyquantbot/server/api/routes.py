@@ -112,6 +112,14 @@ def build_router(
                 "live_mode_execution_allowed": False,
                 "paper_only_execution_boundary": True,
             },
+            "monitoring_outputs": {
+                "lifecycle_phase": state.lifecycle_phase,
+                "lifecycle_transitions_total": state.lifecycle_transitions_total,
+                "dependency_failures_total": state.dependency_failures_total,
+                "last_dependency_failure_surface": state.last_dependency_failure_surface,
+                "last_dependency_failure_error": state.last_dependency_failure_error,
+                "operator_trace_contract": "startup_shutdown_dependency_monitoring_minimum_v1",
+            },
         }
         return JSONResponse(
             {

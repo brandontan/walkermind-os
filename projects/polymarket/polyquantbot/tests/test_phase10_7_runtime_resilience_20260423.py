@@ -6,6 +6,7 @@ import pytest
 
 from projects.polymarket.polyquantbot.server.core.runtime import RuntimeState
 from projects.polymarket.polyquantbot.server.main import (
+    _start_database_runtime,
     _reset_runtime_state_for_startup,
     _shutdown_runtime_components,
     _shutdown_telegram_runtime,
@@ -88,3 +89,79 @@ def test_reset_runtime_state_for_startup_clears_stale_failure_posture() -> None:
     assert state.db_runtime_healthcheck_ok is False
     assert state.db_runtime_last_error == ""
     assert state.db_client is None
+
+
+def test_reset_runtime_state_emits_structured_startup_transition_log(monkeypatch) -> None:
+    captured: list[tuple[str, dict[str, object]]] = []
+
+    def _capture(event: str, **kwargs: object) -> None:
+        captured.append((event, kwargs))
+
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.log.info", _capture)
+    state = RuntimeState()
+
+    _reset_runtime_state_for_startup(state)
+
+    assert captured
+    event, payload = captured[-1]
+    assert event == "crusaderbot_runtime_transition"
+    assert payload["transition"] == "startup_reset"
+    assert "monitoring" in payload
+
+
+@pytest.mark.asyncio
+async def test_shutdown_runtime_components_emits_structured_shutdown_transition_logs(monkeypatch) -> None:
+    captured: list[tuple[str, dict[str, object]]] = []
+
+    def _capture(event: str, **kwargs: object) -> None:
+        captured.append((event, kwargs))
+
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.log.info", _capture)
+    state = RuntimeState()
+    state.telegram_runtime_task = asyncio.create_task(asyncio.sleep(1))
+
+    await _shutdown_runtime_components(state=state)
+
+    transitions = [payload["transition"] for event, payload in captured if event == "crusaderbot_runtime_transition"]
+    assert "shutdown_begin" in transitions
+    assert "telegram_shutdown" in transitions
+    assert "db_shutdown" in transitions
+    assert "shutdown_complete" in transitions
+
+
+@pytest.mark.asyncio
+async def test_db_dependency_failure_trace_is_structured_and_readable(monkeypatch) -> None:
+    class _FailingDBClient:
+        async def connect_with_retry(self, max_attempts: int = 4, base_backoff_s: float = 1.0) -> None:
+            raise RuntimeError("db_connect_refused")
+
+        async def healthcheck(self) -> bool:
+            return False
+
+        async def close(self) -> None:
+            return None
+
+    captured: list[tuple[str, dict[str, object]]] = []
+
+    def _capture(event: str, **kwargs: object) -> None:
+        captured.append((event, kwargs))
+
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_ENABLED", "true")
+    monkeypatch.setenv("CRUSADER_DB_RUNTIME_REQUIRED", "false")
+    monkeypatch.setenv("DB_DSN", "postgresql://runtime:runtime@localhost:5432/runtime")
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.DatabaseClient", _FailingDBClient)
+    monkeypatch.setattr("projects.polymarket.polyquantbot.server.main.log.error", _capture)
+    state = RuntimeState()
+
+    await _start_database_runtime(state=state)
+
+    assert state.dependency_failures_total == 1
+    assert state.last_dependency_failure_surface == "db_runtime_startup"
+    assert state.last_dependency_failure_error == "db_connect_refused"
+    failure_logs = [
+        payload
+        for event, payload in captured
+        if event == "crusaderbot_db_runtime_startup_failed"
+    ]
+    assert failure_logs
+    assert failure_logs[-1]["failure_surface"] == "db_runtime_startup"

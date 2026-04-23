@@ -106,7 +106,11 @@ def test_ready_route_reports_readiness_dimensions(monkeypatch) -> None:
     assert "falcon_config_state" in readiness
     assert "dependency_gates" in readiness
     assert "control_plane" in readiness
+    assert "monitoring_outputs" in readiness
     assert readiness["control_plane"]["paper_only_execution_boundary"] is True
+    assert readiness["monitoring_outputs"]["operator_trace_contract"] == (
+        "startup_shutdown_dependency_monitoring_minimum_v1"
+    )
 
 
 def test_beta_admin_route_exists_and_preserves_paper_boundary(monkeypatch) -> None:
