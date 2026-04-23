@@ -42,3 +42,13 @@ externalPort = 3000
 deploymentTarget = "autoscale"
 run = ["bash", "-c", "cd projects/app/walker_devops && npm run dev:server & npx serve -s dist/frontend -l 5000"]
 build = ["bash", "-c", "cd projects/app/walker_devops && npm run build"]
+
+[userenv]
+
+[userenv.shared]
+CLOB_API_KEY = "REMOVED_EXPOSED_CREDENTIAL"
+CLOB_API_PASSPHRASE = "REMOVED_EXPOSED_CREDENTIAL"
+CLOB_API_SECRET = "REMOVED_EXPOSED_CREDENTIAL"
+TELEGRAM_BOT_TOKEN = "REMOVED_EXPOSED_CREDENTIAL"
+TELEGRAM_CHAT_ID = "-1002705155458"
+FALCON_API_KEY = "REMOVED_EXPOSED_CREDENTIAL"
