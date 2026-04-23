@@ -22,14 +22,14 @@
 - Deployment Hardening is explicitly marked as the active Priority 2 lane with exact immediate boundaries (Dockerfile, fly.toml sync, restart policy, rollback strategy, post-deploy smoke tests).
 
 ## 5) Known issues
-- `git rev-parse --abbrev-ref HEAD` returns `work` in Codex worktree context; per AGENTS normalization, report traceability uses COMMANDER-declared branch string: `NWAP/phase10-9-truth-sync-and-deployment-hardening`.
+- PR #752 branch traceability source-of-truth is the exact PR head branch: `nwap/sync-repo-truth-for-phase-10.9` (replacing prior mismatched branch wording).
 
 ## 6) What is next
 - COMMANDER review for truth-sync lane and branch-traceability confirmation.
-- Suggested follow-up implementation lane: Deployment Hardening on `NWAP/phase10-9-truth-sync-and-deployment-hardening` with scope limited to checklist item 16.
+- Suggested follow-up implementation lane: Deployment Hardening on `nwap/sync-repo-truth-for-phase-10.9` with scope limited to checklist item 16.
 
-Validation Tier   : STANDARD
+Validation Tier   : MINOR
 Claim Level       : FOUNDATION
-Validation Target : Repo-truth alignment for completed Phase 10.9 security lane plus exact activation of the next Deployment Hardening lane
-Not in Scope      : Deployment hardening implementation, runtime/security behavior expansion, paper-trading scope changes, wallet/portfolio work, broad doc cleanup
+Validation Target : Exact branch/reference traceability for PR #752 and this FORGE artifact
+Not in Scope      : New code changes, deployment hardening implementation, security changes, broader roadmap edits, branch renaming strategy outside PR #752
 Suggested Next    : COMMANDER review
