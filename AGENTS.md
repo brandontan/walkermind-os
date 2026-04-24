@@ -862,7 +862,7 @@ Wrong:
 ### Traceability
 The declared branch name from COMMANDER task is authoritative.
 Codex MUST use the exact declared NWAP/{feature} name.
-If actual git branch differs from declared (non-worktree case) →
+If actual git branch differs from declared (non-worktree case) ->
 STOP, do not write any artifact, report mismatch to COMMANDER.
 
 ### Codex / worktree normalization
