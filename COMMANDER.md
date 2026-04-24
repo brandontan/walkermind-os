@@ -915,9 +915,9 @@ One-pass review preferred:
 ============
 Repo      : https://github.com/bayuewalker/walker-ai-team
 Branch    : NWAP/{feature}
-              ^ short hyphen-separated slug only — no date suffix, no underscores, no dots
-              ^ declare the exact slug here before sending task — never derive from task title or description
-              ^ report filename must match this slug exactly — no date suffix appended
+              ^ short hyphen-separated slug only - no date suffix, no underscores, no dots
+              ^ declare the exact slug here before sending task - never derive from task title or description
+              ^ report filename must match this slug exactly - no date suffix appended
 Env       : dev / staging / prod
 
 OBJECTIVE:
