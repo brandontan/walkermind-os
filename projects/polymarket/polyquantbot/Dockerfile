@@ -15,24 +15,19 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080
+
 COPY --from=builder /install /usr/local
 COPY . /app
 
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-ENV PORT=8080
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-  CMD python -c "import os, sys, urllib.request
-url = 'http://127.0.0.1:' + os.environ.get('PORT', '8080') + '/health'
-status = 1
-try:
-    with urllib.request.urlopen(url, timeout=5) as response:
-        status = 0 if response.status == 200 else 1
-except Exception:
-    status = 1
-sys.exit(status)"
+# Authoritative container aliveness contract.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 CMD python -c "import os,sys,urllib.request; url='http://127.0.0.1:'+os.environ.get('PORT','8080')+'/health'; sys.exit(0 if urllib.request.urlopen(url, timeout=5).status == 200 else 1)"
 
 CMD ["python", "-m", "projects.polymarket.polyquantbot.scripts.run_api"]

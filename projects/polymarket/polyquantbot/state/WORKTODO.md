@@ -99,7 +99,7 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
-### Status Snapshot (2026-04-24 03:48 Asia/Jakarta)
+### Status Snapshot (2026-04-24 09:12 Asia/Jakarta)
 
 #### MERGED ON MAIN
 
@@ -120,15 +120,15 @@ Finish this after the public bot baseline works.
 
 Deployment Hardening lane
 
-- [ ] Clean up the Dockerfile
-- [ ] Keep `fly.toml` in sync
-- [ ] Define restart policy clearly
-- [ ] Define rollback strategy clearly
-- [ ] Define post-deploy smoke tests clearly
+- [x] Clean up the Dockerfile
+- [x] Keep `fly.toml` in sync
+- [x] Define restart policy clearly
+- [x] Define rollback strategy clearly
+- [x] Define post-deploy smoke tests clearly
 
 #### NEXT
 
-- [ ] Close Priority 2 done condition after deployment lane is merged
+- [ ] Close Priority 2 done condition after COMMANDER merges PR #759 (Deployment Hardening — SENTINEL APPROVED 98/100)
 
 ### 9. Supabase / Postgres Integration Hardening
 
@@ -184,11 +184,11 @@ Deployment Hardening lane
 
 ### 16. Deployment Hardening
 
-- [ ] Clean up the Dockerfile
-- [ ] Keep `fly.toml` in sync
-- [ ] Define restart policy clearly
-- [ ] Define rollback strategy clearly
-- [ ] Define post-deploy smoke tests clearly
+- [x] Clean up the Dockerfile
+- [x] Keep `fly.toml` in sync
+- [x] Define restart policy clearly
+- [x] Define rollback strategy clearly
+- [x] Define post-deploy smoke tests clearly
 
 ### Done Condition
 
