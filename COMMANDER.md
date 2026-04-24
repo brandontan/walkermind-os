@@ -6,7 +6,7 @@ For all system rules (tiers, claims, branch format, report/state/roadmap rules, 
 Rule priority: `AGENTS.md` > `PROJECT_REGISTRY.md` > `{PROJECT_ROOT}/state/PROJECT_STATE.md` > `{PROJECT_ROOT}/state/ROADMAP.md` > latest relevant forge report > this file.
 
 Version: 2.2
-Last Updated: 2026-04-24 17:57 Asia/Jakarta
+Last Updated: 2026-04-24 19:21 Asia/Jakarta
 
 ---
 
@@ -915,6 +915,9 @@ One-pass review preferred:
 ============
 Repo      : https://github.com/bayuewalker/walker-ai-team
 Branch    : NWAP/{feature}
+              ^ short hyphen-separated slug only - no date suffix, no underscores, no dots
+              ^ declare the exact slug here before sending task - never derive from task title or description
+              ^ report filename must match this slug exactly - no date suffix appended
 Env       : dev / staging / prod
 
 OBJECTIVE:
