@@ -37,7 +37,7 @@ Use rollback when a new deploy regresses `/health`, `/ready`, or Telegram startu
 2. Redeploy that exact image:
    - `fly deploy --image registry.fly.io/crusaderbot:<IMAGE_TAG> --strategy immediate`
 3. Run post-deploy smoke tests (Section 5).
-4. Record rollback cause and failed signals (`/health`, `/ready`, startup logs, command behavior`).
+4. Record rollback cause and failed signals (`/health`, `/ready`, startup logs, command behavior).
 5. Reconcile any config, secret, or `fly.toml` drift manually; image rollback does not revert those automatically.
 
 ## 5) Post-deploy smoke test contract
