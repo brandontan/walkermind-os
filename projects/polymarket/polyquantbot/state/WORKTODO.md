@@ -99,7 +99,7 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
-### Status Snapshot (2026-04-24 11:53 Asia/Jakarta)
+### Status Snapshot (2026-04-24 18:18 Asia/Jakarta)
 
 #### MERGED ON MAIN
 
@@ -197,32 +197,32 @@ Finish this after runtime and persistence are stable.
 
 ### 17. Paper Account Model
 
-- [ ] Define the paper balance model
-- [ ] Define paper position tracking
-- [ ] Define paper PnL tracking
+- [x] Define the paper balance model
+- [x] Define paper position tracking
+- [x] Define paper PnL tracking
 - [ ] Add reset/test flow for operators
 
 ### 18. Paper Execution Engine
 
-- [ ] Define paper order intent flow
-- [ ] Enable paper entry logic
+- [x] Define paper order intent flow
+- [x] Enable paper entry logic
 - [ ] Enable paper exit logic
-- [ ] Make paper fill assumptions clear
-- [ ] Make paper execution logging clear
+- [x] Make paper fill assumptions clear
+- [x] Make paper execution logging clear
 
 ### 19. Paper Portfolio Surface
 
 - [ ] Show open paper positions
 - [ ] Show realized PnL
 - [ ] Show unrealalized PnL
-- [ ] Show summary through bot/API
+- [x] Show summary through bot/API
 
 ### 20. Paper Risk Controls
 
-- [ ] Enforce exposure caps
-- [ ] Enforce drawdown caps
-- [ ] Enforce kill switch
-- [ ] Show risk state clearly
+- [x] Enforce exposure caps
+- [x] Enforce drawdown caps
+- [x] Enforce kill switch
+- [x] Show risk state clearly
 
 ### 21. Paper Strategy Visibility
 
@@ -340,8 +340,8 @@ Build this after wallet lifecycle is ready.
 
 ### 35. Portfolio Guardrails
 
-- [ ] Enforce exposure caps
-- [ ] Enforce drawdown caps
+- [x] Enforce exposure caps
+- [x] Enforce drawdown caps
 - [ ] Enforce concentration caps
 - [ ] Connect portfolio logic to kill switch
 

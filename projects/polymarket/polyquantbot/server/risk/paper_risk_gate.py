@@ -18,8 +18,12 @@ class PaperRiskGate:
     LIQUIDITY_FLOOR = 10000.0
     MAX_EXPOSURE = 0.10
     MAX_DRAWDOWN = 0.08
+    MAX_CONCURRENT_TRADES = 5
+    MAX_DAILY_LOSS = -2000.0
 
     def evaluate(self, signal: CandidateSignal, state: PublicBetaState) -> RiskDecision:
+        if state.mode != "paper":
+            return RiskDecision(False, "mode_not_paper_default")
         if state.kill_switch:
             return RiskDecision(False, "kill_switch_enabled")
         if signal.signal_id in state.processed_signals:
@@ -34,6 +38,13 @@ class PaperRiskGate:
             return RiskDecision(False, "drawdown_stop")
         if state.exposure >= self.MAX_EXPOSURE:
             return RiskDecision(False, "exposure_cap")
-        if state.mode != "paper":
-            return RiskDecision(False, "mode_not_paper_default")
+        if len(state.positions) >= self.MAX_CONCURRENT_TRADES:
+            return RiskDecision(False, "paper_trade_count_guard")
+        if state.paper_account.daily_realized_pnl <= self.MAX_DAILY_LOSS:
+            return RiskDecision(False, "paper_daily_loss_guard")
+
+        max_position_notional = state.paper_account.starting_balance * self.MAX_EXPOSURE
+        signal_notional = 100.0 * signal.price
+        if signal_notional > max_position_notional:
+            return RiskDecision(False, "paper_position_cap_guard")
         return RiskDecision(True, "allowed")

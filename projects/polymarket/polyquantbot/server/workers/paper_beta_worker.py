@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
+from pathlib import Path
 
 import structlog
 
@@ -12,6 +13,8 @@ from projects.polymarket.polyquantbot.server.execution.paper_execution import Pa
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
 from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio
 from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import PaperRiskGate
+from projects.polymarket.polyquantbot.server.services.paper_account_service import PaperAccountService
+from projects.polymarket.polyquantbot.server.storage.paper_account_store import PersistentPaperAccountStore
 
 log = structlog.get_logger(__name__)
 
@@ -135,7 +138,10 @@ async def run_worker_loop(iterations: int = 1) -> None:
     worker = PaperBetaWorker(
         falcon=falcon,
         risk_gate=PaperRiskGate(),
-        engine=PaperExecutionEngine(PaperPortfolio()),
+        engine=PaperExecutionEngine(
+            PaperPortfolio(),
+            PaperAccountService(PersistentPaperAccountStore(storage_path=Path("/tmp/crusaderbot/runtime/paper_account.json"))),
+        ),
     )
     STATE.worker_runtime.active = True
     STATE.worker_runtime.startup_complete = True

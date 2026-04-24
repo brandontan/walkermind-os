@@ -14,6 +14,17 @@ class PaperPosition:
 
 
 @dataclass
+class PaperAccount:
+    account_id: str = "paper-default"
+    starting_balance: float = 10000.0
+    cash_balance: float = 10000.0
+    realized_pnl: float = 0.0
+    unrealized_pnl: float = 0.0
+    daily_realized_pnl: float = 0.0
+    daily_trade_count: int = 0
+
+
+@dataclass
 class WorkerIterationSummary:
     candidate_count: int = 0
     accepted_count: int = 0
@@ -46,6 +57,7 @@ class PublicBetaState:
     last_risk_reason: str = ""
     positions: list[PaperPosition] = field(default_factory=list)
     processed_signals: set[str] = field(default_factory=set)
+    paper_account: PaperAccount = field(default_factory=PaperAccount)
     worker_runtime: WorkerRuntimeStatus = field(default_factory=WorkerRuntimeStatus)
 
 

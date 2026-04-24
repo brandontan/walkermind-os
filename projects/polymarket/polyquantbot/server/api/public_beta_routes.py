@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
+from projects.polymarket.polyquantbot.server.services.paper_account_service import PaperAccountService
 
 log = structlog.get_logger(__name__)
 _OPERATOR_API_KEY_HEADER = "X-Operator-Api-Key"
@@ -86,7 +87,10 @@ def _build_exit_criteria(falcon: FalconGateway) -> dict[str, object]:
     }
 
 
-def _build_beta_status_payload(falcon: FalconGateway) -> dict[str, object]:
+def _build_beta_status_payload(
+    falcon: FalconGateway,
+    paper_account_service: PaperAccountService,
+) -> dict[str, object]:
     execution_guard = _build_execution_guard()
     exit_criteria = _build_exit_criteria(falcon=falcon)
     falcon_config = falcon.settings_snapshot()
@@ -97,6 +101,7 @@ def _build_beta_status_payload(falcon: FalconGateway) -> dict[str, object]:
         "paper_only_execution_boundary": True,
         "execution_guard": execution_guard,
         "position_count": len(STATE.positions),
+        "paper_account": paper_account_service.get_portfolio_summary(STATE)["account"],
         "last_risk_reason": STATE.last_risk_reason,
         "admin_control_plane": {
             "summary_visible": True,
@@ -128,7 +133,7 @@ def _build_beta_status_payload(falcon: FalconGateway) -> dict[str, object]:
     }
 
 
-def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
+def build_public_beta_router(falcon: FalconGateway, paper_account_service: PaperAccountService) -> APIRouter:
     router = APIRouter(prefix="/beta", tags=["beta"])
 
     def _require_operator_api_key(
@@ -148,13 +153,13 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
 
     @router.get("/status")
     async def status() -> dict[str, object]:
-        return _build_beta_status_payload(falcon=falcon)
+        return _build_beta_status_payload(falcon=falcon, paper_account_service=paper_account_service)
 
     @router.get("/admin")
     async def admin(
         __: None = Depends(_require_operator_api_key),
     ) -> dict[str, object]:
-        status_payload = _build_beta_status_payload(falcon=falcon)
+        status_payload = _build_beta_status_payload(falcon=falcon, paper_account_service=paper_account_service)
         return {
             "mode": status_payload["mode"],
             "autotrade": status_payload["autotrade"],
@@ -256,6 +261,15 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
             execution_boundary="paper_only",
         )
         return {"ok": True, "kill_switch": True}
+
+
+    @router.get("/portfolio")
+    async def portfolio() -> dict[str, object]:
+        return paper_account_service.get_portfolio_summary(STATE)
+
+    @router.get("/account")
+    async def account() -> dict[str, object]:
+        return {"account": paper_account_service.get_portfolio_summary(STATE)["account"]}
 
     @router.get("/positions")
     async def positions() -> dict[str, object]:

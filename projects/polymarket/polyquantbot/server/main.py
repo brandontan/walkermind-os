@@ -16,6 +16,7 @@ from projects.polymarket.polyquantbot.server.api.multi_user_foundation_routes im
 from projects.polymarket.polyquantbot.server.api.public_beta_routes import build_public_beta_router
 from projects.polymarket.polyquantbot.server.api.routes import build_router
 from projects.polymarket.polyquantbot.configs.falcon import FalconSettings
+from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
 from projects.polymarket.polyquantbot.server.core.runtime import (
     ApiSettings,
     RuntimeState,
@@ -33,6 +34,7 @@ from projects.polymarket.polyquantbot.client.telegram.dispatcher import Telegram
 from projects.polymarket.polyquantbot.client.telegram.runtime import HttpTelegramAdapter, run_polling_loop
 from projects.polymarket.polyquantbot.server.services.account_service import AccountService
 from projects.polymarket.polyquantbot.server.services.auth_session_service import AuthSessionService
+from projects.polymarket.polyquantbot.server.services.paper_account_service import PaperAccountService
 from projects.polymarket.polyquantbot.server.services.telegram_activation_service import TelegramActivationService
 from projects.polymarket.polyquantbot.server.services.telegram_identity_service import TelegramIdentityService
 from projects.polymarket.polyquantbot.server.services.telegram_onboarding_service import TelegramOnboardingService
@@ -46,6 +48,7 @@ from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import 
 from projects.polymarket.polyquantbot.server.storage.multi_user_store import PersistentMultiUserStore
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
 from projects.polymarket.polyquantbot.server.storage.wallet_link_store import PersistentWalletLinkStore
+from projects.polymarket.polyquantbot.server.storage.paper_account_store import PersistentPaperAccountStore
 from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 
 log = structlog.get_logger(__name__)
@@ -439,6 +442,16 @@ def create_app() -> FastAPI:
     wallet_link_store = PersistentWalletLinkStore(storage_path=wallet_link_storage_path)
     wallet_link_service = WalletLinkService(store=wallet_link_store)
 
+    paper_account_storage_path = Path(
+        os.getenv(
+            "CRUSADER_PAPER_ACCOUNT_STORAGE_PATH",
+            "/tmp/crusaderbot/runtime/paper_account.json",
+        )
+    )
+    paper_account_store = PersistentPaperAccountStore(storage_path=paper_account_storage_path)
+    paper_account_service = PaperAccountService(store=paper_account_store)
+    paper_account_service.load_into_state(STATE)
+
     app.state.multi_user_storage_path = multi_user_storage_path
     app.state.multi_user_store = store
     app.state.telegram_identity_service = telegram_identity_service
@@ -453,6 +466,9 @@ def create_app() -> FastAPI:
     app.state.wallet_link_storage_path = wallet_link_storage_path
     app.state.wallet_link_store = wallet_link_store
     app.state.wallet_link_service = wallet_link_service
+    app.state.paper_account_storage_path = paper_account_storage_path
+    app.state.paper_account_store = paper_account_store
+    app.state.paper_account_service = paper_account_service
 
     falcon_gateway = FalconGateway(settings=falcon_settings)
     router = build_router(settings=settings, state=state, falcon_settings=falcon_settings)
@@ -476,7 +492,9 @@ def create_app() -> FastAPI:
         )
     )
 
-    app.include_router(build_public_beta_router(falcon=falcon_gateway))
+    app.include_router(
+        build_public_beta_router(falcon=falcon_gateway, paper_account_service=paper_account_service)
+    )
 
     @app.get("/")
     async def root() -> JSONResponse:
@@ -498,6 +516,7 @@ def create_app() -> FastAPI:
         multi_user_storage_path=str(multi_user_storage_path),
         session_storage_path=str(session_storage_path),
         wallet_link_storage_path=str(wallet_link_storage_path),
+        paper_account_storage_path=str(paper_account_storage_path),
         phase="8.6-public-paper-beta-confidence-pass",
     )
     return app

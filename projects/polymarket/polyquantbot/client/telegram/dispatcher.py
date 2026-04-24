@@ -113,6 +113,20 @@ class TelegramDispatcher:
             if detail:
                 message += f"\n• Guard: {detail}"
             return DispatchResult(outcome="ok", reply_text=message)
+        if command == "/account":
+            data = await self._backend.beta_get("/beta/account")
+            account = data.get("account", {})
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "💼 Paper account snapshot\n"
+                    f"• Starting balance: {account.get('starting_balance', 0.0)}\n"
+                    f"• Cash balance: {account.get('cash_balance', 0.0)}\n"
+                    f"• Equity: {account.get('equity', 0.0)}\n"
+                    f"• Daily trade count: {account.get('daily_trade_count', 0)}\n"
+                    "• Boundary: paper account only (no live wallet / no live capital)"
+                ),
+            )
         if command == "/positions":
             data = await self._backend.beta_get("/beta/positions")
             items = data.get("items", [])

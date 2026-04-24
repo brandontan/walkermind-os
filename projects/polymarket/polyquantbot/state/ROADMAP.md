@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening SENTINEL MAJOR validation APPROVED (98/100, zero critical issues) and PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta; Priority 2 done condition closed (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-24 11:53
+**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) remains complete on main; Priority 2 remains closed after PR #759 merge. Priority 3 paper core foundation lane is now opened on branch `NWAP/priority3-paper-core-foundation-20260424` with narrow integration scope (paper account persistence, paper execution lifecycle, baseline portfolio/account surface, baseline paper risk guards) and explicit paper-only boundary (no live-trading or production-capital claim).
+**Last Updated:** 2026-04-24 18:18
 
 # Board Overview
 

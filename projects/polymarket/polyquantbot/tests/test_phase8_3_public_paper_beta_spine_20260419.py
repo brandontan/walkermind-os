@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from dataclasses import dataclass
 
 import pytest
@@ -16,6 +17,8 @@ from projects.polymarket.polyquantbot.server.execution.paper_execution import Pa
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import CandidateSignal
 from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio
 from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import PaperRiskGate
+from projects.polymarket.polyquantbot.server.services.paper_account_service import PaperAccountService
+from projects.polymarket.polyquantbot.server.storage.paper_account_store import PersistentPaperAccountStore
 from projects.polymarket.polyquantbot.server.workers.paper_beta_worker import PaperBetaWorker
 from projects.polymarket.polyquantbot.server.main import create_app
 
@@ -76,6 +79,8 @@ class FakeBackend:
                 "kill_switch": False,
                 "autotrade_enabled": False,
             }
+        if path == "/beta/account":
+            return {"account": {"starting_balance": 10000.0, "cash_balance": 9900.0, "equity": 9900.0, "daily_trade_count": 1}}
         if path == "/beta/status":
             return {
                 "mode": "paper",
@@ -113,6 +118,9 @@ class FakeBackend:
 
 
 def _reset_state() -> None:
+    paper_account_path = Path("/tmp/crusaderbot/tests/paper_account_phase8_3.json")
+    if paper_account_path.exists():
+        paper_account_path.unlink()
     STATE.mode = "paper"
     STATE.autotrade_enabled = False
     STATE.kill_switch = False
@@ -122,6 +130,13 @@ def _reset_state() -> None:
     STATE.last_risk_reason = ""
     STATE.positions.clear()
     STATE.processed_signals.clear()
+    STATE.paper_account.account_id = "paper-default"
+    STATE.paper_account.starting_balance = 10000.0
+    STATE.paper_account.cash_balance = 10000.0
+    STATE.paper_account.realized_pnl = 0.0
+    STATE.paper_account.unrealized_pnl = 0.0
+    STATE.paper_account.daily_realized_pnl = 0.0
+    STATE.paper_account.daily_trade_count = 0
     STATE.worker_runtime.active = False
     STATE.worker_runtime.startup_complete = False
     STATE.worker_runtime.shutdown_complete = False
@@ -137,6 +152,14 @@ def _reset_state() -> None:
     STATE.worker_runtime.last_iteration.risk_rejection_reasons = {}
 
 
+
+
+def _make_engine() -> PaperExecutionEngine:
+    store = PersistentPaperAccountStore(storage_path=Path("/tmp/crusaderbot/tests/paper_account_phase8_3.json"))
+    account_service = PaperAccountService(store=store)
+    account_service.load_into_state(STATE)
+    return PaperExecutionEngine(PaperPortfolio(), account_service)
+
 def _make_ctx(command: str, argument: str = "") -> TelegramCommandContext:
     return TelegramCommandContext(
         command=command,
@@ -150,7 +173,7 @@ def _make_ctx(command: str, argument: str = "") -> TelegramCommandContext:
 
 def test_autotrade_off_prevents_new_entries() -> None:
     _reset_state()
-    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), _make_engine())
     asyncio.run(worker.run_once())
     assert len(STATE.positions) == 0
     assert STATE.last_risk_reason == "autotrade_disabled"
@@ -160,7 +183,7 @@ def test_kill_switch_prevents_new_entries() -> None:
     _reset_state()
     STATE.autotrade_enabled = True
     STATE.kill_switch = True
-    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), _make_engine())
     asyncio.run(worker.run_once())
     assert len(STATE.positions) == 0
     assert STATE.last_risk_reason == "kill_switch_enabled"
@@ -170,7 +193,7 @@ def test_mode_live_blocks_execution_events() -> None:
     _reset_state()
     STATE.mode = "live"
     STATE.autotrade_enabled = True
-    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), _make_engine())
     events = asyncio.run(worker.run_once())
     assert events == []
     assert len(STATE.positions) == 0
@@ -180,7 +203,7 @@ def test_mode_live_blocks_execution_events() -> None:
 
 def test_monitoring_stages_still_run_when_entries_blocked() -> None:
     _reset_state()
-    worker = RecordingWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    worker = RecordingWorker(FakeFalcon(), PaperRiskGate(), _make_engine())
     asyncio.run(worker.run_once())
     assert worker.position_monitor_calls == 1
     assert worker.price_updater_calls == 1
@@ -263,7 +286,7 @@ def test_live_mode_request_is_rejected_and_autotrade_stays_guarded() -> None:
         assert payload["ok"] is True
         assert payload["autotrade"] is True
 
-    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), _make_engine())
     events = asyncio.run(worker.run_once())
     assert events != []
     assert STATE.last_risk_reason != "mode_live_paper_execution_disabled"
@@ -286,7 +309,7 @@ def test_kill_switch_keeps_execution_blocked_after_mode_switches() -> None:
         assert reenable_response.status_code == 200
         assert reenable_response.json()["autotrade"] is True
 
-    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), PaperExecutionEngine(PaperPortfolio()))
+    worker = PaperBetaWorker(FakeFalcon(), PaperRiskGate(), _make_engine())
     events = asyncio.run(worker.run_once())
     assert events == []
     assert STATE.last_risk_reason == "kill_switch_enabled"
@@ -326,3 +349,11 @@ def test_positions_pnl_risk_replies_keep_paper_beta_boundaries_visible() -> None
     assert "no manual order entry" in positions_reply
     assert "no live settlement path" in pnl_reply
     assert "paper execution only" in risk_reply
+
+
+def test_account_command_maps_to_account_endpoint() -> None:
+    backend = FakeBackend()
+    dispatcher = TelegramDispatcher(backend=backend, operator_chat_id="chat-1")
+    result = asyncio.run(dispatcher.dispatch(_make_ctx("/account")))
+    assert backend.last_get_path == "/beta/account"
+    assert "Paper account snapshot" in result.reply_text

@@ -1,5 +1,5 @@
-Last Updated : 2026-04-24 11:53
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening deploy contract sync (Dockerfile + fly.toml + operator docs) passed SENTINEL MAJOR validation (Score: 98/100, APPROVED, zero critical issues) and PR #759 was merged to main on 2026-04-24 11:21 Asia/Jakarta; Priority 2 done condition is now closed.
+Last Updated : 2026-04-24 18:18
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Priority 2 done condition remains closed after Deployment Hardening merge (PR #759). Priority 3 paper core foundation lane (branch: NWAP/priority3-paper-core-foundation-20260424) is now opened with narrow integration for paper account persistence, simulated paper execution lifecycle, paper portfolio summary surface, and paper-only risk baseline guards. SENTINEL MAJOR validation is next gate before merge.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on feature/consolidate-telegram-ui-ux-layer: active Telegram source of truth remains projects/polymarket/polyquantbot/telegram, deprecated interface/telegram/__init__.py legacy marker is archived under projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/, and only thin compatibility shims remain under projects/polymarket/polyquantbot/interface/telegram/view_handler.py + projects/polymarket/polyquantbot/interface/ui_formatter.py + projects/polymarket/polyquantbot/interface/telegram/__init__.py.
@@ -14,16 +14,16 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Deployment Hardening (Priority 2 lane) — SENTINEL MAJOR validation APPROVED (98/100, zero critical issues); PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta by COMMANDER; branch NWAP/deployment-hardening-traceability-repair; Priority 2 done condition closed.
 
 [IN PROGRESS]
-- None
+- Priority 3 paper core foundation lane is in progress on NWAP/priority3-paper-core-foundation-20260424 (paper account model + persistence boundary, deterministic paper execution lifecycle, baseline paper portfolio/account surfaces, and paper-only risk controls baseline).
 
 [NOT STARTED]
 - Full wallet lifecycle implementation.
-- Portfolio management logic and risk controls.
+- Full portfolio management productization and advanced risk controls beyond baseline paper guardrails.
 - Capital readiness and live trading gating.
 
 [NEXT PRIORITY]
-- COMMANDER review for NWAP/repo-structure-state-migration (Validation Tier: STANDARD).
-- COMMANDER to scope next active lane (Priority 3 paper trading product completion or next phase).
+- SENTINEL MAJOR validation gate for NWAP/priority3-paper-core-foundation-20260424 (Validation Tier: MAJOR, Claim Level: NARROW INTEGRATION).
+- COMMANDER review for FORGE report and state-truth sync after SENTINEL verdict.
 
 [KNOWN ISSUES]
 - None
