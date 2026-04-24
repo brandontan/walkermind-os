@@ -80,7 +80,7 @@ class PaperBetaWorker:
                     reason=decision.reason,
                 )
                 continue
-            event = self._engine.execute(candidate, STATE)
+            event = await self._engine.execute(candidate, STATE)
             summary.accepted_count += 1
             events.append(event)
             log.info(
@@ -111,6 +111,9 @@ class PaperBetaWorker:
             skip_mode_count=summary.skip_mode_count,
             current_position_count=summary.current_position_count,
             risk_rejection_reasons=summary.risk_rejection_reasons,
+            wallet_cash=STATE.wallet_cash,
+            wallet_equity=STATE.wallet_equity,
+            realized_pnl=STATE.realized_pnl,
         )
         return events
 
@@ -132,11 +135,20 @@ class PaperBetaWorker:
 
 async def run_worker_loop(iterations: int = 1) -> None:
     falcon = FalconGateway(FalconSettings.from_env())
+
+    # Build real engine stack
+    portfolio = PaperPortfolio()
+    engine = PaperExecutionEngine(portfolio)
+
     worker = PaperBetaWorker(
         falcon=falcon,
         risk_gate=PaperRiskGate(),
-        engine=PaperExecutionEngine(PaperPortfolio()),
+        engine=engine,
     )
+
+    # Initialise STATE wallet fields from real engine
+    portfolio.sync_state(STATE)
+
     STATE.worker_runtime.active = True
     STATE.worker_runtime.startup_complete = True
     STATE.worker_runtime.shutdown_complete = False
@@ -148,6 +160,8 @@ async def run_worker_loop(iterations: int = 1) -> None:
         autotrade_enabled=STATE.autotrade_enabled,
         kill_switch=STATE.kill_switch,
         execution_boundary="paper_only",
+        wallet_equity=STATE.wallet_equity,
+        wallet_cash=STATE.wallet_cash,
     )
     try:
         for _ in range(max(iterations, 1)):
@@ -160,6 +174,9 @@ async def run_worker_loop(iterations: int = 1) -> None:
                 autotrade_enabled=STATE.autotrade_enabled,
                 kill_switch=STATE.kill_switch,
                 paper_only_execution=True,
+                wallet_cash=STATE.wallet_cash,
+                wallet_equity=STATE.wallet_equity,
+                realized_pnl=STATE.realized_pnl,
             )
             await asyncio.sleep(0)
     except Exception as exc:

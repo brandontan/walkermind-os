@@ -37,3 +37,35 @@ class PaperRiskGate:
         if state.mode != "paper":
             return RiskDecision(False, "mode_not_paper_default")
         return RiskDecision(True, "allowed")
+
+    def status(self, state: PublicBetaState) -> dict[str, object]:
+        """Return current risk gate state snapshot for operator visibility.
+
+        Args:
+            state: Live PublicBetaState.
+
+        Returns:
+            Dict with current thresholds and live state values.
+        """
+        drawdown_pct = round(state.drawdown * 100, 2)
+        exposure_pct = round(state.exposure * 100, 2)
+        daily_pnl = state.realized_pnl
+        return {
+            "kill_switch": state.kill_switch,
+            "mode": state.mode,
+            "drawdown_pct": drawdown_pct,
+            "drawdown_limit_pct": round(self.MAX_DRAWDOWN * 100, 1),
+            "drawdown_ok": state.drawdown <= self.MAX_DRAWDOWN,
+            "exposure_pct": exposure_pct,
+            "exposure_limit_pct": round(self.MAX_EXPOSURE * 100, 1),
+            "exposure_ok": state.exposure < self.MAX_EXPOSURE,
+            "min_edge": self.MIN_EDGE,
+            "liquidity_floor_usd": self.LIQUIDITY_FLOOR,
+            "daily_pnl_usd": round(daily_pnl, 2),
+            "daily_loss_limit_usd": -2000.0,
+            "daily_pnl_ok": daily_pnl >= -2000.0,
+            "last_risk_reason": state.last_risk_reason,
+            "wallet_cash": state.wallet_cash,
+            "wallet_equity": state.wallet_equity,
+            "open_positions": len(state.positions),
+        }
