@@ -32,12 +32,13 @@
 
 Use rollback when a new deploy regresses `/health`, `/ready`, or Telegram startup visibility.
 
-1. Identify the last known-good release:
-   - `fly releases -a crusaderbot`
-2. Roll back to that release:
-   - `fly releases rollback <RELEASE_ID> -a crusaderbot`
+1. Identify the last known-good image:
+   - `fly releases --app crusaderbot --image`
+2. Redeploy that exact image:
+   - `fly deploy --image registry.fly.io/crusaderbot:<IMAGE_TAG> --strategy immediate`
 3. Run post-deploy smoke tests (Section 5).
-4. Record rollback cause and failed signals (`/health`, `/ready`, startup logs, command behavior).
+4. Record rollback cause and failed signals (`/health`, `/ready`, startup logs, command behavior`).
+5. Reconcile any config, secret, or `fly.toml` drift manually; image rollback does not revert those automatically.
 
 ## 5) Post-deploy smoke test contract
 
