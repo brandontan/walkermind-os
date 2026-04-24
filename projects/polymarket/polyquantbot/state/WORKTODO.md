@@ -99,7 +99,7 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
-### Status Snapshot (2026-04-24 03:48 Asia/Jakarta)
+### Status Snapshot (2026-04-24 08:38 Asia/Jakarta)
 
 #### MERGED ON MAIN
 
@@ -120,15 +120,15 @@ Finish this after the public bot baseline works.
 
 Deployment Hardening lane
 
-- [ ] Clean up the Dockerfile
-- [ ] Keep `fly.toml` in sync
-- [ ] Define restart policy clearly
-- [ ] Define rollback strategy clearly
-- [ ] Define post-deploy smoke tests clearly
+- [x] Clean up the Dockerfile (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
+- [x] Keep `fly.toml` in sync (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
+- [x] Define restart policy clearly (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
+- [x] Define rollback strategy clearly (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
+- [x] Define post-deploy smoke tests clearly (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
 
 #### NEXT
 
-- [ ] Close Priority 2 done condition after deployment lane is merged
+- [ ] Close Priority 2 done condition only after PR #757 passes SENTINEL MAJOR validation and merges
 
 ### 9. Supabase / Postgres Integration Hardening
 
@@ -184,11 +184,11 @@ Deployment Hardening lane
 
 ### 16. Deployment Hardening
 
-- [ ] Clean up the Dockerfile
-- [ ] Keep `fly.toml` in sync
-- [ ] Define restart policy clearly
-- [ ] Define rollback strategy clearly
-- [ ] Define post-deploy smoke tests clearly
+- [x] Clean up the Dockerfile (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
+- [x] Keep `fly.toml` in sync (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
+- [x] Define restart policy clearly (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
+- [x] Define rollback strategy clearly (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
+- [x] Define post-deploy smoke tests clearly (implementation synced in PR #757, branch nwap/close-deployment-hardening-items; awaiting SENTINEL MAJOR validation)
 
 ### Done Condition
 

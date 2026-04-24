@@ -1,5 +1,5 @@
-Last Updated : 2026-04-24 07:00
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; state files migrated to projects/polymarket/polyquantbot/state/ and Deployment Hardening is the active next Priority 2 lane (paper-only boundary preserved, no live-trading or production-capital claim).
+Last Updated : 2026-04-24 08:38
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening implementation sync is recorded on PR #757 (branch: nwap/close-deployment-hardening-items) and is awaiting SENTINEL MAJOR validation before any merge claim (paper-only boundary preserved, no live-trading or production-capital claim).
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on feature/consolidate-telegram-ui-ux-layer: active Telegram source of truth remains projects/polymarket/polyquantbot/telegram, deprecated interface/telegram/__init__.py legacy marker is archived under projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/, and only thin compatibility shims remain under projects/polymarket/polyquantbot/interface/telegram/view_handler.py + projects/polymarket/polyquantbot/interface/ui_formatter.py + projects/polymarket/polyquantbot/interface/telegram/__init__.py.
@@ -13,7 +13,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - repo-structure-state-migration lane: state files (PROJECT_STATE.md, ROADMAP.md, WORKTODO.md, CHANGELOG.md) migrated to projects/polymarket/polyquantbot/state/; HTML files (docs/project_monitor.html, docs/crusaderbot_blueprint.html) and docs updated. Branch: NWAP/repo-structure-state-migration.
 
 [IN PROGRESS]
-- Deployment Hardening (Priority 2 lane) — active per projects/polymarket/polyquantbot/state/WORKTODO.md.
+- Deployment Hardening (Priority 2 lane) — implementation sync complete on PR #757 (branch: nwap/close-deployment-hardening-items), awaiting SENTINEL MAJOR validation gate.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation.
@@ -21,8 +21,8 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Capital readiness and live trading gating.
 
 [NEXT PRIORITY]
-- COMMANDER review for NWAP/repo-structure-state-migration (Validation Tier: STANDARD).
-- Continue Deployment Hardening lane from projects/polymarket/polyquantbot/state/WORKTODO.md after merge.
+- SENTINEL MAJOR validation for deployment/startup/health/readiness/restart/rollback/smoke-test contract on PR #757 (branch: nwap/close-deployment-hardening-items).
+- Continue Deployment Hardening lane only after SENTINEL verdict and merge-gate decision.
 
 [KNOWN ISSUES]
 - None
