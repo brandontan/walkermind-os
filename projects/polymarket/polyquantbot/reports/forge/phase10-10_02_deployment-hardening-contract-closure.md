@@ -1,8 +1,8 @@
 # FORGE REPORT — Phase 10.10 Deployment Hardening Contract Closure
 
 ## Metadata
-- Timestamp (Asia/Jakarta): 2026-04-24 08:25
-- Branch: unverified
+- Timestamp (Asia/Jakarta): 2026-04-24 09:12
+- Branch: NWAP/deployment-hardening-traceability-repair
 - Validation Tier: MAJOR
 - Claim Level: NARROW INTEGRATION
 - Validation target: deployment/startup/health/readiness/restart/rollback/smoke-test contract only
@@ -24,7 +24,7 @@
 3. Operator docs synchronized:
    - Restart policy truth, rollback command path, and post-deploy smoke-test contract now explicit and bounded.
 4. State truth synchronized:
-   - Closed all open Deployment Hardening checklist items and Priority 2 done condition in `WORKTODO.md`.
+   - Closed Deployment Hardening implementation checklist items in `WORKTODO.md` while keeping Priority 2 done-condition gate pending MAJOR validation.
    - Updated `PROJECT_STATE.md` active-lane wording to closure-ready state pending MAJOR validation path.
    - Added change trail entry in `CHANGELOG.md`.
 

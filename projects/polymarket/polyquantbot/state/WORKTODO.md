@@ -99,7 +99,7 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
-### Status Snapshot (2026-04-24 08:25 Asia/Jakarta)
+### Status Snapshot (2026-04-24 09:12 Asia/Jakarta)
 
 #### MERGED ON MAIN
 
@@ -128,7 +128,7 @@ Deployment Hardening lane
 
 #### NEXT
 
-- [x] Close Priority 2 done condition after deployment lane is merged
+- [ ] Close Priority 2 done condition after Deployment Hardening passes SENTINEL MAJOR validation
 
 ### 9. Supabase / Postgres Integration Hardening
 
@@ -192,7 +192,7 @@ Deployment Hardening lane
 
 ### Done Condition
 
-- [x] The bot is not just running, but stable and persistent
+- [ ] The bot is not just running, but stable and persistent
 
 ---
 
