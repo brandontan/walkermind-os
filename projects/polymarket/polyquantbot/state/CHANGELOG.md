@@ -13,3 +13,5 @@
 2026-04-24 11:53 | NWAP/deployment-hardening-post-pr-sync | Repo-truth sync for PR #759 disposition: PR #759 (NWAP/deployment-hardening-traceability-repair) confirmed merged to main on 2026-04-24 11:21 Asia/Jakarta by COMMANDER; PROJECT_STATE.md, ROADMAP.md, WORKTODO.md updated to reflect merge; Deployment Hardening lane closed; Priority 2 done condition closed; stale "awaits COMMANDER merge decision" wording removed from all state files.
 
 2026-04-24 18:28 | claude/patch-sentinel-activation-WDoXb | AGENTS.md patched: SENTINEL ACTIVATION RULE (AUTHORITATIVE) block inserted after Degen Mode section; version bumped 2.2→2.3; timestamp updated. MINOR validation tier — COMMANDER review required.
+
+2026-04-24 23:53 | NWAP/worktodo-priority3-kickoff-sync | WORKTODO Right Now section updated: stale Priority 2 items replaced with Priority 3 kickoff scope; replaces invalid-branch PR #768.

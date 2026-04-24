@@ -596,7 +596,7 @@ This is the final finish layer.
 
 ### Right Now
 
-- [ ] Start Priority 2 security baseline hardening lane
-- [ ] Ensure secrets are redacted across logs and runtime status surfaces
-- [ ] Verify admin/sensitive route protections stay explicit and testable
-- [ ] Prepare deployment hardening kickoff once security baseline lane is complete
+- [ ] COMMANDER to scope Priority 3 paper trading product completion
+- [ ] Define paper balance model (section 17 — first task)
+- [ ] Define paper order intent flow (section 18 — first task)
+- [ ] Priority 3 kickoff — paper account model + execution engine first
