@@ -229,9 +229,9 @@ Full project list is maintained in `PROJECT_REGISTRY.md` at repo root.
 walker-ai-team/
 ├── AGENTS.md                              <- highest authority (global rules)
 ├── PROJECT_REGISTRY.md                    <- project list and active status
+├── CLAUDE.md                              <- rules for Claude Code agent
 ├── docs/
 │   ├── COMMANDER.md                       <- COMMANDER operating reference
-│   ├── CLAUDE.md                          <- rules for Claude Code agent
 │   ├── KNOWLEDGE_BASE.md                  <- architecture, infra, API reference
 │   ├── blueprint/
 │   │   └── crusaderbot.md             <- format: docs/blueprint/{project_name}.md
@@ -279,9 +279,9 @@ walker-ai-team/
 ```text
 AGENTS.md                              <- global rules (repo root)
 PROJECT_REGISTRY.md                    <- project list (repo root)
+CLAUDE.md                              <- rules for Claude Code agent (repo root)
 
 docs/COMMANDER.md
-docs/CLAUDE.md
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md  <- active blueprint (format: docs/blueprint/{project_name}.md)
 docs/templates/PROJECT_STATE_TEMPLATE.md
@@ -501,7 +501,7 @@ Always read:
 Read if needed:
 - `docs/KNOWLEDGE_BASE.md` -> architecture, infra, API, conventions
 - `docs/blueprint/crusaderbot.md` -> CrusaderBot target architecture and runtime boundaries
-- `docs/CLAUDE.md` -> repo-specific workflow
+- `CLAUDE.md` -> repo-specific workflow
 - `docs/templates/PROJECT_STATE_TEMPLATE.md`
 - `docs/templates/ROADMAP_TEMPLATE.md`
 - `docs/templates/TPL_INTERACTIVE_REPORT.html` -> BRIEFER browser/mobile

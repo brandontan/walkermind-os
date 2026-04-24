@@ -156,7 +156,7 @@ git rev-parse --abbrev-ref HEAD
 ### Non-worktree mismatch rule
 
 If branch verification (git rev-parse) returns a real branch name that differs
-from the declared COMMANDER branch (not `work`, not detached HEAD) →
+from the declared COMMANDER branch (not `work`, not detached HEAD) ->
 STOP immediately. Report exact mismatch to COMMANDER.
 Do not write any report, state file, or artifact until COMMANDER resolves.
 
