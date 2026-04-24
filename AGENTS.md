@@ -1438,6 +1438,28 @@ On session handoff block: treat as execution resume input. Verify against repo t
 
 ---
 
+## Review guidelines
+
+Focus review on:
+- branch name matches declared NWAP/{feature} exactly — no date suffix, no underscores, no sentence slug
+- forge report exists at correct path with correct naming (no date suffix, no underscore)
+- PROJECT_STATE.md updated with full timestamp, scope-bound edit only
+- no hardcoded secrets or API keys
+- no full Kelly (a=1.0)
+- no phase*/ folders
+- no silent exception handling (except: pass)
+- no threading — asyncio only
+- repo-root relative paths in all reports and state files
+- no mojibake sequences in committed files
+
+Skip review on:
+- wording, comments, whitespace, style, formatting
+- non-runtime docs changes
+- test-only additions with zero runtime logic
+- MINOR state/roadmap wording sync only
+
+---
+
 ## GITHUB WRITE RULE
 
 If write/save fails through platform tooling:
