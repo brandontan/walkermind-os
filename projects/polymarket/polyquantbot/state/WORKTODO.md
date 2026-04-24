@@ -128,7 +128,7 @@ Deployment Hardening lane
 
 #### NEXT
 
-- [ ] Close Priority 2 done condition after Deployment Hardening passes SENTINEL MAJOR validation
+- [ ] Close Priority 2 done condition after COMMANDER merges PR #759 (Deployment Hardening — SENTINEL APPROVED 98/100)
 
 ### 9. Supabase / Postgres Integration Hardening
 

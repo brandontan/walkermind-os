@@ -72,15 +72,13 @@
 
 **Dockerfile HEALTHCHECK (Dockerfile:31):**
 ```
-HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
-  CMD python -c "import os,sys,urllib.request; url='http://127.0.0.1:'+os.environ.get('PORT','8080')+'/health'; sys.exit(0 if urllib.request.urlopen(url, timeout=5).status == 200 else 1)" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 CMD python -c "import os,sys,urllib.request; url='http://127.0.0.1:'+os.environ.get('PORT','8080')+'/health'; sys.exit(0 if urllib.request.urlopen(url, timeout=5).status == 200 else 1)"
 ```
 - Single-line — parse-safe ✅
 - Calls `GET /health` on `127.0.0.1:$PORT` — aligned with `/health` route contract ✅
 - `PORT` env default `8080` matches `EXPOSE 8080` and `fly.toml internal_port = 8080` ✅
 - `start-period=45s` matches `fly.toml grace_period = "45s"` — consistent startup window ✅
 - `timeout=10s` in HEALTHCHECK vs `timeout=5s` in fly.toml check — HEALTHCHECK timeout is the outer container timeout; the inner `urllib.request` timeout is 5s. No conflict. ✅
-- `|| exit 1` is redundant (CMD already exits non-zero on failure) but harmless ✅
 
 **`/health` route (server/api/routes.py:42-43):**
 - Returns `{"status": "ok"|"degraded", "ready": bool}` with HTTP 200 (ready) or 503 (not ready) ✅
@@ -259,9 +257,7 @@ Score: 98/100. Zero critical issues. All Phase 0 pre-test gates passed. Branch t
 
 ## 🛠 FIX RECOMMENDATIONS
 
-None required for merge. One non-blocking observation:
-
-- **`|| exit 1` in HEALTHCHECK CMD** (Dockerfile:31): Redundant — the CMD already exits non-zero on failure. Harmless. Can be cleaned up in a future MINOR pass if desired.
+None required for merge. No open observations.
 
 ---
 
