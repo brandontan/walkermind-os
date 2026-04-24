@@ -1,5 +1,5 @@
-Last Updated : 2026-04-24 10:40
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening deploy contract sync (Dockerfile + fly.toml + operator docs) has passed SENTINEL MAJOR validation (Score: 98/100, APPROVED, zero critical issues) on branch NWAP/deployment-hardening-traceability-repair; PR #759 awaits COMMANDER merge decision.
+Last Updated : 2026-04-24 10:31
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening deploy contract sync (Dockerfile + fly.toml + operator docs) remains implementation-complete in repo truth, but SENTINEL MAJOR preflight is currently blocked on FORGE handoff defects (invalid forge report naming/MAJOR structure and missing pytest evidence), so no Priority 2 done-claim wording is allowed yet (paper-only boundary preserved, no live-trading or production-capital claim).
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on feature/consolidate-telegram-ui-ux-layer: active Telegram source of truth remains projects/polymarket/polyquantbot/telegram, deprecated interface/telegram/__init__.py legacy marker is archived under projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/, and only thin compatibility shims remain under projects/polymarket/polyquantbot/interface/telegram/view_handler.py + projects/polymarket/polyquantbot/interface/ui_formatter.py + projects/polymarket/polyquantbot/interface/telegram/__init__.py.
@@ -13,7 +13,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - repo-structure-state-migration lane: state files (PROJECT_STATE.md, ROADMAP.md, WORKTODO.md, CHANGELOG.md) migrated to projects/polymarket/polyquantbot/state/; HTML files (docs/project_monitor.html, docs/crusaderbot_blueprint.html) and docs updated. Branch: NWAP/repo-structure-state-migration.
 
 [IN PROGRESS]
-- Deployment Hardening (Priority 2 lane) — SENTINEL MAJOR validation APPROVED (98/100, zero critical issues); PR #759 on branch NWAP/deployment-hardening-traceability-repair awaits COMMANDER merge decision.
+- Deployment Hardening (Priority 2 lane) — implementation sync remains complete on branch NWAP/deployment-hardening-traceability-repair, but SENTINEL MAJOR preflight is blocked until FORGE-X repairs the handoff (valid forge report path/structure plus pytest evidence).
 
 [NOT STARTED]
 - Full wallet lifecycle implementation.
@@ -22,7 +22,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 
 [NEXT PRIORITY]
 - COMMANDER review for NWAP/repo-structure-state-migration (Validation Tier: STANDARD).
-- COMMANDER merge decision for PR #759 (Deployment Hardening — SENTINEL APPROVED 98/100, zero critical issues).
+- Repair Deployment Hardening FORGE handoff on NWAP/deployment-hardening-traceability-repair (valid forge report path/MAJOR structure and pytest evidence), then rerun SENTINEL MAJOR for deployment/startup/health/readiness/restart/rollback/smoke-test contract scope.
 
 [KNOWN ISSUES]
-- None
+- Deployment Hardening SENTINEL preflight is blocked on branch NWAP/deployment-hardening-traceability-repair: forge report uses invalid legacy naming/section structure for MAJOR handoff, and pytest evidence is not attached in repo truth.
