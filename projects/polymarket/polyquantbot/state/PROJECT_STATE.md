@@ -1,4 +1,4 @@
-Last Updated : 2026-04-24 11:53
+Last Updated : 2026-04-24 18:28
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening deploy contract sync (Dockerfile + fly.toml + operator docs) passed SENTINEL MAJOR validation (Score: 98/100, APPROVED, zero critical issues) and PR #759 was merged to main on 2026-04-24 11:21 Asia/Jakarta; Priority 2 done condition is now closed.
 
 [COMPLETED]
@@ -22,6 +22,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Capital readiness and live trading gating.
 
 [NEXT PRIORITY]
+- COMMANDER review for patch-sentinel-activation-rule (AGENTS.md SENTINEL ACTIVATION RULE insertion, Validation Tier: MINOR). Report: projects/polymarket/polyquantbot/reports/forge/patch-sentinel-activation-rule.md
 - COMMANDER review for NWAP/repo-structure-state-migration (Validation Tier: STANDARD).
 - COMMANDER to scope next active lane (Priority 3 paper trading product completion or next phase).
 

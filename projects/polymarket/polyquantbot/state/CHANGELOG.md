@@ -11,3 +11,5 @@
 2026-04-24 09:31 | NWAP/deployment-hardening-traceability-repair | Final deployment hardening total-fix: normalized Dockerfile HEALTHCHECK syntax, corrected Fly rollback guidance to image-based redeploy flow, and prepared authoritative replacement PR posture for SENTINEL MAJOR validation.
 
 2026-04-24 11:53 | NWAP/deployment-hardening-post-pr-sync | Repo-truth sync for PR #759 disposition: PR #759 (NWAP/deployment-hardening-traceability-repair) confirmed merged to main on 2026-04-24 11:21 Asia/Jakarta by COMMANDER; PROJECT_STATE.md, ROADMAP.md, WORKTODO.md updated to reflect merge; Deployment Hardening lane closed; Priority 2 done condition closed; stale "awaits COMMANDER merge decision" wording removed from all state files.
+
+2026-04-24 18:28 | claude/patch-sentinel-activation-WDoXb | AGENTS.md patched: SENTINEL ACTIVATION RULE (AUTHORITATIVE) block inserted after Degen Mode section; version bumped 2.2→2.3; timestamp updated. MINOR validation tier — COMMANDER review required.
