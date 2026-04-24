@@ -129,6 +129,29 @@ Wrong:
 - `NWAP/implement_wallet_state_read_boundary` (underscores)
 - `fix/risk-drawdown-circuit-20260417` (non-authoritative prefix)
 - `feature/execution-order-engine-20260406` (old format)
+- `claude/sync-pr-759-state-r9bbM` (auto-generated — NEVER allowed)
+
+### Auto-generate prohibition (HARD RULE)
+
+Claude Code auto-generates branch names by default (format: `claude/...`).
+This is FORBIDDEN. Every branch must be pre-declared by COMMANDER before work starts.
+
+- NEVER let Claude Code auto-generate a branch name
+- NEVER push to a `claude/...` branch
+- NEVER create a branch without an explicit NWAP/{feature} name from COMMANDER
+- If no branch is declared in the task → STOP, ask COMMANDER before touching repo
+- If Claude Code tries to auto-name a branch → override with the declared NWAP/{feature} name
+
+### Branch verification (mandatory — run FIRST before any inspect, edit, or commit)
+
+```bash
+git rev-parse --abbrev-ref HEAD
+```
+
+- Result is `work` or detached HEAD → use branch declared in COMMANDER task
+- Result is real branch → verify it matches declared NWAP/{feature} exactly (case-sensitive)
+- Mismatch → STOP, report to COMMANDER, do NOT write report or state yet
+- Never write a branch name into any artifact from memory — always from verified git output
 
 ---
 
