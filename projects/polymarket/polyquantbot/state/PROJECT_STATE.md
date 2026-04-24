@@ -1,4 +1,4 @@
-Last Updated : 2026-04-25 00:40
+Last Updated : 2026-04-25 00:49
 Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Priority 2 done condition closed (PR #759, SENTINEL APPROVED 98/100); WORKTODO Right Now section synced to Priority 3 kickoff scope via NWAP/worktodo-priority3-kickoff-sync.
 
 [COMPLETED]
@@ -22,7 +22,6 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Capital readiness and live trading gating.
 
 [NEXT PRIORITY]
-- COMMANDER review and disposition for PR #769 (NWAP/worktodo-priority3-kickoff-sync, Validation Tier: MINOR).
 - Next active lane: Priority 3 paper trading product completion kickoff — COMMANDER to scope.
 
 [KNOWN ISSUES]

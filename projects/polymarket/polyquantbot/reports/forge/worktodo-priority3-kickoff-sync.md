@@ -21,8 +21,8 @@ Replaced with Priority 3 paper trading product completion kickoff scope:
 
 PROJECT_STATE.md [NEXT PRIORITY] was updated: removed two stale review items
 (patch-sentinel-activation-rule and NWAP/repo-structure-state-migration) that no longer reflect
-current main truth. Replaced with truthful next-priority wording: PR #769 disposition and
-Priority 3 kickoff scope. Last Updated bumped to 2026-04-25 00:18 Asia/Jakarta.
+current main truth. Final [NEXT PRIORITY] contains one merge-safe line only:
+Priority 3 paper trading product completion kickoff scope. Last Updated bumped to 2026-04-25 00:49 Asia/Jakarta.
 
 ROADMAP.md has no milestone change — MINOR task, ROADMAP.md untouched per AGENTS.md ROADMAP RULE.
 
@@ -45,4 +45,4 @@ Validation Tier   : MINOR
 Claim Level       : FOUNDATION
 Validation Target : WORKTODO.md "Right Now" section accuracy + PROJECT_STATE.md [NEXT PRIORITY] truth sync
 Not in Scope      : ROADMAP.md (no milestone change), any code, Priority 3 implementation
-Suggested Next    : COMMANDER review
+Suggested Next    : Merge PR #769, then scope the first Priority 3 implementation lane
