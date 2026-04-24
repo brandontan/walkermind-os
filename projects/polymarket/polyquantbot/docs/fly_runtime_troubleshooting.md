@@ -52,12 +52,13 @@ First checks:
 ## E) Restart vs rollback vs redeploy
 
 - **Restart**: same release, fast recovery attempt.
-- **Rollback**: return to last known-good release.
+- **Rollback**: redeploy the last known-good image.
 - **Redeploy**: new release cycle for code/config/image updates.
 
 Rollback commands:
-1. `fly releases -a crusaderbot`
-2. `fly releases rollback <RELEASE_ID> -a crusaderbot`
+1. `fly releases --app crusaderbot --image`
+2. `fly deploy --image registry.fly.io/crusaderbot:<IMAGE_TAG> --strategy immediate`
+3. Reconcile any config, secret, or `fly.toml` drift manually after image rollback.
 
 ## F) Post-action smoke tests
 
