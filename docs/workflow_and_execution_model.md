@@ -53,7 +53,8 @@ walker-ai-team/
     │       ├── state/
     │       │   ├── PROJECT_STATE.md
     │       │   ├── ROADMAP.md
-    │       │   └── work_checklist.md
+    │       │   ├── WORKTODO.md
+    │       │   └── CHANGELOG.md
     │       ├── core/
     │       ├── data/
     │       ├── strategy/
@@ -119,7 +120,7 @@ Each project maintains a `state/` folder containing three files that must always
 |---|---|
 | `PROJECT_STATE.md` | Current operational condition |
 | `ROADMAP.md` | Phase and milestone truth |
-| `work_checklist.md` | Granular task tracking |
+| `WORKTODO.md` | Granular task tracking |
 
 If one file says done and the others have not been updated — that is drift.
 
@@ -222,7 +223,7 @@ Activated only by explicit command from Mr. Walker. COMMANDER must not self-acti
 | 2 | `PROJECT_REGISTRY.md` | Project navigation |
 | 3 | `{PROJECT_ROOT}/state/PROJECT_STATE.md` | Operational truth |
 | 4 | `{PROJECT_ROOT}/state/ROADMAP.md` | Milestone truth |
-| 5 | `{PROJECT_ROOT}/state/work_checklist.md` | Granular task tracking |
+| 5 | `{PROJECT_ROOT}/state/WORKTODO.md` | Granular task tracking |
 | 6 | `reports/forge/`, `reports/sentinel/` | Supporting evidence |
 
 ---
@@ -368,7 +369,7 @@ Context: [1 line max]
 
 - Speed is lost to drift and noise — not coding difficulty
 - GitHub workflow must be exact: branch, PR, report, state
-- Repo truth must stay synchronized — `PROJECT_STATE.md`, `ROADMAP.md`, `work_checklist.md`, PR outcomes
+- Repo truth must stay synchronized — `PROJECT_STATE.md`, `ROADMAP.md`, `WORKTODO.md`, PR outcomes
 - Degen mode is fast — but always subordinate to `AGENTS.md`
 - Minor issues must not reach Mr. Walker — COMMANDER resolves independently
 - Maximize delivery per token spent

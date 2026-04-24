@@ -46,7 +46,7 @@
 
 ## CrusaderBot — Current Delivery Focus (Phase 10)
 
-**Roadmap Intent:** Keep ROADMAP.md as milestone-level planning truth and keep execution-level task tracking in `projects/polymarket/polyquantbot/work_checklist.md`.
+**Roadmap Intent:** Keep ROADMAP.md as milestone-level planning truth and keep execution-level task tracking in `projects/polymarket/polyquantbot/state/WORKTODO.md`.
 
 ### Current Focus Summary (paper-only boundary preserved)
 - Phase 10.2 post-merge sync and public command-surface refinement is merged on main (PR #713) with paper-only/non-custodial posture preserved.
@@ -59,10 +59,10 @@
 - PR #733 is merged on main as post-merge work-checklist continuity sync for completed Phase 10.7 truth.
 - Phase 10.8 logging/monitoring hardening is closed as merged-main truth (PR #734 / #736 / #737).
 - Phase 10.9 security baseline hardening is closed with final SENTINEL APPROVED gate for PR #742 (59-pass targeted rerun evidence and exact branch-truth sync recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase10-9_01_pr742-security-baseline-hardening-validation.md`).
-- Deployment Hardening is now the active Priority 2 lane per `projects/polymarket/polyquantbot/work_checklist.md`.
+- Deployment Hardening is now the active Priority 2 lane per `projects/polymarket/polyquantbot/state/WORKTODO.md`.
 
 ### Execution Tracking Source
-- Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/work_checklist.md](projects/polymarket/polyquantbot/work_checklist.md).
+- Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/state/WORKTODO.md](projects/polymarket/polyquantbot/state/WORKTODO.md).
 - ROADMAP.md remains summary-level and milestone-oriented.
 
 ---
