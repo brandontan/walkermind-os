@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, and PR #741 are merged-main truth, and PR #742 Phase 10.9 Priority 2 security baseline hardening now has final SENTINEL APPROVED gate; Deployment Hardening SENTINEL MAJOR validation is APPROVED (98/100, zero critical issues) on `NWAP/deployment-hardening-traceability-repair`; PR #759 awaits COMMANDER merge decision (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-24 10:40
+**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening SENTINEL MAJOR validation APPROVED (98/100, zero critical issues) and PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta; Priority 2 done condition closed (paper-only boundary preserved, no live-trading or production-capital claim).
+**Last Updated:** 2026-04-24 11:53
 
 # Board Overview
 
@@ -59,7 +59,7 @@
 - PR #733 is merged on main as post-merge work-checklist continuity sync for completed Phase 10.7 truth.
 - Phase 10.8 logging/monitoring hardening is closed as merged-main truth (PR #734 / #736 / #737).
 - Phase 10.9 security baseline hardening is closed with final SENTINEL APPROVED gate for PR #742 (59-pass targeted rerun evidence and exact branch-truth sync recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase10-9_01_pr742-security-baseline-hardening-validation.md`).
-- Deployment Hardening SENTINEL MAJOR validation is APPROVED (98/100, zero critical issues) on `NWAP/deployment-hardening-traceability-repair`; PR #759 awaits COMMANDER merge decision.
+- Deployment Hardening SENTINEL MAJOR validation APPROVED (98/100, zero critical issues); PR #759 merged to main on 2026-04-24 by COMMANDER; Priority 2 done condition closed.
 
 ### Execution Tracking Source
 - Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/state/WORKTODO.md](projects/polymarket/polyquantbot/state/WORKTODO.md).
