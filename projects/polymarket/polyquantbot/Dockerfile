@@ -15,16 +15,20 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080
+
 COPY --from=builder /install /usr/local
 COPY . /app
 
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-ENV PORT=8080
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+# Authoritative container aliveness contract.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
   CMD python -c "import os, sys, urllib.request
 url = 'http://127.0.0.1:' + os.environ.get('PORT', '8080') + '/health'
 status = 1

@@ -6,6 +6,10 @@ primary_region = "iad"
 
 [build]
 
+[deploy]
+  # Single-machine polling contract: avoid overlapping Telegram pollers.
+  strategy = "immediate"
+
 [env]
   CRUSADER_TELEGRAM_RUNTIME_REQUIRED = "true"
 
@@ -19,7 +23,7 @@ primary_region = "iad"
   processes = ["app"]
 
   [[http_service.checks]]
-    grace_period = "30s"
+    grace_period = "45s"
     interval = "30s"
     method = "GET"
     timeout = "5s"

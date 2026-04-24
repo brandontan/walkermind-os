@@ -1,58 +1,70 @@
 # Fly Runtime Troubleshooting (Operator Quick Guide)
 
-## A) Machine restart loops
+## A) Startup contract quick-check
+
+Expected deployment contract:
+- entrypoint = `python -m projects.polymarket.polyquantbot.scripts.run_api`
+- startup/alive check = `GET /health`
+- readiness check = `GET /ready`
+- single polling machine (`min_machines_running=1`, `max_machines_running=1`)
+
+If observed behavior differs, treat as deployment contract drift.
+
+## B) Machine restart loops
 
 Symptoms:
 - App repeatedly starts/stops.
 - Health checks flap or fail.
 
 Checks:
-1. `fly status` for machine lifecycle churn.
-2. `fly logs` for startup exceptions and crash loops.
-3. Confirm required env is present before repeated restarts.
+1. `fly status -a crusaderbot` for machine churn.
+2. `fly logs -a crusaderbot` for startup exceptions/crash loops.
+3. Confirm required env exists before repeated restarts.
 
 Actions:
 - Use **restart** for transient runtime hangs.
-- Use **redeploy** when config/image/code drift is suspected.
+- Use **rollback** if issue began after a known bad release.
+- Use **redeploy** when code/config/image drift is suspected.
 
-## B) Wrong startup path
+## C) Wrong startup path
 
 Symptoms:
-- Runtime starts but expected API/Telegram services never become healthy.
+- Runtime boots but API/Telegram services never become healthy.
 
 Checks:
-1. Inspect launch command/entrypoint from deploy logs.
-2. Confirm app starts intended module/process path.
-3. Validate `/health` vs `/ready` output after boot.
+1. Inspect deploy logs for launch command.
+2. Confirm runtime module path matches deployment contract.
+3. Validate `/health` and `/ready` after boot.
 
-## C) Health/ready mismatch
+## D) Health/ready mismatch
 
 Pattern:
-- `/health` returns OK but `/ready` remains degraded.
+- `/health` is OK but `/ready` is degraded.
 
 Interpretation:
-- Process is alive, but dependencies/runtime integrations are not fully ready.
+- Process is alive, but runtime dependencies are not operationally ready.
 
 First checks:
-1. Telegram polling startup logs.
+1. Telegram startup logs.
 2. Runtime env expectations (without exposing secrets).
 3. Recent deploy/restart timeline.
 
-## D) Single-machine polling requirement for Telegram
+## E) Restart vs rollback vs redeploy
 
-- Polling mode should run on a single active machine to avoid polling conflicts (e.g., duplicate consumers / 409 conflicts).
-- If scaling/restart operations accidentally create overlap, reduce to one active polling runtime and re-check logs.
+- **Restart**: same release, fast recovery attempt.
+- **Rollback**: return to last known-good release.
+- **Redeploy**: new release cycle for code/config/image updates.
 
-## E) Restart vs redeploy distinction
+Rollback commands:
+1. `fly releases -a crusaderbot`
+2. `fly releases rollback <RELEASE_ID> -a crusaderbot`
 
-- **Restart**: same build/config, quick recovery attempt.
-- **Redeploy**: new release cycle (code/config/image), use when startup path/config drift is likely.
+## F) Post-action smoke tests
 
-## F) What to read first in Fly logs
+Run after restart, rollback, or redeploy:
+1. `curl -fsS https://crusaderbot.fly.dev/health`
+2. `curl -fsS https://crusaderbot.fly.dev/ready`
+3. `fly logs -a crusaderbot | grep -E "crusaderbot_telegram_runtime_started|crusaderbot_runtime_transition"`
+4. Verify Telegram `/start`, `/help`, `/status` responses.
 
-Prioritize, in order:
-1. Process boot line (entrypoint/module confirmation).
-2. Runtime init lines (API startup, monitor/runtime guards).
-3. Telegram polling/session lines.
-4. Exception traces around startup window.
-5. Readiness-related warnings/errors.
+Only declare recovery complete when all four checks pass.

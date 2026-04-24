@@ -5,85 +5,64 @@
 - Public-ready **paper beta** posture is active.
 - Runtime is paper-only; no live-trading claims are allowed.
 - Fly runtime deploys a **single API machine** with embedded Telegram polling startup in the same process lifecycle.
-- Sentry integration is landed in code; first-event proof can still require runtime verification.
+- Deployment contract is defined by `projects/polymarket/polyquantbot/Dockerfile` + `projects/polymarket/polyquantbot/fly.toml`.
 - Product is **not** live-trading ready and **not** production-capital ready.
 
-## 2) Restart policy truth (Fly deployment contract)
+## 2) Authoritative deployment/startup contract
 
-- Fly machine count is pinned to one (`min_machines_running=1`, `max_machines_running=1`).
-- `auto_stop_machines="off"` keeps the machine resident instead of scale-to-zero shutdown.
-- Fly health check gates process health on `GET /health`; readiness visibility is provided by `GET /ready`.
-- Expected operator posture: if `/health` fails or startup crashes, Fly restarts the machine; operator still validates readiness and Telegram startup logs after restart.
+- Container entrypoint: `python -m projects.polymarket.polyquantbot.scripts.run_api`.
+- Container aliveness contract: Docker `HEALTHCHECK` calls `GET /health` on `127.0.0.1:$PORT`.
+- Fly machine contract:
+  - single machine pinned (`min_machines_running=1`, `max_machines_running=1`),
+  - no scale-to-zero (`auto_stop_machines="off"`),
+  - startup health gate on `GET /health`,
+  - operational readiness gate on `GET /ready`,
+  - deployment strategy `immediate` to avoid overlapping Telegram pollers.
 
-## 3) First checks after any restart/redeploy
+## 3) Restart policy truth (operator-facing)
 
-1. Root endpoint (`/`) for service reachability.
-2. `/health` for process-level health.
-3. `/ready` for dependency/runtime readiness (including Telegram runtime truth).
-4. Telegram baseline commands: `/start`, `/help`, `/status`.
-5. Fly logs for startup, polling, and error signals.
+- Restart expectation: Fly restarts the machine when process/aliveness checks fail.
+- Operator expectation after any restart:
+  1. Re-check `/health`.
+  2. Re-check `/ready`.
+  3. Verify Telegram runtime startup logs.
+  4. Verify Telegram baseline commands still respond.
 
-## 4) Interpreting `/health`
-
-- Use `/health` as a **process/aliveness** signal.
-- Expected operator interpretation:
-  - `200 OK` means app process is up and responding.
-  - Non-200/timeouts mean runtime incident; check Fly machine state + logs immediately.
-- Do not treat `/health` alone as full runtime readiness.
-
-## 5) Interpreting `/ready`
-
-- Use `/ready` as **operational readiness** signal.
-- Expected operator interpretation:
-  - `ready=true` (or equivalent all-green state) means runtime dependencies are currently in expected state.
-  - Degraded/not-ready means runtime may answer HTTP but is not operationally ready.
-- `/ready` should be checked together with logs and Telegram command behavior.
-
-## 6) Rollback procedure truth (bounded)
+## 4) Rollback procedure truth (bounded)
 
 Use rollback when a new deploy regresses `/health`, `/ready`, or Telegram startup visibility.
 
-1. Identify last known good release:
+1. Identify the last known-good release:
    - `fly releases -a crusaderbot`
 2. Roll back to that release:
    - `fly releases rollback <RELEASE_ID> -a crusaderbot`
-3. Re-run post-deploy smoke checks (Section 7) before declaring restored service.
-4. Record rollback reason and failing signal (`/health`, `/ready`, or Telegram startup evidence) in task/report continuity.
+3. Run post-deploy smoke tests (Section 5).
+4. Record rollback cause and failed signals (`/health`, `/ready`, startup logs, command behavior).
 
-## 7) Post-deploy smoke test (public-safe baseline)
+## 5) Post-deploy smoke test contract
 
-Run immediately after deploy or rollback:
+Run immediately after deploy/restart/rollback:
 
 1. `curl -fsS https://crusaderbot.fly.dev/health`
 2. `curl -fsS https://crusaderbot.fly.dev/ready`
 3. `fly logs -a crusaderbot | grep -E "crusaderbot_telegram_runtime_started|crusaderbot_runtime_transition"`
-4. Baseline command sanity in Telegram chat: `/start`, `/help`, `/status`
+4. Telegram command checks: `/start`, `/help`, `/status`
 
 Pass condition (bounded scope):
-- `/health` returns success.
-- `/ready` returns operational readiness payload.
-- Logs show runtime startup transition and Telegram runtime startup visibility.
-- Telegram baseline commands return non-empty public-safe responses.
+- `/health` returns success,
+- `/ready` returns ready payload,
+- startup/transition logs are present,
+- baseline Telegram commands return non-empty public-safe replies.
 
-## 8) Paper-only boundary (operational meaning)
+## 6) Readiness interpretation rules
 
-Paper-only means:
+- `/health` confirms process aliveness only.
+- `/ready` confirms runtime/dependency readiness.
+- Do not declare recovery complete from `/health` alone.
 
-- No real-money order execution.
-- No production-capital exposure claims.
-- Public messaging must keep paper-beta limitations explicit.
-- Any capital/live-trading wording escalation requires a separate validated lane.
+## 7) Paper-only boundary (operational meaning)
 
-## 9) Public-safe claim boundaries
-
-Safe to claim publicly now:
-
-- Public-ready paper beta posture.
-- Runtime endpoints and Telegram baseline command availability (when currently verified).
-- Paper-only boundary and non-production readiness posture.
-
-Not safe to claim publicly:
-
-- Live-trading readiness.
-- Production-capital readiness.
-- Guaranteed uptime/performance beyond verified evidence window.
+- No real-money order execution claims.
+- No production-capital readiness claims.
+- Public messaging remains paper-only.
+- Any capital/live-trading claim escalation requires a separate validated lane.
