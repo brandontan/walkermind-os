@@ -682,16 +682,18 @@ class CommandHandler:
         return payload
 
     async def _handle_paper(self) -> CommandResult:
-        payload = self._build_help_payload()
-        payload.update(
-            {
-                "mode": "help",
-                "decision": "Paper mode is the only public runtime boundary in this beta.",
-                "operator_note": "Simulation only; no live capital execution or wallet transfers.",
-                "insight": "Use /status for runtime posture while staying in paper-only mode.",
-            }
+        from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
+        from ..client.telegram.presentation import format_paper_account_reply
+
+        msg = format_paper_account_reply(
+            cash=STATE.wallet_cash,
+            equity=STATE.wallet_equity,
+            realized_pnl=STATE.realized_pnl,
+            open_positions=len(STATE.positions),
+            mode=STATE.mode,
+            kill_switch=STATE.kill_switch,
         )
-        return CommandResult(success=True, message=await render_view("help", payload), payload=payload)
+        return CommandResult(success=True, message=msg)
 
     async def _handle_about(self) -> CommandResult:
         payload = self._build_help_payload()
@@ -1025,17 +1027,28 @@ class CommandHandler:
             )
 
     async def _handle_strategies(self) -> CommandResult:
-        """Return per-strategy performance snapshot from MultiStrategyMetrics."""
+        """Return per-strategy performance snapshot from MultiStrategyMetrics.
+
+        Falls back to worker iteration signal stats when multi_metrics is unavailable.
+        """
         log.info("command_strategies_invoked")
         if self._multi_metrics is None:
-            return CommandResult(
-                success=False,
-                message=format_command_response(
-                    command="strategies",
-                    success=False,
-                    message="MultiStrategyMetrics not configured.",
-                ),
+            # Fallback: surface paper worker signal stats from STATE
+            from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
+            from ..client.telegram.presentation import format_strategy_visibility_reply
+
+            last = STATE.worker_runtime.last_iteration
+            msg = format_strategy_visibility_reply(
+                iterations_total=STATE.worker_runtime.iterations_total,
+                candidate_count=last.candidate_count,
+                accepted_count=last.accepted_count,
+                rejected_count=last.rejected_count,
+                risk_rejection_reasons=last.risk_rejection_reasons,
+                autotrade_enabled=STATE.autotrade_enabled,
+                kill_switch=STATE.kill_switch,
             )
+            return CommandResult(success=True, message=msg)
+
         try:
             snapshot = self._multi_metrics.snapshot()
             strategy_states = {
