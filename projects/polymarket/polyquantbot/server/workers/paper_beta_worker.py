@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections import Counter
+from pathlib import Path
 
 import structlog
 
@@ -12,15 +14,26 @@ from projects.polymarket.polyquantbot.server.execution.paper_execution import Pa
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
 from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio
 from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import PaperRiskGate
+from projects.polymarket.polyquantbot.server.storage.paper_account_store import (
+    PaperAccountStoreError,
+    PersistentPaperAccountStore,
+)
 
 log = structlog.get_logger(__name__)
 
 
 class PaperBetaWorker:
-    def __init__(self, falcon: FalconGateway, risk_gate: PaperRiskGate, engine: PaperExecutionEngine) -> None:
+    def __init__(
+        self,
+        falcon: FalconGateway,
+        risk_gate: PaperRiskGate,
+        engine: PaperExecutionEngine,
+        account_store: PersistentPaperAccountStore | None = None,
+    ) -> None:
         self._falcon = falcon
         self._risk_gate = risk_gate
         self._engine = engine
+        self._account_store = account_store
 
     async def run_once(self) -> list[dict[str, object]]:
         await self.market_sync()
@@ -112,6 +125,12 @@ class PaperBetaWorker:
             current_position_count=summary.current_position_count,
             risk_rejection_reasons=summary.risk_rejection_reasons,
         )
+        if self._account_store is not None:
+            self._account_store.save(
+                account=STATE.paper_account,
+                positions=STATE.positions,
+                orders=STATE.orders,
+            )
         return events
 
     async def market_sync(self) -> None:
@@ -132,10 +151,28 @@ class PaperBetaWorker:
 
 async def run_worker_loop(iterations: int = 1) -> None:
     falcon = FalconGateway(FalconSettings.from_env())
+    account_store = PersistentPaperAccountStore(
+        storage_path=Path(
+            os.getenv(
+                "CRUSADER_PAPER_ACCOUNT_STORAGE_PATH",
+                "/tmp/crusaderbot/runtime/paper_account.json",
+            )
+        )
+    )
+    try:
+        account, positions, orders = account_store.load()
+    except PaperAccountStoreError:
+        account, positions, orders = STATE.paper_account, [], []
+        log.warning("paper_account_store_load_failed_defaulting_state")
+    STATE.paper_account = account
+    STATE.positions = positions
+    STATE.orders = orders
+    STATE.pnl = STATE.paper_account.realized_pnl + STATE.paper_account.unrealized_pnl
     worker = PaperBetaWorker(
         falcon=falcon,
         risk_gate=PaperRiskGate(),
         engine=PaperExecutionEngine(PaperPortfolio()),
+        account_store=account_store,
     )
     STATE.worker_runtime.active = True
     STATE.worker_runtime.startup_complete = True

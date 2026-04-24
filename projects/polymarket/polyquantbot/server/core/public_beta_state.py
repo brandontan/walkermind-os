@@ -6,11 +6,40 @@ from dataclasses import dataclass, field
 
 @dataclass
 class PaperPosition:
+    position_id: str
     condition_id: str
     side: str
     size: float
     entry_price: float
     edge: float
+    mark_price: float
+    unrealized_pnl: float = 0.0
+    status: str = "open"
+
+
+@dataclass
+class PaperOrder:
+    order_id: str
+    signal_id: str
+    condition_id: str
+    side: str
+    requested_size: float
+    filled_size: float
+    requested_price: float
+    fill_price: float
+    status: str
+    lifecycle: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PaperAccount:
+    account_id: str = "paper-default"
+    cash_balance: float = 10000.0
+    realized_pnl: float = 0.0
+    unrealized_pnl: float = 0.0
+    equity: float = 10000.0
+    order_count: int = 0
+    reset_count: int = 0
 
 
 @dataclass
@@ -44,7 +73,9 @@ class PublicBetaState:
     drawdown: float = 0.0
     exposure: float = 0.0
     last_risk_reason: str = ""
+    paper_account: PaperAccount = field(default_factory=PaperAccount)
     positions: list[PaperPosition] = field(default_factory=list)
+    orders: list[PaperOrder] = field(default_factory=list)
     processed_signals: set[str] = field(default_factory=set)
     worker_runtime: WorkerRuntimeStatus = field(default_factory=WorkerRuntimeStatus)
 

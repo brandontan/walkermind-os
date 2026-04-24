@@ -97,7 +97,15 @@ def _build_beta_status_payload(falcon: FalconGateway) -> dict[str, object]:
         "paper_only_execution_boundary": True,
         "execution_guard": execution_guard,
         "position_count": len(STATE.positions),
+        "order_count": len(STATE.orders),
         "last_risk_reason": STATE.last_risk_reason,
+        "portfolio": {
+            "cash_balance": STATE.paper_account.cash_balance,
+            "realized_pnl": STATE.paper_account.realized_pnl,
+            "unrealized_pnl": STATE.paper_account.unrealized_pnl,
+            "equity": STATE.paper_account.equity,
+            "open_positions": len([p for p in STATE.positions if p.status == "open"]),
+        },
         "admin_control_plane": {
             "summary_visible": True,
             "guard_state_visible": True,
@@ -259,11 +267,36 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
 
     @router.get("/positions")
     async def positions() -> dict[str, object]:
-        return {"items": [p.__dict__ for p in STATE.positions]}
+        return {
+            "items": [p.__dict__ for p in STATE.positions],
+            "summary": {
+                "open_positions": len([p for p in STATE.positions if p.status == "open"]),
+                "exposure": STATE.exposure,
+            },
+        }
 
     @router.get("/pnl")
     async def pnl() -> dict[str, object]:
-        return {"pnl": STATE.pnl}
+        return {
+            "pnl": STATE.pnl,
+            "realized_pnl": STATE.paper_account.realized_pnl,
+            "unrealized_pnl": STATE.paper_account.unrealized_pnl,
+            "equity": STATE.paper_account.equity,
+            "cash_balance": STATE.paper_account.cash_balance,
+        }
+
+    @router.get("/portfolio")
+    async def portfolio() -> dict[str, object]:
+        return {
+            "account_id": STATE.paper_account.account_id,
+            "cash_balance": STATE.paper_account.cash_balance,
+            "realized_pnl": STATE.paper_account.realized_pnl,
+            "unrealized_pnl": STATE.paper_account.unrealized_pnl,
+            "equity": STATE.paper_account.equity,
+            "positions": [p.__dict__ for p in STATE.positions],
+            "orders": [o.__dict__ for o in STATE.orders[-20:]],
+            "paper_only_execution_boundary": True,
+        }
 
     @router.get("/risk")
     async def risk(

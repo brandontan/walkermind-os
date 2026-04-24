@@ -197,32 +197,32 @@ Finish this after runtime and persistence are stable.
 
 ### 17. Paper Account Model
 
-- [ ] Define the paper balance model
-- [ ] Define paper position tracking
-- [ ] Define paper PnL tracking
+- [x] Define the paper balance model
+- [x] Define paper position tracking
+- [x] Define paper PnL tracking
 - [ ] Add reset/test flow for operators
 
 ### 18. Paper Execution Engine
 
-- [ ] Define paper order intent flow
-- [ ] Enable paper entry logic
-- [ ] Enable paper exit logic
-- [ ] Make paper fill assumptions clear
-- [ ] Make paper execution logging clear
+- [x] Define paper order intent flow
+- [x] Enable paper entry logic
+- [x] Enable paper exit logic
+- [x] Make paper fill assumptions clear
+- [x] Make paper execution logging clear
 
 ### 19. Paper Portfolio Surface
 
-- [ ] Show open paper positions
-- [ ] Show realized PnL
-- [ ] Show unrealalized PnL
-- [ ] Show summary through bot/API
+- [x] Show open paper positions
+- [x] Show realized PnL
+- [x] Show unrealalized PnL
+- [x] Show summary through bot/API
 
 ### 20. Paper Risk Controls
 
-- [ ] Enforce exposure caps
-- [ ] Enforce drawdown caps
-- [ ] Enforce kill switch
-- [ ] Show risk state clearly
+- [x] Enforce exposure caps
+- [x] Enforce drawdown caps
+- [x] Enforce kill switch
+- [x] Show risk state clearly
 
 ### 21. Paper Strategy Visibility
 
@@ -596,7 +596,8 @@ This is the final finish layer.
 
 ### Right Now
 
-- [ ] Start Priority 2 security baseline hardening lane
-- [ ] Ensure secrets are redacted across logs and runtime status surfaces
-- [ ] Verify admin/sensitive route protections stay explicit and testable
-- [ ] Prepare deployment hardening kickoff once security baseline lane is complete
+- [x] Start Priority 3 paper-core-foundation lane
+- [x] Implement baseline paper account model + persistence boundary
+- [x] Implement deterministic paper execution lifecycle and paper risk guard enforcement
+- [x] Add baseline paper portfolio surface for narrow bot/API runtime path
+- [ ] Run SENTINEL MAJOR validation for NWAP/paper-core-foundation

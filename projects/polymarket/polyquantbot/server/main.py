@@ -43,7 +43,12 @@ from projects.polymarket.polyquantbot.server.services.user_service import UserSe
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import WalletLinkService
 from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
+from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
 from projects.polymarket.polyquantbot.server.storage.multi_user_store import PersistentMultiUserStore
+from projects.polymarket.polyquantbot.server.storage.paper_account_store import (
+    PaperAccountStoreError,
+    PersistentPaperAccountStore,
+)
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
 from projects.polymarket.polyquantbot.server.storage.wallet_link_store import PersistentWalletLinkStore
 from projects.polymarket.polyquantbot.infra.db import DatabaseClient
@@ -453,6 +458,27 @@ def create_app() -> FastAPI:
     app.state.wallet_link_storage_path = wallet_link_storage_path
     app.state.wallet_link_store = wallet_link_store
     app.state.wallet_link_service = wallet_link_service
+    paper_account_storage_path = Path(
+        os.getenv(
+            "CRUSADER_PAPER_ACCOUNT_STORAGE_PATH",
+            "/tmp/crusaderbot/runtime/paper_account.json",
+        )
+    )
+    paper_account_store = PersistentPaperAccountStore(storage_path=paper_account_storage_path)
+    try:
+        account, positions, orders = paper_account_store.load()
+    except PaperAccountStoreError:
+        account, positions, orders = STATE.paper_account, [], []
+        log.warning("paper_account_store_load_failed_defaulting_state", path=str(paper_account_storage_path))
+    STATE.paper_account = account
+    STATE.positions = positions
+    STATE.orders = orders
+    STATE.paper_account.equity = (
+        STATE.paper_account.cash_balance + STATE.paper_account.realized_pnl + STATE.paper_account.unrealized_pnl
+    )
+    STATE.pnl = STATE.paper_account.realized_pnl + STATE.paper_account.unrealized_pnl
+    app.state.paper_account_storage_path = paper_account_storage_path
+    app.state.paper_account_store = paper_account_store
 
     falcon_gateway = FalconGateway(settings=falcon_settings)
     router = build_router(settings=settings, state=state, falcon_settings=falcon_settings)
