@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections import Counter
+from pathlib import Path
 
 import structlog
 
 from projects.polymarket.polyquantbot.configs.falcon import FalconSettings
+from projects.polymarket.polyquantbot.server.core.paper_account import PaperAccountStore
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE, WorkerIterationSummary
 from projects.polymarket.polyquantbot.server.execution.paper_execution import PaperExecutionEngine
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
@@ -17,10 +20,17 @@ log = structlog.get_logger(__name__)
 
 
 class PaperBetaWorker:
-    def __init__(self, falcon: FalconGateway, risk_gate: PaperRiskGate, engine: PaperExecutionEngine) -> None:
+    def __init__(
+        self,
+        falcon: FalconGateway,
+        risk_gate: PaperRiskGate,
+        engine: PaperExecutionEngine,
+        account_store: PaperAccountStore | None = None,
+    ) -> None:
         self._falcon = falcon
         self._risk_gate = risk_gate
         self._engine = engine
+        self._account_store = account_store
 
     async def run_once(self) -> list[dict[str, object]]:
         await self.market_sync()
@@ -101,6 +111,8 @@ class PaperBetaWorker:
         )
         STATE.worker_runtime.last_iteration = summary
         STATE.worker_runtime.iterations_total += 1
+        if self._account_store is not None:
+            self._account_store.save(STATE.paper_account)
         log.info(
             "paper_beta_worker_iteration_summary",
             candidate_count=summary.candidate_count,
@@ -132,10 +144,19 @@ class PaperBetaWorker:
 
 async def run_worker_loop(iterations: int = 1) -> None:
     falcon = FalconGateway(FalconSettings.from_env())
+    storage_path = Path(
+        os.getenv(
+            "CRUSADER_PAPER_ACCOUNT_STORAGE_PATH",
+            "/tmp/crusaderbot/runtime/paper_account.json",
+        )
+    )
+    account_store = PaperAccountStore(storage_path=storage_path)
+    STATE.paper_account = account_store.load()
     worker = PaperBetaWorker(
         falcon=falcon,
         risk_gate=PaperRiskGate(),
         engine=PaperExecutionEngine(PaperPortfolio()),
+        account_store=account_store,
     )
     STATE.worker_runtime.active = True
     STATE.worker_runtime.startup_complete = True

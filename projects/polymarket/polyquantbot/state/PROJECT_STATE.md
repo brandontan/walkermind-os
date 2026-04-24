@@ -1,5 +1,5 @@
-Last Updated : 2026-04-24 18:28
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening deploy contract sync (Dockerfile + fly.toml + operator docs) passed SENTINEL MAJOR validation (Score: 98/100, APPROVED, zero critical issues) and PR #759 was merged to main on 2026-04-24 11:21 Asia/Jakarta; Priority 2 done condition is now closed.
+Last Updated : 2026-04-24 20:18
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Priority 2 closure remains merged-main truth; Priority 3 paper-core-foundation lane is now opened on NWAP/paper-core-foundation with narrow paper-only account/execution/portfolio/risk baseline integration and deterministic test evidence recorded.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on feature/consolidate-telegram-ui-ux-layer: active Telegram source of truth remains projects/polymarket/polyquantbot/telegram, deprecated interface/telegram/__init__.py legacy marker is archived under projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/, and only thin compatibility shims remain under projects/polymarket/polyquantbot/interface/telegram/view_handler.py + projects/polymarket/polyquantbot/interface/ui_formatter.py + projects/polymarket/polyquantbot/interface/telegram/__init__.py.
@@ -14,17 +14,17 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Deployment Hardening (Priority 2 lane) — SENTINEL MAJOR validation APPROVED (98/100, zero critical issues); PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta by COMMANDER; branch NWAP/deployment-hardening-traceability-repair; Priority 2 done condition closed.
 
 [IN PROGRESS]
-- None
+- Priority 3 paper-core-foundation lane (NWAP/paper-core-foundation): paper-only account model + deterministic paper execution lifecycle + baseline portfolio surface + paper risk controls on narrow runtime path.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation.
-- Portfolio management logic and risk controls.
+- Priority 3 follow-up lanes: paper strategy visibility, admin/operator paper controls, public paper UX completion, and paper E2E validation/archive.
 - Capital readiness and live trading gating.
 
 [NEXT PRIORITY]
+- SENTINEL MAJOR validation for NWAP/paper-core-foundation (Claim Level: NARROW INTEGRATION). Report: projects/polymarket/polyquantbot/reports/forge/paper-core-foundation.md
 - COMMANDER review for patch-sentinel-activation-rule (AGENTS.md SENTINEL ACTIVATION RULE insertion, Validation Tier: MINOR). Report: projects/polymarket/polyquantbot/reports/forge/patch-sentinel-activation-rule.md
 - COMMANDER review for NWAP/repo-structure-state-migration (Validation Tier: STANDARD).
-- COMMANDER to scope next active lane (Priority 3 paper trading product completion or next phase).
 
 [KNOWN ISSUES]
 - None

@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening SENTINEL MAJOR validation APPROVED (98/100, zero critical issues) and PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta; Priority 2 done condition closed (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-24 11:53
+**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; Priority 2 remains closed as merged-main truth; Priority 3 is now active through lane `NWAP/paper-core-foundation` with narrow paper-only account/execution/portfolio/risk baseline integration and no live-trading or production-capital claim.
+**Last Updated:** 2026-04-24 20:18
 
 # Board Overview
 
@@ -60,6 +60,7 @@
 - Phase 10.8 logging/monitoring hardening is closed as merged-main truth (PR #734 / #736 / #737).
 - Phase 10.9 security baseline hardening is closed with final SENTINEL APPROVED gate for PR #742 (59-pass targeted rerun evidence and exact branch-truth sync recorded in `projects/polymarket/polyquantbot/reports/sentinel/phase10-9_01_pr742-security-baseline-hardening-validation.md`).
 - Deployment Hardening SENTINEL MAJOR validation APPROVED (98/100, zero critical issues); PR #759 merged to main on 2026-04-24 by COMMANDER; Priority 2 done condition closed.
+- Priority 3 paper-core-foundation lane is active on `NWAP/paper-core-foundation`; baseline paper account model, deterministic paper execution lifecycle, baseline portfolio surface, and paper risk controls are integrated on the narrow paper runtime path (SENTINEL MAJOR gate pending).
 
 ### Execution Tracking Source
 - Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/state/WORKTODO.md](projects/polymarket/polyquantbot/state/WORKTODO.md).

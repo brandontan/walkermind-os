@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from starlette import status as http_status
 from pydantic import BaseModel
 
+from projects.polymarket.polyquantbot.server.core.paper_account import PaperAccountState
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
 
@@ -20,6 +21,20 @@ class ModeRequest(BaseModel):
 
 class ToggleRequest(BaseModel):
     enabled: bool
+
+
+def _build_paper_portfolio_payload(account: PaperAccountState) -> dict[str, object]:
+    return {
+        "account_id": account.account_id,
+        "balance": account.balance,
+        "equity": account.equity,
+        "realized_pnl": account.realized_pnl,
+        "unrealized_pnl": account.unrealized_pnl,
+        "total_exposure": account.total_exposure,
+        "max_drawdown": account.max_drawdown,
+        "open_positions": [position.__dict__ for position in account.positions.values()],
+        "order_count": len(account.orders),
+    }
 
 
 def _build_execution_guard() -> dict[str, object]:
@@ -259,11 +274,20 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
 
     @router.get("/positions")
     async def positions() -> dict[str, object]:
-        return {"items": [p.__dict__ for p in STATE.positions]}
+        return {
+            "items": [p.__dict__ for p in STATE.positions],
+            "portfolio": _build_paper_portfolio_payload(STATE.paper_account),
+        }
 
     @router.get("/pnl")
     async def pnl() -> dict[str, object]:
-        return {"pnl": STATE.pnl}
+        portfolio = _build_paper_portfolio_payload(STATE.paper_account)
+        return {
+            "pnl": STATE.pnl,
+            "realized": portfolio["realized_pnl"],
+            "unrealized": portfolio["unrealized_pnl"],
+            "equity": portfolio["equity"],
+        }
 
     @router.get("/risk")
     async def risk(
@@ -275,6 +299,24 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
             "last_reason": STATE.last_risk_reason,
             "kill_switch": STATE.kill_switch,
             "autotrade_enabled": STATE.autotrade_enabled,
+            "portfolio": _build_paper_portfolio_payload(STATE.paper_account),
+        }
+
+    @router.post("/paper_account/reset")
+    async def reset_paper_account(
+        __: None = Depends(_require_operator_api_key),
+    ) -> dict[str, object]:
+        STATE.paper_account = PaperAccountState()
+        STATE.positions.clear()
+        STATE.processed_signals.clear()
+        STATE.pnl = 0.0
+        STATE.exposure = 0.0
+        STATE.drawdown = 0.0
+        STATE.last_risk_reason = "paper_account_reset"
+        return {
+            "ok": True,
+            "detail": "paper account reset completed",
+            "portfolio": _build_paper_portfolio_payload(STATE.paper_account),
         }
 
     @router.get("/markets")

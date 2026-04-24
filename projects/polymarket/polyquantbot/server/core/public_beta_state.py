@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from projects.polymarket.polyquantbot.server.core.paper_account import PaperAccountState
+
 
 @dataclass
 class PaperPosition:
@@ -47,6 +49,7 @@ class PublicBetaState:
     positions: list[PaperPosition] = field(default_factory=list)
     processed_signals: set[str] = field(default_factory=set)
     worker_runtime: WorkerRuntimeStatus = field(default_factory=WorkerRuntimeStatus)
+    paper_account: PaperAccountState = field(default_factory=PaperAccountState)
 
 
 STATE = PublicBetaState()

@@ -197,32 +197,32 @@ Finish this after runtime and persistence are stable.
 
 ### 17. Paper Account Model
 
-- [ ] Define the paper balance model
-- [ ] Define paper position tracking
-- [ ] Define paper PnL tracking
-- [ ] Add reset/test flow for operators
+- [x] Define the paper balance model
+- [x] Define paper position tracking
+- [x] Define paper PnL tracking
+- [x] Add reset/test flow for operators
 
 ### 18. Paper Execution Engine
 
-- [ ] Define paper order intent flow
-- [ ] Enable paper entry logic
+- [x] Define paper order intent flow
+- [x] Enable paper entry logic
 - [ ] Enable paper exit logic
-- [ ] Make paper fill assumptions clear
-- [ ] Make paper execution logging clear
+- [x] Make paper fill assumptions clear
+- [x] Make paper execution logging clear
 
 ### 19. Paper Portfolio Surface
 
-- [ ] Show open paper positions
-- [ ] Show realized PnL
-- [ ] Show unrealalized PnL
-- [ ] Show summary through bot/API
+- [x] Show open paper positions
+- [x] Show realized PnL
+- [x] Show unrealalized PnL
+- [x] Show summary through bot/API
 
 ### 20. Paper Risk Controls
 
-- [ ] Enforce exposure caps
-- [ ] Enforce drawdown caps
-- [ ] Enforce kill switch
-- [ ] Show risk state clearly
+- [x] Enforce exposure caps
+- [x] Enforce drawdown caps
+- [x] Enforce kill switch
+- [x] Show risk state clearly
 
 ### 21. Paper Strategy Visibility
 
@@ -596,7 +596,7 @@ This is the final finish layer.
 
 ### Right Now
 
-- [ ] Start Priority 2 security baseline hardening lane
-- [ ] Ensure secrets are redacted across logs and runtime status surfaces
-- [ ] Verify admin/sensitive route protections stay explicit and testable
-- [ ] Prepare deployment hardening kickoff once security baseline lane is complete
+- [x] Start Priority 3 paper-core-foundation lane (NWAP/paper-core-foundation)
+- [ ] Run SENTINEL MAJOR validation gate for paper-core-foundation
+- [ ] Continue Priority 3 with paper strategy visibility (item 21)
+- [ ] Continue Priority 3 with admin/operator controls + public UX completion (items 22-23)
