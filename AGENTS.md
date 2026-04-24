@@ -5,8 +5,8 @@
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walker-ai-team
-Version: 2.2
-Last Updated: 2026-04-24 17:57 Asia/Jakarta
+Version: 2.3
+Last Updated: 2026-04-24 18:28 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
            workflow, and operational boundaries. All other files are
            supporting documents. When conflict exists, AGENTS.md wins.
@@ -172,6 +172,25 @@ Simple rule:
 Use degen mode for work that is clear, safe, and execution-ready.
 Do not use degen mode for work that is ambiguous, touches a real blocker,
 or requires full safety gate coverage.
+
+---
+
+## SENTINEL ACTIVATION RULE (AUTHORITATIVE)
+
+### Normal mode
+- Per task → COMMANDER review only
+- Priority done → SENTINEL full sweep required before next priority opens
+
+### Degen mode
+- Per task → COMMANDER review only
+- Priority done → COMMANDER review only, SENTINEL deferred
+- Phase done → SENTINEL full sweep required before next phase opens
+  (non-negotiable — degen mode does NOT skip phase gate)
+
+Simple rule:
+  Normal → SENTINEL per priority done
+  Degen  → SENTINEL per phase done
+  Both   → COMMANDER review per task, always
 
 ---
 
