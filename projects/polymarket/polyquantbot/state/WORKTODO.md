@@ -99,7 +99,7 @@ Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now e
 
 Finish this after the public bot baseline works.
 
-### Status Snapshot (2026-04-24 09:12 Asia/Jakarta)
+### Status Snapshot (2026-04-24 11:53 Asia/Jakarta)
 
 #### MERGED ON MAIN
 
@@ -116,19 +116,14 @@ Finish this after the public bot baseline works.
 
 - [x] Phase 10.9 / Priority 2 security baseline hardening closed with final SENTINEL APPROVED gate for PR #742 (59-pass targeted rerun + exact branch-truth sync)
 
-#### ACTIVE (Current lane)
+#### MERGED ON MAIN (Deployment Hardening lane closure)
 
-Deployment Hardening lane
-
+- [x] Deployment Hardening lane closed: PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta by COMMANDER (SENTINEL APPROVED 98/100, zero critical issues)
 - [x] Clean up the Dockerfile
 - [x] Keep `fly.toml` in sync
 - [x] Define restart policy clearly
 - [x] Define rollback strategy clearly
 - [x] Define post-deploy smoke tests clearly
-
-#### NEXT
-
-- [ ] Close Priority 2 done condition after COMMANDER merges PR #759 (Deployment Hardening — SENTINEL APPROVED 98/100)
 
 ### 9. Supabase / Postgres Integration Hardening
 
@@ -192,7 +187,7 @@ Deployment Hardening lane
 
 ### Done Condition
 
-- [ ] The bot is not just running, but stable and persistent
+- [x] The bot is not just running, but stable and persistent
 
 ---
 
@@ -588,7 +583,7 @@ This is the final finish layer.
 ### Simple Execution Order
 
 - [x] PRIORITY 1 — Public Bot Runtime and Baseline
-- [ ] PRIORITY 2 — DB, Persistence, and Runtime Hardening
+- [x] PRIORITY 2 — DB, Persistence, and Runtime Hardening
 - [ ] PRIORITY 3 — Paper Trading Product Completion
 - [ ] PRIORITY 4 — Wallet Lifecycle Foundation
 - [ ] PRIORITY 5 — Portfolio Management Logic
