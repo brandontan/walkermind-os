@@ -18,6 +18,7 @@ class PaperRiskGate:
     LIQUIDITY_FLOOR = 10000.0
     MAX_EXPOSURE = 0.10
     MAX_DRAWDOWN = 0.08
+    DAILY_LOSS_LIMIT = -2000.0
 
     def evaluate(self, signal: CandidateSignal, state: PublicBetaState) -> RiskDecision:
         if state.kill_switch:
@@ -62,8 +63,8 @@ class PaperRiskGate:
             "min_edge": self.MIN_EDGE,
             "liquidity_floor_usd": self.LIQUIDITY_FLOOR,
             "daily_pnl_usd": round(daily_pnl, 2),
-            "daily_loss_limit_usd": -2000.0,
-            "daily_pnl_ok": daily_pnl >= -2000.0,
+            "daily_loss_limit_usd": self.DAILY_LOSS_LIMIT,
+            "daily_pnl_ok": daily_pnl >= self.DAILY_LOSS_LIMIT,
             "last_risk_reason": state.last_risk_reason,
             "wallet_cash": state.wallet_cash,
             "wallet_equity": state.wallet_equity,

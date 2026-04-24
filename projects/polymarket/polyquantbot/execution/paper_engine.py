@@ -47,7 +47,7 @@ from typing import Optional, Set
 
 import structlog
 
-from ..core.wallet_engine import WalletEngine, InsufficientFundsError
+from ..core.wallet_engine import WalletEngine, WalletState, InsufficientFundsError
 from ..core.positions import PaperPositionManager
 from ..core.ledger import TradeLedger, LedgerEntry, LedgerAction
 
@@ -129,11 +129,33 @@ class PaperEngine:
         self._ledger = ledger
         self._pnl_tracker = pnl_tracker
         self._processed_trade_ids: Set[str] = set()
-        # Use a private seeded Random so tests can pass random_seed for reproducibility.
-        # Production callers leave random_seed=None for non-deterministic simulation.
         self._rng: random.Random = random.Random(random_seed)
 
         log.info("paper_engine_initialized", seeded=random_seed is not None)
+
+    # ── Public read API (avoids private-member access across module boundaries) ─
+
+    def get_wallet_state(self) -> WalletState:
+        """Return current wallet state snapshot."""
+        return self._wallet.get_state()
+
+    def get_open_positions(self) -> list:
+        """Return all currently open paper positions."""
+        return self._positions.get_all_open()
+
+    def get_realized_pnl(self) -> float:
+        """Return total realized PnL from the trade ledger."""
+        return self._ledger.get_realized_pnl()
+
+    @property
+    def position_manager(self) -> PaperPositionManager:
+        """Expose PaperPositionManager for dependency injection into Telegram handlers."""
+        return self._positions
+
+    @property
+    def pnl_tracker(self) -> Optional[object]:
+        """Expose PnLTracker for dependency injection into Telegram handlers."""
+        return self._pnl_tracker
 
     # ── Public API ────────────────────────────────────────────────────────────
 

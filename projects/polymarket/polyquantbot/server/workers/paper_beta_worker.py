@@ -10,7 +10,7 @@ from projects.polymarket.polyquantbot.configs.falcon import FalconSettings
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE, WorkerIterationSummary
 from projects.polymarket.polyquantbot.server.execution.paper_execution import PaperExecutionEngine
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
-from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio
+from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio, _register_portfolio
 from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import PaperRiskGate
 
 log = structlog.get_logger(__name__)
@@ -136,8 +136,9 @@ class PaperBetaWorker:
 async def run_worker_loop(iterations: int = 1) -> None:
     falcon = FalconGateway(FalconSettings.from_env())
 
-    # Build real engine stack
+    # Build real engine stack and register as active singleton for operator /reset
     portfolio = PaperPortfolio()
+    _register_portfolio(portfolio)
     engine = PaperExecutionEngine(portfolio)
 
     worker = PaperBetaWorker(

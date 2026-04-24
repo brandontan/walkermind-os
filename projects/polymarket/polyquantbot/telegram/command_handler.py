@@ -1431,47 +1431,15 @@ class CommandHandler:
         return CommandResult(success=True, message=text)
 
     async def _handle_pnl(self) -> CommandResult:
-        """Return realized + unrealized PnL summary for the paper account."""
-        from .handlers import trade as _trade_handler
+        """Return realized + unrealized PnL summary from STATE (single source of truth)."""
+        from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
         from ..client.telegram.presentation import format_pnl_reply
 
-        realized = 0.0
-        unrealized = 0.0
-        cash = 0.0
-        equity = 0.0
-        position_count = 0
-
-        pm = _trade_handler._position_manager
-        pt = _trade_handler._pnl_tracker
-        pe = _trade_handler._paper_engine
-
-        if pm is not None:
-            try:
-                open_pos = pm.get_all_open()
-                position_count = len(open_pos)
-                unrealized = sum(p.unrealized_pnl for p in open_pos)
-            except Exception as exc:
-                log.warning("pnl_handler_position_fetch_error", error=str(exc))
-
-        if pt is not None:
-            try:
-                summary = pt.summary()
-                realized = summary.get("total_realized", 0.0)
-            except Exception as exc:
-                log.warning("pnl_handler_pnl_tracker_error", error=str(exc))
-        elif pe is not None:
-            try:
-                realized = pe._ledger.get_realized_pnl()  # type: ignore[attr-defined]
-            except Exception:
-                pass
-
-        if pe is not None:
-            try:
-                ws = pe._wallet.get_state()  # type: ignore[attr-defined]
-                cash = ws.cash
-                equity = ws.equity
-            except Exception:
-                pass
+        realized = STATE.realized_pnl
+        unrealized = sum(p.unrealized_pnl for p in STATE.positions)
+        cash = STATE.wallet_cash
+        equity = STATE.wallet_equity
+        position_count = len(STATE.positions)
 
         msg = format_pnl_reply(
             realized=realized,
@@ -1494,13 +1462,22 @@ class CommandHandler:
         )
 
     async def _handle_reset(self) -> CommandResult:
-        """Operator-only: reset paper account to initial balance."""
+        """Operator-only: reset the live paper account to initial balance.
+
+        Uses the active-portfolio singleton registered by run_worker_loop() so
+        the reset affects the actual running engine, not a disconnected instance.
+        """
         from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
-        from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio
+        from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import get_active_portfolio
         from ..client.telegram.presentation import format_portfolio_reset_reply
 
         try:
-            portfolio = PaperPortfolio()
+            portfolio = get_active_portfolio()
+            if portfolio is None:
+                return CommandResult(
+                    success=False,
+                    message="No active paper portfolio found. Worker may not be running.",
+                )
             await portfolio.reset(STATE)
             log.info("command_paper_reset_executed", equity=STATE.wallet_equity)
             return CommandResult(

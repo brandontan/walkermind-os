@@ -3,8 +3,10 @@
 Replaces the 21-line stub with proper PaperEngine integration including:
 - Fractional Kelly (a=0.25) position sizing
 - Real wallet / position / ledger / PnL tracking via core engines
-- STATE synchronisation after every execution
-- Operator reset path
+- STATE synchronisation after every execution (incl. drawdown + net PnL)
+- Per-signal edge tracking so STATE.positions retains edge values
+- Peak-equity drawdown calculation for live risk gate enforcement
+- Operator reset path via module-level active-portfolio singleton
 
 Constants (per AGENTS.md hard rules):
     KELLY_FRACTION   = 0.25   (fractional only — a=1.0 FORBIDDEN)
@@ -37,6 +39,24 @@ _KELLY_FRACTION: float = 0.25       # fractional Kelly — never 1.0
 _MAX_POSITION_PCT: float = 0.10     # max 10 % of equity per position
 _MIN_POSITION_USD: float = 10.0     # minimum trade size in USD
 
+# ── Module-level active-portfolio singleton ───────────────────────────────────
+# Registered by run_worker_loop() so operator /reset can reach the live instance.
+_ACTIVE_PORTFOLIO: Optional["PaperPortfolio"] = None
+
+
+def get_active_portfolio() -> Optional["PaperPortfolio"]:
+    """Return the currently active PaperPortfolio registered by the worker."""
+    return _ACTIVE_PORTFOLIO
+
+
+def _register_portfolio(portfolio: "PaperPortfolio") -> None:
+    """Register the live portfolio instance (called from run_worker_loop)."""
+    global _ACTIVE_PORTFOLIO  # noqa: PLW0603
+    _ACTIVE_PORTFOLIO = portfolio
+    log.info("paper_portfolio_registered", engine_id=id(portfolio._engine))
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _build_paper_engine() -> PaperEngine:
     """Construct and wire the full core engine stack."""
@@ -64,29 +84,7 @@ def _kelly_size(edge: float, price: float, equity: float) -> float:
     return max(round(size, 2), _MIN_POSITION_USD)
 
 
-def _sync_state(engine: PaperEngine, state: PublicBetaState) -> None:
-    """Sync PublicBetaState from real engine components."""
-    ws = engine._wallet.get_state()  # type: ignore[attr-defined]
-    state.wallet_cash = ws.cash
-    state.wallet_locked = ws.locked
-    state.wallet_equity = ws.equity
-
-    open_positions = engine._positions.get_all_open()  # type: ignore[attr-defined]
-    state.positions = [
-        StatePaperPosition(
-            condition_id=p.market_id,
-            side=p.side,
-            size=p.size,
-            entry_price=p.entry_price,
-            edge=0.0,
-            unrealized_pnl=p.unrealized_pnl,
-        )
-        for p in open_positions
-    ]
-
-    state.exposure = ws.locked / max(ws.equity, 1.0) if ws.equity > 0 else 0.0
-    state.realized_pnl = engine._ledger.get_realized_pnl()  # type: ignore[attr-defined]
-    state.pnl = state.realized_pnl
+# ── Portfolio ─────────────────────────────────────────────────────────────────
 
 
 class PaperPortfolio:
@@ -99,7 +97,51 @@ class PaperPortfolio:
     def __init__(self, paper_engine: Optional[PaperEngine] = None) -> None:
         self._engine: PaperEngine = paper_engine if paper_engine is not None else _build_paper_engine()
         self._lock = asyncio.Lock()
+        # Peak equity for drawdown calculation — starts at initial wallet equity.
+        self._peak_equity: float = self._engine.get_wallet_state().equity
+        # Signal edge map — persists edge per condition_id so _sync_state can restore it.
+        self._signal_edges: dict[str, float] = {}
         log.info("paper_portfolio_initialized", engine_id=id(self._engine))
+
+    # ── STATE sync ────────────────────────────────────────────────────────────
+
+    def _sync_state(self, state: PublicBetaState) -> None:
+        """Sync PublicBetaState from real engine components.
+
+        Updates: wallet fields, positions (with edge), exposure, realized PnL,
+        net PnL (realized + unrealized), and drawdown.
+        """
+        ws = self._engine.get_wallet_state()
+        state.wallet_cash = ws.cash
+        state.wallet_locked = ws.locked
+        state.wallet_equity = ws.equity
+
+        # Peak equity tracking for drawdown
+        if ws.equity > self._peak_equity:
+            self._peak_equity = ws.equity
+        drawdown = (self._peak_equity - ws.equity) / max(self._peak_equity, 1.0)
+        state.drawdown = round(max(drawdown, 0.0), 6)
+
+        open_positions = self._engine.get_open_positions()
+        state.positions = [
+            StatePaperPosition(
+                condition_id=p.market_id,
+                side=p.side,
+                size=p.size,
+                entry_price=p.entry_price,
+                edge=self._signal_edges.get(p.market_id, 0.0),
+                unrealized_pnl=p.unrealized_pnl,
+            )
+            for p in open_positions
+        ]
+
+        state.exposure = ws.locked / max(ws.equity, 1.0) if ws.equity > 0 else 0.0
+        realized = self._engine.get_realized_pnl()
+        unrealized = sum(p.unrealized_pnl for p in open_positions)
+        state.realized_pnl = round(realized, 4)
+        state.pnl = round(realized + unrealized, 4)   # net PnL
+
+    # ── Public interface ──────────────────────────────────────────────────────
 
     async def open_position(
         self,
@@ -116,9 +158,12 @@ class PaperPortfolio:
             StatePaperPosition representing the opened/accumulated position.
         """
         async with self._lock:
-            ws = self._engine._wallet.get_state()  # type: ignore[attr-defined]
+            ws = self._engine.get_wallet_state()
             equity = max(ws.equity, 1.0)
             size_usd = _kelly_size(signal.edge, signal.price, equity)
+
+            # Persist edge so _sync_state can include it in STATE.positions
+            self._signal_edges[signal.condition_id] = signal.edge
 
             trade_id = f"sig-{signal.signal_id[:16]}-{uuid.uuid4().hex[:8]}"
             order = {
@@ -131,7 +176,7 @@ class PaperPortfolio:
 
             result = await self._engine.execute_order(order)
             state.processed_signals.add(signal.signal_id)
-            _sync_state(self._engine, state)
+            self._sync_state(state)
 
             log.info(
                 "paper_portfolio_position_opened",
@@ -144,7 +189,7 @@ class PaperPortfolio:
             )
 
             # Return state-facing position (most recent open for this market)
-            open_positions = self._engine._positions.get_all_open()  # type: ignore[attr-defined]
+            open_positions = self._engine.get_open_positions()
             matched = next(
                 (p for p in open_positions if p.market_id == signal.condition_id),
                 None,
@@ -175,19 +220,13 @@ class PaperPortfolio:
         close_price: float,
         state: PublicBetaState,
     ) -> None:
-        """Close a position and sync STATE.
-
-        Args:
-            market_id:   Polymarket condition ID.
-            close_price: Exit price.
-            state:       Live PublicBetaState to synchronise after execution.
-        """
+        """Close a position and sync STATE."""
         async with self._lock:
             await self._engine.close_order(
                 market_id=market_id,
                 close_price=close_price,
             )
-            _sync_state(self._engine, state)
+            self._sync_state(state)
             log.info(
                 "paper_portfolio_position_closed",
                 market_id=market_id,
@@ -199,12 +238,11 @@ class PaperPortfolio:
 
         Operator-only path. Resets wallet to initial balance, clears
         all positions, ledger, PnL tracker, and processed signals.
-
-        Args:
-            state: Live PublicBetaState to reset.
         """
         async with self._lock:
             self._engine = _build_paper_engine()
+            self._peak_equity = self._engine.get_wallet_state().equity
+            self._signal_edges = {}
             state.positions = []
             state.processed_signals = set()
             state.pnl = 0.0
@@ -212,7 +250,7 @@ class PaperPortfolio:
             state.drawdown = 0.0
             state.exposure = 0.0
             state.last_risk_reason = ""
-            _sync_state(self._engine, state)
+            self._sync_state(state)
             log.info("paper_portfolio_reset", equity=state.wallet_equity)
 
     def get_paper_engine(self) -> PaperEngine:
@@ -221,12 +259,12 @@ class PaperPortfolio:
 
     def get_position_manager(self) -> PaperPositionManager:
         """Return the PaperPositionManager for Telegram handler injection."""
-        return self._engine._positions  # type: ignore[attr-defined]
+        return self._engine.position_manager
 
-    def get_pnl_tracker(self) -> PnLTracker:
+    def get_pnl_tracker(self) -> object:
         """Return the PnLTracker for Telegram handler injection."""
-        return self._engine._pnl_tracker  # type: ignore[attr-defined]
+        return self._engine.pnl_tracker
 
     def sync_state(self, state: PublicBetaState) -> None:
         """Force a STATE sync — useful after price updates."""
-        _sync_state(self._engine, state)
+        self._sync_state(state)

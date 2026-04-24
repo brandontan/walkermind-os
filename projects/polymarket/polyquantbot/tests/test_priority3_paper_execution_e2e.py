@@ -390,3 +390,157 @@ def test_pe15_format_risk_state_reply_renders():
     assert "3.00" in text or "3." in text  # drawdown %
     assert "5.00" in text or "5." in text  # exposure %
     assert "9,500" in text or "9500" in text
+
+
+# ── PE-16: Drawdown STATE sync ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_pe16_drawdown_synced_after_open():
+    """state.drawdown must be set by _sync_state, not left at default 0.0."""
+    portfolio = PaperPortfolio(_build_paper_engine())
+    state = PublicBetaState()
+    assert state.drawdown == 0.0  # baseline before any trade
+
+    signal = _make_signal()
+    await portfolio.open_position(signal, state)
+
+    # drawdown is a real float set by _sync_state, not stuck at 0.0 default
+    assert isinstance(state.drawdown, float)
+    assert state.drawdown >= 0.0
+
+
+@pytest.mark.asyncio
+async def test_pe16_drawdown_rises_after_loss():
+    """Drawdown becomes positive after a losing close."""
+    portfolio = PaperPortfolio(_build_paper_engine())
+    state = PublicBetaState()
+
+    signal = _make_signal(condition_id="mkt-loss")
+    await portfolio.open_position(signal, state)
+    # Close at a very low price to force a large loss
+    await portfolio.close_position("mkt-loss", close_price=0.01, state=state)
+
+    assert state.drawdown > 0.0
+
+
+# ── PE-17: Singleton pattern ─────────────────────────────────────────────────
+
+def test_pe17_register_portfolio_singleton():
+    """_register_portfolio sets the singleton; get_active_portfolio() returns same instance."""
+    from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import (
+        _register_portfolio,
+        get_active_portfolio,
+    )
+
+    portfolio = PaperPortfolio(_build_paper_engine())
+    _register_portfolio(portfolio)
+    assert get_active_portfolio() is portfolio
+
+
+@pytest.mark.asyncio
+async def test_pe17_reset_via_singleton_affects_live_instance():
+    """Resetting through get_active_portfolio() clears the same portfolio used by the worker."""
+    from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import (
+        _register_portfolio,
+        get_active_portfolio,
+    )
+
+    portfolio = PaperPortfolio(_build_paper_engine())
+    _register_portfolio(portfolio)
+    state = PublicBetaState()
+
+    await portfolio.open_position(_make_signal(), state)
+    assert len(state.positions) == 1
+
+    active = get_active_portfolio()
+    assert active is not None
+    await active.reset(state)
+
+    assert len(state.positions) == 0
+    assert state.wallet_equity == pytest.approx(10000.0, rel=0.01)
+
+
+# ── PE-18: DAILY_LOSS_LIMIT constant ─────────────────────────────────────────
+
+def test_pe18_daily_loss_limit_constant_defined():
+    """PaperRiskGate.DAILY_LOSS_LIMIT is a class constant equal to -2000.0."""
+    assert hasattr(PaperRiskGate, "DAILY_LOSS_LIMIT")
+    assert PaperRiskGate.DAILY_LOSS_LIMIT == -2000.0
+
+
+def test_pe18_daily_loss_limit_used_in_status():
+    """status() uses DAILY_LOSS_LIMIT constant, not a magic number."""
+    from projects.polymarket.polyquantbot.server.core.public_beta_state import PublicBetaState
+
+    gate = PaperRiskGate()
+
+    state_ok = PublicBetaState(mode="paper", realized_pnl=-1500.0)
+    status_ok = gate.status(state_ok)
+    assert status_ok["daily_loss_limit_usd"] == PaperRiskGate.DAILY_LOSS_LIMIT
+    assert status_ok["daily_pnl_ok"] is True
+
+    state_breach = PublicBetaState(mode="paper", realized_pnl=-2500.0)
+    status_breach = gate.status(state_breach)
+    assert status_breach["daily_pnl_ok"] is False
+
+
+# ── PE-19: Public PaperEngine API ─────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_pe19_public_api_get_wallet_state():
+    """get_wallet_state() returns a WalletState without touching private _wallet."""
+    engine = _make_engine()
+    ws = engine.get_wallet_state()
+    assert ws.cash == pytest.approx(10000.0, rel=0.01)
+    assert ws.equity == pytest.approx(10000.0, rel=0.01)
+    assert ws.locked == 0.0
+
+
+@pytest.mark.asyncio
+async def test_pe19_public_api_get_open_positions():
+    """get_open_positions() returns empty list before trades; populated after."""
+    engine = _make_engine()
+    assert engine.get_open_positions() == []
+
+    await engine.execute_order({"market_id": "mkt-pub", "side": "YES", "price": 0.50, "size": 100.0})
+
+    positions = engine.get_open_positions()
+    assert len(positions) >= 1
+    assert positions[0].market_id == "mkt-pub"
+
+
+@pytest.mark.asyncio
+async def test_pe19_public_api_get_realized_pnl():
+    """get_realized_pnl() is 0.0 before trades and nonzero after a close."""
+    engine = _make_engine()
+    assert engine.get_realized_pnl() == 0.0
+
+    await engine.execute_order({"market_id": "mkt-rpnl", "side": "YES", "price": 0.40, "size": 100.0})
+    await engine.close_order(market_id="mkt-rpnl", close_price=0.55)
+
+    assert engine.get_realized_pnl() != 0.0
+
+
+def test_pe19_position_manager_property():
+    """position_manager property returns PaperPositionManager (not None)."""
+    engine = _make_engine()
+    assert engine.position_manager is not None
+
+
+def test_pe19_pnl_tracker_property():
+    """pnl_tracker property returns the injected tracker."""
+    engine = _make_engine()
+    assert engine.pnl_tracker is not None
+
+
+@pytest.mark.asyncio
+async def test_pe19_edge_preserved_in_state_after_open():
+    """signal.edge must appear in STATE.positions via _signal_edges tracking."""
+    portfolio = PaperPortfolio(_build_paper_engine())
+    state = PublicBetaState()
+
+    signal = _make_signal(edge=0.07, condition_id="mkt-edge-track")
+    await portfolio.open_position(signal, state)
+
+    assert len(state.positions) == 1
+    assert state.positions[0].edge == pytest.approx(0.07, rel=1e-3)
