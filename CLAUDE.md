@@ -1,12 +1,12 @@
 # CLAUDE.md — Walker AI DevTrade Team
 # Agent execution rules for Claude Code
-# Location: docs/CLAUDE.md
+# Location: CLAUDE.md
 # Master rules: AGENTS.md (repo root)
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walker-ai-team
-Version: 2.1
-Last Updated: 2026-04-24 HH:MM Asia/Jakarta  <- derive with python3 before commit
+Version: 2.2
+Last Updated: 2026-04-24 17:57 Asia/Jakarta
 
 ---
 
@@ -152,6 +152,13 @@ git rev-parse --abbrev-ref HEAD
 - Result is real branch → verify it matches declared NWAP/{feature} exactly (case-sensitive)
 - Mismatch → STOP, report to COMMANDER, do NOT write report or state yet
 - Never write a branch name into any artifact from memory — always from verified git output
+
+### Non-worktree mismatch rule
+
+If branch verification (git rev-parse) returns a real branch name that differs
+from the declared COMMANDER branch (not `work`, not detached HEAD) ->
+STOP immediately. Report exact mismatch to COMMANDER.
+Do not write any report, state file, or artifact until COMMANDER resolves.
 
 ---
 

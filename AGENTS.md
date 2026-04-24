@@ -5,8 +5,8 @@
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walker-ai-team
-Version: 2.1
-Last Updated: 2026-04-24 HH:MM Asia/Jakarta  ← derive with python3 before commit
+Version: 2.2
+Last Updated: 2026-04-24 17:57 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
            workflow, and operational boundaries. All other files are
            supporting documents. When conflict exists, AGENTS.md wins.
@@ -229,9 +229,9 @@ Full project list is maintained in `PROJECT_REGISTRY.md` at repo root.
 walker-ai-team/
 ├── AGENTS.md                              <- highest authority (global rules)
 ├── PROJECT_REGISTRY.md                    <- project list and active status
+├── CLAUDE.md                              <- rules for Claude Code agent
 ├── docs/
 │   ├── COMMANDER.md                       <- COMMANDER operating reference
-│   ├── CLAUDE.md                          <- rules for Claude Code agent
 │   ├── KNOWLEDGE_BASE.md                  <- architecture, infra, API reference
 │   ├── blueprint/
 │   │   └── crusaderbot.md             <- format: docs/blueprint/{project_name}.md
@@ -279,9 +279,9 @@ walker-ai-team/
 ```text
 AGENTS.md                              <- global rules (repo root)
 PROJECT_REGISTRY.md                    <- project list (repo root)
+CLAUDE.md                              <- rules for Claude Code agent (repo root)
 
 docs/COMMANDER.md
-docs/CLAUDE.md
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md  <- active blueprint (format: docs/blueprint/{project_name}.md)
 docs/templates/PROJECT_STATE_TEMPLATE.md
@@ -501,7 +501,7 @@ Always read:
 Read if needed:
 - `docs/KNOWLEDGE_BASE.md` -> architecture, infra, API, conventions
 - `docs/blueprint/crusaderbot.md` -> CrusaderBot target architecture and runtime boundaries
-- `docs/CLAUDE.md` -> repo-specific workflow
+- `CLAUDE.md` -> repo-specific workflow
 - `docs/templates/PROJECT_STATE_TEMPLATE.md`
 - `docs/templates/ROADMAP_TEMPLATE.md`
 - `docs/templates/TPL_INTERACTIVE_REPORT.html` -> BRIEFER browser/mobile
@@ -860,13 +860,18 @@ Wrong:
 - `fix/risk-drawdown-circuit-20260417` (non-authoritative prefix)
 
 ### Traceability
-Branch name in forge report must match actual PR head branch exactly. If Codex generates a different branch than declared, FORGE-X updates the report to match reality — not the task declaration.
+The declared branch name from COMMANDER task is authoritative.
+Codex MUST use the exact declared NWAP/{feature} name.
+If actual git branch differs from declared (non-worktree case) ->
+STOP, do not write any artifact, report mismatch to COMMANDER.
 
 ### Codex / worktree normalization
 - `git rev-parse` may return `work`; HEAD may be detached — this is normal
 - if `git rev-parse` returns `work`, never write `Branch: work` in any report
 - use the branch name declared in the COMMANDER task, or the actual PR head branch if PR exists
-- branch mismatch alone is never a blocker — block only on actual scope / change intent mismatch
+- worktree label mismatch (git rev-parse returns `work` or detached HEAD) alone is never a blocker
+  — this is an env artifact, fall back to declared COMMANDER branch name
+  — a real branch name that differs from declared = hard stop, not a cosmetic issue
 
 ---
 
@@ -1206,7 +1211,11 @@ Max items per section:
 - KNOWN ISSUES <= 10
 
 If a section is at cap and a new scoped entry needs to go in:
-- COMPLETED: oldest completed item moves to ROADMAP.md archive note or is dropped if already reflected there
+- COMPLETED: entries are temporary operational visibility, not permanent history.
+  Prune older completed entries when the truth is already represented by:
+  reports filed, merged PR continuity, and ROADMAP.md where relevant.
+  Do not accumulate completed items across sessions.
+  Never append history — preserve current operational truth only.
 - KNOWN ISSUES: oldest resolved-but-not-removed entry is pruned; if all entries are unresolved, escalate to COMMANDER — do not drop unresolved truth
 - IN PROGRESS / NOT STARTED: re-scope or move stale items to ROADMAP backlog
 

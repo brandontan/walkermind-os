@@ -5,8 +5,8 @@ For all system rules (tiers, claims, branch format, report/state/roadmap rules, 
 
 Rule priority: `AGENTS.md` > `PROJECT_REGISTRY.md` > `{PROJECT_ROOT}/state/PROJECT_STATE.md` > `{PROJECT_ROOT}/state/ROADMAP.md` > latest relevant forge report > this file.
 
-Version: 2.1
-Last Updated: 2026-04-24 HH:MM Asia/Jakarta  ← derive with python3 before commit
+Version: 2.2
+Last Updated: 2026-04-24 17:57 Asia/Jakarta
 
 ---
 
