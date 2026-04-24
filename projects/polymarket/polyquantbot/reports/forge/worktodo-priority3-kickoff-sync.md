@@ -19,9 +19,12 @@ Replaced with Priority 3 paper trading product completion kickoff scope:
 - Define paper order intent flow (section 18 — first task)
 - Priority 3 kickoff — paper account model + execution engine first
 
-PROJECT_STATE.md and ROADMAP.md are already in sync:
-- PROJECT_STATE.md [NEXT PRIORITY] already references Priority 3 scoping — no change needed.
-- ROADMAP.md has no milestone change — MINOR task, ROADMAP.md untouched per AGENTS.md ROADMAP RULE.
+PROJECT_STATE.md [NEXT PRIORITY] was updated: removed two stale review items
+(patch-sentinel-activation-rule and NWAP/repo-structure-state-migration) that no longer reflect
+current main truth. Replaced with truthful next-priority wording: PR #769 disposition and
+Priority 3 kickoff scope. Last Updated bumped to 2026-04-25 00:18 Asia/Jakarta.
+
+ROADMAP.md has no milestone change — MINOR task, ROADMAP.md untouched per AGENTS.md ROADMAP RULE.
 
 This PR replaces invalid-branch PR #768 (closed without merge).
 
@@ -30,6 +33,7 @@ This PR replaces invalid-branch PR #768 (closed without merge).
 ## 2. Files Modified
 
 - `projects/polymarket/polyquantbot/state/WORKTODO.md` — Right Now section replaced
+- `projects/polymarket/polyquantbot/state/PROJECT_STATE.md` — [NEXT PRIORITY] updated; Last Updated bumped
 - `projects/polymarket/polyquantbot/state/CHANGELOG.md` — Lane closure entry appended
 - `projects/polymarket/polyquantbot/reports/forge/worktodo-priority3-kickoff-sync.md` — This report
 
@@ -39,6 +43,6 @@ This PR replaces invalid-branch PR #768 (closed without merge).
 
 Validation Tier   : MINOR
 Claim Level       : FOUNDATION
-Validation Target : WORKTODO.md "Right Now" section accuracy only — stale P2 items removed, P3 kickoff scope set
-Not in Scope      : PROJECT_STATE.md (already synced), ROADMAP.md (no milestone change), any code
+Validation Target : WORKTODO.md "Right Now" section accuracy + PROJECT_STATE.md [NEXT PRIORITY] truth sync
+Not in Scope      : ROADMAP.md (no milestone change), any code, Priority 3 implementation
 Suggested Next    : COMMANDER review
