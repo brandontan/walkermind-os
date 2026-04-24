@@ -69,7 +69,8 @@ walker-ai-team/
     │       ├── state/
     │       │   ├── PROJECT_STATE.md    ← operational truth
     │       │   ├── ROADMAP.md          ← milestone truth
-    │       │   └── work_checklist.md   ← task tracking
+    │       │   ├── WORKTODO.md         ← task tracking
+    │       │   └── CHANGELOG.md        ← lane closure history
     │       ├── core/ · data/ · strategy/ · intelligence/
     │       ├── risk/ · execution/ · monitoring/
     │       ├── api/ · infra/ · backtest/
@@ -96,7 +97,7 @@ walker-ai-team/
 | 2 | `PROJECT_REGISTRY.md` | Active project navigation |
 | 3 | `{PROJECT_ROOT}/state/PROJECT_STATE.md` | Current operational state |
 | 4 | `{PROJECT_ROOT}/state/ROADMAP.md` | Phase and milestone truth |
-| 5 | `{PROJECT_ROOT}/state/work_checklist.md` | Granular task tracking |
+| 5 | `{PROJECT_ROOT}/state/WORKTODO.md` | Granular task tracking |
 | 6 | `reports/forge/`, `reports/sentinel/` | Build and validation evidence |
 
 When sources conflict: `AGENTS.md` wins. Code truth wins over report wording.
