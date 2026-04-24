@@ -1,5 +1,5 @@
-Last Updated : 2026-04-25 00:18
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Priority 2 done condition closed (PR #759, SENTINEL APPROVED 98/100); WORKTODO Right Now section synced to Priority 3 scope via PR #769 (NWAP/worktodo-priority3-kickoff-sync, pending COMMANDER review).
+Last Updated : 2026-04-25 00:40
+Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Priority 2 done condition closed (PR #759, SENTINEL APPROVED 98/100); WORKTODO Right Now section synced to Priority 3 kickoff scope via NWAP/worktodo-priority3-kickoff-sync.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on feature/consolidate-telegram-ui-ux-layer: active Telegram source of truth remains projects/polymarket/polyquantbot/telegram, deprecated interface/telegram/__init__.py legacy marker is archived under projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/, and only thin compatibility shims remain under projects/polymarket/polyquantbot/interface/telegram/view_handler.py + projects/polymarket/polyquantbot/interface/ui_formatter.py + projects/polymarket/polyquantbot/interface/telegram/__init__.py.
