@@ -1,4 +1,4 @@
-# docs/COMMANDER.md — COMMANDER Operating Reference
+# COMMANDER.md — COMMANDER Operating Reference
 
 **CRITICAL:** This file is COMMANDER persona and operating reference only.
 For all system rules (tiers, claims, branch format, report/state/roadmap rules, risk constants, pipeline, domain, failure conditions, drift, pre-flight), read `AGENTS.md`. AGENTS.md is the single source of truth and always wins on conflict.
