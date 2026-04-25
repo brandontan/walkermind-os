@@ -30,6 +30,7 @@ from projects.polymarket.polyquantbot.server.schemas.portfolio import (
     MAX_CONCENTRATION_PCT,
     MAX_DRAWDOWN,
     MAX_POSITION_PCT,
+    MAX_TOTAL_EXPOSURE_PCT,
     MIN_POSITION_USD,
     AllocationPlan,
     ExposureReport,
@@ -255,10 +256,15 @@ class PortfolioService:
                 edge = float(sig.get("edge", 0.0))
                 price = max(float(sig.get("price", 0.01)), 0.01)
 
+                if edge <= 0:
+                    continue
+
                 kelly_f = edge / price
-                size_usd = effective_equity * KELLY_FRACTION * kelly_f
-                size_usd = min(size_usd, effective_equity * MAX_POSITION_PCT)
-                size_usd = max(round(size_usd, 2), MIN_POSITION_USD)
+                size_usd = round(effective_equity * KELLY_FRACTION * kelly_f, 2)
+                size_usd = min(size_usd, round(effective_equity * MAX_POSITION_PCT, 2))
+
+                if size_usd < MIN_POSITION_USD:
+                    continue
 
                 allocations.append(
                     SignalAllocation(
@@ -334,9 +340,9 @@ class PortfolioService:
                 f"drawdown_exceeded:{round(drawdown, 4)}_max:{MAX_DRAWDOWN}"
             )
 
-        if exposure_pct > MAX_POSITION_PCT:
+        if exposure_pct > MAX_TOTAL_EXPOSURE_PCT:
             violations.append(
-                f"exposure_cap_exceeded:{round(exposure_pct, 4)}_max:{MAX_POSITION_PCT}"
+                f"exposure_cap_exceeded:{round(exposure_pct, 4)}_max:{MAX_TOTAL_EXPOSURE_PCT}"
             )
 
         max_single_market_pct = 0.0

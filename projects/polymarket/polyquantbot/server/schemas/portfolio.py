@@ -25,11 +25,12 @@ from uuid import uuid4
 
 # ── Risk constants (LOCKED per AGENTS.md) ────────────────────────────────────
 KELLY_FRACTION: float = 0.25
-MAX_POSITION_PCT: float = 0.10
+MAX_POSITION_PCT: float = 0.10        # max 10% of equity per single position
+MAX_TOTAL_EXPOSURE_PCT: float = 0.80  # max 80% of equity across all positions
 MIN_POSITION_USD: float = 10.0
 MAX_DRAWDOWN: float = 0.08
 DAILY_LOSS_LIMIT: float = -2000.0
-MAX_CONCENTRATION_PCT: float = 0.20
+MAX_CONCENTRATION_PCT: float = 0.20   # max 20% in one market
 
 
 def _utc_now() -> datetime:

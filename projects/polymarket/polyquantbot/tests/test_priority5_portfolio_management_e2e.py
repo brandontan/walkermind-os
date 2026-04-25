@@ -22,6 +22,7 @@ from projects.polymarket.polyquantbot.server.schemas.portfolio import (
     MAX_CONCENTRATION_PCT,
     MAX_DRAWDOWN,
     MAX_POSITION_PCT,
+    MAX_TOTAL_EXPOSURE_PCT,
     MIN_POSITION_USD,
     AllocationPlan,
     ExposureReport,
@@ -146,6 +147,7 @@ def test_pm05_constants_locked():
     """PM-05: Risk constants match AGENTS.md hard rules."""
     assert KELLY_FRACTION == 0.25
     assert MAX_POSITION_PCT == 0.10
+    assert MAX_TOTAL_EXPOSURE_PCT == 0.80
     assert MAX_DRAWDOWN == 0.08
     assert MIN_POSITION_USD == 10.0
     assert MAX_CONCENTRATION_PCT == 0.20
@@ -240,15 +242,29 @@ def test_pm12_allocation_max_position_cap():
     assert plan.allocations[0].size_usd <= 1000.0 * MAX_POSITION_PCT + 0.01
 
 
-def test_pm13_allocation_min_position_floor():
-    """PM-13: Very small signals are floored at MIN_POSITION_USD."""
+def test_pm13_allocation_below_floor_skipped():
+    """PM-13: Signal whose Kelly size falls below MIN_POSITION_USD is skipped entirely."""
     store = _make_store()
     svc = PortfolioService(store=store)
-    # Tiny edge → size below floor
+    # edge=0.001, price=0.99 → size ≈ $0.25 (well below $10 floor) → skipped
     signals = [{"signal_id": "s1", "market_id": "mkt_A", "edge": 0.001, "price": 0.99}]
     plan = svc.compute_allocation("u1", "w1", equity_usd=1000.0, signals=signals)
 
-    assert plan.allocations[0].size_usd >= MIN_POSITION_USD
+    assert len(plan.allocations) == 0
+    assert plan.total_allocated_usd == 0.0
+
+
+def test_pm13b_allocation_negative_edge_skipped():
+    """PM-13b: Signal with non-positive edge is always skipped."""
+    store = _make_store()
+    svc = PortfolioService(store=store)
+    signals = [
+        {"signal_id": "s1", "market_id": "mkt_A", "edge": 0.0, "price": 0.5},
+        {"signal_id": "s2", "market_id": "mkt_B", "edge": -0.05, "price": 0.5},
+    ]
+    plan = svc.compute_allocation("u1", "w1", equity_usd=1000.0, signals=signals)
+
+    assert len(plan.allocations) == 0
 
 
 def test_pm14_allocation_multi_signal():
@@ -404,12 +420,12 @@ def test_pm23_guardrails_drawdown_exceeded():
 
 
 def test_pm24_guardrails_exposure_cap_exceeded():
-    """PM-24: Total exposure > 10% triggers violation."""
+    """PM-24: Total exposure > MAX_TOTAL_EXPOSURE_PCT (80%) triggers violation."""
     store = _make_store()
     svc = PortfolioService(store=store)
     result = svc.check_guardrails(
         drawdown=0.01,
-        exposure_pct=0.15,  # over 10%
+        exposure_pct=0.85,  # over 80% total exposure cap
         per_market_exposure={},
         equity_usd=1000.0,
         kill_switch_active=False,

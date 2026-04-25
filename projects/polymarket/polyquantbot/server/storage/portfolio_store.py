@@ -206,14 +206,14 @@ class PortfolioStore:
             SELECT market_id, side, size, entry_price, current_price,
                    unrealized_pnl, opened_at
             FROM paper_positions
-            WHERE status = 'OPEN'
+            WHERE status = 'OPEN' AND user_id = $1
         """
         try:
             pool = self._db._pool
             if pool is None:
                 return []
             async with pool.acquire() as conn:
-                rows = await conn.fetch(sql)
+                rows = await conn.fetch(sql, user_id)
             return [
                 PortfolioPosition(
                     market_id=str(r["market_id"]),
@@ -242,14 +242,14 @@ class PortfolioStore:
         sql = """
             SELECT market_id, size
             FROM paper_positions
-            WHERE status = 'OPEN'
+            WHERE status = 'OPEN' AND user_id = $1
         """
         try:
             pool = self._db._pool
             if pool is None:
                 return {}
             async with pool.acquire() as conn:
-                rows = await conn.fetch(sql)
+                rows = await conn.fetch(sql, user_id)
             return {str(r["market_id"]): float(r["size"]) for r in rows}
         except Exception as exc:  # noqa: BLE001
             log.error(

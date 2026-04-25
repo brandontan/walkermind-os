@@ -108,6 +108,19 @@ CREATE TABLE IF NOT EXISTS strategy_state (
 );
 """
 
+_DDL_MIGRATE_PAPER_POSITIONS_USER_ID = """
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'paper_positions' AND column_name = 'user_id'
+    ) THEN
+        ALTER TABLE paper_positions ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
+    END IF;
+END
+$$;
+"""
+
 _DDL_MIGRATE_TRADES_USER_ID = """
 DO $$
 BEGIN
@@ -397,6 +410,7 @@ class DatabaseClient:
             # Pre-capital hardening tables
             await conn.execute(_DDL_WALLET_STATE)
             await conn.execute(_DDL_PAPER_POSITIONS)
+            await conn.execute(_DDL_MIGRATE_PAPER_POSITIONS_USER_ID)
             await conn.execute(_DDL_TRADE_LEDGER)
             # Priority 4: wallet lifecycle
             await conn.execute(_DDL_WALLET_LIFECYCLE)
