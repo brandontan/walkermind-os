@@ -9,7 +9,7 @@ Status       : Priority 5 portfolio management logic is built under degen struct
 - Deployment Hardening Priority 2 lane is closed via PR #759 with SENTINEL APPROVED 98/100 and zero critical issues.
 - Priority 3 paper trading product completion is merged to main via PR #770 from NWAP/paper-product-core; compact SENTINEL gate record APPROVED 95/100 with zero critical issues.
 - Priority 4 wallet lifecycle foundation is merged to main via PR #772 from NWAP/wallet-lifecycle-foundation; COMMANDER degen structure review accepted and full SENTINEL is deferred to pre-public sweep.
-- Priority 5 portfolio management logic is built (sections 31-36); schemas, store, service, routes, and 25/25 tests passing; COMMANDER review and merge pending.
+- Priority 5 portfolio management logic is built (sections 31-36); schemas, store, service, 6 routes, and 29/29 tests passing (PM-01..PM-28 + PM-13b); COMMANDER review and merge pending.
 
 [IN PROGRESS]
 - None

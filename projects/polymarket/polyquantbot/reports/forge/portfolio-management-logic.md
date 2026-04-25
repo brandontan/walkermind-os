@@ -50,7 +50,7 @@ Scope delivered:
 - Structured log warning on any violation
 
 **Section 36 — Portfolio Surfaces and Validation:**
-- 5 FastAPI routes under `/portfolio`:
+- 6 FastAPI routes under `/portfolio`:
   - `GET /portfolio/summary` — equity, PnL, drawdown, positions
   - `GET /portfolio/positions` — open positions list
   - `GET /portfolio/pnl` — snapshot history (last 30)
@@ -140,7 +140,7 @@ Modified:
 
 ## 5. Known Issues
 
-- `compute_summary()` reads paper_positions without user_id filter — paper mode uses a single shared position store; per-user isolation is deferred to multi-wallet lane (Priority 6)
+- Portfolio routes hardcode `tenant_id="system"` and `user_id="paper_user"` — per-user route binding is deferred to Priority 6 multi-wallet lane
 - Unrealized PnL relies on `current_price` in paper_positions — this field is only updated when positions are persisted; live mark-to-market requires market data integration (deferred, same as Priority 3 debt)
 - `/portfolio` routes hardcode `tenant_id="system"` and `user_id="paper_user"` — per-user routing to be added in Priority 6
 - No live PostgreSQL validation for snapshot persistence; mocked in tests — live validation deferred to full SENTINEL pre-public sweep
