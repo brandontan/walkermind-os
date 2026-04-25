@@ -3063,8 +3063,6 @@ def _compose_public_activation_cycle_notes(
 # above, which manage trading-wallet state storage and public activation.
 # ─────────────────────────────────────────────────────────────────────────────
 
-from __future__ import annotations  # noqa: E402 — needed after the module body
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
