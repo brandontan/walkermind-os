@@ -365,16 +365,16 @@ Build this after wallet and portfolio are ready.
 
 ### 37. Orchestration Model
 
-- [ ] Define multi-wallet routing model
-- [ ] Define wallet selection rules
-- [ ] Define ownership-aware routing
+- [x] Define multi-wallet routing model
+- [x] Define wallet selection rules
+- [x] Define ownership-aware routing
 
 ### 38. Allocation Across Wallets
 
-- [ ] Build balance-aware allocation
-- [ ] Build strategy-aware allocation
-- [ ] Build risk-aware allocation
-- [ ] Build failover wallet selection
+- [x] Build balance-aware allocation
+- [x] Build strategy-aware allocation
+- [x] Build risk-aware allocation
+- [x] Build failover wallet selection
 
 ### 39. Cross-Wallet State Truth
 
@@ -603,3 +603,5 @@ This is the final finish layer.
 - [x] COMMANDER: review SENTINEL MAJOR validation for NWAP/paper-product-core before merge — PR #770 merged to main 2026-04-25 11:38 WIB
 - [x] COMMANDER: scope Priority 4 wallet lifecycle foundation kickoff — confirmed 2026-04-25; branch NWAP/wallet-lifecycle-foundation
 - [ ] SENTINEL: validate Priority 4 wallet lifecycle foundation — source projects/polymarket/polyquantbot/reports/forge/wallet-lifecycle-foundation.md; Tier: MAJOR
+- [x] COMMANDER: scope Priority 6 multi-wallet orchestration Phase A kickoff — confirmed 2026-04-25; branch NWAP/multi-wallet-orchestration
+- [ ] SENTINEL: validate Priority 6 Phase A orchestration foundation — source projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-a.md; Tier: MAJOR
