@@ -177,6 +177,25 @@ Do not write any report, state file, or artifact until COMMANDER resolves.
 
 ---
 
+## API & Session Configuration
+
+### Timeout Handling
+- Always set `ANTHROPIC_TIMEOUT=300000` before running long tasks
+- If stream idle timeout occurs: break task into smaller atomic units
+- Max file context per session: 5 files or ~2000 lines total
+
+### Task Chunking Rules
+- Large refactor → per-file basis, one file per prompt
+- Multi-step feature → sequential prompts, confirm each step before next
+- Never batch >3 file edits in a single prompt
+
+### On Partial Response
+- Do NOT re-run the same prompt blindly
+- First check: what was already written/changed
+- Resume from last confirmed state, not from scratch
+
+---
+
 ## ENGINEERING STANDARDS
 
 | Standard | Requirement |
