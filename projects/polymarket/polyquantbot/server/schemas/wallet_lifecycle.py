@@ -82,11 +82,11 @@ class WalletLifecycleTransitionResult:
 
 
 def new_wallet_id() -> str:
-    return f"wlc_{uuid4().hex[:12]}"
+    return f"wlc_{uuid4().hex}"
 
 
 def new_log_id() -> str:
-    return f"wal_{uuid4().hex[:12]}"
+    return f"wal_{uuid4().hex}"
 
 
 def utc_now() -> datetime:

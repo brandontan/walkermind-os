@@ -46,6 +46,7 @@ def _make_store(*, get_wallet=None, get_by_address=None, list_wallets=None, list
     store.list_audit_for_wallet.return_value = list_audit or []
     store.upsert_wallet.return_value = True
     store.append_audit.return_value = True
+    store.transition_atomic.return_value = "ok"
     return store
 
 
@@ -210,12 +211,12 @@ async def test_wl11_invalid_transition_rejected():
 
 @pytest.mark.asyncio
 async def test_wl12_upsert_called_on_transition():
-    """WL-12: Persistence layer upsert is called on each transition."""
+    """WL-12: Atomic transition is called on each state change."""
     w = _make_wallet(status=WalletLifecycleStatus.UNLINKED)
     store = _make_store(get_wallet=w)
     svc = WalletLifecycleService(store=store)
     await svc.link_wallet(wallet_id=w.wallet_id, user_id="u1", tenant_id="t1", changed_by="u1")
-    store.upsert_wallet.assert_awaited_once()
+    store.transition_atomic.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -230,7 +231,7 @@ async def test_wl13_audit_appended_on_transition():
     assert result.audit_entry is not None
     assert result.audit_entry.from_status == WalletLifecycleStatus.LINKED
     assert result.audit_entry.to_status == WalletLifecycleStatus.ACTIVE
-    store.append_audit.assert_awaited_once()
+    store.transition_atomic.assert_awaited_once()
 
 
 @pytest.mark.asyncio

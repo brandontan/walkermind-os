@@ -121,6 +121,91 @@ class WalletLifecycleStore:
             op_label="wallet_audit_append",
         )
 
+    async def transition_atomic(
+        self,
+        *,
+        wallet_id: str,
+        expected_from_status: str,
+        new_record: WalletLifecycleRecord,
+        audit_entry: WalletAuditEntry,
+    ) -> str:
+        """Atomic FSM transition: SELECT FOR UPDATE + UPDATE + INSERT audit in one transaction.
+
+        Returns:
+            "ok"        — transition applied
+            "conflict"  — current status ≠ expected (concurrent transition won)
+            "not_found" — wallet_id does not exist
+            "error"     — unexpected DB failure
+        """
+        if self._db._pool is None:
+            await self._db.connect()
+        if self._db._pool is None:
+            log.error("wallet_lifecycle_transition_atomic_no_pool", wallet_id=wallet_id)
+            return "error"
+        try:
+            async with self._db._pool.acquire() as conn:
+                async with conn.transaction():
+                    row = await conn.fetchrow(
+                        "SELECT status FROM wallet_lifecycle WHERE wallet_id = $1 FOR UPDATE",
+                        wallet_id,
+                    )
+                    if row is None:
+                        return "not_found"
+                    if row["status"] != expected_from_status:
+                        log.warning(
+                            "wallet_lifecycle_transition_conflict",
+                            wallet_id=wallet_id,
+                            expected=expected_from_status,
+                            actual=row["status"],
+                        )
+                        return "conflict"
+                    await conn.execute(
+                        """
+                        UPDATE wallet_lifecycle
+                        SET status            = $2,
+                            previous_status   = $3,
+                            status_changed_at = $4,
+                            changed_by        = $5,
+                            metadata          = $6
+                        WHERE wallet_id = $1
+                        """,
+                        new_record.wallet_id,
+                        new_record.status.value,
+                        new_record.previous_status.value if new_record.previous_status else None,
+                        new_record.status_changed_at,
+                        new_record.changed_by,
+                        json.dumps(new_record.metadata),
+                    )
+                    await conn.execute(
+                        """
+                        INSERT INTO wallet_audit_log (
+                            log_id, wallet_id, from_status, to_status,
+                            changed_at, changed_by, reason
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                        ON CONFLICT (log_id) DO NOTHING
+                        """,
+                        audit_entry.log_id,
+                        audit_entry.wallet_id,
+                        audit_entry.from_status.value if audit_entry.from_status else None,
+                        audit_entry.to_status.value,
+                        audit_entry.changed_at,
+                        audit_entry.changed_by,
+                        audit_entry.reason,
+                    )
+            log.info(
+                "wallet_lifecycle_transition_atomic_ok",
+                wallet_id=wallet_id,
+                to_status=new_record.status.value,
+            )
+            return "ok"
+        except Exception as exc:
+            log.error(
+                "wallet_lifecycle_transition_atomic_error",
+                wallet_id=wallet_id,
+                error=str(exc),
+            )
+            return "error"
+
     async def list_audit_for_wallet(
         self, wallet_id: str, limit: int = 50
     ) -> list[WalletAuditEntry]:

@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS wallet_lifecycle (
 );
 CREATE INDEX IF NOT EXISTS idx_wallet_lifecycle_user
     ON wallet_lifecycle (tenant_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_wallet_lifecycle_address
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_lifecycle_address
     ON wallet_lifecycle (tenant_id, address);
 """
 

@@ -3104,7 +3104,8 @@ class WalletOwnershipBoundary:
             WalletLifecycleStatus,
         )
 
-        if wallet.status == WalletLifecycleStatus.BLOCKED and not policy.is_admin:
+        is_tenant_admin = policy.is_admin and wallet.tenant_id == policy.tenant_id
+        if wallet.status == WalletLifecycleStatus.BLOCKED and not is_tenant_admin:
             return WalletOwnershipResult(
                 outcome="wallet_blocked",
                 notes={"wallet_id": policy.wallet_id, "blocked": True},
@@ -3113,7 +3114,7 @@ class WalletOwnershipBoundary:
             wallet.tenant_id == policy.tenant_id
             and wallet.user_id == policy.requesting_user_id
         )
-        if not owns and not policy.is_admin:
+        if not owns and not is_tenant_admin:
             return WalletOwnershipResult(
                 outcome="ownership_denied",
                 notes={

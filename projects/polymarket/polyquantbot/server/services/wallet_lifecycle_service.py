@@ -269,12 +269,13 @@ class WalletLifecycleService:
                     reason=f"wallet {wallet_id!r} not found",
                 )
 
-            # Section 28: ownership + privilege guard
+            # Section 28: ownership + privilege guard (admin scoped to same tenant)
+            is_tenant_admin = is_admin and wallet.tenant_id == tenant_id
             owns = (
                 wallet.tenant_id == tenant_id
                 and wallet.user_id == requesting_user_id
             )
-            if not owns and not is_admin:
+            if not owns and not is_tenant_admin:
                 log.warning(
                     "wallet_ownership_denied",
                     wallet_id=wallet_id,
@@ -283,7 +284,7 @@ class WalletLifecycleService:
                 )
                 return WalletLifecycleTransitionResult(
                     outcome="privilege_error", wallet=None, audit_entry=None,
-                    reason="wallet does not belong to requesting user",
+                    reason="wallet does not belong to requesting user or tenant",
                 )
 
             if not is_valid_transition(wallet.status, to_status):
@@ -292,7 +293,7 @@ class WalletLifecycleService:
                     reason=f"{wallet.status.value} → {to_status.value} is not an allowed transition",
                 )
 
-            if requires_admin(wallet.status, to_status) and not is_admin:
+            if requires_admin(wallet.status, to_status) and not is_tenant_admin:
                 return WalletLifecycleTransitionResult(
                     outcome="privilege_error", wallet=wallet, audit_entry=None,
                     reason=f"transition {wallet.status.value} → {to_status.value} requires admin",
@@ -312,12 +313,6 @@ class WalletLifecycleService:
                 chain_id=wallet.chain_id,
                 metadata=wallet.metadata,
             )
-            ok = await self._store.upsert_wallet(updated)
-            if not ok:
-                return WalletLifecycleTransitionResult(
-                    outcome="error", wallet=None, audit_entry=None,
-                    reason="storage write failed",
-                )
             audit = WalletAuditEntry(
                 log_id=new_log_id(),
                 wallet_id=wallet.wallet_id,
@@ -327,7 +322,23 @@ class WalletLifecycleService:
                 changed_by=changed_by,
                 reason=reason,
             )
-            await self._store.append_audit(audit)
+            # Atomic: SELECT FOR UPDATE + UPDATE + INSERT audit in one transaction
+            atomic_result = await self._store.transition_atomic(
+                wallet_id=wallet.wallet_id,
+                expected_from_status=wallet.status.value,
+                new_record=updated,
+                audit_entry=audit,
+            )
+            if atomic_result == "conflict":
+                return WalletLifecycleTransitionResult(
+                    outcome="invalid_transition", wallet=wallet, audit_entry=None,
+                    reason="concurrent transition changed wallet status — retry",
+                )
+            if atomic_result != "ok":
+                return WalletLifecycleTransitionResult(
+                    outcome="error", wallet=None, audit_entry=None,
+                    reason=f"atomic transition failed: {atomic_result}",
+                )
             log.info(
                 "wallet_transitioned",
                 wallet_id=wallet_id,
