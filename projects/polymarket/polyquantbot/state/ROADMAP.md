@@ -23,7 +23,7 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Priority 3 paper trading product completion merged to main via PR #770 (NWAP/paper-product-core); compact SENTINEL gate APPROVED 95/100 zero critical issues; paper-only boundary preserved; Priority 4 wallet lifecycle foundation is next active priority.
+**Status:** Priority 3 paper trading product completion merged to main via PR #770 (NWAP/paper-product-core); compact SENTINEL gate APPROVED (95/100, zero critical issues); paper-only boundary preserved; Priority 4 wallet lifecycle foundation is the current active priority.
 **Last Updated:** 2026-04-25 11:38
 
 # Board Overview
