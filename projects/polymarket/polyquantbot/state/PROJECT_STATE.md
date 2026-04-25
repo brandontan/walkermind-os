@@ -1,5 +1,5 @@
-Last Updated : 2026-04-25 00:49
-Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains complete on main; Priority 2 done condition closed (PR #759, SENTINEL APPROVED 98/100); WORKTODO Right Now section synced to Priority 3 kickoff scope via NWAP/worktodo-priority3-kickoff-sync.
+Last Updated : 2026-04-25 04:44
+Status       : Priority 3 paper trading product completion lane open on NWAP/paper-product-core; FORGE-X build complete (4 commits, 19/19 e2e tests passing); awaiting SENTINEL MAJOR validation before merge.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on feature/consolidate-telegram-ui-ux-layer: active Telegram source of truth remains projects/polymarket/polyquantbot/telegram, deprecated interface/telegram/__init__.py legacy marker is archived under projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/, and only thin compatibility shims remain under projects/polymarket/polyquantbot/interface/telegram/view_handler.py + projects/polymarket/polyquantbot/interface/ui_formatter.py + projects/polymarket/polyquantbot/interface/telegram/__init__.py.
@@ -14,7 +14,7 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Deployment Hardening (Priority 2 lane) — SENTINEL MAJOR validation APPROVED (98/100, zero critical issues); PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta by COMMANDER; branch NWAP/deployment-hardening-traceability-repair; Priority 2 done condition closed.
 
 [IN PROGRESS]
-- None
+- Priority 3 paper trading product completion — NWAP/paper-product-core — FORGE-X complete, awaiting SENTINEL MAJOR validation. Report: projects/polymarket/polyquantbot/reports/forge/paper-product-core.md.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation.
@@ -22,7 +22,8 @@ Status       : Phase 9.1 + 9.2 + 9.3 public-ready paper beta path remains comple
 - Capital readiness and live trading gating.
 
 [NEXT PRIORITY]
-- Next active lane: Priority 3 paper trading product completion kickoff — COMMANDER to scope.
+- SENTINEL validation required for paper-product-core before merge. Source: projects/polymarket/polyquantbot/reports/forge/paper-product-core.md. Tier: MAJOR.
 
 [KNOWN ISSUES]
-- None
+- PaperBetaWorker.price_updater() is a no-op stub — unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).
+- /reset operator command rebuilds PaperPortfolio in isolation; running worker retains old reference until restart.

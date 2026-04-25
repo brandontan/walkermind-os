@@ -11,6 +11,7 @@ class PaperPosition:
     size: float
     entry_price: float
     edge: float
+    unrealized_pnl: float = 0.0
 
 
 @dataclass
@@ -41,9 +42,13 @@ class PublicBetaState:
     autotrade_enabled: bool = False
     kill_switch: bool = False
     pnl: float = 0.0
+    realized_pnl: float = 0.0
     drawdown: float = 0.0
     exposure: float = 0.0
     last_risk_reason: str = ""
+    wallet_cash: float = 0.0
+    wallet_locked: float = 0.0
+    wallet_equity: float = 0.0
     positions: list[PaperPosition] = field(default_factory=list)
     processed_signals: set[str] = field(default_factory=set)
     worker_runtime: WorkerRuntimeStatus = field(default_factory=WorkerRuntimeStatus)

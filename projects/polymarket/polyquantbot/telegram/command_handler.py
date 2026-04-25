@@ -291,6 +291,14 @@ class CommandHandler:
             return await self._handle_alpha()
         if cmd == "trade":
             return await self._handle_trade_with_observability(value=value, cid=cid)
+        if cmd in ("portfolio", "positions"):
+            return await self._handle_portfolio()
+        if cmd == "pnl":
+            return await self._handle_pnl()
+        if cmd == "reset":
+            return await self._handle_reset()
+        if cmd == "paper_risk":
+            return await self._handle_paper_risk_state()
 
         # ── New menu callbacks (new Telegram system) ───────────────────────────
         if cmd == "wallet":
@@ -674,16 +682,18 @@ class CommandHandler:
         return payload
 
     async def _handle_paper(self) -> CommandResult:
-        payload = self._build_help_payload()
-        payload.update(
-            {
-                "mode": "help",
-                "decision": "Paper mode is the only public runtime boundary in this beta.",
-                "operator_note": "Simulation only; no live capital execution or wallet transfers.",
-                "insight": "Use /status for runtime posture while staying in paper-only mode.",
-            }
+        from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
+        from ..client.telegram.presentation import format_paper_account_reply
+
+        msg = format_paper_account_reply(
+            cash=STATE.wallet_cash,
+            equity=STATE.wallet_equity,
+            realized_pnl=STATE.realized_pnl,
+            open_positions=len(STATE.positions),
+            mode=STATE.mode,
+            kill_switch=STATE.kill_switch,
         )
-        return CommandResult(success=True, message=await render_view("help", payload), payload=payload)
+        return CommandResult(success=True, message=msg)
 
     async def _handle_about(self) -> CommandResult:
         payload = self._build_help_payload()
@@ -1017,17 +1027,28 @@ class CommandHandler:
             )
 
     async def _handle_strategies(self) -> CommandResult:
-        """Return per-strategy performance snapshot from MultiStrategyMetrics."""
+        """Return per-strategy performance snapshot from MultiStrategyMetrics.
+
+        Falls back to worker iteration signal stats when multi_metrics is unavailable.
+        """
         log.info("command_strategies_invoked")
         if self._multi_metrics is None:
-            return CommandResult(
-                success=False,
-                message=format_command_response(
-                    command="strategies",
-                    success=False,
-                    message="MultiStrategyMetrics not configured.",
-                ),
+            # Fallback: surface paper worker signal stats from STATE
+            from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
+            from ..client.telegram.presentation import format_strategy_visibility_reply
+
+            last = STATE.worker_runtime.last_iteration
+            msg = format_strategy_visibility_reply(
+                iterations_total=STATE.worker_runtime.iterations_total,
+                candidate_count=last.candidate_count,
+                accepted_count=last.accepted_count,
+                rejected_count=last.rejected_count,
+                risk_rejection_reasons=last.risk_rejection_reasons,
+                autotrade_enabled=STATE.autotrade_enabled,
+                kill_switch=STATE.kill_switch,
             )
+            return CommandResult(success=True, message=msg)
+
         try:
             snapshot = self._multi_metrics.snapshot()
             strategy_states = {
@@ -1204,3 +1225,282 @@ class CommandHandler:
         by_edge = breakdown.get("by_edge", {}) if isinstance(breakdown, dict) else {}
 
         lines = ["📊 PERFORMANCE BREAKDOWN", ""]
+
+        if by_market:
+            lines.append("By Market")
+            for key, payload in list(by_market.items())[:5]:
+                lines.append(self._format_analysis_line(str(key), payload))
+            lines.append("")
+        if by_signal:
+            lines.append("By Signal Type")
+            for key, payload in list(by_signal.items())[:5]:
+                lines.append(self._format_analysis_line(str(key), payload, metric_mode="wr"))
+            lines.append("")
+        if by_edge:
+            lines.append("By Edge Band")
+            for key, payload in list(by_edge.items())[:5]:
+                lines.append(self._format_analysis_line(str(key), payload, metric_mode="pf"))
+            lines.append("")
+
+        if not (by_market or by_signal or by_edge):
+            lines.append("No closed-trade data available yet.")
+            lines.append("Execute paper trades to see edge analysis.")
+
+        return CommandResult(
+            success=True,
+            message="\n".join(lines),
+            payload={"breakdown": breakdown},
+        )
+
+    # ── Operator / advanced handlers ───────────────────────────────────────────
+
+    async def _handle_health(self) -> CommandResult:
+        metrics = self._get_metrics_snapshot()
+        try:
+            msg = format_health_snapshot(
+                state=self._state.snapshot().get("state", "N/A"),
+                mode=self._mode,
+                risk_guard=self._risk_guard,
+                metrics=metrics,
+            )
+        except Exception as exc:
+            msg = format_error(context="health", error=str(exc), severity="ERROR")
+        return CommandResult(success=True, message=msg)
+
+    async def _handle_exposure(self) -> CommandResult:
+        metrics = self._get_metrics_snapshot()
+        payload = {
+            "exposure": metrics.get("exposure", 0.0),
+            "positions": metrics.get("open_positions", metrics.get("positions", 0)),
+            "equity": metrics.get("equity", 0.0),
+            "locked": metrics.get("locked", 0.0),
+        }
+        return CommandResult(
+            success=True,
+            message=await render_view("risk", payload),
+            payload=payload,
+        )
+
+    async def _handle_settings(self) -> CommandResult:
+        snap_cfg = self._config.snapshot()
+        payload = {
+            "risk_multiplier": getattr(snap_cfg, "risk_multiplier", 0.25),
+            "max_position": getattr(snap_cfg, "max_position", 0.10),
+            "mode": self._mode,
+        }
+        return CommandResult(
+            success=True,
+            message=await render_view("help", {**self._build_help_payload(), **payload}),
+            payload=payload,
+        )
+
+    async def _handle_set_markets(self, value: object) -> CommandResult:
+        return CommandResult(
+            success=True,
+            message=format_command_response(
+                command="set_markets",
+                success=True,
+                message=f"Markets filter noted: {value}. Operator config path — use runtime config.",
+            ),
+        )
+
+    async def _handle_set_liquidity(self, value: object) -> CommandResult:
+        return CommandResult(
+            success=True,
+            message=format_command_response(
+                command="set_liquidity",
+                success=True,
+                message=f"Liquidity floor noted: {value}. Operator config path — use runtime config.",
+            ),
+        )
+
+    async def _handle_markets(self) -> CommandResult:
+        payload = self._build_market_payload(self._get_metrics_snapshot())
+        return CommandResult(
+            success=True,
+            message=await render_view("markets", payload),
+            payload=payload,
+        )
+
+    async def _handle_rediscover(self) -> CommandResult:
+        return CommandResult(
+            success=True,
+            message=format_command_response(
+                command="rediscover",
+                success=True,
+                message="Market rediscovery queued. Worker will refresh candidates on next cycle.",
+            ),
+        )
+
+    async def _handle_alpha(self) -> CommandResult:
+        payload = self._build_market_payload(self._get_metrics_snapshot())
+        return CommandResult(
+            success=True,
+            message=await render_view("markets", payload),
+            payload=payload,
+        )
+
+    async def _handle_wallet(self) -> CommandResult:
+        metrics = self._get_metrics_snapshot()
+        payload = {
+            "cash": metrics.get("cash", metrics.get("balance", 0.0)),
+            "locked": metrics.get("locked", 0.0),
+            "equity": metrics.get("equity", 0.0),
+            "mode": self._mode,
+        }
+        return CommandResult(
+            success=True,
+            message=await render_view("risk", payload),
+            payload=payload,
+        )
+
+    async def _handle_control(self) -> CommandResult:
+        from .ui.keyboard import build_control_menu  # local import — menu may not exist yet
+        try:
+            keyboard = build_control_menu()
+        except Exception:
+            keyboard = []
+        snap = self._state.snapshot()
+        return CommandResult(
+            success=True,
+            message=format_command_response(
+                command="control",
+                success=True,
+                message=f"System state: {snap.get('state', 'N/A')}. Use pause/resume/kill.",
+            ),
+            payload={"_keyboard": keyboard},
+        )
+
+    async def _handle_mode_confirm_switch(self, new_mode: str) -> CommandResult:
+        if new_mode not in ("PAPER", "LIVE"):
+            return CommandResult(
+                success=False,
+                message=format_error(
+                    context="mode_confirm",
+                    error=f"Invalid mode: {new_mode!r}",
+                    severity="ERROR",
+                ),
+            )
+        self._mode = new_mode
+        log.info("command_mode_switched", new_mode=new_mode)
+        return CommandResult(
+            success=True,
+            message=format_state_change(
+                previous="previous",
+                current=new_mode,
+                reason="operator_mode_switch",
+                initiated_by="telegram",
+            ),
+            payload={"mode": new_mode},
+        )
+
+    async def _send_response(self, message: str, cid: str) -> None:
+        """Send response via Telegram with retry + timeout."""
+        if not message or not self._sender:
+            return
+        for attempt in range(1, _MAX_SEND_RETRIES + 1):
+            try:
+                await asyncio.wait_for(
+                    self._sender(self._chat_id, message),
+                    timeout=_SEND_TIMEOUT_S,
+                )
+                return
+            except asyncio.TimeoutError:
+                log.warning(
+                    "command_send_timeout",
+                    cid=cid,
+                    attempt=attempt,
+                    timeout=_SEND_TIMEOUT_S,
+                )
+            except Exception as exc:
+                log.warning(
+                    "command_send_error",
+                    cid=cid,
+                    attempt=attempt,
+                    error=str(exc),
+                )
+            if attempt < _MAX_SEND_RETRIES:
+                await asyncio.sleep(_RETRY_BASE_DELAY_S * attempt)
+
+    # ── Priority 3 — Paper portfolio surface ──────────────────────────────────
+
+    async def _handle_portfolio(self) -> CommandResult:
+        """Return open positions with unrealized PnL — paper portfolio surface."""
+        from .handlers import trade as _trade_handler
+        text, _kb = await _trade_handler.handle_trade()
+        return CommandResult(success=True, message=text)
+
+    async def _handle_pnl(self) -> CommandResult:
+        """Return realized + unrealized PnL summary from STATE (single source of truth)."""
+        from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
+        from ..client.telegram.presentation import format_pnl_reply
+
+        realized = STATE.realized_pnl
+        unrealized = sum(p.unrealized_pnl for p in STATE.positions)
+        cash = STATE.wallet_cash
+        equity = STATE.wallet_equity
+        position_count = len(STATE.positions)
+
+        msg = format_pnl_reply(
+            realized=realized,
+            unrealized=unrealized,
+            cash=cash,
+            equity=equity,
+            position_count=position_count,
+        )
+        return CommandResult(
+            success=True,
+            message=msg,
+            payload={
+                "realized": realized,
+                "unrealized": unrealized,
+                "net": realized + unrealized,
+                "cash": cash,
+                "equity": equity,
+                "positions": position_count,
+            },
+        )
+
+    async def _handle_reset(self) -> CommandResult:
+        """Operator-only: reset the live paper account to initial balance.
+
+        Uses the active-portfolio singleton registered by run_worker_loop() so
+        the reset affects the actual running engine, not a disconnected instance.
+        """
+        from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
+        from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import get_active_portfolio
+        from ..client.telegram.presentation import format_portfolio_reset_reply
+
+        try:
+            portfolio = get_active_portfolio()
+            if portfolio is None:
+                return CommandResult(
+                    success=False,
+                    message="No active paper portfolio found. Worker may not be running.",
+                )
+            await portfolio.reset(STATE)
+            log.info("command_paper_reset_executed", equity=STATE.wallet_equity)
+            return CommandResult(
+                success=True,
+                message=format_portfolio_reset_reply(initial_balance=STATE.wallet_equity),
+            )
+        except Exception as exc:
+            log.error("command_paper_reset_failed", error=str(exc))
+            return CommandResult(
+                success=False,
+                message=format_error(context="reset", error=str(exc), severity="ERROR"),
+            )
+
+    async def _handle_paper_risk_state(self) -> CommandResult:
+        """Return live paper risk gate state for operator visibility."""
+        from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
+        from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import PaperRiskGate
+        from ..client.telegram.presentation import format_risk_state_reply
+
+        gate = PaperRiskGate()
+        status = gate.status(STATE)
+        return CommandResult(
+            success=True,
+            message=format_risk_state_reply(status),
+            payload=status,
+        )

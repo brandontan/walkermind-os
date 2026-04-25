@@ -177,6 +177,130 @@ def format_help_reply() -> str:
     return "\n".join(lines)
 
 
+def format_paper_account_reply(
+    *,
+    cash: float,
+    equity: float,
+    realized_pnl: float,
+    open_positions: int,
+    mode: str,
+    kill_switch: bool,
+) -> str:
+    pnl_sign = "+" if realized_pnl >= 0 else ""
+    ks_label = "🔴 ACTIVE" if kill_switch else "🟢 OFF"
+    return _format_public_screen(
+        "📋 CrusaderBot — Paper Account",
+        [
+            render_kv_line("Mode", mode.upper()),
+            render_kv_line("Kill switch", ks_label),
+            SEP,
+            render_kv_line("Cash", f"${cash:,.2f}"),
+            render_kv_line("Equity", f"${equity:,.2f}"),
+            render_kv_line("Realized PnL", f"{pnl_sign}${realized_pnl:,.4f}"),
+            render_kv_line("Open positions", str(open_positions)),
+        ],
+        next_steps=[
+            "/portfolio — view open positions with unrealized PnL",
+            "/pnl — full PnL breakdown",
+            "/paper_risk — live risk gate state",
+        ],
+    )
+
+
+def format_strategy_visibility_reply(
+    *,
+    iterations_total: int,
+    candidate_count: int,
+    accepted_count: int,
+    rejected_count: int,
+    risk_rejection_reasons: dict,
+    autotrade_enabled: bool,
+    kill_switch: bool,
+) -> str:
+    autotrade_label = "🟢 ENABLED" if autotrade_enabled else "🔴 DISABLED"
+    ks_label = "🔴 ACTIVE" if kill_switch else "🟢 OFF"
+    reason_lines = [
+        f"  • {reason}: {count}"
+        for reason, count in sorted(risk_rejection_reasons.items(), key=lambda x: -x[1])
+    ] or ["  • None recorded yet"]
+    return _format_public_screen(
+        "🔬 Paper Strategy Visibility",
+        [
+            render_kv_line("Autotrade", autotrade_label),
+            render_kv_line("Kill switch", ks_label),
+            SEP,
+            render_kv_line("Worker cycles", str(iterations_total)),
+            render_kv_line("Last candidates", str(candidate_count)),
+            render_kv_line("Last accepted", str(accepted_count)),
+            render_kv_line("Last rejected", str(rejected_count)),
+            SEP,
+            "Risk rejection reasons (last cycle):",
+        ]
+        + reason_lines,
+    )
+
+
+def format_pnl_reply(
+    *,
+    realized: float,
+    unrealized: float,
+    cash: float,
+    equity: float,
+    position_count: int,
+) -> str:
+    net = realized + unrealized
+    r_sign = "+" if realized >= 0 else ""
+    u_sign = "+" if unrealized >= 0 else ""
+    n_sign = "+" if net >= 0 else ""
+    return _format_public_screen(
+        "💰 CrusaderBot PnL — Paper Account",
+        [
+            render_kv_line("Realized", f"{r_sign}${realized:,.4f}"),
+            render_kv_line("Unrealized", f"{u_sign}${unrealized:,.4f}"),
+            render_kv_line("Net PnL", f"{n_sign}${net:,.4f}"),
+            SEP,
+            render_kv_line("Cash", f"${cash:,.2f}"),
+            render_kv_line("Equity", f"${equity:,.2f}"),
+            render_kv_line("Open positions", str(position_count)),
+        ],
+    )
+
+
+def format_portfolio_reset_reply(*, initial_balance: float) -> str:
+    return _format_public_screen(
+        "🔄 Paper Account Reset",
+        [
+            "Paper account has been reset to initial balance.",
+            render_kv_line("Balance", f"${initial_balance:,.2f}"),
+            "All positions, ledger, and PnL history cleared.",
+        ],
+        next_steps=["/status — confirm runtime state", "/pnl — verify balance"],
+    )
+
+
+def format_risk_state_reply(status: dict) -> str:
+    ks = "🔴 ACTIVE" if status.get("kill_switch") else "🟢 OFF"
+    dd_ok = "✅" if status.get("drawdown_ok") else "🚨"
+    exp_ok = "✅" if status.get("exposure_ok") else "🚨"
+    pnl_ok = "✅" if status.get("daily_pnl_ok") else "🚨"
+    return _format_public_screen(
+        "🛡 Paper Risk Gate — Live State",
+        [
+            render_kv_line("Kill switch", ks),
+            render_kv_line("Mode", str(status.get("mode", "paper"))),
+            SEP,
+            render_kv_line("Drawdown", f"{dd_ok} {status.get('drawdown_pct', 0):.2f}% / {status.get('drawdown_limit_pct', 8)}% limit"),
+            render_kv_line("Exposure", f"{exp_ok} {status.get('exposure_pct', 0):.2f}% / {status.get('exposure_limit_pct', 10)}% limit"),
+            render_kv_line("Daily PnL", f"{pnl_ok} ${status.get('daily_pnl_usd', 0):,.2f} (limit $-2,000)"),
+            SEP,
+            render_kv_line("Cash", f"${status.get('wallet_cash', 0):,.2f}"),
+            render_kv_line("Equity", f"${status.get('wallet_equity', 0):,.2f}"),
+            render_kv_line("Positions", str(status.get("open_positions", 0))),
+            render_kv_line("Last reason", str(status.get("last_risk_reason", "—"))),
+        ],
+    )
+
+
 def format_status_reply(
     *,
     mode: str,
