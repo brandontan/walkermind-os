@@ -1460,6 +1460,45 @@ Skip review on:
 
 ---
 
+## COST EFFICIENCY RULES (ALL AGENTS)
+
+Token cost compounds across every agent call. Every agent must
+minimize consumption without reducing work quality.
+
+FORGE-X:
+- Read only files required for current task scope
+- Never re-read files already in session context
+- Use line-range reads for large files (view with range)
+- Keep forge reports factual and concise — no padding
+- No filler output between steps
+
+SENTINEL:
+- Read only the PR diff + files changed in the PR
+- Do not read unrelated files for context
+- Evidence must be dense and specific — not verbose
+- Report structure: findings only, no re-narration of what FORGE-X did
+- Score justification: one sentence per criterion, not paragraphs
+
+COMMANDER:
+- Pre-flight reads: PROJECT_STATE.md + ROADMAP.md only
+  (not full repo tree unless scoping a new project)
+- Task generation: copy-paste ready, no warm-up narration
+- Decision output: DECISION: [MERGE/HOLD/NEEDS-FIX] + one-line reason
+- Never re-read files already read in the same session turn
+- Avoid asking clarifying questions if task context is sufficient
+
+BRIEFER:
+- Generate report from forge report + state files only
+- Do not re-read source code unless specifically requested
+- Output: final artifact only — no intermediate drafts unless asked
+
+Global:
+- Never generate content not required by the task
+- Never produce output "just in case" — produce only what was asked
+- Verbose output = cost. Every unnecessary line costs tokens.
+
+---
+
 ## GITHUB WRITE RULE
 
 If write/save fails through platform tooling:

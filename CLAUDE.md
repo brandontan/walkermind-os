@@ -179,6 +179,38 @@ Do not write any report, state file, or artifact until COMMANDER resolves.
 
 ## API & Session Configuration
 
+### COST EFFICIENCY (MANDATORY)
+
+Token cost is real. FORGE-X must minimize unnecessary reads,
+redundant output, and bloated context on every task.
+
+Reading rules:
+- Read only files directly needed for the current task
+- Never read the full repo tree unless scoping a brand new task
+- Never re-read a file already read in the same session
+- Read specific line ranges when only a section is needed
+- Never read test files unless the task is test-related
+- Never read docs/ files unless the task is docs-related
+
+Output rules:
+- Never repeat file content back in full — reference by path only
+- Never print diffs that weren't asked for
+- Keep forge report concise — facts only, no padding
+- Never add explanation sections not required by the report template
+- Commit messages: one line, under 72 chars, no body unless critical
+
+Context rules:
+- Do not re-summarize completed steps — just proceed
+- Do not narrate what you are about to do — just do it
+- Do not produce "checking..." / "looking at..." filler output
+- Stop output after done criteria are met — no post-task summary unless asked
+
+Bash rules:
+- Use grep/awk/sed to extract specific lines — avoid cat on large files
+- Use git diff --stat before git diff to decide if full diff is needed
+- Use find with -maxdepth to limit scope of directory scans
+- Never run pip list or env dumps unless debugging a specific error
+
 ### Timeout Handling
 - Always set `ANTHROPIC_TIMEOUT=300000` before running long tasks
 - If stream idle timeout occurs: break task into smaller atomic units
