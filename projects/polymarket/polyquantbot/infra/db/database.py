@@ -212,6 +212,33 @@ CREATE INDEX IF NOT EXISTS idx_wallet_audit_wallet
     ON wallet_audit_log (wallet_id);
 """
 
+# ── Priority 5: Portfolio management persistence ──────────────────────────────
+
+_DDL_PORTFOLIO_SNAPSHOTS = """
+CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+    snapshot_id     TEXT        PRIMARY KEY,
+    tenant_id       TEXT        NOT NULL,
+    user_id         TEXT        NOT NULL,
+    wallet_id       TEXT        NOT NULL DEFAULT '',
+    realized_pnl    DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    unrealized_pnl  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    net_pnl         DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    cash_usd        DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    locked_usd      DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    equity_usd      DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    drawdown        DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    exposure_pct    DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    position_count  INTEGER     NOT NULL DEFAULT 0,
+    mode            TEXT        NOT NULL DEFAULT 'paper',
+    recorded_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    metadata        JSONB       NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_user
+    ON portfolio_snapshots (tenant_id, user_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_wallet
+    ON portfolio_snapshots (wallet_id, recorded_at DESC);
+"""
+
 
 # ── DatabaseClient ─────────────────────────────────────────────────────────────
 
@@ -374,6 +401,8 @@ class DatabaseClient:
             # Priority 4: wallet lifecycle
             await conn.execute(_DDL_WALLET_LIFECYCLE)
             await conn.execute(_DDL_WALLET_AUDIT_LOG)
+            # Priority 5: portfolio snapshots
+            await conn.execute(_DDL_PORTFOLIO_SNAPSHOTS)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────

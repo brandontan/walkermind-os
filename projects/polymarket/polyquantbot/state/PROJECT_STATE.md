@@ -1,5 +1,5 @@
-Last Updated : 2026-04-25 17:32
-Status       : Priority 4 wallet lifecycle foundation is merged to main via PR #772 under degen structure mode; COMMANDER review accepted; full SENTINEL sweep is deferred to the pre-public/public-ready/live-capital gate; next internal priority is Priority 5 portfolio management logic.
+Last Updated : 2026-04-25 18:30
+Status       : Priority 5 portfolio management logic is built under degen structure mode; COMMANDER review required; full SENTINEL sweep is deferred to the pre-public/public-ready/live-capital gate; next internal priority is Priority 6 multi-wallet orchestration.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence for /start, /help, /status, and unknown-command fallback; evidence lives under projects/polymarket/polyquantbot/reports/forge/.
@@ -9,19 +9,20 @@ Status       : Priority 4 wallet lifecycle foundation is merged to main via PR #
 - Deployment Hardening Priority 2 lane is closed via PR #759 with SENTINEL APPROVED 98/100 and zero critical issues.
 - Priority 3 paper trading product completion is merged to main via PR #770 from NWAP/paper-product-core; compact SENTINEL gate record APPROVED 95/100 with zero critical issues.
 - Priority 4 wallet lifecycle foundation is merged to main via PR #772 from NWAP/wallet-lifecycle-foundation; COMMANDER degen structure review accepted and full SENTINEL is deferred to pre-public sweep.
+- Priority 5 portfolio management logic is built (sections 31-36); schemas, store, service, routes, and 25/25 tests passing; COMMANDER review and merge pending.
 
 [IN PROGRESS]
 - None
 
 [NOT STARTED]
-- Portfolio management logic and risk controls.
 - Multi-wallet orchestration.
 - Settlement, retry, reconciliation, and ops automation.
 - Capital readiness and live trading gating.
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
-- Priority 5 portfolio management logic internal-structure kickoff — scope sections 31-36 in projects/polymarket/polyquantbot/state/WORKTODO.md.
+- COMMANDER: review and merge Priority 5 portfolio management logic — source projects/polymarket/polyquantbot/reports/forge/portfolio-management-logic.md; Tier: MAJOR (degen mode — SENTINEL deferred to pre-public sweep).
+- Priority 6 multi-wallet orchestration internal-structure kickoff — scope sections 37-42 in projects/polymarket/polyquantbot/state/WORKTODO.md — branch to be declared by COMMANDER.
 - Maintain no public-ready, live-trading-ready, or production-capital-ready claim until full SENTINEL pre-public sweep.
 - Full SENTINEL sweep is required before public launch / public-ready claim / live-capital claim.
 
@@ -29,3 +30,5 @@ Status       : Priority 4 wallet lifecycle foundation is merged to main via PR #
 - PaperBetaWorker.price_updater() is a no-op stub — unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).
 - handle_wallet_lifecycle_status() is not yet wired to a Telegram command — function exists and is tested but routing is deferred.
 - Wallet lifecycle live PostgreSQL validation is deferred to the full SENTINEL pre-public sweep.
+- Portfolio routes hardcode tenant_id=system and user_id=paper_user — per-user routing deferred to Priority 6 multi-wallet lane.
+- Portfolio unrealized PnL relies on current_price in paper_positions — live mark-to-market deferred to market data integration lane.

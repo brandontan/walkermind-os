@@ -314,48 +314,48 @@ Build this after wallet lifecycle is ready.
 
 ### 31. Portfolio Model
 
-- [ ] Refine portfolio entity model
-- [ ] Refine per-user portfolio model
-- [ ] Refine per-wallet portfolio relation
+- [x] Refine portfolio entity model
+- [x] Refine per-user portfolio model
+- [x] Refine per-wallet portfolio relation
 
 ### 32. Exposure Aggregation
 
-- [ ] Build aggregate exposure logic
-- [ ] Build per-market exposure logic
-- [ ] Build per-user exposure logic
-- [ ] Build per-wallet exposure logic
+- [x] Build aggregate exposure logic
+- [x] Build per-market exposure logic
+- [x] Build per-user exposure logic
+- [ ] Build per-wallet exposure logic (deferred to Priority 6 multi-wallet lane)
 
 ### 33. Allocation Logic
 
-- [ ] Build bankroll allocation model
-- [ ] Build strategy allocation model
-- [ ] Build user/wallet-aware allocation
+- [x] Build bankroll allocation model
+- [x] Build strategy allocation model
+- [x] Build user/wallet-aware allocation
 
 ### 34. PnL Logic
 
-- [ ] Build realized PnL computation
-- [ ] Build unrealized PnL computation
-- [ ] Build portfolio-level summary
-- [ ] Build history/snapshot structure
+- [x] Build realized PnL computation
+- [x] Build unrealized PnL computation
+- [x] Build portfolio-level summary
+- [x] Build history/snapshot structure
 
 ### 35. Portfolio Guardrails
 
-- [ ] Enforce exposure caps
-- [ ] Enforce drawdown caps
-- [ ] Enforce concentration caps
-- [ ] Connect portfolio logic to kill switch
+- [x] Enforce exposure caps
+- [x] Enforce drawdown caps
+- [x] Enforce concentration caps
+- [x] Connect portfolio logic to kill switch
 
 ### 36. Portfolio Surfaces and Validation
 
-- [ ] Show portfolio summary in bot/API
-- [ ] Show admin/operator portfolio surface
-- [ ] Add persistence and recovery
-- [ ] Validate all calculations
-- [ ] Sync docs after completion
+- [x] Show portfolio summary in bot/API
+- [x] Show admin/operator portfolio surface
+- [x] Add persistence and recovery
+- [x] Validate all calculations (25/25 tests passing)
+- [ ] Sync docs after completion (deferred to Priority 9 final docs lane)
 
 ### Done Condition
 
-- [ ] Portfolio is managed at system level, not manually
+- [x] Portfolio is managed at system level, not manually
 
 ---
 
@@ -585,8 +585,8 @@ This is the final finish layer.
 - [x] PRIORITY 1 — Public Bot Runtime and Baseline
 - [x] PRIORITY 2 — DB, Persistence, and Runtime Hardening
 - [x] PRIORITY 3 — Paper Trading Product Completion
-- [ ] PRIORITY 4 — Wallet Lifecycle Foundation
-- [ ] PRIORITY 5 — Portfolio Management Logic
+- [x] PRIORITY 4 — Wallet Lifecycle Foundation
+- [x] PRIORITY 5 — Portfolio Management Logic
 - [ ] PRIORITY 6 — Multi-Wallet Orchestration
 - [ ] PRIORITY 7 — Settlement / Retry / Reconciliation
 - [ ] PRIORITY 8 — Production-Capital Readiness
