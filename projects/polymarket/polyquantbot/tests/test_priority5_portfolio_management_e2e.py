@@ -147,7 +147,7 @@ def test_pm05_constants_locked():
     """PM-05: Risk constants match AGENTS.md hard rules."""
     assert KELLY_FRACTION == 0.25
     assert MAX_POSITION_PCT == 0.10
-    assert MAX_TOTAL_EXPOSURE_PCT == 0.80
+    assert MAX_TOTAL_EXPOSURE_PCT == 0.10
     assert MAX_DRAWDOWN == 0.08
     assert MIN_POSITION_USD == 10.0
     assert MAX_CONCENTRATION_PCT == 0.20
@@ -420,12 +420,12 @@ def test_pm23_guardrails_drawdown_exceeded():
 
 
 def test_pm24_guardrails_exposure_cap_exceeded():
-    """PM-24: Total exposure > MAX_TOTAL_EXPOSURE_PCT (80%) triggers violation."""
+    """PM-24: Total exposure > MAX_TOTAL_EXPOSURE_PCT (10%) triggers violation."""
     store = _make_store()
     svc = PortfolioService(store=store)
     result = svc.check_guardrails(
         drawdown=0.01,
-        exposure_pct=0.85,  # over 80% total exposure cap
+        exposure_pct=0.15,  # over 10% total exposure cap
         per_market_exposure={},
         equity_usd=1000.0,
         kill_switch_active=False,
@@ -448,3 +448,68 @@ def test_pm25_guardrails_concentration_exceeded():
     )
     assert result.allowed is False
     assert any("concentration_exceeded" in v for v in result.violations)
+
+
+# ── PM-26..PM-28: Additional coverage for merge-blocker fixes ────────────────
+
+
+@pytest.mark.asyncio
+async def test_pm26_store_exposure_aggregates_duplicate_markets():
+    """PM-26: PortfolioStore.get_exposure_per_market sums duplicate market_id rows."""
+    from contextlib import asynccontextmanager
+    from projects.polymarket.polyquantbot.server.storage.portfolio_store import PortfolioStore
+
+    mock_rows = [
+        {"market_id": "mkt_A", "size": 100.0},
+        {"market_id": "mkt_A", "size": 150.0},
+        {"market_id": "mkt_B", "size": 25.0},
+    ]
+    mock_conn = MagicMock()
+    mock_conn.fetch = AsyncMock(return_value=mock_rows)
+
+    @asynccontextmanager
+    async def _acquire():
+        yield mock_conn
+
+    mock_pool = MagicMock()
+    mock_pool.acquire = _acquire
+
+    mock_db = MagicMock()
+    mock_db._pool = mock_pool
+
+    store = PortfolioStore(db=mock_db)
+    result = await store.get_exposure_per_market(user_id="u1")
+
+    assert result["mkt_A"] == pytest.approx(250.0)
+    assert result["mkt_B"] == pytest.approx(25.0)
+    assert len(result) == 2
+
+
+def test_pm27_admin_route_forbidden_no_env_token(monkeypatch):
+    """PM-27: /portfolio/admin returns 403 when PORTFOLIO_ADMIN_TOKEN env is absent."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from projects.polymarket.polyquantbot.server.api.portfolio_routes import build_portfolio_router
+
+    monkeypatch.delenv("PORTFOLIO_ADMIN_TOKEN", raising=False)
+    app = FastAPI()
+    app.include_router(build_portfolio_router())
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/portfolio/admin")
+    assert response.status_code == 403
+    assert response.json()["status"] == "forbidden"
+
+
+def test_pm28_admin_route_forbidden_wrong_token(monkeypatch):
+    """PM-28: /portfolio/admin returns 403 when wrong token is supplied."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from projects.polymarket.polyquantbot.server.api.portfolio_routes import build_portfolio_router
+
+    monkeypatch.setenv("PORTFOLIO_ADMIN_TOKEN", "correct_secret")
+    app = FastAPI()
+    app.include_router(build_portfolio_router())
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/portfolio/admin", headers={"X-Portfolio-Admin-Token": "wrong_token"})
+    assert response.status_code == 403
+    assert response.json()["status"] == "forbidden"

@@ -26,7 +26,7 @@ from uuid import uuid4
 # ── Risk constants (LOCKED per AGENTS.md) ────────────────────────────────────
 KELLY_FRACTION: float = 0.25
 MAX_POSITION_PCT: float = 0.10        # max 10% of equity per single position
-MAX_TOTAL_EXPOSURE_PCT: float = 0.80  # max 80% of equity across all positions
+MAX_TOTAL_EXPOSURE_PCT: float = 0.10  # max 10% total exposure cap (conservative — this lane)
 MIN_POSITION_USD: float = 10.0
 MAX_DRAWDOWN: float = 0.08
 DAILY_LOSS_LIMIT: float = -2000.0

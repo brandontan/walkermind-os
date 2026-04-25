@@ -8,6 +8,7 @@ Unauthenticated access returns 503 when service is not wired.
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import structlog
@@ -276,7 +277,14 @@ def build_portfolio_router() -> APIRouter:
 
     @router.get("/admin")
     async def portfolio_admin(request: Request) -> JSONResponse:
-        """Admin surface — full portfolio state snapshot."""
+        """Admin surface — full portfolio state snapshot. Requires PORTFOLIO_ADMIN_TOKEN."""
+        admin_token = os.environ.get("PORTFOLIO_ADMIN_TOKEN", "")
+        request_token = request.headers.get("X-Portfolio-Admin-Token", "")
+        if not admin_token or request_token != admin_token:
+            return JSONResponse(
+                status_code=403,
+                content={"status": "forbidden", "reason": "invalid_or_missing_admin_token"},
+            )
         svc = _get_service(request)
         if svc is None:
             return JSONResponse(

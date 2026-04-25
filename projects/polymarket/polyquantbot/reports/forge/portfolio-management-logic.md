@@ -1,6 +1,6 @@
 # FORGE-X Report — portfolio-management-logic
 
-**Branch:** claude/review-checklist-zSEe5
+**Branch:** NWAP/portfolio-management-logic
 **Date:** 2026-04-25 18:30 Asia/Jakarta
 **Validation Tier:** MAJOR
 **Claim Level:** NARROW INTEGRATION
@@ -56,9 +56,9 @@ Scope delivered:
   - `GET /portfolio/pnl` — snapshot history (last 30)
   - `GET /portfolio/exposure` — per-market exposure report
   - `GET /portfolio/guardrails` — live guardrail check
-  - `GET /portfolio/admin` — full admin surface with last snapshot
+  - `GET /portfolio/admin` — full admin surface with last snapshot (protected by `PORTFOLIO_ADMIN_TOKEN` env + `X-Portfolio-Admin-Token` header; returns 403 by default)
 - `portfolio_snapshots` PostgreSQL table with DDL, two indexes (user+time, wallet+time)
-- 25/25 e2e tests passing (PM-01..PM-25)
+- 29/29 e2e tests passing (PM-01..PM-28 + PM-13b)
 - Runtime wired in `server/main.py` lifespan after DB connect
 
 ---
@@ -131,9 +131,10 @@ Modified:
 - DB error in store returns safe zero defaults, never propagates to callers
 - portfolio_snapshots DDL is idempotent (CREATE TABLE IF NOT EXISTS)
 - Runtime wiring in main.py follows same pattern as wallet_lifecycle_service
-- All 5 API routes return 503 when portfolio_service is not wired (safe default)
+- All public API routes return 503 when portfolio_service is not wired (safe default)
+- `/portfolio/admin` returns 403 unless `PORTFOLIO_ADMIN_TOKEN` env is set and matching header is provided
 
-**Test evidence: 25/25 passing (PM-01..PM-25)**
+**Test evidence: 28/28 passing (PM-01..PM-28)**
 
 ---
 

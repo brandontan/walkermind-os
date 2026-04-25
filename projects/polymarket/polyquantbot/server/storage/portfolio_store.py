@@ -250,7 +250,11 @@ class PortfolioStore:
                 return {}
             async with pool.acquire() as conn:
                 rows = await conn.fetch(sql, user_id)
-            return {str(r["market_id"]): float(r["size"]) for r in rows}
+            aggregated: dict[str, float] = {}
+            for r in rows:
+                mid = str(r["market_id"])
+                aggregated[mid] = aggregated.get(mid, 0.0) + float(r["size"])
+            return aggregated
         except Exception as exc:  # noqa: BLE001
             log.error(
                 "portfolio_get_exposure_per_market_error",
