@@ -3053,3 +3053,91 @@ def _compose_public_activation_cycle_notes(
     else:
         notes.append(f"cycle_stop_reason:{cycle_stop_reason}")
     return notes
+
+
+# ── Priority 4 — Wallet Ownership Boundary (Section 28) ──────────────────────
+#
+# Enforces ownership and privilege rules for the high-level wallet lifecycle
+# FSM introduced in Priority 4 (WalletLifecycleService).  This boundary
+# is intentionally separate from the Phase 6.5/6.6/7.0 narrow boundaries
+# above, which manage trading-wallet state storage and public activation.
+# ─────────────────────────────────────────────────────────────────────────────
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from projects.polymarket.polyquantbot.server.schemas.wallet_lifecycle import (
+        WalletLifecycleRecord,
+    )
+
+
+@dataclass(frozen=True)
+class WalletOwnershipPolicy:
+    wallet_id: str
+    tenant_id: str
+    requesting_user_id: str
+    is_admin: bool = False
+
+
+@dataclass(frozen=True)
+class WalletOwnershipResult:
+    outcome: str  # ok | ownership_denied | admin_required | not_found | wallet_blocked
+    notes: dict
+
+
+class WalletOwnershipBoundary:
+    """Verify ownership and privilege for P4 wallet lifecycle transitions.
+
+    Rules:
+        - Non-admin callers must own the wallet (tenant_id + user_id match).
+        - BLOCKED wallets are visible only to admins.
+        - Admin-only transitions (block/unblock) require is_admin=True.
+    """
+
+    def verify_ownership(
+        self,
+        policy: WalletOwnershipPolicy,
+        wallet: "WalletLifecycleRecord",
+    ) -> WalletOwnershipResult:
+        from projects.polymarket.polyquantbot.server.schemas.wallet_lifecycle import (
+            WalletLifecycleStatus,
+        )
+
+        is_tenant_admin = policy.is_admin and wallet.tenant_id == policy.tenant_id
+        if wallet.status == WalletLifecycleStatus.BLOCKED and not is_tenant_admin:
+            return WalletOwnershipResult(
+                outcome="wallet_blocked",
+                notes={"wallet_id": policy.wallet_id, "blocked": True},
+            )
+        owns = (
+            wallet.tenant_id == policy.tenant_id
+            and wallet.user_id == policy.requesting_user_id
+        )
+        if not owns and not is_tenant_admin:
+            return WalletOwnershipResult(
+                outcome="ownership_denied",
+                notes={
+                    "wallet_id": policy.wallet_id,
+                    "requesting_user": policy.requesting_user_id,
+                    "owner": wallet.user_id,
+                },
+            )
+        return WalletOwnershipResult(
+            outcome="ok",
+            notes={"wallet_id": policy.wallet_id, "is_admin": policy.is_admin},
+        )
+
+    def require_admin(
+        self,
+        policy: WalletOwnershipPolicy,
+    ) -> WalletOwnershipResult:
+        if not policy.is_admin:
+            return WalletOwnershipResult(
+                outcome="admin_required",
+                notes={"wallet_id": policy.wallet_id},
+            )
+        return WalletOwnershipResult(
+            outcome="ok",
+            notes={"wallet_id": policy.wallet_id, "is_admin": True},
+        )

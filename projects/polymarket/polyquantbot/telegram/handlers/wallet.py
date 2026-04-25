@@ -51,6 +51,9 @@ _pnl_tracker: Optional["PnLTracker"] = None
 _system_state: Optional["SystemStateManager"] = None
 _mode: str = "PAPER"
 
+# P4: lifecycle service injection
+_wallet_lifecycle_service: Optional[object] = None  # WalletLifecycleService
+
 
 def set_paper_wallet_engine(engine: "WalletEngine") -> None:
     """Inject the WalletEngine (paper trading) into the wallet handler."""
@@ -91,6 +94,56 @@ def set_mode(mode: str) -> None:
     """Update trading mode string."""
     global _mode  # noqa: PLW0603
     _mode = mode
+
+
+def set_wallet_lifecycle_service(svc: object) -> None:
+    """Inject WalletLifecycleService for P4 lifecycle status display."""
+    global _wallet_lifecycle_service  # noqa: PLW0603
+    _wallet_lifecycle_service = svc
+    log.info("wallet_handler_lifecycle_service_injected")
+
+
+# ── Section 29: Wallet lifecycle status display (P4) ─────────────────────────
+
+async def handle_wallet_lifecycle_status(
+    tenant_id: str,
+    user_id: str,
+) -> tuple[str, list]:
+    """Return wallet lifecycle status summary for Telegram display.
+
+    Shows all wallets for the user with their current FSM status.
+    Keeps copy safe — no addresses leaked beyond first/last 4 chars.
+    """
+    if _wallet_lifecycle_service is None:
+        return (
+            "⚙️ Wallet lifecycle service not available.",
+            [],
+        )
+    try:
+        wallets = await _wallet_lifecycle_service.list_wallets(  # type: ignore[union-attr]
+            tenant_id=tenant_id, user_id=user_id
+        )
+        if not wallets:
+            return (
+                "No wallets registered.\n\nUse /link to connect a wallet.",
+                [],
+            )
+        lines = ["Wallet Status\n"]
+        for w in wallets:
+            addr = w.address
+            safe_addr = f"{addr[:6]}...{addr[-4:]}" if len(addr) > 10 else addr
+            status_icon = {
+                "unlinked": "○",
+                "linked": "◎",
+                "active": "●",
+                "deactivated": "◌",
+                "blocked": "✕",
+            }.get(w.status.value, "?")
+            lines.append(f"{status_icon} {safe_addr}  [{w.status.value}]")
+        return ("\n".join(lines), [])
+    except Exception as exc:
+        log.error("wallet_lifecycle_status_error", error=str(exc))
+        return ("Unable to load wallet status.", [])
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

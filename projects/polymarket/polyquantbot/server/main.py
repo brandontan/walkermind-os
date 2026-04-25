@@ -42,10 +42,12 @@ from projects.polymarket.polyquantbot.server.services.telegram_session_issuance_
 from projects.polymarket.polyquantbot.server.services.user_service import UserService
 from projects.polymarket.polyquantbot.server.services.wallet_link_service import WalletLinkService
 from projects.polymarket.polyquantbot.server.services.wallet_service import WalletService
+from projects.polymarket.polyquantbot.server.services.wallet_lifecycle_service import WalletLifecycleService
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
 from projects.polymarket.polyquantbot.server.storage.multi_user_store import PersistentMultiUserStore
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
 from projects.polymarket.polyquantbot.server.storage.wallet_link_store import PersistentWalletLinkStore
+from projects.polymarket.polyquantbot.server.storage.wallet_lifecycle_store import WalletLifecycleStore
 from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 
 log = structlog.get_logger(__name__)
@@ -380,6 +382,12 @@ def create_app() -> FastAPI:
             )
             await run_startup_validation(settings=settings, state=state)
             await _start_database_runtime(state=state)
+            # P4: wire wallet lifecycle service after DB is connected
+            if state.db_client is not None:
+                _wlc_store = WalletLifecycleStore(db=state.db_client)
+                _app.state.wallet_lifecycle_store = _wlc_store
+                _app.state.wallet_lifecycle_service = WalletLifecycleService(store=_wlc_store)
+                log.info("wallet_lifecycle_service_wired")
             try:
                 await _start_telegram_runtime(state=state)
             except Exception as exc:
@@ -453,6 +461,7 @@ def create_app() -> FastAPI:
     app.state.wallet_link_storage_path = wallet_link_storage_path
     app.state.wallet_link_store = wallet_link_store
     app.state.wallet_link_service = wallet_link_service
+    # P4 lifecycle service is wired in lifespan after DB connects — see lifespan below
 
     falcon_gateway = FalconGateway(settings=falcon_settings)
     router = build_router(settings=settings, state=state, falcon_settings=falcon_settings)
