@@ -48,6 +48,9 @@ from projects.polymarket.polyquantbot.server.storage.multi_user_store import Per
 from projects.polymarket.polyquantbot.server.storage.session_store import PersistentSessionStore
 from projects.polymarket.polyquantbot.server.storage.wallet_link_store import PersistentWalletLinkStore
 from projects.polymarket.polyquantbot.server.storage.wallet_lifecycle_store import WalletLifecycleStore
+from projects.polymarket.polyquantbot.server.storage.portfolio_store import PortfolioStore
+from projects.polymarket.polyquantbot.server.services.portfolio_service import PortfolioService
+from projects.polymarket.polyquantbot.server.api.portfolio_routes import build_portfolio_router
 from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 
 log = structlog.get_logger(__name__)
@@ -388,6 +391,12 @@ def create_app() -> FastAPI:
                 _app.state.wallet_lifecycle_store = _wlc_store
                 _app.state.wallet_lifecycle_service = WalletLifecycleService(store=_wlc_store)
                 log.info("wallet_lifecycle_service_wired")
+            # P5: wire portfolio service after DB is connected
+            if state.db_client is not None:
+                _portfolio_store = PortfolioStore(db=state.db_client)
+                _app.state.portfolio_store = _portfolio_store
+                _app.state.portfolio_service = PortfolioService(store=_portfolio_store)
+                log.info("portfolio_service_wired")
             try:
                 await _start_telegram_runtime(state=state)
             except Exception as exc:
@@ -486,6 +495,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(build_public_beta_router(falcon=falcon_gateway))
+    app.include_router(build_portfolio_router())
 
     @app.get("/")
     async def root() -> JSONResponse:
