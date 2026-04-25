@@ -264,47 +264,47 @@ Build this after the paper product is solid.
 
 ### 25. Wallet Domain Model
 
-- [ ] Finalize wallet entity model
-- [ ] Settle ownership model
-- [ ] Finalize wallet status/state model
+- [x] Finalize wallet entity model
+- [x] Settle ownership model
+- [x] Finalize wallet status/state model
 
 ### 26. Wallet Lifecycle
 
-- [ ] Build create/init wallet lifecycle
-- [ ] Build link/unlink lifecycle
-- [ ] Build activation/deactivation lifecycle
-- [ ] Handle invalid/blocked wallet states
+- [x] Build create/init wallet lifecycle
+- [x] Build link/unlink lifecycle
+- [x] Build activation/deactivation lifecycle
+- [x] Handle invalid/blocked wallet states
 
 ### 27. Secure Wallet Persistence
 
-- [ ] Persist wallet records safely
-- [ ] Handle secrets safely
-- [ ] Add minimum audit trail
+- [x] Persist wallet records safely
+- [x] Handle secrets safely
+- [x] Add minimum audit trail
 
 ### 28. Wallet Auth Boundary
 
-- [ ] Verify ownership clearly
-- [ ] Separate admin vs user wallet access
-- [ ] Prevent privilege crossover
+- [x] Verify ownership clearly
+- [x] Separate admin vs user wallet access
+- [x] Prevent privilege crossover
 
 ### 29. Wallet Surfaces
 
-- [ ] Show wallet status clearly
-- [ ] Show wallet lifecycle state clearly
-- [ ] Show link state clearly
-- [ ] Keep user-facing copy safe
+- [x] Show wallet status clearly
+- [x] Show wallet lifecycle state clearly
+- [ ] Show link state clearly (deferred — full link surface to Priority 6 multi-wallet lane)
+- [x] Keep user-facing copy safe
 
 ### 30. Wallet Recovery and Tests
 
-- [ ] Handle broken-link recovery
-- [ ] Handle stale wallet recovery
-- [ ] Handle duplicate wallet conflicts
-- [ ] Add lifecycle tests
-- [ ] Add integration tests
+- [x] Handle broken-link recovery
+- [x] Handle stale wallet recovery
+- [x] Handle duplicate wallet conflicts
+- [x] Add lifecycle tests
+- [x] Add integration tests
 
 ### Done Condition
 
-- [ ] Wallet lifecycle is complete and stable
+- [ ] Wallet lifecycle is complete and stable — pending SENTINEL MAJOR validation
 
 ---
 
@@ -600,5 +600,6 @@ This is the final finish layer.
 - [x] Define paper balance model (section 17 — first task)
 - [x] Define paper order intent flow (section 18 — first task)
 - [x] Priority 3 kickoff — paper account model + execution engine first
-- [ ] COMMANDER: review SENTINEL MAJOR validation for NWAP/paper-product-core before merge
-- [ ] COMMANDER: scope Priority 4 wallet lifecycle foundation kickoff
+- [x] COMMANDER: review SENTINEL MAJOR validation for NWAP/paper-product-core before merge — PR #770 merged to main 2026-04-25 11:38 WIB
+- [x] COMMANDER: scope Priority 4 wallet lifecycle foundation kickoff — confirmed 2026-04-25; branch NWAP/wallet-lifecycle-foundation
+- [ ] SENTINEL: validate Priority 4 wallet lifecycle foundation — source projects/polymarket/polyquantbot/reports/forge/wallet-lifecycle-foundation.md; Tier: MAJOR

@@ -1,5 +1,5 @@
-Last Updated : 2026-04-25 11:38
-Status       : Priority 3 paper trading product completion is merged to main via PR #770; compact SENTINEL gate record approved 95/100 with zero critical issues; paper trading product runtime path is complete while paper-only boundary remains preserved.
+Last Updated : 2026-04-25 13:00
+Status       : Priority 4 wallet lifecycle foundation build complete on NWAP/wallet-lifecycle-foundation; 25/25 tests passing; SENTINEL MAJOR validation required before merge and P5 open.
 
 [COMPLETED]
 - Telegram UI/UX consolidation archival cleanup lane is completed on feature/consolidate-telegram-ui-ux-layer: active Telegram source of truth remains projects/polymarket/polyquantbot/telegram, deprecated interface/telegram/__init__.py legacy marker is archived under projects/polymarket/polyquantbot/archive/deprecated/interface/telegram_legacy_20260421/, and only thin compatibility shims remain under projects/polymarket/polyquantbot/interface/telegram/view_handler.py + projects/polymarket/polyquantbot/interface/ui_formatter.py + projects/polymarket/polyquantbot/interface/telegram/__init__.py.
@@ -13,7 +13,7 @@ Status       : Priority 3 paper trading product completion is merged to main via
 - Priority 3 paper trading product completion — PR #770 merged to main from NWAP/paper-product-core; compact SENTINEL gate record APPROVED 95/100 with zero critical issues at projects/polymarket/polyquantbot/reports/sentinel/paper-product-core-validation.md; forge report at projects/polymarket/polyquantbot/reports/forge/paper-product-core.md; paper-only boundary remains preserved.
 
 [IN PROGRESS]
-- None
+- Priority 4 wallet lifecycle foundation — build complete on NWAP/wallet-lifecycle-foundation; 25/25 tests passing; awaiting SENTINEL MAJOR validation before merge.
 
 [NOT STARTED]
 - Full wallet lifecycle implementation.
@@ -21,7 +21,10 @@ Status       : Priority 3 paper trading product completion is merged to main via
 - Capital readiness and live trading gating.
 
 [NEXT PRIORITY]
-- Priority 4 wallet lifecycle foundation kickoff — scope sections 25-30 in projects/polymarket/polyquantbot/state/WORKTODO.md.
+- SENTINEL validation required for Priority 4 wallet lifecycle foundation before merge.
+- Source: projects/polymarket/polyquantbot/reports/forge/wallet-lifecycle-foundation.md
+- Tier: MAJOR
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() is a no-op stub — unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).
+- handle_wallet_lifecycle_status() not yet wired to a Telegram command — function exists and tested but routing deferred (not blocking SENTINEL).
