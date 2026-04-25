@@ -176,6 +176,43 @@ CREATE TABLE IF NOT EXISTS trade_ledger (
 """
 
 
+# ── Priority 4: Wallet lifecycle persistence ──────────────────────────────────
+
+_DDL_WALLET_LIFECYCLE = """
+CREATE TABLE IF NOT EXISTS wallet_lifecycle (
+    wallet_id           TEXT        PRIMARY KEY,
+    tenant_id           TEXT        NOT NULL,
+    user_id             TEXT        NOT NULL,
+    address             TEXT        NOT NULL,
+    status              TEXT        NOT NULL DEFAULT 'unlinked',
+    previous_status     TEXT,
+    status_changed_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    changed_by          TEXT        NOT NULL DEFAULT 'system',
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    chain_id            TEXT        NOT NULL DEFAULT 'polygon',
+    metadata            JSONB       NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_lifecycle_user
+    ON wallet_lifecycle (tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_lifecycle_address
+    ON wallet_lifecycle (tenant_id, address);
+"""
+
+_DDL_WALLET_AUDIT_LOG = """
+CREATE TABLE IF NOT EXISTS wallet_audit_log (
+    log_id      TEXT        PRIMARY KEY,
+    wallet_id   TEXT        NOT NULL,
+    from_status TEXT,
+    to_status   TEXT        NOT NULL,
+    changed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    changed_by  TEXT        NOT NULL DEFAULT 'system',
+    reason      TEXT        NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_audit_wallet
+    ON wallet_audit_log (wallet_id);
+"""
+
+
 # ── DatabaseClient ─────────────────────────────────────────────────────────────
 
 
@@ -334,6 +371,9 @@ class DatabaseClient:
             await conn.execute(_DDL_WALLET_STATE)
             await conn.execute(_DDL_PAPER_POSITIONS)
             await conn.execute(_DDL_TRADE_LEDGER)
+            # Priority 4: wallet lifecycle
+            await conn.execute(_DDL_WALLET_LIFECYCLE)
+            await conn.execute(_DDL_WALLET_AUDIT_LOG)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────
