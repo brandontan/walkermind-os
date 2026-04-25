@@ -600,5 +600,5 @@ This is the final finish layer.
 - [x] Define paper balance model (section 17 — first task)
 - [x] Define paper order intent flow (section 18 — first task)
 - [x] Priority 3 kickoff — paper account model + execution engine first
-- [ ] COMMANDER: review SENTINEL MAJOR validation for NWAP/paper-product-core before merge
-- [ ] COMMANDER: scope Priority 4 wallet lifecycle foundation kickoff
+- [x] COMMANDER: review SENTINEL MAJOR validation for NWAP/paper-product-core before merge — PR #770 merged to main 2026-04-25 11:38 WIB
+- [x] COMMANDER: scope Priority 4 wallet lifecycle foundation kickoff — confirmed 2026-04-25; branch NWAP/wallet-lifecycle-foundation

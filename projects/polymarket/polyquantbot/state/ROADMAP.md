@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active (Paper Beta Complete + Phase 10 Post-Merge Cleanup) | Phase 10 — Post-Launch Cleanup + Public-Surface Wording Alignment |
+| Crusader | Polymarket | Active (Priority 3 Paper Product Complete — Priority 4 In Progress) | Priority 4 — Wallet Lifecycle Foundation |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening SENTINEL MAJOR validation APPROVED (98/100, zero critical issues) and PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta; Priority 2 done condition closed (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-24 11:53
+**Status:** Priority 3 paper trading product completion merged to main via PR #770 (NWAP/paper-product-core); compact SENTINEL gate APPROVED 95/100 zero critical issues; paper-only boundary preserved; Priority 4 wallet lifecycle foundation is next active priority.
+**Last Updated:** 2026-04-25 11:38
 
 # Board Overview
 
