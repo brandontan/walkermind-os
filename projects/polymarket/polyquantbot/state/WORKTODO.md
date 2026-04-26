@@ -378,16 +378,16 @@ Build this after wallet and portfolio are ready.
 
 ### 39. Cross-Wallet State Truth
 
-- [ ] Build unified view across wallets
-- [ ] Prevent duplicate/conflicting state
-- [ ] Build shared exposure truth
+- [x] Build unified view across wallets
+- [x] Prevent duplicate/conflicting state
+- [x] Build shared exposure truth
 
 ### 40. Cross-Wallet Controls
 
-- [ ] Add per-wallet enable/disable
-- [ ] Add per-wallet health status
-- [ ] Add per-wallet risk state
-- [ ] Add portfolio-wide control overlay
+- [x] Add per-wallet enable/disable
+- [x] Add per-wallet health status
+- [x] Add per-wallet risk state
+- [x] Add portfolio-wide control overlay
 
 ### 41. UX/API and Recovery
 
