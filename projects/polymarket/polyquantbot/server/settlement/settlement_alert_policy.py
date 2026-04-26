@@ -57,7 +57,10 @@ class SettlementAlertPolicy:
         recon_result: Optional[ReconciliationResult] = None,
         batch_result: Optional[SettlementBatchResult] = None,
     ) -> AlertClassification:
-        critical = self.is_critical(event.event_type, event.payload.get("blocked_reason"), mode)
+        reason_or_outcome = event.payload.get("blocked_reason")
+        if event.event_type == SETTLEMENT_EVENT_RETRY_ATTEMPT:
+            reason_or_outcome = event.payload.get("outcome")
+        critical = self.is_critical(event.event_type, reason_or_outcome, mode)
         drift = self.is_drift(recon_result, batch_result)
 
         alert_reason = _build_alert_reason(event, critical, drift, mode)
