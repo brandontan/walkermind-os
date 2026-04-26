@@ -1,5 +1,5 @@
-Last Updated : 2026-04-25 22:30
-Status       : Priority 6 multi-wallet orchestration Phase A is in progress on NWAP/multi-wallet-orchestration; orchestration foundation (sections 37-38) built with WalletOrchestrator, WalletSelectionPolicy, and domain schemas; 12/12 tests passing (WO-01..WO-12); risk gate is hard and failover relaxes strategy only; SENTINEL MAJOR validation required before Phase B begins.
+Last Updated : 2026-04-26 10:00
+Status       : Priority 7 settlement-retry-reconciliation layer built on NWAP/settlement-retry-reconciliation; 9 production modules (schemas, workflow, retry, batch, reconciliation, operator, alert policy, persistence) and 6 test files with 66/66 tests passing (ST-01..ST-38c); SENTINEL MAJOR validation required before merge.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -13,17 +13,20 @@ Status       : Priority 6 multi-wallet orchestration Phase A is in progress on N
 
 [IN PROGRESS]
 - Priority 6 multi-wallet orchestration Phase A (sections 37-38) -- WalletOrchestrator + WalletSelectionPolicy + domain schemas built on NWAP/multi-wallet-orchestration; 12/12 tests passing (WO-01..WO-12); risk gate is hard and failover relaxes strategy only; awaiting SENTINEL MAJOR validation before Phase B.
+- Priority 7 settlement-retry-reconciliation (sections 43-48) -- 9 production modules built on NWAP/settlement-retry-reconciliation; 66/66 tests passing (ST-01..ST-38c); awaiting SENTINEL MAJOR validation before merge.
 
 [NOT STARTED]
 - Priority 6 Phase B (sections 39-40): cross-wallet state aggregation + per-wallet controls.
 - Priority 6 Phase C (sections 41-42): UX/API, recovery, persistence, integration tests.
-- Settlement, retry, reconciliation, and ops automation.
+- Priority 7 FastAPI route exposure for operator console (§47) and Telegram wiring.
+- Priority 7 PostgreSQL DDL migration for settlement_events, settlement_retry_history, settlement_reconciliation_results tables.
 - Capital readiness and live trading gating.
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
+- SENTINEL validation required for Priority 7 settlement-retry-reconciliation (MAJOR tier) -- source: projects/polymarket/polyquantbot/reports/forge/settlement-retry-reconciliation.md.
 - SENTINEL validation required for Priority 6 Phase A (MAJOR tier) -- source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-a.md.
-- After SENTINEL verdict, COMMANDER decides Phase B scope opening (sections 39-40: cross-wallet state + controls).
+- After SENTINEL verdicts, COMMANDER decides merge order and Phase 6B scope opening.
 - Maintain no public-ready, live-trading-ready, or production-capital-ready claim until full SENTINEL pre-public sweep.
 
 [KNOWN ISSUES]

@@ -416,51 +416,51 @@ Build this after orchestration is ready.
 
 ### 43. Settlement Workflow
 
-- [ ] Define settlement workflow
-- [ ] Define status transitions
-- [ ] Define idempotency model
+- [x] Define settlement workflow
+- [x] Define status transitions
+- [x] Define idempotency model
 
 ### 44. Retry Engine
 
-- [ ] Define retry rules
-- [ ] Define retry caps
-- [ ] Define backoff strategy
-- [ ] Distinguish fatal vs retryable failures
+- [x] Define retry rules
+- [x] Define retry caps
+- [x] Define backoff strategy
+- [x] Distinguish fatal vs retryable failures
 
 ### 45. Batching Logic
 
-- [ ] Define settlement batching rules
-- [ ] Define queueing model
-- [ ] Handle partial batches
-- [ ] Add batch observability
+- [x] Define settlement batching rules
+- [x] Define queueing model
+- [x] Handle partial batches
+- [x] Add batch observability
 
 ### 46. Reconciliation Logic
 
-- [ ] Build internal vs external reconciliation
-- [ ] Detect mismatches
-- [ ] Detect stuck states
-- [ ] Add repair/recovery flow
+- [x] Build internal vs external reconciliation
+- [x] Detect mismatches
+- [x] Detect stuck states
+- [x] Add repair/recovery flow
 
 ### 47. Operator Tooling
 
-- [ ] Show settlement status
-- [ ] Show retry status
-- [ ] Show failed batches
-- [ ] Add admin intervention paths
+- [x] Show settlement status
+- [x] Show retry status
+- [x] Show failed batches
+- [x] Add admin intervention paths
 
 ### 48. Persistence, Alerts, and Validation
 
-- [ ] Persist settlement events
-- [ ] Persist retry history
-- [ ] Persist reconciliation results
-- [ ] Add critical alerts
-- [ ] Add drift alerts
-- [ ] Validate all flows
-- [ ] Sync docs after completion
+- [x] Persist settlement events
+- [x] Persist retry history
+- [x] Persist reconciliation results
+- [x] Add critical alerts
+- [x] Add drift alerts
+- [x] Validate all flows
+- [ ] Sync docs after completion (DDL migration + HTTP route wiring deferred)
 
 ### Done Condition
 
-- [ ] Ops flow is resilient, observable, and recoverable
+- [x] Ops flow is resilient, observable, and recoverable
 
 ---
 
