@@ -753,6 +753,57 @@ Never create a PR mid-task.
 - Prefer **targeted edits** (str_replace / patch) over full file rewrites whenever possible.
 
 ---
+## PR Size & Pagination Protocol
+
+---
+
+### PR Split Rule
+
+Before creating any PR, count the number of new components, modules, or distinct system areas in the task.
+
+**Split into separate PRs if ANY of the following is true:**
+
+- New components or modules **> 3**
+- New test cases **> 15**
+- Task touches **> 2 distinct system areas** (e.g., core logic + frontend + infra)
+
+**How to split:**
+
+- One PR per component. Each PR must be **self-contained and independently mergeable**.
+- Declare merge order explicitly in each PR description:
+
+```
+Merge Order: PR #X → PR #Y → PR #Z
+Depends on: PR #X (must be merged first)
+```
+
+- Never create PR N+1 until PR N is merged, unless they have zero shared file overlap.
+
+**If task is small enough for a single PR** — proceed normally, no split needed.
+
+---
+
+### getPRFiles Pagination Rule
+
+Never call `getPRFiles` directly on any PR without checking file count first.
+
+**Required steps before fetching PR files:**
+
+1. Fetch PR metadata to get total file count
+2. If file count **> 10** → paginate, max **5 files per batch**
+3. If file count **≤ 10** → fetch normally
+
+**Pagination pattern:**
+
+```
+Batch 1: files 1–5  → inspect → proceed
+Batch 2: files 6–10 → inspect → proceed
+...
+```
+
+Never load patch content for all files simultaneously. Fetch patch per file only when that file is actively being reviewed.
+
+---
 
 ### Applies To
 
