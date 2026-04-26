@@ -1,5 +1,5 @@
-Last Updated : 2026-04-26 10:00
-Status       : Priority 7 settlement-retry-reconciliation layer built on NWAP/settlement-retry-reconciliation; 9 production modules (schemas, workflow, retry, batch, reconciliation, operator, alert policy, persistence) and 6 test files with 66/66 tests passing (ST-01..ST-38c); SENTINEL MAJOR validation required before merge.
+Last Updated : 2026-04-26 22:24
+Status       : Priority 7 settlement-retry-reconciliation is merged to main via PR #777 under owner/COMMANDER forge-merge direction; structure build continues and full SENTINEL/check-all is deferred until all phases/structure are complete before any public-ready, live-capital, or production claim.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -10,10 +10,11 @@ Status       : Priority 7 settlement-retry-reconciliation layer built on NWAP/se
 - Priority 3 paper trading product completion is merged to main via PR #770 from NWAP/paper-product-core; compact SENTINEL gate record APPROVED 95/100 with zero critical issues.
 - Priority 4 wallet lifecycle foundation is merged to main via PR #772 from NWAP/wallet-lifecycle-foundation; COMMANDER degen structure review accepted and full SENTINEL is deferred to pre-public sweep.
 - Priority 5 portfolio management logic is merged to main via PR #774 from NWAP/portfolio-management-logic; schemas, store, service, 6 routes, and 29/29 tests passing (PM-01..PM-28 + PM-13b); COMMANDER degen structure review accepted and full SENTINEL is deferred to pre-public sweep.
+- Priority 6 multi-wallet orchestration Phase A is merged to main via PR #776 from NWAP/multi-wallet-orchestration; 12/12 tests passing (WO-01..WO-12); risk gate is hard and failover relaxes strategy only.
+- Priority 7 settlement-retry-reconciliation is merged to main via PR #777 from NWAP/settlement-retry-reconciliation; 9 production modules and 66/66 tests passing (ST-01..ST-38c); owner/COMMANDER forge-merge accepted and full SENTINEL/check-all is deferred until all phases/structure are done.
 
 [IN PROGRESS]
-- Priority 6 multi-wallet orchestration Phase A (sections 37-38) -- WalletOrchestrator + WalletSelectionPolicy + domain schemas built on NWAP/multi-wallet-orchestration; 12/12 tests passing (WO-01..WO-12); risk gate is hard and failover relaxes strategy only; awaiting SENTINEL MAJOR validation before Phase B.
-- Priority 7 settlement-retry-reconciliation (sections 43-48) -- 9 production modules built on NWAP/settlement-retry-reconciliation; 66/66 tests passing (ST-01..ST-38c); awaiting SENTINEL MAJOR validation before merge.
+- Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until full SENTINEL/check-all is complete.
 
 [NOT STARTED]
 - Priority 6 Phase B (sections 39-40): cross-wallet state aggregation + per-wallet controls.
@@ -24,10 +25,9 @@ Status       : Priority 7 settlement-retry-reconciliation layer built on NWAP/se
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Priority 7 settlement-retry-reconciliation (MAJOR tier) -- source: projects/polymarket/polyquantbot/reports/forge/settlement-retry-reconciliation.md.
-- SENTINEL validation required for Priority 6 Phase A (MAJOR tier) -- source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-a.md.
-- After SENTINEL verdicts, COMMANDER decides merge order and Phase 6B scope opening.
-- Maintain no public-ready, live-trading-ready, or production-capital-ready claim until full SENTINEL pre-public sweep.
+- Continue remaining internal structure phases under forge-merge mode.
+- Maintain no public-ready, live-trading-ready, or production-capital-ready claim until full SENTINEL/check-all sweep.
+- Full SENTINEL/check-all is required after all phases/structure are complete and before public launch / public-ready claim / live-capital claim.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() is a no-op stub -- unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).
@@ -35,3 +35,5 @@ Status       : Priority 7 settlement-retry-reconciliation layer built on NWAP/se
 - Wallet lifecycle live PostgreSQL validation is deferred to the full SENTINEL pre-public sweep.
 - Portfolio routes hardcode tenant_id=system and user_id=paper_user -- per-user route binding deferred to Priority 6 multi-wallet lane.
 - Portfolio unrealized PnL relies on current_price in paper_positions -- live mark-to-market deferred to market data integration lane.
+- SettlementPersistence SQL DDL table creation is not included in PR #777 -- settlement_events, settlement_retry_history, and settlement_reconciliation_results tables must be created before production persistence use.
+- Operator console is data-injection ready but not HTTP/Telegram exposed in PR #777.
