@@ -14,7 +14,7 @@ from typing import Any
 
 import structlog
 
-from platform.execution.fund_settlement import (
+from projects.polymarket.polyquantbot.platform.execution.fund_settlement import (
     FundSettlementExecutionInput,
     FundSettlementPolicyInput,
 )

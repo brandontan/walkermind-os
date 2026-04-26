@@ -19,7 +19,7 @@ from typing import Optional
 
 import structlog
 
-from platform.execution.fund_settlement import FUND_SETTLEMENT_HALT_MONITORING_ANOMALY
+from projects.polymarket.polyquantbot.platform.execution.fund_settlement import FUND_SETTLEMENT_HALT_MONITORING_ANOMALY
 
 from .schemas import (
     BATCH_STATUS_PARTIAL,

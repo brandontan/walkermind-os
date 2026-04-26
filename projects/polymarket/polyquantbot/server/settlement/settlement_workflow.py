@@ -19,7 +19,7 @@ from typing import Any
 
 import structlog
 
-from platform.execution.fund_settlement import (
+from projects.polymarket.polyquantbot.platform.execution.fund_settlement import (
     FUND_SETTLEMENT_STATUS_BLOCKED,
     FUND_SETTLEMENT_STATUS_COMPLETED,
     FUND_SETTLEMENT_STATUS_SIMULATED,

@@ -14,7 +14,7 @@ from typing import Any
 
 import structlog
 
-from platform.execution.fund_settlement import (
+from projects.polymarket.polyquantbot.platform.execution.fund_settlement import (
     FUND_SETTLEMENT_BLOCK_CAPITAL_NOT_AUTHORIZED,
     FUND_SETTLEMENT_BLOCK_IRREVERSIBLE_ACK_MISSING,
     FUND_SETTLEMENT_BLOCK_REAL_SETTLEMENT_NOT_ALLOWED,

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
-from platform.execution.fund_settlement import FundSettlementResult
+from projects.polymarket.polyquantbot.platform.execution.fund_settlement import FundSettlementResult
 
 
 # ---------------------------------------------------------------------------
