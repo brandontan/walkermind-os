@@ -6,7 +6,7 @@
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walker-ai-team
 Version: 2.3
-Last Updated: 2026-04-24 18:28 Asia/Jakarta
+Last Updated: 2026-04-26 13:28 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
            workflow, and operational boundaries. All other files are
            supporting documents. When conflict exists, AGENTS.md wins.
@@ -1510,6 +1510,86 @@ Never silently fail. Always deliver the artifact.
 
 ---
 
+## Task Chunking Protocol
+
+All agents MUST apply this protocol before executing any task. Skipping this check is not allowed.
+
+---
+
+### When to Chunk
+
+Chunk the task if ANY of the following is true:
+
+- Files to read or write **> 5** in a single run
+- Estimated output is **long** (multiple full file rewrites, large diffs, or many code blocks)
+- Task involves **> 3 tool call chains** in sequence (e.g., read → analyze → write → PR → update state)
+- Task touches **> 2 distinct system areas** (e.g., backend + frontend + docs in one go)
+
+If none of the above — proceed normally.
+
+---
+
+### How to Chunk
+
+**Step 1 — Plan first.**
+Before doing anything, output a numbered chunk plan:
+
+```
+CHUNK PLAN
+Total chunks: N
+Chunk 1: [what will be done]
+Chunk 2: [what will be done]
+...
+Chunk N: [final — PR + PROJECT_STATE.md update]
+```
+
+**Step 2 — Execute one chunk at a time.**
+Complete Chunk 1 fully before starting Chunk 2. Do not interleave chunks.
+
+**Step 3 — Signal continuation.**
+At the end of each chunk (except the last), output:
+
+```
+CHUNK [N] COMPLETE. Ready for Chunk [N+1]. Awaiting confirmation.
+```
+
+Do not auto-proceed to the next chunk. Wait for explicit confirmation from COMMANDER or the user.
+
+**Step 4 — Final chunk only.**
+Only the final chunk may create a PR and update `PROJECT_STATE.md`.
+Never create a PR mid-task.
+
+---
+
+### Hard Limits Per Chunk
+
+| Limit | Value |
+|---|---|
+| Max files written per chunk | 5 |
+| Max files read per chunk | 8 |
+| Max sequential tool calls per chunk | 6 |
+| PR creation | Final chunk only |
+| `PROJECT_STATE.md` update | Final chunk only |
+
+---
+
+### Timeout Prevention Rules
+
+- Do not write files larger than **300 lines** in a single tool call. Split into multiple writes if needed.
+- Do not chain more than 3 read operations without an intermediate output step.
+- If a single file requires heavy rewriting (full replacement), treat that file as its own chunk.
+- Prefer **targeted edits** (str_replace / patch) over full file rewrites whenever possible.
+
+---
+
+### Applies To
+
+All agents operating under this AGENTS.md:
+**FORGE-X, SENTINEL, BRIEFER, NEXUS.**
+
+COMMANDER is responsible for enforcing chunk boundaries when orchestrating multi-agent pipelines.
+
+---
 ## FINAL ROLE SUMMARY
 
 NEXUS = role router + build/validate/report executor + state sync enforcer + workflow integrity layer between COMMANDER and specialist agents.
