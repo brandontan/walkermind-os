@@ -25,11 +25,14 @@ from .schemas import (
     BATCH_STATUS_FAILED,
     BATCH_STATUS_PARTIAL,
     SETTLEMENT_STATUS_COMPLETED,
+    SETTLEMENT_STATUS_FAILED,
     SETTLEMENT_STATUS_SIMULATED,
     BatchItemResult,
     SettlementBatchRequest,
     SettlementBatchResult,
+    SettlementWorkflowRequest,
     _utc_now,
+    new_batch_id,
 )
 from .settlement_workflow import SettlementWorkflowEngine
 
@@ -88,7 +91,7 @@ class BatchProcessor:
             if exec_input is None or pol_input is None:
                 item_results.append(BatchItemResult(
                     workflow_id=item.workflow_id,
-                    status="FAILED",
+                    status=SETTLEMENT_STATUS_FAILED,
                     success=False,
                     blocked_reason="missing_inputs",
                 ))
@@ -112,7 +115,7 @@ class BatchProcessor:
                 )
                 item_results.append(BatchItemResult(
                     workflow_id=item.workflow_id,
-                    status="FAILED",
+                    status=SETTLEMENT_STATUS_FAILED,
                     success=False,
                     blocked_reason=f"processor_error: {exc}",
                 ))
@@ -144,11 +147,9 @@ class BatchProcessor:
         if not failed_items:
             return batch_result
 
-        from .schemas import SettlementBatchRequest, _utc_now, new_batch_id
-
         partial_request = SettlementBatchRequest(
-            batch_id=batch_result.batch_id,
-            items=_failed_items_as_requests(failed_items, execution_inputs, policy_inputs, batch_result),
+            batch_id=new_batch_id(),
+            items=_failed_items_as_requests(failed_items, policy_inputs, batch_result),
             mode=batch_result.mode,
             queued_at=_utc_now(),
         )
@@ -205,12 +206,9 @@ def _build_batch_result(
 
 def _failed_items_as_requests(
     failed_items: tuple[BatchItemResult, ...],
-    execution_inputs: dict,
-    policy_inputs: dict,
+    policy_inputs: dict[str, FundSettlementPolicyInput],
     original_batch: SettlementBatchResult,
-) -> tuple:
-    from .schemas import SettlementWorkflowRequest, _utc_now
-
+) -> tuple[SettlementWorkflowRequest, ...]:
     requests = []
     for item in failed_items:
         pol = policy_inputs.get(item.workflow_id)

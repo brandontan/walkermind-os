@@ -17,6 +17,7 @@ from typing import Any
 
 import structlog
 
+from .retry_engine import RetryEngine
 from .schemas import (
     BATCH_STATUS_FAILED,
     BATCH_STATUS_PARTIAL,
@@ -193,7 +194,6 @@ class OperatorConsole:
                     previous_status=prev_status,
                     blocked_reason="already_terminal",
                 )
-            from .retry_engine import RetryEngine
             if RetryEngine.is_fatal(current_result.blocked_reason):
                 bound.warning(
                     "operator_console_intervention_blocked_fatal",

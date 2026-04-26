@@ -1,5 +1,5 @@
-Last Updated : 2026-04-26 22:24
-Status       : Priority 7 settlement-retry-reconciliation is merged to main via PR #777 under owner/COMMANDER forge-merge direction; structure build continues and full SENTINEL/check-all is deferred until all phases/structure are complete before any public-ready, live-capital, or production claim.
+Last Updated : 2026-04-26 23:30
+Status       : Priority 6 Phase B multi-wallet orchestration (sections 39-40) is complete on NWAP/multi-wallet-orchestration; CrossWalletStateAggregator, WalletControlsStore, and WalletOrchestrator Phase B extension built with 15/15 tests passing (WO-13..WO-27); structure build continues under forge-merge mode.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -12,12 +12,13 @@ Status       : Priority 7 settlement-retry-reconciliation is merged to main via 
 - Priority 5 portfolio management logic is merged to main via PR #774 from NWAP/portfolio-management-logic; schemas, store, service, 6 routes, and 29/29 tests passing (PM-01..PM-28 + PM-13b); COMMANDER degen structure review accepted and full SENTINEL is deferred to pre-public sweep.
 - Priority 6 multi-wallet orchestration Phase A is merged to main via PR #776 from NWAP/multi-wallet-orchestration; 12/12 tests passing (WO-01..WO-12); risk gate is hard and failover relaxes strategy only.
 - Priority 7 settlement-retry-reconciliation is merged to main via PR #777 from NWAP/settlement-retry-reconciliation; 9 production modules and 66/66 tests passing (ST-01..ST-38c); owner/COMMANDER forge-merge accepted and full SENTINEL/check-all is deferred until all phases/structure are done.
+- Priority 6 Phase B multi-wallet orchestration is complete on NWAP/multi-wallet-orchestration; CrossWalletStateAggregator (sections 39), WalletControlsStore + PortfolioControlOverlay + WalletOrchestrator Phase B extension (section 40); 15/15 tests passing (WO-13..WO-27).
 
 [IN PROGRESS]
+- Priority 6 Phase B is on NWAP/multi-wallet-orchestration pending COMMANDER review and merge.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until full SENTINEL/check-all is complete.
 
 [NOT STARTED]
-- Priority 6 Phase B (sections 39-40): cross-wallet state aggregation + per-wallet controls.
 - Priority 6 Phase C (sections 41-42): UX/API, recovery, persistence, integration tests.
 - Priority 7 FastAPI route exposure for operator console (§47) and Telegram wiring.
 - Priority 7 PostgreSQL DDL migration for settlement_events, settlement_retry_history, settlement_reconciliation_results tables.
@@ -25,9 +26,10 @@ Status       : Priority 7 settlement-retry-reconciliation is merged to main via 
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
+- COMMANDER review and merge of Priority 6 Phase B PR on NWAP/multi-wallet-orchestration.
+- SENTINEL validation required for Phase B before Phase C begins (Tier: MAJOR; source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-b.md).
 - Continue remaining internal structure phases under forge-merge mode.
 - Maintain no public-ready, live-trading-ready, or production-capital-ready claim until full SENTINEL/check-all sweep.
-- Full SENTINEL/check-all is required after all phases/structure are complete and before public launch / public-ready claim / live-capital claim.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() is a no-op stub -- unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).
