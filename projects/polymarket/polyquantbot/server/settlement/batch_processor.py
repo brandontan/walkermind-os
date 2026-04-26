@@ -118,7 +118,7 @@ class BatchProcessor:
                 ))
 
         result_tuple = tuple(item_results)
-        batch_result = _build_batch_result(batch_request.batch_id, result_tuple)
+        batch_result = _build_batch_result(batch_request.batch_id, result_tuple, batch_request.mode)
         duration_ms = int((time.monotonic() - t0) * 1000)
 
         bound.info(
@@ -149,7 +149,7 @@ class BatchProcessor:
         partial_request = SettlementBatchRequest(
             batch_id=batch_result.batch_id,
             items=_failed_items_as_requests(failed_items, execution_inputs, policy_inputs, batch_result),
-            mode="paper",
+            mode=batch_result.mode,
             queued_at=_utc_now(),
         )
 
@@ -175,6 +175,7 @@ class BatchProcessor:
 def _build_batch_result(
     batch_id: str,
     item_results: tuple[BatchItemResult, ...],
+    mode: str = "paper",
 ) -> SettlementBatchResult:
     completed = sum(1 for r in item_results if r.success)
     failed = sum(1 for r in item_results if not r.success and r.blocked_reason is None)
@@ -198,6 +199,7 @@ def _build_batch_result(
         blocked_count=blocked,
         partial=partial,
         item_results=item_results,
+        mode=mode,
     )
 
 
@@ -220,7 +222,7 @@ def _failed_items_as_requests(
             amount=pol.amount,
             currency=pol.currency,
             method=pol.settlement_method,
-            mode="paper",
+            mode=original_batch.mode,
             settlement_id=item.settlement_id,
         ))
     return tuple(requests)

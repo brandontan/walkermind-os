@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from projects.polymarket.polyquantbot.platform.execution.fund_settlement import FundSettlementResult
@@ -69,7 +69,7 @@ class SettlementWorkflowRequest:
     method: str
     mode: str
     workflow_id: str = field(default_factory=new_settlement_id)
-    settlement_id: Optional[str] = None
+    settlement_id: str | None = None
     correlation_id: str = field(default_factory=new_settlement_id)
     requested_at: datetime = field(default_factory=_utc_now)
     upstream_trace_refs: dict[str, Any] = field(default_factory=dict)
@@ -82,12 +82,12 @@ class SettlementWorkflowResult:
     workflow_id: str
     status: str
     success: bool
-    settlement_id: Optional[str] = None
-    blocked_reason: Optional[str] = None
+    settlement_id: str | None = None
+    blocked_reason: str | None = None
     simulated: bool = False
-    fund_result: Optional[FundSettlementResult] = None
+    fund_result: FundSettlementResult | None = None
     trace_refs: dict[str, Any] = field(default_factory=dict)
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -117,9 +117,9 @@ class RetryAttemptRecord:
     workflow_id: str
     outcome: str
     attempted_at: datetime = field(default_factory=_utc_now)
-    settlement_id: Optional[str] = None
-    blocked_reason: Optional[str] = None
-    delay_before_next_s: Optional[float] = None
+    settlement_id: str | None = None
+    blocked_reason: str | None = None
+    delay_before_next_s: float | None = None
     trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -130,8 +130,8 @@ class RetryDecision:
     attempt_number: int
     is_fatal: bool
     is_exhausted: bool
-    next_delay_s: Optional[float] = None
-    blocked_reason: Optional[str] = None
+    next_delay_s: float | None = None
+    blocked_reason: str | None = None
     trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -162,8 +162,8 @@ class BatchItemResult:
     workflow_id: str
     status: str
     success: bool
-    settlement_id: Optional[str] = None
-    blocked_reason: Optional[str] = None
+    settlement_id: str | None = None
+    blocked_reason: str | None = None
     simulated: bool = False
 
 
@@ -177,6 +177,7 @@ class SettlementBatchResult:
     blocked_count: int
     partial: bool
     item_results: tuple[BatchItemResult, ...]
+    mode: str = "paper"
     processed_at: datetime = field(default_factory=_utc_now)
     trace_refs: dict[str, Any] = field(default_factory=dict)
 
@@ -206,9 +207,9 @@ class ReconciliationEntry:
     internal_status: str
     internal_amount: float
     age_s: float
-    settlement_id: Optional[str] = None
-    external_status: Optional[str] = None
-    external_amount: Optional[float] = None
+    settlement_id: str | None = None
+    external_status: str | None = None
+    external_amount: float | None = None
     trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -219,9 +220,9 @@ class ReconciliationResult:
     repair_action: str
     is_stuck: bool
     internal_status: str
-    settlement_id: Optional[str] = None
-    mismatch_reason: Optional[str] = None
-    external_status: Optional[str] = None
+    settlement_id: str | None = None
+    mismatch_reason: str | None = None
+    external_status: str | None = None
     trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -253,8 +254,8 @@ class SettlementStatusView:
     retry_attempt_count: int
     created_at: datetime
     updated_at: datetime
-    settlement_id: Optional[str] = None
-    last_blocked_reason: Optional[str] = None
+    settlement_id: str | None = None
+    last_blocked_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -265,7 +266,7 @@ class RetryStatusView:
     last_outcome: str
     is_exhausted: bool
     is_fatal: bool
-    next_retry_at: Optional[datetime] = None
+    next_retry_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -294,8 +295,8 @@ class AdminInterventionResult:
     action: str
     success: bool
     previous_status: str
-    new_status: Optional[str] = None
-    blocked_reason: Optional[str] = None
+    new_status: str | None = None
+    blocked_reason: str | None = None
     trace_refs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -320,7 +321,7 @@ class SettlementEvent:
     workflow_id: str
     payload: dict[str, Any]
     event_id: str = field(default_factory=new_event_id)
-    settlement_id: Optional[str] = None
+    settlement_id: str | None = None
     occurred_at: datetime = field(default_factory=_utc_now)
 
 
@@ -330,4 +331,4 @@ class AlertClassification:
     is_drift: bool
     alert_reason: str
     workflow_id: str
-    settlement_id: Optional[str] = None
+    settlement_id: str | None = None

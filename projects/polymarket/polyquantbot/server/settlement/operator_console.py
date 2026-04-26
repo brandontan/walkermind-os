@@ -7,7 +7,7 @@ Every admin intervention is logged for audit.
 Allowed admin actions:
   force_cancel   — move any non-terminal workflow to CANCELLED
   force_retry    — re-open a FAILED workflow as PENDING (blocked on fatal)
-  force_complete — mark a workflow COMPLETED (blocked if retries are active)
+  force_complete — mark a workflow COMPLETED (blocked if already terminal)
 """
 from __future__ import annotations
 

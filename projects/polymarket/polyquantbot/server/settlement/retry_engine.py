@@ -54,8 +54,6 @@ FATAL_BLOCK_REASONS: frozenset[str] = frozenset({
     FUND_SETTLEMENT_BLOCK_WALLET_ACCESS_DENIED,
     FUND_SETTLEMENT_BLOCK_IRREVERSIBLE_ACK_MISSING,
     FUND_SETTLEMENT_HALT_MONITORING_ANOMALY,
-    "real_settlement_not_allowed",
-    "settlement_disabled",
 })
 
 RETRYABLE_BLOCK_REASONS: frozenset[str] = frozenset({
