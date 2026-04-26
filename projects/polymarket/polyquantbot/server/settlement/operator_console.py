@@ -225,6 +225,10 @@ class OperatorConsole:
                     previous_status=prev_status,
                     blocked_reason="already_terminal",
                 )
+            # Retry-state is intentionally NOT checked here. apply_admin_intervention
+            # receives only the current workflow result, not retry history — callers
+            # that need to guard against active retries must do so before calling this
+            # method. Operators use force_complete precisely to skip the retry loop.
             bound.info("operator_console_force_complete_applied")
             return AdminInterventionResult(
                 workflow_id=intervention.workflow_id,

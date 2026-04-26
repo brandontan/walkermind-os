@@ -253,6 +253,50 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_wallet
 """
 
 
+# ── Priority 7: Settlement, retry, and reconciliation persistence ─────────────
+
+_DDL_SETTLEMENT_EVENTS = """
+CREATE TABLE IF NOT EXISTS settlement_events (
+    event_id        TEXT        PRIMARY KEY,
+    event_type      TEXT        NOT NULL,
+    workflow_id     TEXT        NOT NULL,
+    settlement_id   TEXT,
+    payload         JSONB       NOT NULL DEFAULT '{}',
+    occurred_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_settlement_events_workflow
+    ON settlement_events (workflow_id, occurred_at ASC);
+"""
+
+_DDL_SETTLEMENT_RETRY_HISTORY = """
+CREATE TABLE IF NOT EXISTS settlement_retry_history (
+    workflow_id         TEXT        NOT NULL,
+    attempt_number      INTEGER     NOT NULL,
+    outcome             TEXT        NOT NULL,
+    settlement_id       TEXT,
+    blocked_reason      TEXT,
+    delay_before_next_s DOUBLE PRECISION,
+    attempted_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    trace_refs          JSONB       NOT NULL DEFAULT '{}',
+    PRIMARY KEY (workflow_id, attempt_number)
+);
+"""
+
+_DDL_SETTLEMENT_RECONCILIATION_RESULTS = """
+CREATE TABLE IF NOT EXISTS settlement_reconciliation_results (
+    workflow_id         TEXT        PRIMARY KEY,
+    settlement_id       TEXT,
+    outcome             TEXT        NOT NULL,
+    mismatch_reason     TEXT,
+    repair_action       TEXT        NOT NULL,
+    is_stuck            BOOLEAN     NOT NULL DEFAULT FALSE,
+    internal_status     TEXT        NOT NULL,
+    external_status     TEXT,
+    trace_refs          JSONB       NOT NULL DEFAULT '{}'
+);
+"""
+
+
 # ── DatabaseClient ─────────────────────────────────────────────────────────────
 
 
@@ -417,6 +461,10 @@ class DatabaseClient:
             await conn.execute(_DDL_WALLET_AUDIT_LOG)
             # Priority 5: portfolio snapshots
             await conn.execute(_DDL_PORTFOLIO_SNAPSHOTS)
+            # Priority 7: settlement domain
+            await conn.execute(_DDL_SETTLEMENT_EVENTS)
+            await conn.execute(_DDL_SETTLEMENT_RETRY_HISTORY)
+            await conn.execute(_DDL_SETTLEMENT_RECONCILIATION_RESULTS)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────

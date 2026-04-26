@@ -78,6 +78,16 @@ projects/polymarket/polyquantbot/tests/test_settlement_p7_operator.py
 projects/polymarket/polyquantbot/tests/test_settlement_p7_alerts_persistence.py
 ```
 
+**Modified (post-review fixes):**
+```
+projects/polymarket/polyquantbot/server/settlement/schemas.py
+projects/polymarket/polyquantbot/server/settlement/batch_processor.py
+projects/polymarket/polyquantbot/server/settlement/retry_engine.py
+projects/polymarket/polyquantbot/server/settlement/operator_console.py
+projects/polymarket/polyquantbot/server/settlement/settlement_workflow.py
+projects/polymarket/polyquantbot/infra/db/database.py
+```
+
 **Modified (state):**
 ```
 projects/polymarket/polyquantbot/state/PROJECT_STATE.md
@@ -103,10 +113,14 @@ projects/polymarket/polyquantbot/state/CHANGELOG.md
 
 ## 5. Known Issues
 
-- `SettlementPersistence` SQL DDL (table creation) is not included in this PR — PostgreSQL tables (`settlement_events`, `settlement_retry_history`, `settlement_reconciliation_results`) must be created separately before persistence methods are called in production.
 - `SettlementWorkflowEngine.execute()` is sync-wrapped around `FundSettlementEngine.settle_with_trace()` — if the fund engine ever becomes async, the wrapper must be updated.
 - `OperatorConsole.apply_admin_intervention()` does not persist the intervention record or emit a `SettlementEvent` — the service layer calling it must do so explicitly.
 - No integration wiring into FastAPI routes or Telegram commands in this PR — operator console is data-injection ready but not HTTP-exposed.
+
+**Post-review clarifications (Gemini review #777):**
+- `process_partial()` hardcoded `mode="paper"` finding: **stale as of fix commit** — both `process_partial()` (SettlementBatchRequest construction) and `_failed_items_as_requests()` now inherit `mode` from the original batch result via `batch_result.mode` / `original_batch.mode`. `SettlementBatchResult` carries a `mode` field (default `"paper"`) populated from the originating `SettlementBatchRequest`.
+- `force_complete` retry-state check: **intentional non-scope**. `apply_admin_intervention()` accepts only `(intervention, current_result)` — no retry history. Callers that need to guard active retries must do so before invoking the method. The operator explicitly uses `force_complete` to skip the retry loop; blocking on retry state would make the action useless. Documented with an in-code comment.
+- Persistence DDL: **resolved** — `_DDL_SETTLEMENT_EVENTS`, `_DDL_SETTLEMENT_RETRY_HISTORY`, and `_DDL_SETTLEMENT_RECONCILIATION_RESULTS` added to `projects/polymarket/polyquantbot/infra/db/database.py` and wired into `_apply_schema()`. Tables are created idempotently (`CREATE TABLE IF NOT EXISTS`) on every `DatabaseClient.connect()` call.
 
 ---
 
