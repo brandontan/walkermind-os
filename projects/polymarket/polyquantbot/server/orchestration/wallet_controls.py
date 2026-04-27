@@ -8,9 +8,10 @@ Persistence design:
   - wallet_id = '__global__' is the magic key for global halt state.
   - Per-wallet disabled entries use the actual wallet_id with is_disabled=True.
   - load() replaces the current in-memory state with the DB snapshot.
-  - persist() deletes all existing rows for (tenant_id, user_id) then re-inserts
-    current state. Not atomic but acceptable for an admin-control store where
-    in-memory state is always authoritative during a session.
+  - persist() acquires a single asyncpg connection and wraps the DELETE +
+    all INSERT statements in async with conn.transaction() — fully atomic.
+    Returns False on exception; in-memory state is always authoritative
+    during a session.
 
 All mutations return WalletControlResult for structured logging by callers.
 build_overlay() produces a PortfolioControlOverlay for WalletOrchestrator.
