@@ -1,9 +1,11 @@
-"""WalletOrchestrator — Priority 6 Phase A + Phase B central routing authority.
+"""WalletOrchestrator — Priority 6 Phase A + Phase B + Phase C central routing authority.
 
 Phase A: stateless routing via WalletSelectionPolicy (6-filter chain).
 Phase B: optional PortfolioControlOverlay pre-hook — global halt and per-wallet
          disable checks run BEFORE the Phase A filter chain. overlay=None preserves
          100% backward-compatible Phase A behavior.
+Phase C: "degraded" outcome distinguishes all-breached wallets (no wallet explicitly
+         disabled by operator) from "no_candidate" (empty or fully unowned list).
 
 The orchestrator remains stateless: the service layer fetches WalletCandidate
 objects and PortfolioControlOverlay from their respective stores.
@@ -14,13 +16,14 @@ from typing import Optional, Sequence
 
 import structlog
 
-from server.orchestration.schemas import (
+from projects.polymarket.polyquantbot.server.orchestration.schemas import (
+    RISK_STATE_BREACHED,
     OrchestrationResult,
     PortfolioControlOverlay,
     RoutingRequest,
     WalletCandidate,
 )
-from server.orchestration.wallet_selector import WalletSelectionPolicy
+from projects.polymarket.polyquantbot.server.orchestration.wallet_selector import WalletSelectionPolicy
 
 log = structlog.get_logger(__name__)
 
@@ -92,6 +95,26 @@ class WalletOrchestrator:
                     remaining_count=len(candidates),
                     correlation_id=request.correlation_id,
                 )
+
+        # ── Phase C: degraded-mode detection ─────────────────────────────────
+        # When all active candidates have breached the drawdown ceiling, surface
+        # "degraded" so operators can distinguish system-wide risk breach from
+        # individual wallet policy blocks (risk_blocked).
+        from projects.polymarket.polyquantbot.server.schemas.portfolio import MAX_DRAWDOWN  # local import avoids circular dep at module level
+        active_candidates = [c for c in candidates if c.lifecycle_status == "active"]
+        if active_candidates and all(c.drawdown_pct > MAX_DRAWDOWN for c in active_candidates):
+            log.warning(
+                "orchestrator_route_degraded",
+                active_count=len(active_candidates),
+                max_drawdown_threshold=MAX_DRAWDOWN,
+                correlation_id=request.correlation_id,
+            )
+            return OrchestrationResult(
+                outcome="degraded",
+                selected_wallet_id=None,
+                reason=f"all {len(active_candidates)} active wallet(s) have breached drawdown ceiling ({MAX_DRAWDOWN})",
+                candidates_evaluated=len(candidates),
+            )
 
         # ── Phase A filter chain ──────────────────────────────────────────────
         try:

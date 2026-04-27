@@ -52,6 +52,12 @@ class TelegramDispatcher:
         "/market360",
         "/social",
         "/kill",
+        # Phase C wallet admin commands
+        "/wallets",
+        "/wallet_enable",
+        "/wallet_disable",
+        "/halt",
+        "/resume",
     }
 
     def __init__(self, backend: CrusaderBackendClient, operator_chat_id: str = "") -> None:
@@ -208,11 +214,66 @@ class TelegramDispatcher:
             return DispatchResult(
                 outcome="ok",
                 reply_text=(
-                    "🛑 Kill switch enabled\n"
+                    "Kill switch enabled\n"
                     "• Autotrade forced OFF\n"
                     "• Execution remains paper-only in this beta lane."
                 ),
             )
+
+        # ── Phase C wallet admin commands ─────────────────────────────────────
+        if command == "/wallets":
+            data = await self._backend.orchestration_get("/admin/orchestration/wallets")
+            if data.get("status") != "ok":
+                return DispatchResult(outcome="ok", reply_text=f"Wallets: unavailable — {data.get('detail', data.get('reason', 'error'))}")
+            state = data.get("cross_wallet_state", {})
+            wallets = state.get("wallets", [])
+            lines = [
+                f"Wallets ({state.get('wallet_count', 0)} total, {state.get('active_count', 0)} active)",
+                f"• Exposure: {state.get('total_exposure_pct', 0.0):.1%}  Drawdown: {state.get('max_drawdown_pct', 0.0):.1%}",
+                f"• Conflict: {state.get('has_conflict', False)}",
+            ]
+            for w in wallets:
+                enabled_marker = "enabled" if w.get("is_enabled") else "DISABLED"
+                lines.append(
+                    f"  [{enabled_marker}] {w['wallet_id']} | {w.get('lifecycle_status')} | {w.get('risk_state')}"
+                )
+            return DispatchResult(outcome="ok", reply_text="\n".join(lines))
+
+        if command == "/wallet_enable":
+            wallet_id = arg
+            if not wallet_id:
+                return DispatchResult(outcome="ok", reply_text="Usage: /wallet_enable <wallet_id>")
+            data = await self._backend.orchestration_post(f"/admin/orchestration/wallets/{wallet_id}/enable", {})
+            if data.get("status") == "ok":
+                return DispatchResult(outcome="ok", reply_text=f"Wallet {wallet_id} enabled.\n• {data.get('reason', '')}")
+            return DispatchResult(outcome="ok", reply_text=f"Enable failed: {data.get('detail', data.get('reason', 'error'))}")
+
+        if command == "/wallet_disable":
+            parts = arg.split(" ", 1)
+            wallet_id = parts[0] if parts else ""
+            reason = parts[1] if len(parts) > 1 else ""
+            if not wallet_id:
+                return DispatchResult(outcome="ok", reply_text="Usage: /wallet_disable <wallet_id> [reason]")
+            data = await self._backend.orchestration_post(
+                f"/admin/orchestration/wallets/{wallet_id}/disable",
+                {"reason": reason},
+            )
+            if data.get("status") == "ok":
+                return DispatchResult(outcome="ok", reply_text=f"Wallet {wallet_id} disabled.\n• {data.get('reason', '')}")
+            return DispatchResult(outcome="ok", reply_text=f"Disable failed: {data.get('detail', data.get('reason', 'error'))}")
+
+        if command == "/halt":
+            reason = arg or "operator halt via Telegram"
+            data = await self._backend.orchestration_post("/admin/orchestration/halt", {"reason": reason})
+            if data.get("status") == "ok":
+                return DispatchResult(outcome="ok", reply_text=f"Global halt set.\n• Reason: {reason}\n• All routing blocked until /resume.")
+            return DispatchResult(outcome="ok", reply_text=f"Halt failed: {data.get('detail', data.get('reason', 'error'))}")
+
+        if command == "/resume":
+            data = await self._backend.orchestration_delete("/admin/orchestration/halt")
+            if data.get("status") == "ok":
+                return DispatchResult(outcome="ok", reply_text="Global halt cleared. Routing resumed.")
+            return DispatchResult(outcome="ok", reply_text=f"Resume failed: {data.get('detail', data.get('reason', 'error'))}")
 
         log.warning("crusaderbot_telegram_dispatch_unknown_command", command=ctx.command, chat_id=ctx.chat_id)
         return DispatchResult(

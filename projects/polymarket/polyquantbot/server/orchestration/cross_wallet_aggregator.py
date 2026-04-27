@@ -19,7 +19,7 @@ from typing import Sequence
 
 import structlog
 
-from server.orchestration.schemas import (
+from projects.polymarket.polyquantbot.server.orchestration.schemas import (
     RISK_STATE_AT_RISK,
     RISK_STATE_BREACHED,
     RISK_STATE_HEALTHY,
@@ -27,7 +27,7 @@ from server.orchestration.schemas import (
     WalletCandidate,
     WalletHealthStatus,
 )
-from server.schemas.portfolio import MAX_DRAWDOWN, MAX_TOTAL_EXPOSURE_PCT
+from projects.polymarket.polyquantbot.server.schemas.portfolio import MAX_DRAWDOWN, MAX_TOTAL_EXPOSURE_PCT
 
 log = structlog.get_logger(__name__)
 

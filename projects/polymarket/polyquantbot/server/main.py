@@ -51,6 +51,12 @@ from projects.polymarket.polyquantbot.server.storage.wallet_lifecycle_store impo
 from projects.polymarket.polyquantbot.server.storage.portfolio_store import PortfolioStore
 from projects.polymarket.polyquantbot.server.services.portfolio_service import PortfolioService
 from projects.polymarket.polyquantbot.server.api.portfolio_routes import build_portfolio_router
+from projects.polymarket.polyquantbot.server.api.orchestration_routes import build_orchestration_router
+from projects.polymarket.polyquantbot.server.orchestration.cross_wallet_aggregator import CrossWalletStateAggregator
+from projects.polymarket.polyquantbot.server.orchestration.decision_store import OrchestrationDecisionStore
+from projects.polymarket.polyquantbot.server.orchestration.wallet_controls import WalletControlsStore
+from projects.polymarket.polyquantbot.server.orchestration.wallet_orchestrator import WalletOrchestrator
+from projects.polymarket.polyquantbot.server.services.orchestration_service import OrchestratorService
 from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 
 log = structlog.get_logger(__name__)
@@ -397,6 +403,24 @@ def create_app() -> FastAPI:
                 _app.state.portfolio_store = _portfolio_store
                 _app.state.portfolio_service = PortfolioService(store=_portfolio_store)
                 log.info("portfolio_service_wired")
+            # P6 Phase C: wire orchestration service after DB is connected
+            if state.db_client is not None:
+                _wlc_store_for_orch = getattr(_app.state, "wallet_lifecycle_store", None)
+                if _wlc_store_for_orch is None:
+                    _wlc_store_for_orch = WalletLifecycleStore(db=state.db_client)
+                _controls_store = WalletControlsStore()
+                _decision_store = OrchestrationDecisionStore(db=state.db_client)
+                _orchestration_svc = OrchestratorService(
+                    lifecycle_store=_wlc_store_for_orch,
+                    controls_store=_controls_store,
+                    decision_store=_decision_store,
+                    aggregator=CrossWalletStateAggregator(),
+                    orchestrator=WalletOrchestrator(),
+                    db=state.db_client,
+                )
+                _app.state.orchestration_service = _orchestration_svc
+                await _orchestration_svc.load_controls_from_db("system", "paper_user")
+                log.info("orchestration_service_wired")
             try:
                 await _start_telegram_runtime(state=state)
             except Exception as exc:
@@ -496,6 +520,7 @@ def create_app() -> FastAPI:
 
     app.include_router(build_public_beta_router(falcon=falcon_gateway))
     app.include_router(build_portfolio_router())
+    app.include_router(build_orchestration_router())
 
     @app.get("/")
     async def root() -> JSONResponse:

@@ -25,8 +25,8 @@ from typing import Optional, Sequence
 
 import structlog
 
-from server.orchestration.schemas import OrchestrationResult, RoutingRequest, WalletCandidate
-from server.schemas.portfolio import MAX_DRAWDOWN, MAX_TOTAL_EXPOSURE_PCT
+from projects.polymarket.polyquantbot.server.orchestration.schemas import OrchestrationResult, RoutingRequest, WalletCandidate
+from projects.polymarket.polyquantbot.server.schemas.portfolio import MAX_DRAWDOWN, MAX_TOTAL_EXPOSURE_PCT
 
 log = structlog.get_logger(__name__)
 
