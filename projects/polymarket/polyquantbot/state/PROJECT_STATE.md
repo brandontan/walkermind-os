@@ -31,6 +31,9 @@ Status       : Priority 6 Phase C complete on NWAP/multi-wallet-orchestration-ph
 - WARP🔹CMD review for legacy string cleanup. Source: projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md. Tier: MINOR. Branch: WARP/cleanup-legacy-refs.
 - COMMANDER review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
 - WARP🔹CMD review for WalkerMind OS identity rebranding. Source: projects/polymarket/polyquantbot/reports/forge/rebranding-identity-fix.md. Tier: STANDARD. PR #782 superseded.
+- After Phase C is merged: FORGE-X Priority 7 remaining (FastAPI OperatorConsole routes §47, Telegram wiring, DDL migration confirmation).
+- SENTINEL full sweep deferred until all phases/structure build are done (covers P4, P5, P6 full, P7 full).
+- Maintain no public-ready, live-trading-ready, or production-capital-ready claim until full SENTINEL/check-all sweep.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() is a no-op stub -- unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).
