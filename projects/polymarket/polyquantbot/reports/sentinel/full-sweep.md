@@ -51,7 +51,7 @@ All Phase 0 checks passed before testing began.
   - `multi-wallet-orchestration-phase-c.md` — 6 sections ✓
   - `settlement-retry-reconciliation.md` — 6 sections ✓
 
-- **PROJECT_STATE.md updated:** PASS — Last Updated 2026-04-28 02:10, all 7 sections present
+- **PROJECT_STATE.md updated:** PASS — Last Updated 2026-04-27 Asia/Jakarta, all 7 sections present
 
 - **No `phase*/` folders:** PASS — `find` returned empty output across full repo
 
@@ -89,7 +89,7 @@ All Phase 0 checks passed before testing began.
 
 Key evidence:
 - `wallet_lifecycle_service.py`: `_transition()` enforces ownership and admin scope before FSM; `transition_atomic()` uses `SELECT FOR UPDATE` in one transaction — `wallet_lifecycle_service.py:140-170`
-- `wallet_lifecycle_store.py`: atomic transition: `wallet_lifecycle_store.py:109-165`
+- `wallet_lifecycle_store.py`: atomic transition: `wallet_lifecycle_store.py:124-207`
 
 **Priority 5 — Portfolio Management (PM-01..PM-28+PM-13b):** 29/29 PASSED
 
@@ -105,8 +105,8 @@ Key evidence:
 | PM-27..PM-28 | Admin route 403 on missing/wrong token | PASS |
 
 Key evidence:
-- `portfolio_service.py`: KELLY_FRACTION=0.25 enforced at `portfolio_service.py:165-170`
-- `portfolio_service.py`: guardrails 4-check order: kill switch → drawdown → exposure → concentration at `portfolio_service.py:224-265`
+- `portfolio_service.py`: KELLY_FRACTION=0.25 enforced at `portfolio_service.py:263`
+- `portfolio_service.py`: guardrails 4-check order: kill switch → drawdown → exposure → concentration at `portfolio_service.py:305-373`
 - `portfolio.py`: risk constants confirmed `KELLY_FRACTION=0.25, MAX_DRAWDOWN=0.08, DAILY_LOSS_LIMIT=-2000.0` at `portfolio.py:20-27`
 
 **Priority 6 — Multi-Wallet Orchestration (WO-01..WO-51):** 51/51 PASSED
@@ -122,8 +122,8 @@ Key evidence:
 
 Key evidence:
 - Risk gate is hard and never bypassed: `wallet_selector.py` filter 4 (risk gate) always runs before strategy filter
-- `wallet_orchestrator.py`: degraded fires only when all active candidates breach drawdown — `wallet_orchestrator.py:72-84`
-- `wallet_controls.py`: persist() wraps DELETE + INSERT in `async with conn.transaction()` — `wallet_controls.py:116-150`
+- `wallet_orchestrator.py`: degraded fires only when all active candidates breach drawdown — `wallet_orchestrator.py:99-117`
+- `wallet_controls.py`: persist() wraps DELETE + INSERT in `async with conn.transaction()` — `wallet_controls.py:136-198`
 - API mutation routes return 500 with `wallet_controls_persist_failed` when persist returns False — WO-50, WO-51 confirmed
 
 **Priority 7 — Settlement/Retry/Reconciliation (ST-01..ST-38c):** 66/66 PASSED
@@ -244,11 +244,11 @@ All new table DDL confirmed in `projects/polymarket/polyquantbot/infra/db/databa
 | `wallet_lifecycle` | P4 scope | `CREATE TABLE IF NOT EXISTS` ✓ | Wallet FSM records |
 | `wallet_audit_log` | P4 scope | `CREATE TABLE IF NOT EXISTS` ✓ | FSM audit trail |
 | `portfolio_snapshots` | P5 scope | `CREATE TABLE IF NOT EXISTS` ✓ | PnL snapshots |
-| `wallet_controls` | db.py:259 | `CREATE TABLE IF NOT EXISTS` ✓ | Per-wallet disable state |
-| `orchestration_decisions` | db.py:271 | `CREATE TABLE IF NOT EXISTS` ✓ | Routing decision log |
-| `settlement_events` | db.py:292 | `CREATE TABLE IF NOT EXISTS` ✓ | Settlement lifecycle events |
-| `settlement_retry_history` | db.py:305 | `CREATE TABLE IF NOT EXISTS` ✓ | Retry attempts |
-| `settlement_reconciliation_results` | db.py:319 | `CREATE TABLE IF NOT EXISTS` ✓ | Reconciliation outcomes |
+| `wallet_controls` | db.py:258 | `CREATE TABLE IF NOT EXISTS` ✓ | Per-wallet disable state |
+| `orchestration_decisions` | db.py:270 | `CREATE TABLE IF NOT EXISTS` ✓ | Routing decision log |
+| `settlement_events` | db.py:291 | `CREATE TABLE IF NOT EXISTS` ✓ | Settlement lifecycle events |
+| `settlement_retry_history` | db.py:304 | `CREATE TABLE IF NOT EXISTS` ✓ | Retry attempts |
+| `settlement_reconciliation_results` | db.py:318 | `CREATE TABLE IF NOT EXISTS` ✓ | Reconciliation outcomes |
 
 Note: PROJECT_STATE says "DDL migration for settlement tables NOT STARTED" — this refers to formal migration files in a `db/migrations/` folder for production deployment auditing purposes. The auto-create DDL in `_apply_schema()` is already present and functional. Formal migration files should be added before production-capital gate (Priority 8 scope).
 
