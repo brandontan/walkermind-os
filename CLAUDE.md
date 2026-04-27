@@ -121,7 +121,7 @@ Rules:
 Correct:
 - `WARP/wallet-state-read-boundary`
 - `WARP/risk-drawdown-circuit`
-- `WARP/briefer-investor-report`
+- `WARP/echo-investor-report`
 - `WARP/sentinel-execution-audit`
 
 Wrong:
@@ -573,8 +573,8 @@ Mandatory process:
 10. Create branch -> write HTML (preserve all newlines) -> create PR
 
 Save path: `{PROJECT_ROOT}/reports/briefer/{feature}.html`
-Branch: `WARP/briefer-{purpose}`
-Commit: `briefer: {feature}`
+Branch: `WARP/echo-{purpose}`
+Commit: `echo: {feature}`
 
 Risk controls (FIXED — never change in any report):
 
@@ -621,7 +621,7 @@ SETUP        [installation + how to run]
 
 ```
 Done -- [task name] complete. [1-line summary].
-PR: WARP/briefer-{purpose}
+PR: WARP/echo-{purpose}
 Output: {PROJECT_ROOT}/reports/briefer/{feature}.html
 ```
 

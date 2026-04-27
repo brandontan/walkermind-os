@@ -870,7 +870,7 @@ Rules:
 Correct:
 - `WARP/wallet-state-read-boundary`
 - `WARP/risk-drawdown-circuit`
-- `WARP/briefer-phase9-summary`
+- `WARP/echo-phase9-summary`
 
 Wrong:
 - `WARP/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, dashed date, sentence)
@@ -1158,7 +1158,7 @@ Fix in one batch on a later dedicated WARP•FORGE pass.
 
 ### Branch
 ```text
-WARP/briefer-{purpose}
+WARP/echo-{purpose}
 ```
 
 ---

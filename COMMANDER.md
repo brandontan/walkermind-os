@@ -994,7 +994,7 @@ Mode     : REPORT / PROMPT / FRONTEND
 Audience : team / client / investor
 Source   : {PROJECT_ROOT}/reports/forge/[file] or reports/sentinel/[file]
 Template : browser (TPL_INTERACTIVE) / pdf (REPORT_MASTER)
-Branch   : WARP/briefer-{purpose}
+Branch   : WARP/echo-{purpose}
 
 OBJECTIVE:
 Generate communication artifact using real source data only.
