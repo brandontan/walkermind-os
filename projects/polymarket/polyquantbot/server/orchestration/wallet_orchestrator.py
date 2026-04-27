@@ -16,14 +16,14 @@ from typing import Optional, Sequence
 
 import structlog
 
-from server.orchestration.schemas import (
+from projects.polymarket.polyquantbot.server.orchestration.schemas import (
     RISK_STATE_BREACHED,
     OrchestrationResult,
     PortfolioControlOverlay,
     RoutingRequest,
     WalletCandidate,
 )
-from server.orchestration.wallet_selector import WalletSelectionPolicy
+from projects.polymarket.polyquantbot.server.orchestration.wallet_selector import WalletSelectionPolicy
 
 log = structlog.get_logger(__name__)
 
@@ -100,7 +100,7 @@ class WalletOrchestrator:
         # When all active candidates have breached the drawdown ceiling, surface
         # "degraded" so operators can distinguish system-wide risk breach from
         # individual wallet policy blocks (risk_blocked).
-        from server.schemas.portfolio import MAX_DRAWDOWN  # local import avoids circular dep at module level
+        from projects.polymarket.polyquantbot.server.schemas.portfolio import MAX_DRAWDOWN  # local import avoids circular dep at module level
         active_candidates = [c for c in candidates if c.lifecycle_status == "active"]
         if active_candidates and all(c.drawdown_pct > MAX_DRAWDOWN for c in active_candidates):
             log.warning(

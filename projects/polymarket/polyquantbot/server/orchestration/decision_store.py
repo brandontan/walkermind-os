@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from server.orchestration.schemas import OrchestrationDecision
+from projects.polymarket.polyquantbot.server.orchestration.schemas import OrchestrationDecision
 
 if TYPE_CHECKING:
     from projects.polymarket.polyquantbot.infra.db import DatabaseClient

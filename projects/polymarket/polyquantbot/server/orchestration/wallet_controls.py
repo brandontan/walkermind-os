@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Sequence
 
 import structlog
 
-from server.orchestration.schemas import (
+from projects.polymarket.polyquantbot.server.orchestration.schemas import (
     PortfolioControlOverlay,
     WalletCandidate,
     WalletControlResult,
