@@ -1,5 +1,5 @@
-Last Updated : 2026-04-27 21:54
-Status       : Priority 6 Phase C complete on NWAP/multi-wallet-orchestration-phase-c (sections 41-42); WARP🔹CMD review pending for PR #781; WARP•SENTINEL full sweep deferred until all phases/structure build are done. WalkerMind OS identity rebranding on NWAP/rebranding-identity-fix — WARP🔹CMD review pending.
+Last Updated : 2026-04-28 02:10
+Status       : Priority 6 Phase C complete on NWAP/multi-wallet-orchestration-phase-c (sections 41-42); WARP🔹CMD review pending for PR #781; WARP•SENTINEL full sweep deferred until all phases/structure build are done. WalkerMind OS identity rebranding on NWAP/rebranding-identity-fix — WARP🔹CMD review pending. Legacy string cleanup (WARP/cleanup-legacy-refs) — WARP🔹CMD review pending.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -18,6 +18,7 @@ Status       : Priority 6 Phase C complete on NWAP/multi-wallet-orchestration-ph
 [IN PROGRESS]
 - COMMANDER review for PR #781 (Priority 6 Phase C) pending merge decision.
 - WalkerMind OS identity rebranding (NWAP/rebranding-identity-fix) — WARP🔹CMD review pending. PR #782 held due to drift; replaced by this fix PR.
+- Legacy string cleanup (WARP/cleanup-legacy-refs) — WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP🔹CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until full SENTINEL/check-all is complete.
 
 [NOT STARTED]
@@ -27,6 +28,7 @@ Status       : Priority 6 Phase C complete on NWAP/multi-wallet-orchestration-ph
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review for legacy string cleanup. Source: projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md. Tier: MINOR. Branch: WARP/cleanup-legacy-refs.
 - COMMANDER review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
 - WARP🔹CMD review for WalkerMind OS identity rebranding. Source: projects/polymarket/polyquantbot/reports/forge/rebranding-identity-fix.md. Tier: STANDARD. PR #782 superseded.
 - After Phase C is merged: FORGE-X Priority 7 remaining (FastAPI OperatorConsole routes §47, Telegram wiring, DDL migration confirmation).
