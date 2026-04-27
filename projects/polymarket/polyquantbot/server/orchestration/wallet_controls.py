@@ -138,18 +138,12 @@ class WalletControlsStore:
         tenant_id: str,
         user_id: str,
     ) -> bool:
-        """Write current in-memory state to DB (delete-then-insert).
+        """Write current in-memory state to DB atomically (delete-then-insert in one transaction).
 
-        Returns True if all writes succeeded, False on any failure.
+        Returns True if the transaction committed successfully, False on any failure.
         """
-        ok = await db._execute(
-            "DELETE FROM wallet_controls WHERE tenant_id = $1 AND user_id = $2",
-            tenant_id,
-            user_id,
-            op_label="wallet_controls_delete",
-        )
-        if not ok:
-            log.warning("wallet_controls_persist_delete_failed", tenant_id=tenant_id, user_id=user_id)
+        if db._pool is None:
+            log.warning("wallet_controls_persist_no_pool", tenant_id=tenant_id, user_id=user_id)
             return False
 
         upsert_sql = """
@@ -160,41 +154,47 @@ class WalletControlsStore:
                     halt_reason = EXCLUDED.halt_reason,
                     updated_at  = NOW()
         """
-        all_ok = True
-        global_ok = await db._execute(
-            upsert_sql,
-            tenant_id,
-            user_id,
-            _GLOBAL_HALT_KEY,
-            self._global_halt,
-            self._halt_reason,
-            op_label="wallet_controls_upsert_global",
-        )
-        if not global_ok:
-            all_ok = False
-
-        for wid in self._disabled:
-            w_ok = await db._execute(
-                upsert_sql,
-                tenant_id,
-                user_id,
-                wid,
-                True,
-                "",
-                op_label="wallet_controls_upsert_wallet",
+        try:
+            async with db._pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        "DELETE FROM wallet_controls WHERE tenant_id = $1 AND user_id = $2",
+                        tenant_id,
+                        user_id,
+                    )
+                    await conn.execute(
+                        upsert_sql,
+                        tenant_id,
+                        user_id,
+                        _GLOBAL_HALT_KEY,
+                        self._global_halt,
+                        self._halt_reason,
+                    )
+                    for wid in self._disabled:
+                        await conn.execute(
+                            upsert_sql,
+                            tenant_id,
+                            user_id,
+                            wid,
+                            True,
+                            "",
+                        )
+            log.info(
+                "wallet_controls_persisted",
+                tenant_id=tenant_id,
+                user_id=user_id,
+                disabled_count=len(self._disabled),
+                global_halt=self._global_halt,
             )
-            if not w_ok:
-                all_ok = False
-
-        log.info(
-            "wallet_controls_persisted",
-            tenant_id=tenant_id,
-            user_id=user_id,
-            disabled_count=len(self._disabled),
-            global_halt=self._global_halt,
-            ok=all_ok,
-        )
-        return all_ok
+            return True
+        except Exception as exc:
+            log.warning(
+                "wallet_controls_persist_failed",
+                tenant_id=tenant_id,
+                user_id=user_id,
+                error=str(exc),
+            )
+            return False
 
     # ── Overlay builder ───────────────────────────────────────────────────────
 

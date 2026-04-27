@@ -227,7 +227,6 @@ class TelegramDispatcher:
                 return DispatchResult(outcome="ok", reply_text=f"Wallets: unavailable — {data.get('detail', data.get('reason', 'error'))}")
             state = data.get("cross_wallet_state", {})
             wallets = state.get("wallets", [])
-            halt_active = any(w.get("wallet_id") == "__global__" for w in wallets)
             lines = [
                 f"Wallets ({state.get('wallet_count', 0)} total, {state.get('active_count', 0)} active)",
                 f"• Exposure: {state.get('total_exposure_pct', 0.0):.1%}  Drawdown: {state.get('max_drawdown_pct', 0.0):.1%}",

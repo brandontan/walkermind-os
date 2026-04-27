@@ -419,6 +419,7 @@ def create_app() -> FastAPI:
                     db=state.db_client,
                 )
                 _app.state.orchestration_service = _orchestration_svc
+                await _orchestration_svc.load_controls_from_db("system", "paper_user")
                 log.info("orchestration_service_wired")
             try:
                 await _start_telegram_runtime(state=state)

@@ -95,11 +95,33 @@ def _make_request(
 def _make_db_mock(
     fetch_returns: list[dict[str, Any]] | None = None,
     execute_returns: bool = True,
+    pool_execute_raises: Exception | None = None,
 ) -> MagicMock:
-    """Build a DatabaseClient mock with _fetch and _execute as coroutines."""
+    """Build a DatabaseClient mock with _fetch, _execute, and _pool (for transaction-based persist)."""
     db = MagicMock()
     db._fetch = AsyncMock(return_value=fetch_returns or [])
     db._execute = AsyncMock(return_value=execute_returns)
+
+    # Pool mock for transaction-based persist()
+    mock_conn = AsyncMock()
+    if pool_execute_raises is not None:
+        mock_conn.execute = AsyncMock(side_effect=pool_execute_raises)
+    else:
+        mock_conn.execute = AsyncMock()
+
+    mock_txn = MagicMock()
+    mock_txn.__aenter__ = AsyncMock(return_value=None)
+    mock_txn.__aexit__ = AsyncMock(return_value=False)
+    mock_conn.transaction = MagicMock(return_value=mock_txn)
+
+    mock_acquire = MagicMock()
+    mock_acquire.__aenter__ = AsyncMock(return_value=mock_conn)
+    mock_acquire.__aexit__ = AsyncMock(return_value=False)
+    mock_pool = MagicMock()
+    mock_pool.acquire = MagicMock(return_value=mock_acquire)
+    db._pool = mock_pool
+    db._mock_conn = mock_conn  # expose for assertion convenience
+
     return db
 
 
@@ -140,25 +162,25 @@ async def test_wo_29_controls_store_load_restores_global_halt():
 
 @pytest.mark.asyncio
 async def test_wo_30_controls_store_persist_writes_state():
-    """WO-30: persist() calls _execute for delete + global halt + each disabled wallet."""
+    """WO-30: persist() issues DELETE + global halt upsert + one upsert per disabled wallet in a transaction."""
     store = WalletControlsStore()
     store.disable_wallet("wlc_x")
     store.disable_wallet("wlc_y")
     store.set_global_halt("test halt")
-    db = _make_db_mock(execute_returns=True)
+    db = _make_db_mock()
     ok = await store.persist(db, "t1", "u1")
     assert ok is True
-    # Expect: 1 DELETE + 1 global upsert + 2 wallet upserts = 4 calls
-    assert db._execute.call_count == 4
+    # Expect: 1 DELETE + 1 global upsert + 2 wallet upserts = 4 conn.execute calls
+    assert db._mock_conn.execute.call_count == 4
 
 
 # ── WO-31: WalletControlsStore.persist() fails gracefully on DB error ────────
 
 @pytest.mark.asyncio
 async def test_wo_31_controls_store_persist_fails_gracefully():
-    """WO-31: persist() returns False when the DELETE _execute call fails."""
+    """WO-31: persist() returns False when the pool transaction raises an exception."""
     store = WalletControlsStore()
-    db = _make_db_mock(execute_returns=False)
+    db = _make_db_mock(pool_execute_raises=RuntimeError("db error"))
     ok = await store.persist(db, "t1", "u1")
     assert ok is False
 
@@ -314,8 +336,8 @@ async def test_wo_38_orchestrator_service_enable_disable_persists():
     assert "wlc_test" not in controls_store._disabled
 
     # persist was called twice (once for disable, once for enable)
-    # Each persist does: DELETE + global upsert = at least 2 _execute calls
-    assert db._execute.call_count >= 4
+    # Each persist uses a transaction — conn.execute called at least twice per call
+    assert db._mock_conn.execute.call_count >= 4
 
 
 # ── WO-39: OrchestratorService.set_global_halt / clear_global_halt ───────────
