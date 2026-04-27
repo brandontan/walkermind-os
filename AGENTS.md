@@ -117,7 +117,7 @@ Build path (by tier):
 MINOR    : WARP🔹CMD -> WARP🔸CORE -> WARP•FORGE -> WARP🔹CMD (auto merge)
 STANDARD : WARP🔹CMD -> WARP🔸CORE -> WARP•FORGE -> WARP🔹CMD (review + merge)
 MAJOR    : WARP🔹CMD -> WARP🔸CORE -> WARP•FORGE -> WARP•SENTINEL -> WARP🔹CMD (validate + merge)
-WARP•ECHO  : runs only after required validation path is satisfied
+WARP•ECHO: runs only after required validation path is satisfied
 ```
 
 Additional rules:
