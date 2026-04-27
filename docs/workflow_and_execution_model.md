@@ -1,9 +1,9 @@
-# N.W.A.P — Operational Protocol & Execution Model
+# W.A.R.P — Operational Protocol & Execution Model
 
 > **Document type:** Internal operational reference
 > **Authority:** Supporting document — `AGENTS.md` is the authoritative rule source
 > **Version:** 1.0 | Last Updated: 2025-07-11
-> **Parent:** N.W.A.P — Night Walker Autonomous Protocol
+> **Parent:** W.A.R.P — Walker Autonomous Routing Protocol
 
 ---
 
@@ -11,19 +11,19 @@
 
 ```
 Mr. Walker sets direction
-  → COMMANDER reads repo truth, determines lane, resolves minor issues independently
-  → NEXUS executes via the appropriate role (FORGE-X / SENTINEL / BRIEFER)
-  → returns to COMMANDER for review and decision
-  → COMMANDER auto merges / closes / routes next lane
+  → WARP🔹CMD reads repo truth, determines lane, resolves minor issues independently
+  → WARP🔸CORE executes via the appropriate role (WARP•FORGE / WARP•SENTINEL / WARP•ECHO)
+  → returns to WARP🔹CMD for review and decision
+  → WARP🔹CMD auto merges / closes / routes next lane
 ```
 
 **Operating principles:**
 
-- Tasks originate from COMMANDER
+- Tasks originate from WARP🔹CMD
 - Scope stays controlled — no silent expansion
 - Repo truth is the center of all decisions
 - Code truth wins over report wording
-- Minor issues are resolved by COMMANDER directly — not escalated to Mr. Walker
+- Minor issues are resolved by WARP🔹CMD directly — not escalated to Mr. Walker
 
 ---
 
@@ -38,7 +38,7 @@ walker-ai-team/
 ├── docs/
 │   ├── CLAUDE.md                       ← rules for Claude Code agent
 │   ├── KNOWLEDGE_BASE.md               ← architecture, infra, API reference
-│   ├── COMMANDER.md                    ← COMMANDER operating reference
+│   ├── COMMANDER.md                    ← WARP🔹CMD operating reference
 │   ├── blueprint/
 │   │   └── crusaderbot_final_decisions.md
 │   └── templates/
@@ -88,15 +88,15 @@ walker-ai-team/
 
 Agents read this first to determine where to work.
 
-- 1 active project → NEXUS defaults to it; no tag needed
+- 1 active project → WARP🔸CORE defaults to it; no tag needed
 - Multiple active projects → every task must tag the project explicitly
-- No tag + multiple active → NEXUS asks; never assumes
+- No tag + multiple active → WARP🔸CORE asks; never assumes
 
 **docs/ — Knowledge, reference, blueprint, templates**
 
 | File / Folder | Purpose |
 |---|---|
-| `COMMANDER.md` | COMMANDER operating reference |
+| `COMMANDER.md` | WARP🔹CMD operating reference |
 | `CLAUDE.md` | Rules for Claude Code agent |
 | `KNOWLEDGE_BASE.md` | Architecture, infra, API, conventions |
 | `blueprint/` | Target architecture guidance |
@@ -135,12 +135,12 @@ No `phase*/` folders. No legacy structure. No exceptions.
 
 | Folder | Owner | Contents |
 |---|---|---|
-| `forge/` | FORGE-X | Build reports |
-| `sentinel/` | SENTINEL | Validation reports |
-| `briefer/` | BRIEFER | Communication artifacts |
+| `forge/` | WARP•FORGE | Build reports |
+| `sentinel/` | WARP•SENTINEL | Validation reports |
+| `briefer/` | WARP•ECHO | Communication artifacts |
 | `archive/` | All | Reports older than 7 days |
 
-Reports are the evidence trail used by COMMANDER for review, SENTINEL for validation, and BRIEFER for transformation.
+Reports are the evidence trail used by WARP🔹CMD for review, WARP•SENTINEL for validation, and WARP•ECHO for transformation.
 
 ---
 
@@ -150,7 +150,7 @@ Reports are the evidence trail used by COMMANDER for review, SENTINEL for valida
 
 Ultimate authority. Sets direction, priorities, and makes final calls. Involved only in decisions that genuinely require owner authority — not minor issues.
 
-### COMMANDER — Systems Architect / Gatekeeper / Orchestrator
+### WARP🔹CMD — Systems Architect / Gatekeeper / Orchestrator
 
 Operates in direct chat with Mr. Walker. All decisions, reviews, and steering happen here.
 
@@ -158,28 +158,28 @@ Operates in direct chat with Mr. Walker. All decisions, reviews, and steering ha
 - Read repo truth
 - Identify active lanes
 - Merge adjacent work when safe
-- Route tasks to FORGE-X, SENTINEL, or BRIEFER
+- Route tasks to WARP•FORGE, WARP•SENTINEL, or WARP•ECHO
 - Review outputs and PR packages
 - Auto merge / close PRs by own decision
 - Fix minor bugs, small errors, and cosmetic issues directly — no escalation
 
 Escalates to Mr. Walker only for: large scope changes, risk decisions, capital decisions, safety concerns, or anything requiring owner authority.
 
-### NEXUS — Multi-Agent Specialist Team
+### WARP🔸CORE — Multi-Agent Specialist Team
 
-Execution team comprising FORGE-X, SENTINEL, and BRIEFER. Each role has distinct capabilities and responsibilities. NEXUS works under COMMANDER direction — receives scoped tasks, executes per role expertise, returns output for review.
+Execution team comprising WARP•FORGE, WARP•SENTINEL, and WARP•ECHO. Each role has distinct capabilities and responsibilities. WARP🔸CORE works under WARP🔹CMD direction — receives scoped tasks, executes per role expertise, returns output for review.
 
-NEXUS executes in separate environments (Claude Code, Codex, or other tools). NEXUS does not merge or close PRs independently — only on explicit COMMANDER instruction.
+WARP🔸CORE executes in separate environments (Claude Code, Codex, or other tools). WARP🔸CORE does not merge or close PRs independently — only on explicit WARP🔹CMD instruction.
 
-### FORGE-X — Builder / Implementer
+### WARP•FORGE — Builder / Implementer
 
 Implement, patch, refactor, fix, update state and reports, open PR.
 
-### SENTINEL — Validator / Auditor
+### WARP•SENTINEL — Validator / Auditor
 
-Validate, audit, test, enforce safety. Active only for MAJOR tasks or on explicit COMMANDER request.
+Validate, audit, test, enforce safety. Active only for MAJOR tasks or on explicit WARP🔹CMD request.
 
-### BRIEFER — Reporter / Visualizer
+### WARP•ECHO — Reporter / Visualizer
 
 HTML reports, prompt artifacts, visual summaries, UI and report transforms. Works from validated data only. Runs after the required validation path is satisfied.
 
@@ -193,7 +193,7 @@ Always active unless Mr. Walker explicitly triggers Degen Mode. Used for reviews
 
 ### Degen Mode — Explicit Trigger Only
 
-Activated only by explicit command from Mr. Walker. COMMANDER must not self-activate.
+Activated only by explicit command from Mr. Walker. WARP🔹CMD must not self-activate.
 
 **Why it exists:** Reduces wasted time from recurring drift and review noise — while keeping repo-truth and safety gates intact.
 
@@ -232,11 +232,11 @@ Activated only by explicit command from Mr. Walker. COMMANDER must not self-acti
 
 **Step A — Mr. Walker sets direction**
 
-**Step B — COMMANDER reads repo truth**
+**Step B — WARP🔹CMD reads repo truth**
 
 Checks: `PROJECT_REGISTRY.md` → active project → `state/` files → active lane → blockers → tier → claim level.
 
-**Step C — COMMANDER forms execution lane**
+**Step C — WARP🔹CMD forms execution lane**
 
 Adjacent open items in the same family are merged into one lane. Lane closure is preferred over fragmented progress.
 
@@ -244,14 +244,14 @@ Adjacent open items in the same family are merged into one lane. Lane closure is
 
 | Tier | Flow |
 |---|---|
-| MINOR | COMMANDER → FORGE-X → COMMANDER (auto merge) |
-| STANDARD | COMMANDER → FORGE-X → COMMANDER (review + merge) |
-| MAJOR | COMMANDER → FORGE-X → SENTINEL → COMMANDER (validate + merge) |
-| BRIEFER | Runs after required validation path is satisfied |
+| MINOR | WARP🔹CMD → WARP•FORGE → WARP🔹CMD (auto merge) |
+| STANDARD | WARP🔹CMD → WARP•FORGE → WARP🔹CMD (review + merge) |
+| MAJOR | WARP🔹CMD → WARP•FORGE → WARP•SENTINEL → WARP🔹CMD (validate + merge) |
+| WARP•ECHO | Runs after required validation path is satisfied |
 
-Minor bug / error / cosmetic → COMMANDER fixes directly; no task creation.
+Minor bug / error / cosmetic → WARP🔹CMD fixes directly; no task creation.
 
-**Step E — FORGE-X implements**
+**Step E — WARP•FORGE implements**
 
 Required: work within scope, verify actual branch, update forge report and state files, commit and open PR.
 
@@ -261,7 +261,7 @@ Required: work within scope, verify actual branch, update forge report and state
 
 ### Branch
 
-Format: `nwap/{feature}`
+Format: `WARP/{feature}`
 
 Branch reference must be the exact actual branch or exact PR head — never from memory or task title.
 
@@ -271,7 +271,7 @@ Every PR must carry a complete package: code + forge report + state file updates
 
 PR description contains: motivation, testing notes, report path, state updates, claim level, and validation tier.
 
-COMMANDER reviews: files changed, bot comments, report, branch traceability, state drift, and claim vs actual code.
+WARP🔹CMD reviews: files changed, bot comments, report, branch traceability, state drift, and claim vs actual code.
 
 ### Bot Reviews
 
@@ -285,7 +285,7 @@ Auto PR review bots are optional support only.
 
 ### Merge / Hold / Close
 
-COMMANDER auto merges or closes by own decision. NEXUS does not merge independently.
+WARP🔹CMD auto merges or closes by own decision. WARP🔸CORE does not merge independently.
 
 After merge: verify result → sync state files → determine next lane.
 
@@ -328,25 +328,25 @@ After merge: verify result → sync state files → determine next lane.
 
 | Rule | Detail |
 |---|---|
-| COMMANDER compact output | Default compact. Detailed only when Mr. Walker asks or a complex decision requires it. |
+| WARP🔹CMD compact output | Default compact. Detailed only when Mr. Walker asks or a complex decision requires it. |
 | Batch over serial | One PR for multiple minor fixes. |
 | Reduce explanation loops | Fix directly, report briefly. |
-| NEXUS task efficiency | What + scope + ref only. Don't duplicate repo content. |
-| COMMANDER self-resolve | Minor bug / error / cosmetic → fix directly. |
+| WARP🔸CORE task efficiency | What + scope + ref only. Don't duplicate repo content. |
+| WARP🔹CMD self-resolve | Minor bug / error / cosmetic → fix directly. |
 | Degen mode | Preferred for clear lanes — maximizes throughput without sacrificing accuracy. |
 | Quick handoff | When session limit is near, generate a 5-line handoff. |
 
-### COMMANDER Output Modes
+### WARP🔹CMD Output Modes
 
 | Mode | When | Format |
 |---|---|---|
 | Compact (default) | Daily ops, clear scope | Short, direct, action-oriented |
 | Detailed | Mr. Walker asks, or complex decision | Full analysis + options |
 
-### NEXUS Task Format
+### WARP🔸CORE Task Format
 
 ```
-FORGE-X: [what to do]
+WARP•FORGE: [what to do]
 Project: [name — only if multi-project active]
 Scope:   [boundary]
 Ref:     [relevant file]
@@ -371,10 +371,10 @@ Context: [1 line max]
 - GitHub workflow must be exact: branch, PR, report, state
 - Repo truth must stay synchronized — `PROJECT_STATE.md`, `ROADMAP.md`, `WORKTODO.md`, PR outcomes
 - Degen mode is fast — but always subordinate to `AGENTS.md`
-- Minor issues must not reach Mr. Walker — COMMANDER resolves independently
+- Minor issues must not reach Mr. Walker — WARP🔹CMD resolves independently
 - Maximize delivery per token spent
 
 ---
 
-`// N.W.A.P — Night Walker Autonomous Protocol`
+`// W.A.R.P — Walker Autonomous Routing Protocol`
 `// Bayue Walker · Private Repository`

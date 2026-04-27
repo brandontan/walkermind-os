@@ -1,5 +1,5 @@
-Last Updated : 2026-04-27 17:30
-Status       : Priority 6 Phase C complete on NWAP/multi-wallet-orchestration-phase-c (sections 41-42); COMMANDER review pending for PR #781; SENTINEL full sweep deferred until all phases/structure build are done.
+Last Updated : 2026-04-27 21:34
+Status       : Priority 6 Phase C complete on WARP/multi-wallet-orchestration-phase-c (sections 41-42); WARP🔹CMD review pending for PR #781; WARP•SENTINEL full sweep deferred until all phases/structure build are done. WalkerMind OS rebranding complete on WARP/rebranding-identity — WARP🔹CMD review pending.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -16,8 +16,9 @@ Status       : Priority 6 Phase C complete on NWAP/multi-wallet-orchestration-ph
 - Priority 6 Phase C multi-wallet orchestration built on NWAP/multi-wallet-orchestration-phase-c (sections 41-42); OrchestratorService, OrchestrationDecisionStore, DB-backed WalletControlsStore (atomic persist via asyncpg transaction), 7 FastAPI admin routes (all mutation endpoints surface 500 on persist failure), 5 Telegram admin commands, degraded-mode outcome, wallet_controls + orchestration_decisions DDL, full orchestration package import-path normalization; 24/24 tests passing (WO-28..WO-51); Phase A+B regression 27/27 still passing; COMMANDER review pending for PR #781.
 
 [IN PROGRESS]
-- COMMANDER review for PR #781 (Priority 6 Phase C) pending merge decision.
-- Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until full SENTINEL/check-all is complete.
+- WARP🔹CMD review for PR #781 (Priority 6 Phase C) pending merge decision.
+- WalkerMind OS rebranding on WARP/rebranding-identity — WARP🔹CMD review pending.
+- Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until full WARP•SENTINEL/check-all is complete.
 
 [NOT STARTED]
 - Priority 7 FastAPI route exposure for operator console (§47) and Telegram wiring.
@@ -26,10 +27,11 @@ Status       : Priority 6 Phase C complete on NWAP/multi-wallet-orchestration-ph
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
-- COMMANDER review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
-- After Phase C is merged: FORGE-X Priority 7 remaining (FastAPI OperatorConsole routes §47, Telegram wiring, DDL migration confirmation).
-- SENTINEL full sweep deferred until all phases/structure build are done (covers P4, P5, P6 full, P7 full).
-- Maintain no public-ready, live-trading-ready, or production-capital-ready claim until full SENTINEL/check-all sweep.
+- WARP🔹CMD review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
+- WARP🔹CMD review for WalkerMind OS rebranding. Source: projects/polymarket/polyquantbot/reports/forge/rebranding-identity.md. Tier: STANDARD.
+- After Phase C is merged: WARP•FORGE Priority 7 remaining (FastAPI OperatorConsole routes §47, Telegram wiring, DDL migration confirmation).
+- WARP•SENTINEL full sweep deferred until all phases/structure build are done (covers P4, P5, P6 full, P7 full).
+- Maintain no public-ready, live-trading-ready, or production-capital-ready claim until full WARP•SENTINEL/check-all sweep.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() is a no-op stub -- unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).
