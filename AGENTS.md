@@ -4,7 +4,7 @@
 # Single source of truth for all agent execution environments
 
 Owner: Bayue Walker
-Repo: https://github.com/bayuewalker/walker-ai-team
+Repo: https://github.com/bayuewalker/walkermind-os
 Version: 2.3
 Last Updated: 2026-04-26 13:28 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
@@ -245,7 +245,7 @@ Full project list is maintained in `PROJECT_REGISTRY.md` at repo root.
 ## REPO STRUCTURE
 
 ```text
-walker-ai-team/
+walkermind-os/
 ├── AGENTS.md                              <- highest authority (global rules)
 ├── PROJECT_REGISTRY.md                    <- project list and active status
 ├── CLAUDE.md                              <- rules for Claude Code agent
@@ -328,7 +328,7 @@ lib/
 Reports, state, and instructions use repo-root relative paths — always.
 
 - Correct: `projects/polymarket/polyquantbot/reports/forge/wallet-state.md`
-- Wrong: `/workspace/walker-ai-team/projects/...` (absolute)
+- Wrong: `/workspace/walkermind-os/projects/...` (absolute)
 - Wrong: `reports/forge/wallet-state.md` (short form, missing project prefix)
 
 Short-form `reports/...` is allowed only inside section headers of this file for readability.
@@ -858,29 +858,29 @@ Any code/report conflicting with these values = drift or critical violation.
 Single authoritative format:
 
 ```text
-NWAP/{feature}
+WARP/{feature}
 ```
 
 Rules:
-- prefix is always `NWAP/` — uppercase, no exceptions
+- prefix is always `WARP/` — uppercase, no exceptions
 - `{feature}` is a short hyphen-separated slug (noun/adjective based, not a sentence)
 - no dots, no underscores, no date suffix
 - phase tokens use hyphens when needed: `phase6-5-3` (never `6.5.3`)
 
 Correct:
-- `NWAP/wallet-state-read-boundary`
-- `NWAP/risk-drawdown-circuit`
-- `NWAP/briefer-phase9-summary`
+- `WARP/wallet-state-read-boundary`
+- `WARP/risk-drawdown-circuit`
+- `WARP/briefer-phase9-summary`
 
 Wrong:
-- `NWAP/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, dashed date, sentence)
-- `NWAP/implement_wallet_state_read_boundary` (underscores)
+- `WARP/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, dashed date, sentence)
+- `WARP/implement_wallet_state_read_boundary` (underscores)
 - `feature/risk-drawdown-circuit` (wrong prefix)
 - `fix/risk-drawdown-circuit-20260417` (non-authoritative prefix)
 
 ### Traceability
 The declared branch name from WARP🔹CMD task is authoritative.
-Codex MUST use the exact declared NWAP/{feature} name.
+Codex MUST use the exact declared WARP/{feature} name.
 If actual git branch differs from declared (non-worktree case) ->
 STOP, do not write any artifact, report mismatch to WARP🔹CMD.
 
@@ -954,7 +954,7 @@ Use the checklist matching the declared Validation Tier. Do not run MAJOR checkl
 [ ] Last Updated not earlier than previous value
 [ ] Repo-root relative paths in all outputs
 [ ] Branch name matches actual git branch (verified with git rev-parse)
-[ ] Branch format valid (NWAP/{feature})
+[ ] Branch format valid (WARP/{feature})
 [ ] Forge report exists at correct path with required sections for this tier
 [ ] PROJECT_STATE.md updated to current truth
 [ ] Runner locale = C.UTF-8 or en_US.UTF-8 (verified with `locale`)
@@ -1158,7 +1158,7 @@ Fix in one batch on a later dedicated WARP•FORGE pass.
 
 ### Branch
 ```text
-NWAP/briefer-{purpose}
+WARP/briefer-{purpose}
 ```
 
 ---
@@ -1327,7 +1327,7 @@ Format: append-only log. One entry per lane closure.
 
 Entry format:
 ```text
-YYYY-MM-DD HH:MM | NWAP/{branch} | one-line summary of what closed
+YYYY-MM-DD HH:MM | WARP/{branch} | one-line summary of what closed
 ```
 
 Rules:
@@ -1388,7 +1388,7 @@ Reports older than 7 days move under:
 ```
 
 Archive check is triggered automatically during `project sync` or roadmap sync.
-Executed by WARP•FORGE via `NWAP/{feature}` branch, or WARP🔹CMD directly if within direct-fix threshold.
+Executed by WARP•FORGE via `WARP/{feature}` branch, or WARP🔹CMD directly if within direct-fix threshold.
 Archive moves preserve original naming and do not mix with other content changes.
 
 ---
@@ -1441,7 +1441,7 @@ On session handoff block: treat as execution resume input. Verify against repo t
 ## Review guidelines
 
 Focus review on:
-- branch name matches declared NWAP/{feature} exactly — no date suffix, no underscores, no sentence slug
+- branch name matches declared WARP/{feature} exactly — no date suffix, no underscores, no sentence slug
 - forge report exists at correct path with correct naming (no date suffix, no underscore)
 - PROJECT_STATE.md updated with full timestamp, scope-bound edit only
 - no hardcoded secrets or API keys

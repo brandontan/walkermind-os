@@ -4,7 +4,7 @@
 # Master rules: AGENTS.md (repo root)
 
 Owner: Bayue Walker
-Repo: https://github.com/bayuewalker/walker-ai-team
+Repo: https://github.com/bayuewalker/walkermind-os
 Version: 2.2
 Last Updated: 2026-04-26 13:57 Asia/Jakarta
 
@@ -109,24 +109,24 @@ DATA -> STRATEGY -> INTELLIGENCE -> RISK -> EXECUTION -> MONITORING
 Single authoritative format:
 
 ```
-NWAP/{feature}
+WARP/{feature}
 ```
 
 Rules:
-- prefix is always `NWAP/` — uppercase, no exceptions
+- prefix is always `WARP/` — uppercase, no exceptions
 - `{feature}` is a short hyphen-separated slug (noun/adjective based, not a sentence)
 - no dots, no underscores, no date suffix
 - phase tokens use hyphens when needed: `phase6-5-3` (never `6.5.3`)
 
 Correct:
-- `NWAP/wallet-state-read-boundary`
-- `NWAP/risk-drawdown-circuit`
-- `NWAP/briefer-investor-report`
-- `NWAP/sentinel-execution-audit`
+- `WARP/wallet-state-read-boundary`
+- `WARP/risk-drawdown-circuit`
+- `WARP/briefer-investor-report`
+- `WARP/sentinel-execution-audit`
 
 Wrong:
-- `NWAP/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, date)
-- `NWAP/implement_wallet_state_read_boundary` (underscores)
+- `WARP/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, date)
+- `WARP/implement_wallet_state_read_boundary` (underscores)
 - `fix/risk-drawdown-circuit-20260417` (non-authoritative prefix)
 - `feature/execution-order-engine-20260406` (old format)
 - `claude/sync-pr-759-state-r9bbM` (auto-generated — NEVER allowed)
@@ -138,9 +138,9 @@ This is FORBIDDEN. Every branch must be pre-declared by WARP🔹CMD before work 
 
 - NEVER let Claude Code auto-generate a branch name
 - NEVER push to a `claude/...` branch
-- NEVER create a branch without an explicit NWAP/{feature} name from WARP🔹CMD
+- NEVER create a branch without an explicit WARP/{feature} name from WARP🔹CMD
 - If no branch is declared in the task → STOP, ask WARP🔹CMD before touching repo
-- If Claude Code tries to auto-name a branch → override with the declared NWAP/{feature} name
+- If Claude Code tries to auto-name a branch → override with the declared WARP/{feature} name
 
 ### Branch verification (mandatory — run FIRST before any inspect, edit, or commit)
 
@@ -149,7 +149,7 @@ git rev-parse --abbrev-ref HEAD
 ```
 
 - Result is `work` or detached HEAD → use branch declared in WARP🔹CMD task
-- Result is real branch → verify it matches declared NWAP/{feature} exactly (case-sensitive)
+- Result is real branch → verify it matches declared WARP/{feature} exactly (case-sensitive)
 - Mismatch → STOP, report to WARP🔹CMD, do NOT write report or state yet
 - Never write a branch name into any artifact from memory — always from verified git output
 
@@ -394,7 +394,7 @@ WARP•FORGE does NOT merge PR. WARP🔹CMD decides.
 
 ```
 Done -- [task name] complete.
-PR: NWAP/{feature}
+PR: WARP/{feature}
 Report: {PROJECT_ROOT}/reports/forge/{feature}.md
 State: PROJECT_STATE.md updated
 Validation Tier: [MINOR / STANDARD / MAJOR]
@@ -491,7 +491,7 @@ No evidence = 0 points. Critical issue = 0 + BLOCKED.
 ### Report & Commit
 
 Path: `{PROJECT_ROOT}/reports/sentinel/{feature}.md`
-Branch: `NWAP/{feature}`
+Branch: `WARP/{feature}`
 Commit: `sentinel: {feature} — [verdict]`
 
 Report must have proper markdown — every heading its own line, every bullet its own line.
@@ -501,7 +501,7 @@ WARP•SENTINEL must also update `{PROJECT_ROOT}/state/PROJECT_STATE.md` after e
 
 ```
 Done -- GO-LIVE: [verdict]. Score: [X]/100. Critical: [N].
-PR: NWAP/{feature}
+PR: WARP/{feature}
 Report: {PROJECT_ROOT}/reports/sentinel/{feature}.md
 State: PROJECT_STATE.md updated
 NEXT GATE: Return to WARP🔹CMD for final decision.
@@ -573,7 +573,7 @@ Mandatory process:
 10. Create branch -> write HTML (preserve all newlines) -> create PR
 
 Save path: `{PROJECT_ROOT}/reports/briefer/{feature}.html`
-Branch: `NWAP/briefer-{purpose}`
+Branch: `WARP/briefer-{purpose}`
 Commit: `briefer: {feature}`
 
 Risk controls (FIXED — never change in any report):
@@ -621,7 +621,7 @@ SETUP        [installation + how to run]
 
 ```
 Done -- [task name] complete. [1-line summary].
-PR: NWAP/briefer-{purpose}
+PR: WARP/briefer-{purpose}
 Output: {PROJECT_ROOT}/reports/briefer/{feature}.html
 ```
 
@@ -678,7 +678,7 @@ Reports older than 7 days -> move to:
 ```
 
 Archive check triggered automatically during `project sync` or roadmap sync.
-Executed via `NWAP/{feature}` branch. Preserve original naming. Do not mix with other content changes.
+Executed via `WARP/{feature}` branch. Preserve original naming. Do not mix with other content changes.
 
 ---
 

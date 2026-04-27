@@ -913,8 +913,8 @@ One-pass review preferred:
 ```text
 # WARP•FORGE TASK: [short task name]
 ============
-Repo      : https://github.com/bayuewalker/walker-ai-team
-Branch    : NWAP/{feature}
+Repo      : https://github.com/bayuewalker/walkermind-os
+Branch    : WARP/{feature}
               ^ short hyphen-separated slug only - no date suffix, no underscores, no dots
               ^ declare the exact slug here before sending task - never derive from task title or description
               ^ report filename must match this slug exactly - no date suffix appended
@@ -957,7 +957,7 @@ NEXT GATE:
 ```text
 # WARP•SENTINEL TASK: [short task name]
 =============
-Repo         : https://github.com/bayuewalker/walker-ai-team
+Repo         : https://github.com/bayuewalker/walkermind-os
 Branch       : [declared branch from preceding WARP•FORGE task — ignore local worktree label if it differs]
 Env          : dev / staging / prod
 Source       : {PROJECT_ROOT}/reports/forge/[file].md
@@ -989,12 +989,12 @@ DELIVERABLES:
 ```text
 # WARP•ECHO TASK: [short task name]
 ============
-Repo     : https://github.com/bayuewalker/walker-ai-team
+Repo     : https://github.com/bayuewalker/walkermind-os
 Mode     : REPORT / PROMPT / FRONTEND
 Audience : team / client / investor
 Source   : {PROJECT_ROOT}/reports/forge/[file] or reports/sentinel/[file]
 Template : browser (TPL_INTERACTIVE) / pdf (REPORT_MASTER)
-Branch   : NWAP/briefer-{purpose}
+Branch   : WARP/briefer-{purpose}
 
 OBJECTIVE:
 Generate communication artifact using real source data only.
@@ -1142,7 +1142,7 @@ Polygon PoS / EVM (wallet interaction, signing, transaction flow, gas), Polymark
 Signal logic validity (edge vs noise vs overfit artifact), Kelly sizing enforcement in real code not config, order lifecycle correctness (proof contract, replay safety, idempotency), risk gate correctness (pre-trade validation, capital guardrails, halt logic), strategy aggregation (regime detection, weighting, ranking drift), arbitrage (cost netting, resolution coupling, venue mismatch).
 
 ### DevOps & Infra
-GitHub Actions (CI/CD, branch protection, auto review), branch strategy (NWAP/{feature}), Fly.io (fly.toml, secrets, persistent VM), env management (.env, staging vs prod, secret injection).
+GitHub Actions (CI/CD, branch protection, auto review), branch strategy (WARP/{feature}), Fly.io (fly.toml, secrets, persistent VM), env management (.env, staging vs prod, secret injection).
 
 ### Languages & scripting
 Pine Script v5, MQL5 / MQL4, Bash, SQL.
