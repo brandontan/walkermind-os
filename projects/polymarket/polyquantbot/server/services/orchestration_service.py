@@ -180,15 +180,18 @@ class OrchestratorService:
         tenant_id: str,
         user_id: str,
         wallet_id: str,
-    ) -> WalletControlResult:
+    ) -> tuple[WalletControlResult, bool]:
         """Enable a wallet and persist the updated control state.
 
         Returns:
-            WalletControlResult from the in-memory store toggle.
+            (WalletControlResult, persist_ok) — persist_ok is False when the DB
+            write failed; in-memory state is always updated regardless.
         """
         result = self._controls_store.enable_wallet(wallet_id)
-        await self._controls_store.persist(self._db, tenant_id, user_id)
-        return result
+        persist_ok = await self._controls_store.persist(self._db, tenant_id, user_id)
+        if not persist_ok:
+            log.warning("orchestrator_service_enable_wallet_persist_failed", wallet_id=wallet_id)
+        return result, persist_ok
 
     async def disable_wallet(
         self,
@@ -196,30 +199,47 @@ class OrchestratorService:
         user_id: str,
         wallet_id: str,
         reason: str = "",
-    ) -> WalletControlResult:
+    ) -> tuple[WalletControlResult, bool]:
         """Disable a wallet and persist the updated control state.
 
         Returns:
-            WalletControlResult from the in-memory store toggle.
+            (WalletControlResult, persist_ok) — persist_ok is False when the DB
+            write failed; in-memory state is always updated regardless.
         """
         result = self._controls_store.disable_wallet(wallet_id, reason=reason)
-        await self._controls_store.persist(self._db, tenant_id, user_id)
-        return result
+        persist_ok = await self._controls_store.persist(self._db, tenant_id, user_id)
+        if not persist_ok:
+            log.warning("orchestrator_service_disable_wallet_persist_failed", wallet_id=wallet_id)
+        return result, persist_ok
 
     async def set_global_halt(
         self,
         tenant_id: str,
         user_id: str,
         reason: str,
-    ) -> None:
-        """Set global halt and persist."""
-        self._controls_store.set_global_halt(reason)
-        await self._controls_store.persist(self._db, tenant_id, user_id)
+    ) -> bool:
+        """Set global halt and persist.
 
-    async def clear_global_halt(self, tenant_id: str, user_id: str) -> None:
-        """Clear global halt and persist."""
+        Returns:
+            True if persisted successfully, False if DB write failed.
+        """
+        self._controls_store.set_global_halt(reason)
+        persist_ok = await self._controls_store.persist(self._db, tenant_id, user_id)
+        if not persist_ok:
+            log.warning("orchestrator_service_set_halt_persist_failed")
+        return persist_ok
+
+    async def clear_global_halt(self, tenant_id: str, user_id: str) -> bool:
+        """Clear global halt and persist.
+
+        Returns:
+            True if persisted successfully, False if DB write failed.
+        """
         self._controls_store.clear_global_halt()
-        await self._controls_store.persist(self._db, tenant_id, user_id)
+        persist_ok = await self._controls_store.persist(self._db, tenant_id, user_id)
+        if not persist_ok:
+            log.warning("orchestrator_service_clear_halt_persist_failed")
+        return persist_ok
 
     # ── Audit log ─────────────────────────────────────────────────────────────
 

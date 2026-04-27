@@ -448,3 +448,131 @@ async def test_wo_45_degraded_not_fired_for_empty_or_inactive_candidates():
     inactive = [_make_candidate("wlc_x", lifecycle_status="blocked", drawdown_pct=0.50)]
     result_inactive = await orch.route(_make_request(), inactive)
     assert result_inactive.outcome == "no_active_wallet"
+
+
+# ── WO-46..WO-51: Persistence failure surfacing ───────────────────────────────
+
+def _make_svc_mock_with_persist_fail() -> MagicMock:
+    """Build a minimal OrchestratorService mock where mutation methods return persist_ok=False."""
+    svc = MagicMock()
+    ctrl_result = MagicMock()
+    ctrl_result.wallet_id = "wlc_fail"
+    ctrl_result.action = "enable"
+    ctrl_result.reason = "wallet enabled"
+    svc.enable_wallet = AsyncMock(return_value=(ctrl_result, False))
+    ctrl_result_dis = MagicMock()
+    ctrl_result_dis.wallet_id = "wlc_fail"
+    ctrl_result_dis.action = "disable"
+    ctrl_result_dis.reason = "wallet disabled"
+    svc.disable_wallet = AsyncMock(return_value=(ctrl_result_dis, False))
+    svc.set_global_halt = AsyncMock(return_value=False)
+    svc.clear_global_halt = AsyncMock(return_value=False)
+    return svc
+
+
+@pytest.mark.asyncio
+async def test_wo_46_service_enable_wallet_returns_persist_false():
+    """WO-46: enable_wallet returns (result, False) when persist() fails."""
+    db = _make_db_mock(pool_execute_raises=RuntimeError("db down"))
+    controls_store = WalletControlsStore()
+    svc = OrchestratorService(
+        lifecycle_store=MagicMock(),
+        controls_store=controls_store,
+        decision_store=OrchestrationDecisionStore(db=db),
+        aggregator=CrossWalletStateAggregator(),
+        orchestrator=WalletOrchestrator(),
+        db=db,
+    )
+    result, persist_ok = await svc.enable_wallet("t1", "u1", "wlc_x")
+    assert persist_ok is False
+    assert result.action == "enable"
+    assert "wlc_x" not in controls_store._disabled  # in-memory still mutated
+
+
+@pytest.mark.asyncio
+async def test_wo_47_service_disable_wallet_returns_persist_false():
+    """WO-47: disable_wallet returns (result, False) when persist() fails."""
+    db = _make_db_mock(pool_execute_raises=RuntimeError("db down"))
+    controls_store = WalletControlsStore()
+    svc = OrchestratorService(
+        lifecycle_store=MagicMock(),
+        controls_store=controls_store,
+        decision_store=OrchestrationDecisionStore(db=db),
+        aggregator=CrossWalletStateAggregator(),
+        orchestrator=WalletOrchestrator(),
+        db=db,
+    )
+    result, persist_ok = await svc.disable_wallet("t1", "u1", "wlc_x", reason="test")
+    assert persist_ok is False
+    assert result.action == "disable"
+    assert "wlc_x" in controls_store._disabled  # in-memory still mutated
+
+
+@pytest.mark.asyncio
+async def test_wo_48_service_set_halt_returns_persist_false():
+    """WO-48: set_global_halt returns False when persist() fails."""
+    db = _make_db_mock(pool_execute_raises=RuntimeError("db down"))
+    controls_store = WalletControlsStore()
+    svc = OrchestratorService(
+        lifecycle_store=MagicMock(),
+        controls_store=controls_store,
+        decision_store=OrchestrationDecisionStore(db=db),
+        aggregator=CrossWalletStateAggregator(),
+        orchestrator=WalletOrchestrator(),
+        db=db,
+    )
+    persist_ok = await svc.set_global_halt("t1", "u1", reason="emergency")
+    assert persist_ok is False
+    assert controls_store._global_halt is True  # in-memory still mutated
+
+
+@pytest.mark.asyncio
+async def test_wo_49_service_clear_halt_returns_persist_false():
+    """WO-49: clear_global_halt returns False when persist() fails."""
+    db = _make_db_mock(pool_execute_raises=RuntimeError("db down"))
+    controls_store = WalletControlsStore()
+    controls_store.set_global_halt("pre-existing halt")
+    svc = OrchestratorService(
+        lifecycle_store=MagicMock(),
+        controls_store=controls_store,
+        decision_store=OrchestrationDecisionStore(db=db),
+        aggregator=CrossWalletStateAggregator(),
+        orchestrator=WalletOrchestrator(),
+        db=db,
+    )
+    persist_ok = await svc.clear_global_halt("t1", "u1")
+    assert persist_ok is False
+    assert controls_store._global_halt is False  # in-memory still mutated
+
+
+def test_wo_50_route_enable_wallet_returns_500_on_persist_fail():
+    """WO-50: POST /wallets/{id}/enable returns 500 with wallet_controls_persist_failed when persist fails."""
+    svc = _make_svc_mock_with_persist_fail()
+    with patch.dict("os.environ", {"ORCHESTRATION_ADMIN_TOKEN": "tok"}):
+        client = _make_test_app(svc=svc)
+        resp = client.post(
+            "/admin/orchestration/wallets/wlc_fail/enable",
+            headers={"X-Orchestration-Admin-Token": "tok"},
+        )
+    assert resp.status_code == 500
+    body = resp.json()
+    assert body["status"] == "error"
+    assert body["reason"] == "wallet_controls_persist_failed"
+    assert body["action"] == "enable"
+
+
+def test_wo_51_route_set_halt_returns_500_on_persist_fail():
+    """WO-51: POST /halt returns 500 with wallet_controls_persist_failed when persist fails."""
+    svc = _make_svc_mock_with_persist_fail()
+    with patch.dict("os.environ", {"ORCHESTRATION_ADMIN_TOKEN": "tok"}):
+        client = _make_test_app(svc=svc)
+        resp = client.post(
+            "/admin/orchestration/halt",
+            json={"reason": "emergency"},
+            headers={"X-Orchestration-Admin-Token": "tok"},
+        )
+    assert resp.status_code == 500
+    body = resp.json()
+    assert body["status"] == "error"
+    assert body["reason"] == "wallet_controls_persist_failed"
+    assert body["action"] == "halt_set"

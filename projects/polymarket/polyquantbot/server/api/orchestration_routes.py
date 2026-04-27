@@ -156,11 +156,22 @@ def build_orchestration_router() -> APIRouter:
                 content={"status": "unavailable", "reason": "orchestration_service_not_wired"},
             )
         try:
-            result = await svc.enable_wallet(
+            result, persist_ok = await svc.enable_wallet(
                 tenant_id=_DEFAULT_SCOPE_TENANT,
                 user_id=_DEFAULT_SCOPE_USER,
                 wallet_id=wallet_id,
             )
+            if not persist_ok:
+                log.error("orchestration_route_enable_wallet_persist_failed", wallet_id=wallet_id)
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "status": "error",
+                        "reason": "wallet_controls_persist_failed",
+                        "wallet_id": wallet_id,
+                        "action": "enable",
+                    },
+                )
             return JSONResponse(content={
                 "status": "ok",
                 "wallet_id": result.wallet_id,
@@ -197,12 +208,23 @@ def build_orchestration_router() -> APIRouter:
             except Exception:
                 pass
             reason = str(body.get("reason", "")) if body else ""
-            result = await svc.disable_wallet(
+            result, persist_ok = await svc.disable_wallet(
                 tenant_id=_DEFAULT_SCOPE_TENANT,
                 user_id=_DEFAULT_SCOPE_USER,
                 wallet_id=wallet_id,
                 reason=reason,
             )
+            if not persist_ok:
+                log.error("orchestration_route_disable_wallet_persist_failed", wallet_id=wallet_id)
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "status": "error",
+                        "reason": "wallet_controls_persist_failed",
+                        "wallet_id": wallet_id,
+                        "action": "disable",
+                    },
+                )
             return JSONResponse(content={
                 "status": "ok",
                 "wallet_id": result.wallet_id,
@@ -239,11 +261,17 @@ def build_orchestration_router() -> APIRouter:
             except Exception:
                 pass
             reason = str(body.get("reason", "operator halt")) if body else "operator halt"
-            await svc.set_global_halt(
+            persist_ok = await svc.set_global_halt(
                 tenant_id=_DEFAULT_SCOPE_TENANT,
                 user_id=_DEFAULT_SCOPE_USER,
                 reason=reason,
             )
+            if not persist_ok:
+                log.error("orchestration_route_set_halt_persist_failed")
+                return JSONResponse(
+                    status_code=500,
+                    content={"status": "error", "reason": "wallet_controls_persist_failed", "action": "halt_set"},
+                )
             return JSONResponse(content={"status": "ok", "action": "halt_set", "reason": reason})
         except Exception as exc:
             log.error("orchestration_route_set_halt_error", error=str(exc))
@@ -269,10 +297,16 @@ def build_orchestration_router() -> APIRouter:
                 content={"status": "unavailable", "reason": "orchestration_service_not_wired"},
             )
         try:
-            await svc.clear_global_halt(
+            persist_ok = await svc.clear_global_halt(
                 tenant_id=_DEFAULT_SCOPE_TENANT,
                 user_id=_DEFAULT_SCOPE_USER,
             )
+            if not persist_ok:
+                log.error("orchestration_route_clear_halt_persist_failed")
+                return JSONResponse(
+                    status_code=500,
+                    content={"status": "error", "reason": "wallet_controls_persist_failed", "action": "halt_cleared"},
+                )
             return JSONResponse(content={"status": "ok", "action": "halt_cleared"})
         except Exception as exc:
             log.error("orchestration_route_clear_halt_error", error=str(exc))
