@@ -1,14 +1,23 @@
-"""WalletControlsStore — Priority 6 Phase B (section 40).
+"""WalletControlsStore — Priority 6 Phase B + Phase C (sections 40–42).
 
 In-memory per-session control state for per-wallet enable/disable toggles
-and portfolio-wide global halt. Phase C will add PostgreSQL persistence.
+and portfolio-wide global halt.  Phase C adds PostgreSQL persistence via
+load() and persist() methods.
+
+Persistence design:
+  - wallet_id = '__global__' is the magic key for global halt state.
+  - Per-wallet disabled entries use the actual wallet_id with is_disabled=True.
+  - load() replaces the current in-memory state with the DB snapshot.
+  - persist() deletes all existing rows for (tenant_id, user_id) then re-inserts
+    current state. Not atomic but acceptable for an admin-control store where
+    in-memory state is always authoritative during a session.
 
 All mutations return WalletControlResult for structured logging by callers.
 build_overlay() produces a PortfolioControlOverlay for WalletOrchestrator.
 """
 from __future__ import annotations
 
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 import structlog
 
@@ -18,7 +27,12 @@ from server.orchestration.schemas import (
     WalletControlResult,
 )
 
+if TYPE_CHECKING:
+    from projects.polymarket.polyquantbot.infra.db import DatabaseClient
+
 log = structlog.get_logger(__name__)
+
+_GLOBAL_HALT_KEY = "__global__"
 
 
 class WalletControlsStore:
@@ -71,6 +85,116 @@ class WalletControlsStore:
         self._global_halt = False
         self._halt_reason = ""
         log.info("global_halt_cleared")
+
+    # ── Overlay builder ───────────────────────────────────────────────────────
+
+    # ── DB persistence (Phase C) ──────────────────────────────────────────────
+
+    async def load(
+        self,
+        db: "DatabaseClient",
+        tenant_id: str,
+        user_id: str,
+    ) -> None:
+        """Replace in-memory state with the snapshot persisted in DB.
+
+        Rows with wallet_id='__global__' carry the global halt state.
+        All other rows with is_disabled=True populate the disabled set.
+        Rows with is_disabled=False are ignored — they represent wallets
+        that were explicitly re-enabled and previously persisted.
+        """
+        rows = await db._fetch(
+            "SELECT wallet_id, is_disabled, halt_reason "
+            "FROM wallet_controls "
+            "WHERE tenant_id = $1 AND user_id = $2",
+            tenant_id,
+            user_id,
+            op_label="wallet_controls_load",
+        )
+        new_disabled: set[str] = set()
+        new_halt = False
+        new_halt_reason = ""
+        for row in rows:
+            wid = str(row["wallet_id"])
+            if wid == _GLOBAL_HALT_KEY:
+                new_halt = bool(row["is_disabled"])
+                new_halt_reason = str(row["halt_reason"])
+            elif bool(row["is_disabled"]):
+                new_disabled.add(wid)
+        self._disabled = new_disabled
+        self._global_halt = new_halt
+        self._halt_reason = new_halt_reason
+        log.info(
+            "wallet_controls_loaded",
+            tenant_id=tenant_id,
+            user_id=user_id,
+            disabled_count=len(new_disabled),
+            global_halt=new_halt,
+        )
+
+    async def persist(
+        self,
+        db: "DatabaseClient",
+        tenant_id: str,
+        user_id: str,
+    ) -> bool:
+        """Write current in-memory state to DB (delete-then-insert).
+
+        Returns True if all writes succeeded, False on any failure.
+        """
+        ok = await db._execute(
+            "DELETE FROM wallet_controls WHERE tenant_id = $1 AND user_id = $2",
+            tenant_id,
+            user_id,
+            op_label="wallet_controls_delete",
+        )
+        if not ok:
+            log.warning("wallet_controls_persist_delete_failed", tenant_id=tenant_id, user_id=user_id)
+            return False
+
+        upsert_sql = """
+            INSERT INTO wallet_controls (tenant_id, user_id, wallet_id, is_disabled, halt_reason)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (tenant_id, user_id, wallet_id) DO UPDATE
+                SET is_disabled = EXCLUDED.is_disabled,
+                    halt_reason = EXCLUDED.halt_reason,
+                    updated_at  = NOW()
+        """
+        all_ok = True
+        global_ok = await db._execute(
+            upsert_sql,
+            tenant_id,
+            user_id,
+            _GLOBAL_HALT_KEY,
+            self._global_halt,
+            self._halt_reason,
+            op_label="wallet_controls_upsert_global",
+        )
+        if not global_ok:
+            all_ok = False
+
+        for wid in self._disabled:
+            w_ok = await db._execute(
+                upsert_sql,
+                tenant_id,
+                user_id,
+                wid,
+                True,
+                "",
+                op_label="wallet_controls_upsert_wallet",
+            )
+            if not w_ok:
+                all_ok = False
+
+        log.info(
+            "wallet_controls_persisted",
+            tenant_id=tenant_id,
+            user_id=user_id,
+            disabled_count=len(self._disabled),
+            global_halt=self._global_halt,
+            ok=all_ok,
+        )
+        return all_ok
 
     # ── Overlay builder ───────────────────────────────────────────────────────
 

@@ -391,22 +391,22 @@ Build this after wallet and portfolio are ready.
 
 ### 41. UX/API and Recovery
 
-- [ ] Add admin/operator visibility
-- [ ] Add safe user summaries if needed
-- [ ] Handle unavailable wallet cases
-- [ ] Handle routing conflicts
-- [ ] Handle degraded mode behavior
+- [x] Add admin/operator visibility
+- [x] Add safe user summaries if needed
+- [x] Handle unavailable wallet cases
+- [x] Handle routing conflicts
+- [x] Handle degraded mode behavior
 
 ### 42. Persistence and Validation
 
-- [ ] Persist orchestration state
-- [ ] Persist reconciliation traces where needed
-- [ ] Add simulations/tests
+- [x] Persist orchestration state
+- [x] Persist reconciliation traces where needed
+- [x] Add simulations/tests
 - [ ] Sync docs after completion
 
 ### Done Condition
 
-- [ ] The system can coordinate multiple wallets safely and truthfully
+- [ ] The system can coordinate multiple wallets safely and truthfully (SENTINEL MAJOR validation pending before merge)
 
 ---
 
@@ -605,3 +605,5 @@ This is the final finish layer.
 - [ ] SENTINEL: validate Priority 4 wallet lifecycle foundation — source projects/polymarket/polyquantbot/reports/forge/wallet-lifecycle-foundation.md; Tier: MAJOR
 - [x] COMMANDER: scope Priority 6 multi-wallet orchestration Phase A kickoff — confirmed 2026-04-25; branch NWAP/multi-wallet-orchestration
 - [ ] SENTINEL: validate Priority 6 Phase A orchestration foundation — source projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-a.md; Tier: MAJOR
+- [x] FORGE-X: Priority 6 Phase C (sections 41-42) built on NWAP/multi-wallet-orchestration-phase-c — 18/18 tests passing (WO-28..WO-45)
+- [ ] SENTINEL: validate Priority 6 Phase C — source projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md; Tier: MAJOR

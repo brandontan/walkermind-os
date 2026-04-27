@@ -1,10 +1,11 @@
-"""Orchestration domain model — Priority 6 Phase A + Phase B.
+"""Orchestration domain model — Priority 6 Phase A + Phase B + Phase C.
 
-Covers sections 37–40 of WORKTODO.md:
+Covers sections 37–42 of WORKTODO.md:
   37. Orchestration model (routing model, wallet selection, ownership-aware routing)
   38. Allocation across wallets (balance-aware, strategy-aware, risk-aware, failover)
   39. Cross-wallet state truth (unified view, conflict detection, shared exposure guard)
   40. Cross-wallet controls (per-wallet enable/disable, health status, risk state, portfolio overlay)
+  41–42. UX/API, recovery, persistence (OrchestrationDecision log)
 """
 from __future__ import annotations
 
@@ -85,6 +86,8 @@ class OrchestrationResult:
         no_active_wallet     — all ownership-matched candidates failed lifecycle check.
         insufficient_balance — active wallets exist but none has enough balance.
         risk_blocked         — all funded candidates failed the hard risk gate.
+        degraded             — all active candidates have breached the drawdown ceiling
+                               (system-wide breach, distinct from per-wallet risk_blocked).
         halted               — routing blocked by PortfolioControlOverlay.global_halt.
         error                — unexpected failure during policy evaluation.
     """
@@ -176,6 +179,66 @@ class WalletControlResult:
     action: str
     success: bool
     reason: str
+
+
+def new_decision_id() -> str:
+    return "dec_" + uuid4().hex
+
+
+@dataclass(frozen=True)
+class OrchestrationDecision:
+    """Immutable log record for a completed routing decision.
+
+    Created from OrchestrationResult by the service layer and persisted
+    via OrchestrationDecisionStore.
+
+    Attributes:
+        decision_id:          Unique identifier for this decision record.
+        tenant_id:            Tenant ownership scope.
+        user_id:              User ownership scope.
+        outcome:              Same outcome string as OrchestrationResult.outcome.
+        selected_wallet_id:   Wallet chosen, or None.
+        reason:               Human-readable routing reason.
+        candidates_evaluated: Number of candidates passed to the policy chain.
+        failover_used:        Whether the strategy-only failover path was taken.
+        mode:                 Execution mode ('paper' | 'live').
+        correlation_id:       Caller trace ID from RoutingRequest.
+        decided_at:           UTC timestamp of this decision.
+    """
+
+    decision_id: str
+    tenant_id: str
+    user_id: str
+    outcome: str
+    selected_wallet_id: Optional[str]
+    reason: str
+    candidates_evaluated: int
+    failover_used: bool
+    mode: str
+    correlation_id: str
+    decided_at: datetime = field(default_factory=_utc_now)
+
+
+def decision_from_result(
+    result: "OrchestrationResult",
+    tenant_id: str,
+    user_id: str,
+    mode: str,
+    correlation_id: str,
+) -> "OrchestrationDecision":
+    """Build an OrchestrationDecision from a completed OrchestrationResult."""
+    return OrchestrationDecision(
+        decision_id=new_decision_id(),
+        tenant_id=tenant_id,
+        user_id=user_id,
+        outcome=result.outcome,
+        selected_wallet_id=result.selected_wallet_id,
+        reason=result.reason,
+        candidates_evaluated=result.candidates_evaluated,
+        failover_used=result.failover_used,
+        mode=mode,
+        correlation_id=correlation_id,
+    )
 
 
 @dataclass(frozen=True)

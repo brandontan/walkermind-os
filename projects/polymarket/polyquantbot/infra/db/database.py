@@ -253,6 +253,39 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_wallet
 """
 
 
+# ── Priority 6 Phase C: Wallet controls + orchestration decision log ─────────
+
+_DDL_WALLET_CONTROLS = """
+CREATE TABLE IF NOT EXISTS wallet_controls (
+    tenant_id       TEXT        NOT NULL,
+    user_id         TEXT        NOT NULL,
+    wallet_id       TEXT        NOT NULL,
+    is_disabled     BOOLEAN     NOT NULL DEFAULT FALSE,
+    halt_reason     TEXT        NOT NULL DEFAULT '',
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, user_id, wallet_id)
+);
+"""
+
+_DDL_ORCHESTRATION_DECISIONS = """
+CREATE TABLE IF NOT EXISTS orchestration_decisions (
+    decision_id             TEXT        PRIMARY KEY,
+    tenant_id               TEXT        NOT NULL,
+    user_id                 TEXT        NOT NULL,
+    outcome                 TEXT        NOT NULL,
+    selected_wallet_id      TEXT,
+    reason                  TEXT        NOT NULL DEFAULT '',
+    candidates_evaluated    INTEGER     NOT NULL DEFAULT 0,
+    failover_used           BOOLEAN     NOT NULL DEFAULT FALSE,
+    mode                    TEXT        NOT NULL DEFAULT 'paper',
+    correlation_id          TEXT        NOT NULL DEFAULT '',
+    decided_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_orchestration_decisions_user
+    ON orchestration_decisions (tenant_id, user_id, decided_at DESC);
+"""
+
+
 # ── Priority 7: Settlement, retry, and reconciliation persistence ─────────────
 
 _DDL_SETTLEMENT_EVENTS = """
@@ -461,6 +494,9 @@ class DatabaseClient:
             await conn.execute(_DDL_WALLET_AUDIT_LOG)
             # Priority 5: portfolio snapshots
             await conn.execute(_DDL_PORTFOLIO_SNAPSHOTS)
+            # Priority 6 Phase C: wallet controls + orchestration decisions
+            await conn.execute(_DDL_WALLET_CONTROLS)
+            await conn.execute(_DDL_ORCHESTRATION_DECISIONS)
             # Priority 7: settlement domain
             await conn.execute(_DDL_SETTLEMENT_EVENTS)
             await conn.execute(_DDL_SETTLEMENT_RETRY_HISTORY)

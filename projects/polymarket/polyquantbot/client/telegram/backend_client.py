@@ -463,3 +463,45 @@ class CrusaderBackendClient:
             return {"ok": False, "detail": f"http_{resp.status_code}"}
         except Exception as exc:
             return {"ok": False, "detail": self._sanitize_error_detail(str(exc))}
+
+    # ── Orchestration admin helpers (Phase C) ─────────────────────────────────
+
+    def _orchestration_headers(self) -> dict[str, str]:
+        token = os.getenv("ORCHESTRATION_ADMIN_TOKEN", "").strip()
+        return {"X-Orchestration-Admin-Token": token} if token else {}
+
+    async def orchestration_get(self, path: str) -> dict[str, object]:
+        """Read helper for orchestration admin endpoints."""
+        try:
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as http_client:
+                resp = await http_client.get(path, headers=self._orchestration_headers())
+            if resp.status_code == 200:
+                body = resp.json()
+                return body if isinstance(body, dict) else {"ok": False, "detail": "invalid_payload"}
+            return {"ok": False, "detail": f"http_{resp.status_code}"}
+        except Exception as exc:
+            return {"ok": False, "detail": self._sanitize_error_detail(str(exc))}
+
+    async def orchestration_post(self, path: str, payload: dict[str, object]) -> dict[str, object]:
+        """Write helper for orchestration admin endpoints."""
+        try:
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as http_client:
+                resp = await http_client.post(path, json=payload, headers=self._orchestration_headers())
+            if resp.status_code == 200:
+                body = resp.json()
+                return body if isinstance(body, dict) else {"ok": False, "detail": "invalid_payload"}
+            return {"ok": False, "detail": f"http_{resp.status_code}"}
+        except Exception as exc:
+            return {"ok": False, "detail": self._sanitize_error_detail(str(exc))}
+
+    async def orchestration_delete(self, path: str) -> dict[str, object]:
+        """Delete helper for orchestration admin endpoints."""
+        try:
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as http_client:
+                resp = await http_client.delete(path, headers=self._orchestration_headers())
+            if resp.status_code == 200:
+                body = resp.json()
+                return body if isinstance(body, dict) else {"ok": False, "detail": "invalid_payload"}
+            return {"ok": False, "detail": f"http_{resp.status_code}"}
+        except Exception as exc:
+            return {"ok": False, "detail": self._sanitize_error_detail(str(exc))}
