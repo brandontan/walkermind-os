@@ -26,7 +26,6 @@ Status       : Priority 6 Phase B merged to main via PR #779 (2026-04-26); SENTI
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
-- SENTINEL validation required for Phase B before Phase C begins (Tier: MAJOR; source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-b.md).
 - After SENTINEL clears Phase B: FORGE-X Priority 6 Phase C (sections 41-42) on NWAP/multi-wallet-orchestration-phase-c.
 - Continue remaining internal structure phases under forge-merge mode.
 - Maintain no public-ready, live-trading-ready, or production-capital-ready claim until full SENTINEL/check-all sweep.
