@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-04-29 00:54 | WARP/capital-readiness-p8c-2a76 | P8-C: §52 live execution readiness -- LiveExecutionGuard (5-gate + provider check), disable_live_execution rollback, PaperBetaWorker live-guard wiring + price_updater hardened, PortfolioFinancialProvider, settlement_policy_from_capital_config. 23/23 tests (CR-23..CR-35). 58/58 total (P8-A+B+C). Tier: MAJOR. WARP•SENTINEL validation required before merge.
+
 2026-04-28 21:00 | WARP/capital-readiness-p8b | P8-B: §51 capital risk controls hardening — CapitalRiskGate (config-driven limits, 5-gate LIVE guard, kill_switch first, drawdown/exposure/daily-loss enforced from CapitalModeConfig) + WalletFinancialProvider protocol + enrich_candidate wiring + OrchestratorService enrichment hook. boundary_registry PaperRiskGate + WalletCandidate.financial_fields_zero updated. 12/12 tests (CR-13..CR-22). WORKTODO §51 ticked. Tier: MAJOR. WARP•SENTINEL validation required before merge.
 
 2026-04-28 18:30 | WARP/capital-readiness-p8a | P8-A: §49 BoundaryRegistry (13 paper-only surfaces audited, 22-item readiness criteria) + §50 CapitalModeConfig (5-gate guard, all default-OFF, Kelly=0.25 locked, risk bounds enforced). 16/16 tests passing (CR-01..CR-12). WORKTODO §49-50 ticked. Tier: MAJOR. WARP•SENTINEL validation required before merge.

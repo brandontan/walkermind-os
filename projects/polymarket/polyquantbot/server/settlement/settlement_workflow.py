@@ -3,6 +3,12 @@
 Wraps FundSettlementEngine (synchronous, single-shot) with async lifecycle
 management, status transitions, and idempotency enforcement.
 
+P8-C hardening:
+    settlement_policy_from_capital_config() derives SettlementWorkflowPolicy
+    from CapitalModeConfig so real settlement cannot be enabled independently
+    of the capital gate system.  allow_real_settlement is True only when all
+    5 capital gates are on (is_capital_mode_allowed() == True).
+
 Status transitions:
     PENDING -> PROCESSING -> COMPLETED
                           -> FAILED
@@ -46,12 +52,47 @@ log = structlog.get_logger(__name__)
 class SettlementWorkflowPolicy:
     """Runtime policy flags injected into the workflow engine.
 
-    allow_real_settlement must be False unless ENABLE_LIVE_TRADING is set.
+    allow_real_settlement must be False unless ENABLE_LIVE_TRADING is set
+    and all capital gates are on.  Use settlement_policy_from_capital_config()
+    to derive this from CapitalModeConfig safely.
     """
 
     settlement_enabled: bool
     allow_real_settlement: bool
     simulation_mode: bool
+
+
+def settlement_policy_from_capital_config(
+    capital_config: "Any",  # CapitalModeConfig — forward ref avoids circular import
+    settlement_enabled: bool = True,
+) -> SettlementWorkflowPolicy:
+    """Derive SettlementWorkflowPolicy from CapitalModeConfig.
+
+    allow_real_settlement is True only when is_capital_mode_allowed() returns True
+    (all 5 gates on, mode=LIVE).  This prevents settlement from being enabled
+    independently of the capital gate system.
+
+    Args:
+        capital_config: CapitalModeConfig instance.
+        settlement_enabled: Whether settlement processing is globally enabled.
+
+    Returns:
+        SettlementWorkflowPolicy with allow_real_settlement derived from gates.
+    """
+    allowed = capital_config.is_capital_mode_allowed()
+    policy = SettlementWorkflowPolicy(
+        settlement_enabled=settlement_enabled,
+        allow_real_settlement=allowed,
+        simulation_mode=not allowed,
+    )
+    log.info(
+        "settlement_policy_derived_from_capital_config",
+        allow_real_settlement=allowed,
+        settlement_enabled=settlement_enabled,
+        simulation_mode=policy.simulation_mode,
+        capital_mode_allowed=allowed,
+    )
+    return policy
 
 
 class SettlementWorkflowEngine:

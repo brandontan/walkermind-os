@@ -59,26 +59,34 @@ PAPER_ONLY_BOUNDARIES: tuple[PaperOnlyBoundary, ...] = (
     PaperOnlyBoundary(
         surface="PaperExecutionEngine",
         file_path="projects/polymarket/polyquantbot/server/execution/paper_execution.py",
-        assumption="All order fills are simulated — no real CLOB order submission path exists in this layer.",
+        assumption="All order fills are simulated — no real CLOB order submission path exists in this layer. LiveExecutionGuard blocks live execution attempts at PaperBetaWorker level (P8-C).",
         capital_risk="CRITICAL",
         readiness_gate="P8-C",
-        status="BLOCKED",
+        status="NEEDS_HARDENING",
     ),
     PaperOnlyBoundary(
         surface="PaperBetaWorker.price_updater",
         file_path="projects/polymarket/polyquantbot/server/workers/paper_beta_worker.py",
-        assumption="price_updater() is a no-op stub — unrealized PnL uses stale prices, not live market data.",
+        assumption="price_updater() is a no-op stub in paper mode — raises LiveExecutionBlockedError in live mode (P8-C hardened). Real market data integration deferred.",
         capital_risk="HIGH",
         readiness_gate="P8-C",
-        status="BLOCKED",
+        status="NEEDS_HARDENING",
+    ),
+    PaperOnlyBoundary(
+        surface="LiveExecutionGuard",
+        file_path="projects/polymarket/polyquantbot/server/core/live_execution_control.py",
+        assumption="LiveExecutionGuard (P8-C) enforces all 5 capital gates + WalletFinancialProvider non-zero check before any live execution attempt. Blocks and logs deterministically.",
+        capital_risk="CRITICAL",
+        readiness_gate="P8-C",
+        status="NEEDS_HARDENING",
     ),
     # ── Risk layer ────────────────────────────────────────────────────────────
     PaperOnlyBoundary(
         surface="PaperRiskGate",
         file_path="projects/polymarket/polyquantbot/server/risk/paper_risk_gate.py",
-        assumption="CapitalRiskGate (server/risk/capital_risk_gate.py) is built and tested (P8-B); runtime wiring to replace PaperRiskGate in execution path is deferred to P8-C.",
+        assumption="PaperBetaWorker now accepts CapitalRiskGate via duck-typed AnyRiskGate (P8-C). PaperRiskGate remains the default for paper path. Runtime replacement with CapitalRiskGate is operator-controlled via injection.",
         capital_risk="CRITICAL",
-        readiness_gate="P8-B",
+        readiness_gate="P8-C",
         status="NEEDS_HARDENING",
     ),
     # ── Settlement layer ──────────────────────────────────────────────────────
@@ -127,9 +135,9 @@ PAPER_ONLY_BOUNDARIES: tuple[PaperOnlyBoundary, ...] = (
     PaperOnlyBoundary(
         surface="WalletCandidate.financial_fields_zero",
         file_path="projects/polymarket/polyquantbot/server/orchestration/schemas.py",
-        assumption="WalletFinancialProvider + enrich_candidate wiring built (P8-B); OrchestratorService accepts optional provider. Live-data provider implementation deferred to P8-C market data integration.",
+        assumption="WalletFinancialProvider + enrich_candidate wiring built (P8-B); PortfolioFinancialProvider (P8-C) backed by PublicBetaState. Live-data market feed provider deferred; MissingRealFinancialDataError raised for zero-equity in live mode.",
         capital_risk="CRITICAL",
-        readiness_gate="P8-B",
+        readiness_gate="P8-C",
         status="NEEDS_HARDENING",
     ),
     # ── Capital mode config ───────────────────────────────────────────────────
