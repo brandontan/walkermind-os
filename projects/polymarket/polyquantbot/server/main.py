@@ -57,6 +57,11 @@ from projects.polymarket.polyquantbot.server.orchestration.decision_store import
 from projects.polymarket.polyquantbot.server.orchestration.wallet_controls import WalletControlsStore
 from projects.polymarket.polyquantbot.server.orchestration.wallet_orchestrator import WalletOrchestrator
 from projects.polymarket.polyquantbot.server.services.orchestration_service import OrchestratorService
+from projects.polymarket.polyquantbot.server.settlement.settlement_persistence import SettlementPersistence
+from projects.polymarket.polyquantbot.server.settlement.settlement_alert_policy import SettlementAlertPolicy
+from projects.polymarket.polyquantbot.server.settlement.operator_console import OperatorConsole
+from projects.polymarket.polyquantbot.server.services.settlement_operator_service import SettlementOperatorService
+from projects.polymarket.polyquantbot.server.api.settlement_operator_routes import build_settlement_operator_router
 from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 
 log = structlog.get_logger(__name__)
@@ -421,6 +426,16 @@ def create_app() -> FastAPI:
                 _app.state.orchestration_service = _orchestration_svc
                 await _orchestration_svc.load_controls_from_db("system", "paper_user")
                 log.info("orchestration_service_wired")
+            # P7: wire settlement operator service after DB is connected
+            if state.db_client is not None:
+                _settlement_persistence = SettlementPersistence(db=state.db_client)
+                _settlement_alert_policy = SettlementAlertPolicy()
+                _operator_console = OperatorConsole(alert_policy=_settlement_alert_policy)
+                _app.state.settlement_operator_service = SettlementOperatorService(
+                    persistence=_settlement_persistence,
+                    console=_operator_console,
+                )
+                log.info("settlement_operator_service_wired")
             try:
                 await _start_telegram_runtime(state=state)
             except Exception as exc:
@@ -521,6 +536,7 @@ def create_app() -> FastAPI:
     app.include_router(build_public_beta_router(falcon=falcon_gateway))
     app.include_router(build_portfolio_router())
     app.include_router(build_orchestration_router())
+    app.include_router(build_settlement_operator_router())
 
     @app.get("/")
     async def root() -> JSONResponse:

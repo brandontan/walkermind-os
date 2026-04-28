@@ -1,5 +1,5 @@
-Last Updated : 2026-04-28 07:02
-Status       : SENTINEL full sweep P4+P5+P6+P7 APPROVED 89/100 on WARP/sentinel-full-sweep — zero critical issues; 171/171 tests pass. Structure-build validation gate closed. COMMANDER review pending for PR #781 (P6 Phase C) before main-branch merge. Gate 1 work (P7 operator routes, Telegram wiring, DDL migration files) not yet started.
+Last Updated : 2026-04-28 12:00
+Status       : Gate 1a DDL migration closed (PR #786). Gate 1b FastAPI settlement operator routes built on WARP/settlement-operator-routes — SettlementOperatorService + 4 routes + 9/9 tests (ST-39..ST-47) + server/main.py wiring; WARP🔹CMD review pending. Gate 1c Telegram wiring not yet started.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -17,24 +17,25 @@ Status       : SENTINEL full sweep P4+P5+P6+P7 APPROVED 89/100 on WARP/sentinel-
 
 [IN PROGRESS]
 - COMMANDER review for PR #781 (Priority 6 Phase C) pending merge decision.
+- Gate 1a DDL migration (WARP/settlement-ddl-migration) — PR #786 open, WARP🔹CMD review pending. Codex P1 timestamp format fix required.
+- Gate 1b FastAPI settlement operator routes (WARP/settlement-operator-routes) — PR open, WARP🔹CMD review pending (STANDARD tier).
 - WalkerMind OS identity rebranding (NWAP/rebranding-identity-fix) — WARP🔹CMD review pending. PR #782 held due to drift; replaced by this fix PR.
 - Legacy string cleanup (WARP/cleanup-legacy-refs) — WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP🔹CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
 
 [NOT STARTED]
-- Priority 7 FastAPI route exposure for operator console (§47) — WARP/settlement-operator-routes.
-- Priority 7 Telegram wiring for settlement/retry/reconciliation commands — WARP/settlement-telegram-wiring.
-- Priority 7 formal DDL migration files for settlement_events, settlement_retry_history, settlement_reconciliation_results — WARP/settlement-ddl-migration. Note: auto-create DDL already exists in infra/db/database.py _apply_schema().
+- Gate 1c Priority 7 Telegram wiring for settlement/retry/reconciliation commands — WARP/settlement-telegram-wiring. Depends on Gate 1b merge.
 - Priority 8 capital readiness and live trading gating — requires separate SENTINEL MAJOR sweep after P8 lanes are built.
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
-- SENTINEL structure-build sweep CLOSED: APPROVED 89/100. Source: projects/polymarket/polyquantbot/reports/sentinel/full-sweep.md. Branch: WARP/sentinel-full-sweep.
-- WARP🔹CMD review for legacy string cleanup. Source: projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md. Tier: MINOR. Branch: WARP/cleanup-legacy-refs.
+- WARP🔹CMD review for Gate 1b settlement operator routes. Source: projects/polymarket/polyquantbot/reports/forge/settlement-operator-routes.md. Tier: STANDARD. Branch: WARP/settlement-operator-routes.
+- WARP🔹CMD review for Gate 1a DDL migration (fix Codex P1 timestamp before merge). Branch: WARP/settlement-ddl-migration. PR #786.
 - COMMANDER review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
 - WARP🔹CMD review for WalkerMind OS identity rebranding. Source: projects/polymarket/polyquantbot/reports/forge/rebranding-identity-fix.md. Tier: STANDARD. PR #782 superseded.
-- After Phase C is merged: FORGE-X Gate 1 Priority 7 remaining (WARP/settlement-operator-routes, WARP/settlement-telegram-wiring, WARP/settlement-ddl-migration).
-- After Gate 1 complete: Priority 8 capital readiness (chunked per §49-54, each SENTINEL MAJOR).
+- WARP🔹CMD review for legacy string cleanup. Source: projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md. Tier: MINOR. Branch: WARP/cleanup-legacy-refs.
+- After Gate 1b merged: Gate 1c Telegram wiring (WARP/settlement-telegram-wiring).
+- After all Gate 1 lanes merged: Priority 8 capital readiness (chunked per §49-54, each SENTINEL MAJOR).
 - Maintain no public-ready, live-trading-ready, or production-capital-ready claim until Priority 8 SENTINEL MAJOR sweep complete.
 
 [KNOWN ISSUES]
