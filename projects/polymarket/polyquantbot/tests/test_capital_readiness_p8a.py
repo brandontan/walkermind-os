@@ -25,6 +25,7 @@ import pytest
 
 from projects.polymarket.polyquantbot.server.config.capital_mode_config import (
     KELLY_FRACTION,
+    MIN_LIQUIDITY_USD_FLOOR,
     CapitalModeConfig,
     CapitalModeGuardError,
 )
@@ -175,6 +176,20 @@ def test_cr09_drawdown_limit_cap() -> None:
         cfg = CapitalModeConfig.from_env()
     with pytest.raises(ValueError, match="drawdown_limit_pct"):
         cfg.validate()
+
+
+# ── CR-09b: min_liquidity_usd below floor raises ──────────────────────────────
+
+def test_cr09b_min_liquidity_floor_enforced() -> None:
+    env = {**_PAPER_ENV, "CAPITAL_MIN_LIQUIDITY_USD": "0"}
+    with patch.dict(os.environ, env, clear=False):
+        cfg = CapitalModeConfig.from_env()
+    with pytest.raises(ValueError, match="min_liquidity_usd"):
+        cfg.validate()
+
+
+def test_cr09c_min_liquidity_floor_value_is_10k() -> None:
+    assert MIN_LIQUIDITY_USD_FLOOR == 10_000.0
 
 
 # ── CR-10: registry has CRITICAL entries ──────────────────────────────────────

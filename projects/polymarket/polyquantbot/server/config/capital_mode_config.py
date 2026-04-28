@@ -21,7 +21,7 @@ Risk constants (LOCKED — never change without SENTINEL MAJOR re-sweep):
     Max position:      <= 10% of capital
     Daily loss limit:  negative USD value (hard stop)
     Drawdown limit:    <= 8%
-    Min liquidity:     configurable, >= 0
+    Min liquidity:     >= 10,000 USD (project risk floor)
 
 Usage::
 
@@ -44,6 +44,7 @@ log = structlog.get_logger(__name__)
 KELLY_FRACTION: float = 0.25
 MAX_POSITION_FRACTION_CAP: float = 0.10
 DRAWDOWN_LIMIT_CAP: float = 0.08
+MIN_LIQUIDITY_USD_FLOOR: float = 10_000.0
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 
@@ -86,7 +87,7 @@ class CapitalModeConfig:
         max_position_fraction: Max single position as fraction of capital (<= 0.10).
         daily_loss_limit_usd: Daily loss hard stop in USD (must be negative).
         drawdown_limit_pct: Max drawdown before auto-halt (<= 0.08).
-        min_liquidity_usd: Minimum order-book depth required for execution (>= 0).
+        min_liquidity_usd: Minimum order-book depth required for execution (>= 10,000 USD).
     """
 
     trading_mode: str
@@ -249,9 +250,10 @@ class CapitalModeConfig:
                 f"drawdown_limit_pct must be in (0, {DRAWDOWN_LIMIT_CAP}]; "
                 f"got {self.drawdown_limit_pct}"
             )
-        if self.min_liquidity_usd < 0:
+        if self.min_liquidity_usd < MIN_LIQUIDITY_USD_FLOOR:
             raise ValueError(
-                f"min_liquidity_usd must be >= 0; got {self.min_liquidity_usd}"
+                f"min_liquidity_usd must be >= {MIN_LIQUIDITY_USD_FLOOR}; "
+                f"got {self.min_liquidity_usd}"
             )
 
 
