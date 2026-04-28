@@ -8,6 +8,7 @@ jobs:
   notify-warp-cmd:
     name: Send PR notification to WARP CMD
     runs-on: ubuntu-latest
+    continue-on-error: true
     if: startsWith(github.head_ref, 'WARP/')
 
     steps:
@@ -17,7 +18,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_BODY: ${{ github.event.pull_request.body }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           HEAD_REF: ${{ github.head_ref }}
           BASE_REF: ${{ github.base_ref }}
@@ -33,7 +33,6 @@ jobs:
               "pr_number":  os.environ.get("PR_NUMBER", "?"),
               "pr_title":   os.environ.get("PR_TITLE", "No title"),
               "pr_url":     os.environ.get("PR_URL", ""),
-              "pr_body":    os.environ.get("PR_BODY", "") or "No description provided.",
               "pr_author":  os.environ.get("PR_AUTHOR", "unknown"),
               "head_ref":   os.environ.get("HEAD_REF", ""),
               "base_ref":   os.environ.get("BASE_REF", "main"),
