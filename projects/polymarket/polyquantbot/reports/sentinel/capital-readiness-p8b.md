@@ -36,7 +36,7 @@ Not in Scope: Runtime wiring of CapitalRiskGate into PaperBetaWorker (P8-C), liv
 | Claim Level declared | PASS | `NARROW INTEGRATION` |
 | `PROJECT_STATE.md` updated | PASS | Last Updated 2026-04-28 21:00; P8-B in [IN PROGRESS] |
 | `WORKTODO.md` ticked | PASS | §51 position sizing, max loss, drawdown, kill switch, circuit breakers all ticked |
-| `CHANGELOG.md` entry | PASS | `2026-04-28 21:00 | claude/plan-build-warp-merge-EqC83` (note: original branch, WARP branch carries same content) |
+| `CHANGELOG.md` entry | PASS | `2026-04-28 21:00 | WARP/capital-readiness-p8b | P8-B: §51 capital risk controls hardening...` |
 | No `phase*/` folders | PASS | `find` returned no phase/ directories |
 | Domain structure correct | PASS | All new code under `server/risk/` — correct domain |
 | Implementation evidence for critical layers | PASS | `capital_risk_gate.py` 212 lines, tests 294 lines, all passing |
@@ -305,3 +305,14 @@ The following were reviewed and confirmed out of P8-B scope; they do not affect 
 - **Validation Target:** CapitalRiskGate evaluate contract + WalletFinancialProvider enrichment wiring (CR-13..CR-22)
 - **Not in Scope:** Runtime wiring, live market data, settlement path, per-user isolation — all deferred to P8-C through P8-E
 - **Suggested Next Step:** WARP🔹CMD merge decision on PR #794; P8-C after merge
+
+---
+
+```
+Done — GO-LIVE: CONDITIONAL. Score: 87/100. Critical: 0.
+Branch: WARP/capital-readiness-p8b
+PR target: #794
+Report: projects/polymarket/polyquantbot/reports/sentinel/capital-readiness-p8b.md
+State: PROJECT_STATE.md update required after final WARP🔹CMD decision
+NEXT GATE: Return to WARP🔹CMD for final decision.
+```
