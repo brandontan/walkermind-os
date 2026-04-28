@@ -458,7 +458,7 @@ Build this after orchestration is ready.
 - [x] Validate all flows
 - [x] DDL migration files created (Gate 1a — PR #786)
 - [x] HTTP route wiring complete (Gate 1b — WARP/settlement-operator-routes)
-- [ ] Telegram wiring (Gate 1c — WARP/settlement-telegram-wiring)
+- [x] Telegram wiring (Gate 1c — WARP/settlement-telegram-wiring)
 
 ### Done Condition
 

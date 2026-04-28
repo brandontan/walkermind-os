@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-04-28 17:00 | WARP/settlement-telegram-wiring | Gate 1c: 4 settlement operator Telegram commands wired (/settlement_status, /retry_status, /failed_batches, /settlement_intervene) + 2 backend client helpers (settlement_get, settlement_post). 8/8 tests passing (ST-48..ST-55). WORKTODO §48 Gate 1c ticked. Tier: STANDARD. WARP CMD review pending.
+
 2026-04-28 08:00 | WARP/settlement-ddl-migration | Gate 1a: DDL migration file created for settlement domain tables (settlement_events, settlement_retry_history, settlement_reconciliation_results) at infra/db/migrations/001_settlement_tables.sql. Tier: MINOR. WORKTODO §48 DDL item ticked.
 
 2026-04-24 07:00 | NWAP/repo-structure-state-migration | State files migrated from repo root and work_checklist.md to projects/polymarket/polyquantbot/state/ (PROJECT_STATE.md, ROADMAP.md, WORKTODO.md, CHANGELOG.md); HTML files and docs updated to new paths.

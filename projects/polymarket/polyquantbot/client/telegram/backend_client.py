@@ -505,3 +505,33 @@ class CrusaderBackendClient:
             return {"ok": False, "detail": f"http_{resp.status_code}"}
         except Exception as exc:
             return {"ok": False, "detail": self._sanitize_error_detail(str(exc))}
+
+    # ── Settlement admin helpers (Gate 1c) ────────────────────────────────────
+
+    def _settlement_headers(self) -> dict[str, str]:
+        token = os.getenv("SETTLEMENT_ADMIN_TOKEN", "").strip()
+        return {"X-Settlement-Admin-Token": token} if token else {}
+
+    async def settlement_get(self, path: str) -> dict[str, object]:
+        """Read helper for settlement admin endpoints."""
+        try:
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as http_client:
+                resp = await http_client.get(path, headers=self._settlement_headers())
+            if resp.status_code == 200:
+                body = resp.json()
+                return body if isinstance(body, dict) else {"ok": False, "detail": "invalid_payload"}
+            return {"ok": False, "detail": f"http_{resp.status_code}"}
+        except Exception as exc:
+            return {"ok": False, "detail": self._sanitize_error_detail(str(exc))}
+
+    async def settlement_post(self, path: str, payload: dict[str, object]) -> dict[str, object]:
+        """Write helper for settlement admin endpoints."""
+        try:
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as http_client:
+                resp = await http_client.post(path, json=payload, headers=self._settlement_headers())
+            if resp.status_code == 200:
+                body = resp.json()
+                return body if isinstance(body, dict) else {"ok": False, "detail": "invalid_payload"}
+            return {"ok": False, "detail": f"http_{resp.status_code}"}
+        except Exception as exc:
+            return {"ok": False, "detail": self._sanitize_error_detail(str(exc))}

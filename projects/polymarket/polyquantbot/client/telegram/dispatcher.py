@@ -58,6 +58,11 @@ class TelegramDispatcher:
         "/wallet_disable",
         "/halt",
         "/resume",
+        # Gate 1c settlement operator commands
+        "/settlement_status",
+        "/retry_status",
+        "/failed_batches",
+        "/settlement_intervene",
     }
 
     def __init__(self, backend: CrusaderBackendClient, operator_chat_id: str = "") -> None:
@@ -274,6 +279,95 @@ class TelegramDispatcher:
             if data.get("status") == "ok":
                 return DispatchResult(outcome="ok", reply_text="Global halt cleared. Routing resumed.")
             return DispatchResult(outcome="ok", reply_text=f"Resume failed: {data.get('detail', data.get('reason', 'error'))}")
+
+        # ── Gate 1c settlement operator commands ──────────────────────────────
+        if command == "/settlement_status":
+            workflow_id = arg
+            if not workflow_id:
+                return DispatchResult(outcome="ok", reply_text="Usage: /settlement_status <workflow_id>")
+            data = await self._backend.settlement_get(f"/admin/settlement/status/{workflow_id}")
+            if not data.get("ok"):
+                return DispatchResult(outcome="ok", reply_text=f"Settlement status: unavailable — {data.get('detail', 'error')}")
+            d = data.get("data", {})
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    f"Settlement status: {workflow_id}\n"
+                    f"• Status: {d.get('status', 'unknown')}\n"
+                    f"• Retry attempts: {d.get('retry_attempt_count', 0)}\n"
+                    f"• Amount: {d.get('amount', 0.0)} {d.get('currency', '')}\n"
+                    f"• Mode: {d.get('mode', 'unknown')}\n"
+                    f"• Blocked reason: {d.get('blocked_reason') or 'none'}\n"
+                    f"• Wallet: {d.get('wallet_id') or 'n/a'}"
+                ),
+            )
+
+        if command == "/retry_status":
+            workflow_id = arg
+            if not workflow_id:
+                return DispatchResult(outcome="ok", reply_text="Usage: /retry_status <workflow_id>")
+            data = await self._backend.settlement_get(f"/admin/settlement/retry/{workflow_id}")
+            if not data.get("ok"):
+                return DispatchResult(outcome="ok", reply_text=f"Retry status: unavailable — {data.get('detail', 'error')}")
+            d = data.get("data", {})
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    f"Retry status: {workflow_id}\n"
+                    f"• Total attempts: {d.get('total_attempts', 0)}\n"
+                    f"• Exhausted: {d.get('exhausted', False)}\n"
+                    f"• Last error: {d.get('last_error') or 'none'}\n"
+                    f"• Next retry at: {d.get('next_retry_at') or 'n/a'}"
+                ),
+            )
+
+        if command == "/failed_batches":
+            data = await self._backend.settlement_get("/admin/settlement/failed-batches")
+            if not data.get("ok"):
+                return DispatchResult(outcome="ok", reply_text=f"Failed batches: unavailable — {data.get('detail', 'error')}")
+            batches = data.get("data", [])
+            if not batches:
+                return DispatchResult(
+                    outcome="ok",
+                    reply_text="Failed batches: none\n• Note: batch result persistence is not yet active; this list will always be empty until that lane is built.",
+                )
+            lines = [f"Failed batches ({len(batches)})"]
+            for b in batches:
+                lines.append(f"  • {b.get('batch_id', 'unknown')} | {b.get('error', 'no detail')}")
+            return DispatchResult(outcome="ok", reply_text="\n".join(lines))
+
+        if command == "/settlement_intervene":
+            parts = arg.split(" ", 2)
+            if len(parts) < 2:
+                return DispatchResult(
+                    outcome="ok",
+                    reply_text="Usage: /settlement_intervene <workflow_id> <action> [reason]",
+                )
+            workflow_id, action = parts[0], parts[1]
+            reason = parts[2] if len(parts) > 2 else "operator intervention via Telegram"
+            payload: dict[str, object] = {
+                "workflow_id": workflow_id,
+                "action": action,
+                "admin_user_id": ctx.from_user_id,
+                "reason": reason,
+            }
+            data = await self._backend.settlement_post("/admin/settlement/intervene", payload)
+            if not data.get("ok"):
+                detail = data.get("detail", "error")
+                if "http_404" in str(detail):
+                    return DispatchResult(outcome="ok", reply_text=f"Intervention: workflow {workflow_id} not found.")
+                return DispatchResult(outcome="ok", reply_text=f"Intervention failed: {detail}")
+            d = data.get("data", {})
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    f"Intervention applied: {workflow_id}\n"
+                    f"• Action: {action}\n"
+                    f"• Applied: {d.get('applied', False)}\n"
+                    f"• Resulting status: {d.get('resulting_status', 'unknown')}\n"
+                    f"• Note: intervention record is not persisted in current layer."
+                ),
+            )
 
         log.warning("crusaderbot_telegram_dispatch_unknown_command", command=ctx.command, chat_id=ctx.chat_id)
         return DispatchResult(
