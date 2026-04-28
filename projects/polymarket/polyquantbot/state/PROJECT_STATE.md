@@ -1,5 +1,5 @@
-Last Updated : 2026-04-28 21:00
-Status       : P8-B capital risk controls hardening built -- CapitalRiskGate (config-driven limits, 5-gate LIVE guard) + WalletFinancialProvider wiring + OrchestratorService enrichment hook; 12/12 tests (CR-13..CR-22), 35/35 total (P8-A+B); WARP•SENTINEL MAJOR validation required before merge.
+Last Updated : 2026-04-28 23:00
+Status       : P8-B merged via PR #794 (SENTINEL CONDITIONAL 87/100, zero critical). P8-A WARP•SENTINEL validation still pending. P8-C (live execution readiness) is next build lane.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -14,11 +14,11 @@ Status       : P8-B capital risk controls hardening built -- CapitalRiskGate (co
 - Gate 1a DDL migration file for settlement tables is merged to main via PR #786 from WARP/settlement-ddl-migration.
 - Gate 1b FastAPI settlement operator routes merged to main via PR #787 from WARP/settlement-operator-routes; 9/9 tests (ST-39..ST-47).
 - Gate 1c Telegram settlement wiring merged to main via PR #789 from WARP/settlement-telegram-wiring; 8/8 tests (ST-48..ST-55). Priority 7 settlement lane fully closed.
+- P8-B capital risk controls hardening merged to main via PR #794 from WARP/capital-readiness-p8b; SENTINEL CONDITIONAL 87/100, zero critical; 35/35 tests passing (CR-01..CR-22). Known condition: daily_loss_limit uses lifetime PnL — fix required in P8-C before CAPITAL_MODE_CONFIRMED. Forge: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md. Sentinel: projects/polymarket/polyquantbot/reports/sentinel/capital-readiness-p8b.md.
 
 [IN PROGRESS]
 - COMMANDER review for PR #781 (Priority 6 Phase C) pending merge decision.
 - P8-A capital readiness foundation (WARP/capital-readiness-p8a) -- CapitalModeConfig + BoundaryRegistry + 16/16 tests (CR-01..CR-12); WARP•SENTINEL MAJOR validation required. Report: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md.
-- P8-B capital risk controls hardening -- CapitalRiskGate (config-driven limits, 5-gate LIVE guard) + WalletFinancialProvider protocol + OrchestratorService enrichment hook; 12/12 tests (CR-13..CR-22). WARP•SENTINEL MAJOR validation required. Report: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md.
 - WalkerMind OS identity rebranding (NWAP/rebranding-identity-fix) -- WARP CMD review pending. PR #782 held due to drift; replaced by this fix PR.
 - Legacy string cleanup (WARP/cleanup-legacy-refs) -- WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
@@ -31,8 +31,8 @@ Status       : P8-B capital risk controls hardening built -- CapitalRiskGate (co
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
-- WARP•SENTINEL MAJOR validation required for P8-B. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8b.
 - WARP•SENTINEL MAJOR validation required for P8-A. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8a.
+- P8-C live execution readiness audit (§52) — wire CapitalRiskGate into PaperBetaWorker, fix daily_realized_pnl scoping (SENTINEL F-1 condition), replace price_updater stub, implement live WalletFinancialProvider. WARP🔹CMD must declare branch before build starts.
 - WARP🔹CMD review required for register-agent-env-files. Source: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md. Tier: MINOR.
 
 [KNOWN ISSUES]
