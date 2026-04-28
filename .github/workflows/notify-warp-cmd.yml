@@ -13,15 +13,15 @@ jobs:
     steps:
       - name: Send notification to Base44 WARP CMD
         env:
-          BASE44_API_KEY: ${{ secrets.BASE44_API_KEY }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          HEAD_REF: ${{ github.head_ref }}
-          BASE_REF: ${{ github.base_ref }}
-          REPO: ${{ github.repository }}
+          BASE44_API_KEY: "${{ secrets.BASE44_API_KEY }}"
+          PR_NUMBER: "${{ github.event.pull_request.number }}"
+          PR_TITLE: "${{ github.event.pull_request.title }}"
+          PR_URL: "${{ github.event.pull_request.html_url }}"
+          PR_BODY: "${{ github.event.pull_request.body }}"
+          PR_AUTHOR: "${{ github.event.pull_request.user.login }}"
+          HEAD_REF: "${{ github.head_ref }}"
+          BASE_REF: "${{ github.base_ref }}"
+          REPO: "${{ github.repository }}"
         run: |
           python3 << 'EOF'
           import os, json, urllib.request, urllib.error
@@ -33,7 +33,7 @@ jobs:
           pr_number = os.environ.get("PR_NUMBER", "?")
           pr_title  = os.environ.get("PR_TITLE", "No title")
           pr_url    = os.environ.get("PR_URL", "")
-          pr_body   = os.environ.get("PR_BODY", "No description provided.")
+          pr_body   = os.environ.get("PR_BODY", "") or "No description provided."
           pr_author = os.environ.get("PR_AUTHOR", "unknown")
           head_ref  = os.environ.get("HEAD_REF", "")
           base_ref  = os.environ.get("BASE_REF", "main")
@@ -46,7 +46,7 @@ jobs:
               f"Author: {pr_author}\n"
               f"Repo: {repo}\n"
               f"URL: {pr_url}\n\n"
-              f"Description:\n{pr_body or 'No description provided.'}\n\n"
+              f"Description:\n{pr_body}\n\n"
               "---\n"
               "WARP-FORGE has completed this task and submitted a PR.\n"
               "Please review and decide: approve, request changes, or merge via WARP-SENTINEL."
@@ -63,7 +63,6 @@ jobs:
                   print(f"HTTP {e.code}: {e.read().decode()}")
                   return {}
 
-          # Step 1: Create conversation
           print("Creating conversation...")
           conv = post("/conversations", {
               "metadata": {
@@ -77,14 +76,11 @@ jobs:
 
           conv_id = conv.get("id", "")
           if not conv_id:
-              print("ERROR: Failed to create conversation")
-              print(f"Response: {conv}")
+              print(f"ERROR: Failed to create conversation. Response: {conv}")
               exit(1)
 
           print(f"Conversation created: {conv_id}")
 
-          # Step 2: Send message
-          print("Sending notification message...")
           msg = post(f"/conversations/{conv_id}/messages", {
               "role": "user",
               "content": message
