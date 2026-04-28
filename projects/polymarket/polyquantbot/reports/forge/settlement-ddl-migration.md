@@ -1,7 +1,7 @@
 # FORGE-X Report — settlement-ddl-migration
 
 **Branch:** WARP/settlement-ddl-migration
-**Date:** 2026-04-27 Asia/Jakarta
+**Date:** 2026-04-28 15:05
 **Validation Tier:** MINOR
 **Claim Level:** FOUNDATION
 **Validation Target:** Priority 7 DDL migration file for settlement domain tables (§48 known debt)
