@@ -4,7 +4,7 @@ import asyncio
 import structlog
 from typing import Any, Sequence
 
-from server.settlement.schemas import (
+from projects.polymarket.polyquantbot.server.settlement.schemas import (
     SETTLEMENT_EVENT_CANCELLED,
     SETTLEMENT_EVENT_COMPLETED,
     SETTLEMENT_EVENT_CREATED,
@@ -21,8 +21,8 @@ from server.settlement.schemas import (
     SettlementStatusView,
     SettlementWorkflowResult,
 )
-from server.settlement.operator_console import OperatorConsole
-from server.settlement.settlement_persistence import SettlementPersistence
+from projects.polymarket.polyquantbot.server.settlement.operator_console import OperatorConsole
+from projects.polymarket.polyquantbot.server.settlement.settlement_persistence import SettlementPersistence
 
 log = structlog.get_logger(__name__)
 

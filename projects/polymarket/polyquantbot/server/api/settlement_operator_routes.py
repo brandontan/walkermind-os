@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
-from server.settlement.schemas import AdminInterventionRequest
+from projects.polymarket.polyquantbot.server.settlement.schemas import AdminInterventionRequest
 
 log = structlog.get_logger(__name__)
 
