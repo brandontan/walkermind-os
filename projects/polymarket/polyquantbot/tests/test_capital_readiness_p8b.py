@@ -139,6 +139,17 @@ def test_cr15_non_positive_edge_rejects(edge: float) -> None:
     assert decision.reason == "non_positive_ev"
 
 
+# ── CR-15b: positive but below MIN_EDGE → edge_below_threshold ────────────────
+
+@pytest.mark.parametrize("edge", [0.001, 0.01, 0.019])
+def test_cr15b_edge_below_threshold_rejects(edge: float) -> None:
+    gate = CapitalRiskGate(config=_paper_cfg())
+    sig = CandidateSignal("sig-003", "cond-003", "YES", edge=edge, liquidity=20_000.0, price=0.5)
+    decision = gate.evaluate(sig, _clean_state())
+    assert decision.allowed is False
+    assert decision.reason == "edge_below_threshold"
+
+
 # ── CR-16: drawdown > limit → rejected ───────────────────────────────────────
 
 def test_cr16_drawdown_stop_rejects() -> None:
