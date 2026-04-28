@@ -297,7 +297,7 @@ class TelegramDispatcher:
                     f"• Retry attempts: {d.get('retry_attempt_count', 0)}\n"
                     f"• Amount: {d.get('amount', 0.0)} {d.get('currency', '')}\n"
                     f"• Mode: {d.get('mode', 'unknown')}\n"
-                    f"• Blocked reason: {d.get('blocked_reason') or 'none'}\n"
+                    f"• Blocked reason: {d.get('last_blocked_reason') or 'none'}\n"
                     f"• Wallet: {d.get('wallet_id') or 'n/a'}"
                 ),
             )
@@ -314,9 +314,9 @@ class TelegramDispatcher:
                 outcome="ok",
                 reply_text=(
                     f"Retry status: {workflow_id}\n"
-                    f"• Total attempts: {d.get('total_attempts', 0)}\n"
-                    f"• Exhausted: {d.get('exhausted', False)}\n"
-                    f"• Last error: {d.get('last_error') or 'none'}\n"
+                    f"• Total attempts: {d.get('current_attempt', 0)}\n"
+                    f"• Exhausted: {d.get('is_exhausted', False)}\n"
+                    f"• Last error: {d.get('last_outcome') or 'none'}\n"
                     f"• Next retry at: {d.get('next_retry_at') or 'n/a'}"
                 ),
             )
@@ -333,7 +333,7 @@ class TelegramDispatcher:
                 )
             lines = [f"Failed batches ({len(batches)})"]
             for b in batches:
-                lines.append(f"  • {b.get('batch_id', 'unknown')} | {b.get('error', 'no detail')}")
+                lines.append(f"  • {b.get('batch_id', 'unknown')} | {b.get('batch_status', 'unknown')}")
             return DispatchResult(outcome="ok", reply_text="\n".join(lines))
 
         if command == "/settlement_intervene":
@@ -363,8 +363,8 @@ class TelegramDispatcher:
                 reply_text=(
                     f"Intervention applied: {workflow_id}\n"
                     f"• Action: {action}\n"
-                    f"• Applied: {d.get('applied', False)}\n"
-                    f"• Resulting status: {d.get('resulting_status', 'unknown')}\n"
+                    f"• Applied: {d.get('success', False)}\n"
+                    f"• Resulting status: {d.get('new_status', 'unknown')}\n"
                     f"• Note: intervention record is not persisted in current layer."
                 ),
             )

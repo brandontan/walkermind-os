@@ -72,7 +72,7 @@ async def test_st49_settlement_status_formats_reply() -> None:
                 "amount": 50.0,
                 "currency": "USD",
                 "mode": "paper",
-                "blocked_reason": None,
+                "last_blocked_reason": None,
                 "wallet_id": "wallet_abc",
             },
         }
@@ -107,9 +107,9 @@ async def test_st51_retry_status_formats_reply() -> None:
             "ok": True,
             "data": {
                 "workflow_id": "wf_002",
-                "total_attempts": 3,
-                "exhausted": False,
-                "last_error": "timeout",
+                "current_attempt": 3,
+                "is_exhausted": False,
+                "last_outcome": "timeout",
                 "next_retry_at": "2026-04-29T00:00:00Z",
             },
         }
@@ -159,8 +159,8 @@ async def test_st54_settlement_intervene_formats_result() -> None:
             "data": {
                 "workflow_id": "wf_003",
                 "action": "force_complete",
-                "applied": True,
-                "resulting_status": "COMPLETED",
+                "success": True,
+                "new_status": "COMPLETED",
             },
         }
     )
