@@ -1,0 +1,36 @@
+{
+	"name": "WalkerMind OS",
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+	"features": {
+		"ghcr.io/devcontainers/features/python": {
+			"version": "3.11"
+		},
+		"ghcr.io/devcontainers/features/node": {
+			"version": "20"
+		},
+		"ghcr.io/devcontainers/features/docker-in-docker": {}
+	},
+	"forwardPorts": [8080, 5173, 3000, 5432, 6379],
+	"portsAttributes": {
+		"8080": {
+			"label": "PolyQuantBot API",
+			"onAutoForward": "notify"
+		},
+		"5173": {
+			"label": "Frontend Dev Server",
+			"onAutoForward": "notify"
+		},
+		"3000": {
+			"label": "WalkerDevOps App",
+			"onAutoForward": "notify"
+		},
+		"5432": {
+			"label": "PostgreSQL",
+			"onAutoForward": "silent"
+		},
+		"6379": {
+			"label": "Redis",
+			"onAutoForward": "silent"
+		}
+	}
+}
