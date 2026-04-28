@@ -268,6 +268,6 @@ def _parse_float(env_var: str, default: float) -> float:
         return default
     try:
         return float(raw)
-    except ValueError:
-        log.warning("capital_mode_config_parse_float_failed", env_var=env_var, raw=raw, default=default)
-        return default
+    except ValueError as exc:
+        log.error("capital_mode_config_parse_float_failed", env_var=env_var, raw=raw)
+        raise ValueError(f"Invalid numeric value for {env_var}: {raw!r}") from exc

@@ -24,7 +24,11 @@ Capital-readiness criteria (all must be met before any LIVE claim):
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Literal, Sequence
+
+CapitalRisk = Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+ReadinessGate = Literal["P8-A", "P8-B", "P8-C", "P8-D", "P8-E"]
+BoundaryStatus = Literal["SAFE_AS_IS", "NEEDS_HARDENING", "BLOCKED"]
 
 
 @dataclass(frozen=True)
@@ -43,9 +47,9 @@ class PaperOnlyBoundary:
     surface: str
     file_path: str
     assumption: str
-    capital_risk: str   # "CRITICAL" | "HIGH" | "MEDIUM" | "LOW"
-    readiness_gate: str  # "P8-A" | "P8-B" | "P8-C" | "P8-D" | "P8-E"
-    status: str          # "SAFE_AS_IS" | "NEEDS_HARDENING" | "BLOCKED"
+    capital_risk: CapitalRisk
+    readiness_gate: ReadinessGate
+    status: BoundaryStatus
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
