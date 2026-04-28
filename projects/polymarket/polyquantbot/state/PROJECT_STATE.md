@@ -1,5 +1,5 @@
-Last Updated : 2026-04-28 12:00
-Status       : Gate 1a DDL migration closed (PR #786). Gate 1b FastAPI settlement operator routes built on WARP/settlement-operator-routes — SettlementOperatorService + 4 routes + 9/9 tests (ST-39..ST-47) + server/main.py wiring; WARP🔹CMD review pending. Gate 1c Telegram wiring not yet started.
+Last Updated : 2026-04-28 13:00
+Status       : Gate 1a DDL migration merged to main (PR #786). Gate 1b FastAPI settlement operator routes built on WARP/settlement-operator-routes — SettlementOperatorService + 4 routes + 9/9 tests (ST-39..ST-47) + server/main.py wiring; WARP🔹CMD review pending. Gate 1c Telegram wiring not yet started.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -14,11 +14,11 @@ Status       : Gate 1a DDL migration closed (PR #786). Gate 1b FastAPI settlemen
 - Priority 7 settlement-retry-reconciliation is merged to main via PR #777 from NWAP/settlement-retry-reconciliation; 9 production modules and 66/66 tests passing (ST-01..ST-38c); owner/COMMANDER forge-merge accepted and full SENTINEL/check-all is deferred until all phases/structure are done.
 - Priority 6 Phase B multi-wallet orchestration is merged to main via PR #779 from NWAP/multi-wallet-orchestration; CrossWalletStateAggregator (sections 39), WalletControlsStore + PortfolioControlOverlay + WalletOrchestrator Phase B extension (section 40); 15/15 tests passing (WO-13..WO-27); COMMANDER forge-merge accepted and full SENTINEL is required before Phase C begins.
 - Priority 6 Phase C multi-wallet orchestration built on NWAP/multi-wallet-orchestration-phase-c (sections 41-42); OrchestratorService, OrchestrationDecisionStore, DB-backed WalletControlsStore (atomic persist via asyncpg transaction), 7 FastAPI admin routes (all mutation endpoints surface 500 on persist failure), 5 Telegram admin commands, degraded-mode outcome, wallet_controls + orchestration_decisions DDL, full orchestration package import-path normalization; 24/24 tests passing (WO-28..WO-51); Phase A+B regression 27/27 still passing; COMMANDER review pending for PR #781.
+- Priority 7 Gate 1a DDL migration merged to main via PR #786 from WARP/settlement-ddl-migration; infra/db/migrations/001_settlement_tables.sql documents settlement_events, settlement_retry_history, settlement_reconciliation_results for production deployment auditing.
 
 [IN PROGRESS]
 - COMMANDER review for PR #781 (Priority 6 Phase C) pending merge decision.
-- Gate 1a DDL migration (WARP/settlement-ddl-migration) — PR #786 open, WARP🔹CMD review pending.
-- Gate 1b FastAPI settlement operator routes (WARP/settlement-operator-routes) — PR open, WARP🔹CMD review pending (STANDARD tier).
+- Gate 1b FastAPI settlement operator routes (WARP/settlement-operator-routes) — PR #787 open, WARP🔹CMD review pending (STANDARD tier).
 - WalkerMind OS identity rebranding (NWAP/rebranding-identity-fix) — WARP🔹CMD review pending. PR #782 held due to drift; replaced by this fix PR.
 - Legacy string cleanup (WARP/cleanup-legacy-refs) — WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP🔹CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
@@ -29,8 +29,7 @@ Status       : Gate 1a DDL migration closed (PR #786). Gate 1b FastAPI settlemen
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review for Gate 1b settlement operator routes. Source: projects/polymarket/polyquantbot/reports/forge/settlement-operator-routes.md. Tier: STANDARD. Branch: WARP/settlement-operator-routes.
-- WARP🔹CMD review for Gate 1a DDL migration (fix Codex P1 timestamp before merge). Branch: WARP/settlement-ddl-migration. PR #786.
+- WARP🔹CMD review for Gate 1b settlement operator routes. Source: projects/polymarket/polyquantbot/reports/forge/settlement-operator-routes.md. Tier: STANDARD. PR #787.
 - COMMANDER review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
 - WARP🔹CMD review for WalkerMind OS identity rebranding. Source: projects/polymarket/polyquantbot/reports/forge/rebranding-identity-fix.md. Tier: STANDARD. PR #782 superseded.
 - WARP🔹CMD review for legacy string cleanup. Source: projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md. Tier: MINOR. Branch: WARP/cleanup-legacy-refs.
