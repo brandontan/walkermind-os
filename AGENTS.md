@@ -180,6 +180,7 @@ or requires full safety gate coverage.
 ### Normal mode
 - Per task → WARP🔹CMD review only
 - Priority done → WARP•SENTINEL full sweep required before next priority opens
+  (only if any task in that priority was MAJOR tier — see clarification below)
 
 ### Degen mode
 - Per task → WARP🔹CMD review only
@@ -188,9 +189,15 @@ or requires full safety gate coverage.
   (non-negotiable — degen mode does NOT skip phase gate)
 
 Simple rule:
-  Normal → WARP•SENTINEL per priority done
+  Normal → WARP•SENTINEL per priority done (MAJOR tasks present)
   Degen  → WARP•SENTINEL per phase done
   Both   → WARP🔹CMD review per task, always
+
+Clarification — "priority done" trigger:
+- A priority is done when all tasks in it are merged.
+- WARP•SENTINEL runs after a priority closes IF any task in that priority was MAJOR tier.
+- If all tasks in the priority were MINOR or STANDARD: WARP🔹CMD review only, no SENTINEL.
+- This aligns with the per-task rule: SENTINEL activates on MAJOR tier, never on MINOR/STANDARD.
 
 ---
 
@@ -217,28 +224,13 @@ Conflict rules:
 
 ## PROJECT REGISTRY
 
-| Platform | Project | PROJECT_ROOT | Status |
-|---|---|---|---|
-| Polymarket | polyquantbot | `projects/polymarket/polyquantbot` | ACTIVE |
-| TradingView | indicators | `projects/tradingview/indicators` | DORMANT |
-| TradingView | strategies | `projects/tradingview/strategies` | DORMANT |
-| MT5 | expert advisors | `projects/mt5/ea` | DORMANT |
-| MT5 | indicators | `projects/mt5/indicators` | DORMANT |
+Project list, active status, and current focus: see `PROJECT_REGISTRY.md` (repo root).
 
-Status definitions:
-- ACTIVE: Currently in development with active lanes
-- DORMANT: Present in repo but not active
-- PAUSED: Previously active, intentionally on hold
-
-Current focus: CrusaderBot — `projects/polymarket/polyquantbot`
-
-Project navigation rules:
+Navigation rules:
 - 1 active project -> WARP🔸CORE defaults to it, no tag needed
 - Multi-project active -> every task must tag the project
 - No tag + multi-project active -> WARP🔸CORE asks, never assumes
 - State per project -> self-contained in `{PROJECT_ROOT}/state/`
-
-Full project list is maintained in `PROJECT_REGISTRY.md` at repo root.
 
 ---
 

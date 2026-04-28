@@ -12,7 +12,7 @@ description: >
 
 ## Project Context
 
-**Repo:** github.com/bayuewalker/walker-ai-team
+**Repo:** github.com/bayuewalker/walkermind-os
 **Bot location:** projects/polymarket/polyquantbot/
 **Owner:** Bayue Walker — sole decision maker
 
@@ -356,6 +356,6 @@ projects/polymarket/polyquantbot/
 ## PUSH RULES
 ```
 - Max 5 files per batch
-- Branch: feature/forge/[task-name]
+- Branch: WARP/{feature-slug}
 - Commit incrementally
 ```

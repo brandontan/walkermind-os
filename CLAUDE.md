@@ -67,7 +67,7 @@ If any required file is missing -> STOP -> report to WARP🔹CMD -> wait.
 ```
 AGENTS.md                                    <- master rules (repo root)
 PROJECT_REGISTRY.md                          <- project list and active status (repo root)
-docs/CLAUDE.md                               <- this file
+CLAUDE.md                                    <- this file (repo root)
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md                <- CrusaderBot architecture reference
 docs/templates/TPL_INTERACTIVE_REPORT.html

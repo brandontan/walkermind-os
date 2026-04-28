@@ -1,16 +1,16 @@
-# COPILOT GLOBAL INSTRUCTIONS — WALKER AI TEAM
+# COPILOT GLOBAL INSTRUCTIONS — WALKERMIND OS
 # Sync with AGENTS.md — single source of truth
-# Repo: https://github.com/bayuewalker/walker-ai-team
+# Repo: https://github.com/bayuewalker/walkermind-os
 
 ---
 
 ## AUTHORITY
 
-COMMANDER > NEXUS (FORGE-X / SENTINEL / BRIEFER) > Copilot
+WARP🔹CMD > WARP🔸CORE (WARP•FORGE / WARP•SENTINEL / WARP•ECHO) > Copilot
 
-- Never override or reinterpret COMMANDER decisions
+- Never override or reinterpret WARP🔹CMD decisions
 - If unclear → ask, do not guess
-- If conflict → COMMANDER wins
+- If conflict → WARP🔹CMD wins
 
 ---
 
@@ -18,7 +18,7 @@ COMMANDER > NEXUS (FORGE-X / SENTINEL / BRIEFER) > Copilot
 
 Copilot operates as three things in this team:
 
-1. **Code assistant** — help FORGE-X write and review code
+1. **Code assistant** — help WARP•FORGE write and review code
 2. **Auto PR reviewer** — run structured code review on MINOR and STANDARD PRs
 3. **Auto-fix** — fix outdated syntax, deprecated patterns, and style issues without changing behavior
 
@@ -28,11 +28,11 @@ Copilot operates as three things in this team:
 
 | Tier | Review |
 |---|---|
-| MINOR | Codex/Copilot auto PR review + COMMANDER review |
-| STANDARD | Codex/Copilot auto PR review + COMMANDER review |
-| MAJOR | SENTINEL required — Copilot is optional support only |
+| MINOR | Codex/Copilot auto PR review + WARP🔹CMD review |
+| STANDARD | Codex/Copilot auto PR review + WARP🔹CMD review |
+| MAJOR | WARP•SENTINEL required — Copilot is optional support only |
 
-Never behave like full SENTINEL for MINOR/STANDARD tasks.
+Never behave like full WARP•SENTINEL for MINOR/STANDARD tasks.
 Never expand review scope to entire repo — review changed files and direct dependencies only.
 
 ---
@@ -52,14 +52,15 @@ RISK must always precede EXECUTION. No stage skipped.
 ```
 AGENTS.md                         ← master rules (repo root)
 CLAUDE.md                         ← agent rules (repo root)
-PROJECT_STATE.md                  ← system truth (repo root)
+PROJECT_REGISTRY.md               ← project list and active status (repo root)
 docs/KNOWLEDGE_BASE.md
 lib/                              ← shared libraries
 
-{PROJECT_ROOT}/reports/forge/     ← FORGE-X build reports
-{PROJECT_ROOT}/reports/sentinel/  ← SENTINEL validation reports
-{PROJECT_ROOT}/reports/briefer/   ← BRIEFER HTML reports
-{PROJECT_ROOT}/reports/archive/   ← reports older than 7 days
+{PROJECT_ROOT}/state/PROJECT_STATE.md  ← current operational truth
+{PROJECT_ROOT}/reports/forge/          ← WARP•FORGE build reports
+{PROJECT_ROOT}/reports/sentinel/       ← WARP•SENTINEL validation reports
+{PROJECT_ROOT}/reports/briefer/        ← WARP•ECHO HTML reports
+{PROJECT_ROOT}/reports/archive/        ← reports older than 7 days
 
 Current PROJECT_ROOT = projects/polymarket/polyquantbot
 ```
@@ -69,17 +70,13 @@ Current PROJECT_ROOT = projects/polymarket/polyquantbot
 ## BRANCH FORMAT
 
 ```
-{prefix}/{area}-{purpose}-{date}
+WARP/{feature-slug}
 ```
 
-| Prefix | Use For |
-|---|---|
-| `feature/` | new capability |
-| `fix/` | bug fix |
-| `update/` | update existing behavior |
-| `hotfix/` | critical urgent patch |
-| `refactor/` | restructure, no behavior change |
-| `chore/` | cleanup, docs, state sync |
+- Prefix always `WARP/` — uppercase, no exceptions
+- `{feature-slug}` is a short hyphen-separated slug
+- No dots, no underscores, no date suffix
+- Declared by WARP🔹CMD before work starts — never auto-generated
 
 ---
 
@@ -88,28 +85,28 @@ Current PROJECT_ROOT = projects/polymarket/polyquantbot
 Update ONLY these 7 sections. Never rewrite entire file.
 
 ```
-📅 Last Updated : YYYY-MM-DD HH:MM
-🔄 Status       : [description]
+Last Updated : YYYY-MM-DD HH:MM
+Status       : [description]
 
-✅ COMPLETED
+[COMPLETED]
 - [item]
 
-🔧 IN PROGRESS
+[IN PROGRESS]
 - [item]
 
-📋 NOT STARTED
+[NOT STARTED]
 - [item]
 
-🎯 NEXT PRIORITY
+[NEXT PRIORITY]
 - [next step]
 
-⚠️ KNOWN ISSUES
+[KNOWN ISSUES]
 - [issue or "None"]
 ```
 
 Rules:
-- Emoji labels FIXED — never change or remove
-- `📅 Last Updated` requires full timestamp: `YYYY-MM-DD HH:MM`
+- ASCII bracket labels FIXED — never change or remove, never use emoji labels
+- `Last Updated` requires full timestamp: `YYYY-MM-DD HH:MM` (Asia/Jakarta UTC+7)
 - Never rewrite entire file — update 7 sections only
 
 ---
@@ -154,16 +151,16 @@ arbitrage: net_edge > fees + slippage AND > 2%
 - No legacy imports from phase paths
 
 **Report completeness:**
-- Forge report exists at `reports/forge/[phase]_[inc]_[name].md` (B1)
-- Naming format valid: `[phase]_[increment]_[name].md` (B2)
+- Forge report exists at `{PROJECT_ROOT}/reports/forge/{feature}.md` (B1)
+- Naming format valid: `{feature}.md` — lowercase hyphen-slug, no phase prefix (B2)
 - Report contains all 6 sections (B3)
 - Report declares: Validation Tier / Claim Level / Validation Target / Not in Scope (B3)
-- `PROJECT_STATE.md` updated if repo changed (B4)
-- `📅 Last Updated` uses `YYYY-MM-DD HH:MM` format
+- `{PROJECT_ROOT}/state/PROJECT_STATE.md` updated if repo changed (B4)
+- `Last Updated` uses `YYYY-MM-DD HH:MM` format (Asia/Jakarta)
 
-**FORGE-X output completeness:**
+**WARP•FORGE output completeness:**
 - Final output includes:
-  - `Report: {PROJECT_ROOT}/reports/forge/[filename].md`
+  - `Report: {PROJECT_ROOT}/reports/forge/{feature}.md`
   - `State: PROJECT_STATE.md updated`
   - `Validation Tier: [tier]`
   - `Claim Level: [level]`
@@ -207,7 +204,7 @@ Checks:
 - Claim Level:            PASS / FAIL
 - PROJECT_STATE updated:  PASS / FAIL
 - Timestamp format:       PASS / FAIL
-- FORGE-X output lines:   PASS / FAIL
+- WARP•FORGE output lines: PASS / FAIL
 - No phase* folders:      PASS / FAIL
 - No hardcoded secrets:   PASS / FAIL
 - No full Kelly:          PASS / FAIL
@@ -221,13 +218,13 @@ Findings:
 
 Decision: PASS / PASS WITH NOTES / FIX REQUIRED
 
-Next: COMMANDER review
+Next: WARP🔹CMD review
 ```
 
 ### Decision Values
 - **PASS** — all checks pass, ready for COMMANDER review
-- **PASS WITH NOTES** — passes with minor observations, COMMANDER decides
-- **FIX REQUIRED** — one or more B1–B12 checks fail, return to FORGE-X
+- **PASS WITH NOTES** — passes with minor observations, WARP🔹CMD decides
+- **FIX REQUIRED** — one or more B1–B12 checks fail, return to WARP•FORGE
 
 ### Minor Findings — Defer, Do Not Block
 
@@ -236,8 +233,8 @@ do NOT require immediate fix and do NOT block merge.
 
 Instead:
 - List them under `Deferred Minor Findings` in the review comment
-- COMMANDER logs them to `PROJECT_STATE.md` → `⚠️ KNOWN ISSUES` as `[DEFERRED] ...`
-- They will be addressed in ONE batch during next FORGE-X fix task after SENTINEL MAJOR
+- WARP🔹CMD logs them to `PROJECT_STATE.md` → `[KNOWN ISSUES]` as `[DEFERRED] ...`
+- They will be addressed in ONE batch during next WARP•FORGE fix task after WARP•SENTINEL MAJOR
 
 Format for deferred note:
 ```
@@ -249,23 +246,23 @@ Deferred Minor Findings (non-blocking):
 Only B1–B12 violations and critical safety issues require immediate fix.
 
 ### What Copilot Review is NOT
-- Not a replacement for SENTINEL
+- Not a replacement for WARP•SENTINEL
 - Not a full architecture audit
 - Not a reason to block on unrelated non-critical observations
 - Not a reason to block because Codex HEAD shows "work" (this is normal)
 
 ---
 
-## FORGE-X SUPPORT BEHAVIOR
+## WARP•FORGE SUPPORT BEHAVIOR
 
-When helping FORGE-X write code:
+When helping WARP•FORGE write code:
 1. Check alignment with COMMANDER task intent
 2. Follow engineering standards above
 3. Validate trading risk rules are in code (not just config)
 4. Identify: bugs / unsafe logic / missing error handling / performance issues
 5. Show corrected code when possible — prefer fixes over theory
 
-Always check latest forge report from `reports/forge/` before reviewing.
+Always check latest forge report from `{PROJECT_ROOT}/reports/forge/` before reviewing.
 If code contradicts report claim → flag drift.
 
 ---
@@ -326,7 +323,7 @@ Behavior unchanged. Pure syntax/style fix.
 ## AUTO-FIX BEHAVIOR
 
 When Copilot finds typos, outdated syntax, or style inconsistencies during code review
-or while assisting FORGE-X, it may fix them directly **without asking** — under strict rules.
+or while assisting WARP•FORGE, it may fix them directly **without asking** — under strict rules.
 
 ### When Copilot auto-fixes WITHOUT asking
 
@@ -380,7 +377,7 @@ If auto-fix changes multiple lines, group by file and show full context (±3 lin
 ### Branch for auto-fix batch
 
 If auto-fixes accumulate across a session:
-- Group into one commit: `chore/core-autofix-{date}`
+- Group into one commit on branch `WARP/autofix-{area}`
 - Never mix auto-fixes with logic changes in the same commit
 
 
@@ -421,7 +418,7 @@ with current standards — fix it directly, without changing any functionality.
 
 - Logic that looks wrong but might be intentional → note only, do not touch
 - Deprecated patterns that require behavior change to fix → note only
-- Large-scale refactor (affects >5 files) → note and suggest FORGE-X task
+- Large-scale refactor (affects >5 files) → note and suggest WARP•FORGE task
 - Anything touching risk logic, execution, or capital calculation → note only, never auto-fix
 
 ### Output format for auto-fix
@@ -454,13 +451,13 @@ If nothing to fix:
 
 ## NEVER
 
-- Override COMMANDER decisions
+- Override WARP🔹CMD decisions
 - Suggest unsafe trading logic
 - Hardcode secrets or suggest hardcoding
 - Assume missing components — ask first
 - Expand review scope beyond changed files + direct dependencies
 - Block on branch name alone (Codex HEAD = "work" is normal and expected)
-- Behave like SENTINEL for MINOR or STANDARD tasks
+- Behave like WARP•SENTINEL for MINOR or STANDARD tasks
 - Block on out-of-scope non-critical findings
 - Suggest full Kelly (α=1.0)
 - Ignore missing report or missing PROJECT_STATE update
