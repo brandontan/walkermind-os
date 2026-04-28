@@ -178,9 +178,19 @@ def test_cr09_drawdown_limit_cap() -> None:
         cfg.validate()
 
 
-# ── CR-09b: min_liquidity_usd below floor raises ──────────────────────────────
+# ── CR-09b: non-finite float env values rejected at parse time ────────────────
 
-def test_cr09b_min_liquidity_floor_enforced() -> None:
+@pytest.mark.parametrize("bad_value", ["nan", "inf", "-inf", "NaN", "Infinity"])
+def test_cr09b_non_finite_float_rejected(bad_value: str) -> None:
+    env = {**_PAPER_ENV, "CAPITAL_MAX_POSITION_FRACTION": bad_value}
+    with patch.dict(os.environ, env, clear=False):
+        with pytest.raises(ValueError, match="Non-finite"):
+            CapitalModeConfig.from_env()
+
+
+# ── CR-09c: min_liquidity_usd below floor raises ──────────────────────────────
+
+def test_cr09c_min_liquidity_floor_enforced() -> None:
     env = {**_PAPER_ENV, "CAPITAL_MIN_LIQUIDITY_USD": "0"}
     with patch.dict(os.environ, env, clear=False):
         cfg = CapitalModeConfig.from_env()
@@ -188,7 +198,7 @@ def test_cr09b_min_liquidity_floor_enforced() -> None:
         cfg.validate()
 
 
-def test_cr09c_min_liquidity_floor_value_is_10k() -> None:
+def test_cr09d_min_liquidity_floor_value_is_10k() -> None:
     assert MIN_LIQUIDITY_USD_FLOOR == 10_000.0
 
 

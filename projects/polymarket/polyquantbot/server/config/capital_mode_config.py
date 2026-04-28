@@ -32,6 +32,7 @@ Usage::
 """
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 
@@ -269,7 +270,11 @@ def _parse_float(env_var: str, default: float) -> float:
     if not raw:
         return default
     try:
-        return float(raw)
+        value = float(raw)
     except ValueError as exc:
         log.error("capital_mode_config_parse_float_failed", env_var=env_var, raw=raw)
         raise ValueError(f"Invalid numeric value for {env_var}: {raw!r}") from exc
+    if not math.isfinite(value):
+        log.error("capital_mode_config_non_finite_value", env_var=env_var, raw=raw)
+        raise ValueError(f"Non-finite value for {env_var}: {raw!r} (nan/inf not allowed)")
+    return value
