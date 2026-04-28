@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-04-28 18:30 | WARP/capital-readiness-p8a | P8-A: §49 BoundaryRegistry (13 paper-only surfaces audited, 22-item readiness criteria) + §50 CapitalModeConfig (5-gate guard, all default-OFF, Kelly=0.25 locked, risk bounds enforced). 16/16 tests passing (CR-01..CR-12). WORKTODO §49-50 ticked. Tier: MAJOR. WARP•SENTINEL validation required before merge.
+
 2026-04-28 17:00 | WARP/settlement-telegram-wiring | Gate 1c: 4 settlement operator Telegram commands wired (/settlement_status, /retry_status, /failed_batches, /settlement_intervene) + 2 backend client helpers (settlement_get, settlement_post). 8/8 tests passing (ST-48..ST-55). WORKTODO §48 Gate 1c ticked. Tier: STANDARD. WARP CMD review pending.
 
 2026-04-28 08:00 | WARP/settlement-ddl-migration | Gate 1a: DDL migration file created for settlement domain tables (settlement_events, settlement_retry_history, settlement_reconciliation_results) at infra/db/migrations/001_settlement_tables.sql. Tier: MINOR. WORKTODO §48 DDL item ticked.
