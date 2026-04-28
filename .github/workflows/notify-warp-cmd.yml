@@ -13,83 +13,49 @@ jobs:
     steps:
       - name: Send notification to Base44 WARP CMD
         env:
-          BASE44_API_KEY: "${{ secrets.BASE44_API_KEY }}"
-          PR_NUMBER: "${{ github.event.pull_request.number }}"
-          PR_TITLE: "${{ github.event.pull_request.title }}"
-          PR_URL: "${{ github.event.pull_request.html_url }}"
-          PR_BODY: "${{ github.event.pull_request.body }}"
-          PR_AUTHOR: "${{ github.event.pull_request.user.login }}"
-          HEAD_REF: "${{ github.head_ref }}"
-          BASE_REF: "${{ github.base_ref }}"
-          REPO: "${{ github.repository }}"
+          WARP_WEBHOOK_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          REPO: ${{ github.repository }}
         run: |
           python3 << 'EOF'
           import os, json, urllib.request, urllib.error
 
-          BASE_URL = "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218"
-          API_KEY  = os.environ["BASE44_API_KEY"]
-          HEADERS  = {"Content-Type": "application/json", "api_key": API_KEY}
+          ENDPOINT = "https://warpcmd-ef2e1218.base44.app/functions/prNotifyWarpCmd"
 
-          pr_number = os.environ.get("PR_NUMBER", "?")
-          pr_title  = os.environ.get("PR_TITLE", "No title")
-          pr_url    = os.environ.get("PR_URL", "")
-          pr_body   = os.environ.get("PR_BODY", "") or "No description provided."
-          pr_author = os.environ.get("PR_AUTHOR", "unknown")
-          head_ref  = os.environ.get("HEAD_REF", "")
-          base_ref  = os.environ.get("BASE_REF", "main")
-          repo      = os.environ.get("REPO", "")
+          payload = {
+              "secret":     os.environ["WARP_WEBHOOK_SECRET"],
+              "pr_number":  os.environ.get("PR_NUMBER", "?"),
+              "pr_title":   os.environ.get("PR_TITLE", "No title"),
+              "pr_url":     os.environ.get("PR_URL", ""),
+              "pr_body":    os.environ.get("PR_BODY", "") or "No description provided.",
+              "pr_author":  os.environ.get("PR_AUTHOR", "unknown"),
+              "head_ref":   os.environ.get("HEAD_REF", ""),
+              "base_ref":   os.environ.get("BASE_REF", "main"),
+              "repo":       os.environ.get("REPO", ""),
+          }
 
-          message = (
-              "WARP-FORGE PR READY FOR REVIEW\n\n"
-              f"PR: #{pr_number} - {pr_title}\n"
-              f"Branch: {head_ref} -> {base_ref}\n"
-              f"Author: {pr_author}\n"
-              f"Repo: {repo}\n"
-              f"URL: {pr_url}\n\n"
-              f"Description:\n{pr_body}\n\n"
-              "---\n"
-              "WARP-FORGE has completed this task and submitted a PR.\n"
-              "Please review and decide: approve, request changes, or merge via WARP-SENTINEL."
-          )
+          data = json.dumps(payload).encode("utf-8")
+          headers = {
+              "Content-Type": "application/json",
+              "User-Agent": "WalkerMind-WARP-CMD/2.0",
+          }
 
-          def post(endpoint, body):
-              url  = f"{BASE_URL}{endpoint}"
-              data = json.dumps(body).encode("utf-8")
-              req  = urllib.request.Request(url, data=data, headers=HEADERS, method="POST")
-              try:
-                  with urllib.request.urlopen(req, timeout=15) as resp:
-                      return json.loads(resp.read())
-              except urllib.error.HTTPError as e:
-                  print(f"HTTP {e.code}: {e.read().decode()}")
-                  return {}
-
-          print("Creating conversation...")
-          conv = post("/conversations", {
-              "metadata": {
-                  "source": "github-action",
-                  "pr_number": pr_number,
-                  "repo": repo,
-                  "branch": head_ref,
-                  "pr_url": pr_url
-              }
-          })
-
-          conv_id = conv.get("id", "")
-          if not conv_id:
-              print(f"ERROR: Failed to create conversation. Response: {conv}")
+          req = urllib.request.Request(ENDPOINT, data=data, headers=headers, method="POST")
+          try:
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  result = json.loads(resp.read())
+                  print(f"WARP CMD notified: {result}")
+          except urllib.error.HTTPError as e:
+              body = e.read().decode()
+              print(f"HTTP {e.code}: {body}")
               exit(1)
-
-          print(f"Conversation created: {conv_id}")
-
-          msg = post(f"/conversations/{conv_id}/messages", {
-              "role": "user",
-              "content": message
-          })
-
-          if msg.get("error"):
-              print(f"ERROR: {msg['error']}")
+          except Exception as e:
+              print(f"ERROR: {e}")
               exit(1)
-
-          print("WARP CMD notified successfully.")
-          print(f"Conversation: https://app.base44.com/conversations/{conv_id}")
           EOF
