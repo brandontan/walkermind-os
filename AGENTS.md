@@ -5,8 +5,8 @@
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walkermind-os
-Version: 2.3
-Last Updated: 2026-04-26 13:28 Asia/Jakarta
+Version: 2.4
+Last Updated: 2026-04-28 20:46 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
            workflow, and operational boundaries. All other files are
            supporting documents. When conflict exists, AGENTS.md wins.
@@ -241,6 +241,8 @@ walkermind-os/
 ├── AGENTS.md                              <- highest authority (global rules)
 ├── PROJECT_REGISTRY.md                    <- project list and active status
 ├── CLAUDE.md                              <- rules for Claude Code agent
+├── CURSOR.md                              <- rules for Cursor Agent (WARP🔸CORE execution environment)
+├── ONA.md                                 <- rules for Ona Agent (WARP🔸CORE execution environment)
 ├── docs/
 │   ├── COMMANDER.md                       <- WARP🔹CMD operating reference
 │   ├── KNOWLEDGE_BASE.md                  <- architecture, infra, API reference
@@ -291,6 +293,8 @@ walkermind-os/
 AGENTS.md                              <- global rules (repo root)
 PROJECT_REGISTRY.md                    <- project list (repo root)
 CLAUDE.md                              <- rules for Claude Code agent (repo root)
+CURSOR.md                              <- rules for Cursor Agent (WARP🔸CORE execution environment, repo root)
+ONA.md                                 <- rules for Ona Agent (WARP🔸CORE execution environment, repo root)
 
 docs/COMMANDER.md
 docs/KNOWLEDGE_BASE.md

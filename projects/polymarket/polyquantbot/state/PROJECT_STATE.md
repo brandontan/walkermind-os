@@ -1,4 +1,4 @@
-Last Updated : 2026-04-28 18:30
+Last Updated : 2026-04-28 20:46
 Status       : Gate 1c Telegram settlement wiring merged to main via PR #789. P8-A capital readiness foundation built on WARP/capital-readiness-p8a -- CapitalModeConfig (5-gate guard) + BoundaryRegistry (13 paper-only surfaces audited) + 16/16 tests (CR-01..CR-12); WARP•SENTINEL MAJOR validation required before merge.
 
 [COMPLETED]
@@ -21,6 +21,7 @@ Status       : Gate 1c Telegram settlement wiring merged to main via PR #789. P8
 - WalkerMind OS identity rebranding (NWAP/rebranding-identity-fix) -- WARP CMD review pending. PR #782 held due to drift; replaced by this fix PR.
 - Legacy string cleanup (WARP/cleanup-legacy-refs) -- WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
+- Agent env file registration (WARP/register-agent-env-files) -- CURSOR.md and ONA.md registered in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md.
 
 [NOT STARTED]
 - P8-B capital risk controls hardening (§51) -- harden PaperRiskGate, wire WalletCandidate financial fields, wire live mark-to-market; clears RISK_CONTROLS_VALIDATED gate.
@@ -30,10 +31,9 @@ Status       : Gate 1c Telegram settlement wiring merged to main via PR #789. P8
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for register-agent-env-files. Source: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md. Tier: MINOR.
 - WARP•SENTINEL MAJOR validation required for P8-A. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8a.
 - COMMANDER review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
-- After P8-A merged: P8-B capital risk controls hardening (WARP/capital-readiness-p8b). Declare branch before starting.
-- Maintain no public-ready, live-trading-ready, or production-capital-ready claim until Priority 8 SENTINEL MAJOR sweep complete.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() is a no-op stub -- unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).
