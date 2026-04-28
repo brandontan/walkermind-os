@@ -472,16 +472,16 @@ This is the last major capability layer.
 
 ### 49. Capability Boundary Review
 
-- [ ] Audit all paper-only assumptions
-- [ ] Identify all unsafe areas for capital mode
-- [ ] Define exact capital-readiness criteria
+- [x] Audit all paper-only assumptions
+- [x] Identify all unsafe areas for capital mode
+- [x] Define exact capital-readiness criteria
 
 ### 50. Capital-Mode Config Model
 
-- [ ] Define capital-mode config
-- [ ] Add strict feature gating
-- [ ] Add explicit enable path
-- [ ] Keep safeguards default-off
+- [x] Define capital-mode config
+- [x] Add strict feature gating
+- [x] Add explicit enable path
+- [x] Keep safeguards default-off
 
 ### 51. Capital Risk Controls Hardening
 
