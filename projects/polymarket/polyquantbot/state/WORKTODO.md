@@ -456,7 +456,9 @@ Build this after orchestration is ready.
 - [x] Add critical alerts
 - [x] Add drift alerts
 - [x] Validate all flows
-- [ ] Sync docs after completion (DDL migration + HTTP route wiring deferred)
+- [x] DDL migration files created (infra/db/migrations/001_settlement_tables.sql — WARP/settlement-ddl-migration)
+- [ ] HTTP route wiring deferred (Gate 1b — WARP/settlement-operator-routes)
+- [ ] Telegram wiring deferred (Gate 1c — WARP/settlement-telegram-wiring)
 
 ### Done Condition
 
