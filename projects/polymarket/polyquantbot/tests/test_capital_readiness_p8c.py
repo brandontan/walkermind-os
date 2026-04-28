@@ -1,7 +1,7 @@
 """Priority 8-C — Live Execution Readiness: LiveExecutionGuard, PortfolioFinancialProvider,
 rollback/disable path, price_updater hardening, settlement policy wiring, paper-mode regression.
 
-Test IDs: CR-23 .. CR-35
+Test IDs: CR-23 .. CR-36
 
 Coverage:
   CR-23  LiveExecutionGuard.check() blocks when kill_switch is set
@@ -13,10 +13,11 @@ Coverage:
   CR-29  LiveExecutionGuard.check() passes when all gates on + provider non-zero
   CR-30  disable_live_execution() sets kill_switch, logs reason, returns RollbackState
   CR-31  PaperBetaWorker.price_updater() raises in live mode and triggers rollback
-  CR-32  PaperBetaWorker.run_once() blocks live signal when no live_guard injected
+  CR-32  PaperBetaWorker.run_once() blocks live signal when no live_guard injected — clean return
   CR-33  PortfolioFinancialProvider raises MissingRealFinancialDataError in live mode with zero equity
   CR-34  PortfolioFinancialProvider returns correct values in paper mode (zero equity is valid)
   CR-35  settlement_policy_from_capital_config() gates allow_real_settlement behind capital gates
+  CR-36  LiveExecutionGuard.check() normalizes provider exceptions into LiveExecutionBlockedError
 """
 from __future__ import annotations
 
@@ -281,16 +282,15 @@ def test_cr31_price_updater_raises_in_live_mode() -> None:
         STATE.kill_switch = original_kill
 
 
-# ── CR-32: run_once blocks live signal when no live_guard injected ────────────
+# ── CR-32: run_once blocks live signal when no live_guard injected — clean return ─
 
 def test_cr32_run_once_blocks_live_no_guard() -> None:
     from projects.polymarket.polyquantbot.server.workers.paper_beta_worker import PaperBetaWorker
     from projects.polymarket.polyquantbot.server.execution.paper_execution import PaperExecutionEngine
     from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio
     from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import PaperRiskGate
-    from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import CandidateSignal, FalconGateway
+    from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import CandidateSignal
     from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
-    import unittest.mock as mock
 
     portfolio = PaperPortfolio()
     engine = PaperExecutionEngine(portfolio)
@@ -303,7 +303,7 @@ def test_cr32_run_once_blocks_live_no_guard() -> None:
         falcon=_FixedFalcon(),  # type: ignore[arg-type]
         risk_gate=PaperRiskGate(),
         engine=engine,
-        live_guard=None,  # no guard — must block
+        live_guard=None,  # no guard — must block and return cleanly
     )
 
     original_mode = STATE.mode
@@ -314,11 +314,13 @@ def test_cr32_run_once_blocks_live_no_guard() -> None:
         STATE.kill_switch = False
         STATE.autotrade_enabled = True
 
-        # run_once must catch LiveExecutionBlockedError raised by price_updater
-        # and not propagate — worker must set kill_switch
-        # price_updater will raise first (mode=live), rolling back kill_switch
-        with pytest.raises(LiveExecutionBlockedError):
-            asyncio.get_event_loop().run_until_complete(worker.run_once())
+        # run_once must complete WITHOUT raising — live-mode block is deterministic:
+        # disable_live_execution() sets kill_switch, signal is skipped, price_updater
+        # is not called in live mode, worker returns empty events list cleanly.
+        events = asyncio.get_event_loop().run_until_complete(worker.run_once())
+        assert events == []
+        assert STATE.kill_switch is True
+        assert "no_live_guard_injected" in STATE.last_risk_reason
     finally:
         STATE.mode = original_mode
         STATE.kill_switch = original_kill
@@ -425,3 +427,53 @@ def test_cr_regression_imports() -> None:
     p8c_surfaces = [b.surface for b in PAPER_ONLY_BOUNDARIES if b.readiness_gate == "P8-C"]
     assert "LiveExecutionGuard" in p8c_surfaces
     assert "PaperBetaWorker.price_updater" in p8c_surfaces
+
+
+# ── CR-36: LiveExecutionGuard normalizes provider exceptions into LiveExecutionBlockedError ──
+
+def test_cr36_live_guard_normalizes_provider_exception() -> None:
+    """Provider raising MissingRealFinancialDataError must become LiveExecutionBlockedError."""
+    from projects.polymarket.polyquantbot.server.risk.portfolio_financial_provider import (
+        MissingRealFinancialDataError,
+    )
+
+    class _RaisingProvider:
+        def get_balance_usd(self, wallet_id: str) -> float:
+            raise MissingRealFinancialDataError("stub in live mode — no real data")
+
+        def get_exposure_pct(self, wallet_id: str) -> float:
+            return 0.0
+
+        def get_drawdown_pct(self, wallet_id: str) -> float:
+            return 0.0
+
+    with patch.dict(os.environ, _LIVE_ENV_ALL_GATES, clear=False):
+        guard = LiveExecutionGuard(config=_live_cfg_all_gates())
+    state = _live_state()
+    with patch.dict(os.environ, _LIVE_ENV_ALL_GATES, clear=False):
+        with pytest.raises(LiveExecutionBlockedError) as exc_info:
+            guard.check(state, provider=_RaisingProvider())
+    assert exc_info.value.reason == "financial_provider_unavailable"
+
+
+def test_cr36b_live_guard_normalizes_generic_provider_exception() -> None:
+    """Any provider exception (not just MissingRealFinancialDataError) must be normalized."""
+
+    class _BrokenProvider:
+        def get_balance_usd(self, wallet_id: str) -> float:
+            raise RuntimeError("connection refused")
+
+        def get_exposure_pct(self, wallet_id: str) -> float:
+            return 0.0
+
+        def get_drawdown_pct(self, wallet_id: str) -> float:
+            return 0.0
+
+    with patch.dict(os.environ, _LIVE_ENV_ALL_GATES, clear=False):
+        guard = LiveExecutionGuard(config=_live_cfg_all_gates())
+    state = _live_state()
+    with patch.dict(os.environ, _LIVE_ENV_ALL_GATES, clear=False):
+        with pytest.raises(LiveExecutionBlockedError) as exc_info:
+            guard.check(state, provider=_BrokenProvider())
+    assert exc_info.value.reason == "financial_provider_unavailable"
+    assert "connection refused" in exc_info.value.detail

@@ -9,7 +9,7 @@ Date: 2026-04-29 00:54 Asia/Jakarta
 - Branch: WARP/capital-readiness-p8c-2a76
 - Validation Tier: MAJOR
 - Claim Level: NARROW INTEGRATION
-- Validation Target: live execution readiness path -- LiveExecutionGuard runtime wiring, CapitalRiskGate injection into PaperBetaWorker, WalletFinancialProvider real-data requirement, price_updater hardening, rollback/disable path, settlement_policy_from_capital_config gate wiring (CR-23..CR-35)
+- Validation Target: live execution readiness path -- LiveExecutionGuard runtime wiring (incl. provider exception normalization), WalletFinancialProvider injection into PaperBetaWorker, run_once() deterministic live-mode block, price_updater hardening, rollback/disable path, settlement_policy_from_capital_config gate wiring (CR-23..CR-36)
 - Not in Scope: enabling production capital, setting CAPITAL_MODE_CONFIRMED or EXECUTION_PATH_VALIDATED to true, real CLOB order submission implementation, real market data feed integration, per-user capital isolation (P8-D), final public launch assets
 - Suggested Next Step: WARP•SENTINEL MAJOR validation required before merge
 
@@ -28,6 +28,7 @@ Checks in order:
 5. `WalletFinancialProvider` non-zero check -- provider must return real (non-stub) data
 
 All failures raise `LiveExecutionBlockedError` with a machine-readable `reason` field and structured WARNING log.
+Provider field calls are wrapped in try/except — any exception from the provider (including `MissingRealFinancialDataError`) is caught and re-raised as `LiveExecutionBlockedError(reason="financial_provider_unavailable")`, preventing unhandled provider exceptions from escaping the guard contract.
 
 ### `disable_live_execution()` + `RollbackState` (`server/core/live_execution_control.py`)
 Deterministic rollback/disable path:
@@ -38,12 +39,13 @@ Deterministic rollback/disable path:
 
 ### `PaperBetaWorker` hardening (`server/workers/paper_beta_worker.py`)
 - Accepts `Union[PaperRiskGate, CapitalRiskGate]` via `AnyRiskGate` type alias
-- Accepts optional `LiveExecutionGuard` via constructor injection
+- Accepts optional `LiveExecutionGuard` and optional `WalletFinancialProvider` via constructor injection
 - When `STATE.mode != "paper"`:
-  - If `live_guard` is injected: calls `guard.check(STATE)` before any execution; on failure triggers `disable_live_execution()` and skips the signal
-  - If no `live_guard`: logs error, calls `disable_live_execution()`, skips signal (fail-closed)
-- `price_updater()`: raises `LiveExecutionBlockedError` when `STATE.mode == "live"` and triggers `disable_live_execution()` -- the no-op stub is explicitly unsafe for live capital
-- Paper path (`run_worker_loop`) unchanged -- `live_guard=None`, `PaperRiskGate()` as default
+  - If `live_guard` is injected: resolves provider (injected provider or default `PortfolioFinancialProvider(STATE)`) and calls `guard.check(STATE, provider=resolved_provider)` before any execution; on failure triggers `disable_live_execution()` and skips the signal (clean `continue`)
+  - If no `live_guard`: logs error, calls `disable_live_execution()`, skips signal (fail-closed, clean `continue`)
+- `run_once()` skips `price_updater()` entirely when `STATE.mode == "live"` — worker loop is deterministic: all live signals are blocked and the loop returns cleanly with an empty events list
+- `price_updater()`: still raises `LiveExecutionBlockedError` when called directly in live mode, triggers `disable_live_execution()` — the no-op stub is explicitly unsafe for live capital; direct-call protection is preserved
+- Paper path (`run_worker_loop`) unchanged -- `live_guard=None`, `provider=None`, `PaperRiskGate()` as default
 
 ### `PortfolioFinancialProvider` (`server/risk/portfolio_financial_provider.py`)
 Real implementation of `WalletFinancialProvider` backed by `PublicBetaState`:
@@ -151,9 +153,9 @@ projects/polymarket/polyquantbot/state/CHANGELOG.md
 
 ## 4. What Is Working
 
-- All 23 P8-C tests pass: CR-23..CR-35 (23 test cases including parametrized variants)
+- All 25 P8-C tests pass: CR-23..CR-36 (25 test cases including parametrized variants)
 - All 35 P8-A+B regression tests pass: CR-01..CR-22 (35/35, no regressions)
-- Total: 58/58 passing
+- Total: 60/60 passing
 
 **LiveExecutionGuard verified:**
 - Blocks on kill_switch (CR-23)
@@ -163,16 +165,17 @@ projects/polymarket/polyquantbot/state/CHANGELOG.md
 - Blocks when no provider injected (CR-27)
 - Blocks when provider returns all-zero fields (CR-28)
 - Passes when all gates on + non-zero provider (CR-29)
+- Provider exception normalized to `LiveExecutionBlockedError(reason="financial_provider_unavailable")` (CR-36, CR-36b)
 
 **Rollback/disable path verified:**
 - `disable_live_execution()` sets kill_switch=True, logs reason, returns RollbackState (CR-30)
 - Idempotent when kill_switch already set (CR-30b)
 
 **price_updater hardening verified:**
-- Raises `LiveExecutionBlockedError` in live mode and sets kill_switch via rollback (CR-31)
+- Raises `LiveExecutionBlockedError` when called directly in live mode, sets kill_switch via rollback (CR-31)
 
 **PaperBetaWorker live guard blocking verified:**
-- run_once() with no live_guard injected and mode=live triggers rollback (CR-32)
+- run_once() with no live_guard injected and mode=live: sets kill_switch, returns empty events list cleanly — no exception propagated (CR-32)
 
 **PortfolioFinancialProvider verified:**
 - Raises `MissingRealFinancialDataError` in live mode with zero equity (CR-33, CR-33b)
@@ -215,6 +218,6 @@ projects/polymarket/polyquantbot/state/CHANGELOG.md
 
 - **Validation Tier:** MAJOR
 - **Claim Level:** NARROW INTEGRATION (live execution guard + rollback path wired; no real CLOB, no real market data feed)
-- **Validation Target:** live execution readiness path -- LiveExecutionGuard, CapitalRiskGate injection, WalletFinancialProvider real-data requirement, price_updater hardening, rollback/disable path, settlement policy gate wiring (CR-23..CR-35)
+- **Validation Target:** live execution readiness path -- LiveExecutionGuard (incl. provider exception normalization), WalletFinancialProvider injection into PaperBetaWorker, run_once() deterministic live-mode block, price_updater hardening, rollback/disable path, settlement policy gate wiring (CR-23..CR-36)
 - **Not in Scope:** real CLOB execution, real market data feed, EXECUTION_PATH_VALIDATED gate set to true, CAPITAL_MODE_CONFIRMED, per-user isolation, final launch assets
 - **Suggested Next Step:** WARP•SENTINEL MAJOR validation; P8-D after merge

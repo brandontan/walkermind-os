@@ -180,9 +180,18 @@ class LiveExecutionGuard:
         # provider is not None past this point
         assert provider is not None  # narrowing for type checker
 
-        balance = provider.get_balance_usd(wallet_id)
-        exposure = provider.get_exposure_pct(wallet_id)
-        drawdown = provider.get_drawdown_pct(wallet_id)
+        balance: float = 0.0
+        exposure: float = 0.0
+        drawdown: float = 0.0
+        try:
+            balance = provider.get_balance_usd(wallet_id)
+            exposure = provider.get_exposure_pct(wallet_id)
+            drawdown = provider.get_drawdown_pct(wallet_id)
+        except Exception as exc:
+            self._block(
+                "financial_provider_unavailable",
+                f"WalletFinancialProvider raised an exception: {exc}",
+            )
 
         if (
             abs(balance) < _FINANCIAL_FIELD_ZERO_THRESHOLD

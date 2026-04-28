@@ -24,8 +24,9 @@ from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
 from projects.polymarket.polyquantbot.server.execution.paper_execution import PaperExecutionEngine
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
 from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio, _register_portfolio
-from projects.polymarket.polyquantbot.server.risk.capital_risk_gate import CapitalRiskGate
+from projects.polymarket.polyquantbot.server.risk.capital_risk_gate import CapitalRiskGate, WalletFinancialProvider
 from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import PaperRiskGate
+from projects.polymarket.polyquantbot.server.risk.portfolio_financial_provider import PortfolioFinancialProvider
 
 log = structlog.get_logger(__name__)
 
@@ -40,11 +41,13 @@ class PaperBetaWorker:
         risk_gate: AnyRiskGate,
         engine: PaperExecutionEngine,
         live_guard: LiveExecutionGuard | None = None,
+        provider: WalletFinancialProvider | None = None,
     ) -> None:
         self._falcon = falcon
         self._risk_gate = risk_gate
         self._engine = engine
         self._live_guard = live_guard
+        self._provider = provider
 
     async def run_once(self) -> list[dict[str, object]]:
         await self.market_sync()
@@ -57,8 +60,11 @@ class PaperBetaWorker:
             if STATE.mode != "paper":
                 # Live execution path: LiveExecutionGuard must pass before any order
                 if self._live_guard is not None:
+                    resolved_provider: WalletFinancialProvider = (
+                        self._provider if self._provider is not None else PortfolioFinancialProvider(STATE)
+                    )
                     try:
-                        self._live_guard.check(STATE)
+                        self._live_guard.check(STATE, provider=resolved_provider)
                     except LiveExecutionBlockedError as exc:
                         STATE.last_risk_reason = f"live_guard_blocked:{exc.reason}"
                         summary.skip_mode_count += 1
@@ -137,7 +143,16 @@ class PaperBetaWorker:
             )
 
         await self.position_monitor()
-        await self.price_updater()
+        # price_updater() is a no-op stub — unsafe in live mode; skip it to keep the
+        # worker loop deterministic. Direct calls to price_updater() in live mode still raise.
+        if STATE.mode == "live":
+            log.info(
+                "paper_beta_worker_price_updater_skipped_live_mode",
+                mode=STATE.mode,
+                kill_switch=STATE.kill_switch,
+            )
+        else:
+            await self.price_updater()
         summary.current_position_count = len(STATE.positions)
         summary.risk_rejection_reasons = dict(risk_rejection_reasons)
         summary.rejected_count += (
