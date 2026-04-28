@@ -4,7 +4,7 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
-2026-04-27 Asia/Jakarta | WARP/settlement-ddl-migration | Gate 1a: DDL migration file created for settlement domain tables (settlement_events, settlement_retry_history, settlement_reconciliation_results) at infra/db/migrations/001_settlement_tables.sql. Tier: MINOR. WORKTODO §48 DDL item ticked.
+2026-04-28 08:00 | WARP/settlement-ddl-migration | Gate 1a: DDL migration file created for settlement domain tables (settlement_events, settlement_retry_history, settlement_reconciliation_results) at infra/db/migrations/001_settlement_tables.sql. Tier: MINOR. WORKTODO §48 DDL item ticked.
 
 2026-04-24 07:00 | NWAP/repo-structure-state-migration | State files migrated from repo root and work_checklist.md to projects/polymarket/polyquantbot/state/ (PROJECT_STATE.md, ROADMAP.md, WORKTODO.md, CHANGELOG.md); HTML files and docs updated to new paths.
 
