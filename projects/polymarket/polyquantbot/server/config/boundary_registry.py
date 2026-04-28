@@ -76,7 +76,7 @@ PAPER_ONLY_BOUNDARIES: tuple[PaperOnlyBoundary, ...] = (
     PaperOnlyBoundary(
         surface="PaperRiskGate",
         file_path="projects/polymarket/polyquantbot/server/risk/paper_risk_gate.py",
-        assumption="Risk gate enforces paper-mode limits only; capital-mode limits (Kelly=0.25, position<=10%, loss=-$2k, drawdown>8%) must be re-validated against live execution paths.",
+        assumption="CapitalRiskGate (server/risk/capital_risk_gate.py) is built and tested (P8-B); runtime wiring to replace PaperRiskGate in execution path is deferred to P8-C.",
         capital_risk="CRITICAL",
         readiness_gate="P8-B",
         status="NEEDS_HARDENING",
@@ -127,10 +127,10 @@ PAPER_ONLY_BOUNDARIES: tuple[PaperOnlyBoundary, ...] = (
     PaperOnlyBoundary(
         surface="WalletCandidate.financial_fields_zero",
         file_path="projects/polymarket/polyquantbot/server/orchestration/schemas.py",
-        assumption="WalletCandidate financial fields (balance_usd, exposure_pct, drawdown_pct) default to 0.0 — risk gate thresholds will not trigger until market data integration is live.",
+        assumption="WalletFinancialProvider + enrich_candidate wiring built (P8-B); OrchestratorService accepts optional provider. Live-data provider implementation deferred to P8-C market data integration.",
         capital_risk="CRITICAL",
         readiness_gate="P8-B",
-        status="BLOCKED",
+        status="NEEDS_HARDENING",
     ),
     # ── Capital mode config ───────────────────────────────────────────────────
     PaperOnlyBoundary(

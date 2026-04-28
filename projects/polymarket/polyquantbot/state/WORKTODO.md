@@ -485,11 +485,11 @@ This is the last major capability layer.
 
 ### 51. Capital Risk Controls Hardening
 
-- [ ] Harden position sizing
-- [ ] Harden max loss protection
-- [ ] Harden drawdown protection
-- [ ] Harden kill switch
-- [ ] Harden circuit breakers
+- [x] Harden position sizing
+- [x] Harden max loss protection
+- [x] Harden drawdown protection
+- [x] Harden kill switch
+- [x] Harden circuit breakers
 
 ### 52. Live Execution Readiness
 
