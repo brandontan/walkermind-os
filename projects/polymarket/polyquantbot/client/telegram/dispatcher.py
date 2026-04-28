@@ -337,7 +337,7 @@ class TelegramDispatcher:
             return DispatchResult(outcome="ok", reply_text="\n".join(lines))
 
         if command == "/settlement_intervene":
-            parts = arg.split(" ", 2)
+            parts = arg.split(None, 2)
             if len(parts) < 2:
                 return DispatchResult(
                     outcome="ok",
