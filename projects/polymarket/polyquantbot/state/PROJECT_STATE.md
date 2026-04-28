@@ -29,6 +29,8 @@ Status       : Gate 1a DDL migration is merged to main via PR #786. Gate 1b Fast
 - WARP CMD review for Gate 1b settlement operator routes. Source: projects/polymarket/polyquantbot/reports/forge/settlement-operator-routes.md. Tier: STANDARD. Branch: WARP/settlement-operator-routes. PR #787.
 - COMMANDER review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
 - After Gate 1b merged: Gate 1c Telegram wiring (WARP/settlement-telegram-wiring).
+- After all Gate 1 lanes merged: Priority 8 capital readiness (chunked per §49-54, each SENTINEL MAJOR).
+- Maintain no public-ready, live-trading-ready, or production-capital-ready claim until Priority 8 SENTINEL MAJOR sweep complete.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() is a no-op stub -- unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).

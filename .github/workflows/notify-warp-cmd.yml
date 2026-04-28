@@ -1,0 +1,97 @@
+name: Notify WARP🔹CMD on PR
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+jobs:
+  notify-warp-cmd:
+    name: Send PR notification to WARP🔹CMD
+    runs-on: ubuntu-latest
+
+    # Trigger only for WARP•FORGE branches — authoritative format: WARP/{feature}
+    if: startsWith(github.head_ref, 'WARP/')
+
+    steps:
+      - name: Build notification payload
+        id: payload
+        run: |
+          # Build the message that WARP🔹CMD will receive
+          MESSAGE="🔔 **WARP•FORGE — PR READY FOR REVIEW**
+
+**PR:** #${{ github.event.pull_request.number }} — ${{ github.event.pull_request.title }}
+**Branch:** \`${{ github.head_ref }}\` → \`${{ github.base_ref }}\`
+**Author:** ${{ github.event.pull_request.user.login }}
+**Repo:** ${{ github.repository }}
+**URL:** ${{ github.event.pull_request.html_url }}
+
+**Description:**
+${{ github.event.pull_request.body || 'No description provided.' }}
+
+---
+WARP•FORGE has completed this task and is awaiting your review.
+Please inspect the PR and approve or request changes via WARP•SENTINEL."
+
+          # Escape for JSON (replace newlines and quotes)
+          MESSAGE_ESCAPED=$(echo "$MESSAGE" | python3 -c "
+          import sys, json
+          content = sys.stdin.read()
+          print(json.dumps(content)[1:-1])
+          ")
+
+          echo "message=$MESSAGE_ESCAPED" >> $GITHUB_OUTPUT
+
+      - name: Create conversation on WARP🔹CMD (Base44)
+        id: create_conv
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations" \
+            -H "Content-Type: application/json" \
+            -H "api_key: ${{ secrets.BASE44_API_KEY }}" \
+            -d '{
+              "metadata": {
+                "source": "github-action",
+                "pr_number": "${{ github.event.pull_request.number }}",
+                "repo": "${{ github.repository }}",
+                "branch": "${{ github.head_ref }}",
+                "pr_url": "${{ github.event.pull_request.html_url }}"
+              }
+            }')
+
+          echo "Response: $RESPONSE"
+
+          CONV_ID=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('id', ''))")
+          echo "conversation_id=$CONV_ID" >> $GITHUB_OUTPUT
+
+      - name: Send PR notification message to WARP🔹CMD
+        run: |
+          CONV_ID="${{ steps.create_conv.outputs.conversation_id }}"
+
+          if [ -z "$CONV_ID" ]; then
+            echo "❌ Failed to create conversation. Dumping create response for debug."
+            exit 1
+          fi
+
+          echo "✅ Conversation ID: $CONV_ID"
+
+          RESPONSE=$(curl -s -X POST \
+            "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations/$CONV_ID/messages" \
+            -H "Content-Type: application/json" \
+            -H "api_key: ${{ secrets.BASE44_API_KEY }}" \
+            -d "{
+              \"role\": \"user\",
+              \"content\": \"${{ steps.payload.outputs.message }}\"
+            }")
+
+          echo "Message response: $RESPONSE"
+
+          # Check for error
+          ERROR=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('error', ''))" 2>/dev/null || echo "")
+
+          if [ -n "$ERROR" ]; then
+            echo "❌ Error from Base44: $ERROR"
+            exit 1
+          fi
+
+          echo "✅ WARP🔹CMD notified successfully."
+          echo "Conversation URL: https://app.base44.com/conversations/$CONV_ID"
