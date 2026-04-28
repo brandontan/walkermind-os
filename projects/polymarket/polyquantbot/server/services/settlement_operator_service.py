@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import structlog
 from typing import Any, Sequence
 
@@ -75,8 +76,10 @@ class SettlementOperatorService:
         bound = log.bind(workflow_id=workflow_id)
         bound.info("settlement_operator_service_status_request")
         try:
-            events = await self._persistence.load_events_for_workflow(workflow_id)
-            retry_history = await self._persistence.load_retry_history(workflow_id)
+            events, retry_history = await asyncio.gather(
+                self._persistence.load_events_for_workflow(workflow_id),
+                self._persistence.load_retry_history(workflow_id),
+            )
             workflow_result = _build_result_from_events(workflow_id, events)
             request_created_at = min((e.occurred_at for e in events), default=None)
             return await self._console.get_settlement_status(
