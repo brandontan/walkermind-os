@@ -22,6 +22,7 @@ Status       : P8-B capital risk controls hardening built -- CapitalRiskGate (co
 - WalkerMind OS identity rebranding (NWAP/rebranding-identity-fix) -- WARP CMD review pending. PR #782 held due to drift; replaced by this fix PR.
 - Legacy string cleanup (WARP/cleanup-legacy-refs) -- WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
+- Agent env file registration (WARP/register-agent-env-files) -- CURSOR.md and ONA.md registered in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md.
 
 [NOT STARTED]
 - P8-C live execution readiness audit (§52) -- validate live CLOB path, replace price_updater stub, wire allow_real_settlement; clears EXECUTION_PATH_VALIDATED gate.
@@ -32,9 +33,7 @@ Status       : P8-B capital risk controls hardening built -- CapitalRiskGate (co
 [NEXT PRIORITY]
 - WARP•SENTINEL MAJOR validation required for P8-B. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md. Tier: MAJOR.
 - WARP•SENTINEL MAJOR validation required for P8-A. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8a.
-- COMMANDER review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
-- After P8-A and P8-B merged: P8-C live execution readiness audit (WARP/capital-readiness-p8c). Declare branch before starting.
-- Maintain no public-ready, live-trading-ready, or production-capital-ready claim until Priority 8 SENTINEL MAJOR sweep complete.
+- WARP🔹CMD review required for register-agent-env-files. Source: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md. Tier: MINOR.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() is a no-op stub -- unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).

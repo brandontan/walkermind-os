@@ -1,0 +1,49 @@
+tasks:
+  install-python-deps:
+    name: Install Python dependencies
+    description: Install root-level and polyquantbot Python dependencies.
+    command: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      pip install -r projects/polymarket/polyquantbot/requirements.txt
+    triggeredBy:
+      - postDevcontainerStart
+
+  install-node-deps:
+    name: Install Node dependencies
+    description: Install Node dependencies for walker_devops and polyquantbot frontend.
+    command: |
+      npm install --prefix projects/app/walker_devops
+      npm install --prefix projects/polymarket/polyquantbot/frontend
+    triggeredBy:
+      - postDevcontainerStart
+
+services:
+  postgres:
+    name: PostgreSQL
+    description: PostgreSQL database for PolyQuantBot persistence.
+    commands:
+      start: |
+        docker run --rm --name polyquantbot-postgres \
+          -e POSTGRES_USER=polyquantbot \
+          -e POSTGRES_PASSWORD=polyquantbot \
+          -e POSTGRES_DB=polyquantbot \
+          -p 5432:5432 \
+          postgres:16-alpine
+      ready: |
+        docker exec polyquantbot-postgres pg_isready -U polyquantbot
+      stop: |
+        docker stop polyquantbot-postgres
+
+  redis:
+    name: Redis
+    description: Redis for real-time state and signal deduplication.
+    commands:
+      start: |
+        docker run --rm --name polyquantbot-redis \
+          -p 6379:6379 \
+          redis:7-alpine
+      ready: |
+        docker exec polyquantbot-redis redis-cli ping
+      stop: |
+        docker stop polyquantbot-redis
