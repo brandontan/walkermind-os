@@ -121,6 +121,7 @@ projects/polymarket/polyquantbot/state/CHANGELOG.md
 - `PortfolioStore.unrealized_pnl` still uses `current_price` from paper_positions — live mark-to-market is P8-C
 - `CapitalRiskGate.status()` Telegram surface not yet wired to a command — deferred to P8-D operator visibility lane
 - `WalletCandidate.financial_fields_zero` boundary is `NEEDS_HARDENING` (not `SAFE_AS_IS`) until a live provider is injected
+- `state.realized_pnl` is lifetime cumulative PnL (summed from all `TradeLedger` CLOSE entries), not day-scoped — `daily_loss_limit` gate in `CapitalRiskGate.evaluate()` line 177 uses this value and will remain permanently tripped once cumulative losses exceed `-$2000`; same pre-existing bug in `PaperRiskGate`. Fix requires adding `daily_realized_pnl` to `PublicBetaState` + daily reset logic; deferred to P8-C or a dedicated pre-capital-activation lane; SENTINEL must flag during MAJOR validation sweep
 
 ---
 
