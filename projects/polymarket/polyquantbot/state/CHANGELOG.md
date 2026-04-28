@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-04-28 21:00 | claude/plan-build-warp-merge-EqC83 | P8-B: §51 capital risk controls hardening — CapitalRiskGate (config-driven limits, 5-gate LIVE guard, kill_switch first, drawdown/exposure/daily-loss enforced from CapitalModeConfig) + WalletFinancialProvider protocol + enrich_candidate wiring + OrchestratorService enrichment hook. boundary_registry PaperRiskGate + WalletCandidate.financial_fields_zero updated. 12/12 tests (CR-13..CR-22). WORKTODO §51 ticked. Tier: MAJOR. WARP•SENTINEL validation required before merge.
+
 2026-04-28 18:30 | WARP/capital-readiness-p8a | P8-A: §49 BoundaryRegistry (13 paper-only surfaces audited, 22-item readiness criteria) + §50 CapitalModeConfig (5-gate guard, all default-OFF, Kelly=0.25 locked, risk bounds enforced). 16/16 tests passing (CR-01..CR-12). WORKTODO §49-50 ticked. Tier: MAJOR. WARP•SENTINEL validation required before merge.
 
 2026-04-28 17:00 | WARP/settlement-telegram-wiring | Gate 1c: 4 settlement operator Telegram commands wired (/settlement_status, /retry_status, /failed_batches, /settlement_intervene) + 2 backend client helpers (settlement_get, settlement_post). 8/8 tests passing (ST-48..ST-55). WORKTODO §48 Gate 1c ticked. Tier: STANDARD. WARP CMD review pending.

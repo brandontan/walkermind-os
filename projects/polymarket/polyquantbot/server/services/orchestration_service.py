@@ -1,16 +1,17 @@
 """OrchestratorService — Priority 6 Phase C (sections 41–42).
 
 Service layer that wires together:
-  - WalletLifecycleStore   → fetches WalletCandidate objects from PostgreSQL
-  - WalletControlsStore    → builds PortfolioControlOverlay; DB-backed persist/load
+  - WalletLifecycleStore      → fetches WalletCandidate objects from PostgreSQL
+  - WalletControlsStore       → builds PortfolioControlOverlay; DB-backed persist/load
   - CrossWalletStateAggregator → produces CrossWalletState for admin visibility
-  - WalletOrchestrator     → routes execution requests
+  - WalletOrchestrator        → routes execution requests
   - OrchestrationDecisionStore → persists routing decisions
+  - WalletFinancialProvider   → optional P8-B wiring for financial field enrichment
 
 Financial fields (balance_usd, exposure_pct, drawdown_pct) on WalletCandidate
-default to 0.0 because live mark-to-market data is deferred to the market data
-integration lane.  The routing and health APIs are structurally correct; risk
-gate thresholds are not triggered by zero defaults.
+default to 0.0 when no provider is injected.  Inject a WalletFinancialProvider
+via the constructor to enable live financial field enrichment.  A live-data
+provider implementation is a P8-C deliverable.
 """
 from __future__ import annotations
 
@@ -34,6 +35,10 @@ from projects.polymarket.polyquantbot.server.orchestration.schemas import (
     WalletCandidate,
     WalletControlResult,
     decision_from_result,
+)
+from projects.polymarket.polyquantbot.server.risk.capital_risk_gate import (
+    WalletFinancialProvider,
+    enrich_candidate,
 )
 from projects.polymarket.polyquantbot.server.orchestration.wallet_controls import (
     WalletControlsStore,
@@ -60,9 +65,16 @@ class RouteResult:
     decision_persisted: bool
 
 
-def _record_to_candidate(record: WalletLifecycleRecord) -> WalletCandidate:
-    """Convert a lifecycle record to a routing candidate with zeroed financial fields."""
-    return WalletCandidate(
+def _record_to_candidate(
+    record: WalletLifecycleRecord,
+    provider: Optional[WalletFinancialProvider] = None,
+) -> WalletCandidate:
+    """Convert a lifecycle record to a routing candidate.
+
+    When provider is None financial fields default to 0.0 (paper mode safe).
+    When provider is given the candidate is enriched with live financial data.
+    """
+    candidate = WalletCandidate(
         wallet_id=record.wallet_id,
         tenant_id=record.tenant_id,
         user_id=record.user_id,
@@ -73,6 +85,9 @@ def _record_to_candidate(record: WalletLifecycleRecord) -> WalletCandidate:
         strategy_tags=frozenset(),
         is_primary=True,
     )
+    if provider is not None:
+        return enrich_candidate(candidate, provider)
+    return candidate
 
 
 class OrchestratorService:
@@ -99,6 +114,7 @@ class OrchestratorService:
         aggregator: CrossWalletStateAggregator,
         orchestrator: WalletOrchestrator,
         db: DatabaseClient,
+        financial_provider: Optional[WalletFinancialProvider] = None,
     ) -> None:
         self._lifecycle_store = lifecycle_store
         self._controls_store = controls_store
@@ -106,6 +122,7 @@ class OrchestratorService:
         self._aggregator = aggregator
         self._orchestrator = orchestrator
         self._db = db
+        self._financial_provider = financial_provider
 
     # ── Routing ───────────────────────────────────────────────────────────────
 
@@ -273,6 +290,10 @@ class OrchestratorService:
         tenant_id: str,
         user_id: str,
     ) -> list[WalletCandidate]:
-        """Fetch all wallets for (tenant_id, user_id) and convert to candidates."""
+        """Fetch all wallets for (tenant_id, user_id) and convert to candidates.
+
+        If a WalletFinancialProvider was injected at construction, each candidate
+        is enriched with live financial data before routing evaluation.
+        """
         records = await self._lifecycle_store.list_wallets_for_user(tenant_id, user_id)
-        return [_record_to_candidate(r) for r in records]
+        return [_record_to_candidate(r, self._financial_provider) for r in records]
