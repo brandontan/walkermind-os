@@ -1,5 +1,5 @@
-Last Updated : 2026-04-28 15:05
-Status       : Gate 1a DDL migration is merged to main via PR #786. Gate 1b FastAPI settlement operator routes are built on WARP/settlement-operator-routes -- SettlementOperatorService + 4 routes + 9/9 tests (ST-39..ST-47) + server/main.py wiring; WARP CMD review pending for PR #787. Gate 1c Telegram wiring not yet started.
+Last Updated : 2026-04-28 17:00
+Status       : Gate 1a DDL migration merged to main via PR #786. Gate 1b settlement operator HTTP routes merged to main via PR #787. Gate 1c Telegram wiring built on WARP/settlement-telegram-wiring -- 4 settlement operator commands + 2 backend client helpers + 8/8 tests (ST-48..ST-55); WARP CMD review pending (STANDARD tier).
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -12,24 +12,23 @@ Status       : Gate 1a DDL migration is merged to main via PR #786. Gate 1b Fast
 - Priority 6 Phase A and Phase B multi-wallet orchestration are merged to main via PR #776 and PR #779.
 - Priority 7 settlement-retry-reconciliation is merged to main via PR #777; 66/66 tests passing (ST-01..ST-38c).
 - Gate 1a DDL migration file for settlement tables is merged to main via PR #786 from WARP/settlement-ddl-migration.
+- Gate 1b FastAPI settlement operator routes merged to main via PR #787 from WARP/settlement-operator-routes; 9/9 tests (ST-39..ST-47).
 
 [IN PROGRESS]
 - COMMANDER review for PR #781 (Priority 6 Phase C) pending merge decision.
-- Gate 1b FastAPI settlement operator routes (WARP/settlement-operator-routes) -- PR #787 open, WARP CMD review pending (STANDARD tier).
+- Gate 1c Telegram settlement wiring (WARP/settlement-telegram-wiring) -- 4 commands + 8/8 tests (ST-48..ST-55); WARP CMD review pending (STANDARD tier). Report: projects/polymarket/polyquantbot/reports/forge/settlement-telegram-wiring.md.
 - WalkerMind OS identity rebranding (NWAP/rebranding-identity-fix) -- WARP CMD review pending. PR #782 held due to drift; replaced by this fix PR.
 - Legacy string cleanup (WARP/cleanup-legacy-refs) -- WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
 
 [NOT STARTED]
-- Gate 1c Priority 7 Telegram wiring for settlement/retry/reconciliation commands -- WARP/settlement-telegram-wiring. Depends on Gate 1b merge.
-- Priority 8 capital readiness and live trading gating -- requires separate SENTINEL MAJOR sweep after P8 lanes are built.
+- Priority 8 capital readiness and live trading gating -- requires separate SENTINEL MAJOR sweep after P8 lanes are built (P8-A through P8-E, chunked).
 - Final public product completion, launch assets, and handoff.
 
 [NEXT PRIORITY]
-- WARP CMD review for Gate 1b settlement operator routes. Source: projects/polymarket/polyquantbot/reports/forge/settlement-operator-routes.md. Tier: STANDARD. Branch: WARP/settlement-operator-routes. PR #787.
+- WARP CMD review for Gate 1c settlement Telegram wiring. Source: projects/polymarket/polyquantbot/reports/forge/settlement-telegram-wiring.md. Tier: STANDARD. Branch: WARP/settlement-telegram-wiring.
 - COMMANDER review and merge decision for PR #781 (Priority 6 Phase C). Source: projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md.
-- After Gate 1b merged: Gate 1c Telegram wiring (WARP/settlement-telegram-wiring).
-- After all Gate 1 lanes merged: Priority 8 capital readiness (chunked per §49-54, each SENTINEL MAJOR).
+- After Gate 1c merged: Priority 8 capital readiness (chunked per §49-54 as P8-A through P8-E, each SENTINEL MAJOR).
 - Maintain no public-ready, live-trading-ready, or production-capital-ready claim until Priority 8 SENTINEL MAJOR sweep complete.
 
 [KNOWN ISSUES]
@@ -40,6 +39,5 @@ Status       : Gate 1a DDL migration is merged to main via PR #786. Gate 1b Fast
 - Portfolio unrealized PnL relies on current_price in paper_positions -- live mark-to-market deferred to market data integration lane.
 - WalletCandidate financial fields (balance_usd, exposure_pct, drawdown_pct) default to 0.0 -- risk gate thresholds will not trigger in orchestration routing until market data integration is complete.
 - No migration runner configured -- 001_settlement_tables.sql must be applied manually or via operator tooling; auto-create in _apply_schema() remains the runtime path.
-- OperatorConsole is HTTP-exposed (Gate 1b) but not Telegram-exposed -- Gate 1c in next phase plan.
-- OperatorConsole.apply_admin_intervention() does not persist intervention record -- service layer callers must handle explicitly.
-- get_failed_batches() always returns [] -- batch results not persisted in current settlement persistence layer.
+- OperatorConsole.apply_admin_intervention() does not persist intervention record -- service layer callers must handle explicitly; Telegram /settlement_intervene reply surfaces this note.
+- get_failed_batches() always returns [] -- batch results not persisted in current settlement persistence layer; /failed_batches Telegram reply acknowledges this explicitly.
