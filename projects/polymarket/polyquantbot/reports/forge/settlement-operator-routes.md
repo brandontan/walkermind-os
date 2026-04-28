@@ -29,7 +29,7 @@ Gate 1b exposes the `OperatorConsole` (built in PR #777) via HTTP. The `Operator
 - Auth: `SETTLEMENT_ADMIN_TOKEN` env var via `X-Settlement-Admin-Token` header; `_check_admin()` raises 403 on missing/wrong token
 - Service access: `getattr(request.app.state, "settlement_operator_service", None)` → 503 when not wired
 - `AdminInterventionBody` Pydantic model for POST body (maps to frozen `AdminInterventionRequest` dataclass)
-- `_serializable()` helper: converts frozen dataclasses + datetime fields to JSON-safe dicts recursively
+- JSON serialization uses FastAPI `jsonable_encoder(...)` for dataclasses and datetime fields
 - Mutation route (`POST /intervene`): returns 404 when service returns `None` (workflow not found); exceptions → 500
 
 **`server/main.py` wiring** (lifespan, after P6C orchestration block):
@@ -102,7 +102,7 @@ projects/polymarket/polyquantbot/state/CHANGELOG.md
 - `GET /admin/settlement/retry/{workflow_id}` → 403 (no/wrong token), 503 (not wired), 200 + RetryStatusView JSON shape
 - `GET /admin/settlement/failed-batches` → 200 + list (empty until batch persistence built)
 - `POST /admin/settlement/intervene` → 200 + AdminInterventionResult; 404 when workflow not found; 403 on bad token; 503 not wired
-- `_serializable()` correctly converts frozen dataclasses and `datetime` fields to JSON-safe output
+- `jsonable_encoder(...)` correctly converts dataclasses and `datetime` fields to JSON-safe output
 - `SettlementOperatorService` correctly propagates exceptions (no silent failures)
 - `_build_result_from_events()`: returns `None` for empty event list (triggers NOT_FOUND console path); maps all 7 event types to status strings
 - `server/main.py`: settlement operator service wired in lifespan with correct dependency order (after DB connects); router registered
