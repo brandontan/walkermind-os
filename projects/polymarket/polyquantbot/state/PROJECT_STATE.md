@@ -17,7 +17,7 @@ Status       : Gate 1a DDL migration closed (PR #786). Gate 1b FastAPI settlemen
 
 [IN PROGRESS]
 - COMMANDER review for PR #781 (Priority 6 Phase C) pending merge decision.
-- Gate 1a DDL migration (WARP/settlement-ddl-migration) — PR #786 open, WARP🔹CMD review pending. Codex P1 timestamp format fix required.
+- Gate 1a DDL migration (WARP/settlement-ddl-migration) — PR #786 open, WARP🔹CMD review pending.
 - Gate 1b FastAPI settlement operator routes (WARP/settlement-operator-routes) — PR open, WARP🔹CMD review pending (STANDARD tier).
 - WalkerMind OS identity rebranding (NWAP/rebranding-identity-fix) — WARP🔹CMD review pending. PR #782 held due to drift; replaced by this fix PR.
 - Legacy string cleanup (WARP/cleanup-legacy-refs) — WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP🔹CMD review pending.
@@ -45,6 +45,7 @@ Status       : Gate 1a DDL migration closed (PR #786). Gate 1b FastAPI settlemen
 - Portfolio routes hardcode tenant_id=system and user_id=paper_user -- per-user route binding deferred to full multi-user rollout.
 - Portfolio unrealized PnL relies on current_price in paper_positions -- live mark-to-market deferred to market data integration lane.
 - WalletCandidate financial fields (balance_usd, exposure_pct, drawdown_pct) default to 0.0 -- risk gate thresholds will not trigger in orchestration routing until market data integration is complete.
-- settlement_events, settlement_retry_history, settlement_reconciliation_results auto-create DDL exists in infra/db/database.py but formal migration files not yet created -- required before production-capital gate.
-- OperatorConsole is data-injection ready but not HTTP/Telegram exposed -- Gate 1b and 1c in next phase plan.
+- No migration runner configured -- 001_settlement_tables.sql must be applied manually or via operator tooling; auto-create in _apply_schema() remains the runtime path.
+- OperatorConsole is HTTP-exposed (Gate 1b) but not Telegram-exposed -- Gate 1c in next phase plan.
 - OperatorConsole.apply_admin_intervention() does not persist intervention record -- service layer callers must handle explicitly.
+- get_failed_batches() always returns [] -- batch results not persisted in current settlement persistence layer.
