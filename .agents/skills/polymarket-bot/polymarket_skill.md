@@ -7,7 +7,7 @@ description: "Specialized skill for building production-grade Polymarket trading
 
 ## Project Context
 
-**Repo:** github.com/bayuewalker/walker-ai-team  
+**Repo:** github.com/bayuewalker/walkermind-os
 **Bot location:** projects/polymarket/polyquantbot/  
 **Owner:** Bayue Walker — sole decision maker  
 

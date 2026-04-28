@@ -26,7 +26,7 @@ CrusaderBot — projects/polymarket/polyquantbot
 
 ## RULES
 
-- 1 project active → NEXUS defaults to it, no tag needed
+- 1 project active → WARP🔹CMD defaults to it, no tag needed
 - Multi-project active → every task must tag the project
-- No tag + multi → NEXUS asks, never assumes
+- No tag + multi → WARP🔹CMD asks, never assumes
 - State per project → self-contained in `{PROJECT_ROOT}/state/`
