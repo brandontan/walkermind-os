@@ -39,3 +39,5 @@
 2026-04-27 07:15 | NWAP/p6-phb-post-merge-sync | Priority 6 Phase B merge closure: PR #779 confirmed merged to main on 2026-04-26 21:15 UTC; PROJECT_STATE.md updated -- Phase B moved to COMPLETED, IN PROGRESS updated to SENTINEL gate, NEXT PRIORITY updated to Phase C gate; state drift corrected.
 
 2026-04-27 21:54 | NWAP/rebranding-identity-fix | WalkerMind OS identity rebranding (safe rename only): platform name + agent role labels updated across AGENTS.md, COMMANDER.md, CLAUDE.md, docs/workflow_and_execution_model.md; NWAP/ branch prefix and N.W.A.P protocol name kept unchanged; supersedes PR #782 (held for drift).
+
+2026-04-28 12:00 | WARP/settlement-operator-routes | Gate 1b: SettlementOperatorService + 4 FastAPI routes under /admin/settlement/ (status, retry, failed-batches, intervene); server/main.py wiring (SettlementPersistence + OperatorConsole + SettlementOperatorService); 9/9 tests passing (ST-39..ST-47); Validation Tier: STANDARD.
