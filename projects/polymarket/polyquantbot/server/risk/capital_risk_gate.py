@@ -114,7 +114,7 @@ class CapitalRiskGate:
     Evaluation order:
       1. kill_switch check (always first — no gate check required)
       2. idempotency dedup
-      3. LIVE mode: all 5 capital gates must be set (raises CapitalModeGuardError)
+      3. config.validate() — risk bounds always; LIVE gates only in LIVE mode
       4. edge validity (non-positive / below MIN_EDGE)
       5. liquidity floor (from config.min_liquidity_usd)
       6. drawdown ceiling (from config.drawdown_limit_pct)
@@ -150,9 +150,10 @@ class CapitalRiskGate:
         if signal.signal_id in state.processed_signals:
             return RiskDecision(False, "idempotency_duplicate")
 
-        # 3. LIVE mode gate enforcement — all 5 gates must be on
-        if self._config.trading_mode == "LIVE":
-            self._config.validate()
+        # 3. config bounds validation — risk bounds always; LIVE gates only in LIVE mode
+        #    Runs before any limit-driven check so misconfigured env vars fail fast in
+        #    both PAPER and LIVE instead of silently running with out-of-policy values.
+        self._config.validate()
 
         # 4. edge validity
         if signal.edge <= 0:
