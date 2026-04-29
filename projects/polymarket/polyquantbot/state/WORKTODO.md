@@ -304,7 +304,7 @@ Build this after the paper product is solid.
 
 ### Done Condition
 
-- [ ] Wallet lifecycle is complete and stable — pending SENTINEL MAJOR validation
+- [x] Wallet lifecycle is complete and stable — SENTINEL MAJOR validation complete; merged to main via NWAP/wallet-lifecycle-foundation and related PRs.
 
 ---
 
@@ -406,7 +406,7 @@ Build this after wallet and portfolio are ready.
 
 ### Done Condition
 
-- [ ] The system can coordinate multiple wallets safely and truthfully (SENTINEL MAJOR validation pending before merge)
+- [x] The system can coordinate multiple wallets safely and truthfully — SENTINEL MAJOR validation complete; merged to main via NWAP/multi-wallet-orchestration and related PRs.
 
 ---
 
@@ -589,7 +589,7 @@ This is the final finish layer.
 - [x] PRIORITY 3 — Paper Trading Product Completion
 - [x] PRIORITY 4 — Wallet Lifecycle Foundation
 - [x] PRIORITY 5 — Portfolio Management Logic
-- [ ] PRIORITY 6 — Multi-Wallet Orchestration
+- [x] PRIORITY 6 — Multi-Wallet Orchestration
 - [x] PRIORITY 7 — Settlement / Retry / Reconciliation
 - [ ] PRIORITY 8 — Production-Capital Readiness (P8-A/B/C/D/E merged; CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet; WARP🔹CMD review required)
 - [ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets

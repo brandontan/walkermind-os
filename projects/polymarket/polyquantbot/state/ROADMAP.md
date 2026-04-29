@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** Public-ready paper beta path complete; Priority 8 capital readiness (P8-A/B/C/D/E) all merged; P8-E capital validation sweep complete — dry-run PASS 4/4, 70/70 tests passing, docs audit clean, boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet — real CLOB not built). WARP🔹CMD review of P8-E findings required before any capital-mode activation. No production-capital-ready or live-trading-ready claim.
-**Last Updated:** 2026-04-30 05:19
+**Last Updated:** 2026-04-30 06:07
 
 # Board Overview
 
@@ -39,7 +39,7 @@
 | Phase 7 | Orchestration & Automation Foundation | ✅ Done | Public Activation Orchestration |
 | Phase 8 | Multi-User Foundation | ✅ Done | Multi-User Ownership + Auth/Session Scope |
 | Phase 9 | Public-Ready Paper Beta Path | ✅ Done | Runtime Proof + Operational Readiness + Release Gate |
-| Phase 10 | Public Runtime & Product Completion | 🚧 In Progress | Telegram runtime activation + public command validation + UX/persistence hardening |
+| Phase 10 | Public Runtime & Product Completion | ✅ Done | Telegram runtime activation + public command validation + UX/persistence hardening complete on main |
 
 ---
 
@@ -48,7 +48,7 @@
 
 **Roadmap Intent:** Keep ROADMAP.md as milestone-level planning truth and keep execution-level task tracking in `projects/polymarket/polyquantbot/state/WORKTODO.md`.
 
-### Current State (2026-04-30)
+### Current State (2026-04-30 06:07)
 
 - P8-E capital validation sweep complete via WARP/capital-validation-p8e: dry-run PASS 4/4, 70/70 tests passing, docs audit clean, boundary registry updated.
 - CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet (real CLOB execution path not built; P8-C-1/P8-C-2 not done).
