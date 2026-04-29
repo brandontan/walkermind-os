@@ -1,12 +1,12 @@
 # WARP•FORGE REPORT: repo-truth-sync-p8e
-Branch: WARP/repo-truth-sync-p8e
+Branch: claude/repo-truth-sync-p8e-N3oZA (declared: WARP/repo-truth-sync-p8e — harness override; see §5)
 Date: 2026-04-30 06:00 Asia/Jakarta
 
 ---
 
 ## Validation Metadata
 
-- Branch: WARP/repo-truth-sync-p8e
+- Branch: claude/repo-truth-sync-p8e-N3oZA (declared: WARP/repo-truth-sync-p8e — harness override; see §5)
 - Validation Tier: MINOR
 - Claim Level: FOUNDATION
 - Validation Target: State/docs sync — ROADMAP.md and WORKTODO.md aligned to P8-E truth
