@@ -21,9 +21,11 @@ jobs:
           EVENT_ACTION: ${{ github.event.action }}
         run: |
           python3 << 'EOF'
-          import os, json, urllib.request, urllib.error
+          import os, json, urllib.request, urllib.error, time
 
           ENDPOINT = "https://warpcmd-ef2e1218.base44.app/functions/prNotifyWarpCmd"
+          TIMEOUT = 30
+          MAX_RETRIES = 2
 
           payload = {
               "secret":     os.environ["WARP_WEBHOOK_SECRET"],
@@ -34,18 +36,29 @@ jobs:
           }
 
           data = json.dumps(payload).encode("utf-8")
-          req = urllib.request.Request(
-              ENDPOINT, data=data,
-              headers={"Content-Type": "application/json", "User-Agent": "WalkerMind-WARP-CMD/2.0"},
-              method="POST"
-          )
-          try:
-              with urllib.request.urlopen(req, timeout=15) as resp:
-                  print(f"OK: {json.loads(resp.read())}")
-          except urllib.error.HTTPError as e:
-              print(f"HTTP {e.code}: {e.read().decode()}")
-              exit(1)
-          except Exception as e:
-              print(f"ERROR: {e}")
-              exit(1)
+
+          for attempt in range(1, MAX_RETRIES + 1):
+              req = urllib.request.Request(
+                  ENDPOINT, data=data,
+                  headers={"Content-Type": "application/json", "User-Agent": "WalkerMind-WARP-CMD/2.0"},
+                  method="POST"
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                      print(f"OK: {json.loads(resp.read())}")
+                      exit(0)
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode()
+                  print(f"[attempt {attempt}] HTTP {e.code}: {body}")
+                  if e.code < 500:
+                      # 4xx — no point retrying
+                      print("WARNING: non-retryable HTTP error, skipping notification")
+                      exit(0)
+              except Exception as e:
+                  print(f"[attempt {attempt}] ERROR: {e}")
+
+              if attempt < MAX_RETRIES:
+                  time.sleep(5)
+
+          print("WARNING: all attempts failed, notification skipped")
           EOF
