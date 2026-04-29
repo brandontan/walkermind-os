@@ -1,5 +1,5 @@
-Last Updated : 2026-04-29 01:30
-Status       : P8-C pre-SENTINEL cleanup complete -- LiveExecutionGuard provider exception normalization, PaperBetaWorker WalletFinancialProvider injection, run_once deterministic live-mode block (no crash via price_updater), test count aligned; 25/25 tests (CR-23..CR-36), 60/60 total (P8-A+B+C); WARP•SENTINEL MAJOR validation required before merge.
+Last Updated : 2026-04-29 08:30
+Status       : P8-C WARP•SENTINEL MAJOR validation complete -- CONDITIONAL 78/100, 0 critical issues. Guard contract validated. FLAG-1 (daily_loss_limit lifetime PnL) is hard blocker for P8-D/P8-E before live activation. WARP🔹CMD review required before merge.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -19,7 +19,7 @@ Status       : P8-C pre-SENTINEL cleanup complete -- LiveExecutionGuard provider
 - COMMANDER review for PR #781 (Priority 6 Phase C) pending merge decision.
 - P8-A capital readiness foundation (WARP/capital-readiness-p8a) -- CapitalModeConfig + BoundaryRegistry + 16/16 tests (CR-01..CR-12); WARP•SENTINEL MAJOR validation required. Report: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md.
 - P8-B capital risk controls hardening -- CapitalRiskGate (config-driven limits, 5-gate LIVE guard) + WalletFinancialProvider protocol + OrchestratorService enrichment hook; 12/12 tests (CR-13..CR-22). WARP•SENTINEL MAJOR validation required. Report: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md.
-- P8-C live execution readiness + pre-SENTINEL cleanup -- LiveExecutionGuard (5-gate + provider check + provider exception normalization), disable_live_execution rollback, PaperBetaWorker WalletFinancialProvider injection + run_once deterministic live-mode block + price_updater hardened, PortfolioFinancialProvider, settlement_policy_from_capital_config; 25/25 tests (CR-23..CR-36), 60/60 total (P8-A+B+C). WARP•SENTINEL MAJOR validation required. Report: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8c.md.
+- P8-C live execution readiness -- WARP•SENTINEL MAJOR validation COMPLETE: CONDITIONAL 78/100, 0 critical. Guard contract, provider wiring, worker determinism, settlement gating all validated. FLAG-1 (daily_loss_limit lifetime PnL) is hard blocker for P8-D/P8-E. FLAG-2 (exposure/drawdown asymmetry) intentional, P8-D review. WARP🔹CMD merge decision pending. Sentinel: projects/polymarket/polyquantbot/reports/sentinel/capital-readiness-p8c.md.
 - WalkerMind OS identity rebranding (NWAP/rebranding-identity-fix) -- WARP CMD review pending. PR #782 held due to drift; replaced by this fix PR.
 - Legacy string cleanup (WARP/cleanup-legacy-refs) -- WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
@@ -31,7 +31,8 @@ Status       : P8-C pre-SENTINEL cleanup complete -- LiveExecutionGuard provider
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
-- WARP•SENTINEL MAJOR validation required for P8-C. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8c.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8c-2a76.
+- WARP🔹CMD review and merge decision for P8-C. Sentinel: projects/polymarket/polyquantbot/reports/sentinel/capital-readiness-p8c.md. Verdict: CONDITIONAL 78/100. Branch: WARP/capital-readiness-p8c-2a76.
+- P8-D must fix daily_loss_limit to use day-scoped PnL (not lifetime realized_pnl) before P8-E can proceed. Files: server/core/public_beta_state.py, server/risk/capital_risk_gate.py.
 - WARP•SENTINEL MAJOR validation required for P8-B. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8b.
 - WARP•SENTINEL MAJOR validation required for P8-A. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8a.
 
