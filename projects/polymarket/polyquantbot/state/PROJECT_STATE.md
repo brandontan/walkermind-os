@@ -24,6 +24,7 @@ Status       : P8-C WARP•SENTINEL MAJOR validation complete -- CONDITIONAL 78/
 - Legacy string cleanup (WARP/cleanup-legacy-refs) -- WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
 - Agent env file registration (WARP/register-agent-env-files) -- CURSOR.md and ONA.md registered in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md.
+- Sentinel timeout resilience (WARP/sentinel-timeout-resilience) -- timeout handling and chunking recovery rules updated in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/sentinel-timeout-resilience.md.
 
 [NOT STARTED]
 - P8-D security + observability hardening (§53) -- per-user isolation, admin audit log, production alerting; clears SECURITY_HARDENING_VALIDATED gate.
@@ -35,6 +36,8 @@ Status       : P8-C WARP•SENTINEL MAJOR validation complete -- CONDITIONAL 78/
 - P8-D must fix daily_loss_limit to use day-scoped PnL (not lifetime realized_pnl) before P8-E can proceed. Files: server/core/public_beta_state.py, server/risk/capital_risk_gate.py.
 - WARP•SENTINEL MAJOR validation required for P8-B. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8b.
 - WARP•SENTINEL MAJOR validation required for P8-A. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8a.
+- WARP🔹CMD review required for register-agent-env-files. Source: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md. Tier: MINOR.
+- WARP🔹CMD review required for sentinel-timeout-resilience. Source: projects/polymarket/polyquantbot/reports/forge/sentinel-timeout-resilience.md. Tier: MINOR.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() raises LiveExecutionBlockedError in live mode (P8-C hardened) -- real market data integration still deferred; unrealized PnL will not update in live mode until implemented.

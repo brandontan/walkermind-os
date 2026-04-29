@@ -2,12 +2,13 @@ name: Notify WARP CMD on PR
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize]
 
 jobs:
   notify-warp-cmd:
     name: Send PR notification to WARP CMD
     runs-on: ubuntu-latest
+    continue-on-error: true
     if: startsWith(github.head_ref, 'WARP/')
 
     steps:
@@ -15,13 +16,8 @@ jobs:
         env:
           WARP_WEBHOOK_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          HEAD_REF: ${{ github.head_ref }}
-          BASE_REF: ${{ github.base_ref }}
-          REPO: ${{ github.repository }}
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
           python3 << 'EOF'
           import os, json, urllib.request, urllib.error
@@ -31,29 +27,21 @@ jobs:
           payload = {
               "secret":     os.environ["WARP_WEBHOOK_SECRET"],
               "pr_number":  os.environ.get("PR_NUMBER", "?"),
-              "pr_title":   os.environ.get("PR_TITLE", "No title"),
               "pr_url":     os.environ.get("PR_URL", ""),
-              "pr_body":    os.environ.get("PR_BODY", "") or "No description provided.",
-              "pr_author":  os.environ.get("PR_AUTHOR", "unknown"),
-              "head_ref":   os.environ.get("HEAD_REF", ""),
-              "base_ref":   os.environ.get("BASE_REF", "main"),
-              "repo":       os.environ.get("REPO", ""),
+              "event":      os.environ.get("EVENT_ACTION", "update"),
           }
 
           data = json.dumps(payload).encode("utf-8")
-          headers = {
-              "Content-Type": "application/json",
-              "User-Agent": "WalkerMind-WARP-CMD/2.0",
-          }
-
-          req = urllib.request.Request(ENDPOINT, data=data, headers=headers, method="POST")
+          req = urllib.request.Request(
+              ENDPOINT, data=data,
+              headers={"Content-Type": "application/json", "User-Agent": "WalkerMind-WARP-CMD/2.0"},
+              method="POST"
+          )
           try:
               with urllib.request.urlopen(req, timeout=15) as resp:
-                  result = json.loads(resp.read())
-                  print(f"WARP CMD notified: {result}")
+                  print(f"OK: {json.loads(resp.read())}")
           except urllib.error.HTTPError as e:
-              body = e.read().decode()
-              print(f"HTTP {e.code}: {body}")
+              print(f"HTTP {e.code}: {e.read().decode()}")
               exit(1)
           except Exception as e:
               print(f"ERROR: {e}")
