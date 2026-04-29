@@ -510,11 +510,11 @@ This is the last major capability layer.
 
 ### 54. Capital Validation and Claim Review
 
-- [ ] Run dry-run validation
-- [ ] Run staged rollout validation
-- [ ] Review docs/policy/claims
-- [ ] Remove overclaim
-- [ ] Make release decision
+- [x] Run dry-run validation
+- [x] Run staged rollout validation
+- [x] Review docs/policy/claims
+- [x] Remove overclaim
+- [ ] Make release decision (deferred — EXECUTION_PATH_VALIDATED prerequisite unmet; WARP🔹CMD decision)
 
 ### Done Condition
 
@@ -610,4 +610,4 @@ This is the final finish layer.
 - [x] FORGE-X: Priority 6 Phase C (sections 41-42) built on NWAP/multi-wallet-orchestration-phase-c — 18/18 tests passing (WO-28..WO-45)
 - [ ] SENTINEL: validate Priority 6 Phase C — source projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md; Tier: MAJOR
 - [x] P8-A/B/C/D all merged to main (PRs #790, #794, #795, #800); register-agent-env-files, sentinel-timeout-resilience, commander-pr-comment-rule merged (PRs #792, #797, #799)
-- [ ] FORGE: P8-E capital validation + claim review (§54) — dry-run, staged rollout, docs review, claim cleanup, CAPITAL_MODE_CONFIRMED
+- [x] FORGE: P8-E capital validation + claim review (§54) — dry-run PASS, docs clean, boundary registry updated; CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet)

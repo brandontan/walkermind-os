@@ -67,10 +67,10 @@ PAPER_ONLY_BOUNDARIES: tuple[PaperOnlyBoundary, ...] = (
     PaperOnlyBoundary(
         surface="PaperBetaWorker.price_updater",
         file_path="projects/polymarket/polyquantbot/server/workers/paper_beta_worker.py",
-        assumption="price_updater() is a no-op stub in paper mode — raises LiveExecutionBlockedError in live mode (P8-C hardened). Real market data integration deferred.",
+        assumption="price_updater() is a no-op stub in paper mode — raises LiveExecutionBlockedError in live mode (P8-C hardened). Real market data integration deferred. Surface actively blocked from capital mode until real data feed is implemented.",
         capital_risk="HIGH",
         readiness_gate="P8-C",
-        status="NEEDS_HARDENING",
+        status="BLOCKED",
     ),
     PaperOnlyBoundary(
         surface="LiveExecutionGuard",
@@ -135,10 +135,10 @@ PAPER_ONLY_BOUNDARIES: tuple[PaperOnlyBoundary, ...] = (
     PaperOnlyBoundary(
         surface="WalletCandidate.financial_fields_zero",
         file_path="projects/polymarket/polyquantbot/server/orchestration/schemas.py",
-        assumption="WalletFinancialProvider + enrich_candidate wiring built (P8-B); PortfolioFinancialProvider (P8-C) backed by PublicBetaState. Live-data market feed provider deferred; MissingRealFinancialDataError raised for zero-equity in live mode.",
+        assumption="WalletFinancialProvider + enrich_candidate wiring built (P8-B); PortfolioFinancialProvider (P8-C) backed by PublicBetaState. Live-data market feed provider deferred; MissingRealFinancialDataError raised for zero-equity in live mode. Surface actively blocked from capital mode until real market data provider is integrated.",
         capital_risk="CRITICAL",
         readiness_gate="P8-C",
-        status="NEEDS_HARDENING",
+        status="BLOCKED",
     ),
     # ── Capital mode config ───────────────────────────────────────────────────
     PaperOnlyBoundary(
