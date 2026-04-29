@@ -591,7 +591,7 @@ This is the final finish layer.
 - [x] PRIORITY 5 — Portfolio Management Logic
 - [ ] PRIORITY 6 — Multi-Wallet Orchestration
 - [x] PRIORITY 7 — Settlement / Retry / Reconciliation
-- [ ] PRIORITY 8 — Production-Capital Readiness (P8-A/B/C/D merged; P8-E pending)
+- [ ] PRIORITY 8 — Production-Capital Readiness (P8-A/B/C/D/E merged; CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet; WARP🔹CMD review required)
 - [ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
 
 ---
@@ -611,3 +611,4 @@ This is the final finish layer.
 - [ ] SENTINEL: validate Priority 6 Phase C — source projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md; Tier: MAJOR
 - [x] P8-A/B/C/D all merged to main (PRs #790, #794, #795, #800); register-agent-env-files, sentinel-timeout-resilience, commander-pr-comment-rule merged (PRs #792, #797, #799)
 - [x] FORGE: P8-E capital validation + claim review (§54) — dry-run PASS, docs clean, boundary registry updated; CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet)
+- [ ] WARP🔹CMD: review P8-E findings (projects/polymarket/polyquantbot/reports/forge/capital-validation-p8e.md); decide RISK_CONTROLS_VALIDATED + SECURITY_HARDENING_VALIDATED env vars; scope real CLOB execution lane to unblock EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED

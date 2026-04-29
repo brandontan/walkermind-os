@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active (Paper Beta Complete + Phase 10 Post-Merge Cleanup) | Phase 10 — Post-Launch Cleanup + Public-Surface Wording Alignment |
+| Crusader | Polymarket | Active (Capital Readiness P8-E complete — WARP🔹CMD review pending) | Priority 8 — Capital Readiness (P8-E done; EXECUTION_PATH_VALIDATED unmet; WARP🔹CMD decision required) |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path (Phase 9.1/9.2/9.3) is complete on main; PR #725, PR #726, PR #727, PR #728, PR #729, PR #730, PR #731, PR #732, PR #733, PR #734, PR #736, PR #737, PR #741, PR #742, and PR #752 are merged-main truth; Deployment Hardening SENTINEL MAJOR validation APPROVED (98/100, zero critical issues) and PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta; Priority 2 done condition closed (paper-only boundary preserved, no live-trading or production-capital claim).
-**Last Updated:** 2026-04-24 11:53
+**Status:** Public-ready paper beta path complete; Priority 8 capital readiness (P8-A/B/C/D/E) all merged; P8-E capital validation sweep complete — dry-run PASS 4/4, 70/70 tests passing, docs audit clean, boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet — real CLOB not built). WARP🔹CMD review of P8-E findings required before any capital-mode activation. No production-capital-ready or live-trading-ready claim.
+**Last Updated:** 2026-04-30 05:19
 
 # Board Overview
 
@@ -44,11 +44,19 @@
 ---
 
 
-## CrusaderBot — Current Delivery Focus (Phase 10)
+## CrusaderBot — Current Delivery Focus
 
 **Roadmap Intent:** Keep ROADMAP.md as milestone-level planning truth and keep execution-level task tracking in `projects/polymarket/polyquantbot/state/WORKTODO.md`.
 
-### Current Focus Summary (paper-only boundary preserved)
+### Current State (2026-04-30)
+
+- P8-E capital validation sweep complete via WARP/capital-validation-p8e: dry-run PASS 4/4, 70/70 tests passing, docs audit clean, boundary registry updated.
+- CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet (real CLOB execution path not built; P8-C-1/P8-C-2 not done).
+- RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED ready for WARP🔹CMD to set in deployment env (P8-B and P8-D SENTINEL APPROVED).
+- No production-capital-ready or live-trading-ready claim. Paper-only boundary preserved.
+- Next: WARP🔹CMD review of P8-E findings (`projects/polymarket/polyquantbot/reports/forge/capital-validation-p8e.md`); decide env vars; scope real CLOB execution lane.
+
+### Phase 10 Historical Completion Summary (merged-main truth)
 - Phase 10.2 post-merge sync and public command-surface refinement is merged on main (PR #713) with paper-only/non-custodial posture preserved.
 - Active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`; runtime/operator `/risk` remains separate and is not part of the public-safe informational set.
 - Phase 10.3 monitor integration hardening + observability baseline is merged on main via PR #719 (admin/internal path guarding, startup/command/reply logging baseline, missing-env/disabled-mode visibility logging, and monitor/admin visibility closure).
