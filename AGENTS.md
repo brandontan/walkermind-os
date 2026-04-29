@@ -37,7 +37,7 @@ It operates under WARP🔹CMD authority and routes work across three specialist 
   - Auto merge / close PRs by own decision
   - Fix minor bugs, small errors, cosmetic issues directly (within direct-fix threshold)
 - Escalation: Only for large scope, risk, capital, safety, or owner-level decisions
-- Reference: docs/COMMANDER.md
+- Reference: COMMANDER.md
 
 **WARP🔸CORE**
 - Role: Multi-Agent Specialist Team
@@ -216,7 +216,7 @@ Conflict rules:
 - `AGENTS.md` wins over everything else
 - If `PROJECT_STATE.md` and `ROADMAP.md` conflict on roadmap-level truth -> treat as drift and STOP
 - If code and report disagree -> code wins, report is incorrect, drift must be reported
-- `docs/COMMANDER.md` is WARP🔹CMD persona/operating reference only — it never overrides this file
+- `COMMANDER.md` is WARP🔹CMD persona/operating reference only — it never overrides this file
 - `docs/blueprint/crusaderbot.md` is an architecture-intent reference for CrusaderBot only — it never overrides this file, state files, or current code truth
 - If blueprint and current code differ, code defines current reality and blueprint defines intended target architecture
 
@@ -296,7 +296,7 @@ CLAUDE.md                              <- rules for Claude Code agent (repo root
 CURSOR.md                              <- rules for Cursor Agent (WARP🔸CORE execution environment, repo root)
 ONA.md                                 <- rules for Ona Agent (WARP🔸CORE execution environment, repo root)
 
-docs/COMMANDER.md
+COMMANDER.md
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md  <- active blueprint (format: docs/blueprint/{project_name}.md)
 docs/templates/PROJECT_STATE_TEMPLATE.md
@@ -375,7 +375,7 @@ The distinction:
 
 Shortcut commands are operational triggers, not chat filler.
 Every shortcut still obeys AGENTS.md truth order and all system rules in this file.
-Detailed behavior for each shortcut lives in `docs/COMMANDER.md`.
+Detailed behavior for each shortcut lives in `COMMANDER.md`.
 
 | Command | Action |
 |---|---|
@@ -779,7 +779,7 @@ Rules:
 - Skills are execution helpers only
 - They never override AGENTS.md
 - They do not justify scope expansion
-- Detailed skill-selection logic lives in `docs/COMMANDER.md`
+- Detailed skill-selection logic lives in `COMMANDER.md`
 
 ---
 

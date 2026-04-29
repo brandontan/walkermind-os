@@ -5,8 +5,8 @@ For all system rules (tiers, claims, branch format, report/state/roadmap rules, 
 
 Rule priority: `AGENTS.md` > `PROJECT_REGISTRY.md` > `{PROJECT_ROOT}/state/PROJECT_STATE.md` > `{PROJECT_ROOT}/state/ROADMAP.md` > latest relevant forge report > this file.
 
-Version: 2.2
-Last Updated: 2026-04-24 19:21 Asia/Jakarta
+Version: 2.3
+Last Updated: 2026-04-29 08:07 Asia/Jakarta
 
 ---
 
@@ -769,7 +769,8 @@ When Mr. Walker shares a PR URL or number:
 3. Read Validation Tier, Claim Level, Validation Target, Not in Scope
 4. Run pre-review drift check
 5. Decide: merge / hold / close / needs-fix
-6. If action decided, execute immediately — do not state intent without acting
+6. If needs-fix or SENTINEL required -> post copy-ready task comment to PR immediately
+7. If action decided (merge/close) -> execute immediately — do not state intent without acting
 
 **"DECISION: MERGE" is not a merge.** The action tool call is the merge.
 
@@ -809,6 +810,78 @@ Before approving any PR, verify:
 - Validation Tier / Claim Level / Validation Target / Not in Scope all declared
 
 Any fail → NEEDS-FIX, do not merge, do not escalate to WARP•SENTINEL just to discover basic repo-truth mismatch.
+
+---
+
+## PR COMMENT AUTO-POST RULE
+
+Every time WARP🔹CMD completes a PR review and action is required,
+WARP🔹CMD must post a comment to the PR immediately — without waiting
+for additional instruction from Mr. Walker.
+
+### Trigger
+- PR review completed (via cek pr, merge pr, or spontaneous review)
+- Finding requires: Fix task OR Sentinel task
+
+### Scope
+- WARP•FORGE fix task -> post comment when issue requires fix
+- WARP•SENTINEL task -> post comment when Tier = MAJOR and SENTINEL has not run
+
+### Format — Fix task comment
+
+```
+WARP•FORGE TASK: [short task name]
+============
+Repo   : https://github.com/bayuewalker/walkermind-os
+Branch : [exact branch from PR]
+
+ISSUE FOUND:
+[short description of finding]
+
+FIX REQUIRED:
+- [exact fix needed, file:line if available]
+
+SCOPE:
+- [files to change]
+
+VALIDATION:
+Validation Tier   : [MINOR / STANDARD / MAJOR]
+Claim Level       : [level]
+Validation Target : [scope]
+Not in Scope      : [exclusions]
+
+DONE CRITERIA:
+- [ ] Fix applied
+- [ ] Forge report updated
+- [ ] PR updated or new PR opened
+
+NEXT GATE:
+- WARP🔹CMD re-review
+```
+
+### Format — Sentinel task comment
+
+```
+WARP•SENTINEL TASK: [short task name]
+=============
+Repo         : https://github.com/bayuewalker/walkermind-os
+Branch       : [exact branch from PR]
+Tier         : MAJOR
+Source       : [forge report path]
+
+SENTINEL REQUIRED BECAUSE:
+[short reason — what needs validation]
+
+NEXT GATE:
+- WARP•SENTINEL verdict -> return to WARP🔹CMD
+```
+
+### Rules
+- Post comment immediately after decision — do not defer to chat
+- One comment per PR review cycle — batch all findings in one comment
+- If PR is clean and no action needed -> no comment required
+- If merging directly -> no comment needed, execute merge
+- Comment task body always in English — consistent with standard task format
 
 ---
 
@@ -918,6 +991,10 @@ Branch    : WARP/{feature}
               ^ short hyphen-separated slug only - no date suffix, no underscores, no dots
               ^ declare the exact slug here before sending task - never derive from task title or description
               ^ report filename must match this slug exactly - no date suffix appended
+              ^ AUTO-GENERATE BRANCH IS FORBIDDEN — claude/ prefix is NEVER allowed
+              ^ FIRST action: git checkout -b WARP/{feature} or git checkout WARP/{feature}
+              ^ VERIFY before any commit: git rev-parse --abbrev-ref HEAD = WARP/{feature}
+              ^ If git returns wrong branch -> STOP, report to WARP🔹CMD, do not write any artifact
 Env       : dev / staging / prod
 
 OBJECTIVE:
