@@ -5,6 +5,7 @@ tasks:
     command: |
       pip install --upgrade pip
       pip install -r requirements.txt
+      pip install -r projects/polymarket/requirements.txt
       pip install -r projects/polymarket/polyquantbot/requirements.txt
     triggeredBy:
       - postDevcontainerStart

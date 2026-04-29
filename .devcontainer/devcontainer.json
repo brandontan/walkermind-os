@@ -10,18 +10,22 @@
 		},
 		"ghcr.io/devcontainers/features/docker-in-docker": {}
 	},
-	"forwardPorts": [8080, 5173, 3000, 5432, 6379],
+	"forwardPorts": [8080, 3000, 5000, 8787, 5432, 6379],
 	"portsAttributes": {
 		"8080": {
 			"label": "PolyQuantBot API",
 			"onAutoForward": "notify"
 		},
-		"5173": {
-			"label": "Frontend Dev Server",
+		"3000": {
+			"label": "PolyQuantBot Frontend",
 			"onAutoForward": "notify"
 		},
-		"3000": {
-			"label": "WalkerDevOps App",
+		"5000": {
+			"label": "WalkerDevOps Frontend",
+			"onAutoForward": "notify"
+		},
+		"8787": {
+			"label": "WalkerDevOps API",
 			"onAutoForward": "notify"
 		},
 		"5432": {
