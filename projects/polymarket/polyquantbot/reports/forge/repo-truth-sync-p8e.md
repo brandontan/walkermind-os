@@ -1,12 +1,12 @@
 # WARP•FORGE REPORT: repo-truth-sync-p8e
-Branch: claude/repo-truth-sync-p8e-N3oZA (declared: WARP/repo-truth-sync-p8e — harness override; see §5)
+Branch: WARP/repo-truth-sync-p8e
 Date: 2026-04-30 06:00 Asia/Jakarta
 
 ---
 
 ## Validation Metadata
 
-- Branch: claude/repo-truth-sync-p8e-N3oZA (declared: WARP/repo-truth-sync-p8e — harness override; see §5)
+- Branch: WARP/repo-truth-sync-p8e
 - Validation Tier: MINOR
 - Claim Level: FOUNDATION
 - Validation Target: State/docs sync — ROADMAP.md and WORKTODO.md aligned to P8-E truth
@@ -89,7 +89,6 @@ projects/polymarket/polyquantbot/reports/forge/repo-truth-sync-p8e.md
 
 ## 5. Known Issues
 
-- Branch name: harness auto-generated `claude/repo-truth-sync-p8e-N3oZA` instead of `WARP/repo-truth-sync-p8e` (CLAUDE.md §Branch Naming). This is a session-harness constraint; WARP🔹CMD should be aware the branch name deviates from the declared format.
 - ROADMAP.md Phase 8 board row still shows Phase 8 as "✅ Done" — this is accurate for the phase board (all sub-phases have merged PRs); the done condition for Priority 8 ("truthfully claim production-capital readiness") is correctly still unmet and tracked in WORKTODO.md §Done Condition. No change required.
 
 ---
