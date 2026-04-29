@@ -209,6 +209,7 @@ class CapitalRiskGate:
         Returns:
             Dict with all limit values and current state metrics.
         """
+        state.reset_daily_pnl_if_needed()
         return {
             "kill_switch": state.kill_switch,
             "mode": self._config.trading_mode,
