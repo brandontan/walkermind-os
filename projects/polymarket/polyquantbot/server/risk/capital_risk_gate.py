@@ -165,11 +165,15 @@ class CapitalRiskGate:
         if signal.liquidity < self._config.min_liquidity_usd:
             return RiskDecision(False, "liquidity_below_floor")
 
-        # 6. drawdown ceiling (from config — enforces <= drawdown_limit_pct)
+        # 6. drawdown ceiling — reads state.drawdown (system-wide peak-to-trough, set by
+        #    paper_portfolio._sync_state). Intentionally system-scoped, not per-wallet:
+        #    a single deep-drawdown wallet can halt all new entries (conservative by design).
+        #    FLAG-2 accepted: per-wallet drawdown routing is a P8-E / multi-wallet review item.
         if state.drawdown > self._config.drawdown_limit_pct:
             return RiskDecision(False, "drawdown_stop")
 
-        # 7. exposure cap (from config — enforces < max_position_fraction)
+        # 7. exposure cap — reads state.exposure (system-wide locked/equity fraction).
+        #    Intentionally consistent with drawdown: both system-scoped, not per-wallet.
         if state.exposure >= self._config.max_position_fraction:
             return RiskDecision(False, "exposure_cap")
 
