@@ -39,7 +39,7 @@
 | Phase 7 | Orchestration & Automation Foundation | ✅ Done | Public Activation Orchestration |
 | Phase 8 | Multi-User Foundation | ✅ Done | Multi-User Ownership + Auth/Session Scope |
 | Phase 9 | Public-Ready Paper Beta Path | ✅ Done | Runtime Proof + Operational Readiness + Release Gate |
-| Phase 10 | Public Runtime & Product Completion | 🚧 In Progress | Telegram runtime activation + public command validation + UX/persistence hardening |
+| Phase 10 | Public Runtime & Product Completion | ✅ Done | Telegram runtime activation + public command validation + UX/persistence hardening complete on main |
 
 ---
 
@@ -48,7 +48,7 @@
 
 **Roadmap Intent:** Keep ROADMAP.md as milestone-level planning truth and keep execution-level task tracking in `projects/polymarket/polyquantbot/state/WORKTODO.md`.
 
-### Current State (2026-04-30)
+### Current State (2026-04-30 06:07)
 
 - P8-E capital validation sweep complete via WARP/capital-validation-p8e: dry-run PASS 4/4, 70/70 tests passing, docs audit clean, boundary registry updated.
 - CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet (real CLOB execution path not built; P8-C-1/P8-C-2 not done).

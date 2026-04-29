@@ -1,5 +1,5 @@
 Last Updated : 2026-04-30 06:10
-Status       : P8-E capital validation sweep complete. Dry-run PASS, docs clean, boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet (real CLOB not built). RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED are ready for WARP🔹CMD to set in deployment env.
+Status       : P8-E complete. Dry-run PASS 4/4. P8 tests PASS 70/70. Docs audit clean. Boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET. EXECUTION_PATH_VALIDATED unmet — real CLOB execution path not built. RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED ready for WARP🔹CMD deployment env decision. No live-trading-ready or production-capital-ready claim.
 
 [COMPLETED]
 - Priority 7 settlement lane fully closed: DDL PR #786, operator routes PR #787, Telegram wiring PR #789; 66/66 tests passing.
@@ -11,7 +11,7 @@ Status       : P8-E capital validation sweep complete. Dry-run PASS, docs clean,
 - Sentinel timeout resilience merged to main via PR #797 (WARP/sentinel-timeout-resilience).
 - Commander PR comment rule merged to main via PR #799 (WARP/commander-pr-comment-rule).
 - PR notification workflow hardened via WARP/pr-notify-robust-ce09.
-- P8-E capital validation sweep complete via WARP/capital-validation-p8e; dry-run PASS 4/4, 70/70 tests, docs clean, boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet.
+- P8-E capital validation sweep complete via WARP/capital-validation-p8e; dry-run PASS 4/4, 70/70 P8 tests passing, docs audit clean, boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET. EXECUTION_PATH_VALIDATED unmet — real CLOB execution path not built or validated. RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED ready for WARP🔹CMD deployment env decision.
 
 [IN PROGRESS]
 - WARP🔹CMD review of P8-E findings pending — decide on RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED deployment env vars, scope real CLOB execution lane.
