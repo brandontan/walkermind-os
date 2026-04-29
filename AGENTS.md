@@ -5,8 +5,8 @@
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walkermind-os
-Version: 2.4
-Last Updated: 2026-04-28 20:46 Asia/Jakarta
+Version: 2.5
+Last Updated: 2026-04-29 13:44 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
            workflow, and operational boundaries. All other files are
            supporting documents. When conflict exists, AGENTS.md wins.
@@ -493,6 +493,11 @@ On every new session, WARP🔹CMD must read in this order before any action:
 4. `{PROJECT_ROOT}/state/ROADMAP.md`
 5. `{PROJECT_ROOT}/state/WORKTODO.md`
 6. `{PROJECT_ROOT}/state/CHANGELOG.md`
+
+Agent environments: also read the relevant agent file before any action:
+- Ona Agent → `ONA.md`
+- Cursor Agent → `CURSOR.md`
+- Claude Code → `CLAUDE.md`
 
 After reading all six, WARP🔹CMD has full context:
 - Active project and current status

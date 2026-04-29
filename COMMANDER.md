@@ -5,8 +5,8 @@ For all system rules (tiers, claims, branch format, report/state/roadmap rules, 
 
 Rule priority: `AGENTS.md` > `PROJECT_REGISTRY.md` > `{PROJECT_ROOT}/state/PROJECT_STATE.md` > `{PROJECT_ROOT}/state/ROADMAP.md` > latest relevant forge report > this file.
 
-Version: 2.3
-Last Updated: 2026-04-29 08:07 Asia/Jakarta
+Version: 2.4
+Last Updated: 2026-04-29 13:44 Asia/Jakarta
 
 ---
 
@@ -479,7 +479,7 @@ Velocity check before any block / task / escalation:
 
 ### Blueprint guidance
 - Shortcut/mode outputs must stay aligned with `AGENTS.md` priority and must never override repo truth gates.
-- Use `docs/blueprint/crusaderbot_final_decisions.md` as the authoritative CrusaderBot final-decisions reference for shortcut guidance.
+- Use `docs/blueprint/crusaderbot.md` as the authoritative CrusaderBot architecture and final-decisions reference for shortcut guidance.
 - Use `docs/crusader_blueprint_v2.html` if present in repo as supplemental architecture-intent context only; it never overrides AGENTS/project/code truth.
 
 ### Interpretation rule for shortcut-only prompts
@@ -611,7 +611,7 @@ PROJECT_REGISTRY.md             <- project list and active status (repo root)
 docs/COMMANDER.md               <- this file
 docs/CLAUDE.md                  <- Claude Code agent rules
 docs/KNOWLEDGE_BASE.md          <- architecture, infra, API, conventions
-docs/blueprint/crusaderbot_final_decisions.md
+docs/blueprint/crusaderbot.md
 
 docs/templates/PROJECT_STATE_TEMPLATE.md
 docs/templates/ROADMAP_TEMPLATE.md

@@ -5,8 +5,8 @@
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walkermind-os
-Version: 1.1
-Last Updated: 2026-04-28 21:45 Asia/Jakarta
+Version: 1.2
+Last Updated: 2026-04-29 13:44 Asia/Jakarta
 
 ---
 
@@ -215,6 +215,7 @@ AGENTS.md                                    <- master rules (repo root)
 PROJECT_REGISTRY.md                          <- project list and active status (repo root)
 CURSOR.md                                    <- this file (repo root)
 CLAUDE.md                                    <- Claude Code agent rules (repo root)
+ONA.md                                       <- Ona Agent rules (repo root)
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md
 docs/templates/TPL_INTERACTIVE_REPORT.html
