@@ -179,7 +179,23 @@ class CapitalRiskGate:
 
         # 8. daily loss limit — day-scoped (Jakarta midnight reset), not lifetime
         state.reset_daily_pnl_if_needed()
-        if state.daily_realized_pnl <= self._config.daily_loss_limit_usd:
+        daily_pnl = state.daily_realized_pnl
+        _warn_threshold = self._config.daily_loss_limit_usd * 0.75
+        if daily_pnl <= _warn_threshold:
+            log.warning(
+                "capital_daily_loss_approaching_limit",
+                daily_realized_pnl=daily_pnl,
+                limit_usd=self._config.daily_loss_limit_usd,
+                warn_threshold_usd=_warn_threshold,
+                severity="WARNING",
+            )
+        if daily_pnl <= self._config.daily_loss_limit_usd:
+            log.error(
+                "capital_daily_loss_limit_tripped",
+                daily_realized_pnl=daily_pnl,
+                limit_usd=self._config.daily_loss_limit_usd,
+                severity="CRITICAL",
+            )
             return RiskDecision(False, "daily_loss_limit")
 
         return RiskDecision(True, "allowed")

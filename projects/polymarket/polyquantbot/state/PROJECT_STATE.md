@@ -1,5 +1,5 @@
-Last Updated : 2026-04-29 08:30
-Status       : P8-C WARP•SENTINEL MAJOR validation complete -- CONDITIONAL 78/100, 0 critical issues. Guard contract validated. FLAG-1 (daily_loss_limit lifetime PnL) is hard blocker for P8-D/P8-E before live activation. WARP🔹CMD review required before merge.
+Last Updated : 2026-04-29 21:15
+Status       : P8-D security + observability hardening FORGE complete -- FLAG-1 fixed (day-scoped daily_loss_limit), FLAG-2 accepted, /capital_status Telegram+API wired, admin audit log, capital-mode alerting, runbook updated. 45/45 tests passing. WARP•SENTINEL MAJOR validation required before merge.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -26,15 +26,15 @@ Status       : P8-C WARP•SENTINEL MAJOR validation complete -- CONDITIONAL 78/
 - Agent env file registration (WARP/register-agent-env-files) -- CURSOR.md and ONA.md registered in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md.
 - Sentinel timeout resilience (WARP/sentinel-timeout-resilience) -- timeout handling and chunking recovery rules updated in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/sentinel-timeout-resilience.md.
 - Commander PR comment rule (WARP/commander-pr-comment-rule) -- PR COMMENT AUTO-POST RULE added to COMMANDER.md, branch prohibition warning added to WARP•FORGE TASK TEMPLATE, docs/COMMANDER.md path refs fixed in AGENTS.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/commander-pr-comment-rule.md.
+- P8-D security + observability hardening (WARP/capital-readiness-p8d) -- FLAG-1 day-scoped daily_loss_limit fix, FLAG-2 accepted, /capital_status Telegram+API, admin audit log, capital-mode CRITICAL/WARNING alerts, permission boundary doc, runbook section 8; 45/45 tests (CR-01..CR-28). WARP•SENTINEL MAJOR validation required. Report: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8d.md.
 
 [NOT STARTED]
-- P8-D security + observability hardening (§53) -- per-user isolation, admin audit log, production alerting; clears SECURITY_HARDENING_VALIDATED gate.
 - P8-E capital validation + claim review (§54) -- dry-run, staged rollout, docs review, final sign-off; sets CAPITAL_MODE_CONFIRMED.
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
+- WARP•SENTINEL MAJOR validation required for P8-D. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8d.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8d.
 - WARP🔹CMD review and merge decision for P8-C. Sentinel: projects/polymarket/polyquantbot/reports/sentinel/capital-readiness-p8c.md. Verdict: CONDITIONAL 78/100. Branch: WARP/capital-readiness-p8c-2a76.
-- P8-D must fix daily_loss_limit to use day-scoped PnL (not lifetime realized_pnl) before P8-E can proceed. Files: server/core/public_beta_state.py, server/risk/capital_risk_gate.py.
 - WARP•SENTINEL MAJOR validation required for P8-B. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8b.
 - WARP•SENTINEL MAJOR validation required for P8-A. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8a.
 - WARP🔹CMD review required for register-agent-env-files. Source: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md. Tier: MINOR.
@@ -49,5 +49,5 @@ Status       : P8-C WARP•SENTINEL MAJOR validation complete -- CONDITIONAL 78/
 - Portfolio unrealized PnL relies on current_price in paper_positions -- live mark-to-market deferred to market data integration lane.
 - WalletCandidate financial fields (balance_usd, exposure_pct, drawdown_pct) default to 0.0 -- risk gate thresholds will not trigger in orchestration routing until market data integration is complete.
 - No migration runner configured -- 001_settlement_tables.sql must be applied manually or via operator tooling; auto-create in _apply_schema() remains the runtime path.
-- OperatorConsole.apply_admin_intervention() does not persist intervention record -- service layer callers must handle explicitly; Telegram /settlement_intervene reply surfaces this note.
+- OperatorConsole.apply_admin_intervention() does not persist intervention record to DB -- audit log emitted via structlog (operator_admin_intervention_audit) on every intervention; DB persistence deferred to P9 storage lane.
 - get_failed_batches() always returns [] -- batch results not persisted in current settlement persistence layer; /failed_batches Telegram reply acknowledges this explicitly.

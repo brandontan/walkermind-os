@@ -501,12 +501,12 @@ This is the last major capability layer.
 
 ### 53. Security and Observability Hardening
 
-- [ ] Harden secret handling
-- [ ] Harden permission model
-- [ ] Harden admin action guardrails
-- [ ] Add production-grade alerting
-- [ ] Add incident visibility
-- [ ] Prepare runbooks
+- [x] Harden secret handling (audit clean — no secrets in logs/responses/Telegram)
+- [x] Harden permission model (two-tier boundary documented; capital routes operator-key protected)
+- [x] Harden admin action guardrails (operator_admin_intervention_audit at single exit point)
+- [x] Add production-grade alerting (capital_mode_guard_blocked CRITICAL, capital_daily_loss_limit_tripped CRITICAL, capital_daily_loss_approaching_limit WARNING)
+- [x] Add incident visibility (/capital_status Telegram+API + runbook section 8)
+- [x] Prepare runbooks (operator_runbook.md section 8 — capital-mode incident response)
 
 ### 54. Capital Validation and Claim Review
 

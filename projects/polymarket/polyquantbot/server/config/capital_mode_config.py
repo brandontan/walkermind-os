@@ -192,6 +192,12 @@ class CapitalModeConfig:
         if self.trading_mode == "LIVE":
             missing = self._missing_gates()
             if missing:
+                log.error(
+                    "capital_mode_guard_blocked",
+                    missing_gates=missing,
+                    trading_mode=self.trading_mode,
+                    severity="CRITICAL",
+                )
                 raise CapitalModeGuardError(
                     f"Capital mode (LIVE) requires all gates enabled. "
                     f"Missing: {', '.join(missing)}. "
