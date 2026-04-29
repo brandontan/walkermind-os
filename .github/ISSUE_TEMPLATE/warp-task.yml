@@ -1,0 +1,63 @@
+name: WARP Task Brief
+description: Task directive from WARP🔹CMD to WARP🔸CORE
+title: "[WARP] "
+labels: ["warp-task"]
+body:
+  - type: dropdown
+    id: role
+    attributes:
+      label: Role
+      description: Which WARP🔸CORE role executes this task?
+      options:
+        - WARP•FORGE
+        - WARP•SENTINEL
+        - WARP•ECHO
+    validations:
+      required: true
+
+  - type: input
+    id: branch
+    attributes:
+      label: Branch
+      description: "Must be WARP/{feature} format"
+      placeholder: "WARP/feature-name"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Validation Tier
+      options:
+        - MINOR
+        - STANDARD
+        - MAJOR
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What exactly needs to be done. Be specific — no scope expansion allowed.
+      placeholder: "Files, modules, and boundaries in scope..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: done_criteria
+    attributes:
+      label: Done Criteria
+      description: How WARP🔹CMD will verify this task is complete.
+      placeholder: "- [ ] criterion 1\n- [ ] criterion 2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Additional context, forge report path, or references (optional).
+      placeholder: "Forge report: projects/polymarket/polyquantbot/reports/forge/..."
+    validations:
+      required: false
