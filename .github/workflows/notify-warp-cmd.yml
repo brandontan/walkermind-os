@@ -16,6 +16,7 @@ jobs:
         env:
           WARP_WEBHOOK_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           EVENT_ACTION: ${{ github.event.action }}
         run: |
@@ -27,6 +28,7 @@ jobs:
           payload = {
               "secret":     os.environ["WARP_WEBHOOK_SECRET"],
               "pr_number":  os.environ.get("PR_NUMBER", "?"),
+              "pr_title":   os.environ.get("PR_TITLE", ""),
               "pr_url":     os.environ.get("PR_URL", ""),
               "event":      os.environ.get("EVENT_ACTION", "update"),
           }
