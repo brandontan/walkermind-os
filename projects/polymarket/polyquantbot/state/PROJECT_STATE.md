@@ -1,5 +1,5 @@
-Last Updated : 2026-04-29 21:15
-Status       : P8-D security + observability hardening FORGE complete -- FLAG-1 fixed (day-scoped daily_loss_limit), FLAG-2 accepted, /capital_status Telegram+API wired, admin audit log, capital-mode alerting, runbook updated. 45/45 tests passing. WARP•SENTINEL MAJOR validation required before merge.
+Last Updated : 2026-04-29 22:05
+Status       : P8-D WARP•SENTINEL MAJOR validation COMPLETE -- APPROVED 97/100, 0 critical issues. FLAG-1 fix, /capital_status, audit log, alerts all validated. WARP🔹CMD merge decision required for PR #800.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -26,14 +26,14 @@ Status       : P8-D security + observability hardening FORGE complete -- FLAG-1 
 - Agent env file registration (WARP/register-agent-env-files) -- CURSOR.md and ONA.md registered in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md.
 - Sentinel timeout resilience (WARP/sentinel-timeout-resilience) -- timeout handling and chunking recovery rules updated in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/sentinel-timeout-resilience.md.
 - Commander PR comment rule (WARP/commander-pr-comment-rule) -- PR COMMENT AUTO-POST RULE added to COMMANDER.md, branch prohibition warning added to WARP•FORGE TASK TEMPLATE, docs/COMMANDER.md path refs fixed in AGENTS.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/commander-pr-comment-rule.md.
-- P8-D security + observability hardening (WARP/capital-readiness-p8d) -- FLAG-1 day-scoped daily_loss_limit fix, FLAG-2 accepted, /capital_status Telegram+API, admin audit log, capital-mode CRITICAL/WARNING alerts, permission boundary doc, runbook section 8; 45/45 tests (CR-01..CR-28). WARP•SENTINEL MAJOR validation required. Report: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8d.md.
+- P8-D security + observability hardening (WARP/capital-readiness-p8d) -- WARP•SENTINEL MAJOR APPROVED 97/100, 0 critical. FLAG-1 fix correct end-to-end, /capital_status operator-key protected, audit log single-exit confirmed, alert thresholds validated, CR-28 regression proof passes. WARP🔹CMD merge decision pending for PR #800. Sentinel: projects/polymarket/polyquantbot/reports/sentinel/capital-readiness-p8d.md.
 
 [NOT STARTED]
 - P8-E capital validation + claim review (§54) -- dry-run, staged rollout, docs review, final sign-off; sets CAPITAL_MODE_CONFIRMED.
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
-- WARP•SENTINEL MAJOR validation required for P8-D. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8d.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8d.
+- WARP🔹CMD merge decision for P8-D (PR #800). Sentinel: projects/polymarket/polyquantbot/reports/sentinel/capital-readiness-p8d.md. Verdict: APPROVED 97/100. Branch: WARP/capital-readiness-p8d.
 - WARP🔹CMD review and merge decision for P8-C. Sentinel: projects/polymarket/polyquantbot/reports/sentinel/capital-readiness-p8c.md. Verdict: CONDITIONAL 78/100. Branch: WARP/capital-readiness-p8c-2a76.
 - WARP•SENTINEL MAJOR validation required for P8-B. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8b.
 - WARP•SENTINEL MAJOR validation required for P8-A. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8a.
