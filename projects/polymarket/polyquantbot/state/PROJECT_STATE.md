@@ -25,6 +25,7 @@ Status       : P8-C WARP•SENTINEL MAJOR validation complete -- CONDITIONAL 78/
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
 - Agent env file registration (WARP/register-agent-env-files) -- CURSOR.md and ONA.md registered in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md.
 - Sentinel timeout resilience (WARP/sentinel-timeout-resilience) -- timeout handling and chunking recovery rules updated in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/sentinel-timeout-resilience.md.
+- Commander PR comment rule (WARP/commander-pr-comment-rule) -- PR COMMENT AUTO-POST RULE added to COMMANDER.md, branch prohibition warning added to WARP•FORGE TASK TEMPLATE, docs/COMMANDER.md path refs fixed in AGENTS.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/commander-pr-comment-rule.md.
 
 [NOT STARTED]
 - P8-D security + observability hardening (§53) -- per-user isolation, admin audit log, production alerting; clears SECURITY_HARDENING_VALIDATED gate.
@@ -38,6 +39,7 @@ Status       : P8-C WARP•SENTINEL MAJOR validation complete -- CONDITIONAL 78/
 - WARP•SENTINEL MAJOR validation required for P8-A. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8a.
 - WARP🔹CMD review required for register-agent-env-files. Source: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md. Tier: MINOR.
 - WARP🔹CMD review required for sentinel-timeout-resilience. Source: projects/polymarket/polyquantbot/reports/forge/sentinel-timeout-resilience.md. Tier: MINOR.
+- WARP🔹CMD review required for commander-pr-comment-rule. Source: projects/polymarket/polyquantbot/reports/forge/commander-pr-comment-rule.md. Tier: MINOR.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() raises LiveExecutionBlockedError in live mode (P8-C hardened) -- real market data integration still deferred; unrealized PnL will not update in live mode until implemented.
