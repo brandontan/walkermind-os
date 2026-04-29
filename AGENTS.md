@@ -1083,6 +1083,15 @@ If any fails: do not validate, return to WARP•FORGE.
 
 Anti-loop: max 2 WARP•SENTINEL runs per task. Run 3+ requires explicit Mr. Walker approval. WARP•FORGE should fix all findings in one pass before rerun.
 
+### Stream timeout recovery
+If a previous WARP•SENTINEL session ended with API stream timeout:
+- Do NOT re-run validation from scratch
+- Check what report sections were already written to disk
+- Resume from last confirmed written section
+- If nothing written: re-run Phase 0 checks only, then continue
+- Never re-read source files already in session context
+- Recovery counts as run 1 toward the 2-run anti-loop limit
+
 ### Report rules
 
 Path:
@@ -1575,6 +1584,10 @@ Never create a PR mid-task.
 - Do not chain more than 3 read operations without an intermediate output step.
 - If a single file requires heavy rewriting (full replacement), treat that file as its own chunk.
 - Prefer **targeted edits** (str_replace / patch) over full file rewrites whenever possible.
+- WARP•SENTINEL report: max 150 lines per write call.
+  Split into 2 calls (sections 1–5, then 6–end).
+  Signal CHUNK [N] COMPLETE between calls. Never write full
+  report in one tool call.
 
 ---
 
