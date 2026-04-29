@@ -5,7 +5,7 @@ For all system rules (tiers, claims, branch format, report/state/roadmap rules, 
 
 Rule priority: `AGENTS.md` > `PROJECT_REGISTRY.md` > `{PROJECT_ROOT}/state/PROJECT_STATE.md` > `{PROJECT_ROOT}/state/ROADMAP.md` > latest relevant forge report > this file.
 
-Version: 2.4
+Version: 2.5
 Last Updated: 2026-04-29 13:44 Asia/Jakarta
 
 ---
@@ -608,8 +608,10 @@ Never decide from report summary alone when code truth matters.
 ```text
 AGENTS.md                       <- master rules (repo root, single source of truth)
 PROJECT_REGISTRY.md             <- project list and active status (repo root)
-docs/COMMANDER.md               <- this file
-docs/CLAUDE.md                  <- Claude Code agent rules
+COMMANDER.md                    <- this file (repo root)
+CLAUDE.md                       <- Claude Code agent rules (repo root)
+CURSOR.md                       <- Cursor Agent rules (repo root)
+ONA.md                          <- Ona Agent rules (repo root)
 docs/KNOWLEDGE_BASE.md          <- architecture, infra, API, conventions
 docs/blueprint/crusaderbot.md
 
