@@ -1,5 +1,5 @@
-Last Updated : 2026-04-28 21:00
-Status       : P8-B capital risk controls hardening built -- CapitalRiskGate (config-driven limits, 5-gate LIVE guard) + WalletFinancialProvider wiring + OrchestratorService enrichment hook; 12/12 tests (CR-13..CR-22), 35/35 total (P8-A+B); WARP•SENTINEL MAJOR validation required before merge.
+Last Updated : 2026-04-29 07:24
+Status       : P8-B capital risk controls hardening built -- CapitalRiskGate (config-driven limits, 5-gate LIVE guard) + WalletFinancialProvider wiring + OrchestratorService enrichment hook; 12/12 tests (CR-13..CR-22), 35/35 total (P8-A+B); WARP•SENTINEL MAJOR validation required before merge. MINOR rules lane WARP/sentinel-timeout-resilience updates timeout recovery guidance in AGENTS.md and CLAUDE.md for WARP•SENTINEL stream idle timeout resilience.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -23,6 +23,7 @@ Status       : P8-B capital risk controls hardening built -- CapitalRiskGate (co
 - Legacy string cleanup (WARP/cleanup-legacy-refs) -- WARP/cleanup-legacy-refs branch opened, forge report at projects/polymarket/polyquantbot/reports/forge/cleanup-legacy-refs.md; WARP CMD review pending.
 - Structure build continues under forge-merge mode; do not claim public-ready, live-trading-ready, or production-capital-ready until Priority 8 SENTINEL MAJOR sweep is complete.
 - Agent env file registration (WARP/register-agent-env-files) -- CURSOR.md and ONA.md registered in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md.
+- Sentinel timeout resilience (WARP/sentinel-timeout-resilience) -- timeout handling and chunking recovery rules updated in AGENTS.md and CLAUDE.md; WARP🔹CMD review pending. Report: projects/polymarket/polyquantbot/reports/forge/sentinel-timeout-resilience.md.
 
 [NOT STARTED]
 - P8-C live execution readiness audit (§52) -- validate live CLOB path, replace price_updater stub, wire allow_real_settlement; clears EXECUTION_PATH_VALIDATED gate.
@@ -34,6 +35,7 @@ Status       : P8-B capital risk controls hardening built -- CapitalRiskGate (co
 - WARP•SENTINEL MAJOR validation required for P8-B. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8b.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8b.
 - WARP•SENTINEL MAJOR validation required for P8-A. Source: projects/polymarket/polyquantbot/reports/forge/capital-readiness-p8a.md. Tier: MAJOR. Branch: WARP/capital-readiness-p8a.
 - WARP🔹CMD review required for register-agent-env-files. Source: projects/polymarket/polyquantbot/reports/forge/register-agent-env-files.md. Tier: MINOR.
+- WARP🔹CMD review required for sentinel-timeout-resilience. Source: projects/polymarket/polyquantbot/reports/forge/sentinel-timeout-resilience.md. Tier: MINOR.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.price_updater() is a no-op stub -- unrealized PnL updates require real market price polling (deferred to post-Priority-3 market data integration lane).

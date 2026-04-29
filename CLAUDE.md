@@ -214,9 +214,22 @@ Bash rules:
 - Never run pip list or env dumps unless debugging a specific error
 
 ### Timeout Handling
-- Always set `ANTHROPIC_TIMEOUT=300000` before running long tasks
+- Always set ANTHROPIC_TIMEOUT=300000 before running long tasks
 - If stream idle timeout occurs: break task into smaller atomic units
 - Max file context per session: 5 files or ~2000 lines total
+- WARP•SENTINEL report write > 150 lines → split into 2 write calls:
+  Call A: sections 1–5 (Environment through Score Breakdown)
+  Call B: sections 6–end (Critical Issues through Deferred Backlog)
+  Signal between calls before proceeding.
+- After every 2 sequential read operations, produce intermediate
+  output before next read or write.
+
+### On Stream Timeout Recovery (SENTINEL)
+- Do NOT re-run validation from scratch
+- Check what sections were already written to disk
+- Resume from last confirmed written section
+- If nothing written: re-run from Phase 0 only
+- Never re-read all source files again if already in session context
 
 ### Task Chunking Rules
 - Large refactor → per-file basis, one file per prompt
@@ -753,6 +766,10 @@ Never create a PR mid-task.
 - Do not chain more than 3 read operations without an intermediate output step.
 - If a single file requires heavy rewriting (full replacement), treat that file as its own chunk.
 - Prefer **targeted edits** (str_replace / patch) over full file rewrites whenever possible.
+- WARP•SENTINEL report: max 150 lines per write call.
+  Split into 2 calls (sections 1–5, then 6–end).
+  Signal CHUNK [N] COMPLETE between calls. Never write full
+  report in one tool call.
 
 ---
 ## PR Size & Pagination Protocol
