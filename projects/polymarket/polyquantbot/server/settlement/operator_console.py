@@ -164,85 +164,100 @@ class OperatorConsole:
 
         action = intervention.action
         prev_status = current_result.status
+        result: AdminInterventionResult
 
         if action == "force_cancel":
             if prev_status in _TERMINAL_STATUSES:
                 bound.warning("operator_console_intervention_blocked_terminal")
-                return AdminInterventionResult(
+                result = AdminInterventionResult(
                     workflow_id=intervention.workflow_id,
                     action=action,
                     success=False,
                     previous_status=prev_status,
                     blocked_reason="already_terminal",
                 )
-            bound.info("operator_console_force_cancel_applied")
-            return AdminInterventionResult(
-                workflow_id=intervention.workflow_id,
-                action=action,
-                success=True,
-                previous_status=prev_status,
-                new_status=SETTLEMENT_STATUS_CANCELLED,
-            )
+            else:
+                bound.info("operator_console_force_cancel_applied")
+                result = AdminInterventionResult(
+                    workflow_id=intervention.workflow_id,
+                    action=action,
+                    success=True,
+                    previous_status=prev_status,
+                    new_status=SETTLEMENT_STATUS_CANCELLED,
+                )
 
-        if action == "force_retry":
+        elif action == "force_retry":
             if prev_status in _FORCE_RETRY_BLOCKED_STATUSES:
                 bound.warning("operator_console_intervention_blocked_terminal_retry")
-                return AdminInterventionResult(
+                result = AdminInterventionResult(
                     workflow_id=intervention.workflow_id,
                     action=action,
                     success=False,
                     previous_status=prev_status,
                     blocked_reason="already_terminal",
                 )
-            if RetryEngine.is_fatal(current_result.blocked_reason):
+            elif RetryEngine.is_fatal(current_result.blocked_reason):
                 bound.warning(
                     "operator_console_intervention_blocked_fatal",
                     blocked_reason=current_result.blocked_reason,
                 )
-                return AdminInterventionResult(
+                result = AdminInterventionResult(
                     workflow_id=intervention.workflow_id,
                     action=action,
                     success=False,
                     previous_status=prev_status,
                     blocked_reason="fatal_block_no_retry",
                 )
-            bound.info("operator_console_force_retry_applied")
-            return AdminInterventionResult(
-                workflow_id=intervention.workflow_id,
-                action=action,
-                success=True,
-                previous_status=prev_status,
-                new_status=SETTLEMENT_STATUS_PENDING,
-            )
+            else:
+                bound.info("operator_console_force_retry_applied")
+                result = AdminInterventionResult(
+                    workflow_id=intervention.workflow_id,
+                    action=action,
+                    success=True,
+                    previous_status=prev_status,
+                    new_status=SETTLEMENT_STATUS_PENDING,
+                )
 
-        if action == "force_complete":
+        elif action == "force_complete":
             if prev_status in _TERMINAL_STATUSES:
                 bound.warning("operator_console_intervention_blocked_already_complete")
-                return AdminInterventionResult(
+                result = AdminInterventionResult(
                     workflow_id=intervention.workflow_id,
                     action=action,
                     success=False,
                     previous_status=prev_status,
                     blocked_reason="already_terminal",
                 )
-            # Retry-state is intentionally NOT checked here. apply_admin_intervention
-            # receives only the current workflow result, not retry history — callers
-            # that need to guard against active retries must do so before calling this
-            # method. Operators use force_complete precisely to skip the retry loop.
-            bound.info("operator_console_force_complete_applied")
-            return AdminInterventionResult(
+            else:
+                # Retry-state is intentionally NOT checked here. apply_admin_intervention
+                # receives only the current workflow result, not retry history — callers
+                # that need to guard against active retries must do so before calling this
+                # method. Operators use force_complete precisely to skip the retry loop.
+                bound.info("operator_console_force_complete_applied")
+                result = AdminInterventionResult(
+                    workflow_id=intervention.workflow_id,
+                    action=action,
+                    success=True,
+                    previous_status=prev_status,
+                    new_status=SETTLEMENT_STATUS_COMPLETED,
+                )
+
+        else:
+            bound.warning("operator_console_unknown_action", action=action)
+            result = AdminInterventionResult(
                 workflow_id=intervention.workflow_id,
                 action=action,
-                success=True,
+                success=False,
                 previous_status=prev_status,
-                new_status=SETTLEMENT_STATUS_COMPLETED,
+                blocked_reason=f"unknown_action: {action}",
             )
 
-        bound.warning("operator_console_unknown_action", action=action)
-        return AdminInterventionResult(
-            workflow_id=intervention.workflow_id,
-            action=action,
-            success=False,
-            previous_status=prev_status,
-            blocked_reason=f"unknown_action: {action}",
+        # Audit record — single exit point ensures every intervention is recorded.
+        bound.info(
+            "operator_admin_intervention_audit",
+            success=result.success,
+            previous_status=result.previous_status,
+            new_status=result.new_status,
+            blocked_reason=result.blocked_reason,
         )
+        return result

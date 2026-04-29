@@ -7,8 +7,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from starlette import status as http_status
 from pydantic import BaseModel
 
+from projects.polymarket.polyquantbot.server.config.capital_mode_config import CapitalModeConfig
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
+from projects.polymarket.polyquantbot.server.risk.capital_risk_gate import CapitalRiskGate
 
 log = structlog.get_logger(__name__)
 _OPERATOR_API_KEY_HEADER = "X-Operator-Api-Key"
@@ -288,5 +290,25 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
     @router.get("/social")
     async def social(topic: str) -> dict[str, object]:
         return await falcon.social(topic=topic)
+
+    @router.get("/capital_status")
+    async def capital_status(
+        __: None = Depends(_require_operator_api_key),
+    ) -> dict[str, object]:
+        """Return CapitalRiskGate status snapshot for operator visibility.
+
+        Surfaces all capital-mode gate booleans, live risk metrics (daily PnL,
+        drawdown, exposure), and limit thresholds.  Operator-only — requires
+        X-Operator-Api-Key header.
+        """
+        try:
+            cfg = CapitalModeConfig.from_env()
+            gate = CapitalRiskGate(config=cfg)
+            snapshot = gate.status(STATE)
+            log.info("capital_status_requested", mode=snapshot.get("mode"), capital_mode_allowed=snapshot.get("capital_mode_allowed"))
+            return {"ok": True, "data": snapshot}
+        except Exception as exc:
+            log.error("capital_status_error", error=str(exc))
+            return {"ok": False, "detail": "capital_status_unavailable", "error": str(exc)}
 
     return router

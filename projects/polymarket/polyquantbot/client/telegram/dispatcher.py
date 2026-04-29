@@ -63,6 +63,8 @@ class TelegramDispatcher:
         "/retry_status",
         "/failed_batches",
         "/settlement_intervene",
+        # P8-D capital mode operator commands
+        "/capital_status",
     }
 
     def __init__(self, backend: CrusaderBackendClient, operator_chat_id: str = "") -> None:
@@ -366,6 +368,39 @@ class TelegramDispatcher:
                     f"• Applied: {d.get('success', False)}\n"
                     f"• Resulting status: {d.get('new_status', 'unknown')}\n"
                     f"• Note: intervention record is not persisted in current layer."
+                ),
+            )
+
+        # ── P8-D capital mode operator commands ──────────────────────────────
+        if command == "/capital_status":
+            data = await self._backend.beta_get("/beta/capital_status")
+            if not data.get("ok"):
+                return DispatchResult(
+                    outcome="ok",
+                    reply_text=f"Capital status: unavailable — {data.get('detail', 'error')}",
+                )
+            d = data.get("data", {})
+            gates = d.get("gates", {})
+            gate_lines = "\n".join(
+                f"  • {k}: {'✅' if v else '❌'}" for k, v in gates.items()
+            ) if gates else "  • (no gate data)"
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "Capital gate status\n"
+                    f"• Mode: {d.get('mode', 'unknown')}\n"
+                    f"• Capital mode allowed: {d.get('capital_mode_allowed', False)}\n"
+                    f"• Kill switch: {d.get('kill_switch', False)}\n"
+                    f"• Kelly fraction: {d.get('kelly_fraction', 'n/a')}\n"
+                    f"• Daily PnL: {d.get('daily_pnl_usd', 0.0)} USD  "
+                    f"(limit: {d.get('daily_loss_limit_usd', 'n/a')}  ok: {d.get('daily_pnl_ok', False)})\n"
+                    f"• Drawdown: {d.get('drawdown_pct', 0.0)}%  "
+                    f"(limit: {d.get('drawdown_limit_pct', 'n/a')}%  ok: {d.get('drawdown_ok', False)})\n"
+                    f"• Exposure: {d.get('exposure_pct', 0.0)}%  "
+                    f"(limit: {d.get('exposure_limit_pct', 'n/a')}%  ok: {d.get('exposure_ok', False)})\n"
+                    f"• Open positions: {d.get('open_positions', 0)}\n"
+                    "Gate booleans:\n"
+                    f"{gate_lines}"
                 ),
             )
 

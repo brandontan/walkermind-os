@@ -67,3 +67,53 @@ Pass condition (bounded scope):
 - No production-capital readiness claims.
 - Public messaging remains paper-only.
 - Any capital/live-trading claim escalation requires a separate validated lane.
+
+## 8) Capital mode incident response (P8-D)
+
+Capital mode uses a 5-gate guard contract. All five must be `true` for LIVE mode to activate.
+In PAPER mode the gate contract is not enforced — only risk bounds apply.
+
+### 8.1 Alert events and severity
+
+| Log event | Severity | Meaning |
+|---|---|---|
+| `capital_mode_guard_blocked` | CRITICAL | LIVE mode attempted with one or more gates off. Check env vars. |
+| `capital_daily_loss_limit_tripped` | CRITICAL | Day-scoped PnL hit -$2,000 hard stop. Trading halted for the day. |
+| `capital_daily_loss_approaching_limit` | WARNING | Day-scoped PnL reached 75% of daily limit (-$1,500). Monitor closely. |
+| `operator_admin_intervention_audit` | INFO | Audit record for every `apply_admin_intervention()` call. |
+
+### 8.2 Daily loss limit trip procedure
+
+1. Gate trips automatically — no new signals accepted until midnight Jakarta (UTC+7).
+2. Check log: `fly logs -a crusaderbot | grep capital_daily_loss_limit_tripped`
+3. Review today's PnL via Telegram: `/capital_status` (operator chat only)
+4. Do NOT manually reset `daily_open_realized_pnl` — the reset happens automatically at midnight Jakarta.
+5. If override required: stop the worker via `/kill`, investigate, restart only after root cause is resolved.
+
+### 8.3 Capital gate guard trip procedure
+
+Symptom: `capital_mode_guard_blocked` in logs; worker may raise `CapitalModeGuardError`.
+
+1. Run `/capital_status` in operator Telegram to see which gates are off.
+2. Check `ENABLE_LIVE_TRADING`, `CAPITAL_MODE_CONFIRMED`, `RISK_CONTROLS_VALIDATED`,
+   `EXECUTION_PATH_VALIDATED`, `SECURITY_HARDENING_VALIDATED` env vars in Fly secrets.
+3. A gate should only be set to `true` after the corresponding SENTINEL MAJOR validation is approved.
+4. If gate was accidentally set: `fly secrets set <KEY>=false -a crusaderbot && fly deploy --strategy immediate`.
+
+### 8.4 `/capital_status` command reference
+
+Command: `/capital_status` (operator Telegram only — requires OPERATOR_CHAT_ID match)
+
+Returns:
+- All 5 gate booleans
+- Current trading mode (PAPER / LIVE)
+- Daily PnL vs. limit
+- Drawdown and exposure vs. limits
+- Kill switch state
+- Kelly fraction (must be 0.25)
+
+### 8.5 Permission model boundary
+
+- User routes: session-authenticated via `X-Session-Id` / `X-Auth-*` trusted headers.
+- Capital/operator routes: `X-Operator-Api-Key` header required.
+- Portfolio routes: hardcode `paper_user` scope — per-user binding deferred to Priority 9.

@@ -8,7 +8,7 @@ Coverage:
   CR-15  CapitalRiskGate.evaluate() rejects non-positive edge
   CR-16  CapitalRiskGate.evaluate() rejects drawdown > config.drawdown_limit_pct
   CR-17  CapitalRiskGate.evaluate() rejects exposure >= config.max_position_fraction
-  CR-18  CapitalRiskGate.evaluate() rejects realized_pnl <= config.daily_loss_limit_usd
+  CR-18  CapitalRiskGate.evaluate() rejects daily_realized_pnl <= config.daily_loss_limit_usd
   CR-19  CapitalRiskGate.evaluate() allows signal when all conditions clear (PAPER mode)
   CR-20  CapitalRiskGate.evaluate() raises CapitalModeGuardError in LIVE mode with gates off
   CR-21  enrich_candidate() populates financial fields from WalletFinancialProvider
@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from unittest.mock import patch
+from datetime import date
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -181,23 +182,49 @@ def test_cr17_exposure_cap_rejects() -> None:
 
 # ── CR-18: daily loss limit breached → rejected ───────────────────────────────
 
+_CR18_DAY = date(2026, 4, 29)
+_CR18_MODULE = "projects.polymarket.polyquantbot.server.core.public_beta_state._dt"
+
+
+def _cr18_dt_mock() -> MagicMock:
+    m = MagicMock()
+    m.now.return_value.date.return_value = _CR18_DAY
+    return m
+
+
+def _day_state(daily_loss: float) -> "PublicBetaState":
+    """Return a state where daily_realized_pnl == daily_loss.
+
+    Sets daily_reset_date so reset_daily_pnl_if_needed() is a no-op during evaluate().
+    """
+    state = _clean_state(
+        realized_pnl=daily_loss,
+        daily_open_realized_pnl=0.0,
+        daily_reset_date=_CR18_DAY,
+    )
+    return state
+
+
 def test_cr18_daily_loss_limit_rejects() -> None:
     cfg = _paper_cfg()
     gate = CapitalRiskGate(config=cfg)
-    # one dollar above limit passes
-    above_limit = _clean_state(realized_pnl=cfg.daily_loss_limit_usd + 1.0)
-    assert gate.evaluate(_good_signal(), above_limit).allowed is True
 
-    # exactly at limit → rejected (state.realized_pnl <= limit triggers rejection)
-    at_limit = _clean_state(realized_pnl=cfg.daily_loss_limit_usd)
-    decision = gate.evaluate(_good_signal(), at_limit)
-    assert decision.allowed is False
-    assert decision.reason == "daily_loss_limit"
+    with patch(_CR18_MODULE, _cr18_dt_mock()):
+        # one dollar above limit → allowed
+        above_limit = _day_state(cfg.daily_loss_limit_usd + 1.0)
+        assert gate.evaluate(_good_signal(), above_limit).allowed is True
 
-    below_limit = _clean_state(realized_pnl=cfg.daily_loss_limit_usd - 100.0)
-    decision2 = gate.evaluate(_good_signal(), below_limit)
-    assert decision2.allowed is False
-    assert decision2.reason == "daily_loss_limit"
+        # exactly at limit → rejected (daily_realized_pnl <= limit)
+        at_limit = _day_state(cfg.daily_loss_limit_usd)
+        decision = gate.evaluate(_good_signal(), at_limit)
+        assert decision.allowed is False
+        assert decision.reason == "daily_loss_limit"
+
+        # below limit → rejected
+        below_limit = _day_state(cfg.daily_loss_limit_usd - 100.0)
+        decision2 = gate.evaluate(_good_signal(), below_limit)
+        assert decision2.allowed is False
+        assert decision2.reason == "daily_loss_limit"
 
 
 # ── CR-19: all clear in PAPER mode → allowed ─────────────────────────────────

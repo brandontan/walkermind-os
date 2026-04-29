@@ -43,9 +43,7 @@ jobs:
               with urllib.request.urlopen(req, timeout=15) as resp:
                   print(f"OK: {json.loads(resp.read())}")
           except urllib.error.HTTPError as e:
-              print(f"HTTP {e.code}: {e.read().decode()}")
-              exit(1)
+              print(f"WARN: HTTP {e.code}: {e.read().decode()}")
           except Exception as e:
-              print(f"ERROR: {e}")
-              exit(1)
+              print(f"WARN: {e}")
           EOF

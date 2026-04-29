@@ -1,4 +1,13 @@
-"""FastAPI dependencies for trusted auth/session scope derivation."""
+"""FastAPI dependencies for trusted auth/session scope derivation.
+
+Permission model (P8-D boundary):
+  - User routes:     get_authenticated_scope() — reads X-Session-Id / X-Auth-* trusted
+                     headers set by the session service; binds requests to tenant+user scope.
+  - Operator routes: _require_operator_api_key() in public_beta_routes.py — key-based gate
+                     for capital-mode and admin surfaces (system-wide, not per-user).
+  - Portfolio routes: hardcode tenant_id=system / user_id=paper_user (pre-P9 known issue).
+                     Full per-user route binding is deferred to multi-user rollout (Priority 9).
+"""
 from __future__ import annotations
 
 from fastapi import Header, HTTPException, Request
