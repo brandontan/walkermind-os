@@ -1,4 +1,4 @@
-Last Updated : 2026-04-30 06:07
+Last Updated : 2026-04-30 06:10
 Status       : P8-E complete. Dry-run PASS 4/4. P8 tests PASS 70/70. Docs audit clean. Boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET. EXECUTION_PATH_VALIDATED unmet — real CLOB execution path not built. RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED ready for WARP🔹CMD deployment env decision. No live-trading-ready or production-capital-ready claim.
 
 [COMPLETED]
@@ -33,3 +33,4 @@ Status       : P8-E complete. Dry-run PASS 4/4. P8 tests PASS 70/70. Docs audit 
 - No migration runner configured -- 001_settlement_tables.sql must be applied manually or via operator tooling; auto-create in _apply_schema() remains the runtime path.
 - OperatorConsole.apply_admin_intervention() does not persist intervention record to DB -- audit log emitted via structlog (operator_admin_intervention_audit) on every intervention; DB persistence deferred to P9 storage lane.
 - get_failed_batches() always returns [] -- batch results not persisted in current settlement persistence layer; /failed_batches Telegram reply acknowledges this explicitly.
+
