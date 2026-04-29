@@ -6,6 +6,8 @@
 
 2026-04-30 05:19 | WARP/capital-validation-p8e | P8-E: §54 capital validation + claim review — dry-run PASS 4/4, 70/70 tests, docs audit clean (no overclaim), boundary_registry 2 surfaces NEEDS_HARDENING→BLOCKED. CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet). Tier: STANDARD.
 
+2026-04-30 06:00 | WARP/repo-truth-sync-p8e | Repo truth sync post P8-E: ROADMAP.md active project summary + current focus updated (Phase 10 cleanup label removed; P8-E state as current truth); WORKTODO.md Simple Execution Order P8-E pending removed + WARP🔹CMD review next step added. Docs/state only — no runtime changes. Tier: MINOR.
+
 2026-04-29 00:54 | WARP/capital-readiness-p8c-2a76 | P8-C: §52 live execution readiness -- LiveExecutionGuard (5-gate + provider check), disable_live_execution rollback, PaperBetaWorker live-guard wiring + price_updater hardened, PortfolioFinancialProvider, settlement_policy_from_capital_config. 23/23 tests (CR-23..CR-35). 58/58 total (P8-A+B+C). Tier: MAJOR. WARP•SENTINEL validation required before merge.
 
 2026-04-28 21:00 | WARP/capital-readiness-p8b | P8-B: §51 capital risk controls hardening — CapitalRiskGate (config-driven limits, 5-gate LIVE guard, kill_switch first, drawdown/exposure/daily-loss enforced from CapitalModeConfig) + WalletFinancialProvider protocol + enrich_candidate wiring + OrchestratorService enrichment hook. boundary_registry PaperRiskGate + WalletCandidate.financial_fields_zero updated. 12/12 tests (CR-13..CR-22). WORKTODO §51 ticked. Tier: MAJOR. WARP•SENTINEL validation required before merge.
