@@ -133,7 +133,7 @@ class CapitalRiskGate:
 
         Args:
             signal: CandidateSignal with edge, liquidity, signal_id.
-            state:  Live PublicBetaState (kill_switch, drawdown, exposure, realized_pnl).
+            state:  Live PublicBetaState (kill_switch, drawdown, exposure, daily_realized_pnl).
 
         Returns:
             RiskDecision(allowed=True, reason="allowed") when all checks pass.
@@ -173,8 +173,9 @@ class CapitalRiskGate:
         if state.exposure >= self._config.max_position_fraction:
             return RiskDecision(False, "exposure_cap")
 
-        # 8. daily loss limit (from config — must be negative; breached when pnl <= limit)
-        if state.realized_pnl <= self._config.daily_loss_limit_usd:
+        # 8. daily loss limit — day-scoped (Jakarta midnight reset), not lifetime
+        state.reset_daily_pnl_if_needed()
+        if state.daily_realized_pnl <= self._config.daily_loss_limit_usd:
             return RiskDecision(False, "daily_loss_limit")
 
         return RiskDecision(True, "allowed")
@@ -202,9 +203,9 @@ class CapitalRiskGate:
             "exposure_ok": state.exposure < self._config.max_position_fraction,
             "min_edge": _MIN_EDGE,
             "liquidity_floor_usd": self._config.min_liquidity_usd,
-            "daily_pnl_usd": round(state.realized_pnl, 2),
+            "daily_pnl_usd": round(state.daily_realized_pnl, 2),
             "daily_loss_limit_usd": self._config.daily_loss_limit_usd,
-            "daily_pnl_ok": state.realized_pnl > self._config.daily_loss_limit_usd,
+            "daily_pnl_ok": state.daily_realized_pnl > self._config.daily_loss_limit_usd,
             "last_risk_reason": state.last_risk_reason,
             "wallet_cash": state.wallet_cash,
             "wallet_equity": state.wallet_equity,

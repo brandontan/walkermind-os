@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
+from datetime import datetime as _dt
+from zoneinfo import ZoneInfo
 
 
 @dataclass
@@ -43,6 +46,10 @@ class PublicBetaState:
     kill_switch: bool = False
     pnl: float = 0.0
     realized_pnl: float = 0.0
+    # Baseline lifetime realized_pnl captured at day-open for day-scoped tracking.
+    # Reset each Jakarta midnight via reset_daily_pnl_if_needed().
+    daily_open_realized_pnl: float = 0.0
+    daily_reset_date: date | None = None
     drawdown: float = 0.0
     exposure: float = 0.0
     last_risk_reason: str = ""
@@ -52,6 +59,25 @@ class PublicBetaState:
     positions: list[PaperPosition] = field(default_factory=list)
     processed_signals: set[str] = field(default_factory=set)
     worker_runtime: WorkerRuntimeStatus = field(default_factory=WorkerRuntimeStatus)
+
+    @property
+    def daily_realized_pnl(self) -> float:
+        """PnL realized since the last Jakarta-midnight reset.
+
+        On first use or after any restart the baseline is initialised to the
+        current lifetime total, so the day always opens at 0.0.
+        """
+        return round(self.realized_pnl - self.daily_open_realized_pnl, 4)
+
+    def reset_daily_pnl_if_needed(self) -> None:
+        """Snapshot today's opening baseline if the Jakarta calendar day has turned.
+
+        Idempotent — calling multiple times on the same day is a no-op.
+        """
+        today: date = _dt.now(ZoneInfo("Asia/Jakarta")).date()
+        if self.daily_reset_date != today:
+            self.daily_open_realized_pnl = self.realized_pnl
+            self.daily_reset_date = today
 
 
 STATE = PublicBetaState()

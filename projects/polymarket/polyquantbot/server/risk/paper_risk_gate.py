@@ -50,7 +50,7 @@ class PaperRiskGate:
         """
         drawdown_pct = round(state.drawdown * 100, 2)
         exposure_pct = round(state.exposure * 100, 2)
-        daily_pnl = state.realized_pnl
+        daily_pnl = state.daily_realized_pnl
         return {
             "kill_switch": state.kill_switch,
             "mode": state.mode,

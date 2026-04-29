@@ -139,6 +139,7 @@ class PaperPortfolio:
         realized = self._engine.get_realized_pnl()
         unrealized = sum(p.unrealized_pnl for p in open_positions)
         state.realized_pnl = round(realized, 4)
+        state.reset_daily_pnl_if_needed()
         state.pnl = round(realized + unrealized, 4)   # net PnL
 
     # ── Public interface ──────────────────────────────────────────────────────
@@ -247,6 +248,8 @@ class PaperPortfolio:
             state.processed_signals = set()
             state.pnl = 0.0
             state.realized_pnl = 0.0
+            state.daily_open_realized_pnl = 0.0
+            state.daily_reset_date = None
             state.drawdown = 0.0
             state.exposure = 0.0
             state.last_risk_reason = ""
