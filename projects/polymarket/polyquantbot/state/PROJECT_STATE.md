@@ -1,5 +1,5 @@
-Last Updated : 2026-04-29 18:48
-Status       : P8-A through P8-D all merged to main. register-agent-env-files, sentinel-timeout-resilience, commander-pr-comment-rule all merged. P8 core build complete. Next: P8-E capital validation + claim review.
+Last Updated : 2026-04-29 19:00
+Status       : P8-A through P8-D all merged to main. register-agent-env-files, sentinel-timeout-resilience, commander-pr-comment-rule all merged. P8 core build complete. PR notification workflow hardened (pr-notify-robust). Next: P8-E capital validation + claim review.
 
 [COMPLETED]
 - Priority 1 Telegram live baseline truth-sync lane is closed with recorded live command evidence under projects/polymarket/polyquantbot/reports/forge/.
@@ -21,6 +21,7 @@ Status       : P8-A through P8-D all merged to main. register-agent-env-files, s
 - Agent env file registration merged to main via PR #792 (WARP/register-agent-env-files); CURSOR.md and ONA.md registered in AGENTS.md and CLAUDE.md.
 - Sentinel timeout resilience merged to main via PR #797 (WARP/sentinel-timeout-resilience); timeout handling and chunking recovery rules updated in AGENTS.md and CLAUDE.md.
 - Commander PR comment rule merged to main via PR #799 (WARP/commander-pr-comment-rule); PR COMMENT AUTO-POST RULE added to COMMANDER.md.
+- PR notification workflow hardened via WARP/pr-notify-robust-ce09; retry+backoff, all 7 PR events, Slack fallback, enriched payload, PR comment on open.
 
 [IN PROGRESS]
 - P8-E capital validation + claim review (§54) in progress -- dry-run, staged rollout, docs review, final sign-off required; sets CAPITAL_MODE_CONFIRMED.

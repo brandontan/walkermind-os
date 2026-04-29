@@ -53,3 +53,5 @@
 2026-04-29 21:15 | WARP/capital-readiness-p8d | P8-D Security + Observability Hardening: FLAG-1 fixed (day-scoped daily_loss_limit via daily_open_realized_pnl + reset_daily_pnl_if_needed()); FLAG-2 asymmetry accepted + documented; /capital_status Telegram command + GET /beta/capital_status API (operator-key protected); operator_admin_intervention_audit single-exit log; capital_mode_guard_blocked (CRITICAL), capital_daily_loss_limit_tripped (CRITICAL), capital_daily_loss_approaching_limit (WARNING) alerts; permission boundary documented; operator_runbook.md section 8 (capital-mode incident response); 45/45 tests (CR-01..CR-28); Validation Tier: MAJOR.
 
 2026-04-29 18:48 | WARP/project-state-sync-p8-546f | Post-merge state sync: P8-A/B/C/D + register-agent-env-files + sentinel-timeout-resilience + commander-pr-comment-rule all moved to COMPLETED; NEXT PRIORITY updated to P8-E.
+
+2026-04-29 19:00 | WARP/pr-notify-robust-ce09 | PR notification workflow hardened: retry+backoff on Base44, all 7 PR lifecycle events, Slack fallback channel, enriched payload, PR comment on open/reopen/ready; Validation Tier: MINOR.
