@@ -590,8 +590,8 @@ This is the final finish layer.
 - [x] PRIORITY 4 — Wallet Lifecycle Foundation
 - [x] PRIORITY 5 — Portfolio Management Logic
 - [ ] PRIORITY 6 — Multi-Wallet Orchestration
-- [ ] PRIORITY 7 — Settlement / Retry / Reconciliation
-- [ ] PRIORITY 8 — Production-Capital Readiness
+- [x] PRIORITY 7 — Settlement / Retry / Reconciliation
+- [ ] PRIORITY 8 — Production-Capital Readiness (P8-A/B/C/D merged; P8-E pending)
 - [ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
 
 ---
@@ -609,3 +609,5 @@ This is the final finish layer.
 - [ ] SENTINEL: validate Priority 6 Phase A orchestration foundation — source projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-a.md; Tier: MAJOR
 - [x] FORGE-X: Priority 6 Phase C (sections 41-42) built on NWAP/multi-wallet-orchestration-phase-c — 18/18 tests passing (WO-28..WO-45)
 - [ ] SENTINEL: validate Priority 6 Phase C — source projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md; Tier: MAJOR
+- [x] P8-A/B/C/D all merged to main (PRs #790, #794, #795, #800); register-agent-env-files, sentinel-timeout-resilience, commander-pr-comment-rule merged (PRs #792, #797, #799)
+- [ ] FORGE: P8-E capital validation + claim review (§54) — dry-run, staged rollout, docs review, claim cleanup, CAPITAL_MODE_CONFIRMED
