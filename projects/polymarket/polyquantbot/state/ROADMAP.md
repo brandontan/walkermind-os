@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** Public-ready paper beta path complete; Priority 8 capital readiness (P8-A/B/C/D/E) all merged; P8-E capital validation sweep complete — dry-run PASS 4/4, 70/70 tests passing, docs audit clean, boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet — real CLOB not built). WARP🔹CMD review of P8-E findings required before any capital-mode activation. No production-capital-ready or live-trading-ready claim.
-**Last Updated:** 2026-04-30 05:19
+**Last Updated:** 2026-04-30 06:10
 
 # Board Overview
 
@@ -841,3 +841,4 @@
 
 ### Commit Format
 `docs: update ROADMAP.md — [project] [task or phase name]`
+

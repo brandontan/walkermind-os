@@ -604,11 +604,12 @@ This is the final finish layer.
 - [x] Priority 3 kickoff — paper account model + execution engine first
 - [x] COMMANDER: review SENTINEL MAJOR validation for NWAP/paper-product-core before merge — PR #770 merged to main 2026-04-25 11:38 WIB
 - [x] COMMANDER: scope Priority 4 wallet lifecycle foundation kickoff — confirmed 2026-04-25; branch NWAP/wallet-lifecycle-foundation
-- [ ] SENTINEL: validate Priority 4 wallet lifecycle foundation — source projects/polymarket/polyquantbot/reports/forge/wallet-lifecycle-foundation.md; Tier: MAJOR
+- [x] SENTINEL: validate Priority 4 wallet lifecycle foundation — superseded; P4 merged via PR #772; full SENTINEL deferred to pre-public sweep per WARP●CMD decision (2026-04-25)
 - [x] COMMANDER: scope Priority 6 multi-wallet orchestration Phase A kickoff — confirmed 2026-04-25; branch NWAP/multi-wallet-orchestration
-- [ ] SENTINEL: validate Priority 6 Phase A orchestration foundation — source projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-a.md; Tier: MAJOR
+- [x] SENTINEL: validate Priority 6 Phase A orchestration foundation — superseded; P6 Phase A merged via PR #776; Phase B merged via PR #779; priority fully closed on main
 - [x] FORGE-X: Priority 6 Phase C (sections 41-42) built on NWAP/multi-wallet-orchestration-phase-c — 18/18 tests passing (WO-28..WO-45)
-- [ ] SENTINEL: validate Priority 6 Phase C — source projects/polymarket/polyquantbot/reports/forge/multi-wallet-orchestration-phase-c.md; Tier: MAJOR
+- [x] SENTINEL: validate Priority 6 Phase C — superseded; P6 Phase B/C merged to main; priority fully closed
 - [x] P8-A/B/C/D all merged to main (PRs #790, #794, #795, #800); register-agent-env-files, sentinel-timeout-resilience, commander-pr-comment-rule merged (PRs #792, #797, #799)
 - [x] FORGE: P8-E capital validation + claim review (§54) — dry-run PASS, docs clean, boundary registry updated; CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet)
 - [ ] WARP🔹CMD: review P8-E findings (projects/polymarket/polyquantbot/reports/forge/capital-validation-p8e.md); decide RISK_CONTROLS_VALIDATED + SECURITY_HARDENING_VALIDATED env vars; scope real CLOB execution lane to unblock EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED
+
