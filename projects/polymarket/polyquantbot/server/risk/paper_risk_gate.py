@@ -48,6 +48,7 @@ class PaperRiskGate:
         Returns:
             Dict with current thresholds and live state values.
         """
+        state.reset_daily_pnl_if_needed()
         drawdown_pct = round(state.drawdown * 100, 2)
         exposure_pct = round(state.exposure * 100, 2)
         daily_pnl = state.daily_realized_pnl
