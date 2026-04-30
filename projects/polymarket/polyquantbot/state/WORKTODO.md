@@ -611,5 +611,7 @@ This is the final finish layer.
 - [x] SENTINEL: validate Priority 6 Phase C — superseded; P6 Phase B/C merged to main; priority fully closed
 - [x] P8-A/B/C/D all merged to main (PRs #790, #794, #795, #800); register-agent-env-files, sentinel-timeout-resilience, commander-pr-comment-rule merged (PRs #792, #797, #799)
 - [x] FORGE: P8-E capital validation + claim review (§54) — dry-run PASS, docs clean, boundary registry updated; CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet)
-- [ ] WARP🔹CMD: review P8-E findings (projects/polymarket/polyquantbot/reports/forge/capital-validation-p8e.md); decide RISK_CONTROLS_VALIDATED + SECURITY_HARDENING_VALIDATED env vars; scope real CLOB execution lane to unblock EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED
+- [x] WARP🔹CMD: scope real CLOB execution lane (WARP/real-clob-execution-path) — scoped and in progress
+- [ ] SENTINEL: validate WARP/real-clob-execution-path (Tier MAJOR) — ClobExecutionAdapter + LiveMarketDataProvider + 30 RCLOB tests; report: projects/polymarket/polyquantbot/reports/forge/real-clob-execution-path.md
+- [ ] WARP🔹CMD: after SENTINEL verdict, decide EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars
 
