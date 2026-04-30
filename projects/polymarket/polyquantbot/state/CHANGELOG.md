@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-05-01 03:44 | WARP/commander-github-issue-rules | COMMANDER.md v2.4 → v2.5: new GITHUB ISSUE AUTO-CREATE RULE section — STANDARD/MAJOR tasks require GitHub Issue before dispatch; MINOR = no issue; SENTINEL issue created post-FORGE PR; issue format/labels/auto-close/commit format defined. PR COMMENT RULE updated with MINOR/reclassification bullets. FORGE TASK TEMPLATE: Issue field added. Tier: MINOR. Claim: FOUNDATION. Zero runtime change. Merged via PR #833 SHA 2d5722c58eac. WARP🔹CMD: MERGE ✅.
+
 2026-05-01 03:06 | WARP/p9-post-merge-final-acceptance | Priority 9 Lane 5 (post-merge final acceptance prep) merged via PR #832: docs/final_acceptance_gate.md (new — acceptance criteria, smoke requirements, boundary, 3 decision slots), state/PROJECT_STATE.md (updated — status synced to final acceptance prep, Lanes 1-4 done), state/WORKTODO.md (trimmed — P1–P7 completed tasks archived, current truth section added). Tier: MINOR. Claim: FOUNDATION. Zero runtime change. All 3 activation guards NOT SET. WARP🔹CMD post-merge audit: RATIFIED.
 
 2026-05-01 02:34 | WARP/p9-monitoring-admin-surfaces | Priority 9 Lane 3 merged via PR #831: monitoring_admin_index.md (all API surfaces indexed, operator/admin routes, Telegram commands), operator_checklist.md (pre-run, startup smoke, admin visibility, release-decision checklist), release_dashboard.md (exec status, activation guard dashboard, paper-beta release readiness). Forge report: reports/forge/p9-monitoring-admin-surfaces.md. Zero runtime change. All 3 activation guards (EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING) NOT SET confirmed. Tier: STANDARD. Claim: FOUNDATION.
