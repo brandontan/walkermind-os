@@ -593,7 +593,7 @@ This is the final finish layer.
 - [x] PRIORITY 5 — Portfolio Management Logic
 - [x] PRIORITY 6 — Multi-Wallet Orchestration
 - [x] PRIORITY 7 — Settlement / Retry / Reconciliation
-- [ ] PRIORITY 8 — Production-Capital Readiness (P8-A/B/C/D/E merged; capital-mode-confirm built — WARP•SENTINEL MAJOR pending; CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet; WARP🔹CMD review required after both SENTINEL verdicts)
+- [ ] PRIORITY 8 — Production-Capital Readiness (P8-A/B/C/D/E merged; capital-mode-confirm PR #815 + PR #818 merged — SENTINEL APPROVED 100/100; EXECUTION_PATH_VALIDATED NOT SET; CAPITAL_MODE_CONFIRMED NOT SET; env-gate + operator receipt required before capital activation — WARP🔹CMD + Mr. Walker decision gate open)
 - [ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
 
 ---
@@ -619,6 +619,6 @@ This is the final finish layer.
 - [x] WARP/post-merge-sync-real-clob: repo-state truth synchronized post PR #813 merge (PROJECT_STATE.md / ROADMAP.md / WORKTODO.md / CHANGELOG.md); EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET
 - [x] WARP/capital-mode-confirm chunk1 (DB layer + store + guard + API + Telegram) merged to main via PR #815 (merge SHA 6ea3b457); SENTINEL APPROVED 97/100, 0 critical (NARROW INTEGRATION — check_with_receipt defined but not wired)
 - [x] FORGE: build WARP/capital-mode-confirm follow-up (Tier MAJOR, LIVE INTEGRATION, PR #818) — strict check_with_receipt() at PaperBetaWorker + ClobExecutionAdapter, revoke 503 on persistence failure, P8E-16..P8E-21 + RCLOB-24 update; 167/167 across all touched-area suites
-- [ ] SENTINEL: validate WARP/capital-mode-confirm follow-up (Tier MAJOR, LIVE INTEGRATION) — source: projects/polymarket/polyquantbot/reports/forge/capital-mode-confirm.md
-- [ ] WARP🔹CMD: after SENTINEL verdict on PR #818, decide EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars, then operator issues /capital_mode_confirm two-step on operator Telegram
+- [x] SENTINEL: validate WARP/capital-mode-confirm follow-up (Tier MAJOR, LIVE INTEGRATION) — APPROVED 100/100, 0 critical, 3 advisory; PR #818 merged to main (merge SHA 5d314839); report: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md; 167/167 tests pass
+- [ ] WARP🔹CMD + Mr. Walker: env-gate decision — set EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED in deployment env, then operator issues /capital_mode_confirm two-step on operator Telegram to complete DB receipt gate
 
