@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-04-30 20:07 | WARP/worktodo-priority8-sync | Pre-Priority-9 state sync: WORKTODO §54 SENTINEL line + Right Now PR #818 lines marked complete (PR #818 SENTINEL APPROVED 100/100); Simple Execution Order PRIORITY 8 note updated to BUILD COMPLETE / activation pending env-gate; PROJECT_STATE Last Updated bumped + NEXT PRIORITY adds Priority 9 lane scoping. Docs/state only — zero runtime impact. Tier: MINOR.
+
 2026-04-30 16:30 | WARP/capital-mode-confirm | sentinel: capital-mode-confirm-live-integration — APPROVED 100/100, 0 critical, 3 advisory (F-1 mocked-mode label pre-existing, F-2 P8C asyncio deprecated test pattern, F-3 store docstring stale). All 6 SENTINEL TASK items pass with file:line evidence. Report: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md. Awaiting WARP🔹CMD merge decision on PR #818.
 
 2026-04-30 14:35 | WARP/capital-mode-confirm | P8-E follow-up: operator confirmation receipt flow — two-layer CAPITAL_MODE_CONFIRMED gate (env var + new DB receipt). Migration 002_capital_mode_confirmations + CapitalModeConfirmationStore + LiveExecutionGuard.check_with_receipt() + POST /beta/capital_mode_confirm (two-step 60s token) + POST /beta/capital_mode_revoke + Telegram /capital_mode_confirm and /capital_mode_revoke + operator_runbook §9. 15/15 P8-E tests (P8E-01..P8E-15); 100/100 prior P8 + real-clob regression; 21/21 settlement + 25/25 telegram regression — zero regressions. Tier: MAJOR. WARP•SENTINEL validation required before merge.
