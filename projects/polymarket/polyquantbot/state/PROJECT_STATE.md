@@ -1,5 +1,5 @@
-Last Updated : 2026-05-01 04:35 Asia/Jakarta
-Status       : Priority 9 Lane 5 is HOLD pending runtime smoke evidence. PR #832 merged the final acceptance gate and post-merge prep. PR #835 stale duplicate sync was closed. Priority 8 build is complete but live/capital activation remains gated. No live-trading or production-capital readiness claim is authorized.
+Last Updated : 2026-05-01 04:36 Asia/Jakarta
+Status       : Priority 9 Lane 5 HOLD posture recorded and merged via PR #836 (WARP/p9-final-acceptance-hold). Runtime smoke evidence still pending. All activation guards NOT SET. No live-trading or production-capital readiness claim is authorized.
 
 [COMPLETED]
 - Priorities 1-7 completed.
@@ -9,10 +9,10 @@ Status       : Priority 9 Lane 5 is HOLD pending runtime smoke evidence. PR #832
 - Priority 9 Lane 3 monitoring/admin surfaces completed via PR #831.
 - Priority 9 Lane 5 final acceptance gate prep completed via PR #832.
 - COMMANDER.md GitHub issue auto-create rules merged via PR #833 SHA 2d5722c58eac.
+- Priority 9 Lane 5 HOLD posture recording merged via PR #836 (WARP/p9-final-acceptance-hold). Scope: docs/state/report only. Tier: MINOR.
 
 [IN PROGRESS]
-- Branch `WARP/p9-final-acceptance-hold` records the current COMMANDER posture: HOLD pending runtime smoke evidence.
-- Scope is docs/state/report only. WARP•SENTINEL is not required unless runtime/API/Telegram/security/env/live/capital claims are introduced.
+- None — awaiting runtime smoke evidence capture before next action.
 
 [BLOCKED / GATED]
 - Public paper-beta final acceptance is not granted yet because required runtime smoke evidence is not captured in repo.
