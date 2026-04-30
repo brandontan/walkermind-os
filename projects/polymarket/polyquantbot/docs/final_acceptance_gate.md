@@ -2,71 +2,67 @@
 
 Date: 2026-05-01 Asia/Jakarta
 Created by: `WARP/p9-post-merge-final-acceptance` / PR #832
-Current decision branch: `WARP/p9-runtime-smoke-evidence` / PR #840
-Mode: public paper-beta; no live/capital activation
+WARP🔹CMD final decision recorded: 2026-05-01 06:38 Asia/Jakarta
 
 ## Acceptance Position
 
-Priority 9 all lanes complete.
+All Priority 9 lanes complete.
 
 | Lane | Status | Evidence |
 |---|---|---|
 | Lane 4 — repo hygiene final | Done | PR #822 |
 | Lane 1+2 — public docs + ops handoff | Done | PR #825, PR #826, PR #827 |
 | Lane 3 — monitoring/admin surfaces | Done | PR #831 |
-| Lane 5 — final acceptance | **ACCEPTED** | PR #840 — smoke evidence captured |
+| Lane 5 — final acceptance | **ACCEPTED** | PR #840, smoke evidence report |
 
-## Runtime Smoke Evidence (PR #840 — SHA 91929fa34534)
+## Runtime Smoke Evidence
+
+Evidence report: `projects/polymarket/polyquantbot/reports/forge/p9-runtime-smoke-evidence.md`
+Merged via PR #840 (SHA 91929fa34534)
 
 | # | Surface | Required Result | Actual Result | Status |
 |---|---|---|---|---|
-| 1 | API `/health` | process alive | HTTP 200, status=ok, ready=true | ✅ PASS |
-| 2 | API `/ready` | readiness truthful | HTTP 200, paper_only=true, no validation_errors | ✅ PASS |
-| 3 | API `/beta/status` | paper-beta limitations truthful | HTTP 200, live_trading_ready=false, 8/8 exit_criteria | ✅ PASS |
-| 4 | API `/beta/capital_status` | capital guard explicit | HTTP 200, mode=PAPER, all 5 gates=false, kelly=0.25 | ✅ PASS |
-| 5 | Telegram `/status` | non-empty status | BLOCKED (env — TELEGRAM_BOT_TOKEN absent; routing verified correct) | ⚠️ ACCEPTED |
-| 6 | Telegram `/capital_status` | matches API truth | BLOCKED (env — delegates to Surface 4 which passed; routing verified) | ⚠️ ACCEPTED |
-| 7 | Admin route, no token | rejects unauthorized | HTTP 403, correct error code | ✅ PASS |
-| 8 | Admin route, with token | operator visibility | HTTP 200, live_execution_privileges_enabled=false | ✅ PASS |
+| 1 | API `/health` | Process alive | HTTP 200, ready=true | PASS |
+| 2 | API `/ready` | Readiness truthful | HTTP 200, paper_only=true, 0 validation_errors | PASS |
+| 3 | API `/beta/status` | Paper-beta status truthful | HTTP 200, 8/8 exit_criteria, live_trading_ready=false | PASS |
+| 4 | API `/beta/capital_status` | Capital guard explicit | HTTP 200, mode=PAPER, all 5 gates=false | PASS |
+| 5 | Telegram `/status` | Non-empty status | BLOCKED — env constraint, routing verified | ENV |
+| 6 | Telegram `/capital_status` | Guard truth matches API | BLOCKED — env constraint, delegates to Surface 4 | ENV |
+| 7 | Admin route, no token | Rejects unauthorized | HTTP 403, operator_route_forbidden | PASS |
+| 8 | Admin route, with token | Operator visibility | HTTP 200, live_execution_privileges_enabled=false | PASS |
 
-Telegram surfaces BLOCKED due to CI environment constraint (no TELEGRAM_BOT_TOKEN), not code defect.
-Routing chain verified correct. Delegation to verified API surfaces confirmed.
+Telegram surfaces BLOCKED due to CI env constraint (no TELEGRAM_BOT_TOKEN). Not a code defect — routing chain verified. Backend surfaces delegate to verified API layer.
 
 ## Capital / Live Activation Boundary
 
-The following remain NOT SET and must not be set without a separate explicit Mr. Walker decision:
-- `EXECUTION_PATH_VALIDATED`
-- `CAPITAL_MODE_CONFIRMED`
-- `ENABLE_LIVE_TRADING`
+The following remain NOT SET and must not be set without a separate explicit Mr. Walker + WARP🔹CMD decision:
 
-No live-trading readiness claim is allowed.
-No production-capital readiness claim is allowed.
+- `EXECUTION_PATH_VALIDATED` — NOT SET
+- `CAPITAL_MODE_CONFIRMED` — NOT SET
+- `ENABLE_LIVE_TRADING` — NOT SET
 
-## COMMANDER Decision
+No live-trading readiness claim is authorized.
+No production-capital readiness claim is authorized.
+Capital/live activation requires a separate owner-gated activation review.
+
+## WARP🔹CMD Final Decision
 
 **Decision: ACCEPTED as public paper-beta.**
 
-Date: 2026-05-01 06:40 Asia/Jakarta
-Decided by: WARP🔹CMD
-Evidence: PR #840 — p9-runtime-smoke-evidence (SHA 91929fa34534)
+Recorded by: WARP🔹CMD
+Date: 2026-05-01 06:38 Asia/Jakarta
+Evidence: PR #840 smoke matrix — 6/8 PASS, 2 ENV (env constraint, not code defect)
 
 Allowed claims:
-- CrusaderBot public paper-beta is accepted.
-- Public product docs are prepared (PR #825).
-- Ops handoff docs are prepared (PR #826).
-- Monitoring/admin docs are prepared (PR #831).
-- All 9 Priority 9 lanes are complete.
-- Runtime smoke evidence is captured in repo.
+- CrusaderBot is accepted as public paper-beta.
+- Public product docs are prepared and accurate.
+- Ops handoff docs are prepared.
+- Monitoring/admin surfaces are documented.
+- Paper trading execution boundary is active and enforced.
+- All activation guards are NOT SET.
 
-Not allowed claims (must not be stated or implied):
+Not allowed claims:
 - Production-capital ready.
 - Live-trading ready.
 - Capital mode active.
-- `ENABLE_LIVE_TRADING` is set.
-- `CAPITAL_MODE_CONFIRMED` is set.
-- `EXECUTION_PATH_VALIDATED` is set.
-
-## Next Action (if any)
-
-Capital/live activation requires a separate explicit owner-gated decision sequence.
-No further action required under Priority 9.
+- Any of the 3 activation guards are set.
