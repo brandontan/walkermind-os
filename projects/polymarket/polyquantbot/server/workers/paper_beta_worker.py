@@ -43,6 +43,9 @@ from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import Pa
 from projects.polymarket.polyquantbot.server.risk.capital_risk_gate import CapitalRiskGate, WalletFinancialProvider
 from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import PaperRiskGate
 from projects.polymarket.polyquantbot.server.risk.portfolio_financial_provider import PortfolioFinancialProvider
+from projects.polymarket.polyquantbot.server.storage.capital_mode_confirmation_store import (
+    CapitalModeConfirmationStore,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -60,6 +63,7 @@ class PaperBetaWorker:
         provider: WalletFinancialProvider | None = None,
         clob_adapter: ClobExecutionAdapter | None = None,
         market_data_provider: MarketDataProvider | None = None,
+        confirmation_store: CapitalModeConfirmationStore | None = None,
     ) -> None:
         self._falcon = falcon
         self._risk_gate = risk_gate
@@ -68,6 +72,7 @@ class PaperBetaWorker:
         self._provider = provider
         self._clob_adapter = clob_adapter
         self._market_data_provider = market_data_provider
+        self._confirmation_store = confirmation_store
 
     async def run_once(self) -> list[dict[str, object]]:
         await self.market_sync()
@@ -78,26 +83,13 @@ class PaperBetaWorker:
 
         for candidate in candidates:
             if STATE.mode != "paper":
-                # Live execution path: LiveExecutionGuard must pass before any order
-                if self._live_guard is not None:
-                    resolved_provider: WalletFinancialProvider = (
-                        self._provider if self._provider is not None else PortfolioFinancialProvider(STATE)
-                    )
-                    try:
-                        self._live_guard.check(STATE, provider=resolved_provider)
-                    except LiveExecutionBlockedError as exc:
-                        STATE.last_risk_reason = f"live_guard_blocked:{exc.reason}"
-                        summary.skip_mode_count += 1
-                        log.warning(
-                            "paper_beta_worker_live_guard_blocked",
-                            reason=exc.reason,
-                            detail=exc.detail,
-                            signal_id=candidate.signal_id,
-                        )
-                        # Trigger rollback/disable path on guard failure
-                        disable_live_execution(STATE, reason=exc.reason, detail=exc.detail)
-                        continue
-                else:
+                # Live execution path: LiveExecutionGuard must pass before any
+                # order. P8-E adds the DB-receipt layer — when a confirmation
+                # store is wired the full chain runs via check_with_receipt;
+                # when no store is wired the live path is refused with
+                # "no_confirmation_store_injected" because env-var-only
+                # authorization is not sufficient for live capital under P8-E.
+                if self._live_guard is None:
                     # No live guard injected — block all live execution attempts
                     STATE.last_risk_reason = "mode_live_no_guard_injected"
                     summary.skip_mode_count += 1
@@ -111,6 +103,47 @@ class PaperBetaWorker:
                         reason="no_live_guard_injected",
                         detail="LiveExecutionGuard was not injected; live execution is unsafe without it",
                     )
+                    continue
+                if self._confirmation_store is None:
+                    # No confirmation store injected — receipt layer cannot be
+                    # enforced. Refuse live execution rather than silently
+                    # bypass the P8-E receipt gate.
+                    STATE.last_risk_reason = "mode_live_no_confirmation_store_injected"
+                    summary.skip_mode_count += 1
+                    log.error(
+                        "paper_beta_worker_live_no_confirmation_store",
+                        signal_id=candidate.signal_id,
+                        execution_boundary="capital_mode_receipt_required",
+                    )
+                    disable_live_execution(
+                        STATE,
+                        reason="no_confirmation_store_injected",
+                        detail=(
+                            "CapitalModeConfirmationStore was not injected; "
+                            "P8-E receipt layer cannot be enforced in live mode"
+                        ),
+                    )
+                    continue
+                resolved_provider: WalletFinancialProvider = (
+                    self._provider if self._provider is not None else PortfolioFinancialProvider(STATE)
+                )
+                try:
+                    await self._live_guard.check_with_receipt(
+                        STATE,
+                        store=self._confirmation_store,
+                        provider=resolved_provider,
+                    )
+                except LiveExecutionBlockedError as exc:
+                    STATE.last_risk_reason = f"live_guard_blocked:{exc.reason}"
+                    summary.skip_mode_count += 1
+                    log.warning(
+                        "paper_beta_worker_live_guard_blocked",
+                        reason=exc.reason,
+                        detail=exc.detail,
+                        signal_id=candidate.signal_id,
+                    )
+                    # Trigger rollback/disable path on guard failure
+                    disable_live_execution(STATE, reason=exc.reason, detail=exc.detail)
                     continue
 
             if not STATE.autotrade_enabled:

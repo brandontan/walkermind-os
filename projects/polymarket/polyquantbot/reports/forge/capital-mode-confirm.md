@@ -1,10 +1,10 @@
 # WARP•FORGE Report — capital-mode-confirm
 
 **Branch:** WARP/capital-mode-confirm
-**Date:** 2026-04-30 14:35
+**Date:** 2026-04-30 15:30 (revised after Codex P1 round)
 **Validation Tier:** MAJOR
 **Claim Level:** NARROW INTEGRATION
-**Validation Target:** Operator confirmation receipt flow (DB-backed, two-step) layered on top of the existing env-var `CAPITAL_MODE_CONFIRMED` gate, plus the corresponding `LiveExecutionGuard.check_with_receipt()` extension. Does not authorise live trading; does not set any env var; does not merge PR #813.
+**Validation Target:** Operator confirmation receipt flow (DB-backed, two-step) layered on top of the existing env-var `CAPITAL_MODE_CONFIRMED` gate, plus `LiveExecutionGuard.check_with_receipt()` and **strict enforcement at the two production live call sites** (`PaperBetaWorker.run_once`, `ClobExecutionAdapter.submit_order`). Does not authorise live trading; does not set any env var; does not merge PR #813.
 **Not in Scope:** Setting `EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, or `ENABLE_LIVE_TRADING` on any deployed environment; merging PR #813 (real-clob-execution-path); flipping live trading; deferred items from the PR #813 SENTINEL fix-list (run_once price_updater wiring, MockClobMarketDataClient protocol tightening, AiohttpClobClient build, order dedup persistence); Priority 9 launch + handoff; multi-replica Redis-backed pending-token storage.
 
 ---
@@ -73,10 +73,14 @@ In-process pending-token store (`_PENDING_CAPITAL_CONFIRMS`) handles the 60s win
 - `projects/polymarket/polyquantbot/infra/db/database.py` (added `_DDL_CAPITAL_MODE_CONFIRMATIONS` and `_apply_schema` execution)
 - `projects/polymarket/polyquantbot/server/config/capital_mode_config.py` (new async `is_capital_mode_fully_allowed(store)`)
 - `projects/polymarket/polyquantbot/server/core/live_execution_control.py` (new async `LiveExecutionGuard.check_with_receipt(...)`)
-- `projects/polymarket/polyquantbot/server/api/public_beta_routes.py` (POST `/beta/capital_mode_confirm` + POST `/beta/capital_mode_revoke`, in-process `_PENDING_CAPITAL_CONFIRMS`)
+- `projects/polymarket/polyquantbot/server/api/public_beta_routes.py` (POST `/beta/capital_mode_confirm` + POST `/beta/capital_mode_revoke`, in-process `_PENDING_CAPITAL_CONFIRMS`, 503 on revoke persistence failure)
 - `projects/polymarket/polyquantbot/server/main.py` (wire `CapitalModeConfirmationStore` into `_app.state.capital_mode_confirmation_store`)
+- `projects/polymarket/polyquantbot/server/storage/capital_mode_confirmation_store.py` (new `CapitalModeRevokeFailedError`; `revoke_latest` raises on persistence failure instead of returning ambiguous `None`)
+- `projects/polymarket/polyquantbot/server/execution/clob_execution_adapter.py` (new `confirmation_store` param; `mode='live'` REQUIRES store at construction — fail-fast `ValueError`; `submit_order` uses `check_with_receipt` when store wired, falls back to `check()` for `mode='mocked'` test paths)
+- `projects/polymarket/polyquantbot/server/workers/paper_beta_worker.py` (new `confirmation_store` param; `run_once` live path now requires store and uses `await live_guard.check_with_receipt(...)`; missing store → `disable_live_execution` with reason `no_confirmation_store_injected`)
 - `projects/polymarket/polyquantbot/client/telegram/dispatcher.py` (`/capital_mode_confirm`, `/capital_mode_revoke` handlers + appended to `_INTERNAL_COMMANDS`)
 - `projects/polymarket/polyquantbot/docs/operator_runbook.md` (Section 9 — P8-E activation)
+- `projects/polymarket/polyquantbot/tests/test_real_clob_execution_path.py` (RCLOB-24 updated to seed receipt store — proves end-to-end strict enforcement)
 - `projects/polymarket/polyquantbot/state/PROJECT_STATE.md` (7-section update only)
 - `projects/polymarket/polyquantbot/state/WORKTODO.md` (Priority 8 closure status)
 - `projects/polymarket/polyquantbot/state/CHANGELOG.md` (closure line appended)
@@ -85,12 +89,14 @@ In-process pending-token store (`_PENDING_CAPITAL_CONFIRMS`) handles the 60s win
 
 ## 4. What is working
 
-**Tests (executed locally, pytest 9.0.3):**
+**Tests (executed locally, pytest 9.0.3) — post-Codex strict revision:**
 
-- 15/15 new P8-E (`test_capital_readiness_p8e.py`) — store unit, config three-way verdict, guard receipt-missing/full-chain, route step1/step2/missing-gates/token-mismatch/revoke.
-- 100/100 prior P8 + real-clob regression (`p8a 20`, `p8b 12`, `p8c 22`, `p8d 4`, `real_clob 29` — all green; reduce in `p8d` count vs explore-agent estimate is the actual collected count, no failure).
-- 21/21 settlement persistence + operator routes regression (`test_settlement_p7_alerts_persistence.py`, `test_settlement_p7_operator_routes.py`).
-- 25/25 telegram dispatch + settlement telegram wiring regression (`test_phase8_8_telegram_dispatch_20260419.py`, `test_settlement_p7_telegram_wiring.py`).
+- 21/21 P8-E (`test_capital_readiness_p8e.py`) — store unit, config three-way verdict, guard receipt-missing/full-chain, route step1/step2/missing-gates/token-mismatch/revoke, **plus** P8E-16 worker-live-without-store blocks, P8E-17 worker-live-with-store-no-receipt blocks, P8E-18 adapter-mode-live-without-store ValueError, P8E-19 adapter-mode-live-with-store+receipt submits, P8E-20 store revoke-persistence-failure raises, P8E-21 route revoke 503 on DB failure.
+- 30/30 `test_real_clob_execution_path.py` — RCLOB-24 updated to seed a receipt store so the live happy path provably exercises the full chain.
+- 100/100 prior P8 (`p8a 20`, `p8b 12`, `p8c 22`, `p8d 4`).
+- 21/21 settlement persistence + operator routes (`test_settlement_p7_alerts_persistence.py`, `test_settlement_p7_operator_routes.py`).
+- 25/25 telegram dispatch + settlement telegram wiring (`test_phase8_8_telegram_dispatch_20260419.py`, `test_settlement_p7_telegram_wiring.py`).
+- **Total: 167/167 across all touched-area suites — zero regressions.**
 
 **Verified end-to-end:**
 
@@ -110,6 +116,8 @@ In-process pending-token store (`_PENDING_CAPITAL_CONFIRMS`) handles the 60s win
 - **Migration runner remains absent.** `002_capital_mode_confirmations.sql` is auto-applied idempotently by `_apply_schema()` on startup, identical to the §48 known debt for `001_settlement_tables.sql`. Adding a migration runner is still deferred.
 - **No tamper detection on the receipt row beyond append-only/revoked-at.** A row can be deleted by direct DB access. The audit trail (structlog event log + Sentry breadcrumbs) is the cross-check.
 - **Single-token-per-operator contract.** `_PENDING_CAPITAL_CONFIRMS` keys by `operator_id`; a second step-1 call before step-2 commits replaces the prior pending token. Acceptable for the current operator workflow; documented behaviour.
+- **Adapter `mode='mocked'` deliberately bypasses the receipt layer.** `ClobExecutionAdapter(mode='mocked', confirmation_store=None)` is allowed for paper/test paths. Production live wiring MUST use `mode='live'` which requires a store at construction (fail-fast `ValueError`). This is documented but a future operator might construct `mode='mocked'` against a real client by mistake; mitigations (defensive flag, test in mocked mode requires explicit opt-out) deferred.
+- **Worker live path silently no-ops when receipt store is missing.** When `STATE.mode == 'live'` and no `confirmation_store` is wired into `PaperBetaWorker`, `run_once` calls `disable_live_execution(reason='no_confirmation_store_injected')` and skips. This is a fail-closed block, but it means a misconfigured production wiring does not surface as a constructor-time error. The structured event `paper_beta_worker_live_no_confirmation_store` makes it auditable.
 
 ---
 

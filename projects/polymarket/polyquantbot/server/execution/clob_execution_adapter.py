@@ -48,6 +48,9 @@ from projects.polymarket.polyquantbot.server.core.live_execution_control import 
 from projects.polymarket.polyquantbot.server.core.public_beta_state import PublicBetaState
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import CandidateSignal
 from projects.polymarket.polyquantbot.server.risk.capital_risk_gate import WalletFinancialProvider
+from projects.polymarket.polyquantbot.server.storage.capital_mode_confirmation_store import (
+    CapitalModeConfirmationStore,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -238,11 +241,21 @@ class ClobExecutionAdapter:
         config: CapitalModeConfig,
         client: ClobClientProtocol,
         mode: str = "live",
+        confirmation_store: CapitalModeConfirmationStore | None = None,
     ) -> None:
+        if mode == "live" and confirmation_store is None:
+            raise ValueError(
+                "ClobExecutionAdapter mode='live' requires confirmation_store; "
+                "constructing without it would bypass the P8-E receipt layer "
+                "and admit live capital execution on env-var-only authorization. "
+                "Pass mode='mocked' for paper/test paths or wire "
+                "CapitalModeConfirmationStore for production live."
+            )
         self._config = config
         self._client = client
         self._mode = mode
         self._guard = LiveExecutionGuard(config=config)
+        self._confirmation_store = confirmation_store
 
     async def submit_order(
         self,
@@ -277,9 +290,22 @@ class ClobExecutionAdapter:
             ClobSubmissionBlockedError: Guard blocks before any network call.
             ClobSubmissionError:         Client call fails or returns error response.
         """
-        # Guard: must pass before any network activity
+        # Guard: must pass before any network activity. When a confirmation
+        # store is wired (production live), the full chain (env + DB receipt)
+        # is enforced via check_with_receipt. When no store is wired (mocked
+        # mode test path), fall back to the env-only check() — receipt
+        # enforcement still cannot be silently bypassed in production because
+        # the constructor refuses mode='live' without a store.
         try:
-            self._guard.check(state, provider=provider, wallet_id=wallet_id)
+            if self._confirmation_store is not None:
+                await self._guard.check_with_receipt(
+                    state,
+                    store=self._confirmation_store,
+                    provider=provider,
+                    wallet_id=wallet_id,
+                )
+            else:
+                self._guard.check(state, provider=provider, wallet_id=wallet_id)
         except LiveExecutionBlockedError as exc:
             log.warning(
                 "clob_adapter_submission_blocked",

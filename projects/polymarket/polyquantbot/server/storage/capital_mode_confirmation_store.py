@@ -23,6 +23,18 @@ from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 log = structlog.get_logger(__name__)
 
 
+class CapitalModeRevokeFailedError(RuntimeError):
+    """Raised when revoke persistence fails after locating an active confirmation.
+
+    Distinguishes a transient DB failure from the "no active confirmation"
+    case so callers (operator routes / incident responders) can return a 5xx
+    instead of misleadingly reporting nothing-to-revoke. Rolling the active
+    receipt back during a live-trading incident is critical; a silent failure
+    here would leave operators believing capital execution is halted when it
+    is in fact still authorized.
+    """
+
+
 @dataclass(frozen=True)
 class CapitalModeConfirmation:
     """Immutable view of a single capital-mode confirmation row.
@@ -125,8 +137,11 @@ class CapitalModeConfirmationStore:
     ) -> Optional[CapitalModeConfirmation]:
         """Revoke the newest active confirmation for the given mode.
 
-        Returns the revoked record on success, None if no active row exists or
-        the DB write fails.
+        Returns the revoked record on success, or None when no active row
+        exists. Raises :class:`CapitalModeRevokeFailedError` when an active
+        row exists but the DB persistence fails (e.g. timeout, outage) — the
+        caller must treat this as a service-unavailable condition, not as
+        "nothing to revoke".
         """
         active = await self.get_active(mode)
         if active is None:
@@ -154,7 +169,10 @@ class CapitalModeConfirmationStore:
                 confirmation_id=active.confirmation_id,
                 revoked_by=revoked_by,
             )
-            return None
+            raise CapitalModeRevokeFailedError(
+                f"capital_mode_confirmations UPDATE failed for "
+                f"confirmation_id={active.confirmation_id!r}; active receipt may still be in force"
+            )
         return CapitalModeConfirmation(
             confirmation_id=active.confirmation_id,
             operator_id=active.operator_id,

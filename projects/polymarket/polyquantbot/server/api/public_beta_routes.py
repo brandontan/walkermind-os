@@ -15,6 +15,9 @@ from projects.polymarket.polyquantbot.server.config.capital_mode_config import C
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
 from projects.polymarket.polyquantbot.server.risk.capital_risk_gate import CapitalRiskGate
+from projects.polymarket.polyquantbot.server.storage.capital_mode_confirmation_store import (
+    CapitalModeRevokeFailedError,
+)
 
 log = structlog.get_logger(__name__)
 _OPERATOR_API_KEY_HEADER = "X-Operator-Api-Key"
@@ -524,11 +527,28 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
             )
 
         reason = body.reason.strip() or "operator_revoke_no_reason"
-        record = await store.revoke_latest(
-            mode="LIVE",
-            revoked_by=body.revoked_by,
-            reason=reason,
-        )
+        try:
+            record = await store.revoke_latest(
+                mode="LIVE",
+                revoked_by=body.revoked_by,
+                reason=reason,
+            )
+        except CapitalModeRevokeFailedError as exc:
+            log.error(
+                "capital_mode_revoke_attempt",
+                revoked_by=body.revoked_by,
+                outcome="persistence_failed",
+                detail=str(exc),
+            )
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "outcome": "persistence_failed",
+                    "reason": "capital_mode_revoke_persistence_failed",
+                    "detail": str(exc),
+                    "warning": "active capital_mode receipt may still be in force; retry revoke or halt via kill switch",
+                },
+            )
         if record is None:
             log.info(
                 "capital_mode_revoke_attempt",
