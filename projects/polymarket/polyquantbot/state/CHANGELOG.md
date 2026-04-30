@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-05-01 04:36 | WARP/p9-final-acceptance-hold | P9 Lane 5 HOLD decision recorded: runtime smoke evidence required before public paper-beta acceptance. final_acceptance_gate.md updated — Lane 5 = HOLD, Not-allowed-claims explicit, smoke matrix + decision slots remain. PROJECT_STATE.md + WORKTODO.md compressed to current truth. PR #835 closed as stale duplicate noted. Tier: MINOR. Claim: FOUNDATION. Zero runtime change. Merged via PR #836 SHA 9a76295a017a. WARP🔹CMD verdict: MERGE ✅.
+
 2026-05-01 04:35 | WARP/p9-final-acceptance-hold | P9 Lane 5 final acceptance decision: HOLD — runtime smoke evidence missing. docs/final_acceptance_gate.md: HOLD recorded, allowed/not-allowed claims explicit, decision slots preserved for post-smoke acceptance. state/PROJECT_STATE.md: status = Lane 5 HOLD. state/WORKTODO.md: updated. Forge report: p9-final-acceptance-hold.md. Merged via PR #836 SHA 9a76295a017a. Tier: MINOR. Claim: FOUNDATION. No runtime change.
 
 2026-05-01 03:41 | WARP/commander-github-issue-rules | COMMANDER.md v2.5: GITHUB ISSUE AUTO-CREATE RULE section added — STANDARD/MAJOR tasks require GitHub Issue before dispatch; MINOR = PR comment only; labels, issue format, auto-close, commit message format per role. PR COMMENT AUTO-POST RULE +2 bullets. WARP•FORGE TASK TEMPLATE +Issue field. Merged via PR #833 SHA 2d5722c58eac. Tier: MINOR. Claim: FOUNDATION. No runtime change.
