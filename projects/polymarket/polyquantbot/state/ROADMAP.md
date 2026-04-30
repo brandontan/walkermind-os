@@ -857,3 +857,4 @@ Recommended sequencing: Lane 4 → Lane 1+2 (combined) → Lane 3 → Lane 5 (ga
 ### Commit Format
 `docs: update ROADMAP.md — [project] [task or phase name]`
 
+| — | `WARP/commander-github-issue-rules` | MINOR | ✅ Done — COMMANDER.md v2.5 GitHub issue auto-create rules merged via PR #833 |
