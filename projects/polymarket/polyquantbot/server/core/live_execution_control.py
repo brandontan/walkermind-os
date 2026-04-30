@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 
 import structlog
 
@@ -210,6 +211,62 @@ class LiveExecutionGuard:
             kill_switch=state.kill_switch,
             trading_mode=self._config.trading_mode,
             capital_mode_allowed=self._config.is_capital_mode_allowed(),
+            wallet_id=wallet_id,
+        )
+
+    async def check_with_receipt(
+        self,
+        state: PublicBetaState,
+        store: Any,
+        provider: WalletFinancialProvider | None = None,
+        wallet_id: str = _STUB_WALLET_ID,
+    ) -> None:
+        """Run the full live-execution guard PLUS the DB-receipt check.
+
+        Equivalent to :meth:`check` (env-var layer) followed by a query against
+        :class:`CapitalModeConfirmationStore` for an unrevoked confirmation row
+        matching the current ``trading_mode``.
+
+        ``store`` must expose ``async get_active(mode: str) -> object | None``.
+
+        Live execution paths that require the full P8-E gate (env + receipt)
+        must call this method instead of :meth:`check`.
+
+        Raises:
+            LiveExecutionBlockedError: Any check fails — including the receipt
+            layer (reason ``capital_mode_no_active_receipt`` or
+            ``capital_mode_confirmation_lookup_error``).
+        """
+        # 1-5: existing synchronous guard chain — kill switch, mode, env var,
+        # config gates, financial provider zero-field check.
+        self.check(state, provider=provider, wallet_id=wallet_id)
+
+        # 6: DB-backed confirmation receipt — required even if all env vars
+        # are flipped on. This prevents an env-only misconfiguration from
+        # admitting capital execution without operator acknowledgment.
+        try:
+            active = await store.get_active(self._config.trading_mode)
+        except Exception as exc:
+            self._block(
+                "capital_mode_confirmation_lookup_error",
+                f"CapitalModeConfirmationStore lookup raised: {exc}",
+            )
+            return
+
+        if active is None:
+            self._block(
+                "capital_mode_no_active_receipt",
+                "no unrevoked capital_mode_confirmations row for "
+                f"trading_mode={self._config.trading_mode!r} — "
+                "operator must issue /capital_mode_confirm before live execution",
+            )
+
+        log.info(
+            "live_execution_guard_with_receipt_passed",
+            mode=state.mode,
+            trading_mode=self._config.trading_mode,
+            confirmation_id=getattr(active, "confirmation_id", None),
+            operator_id=getattr(active, "operator_id", None),
             wallet_id=wallet_id,
         )
 

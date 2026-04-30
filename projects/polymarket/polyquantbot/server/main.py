@@ -62,6 +62,9 @@ from projects.polymarket.polyquantbot.server.settlement.settlement_alert_policy 
 from projects.polymarket.polyquantbot.server.settlement.operator_console import OperatorConsole
 from projects.polymarket.polyquantbot.server.services.settlement_operator_service import SettlementOperatorService
 from projects.polymarket.polyquantbot.server.api.settlement_operator_routes import build_settlement_operator_router
+from projects.polymarket.polyquantbot.server.storage.capital_mode_confirmation_store import (
+    CapitalModeConfirmationStore,
+)
 from projects.polymarket.polyquantbot.infra.db import DatabaseClient
 
 log = structlog.get_logger(__name__)
@@ -436,6 +439,12 @@ def create_app() -> FastAPI:
                     console=_operator_console,
                 )
                 log.info("settlement_operator_service_wired")
+            # P8-E: wire capital-mode confirmation store after DB is connected
+            if state.db_client is not None:
+                _app.state.capital_mode_confirmation_store = (
+                    CapitalModeConfirmationStore(db=state.db_client)
+                )
+                log.info("capital_mode_confirmation_store_wired")
             try:
                 await _start_telegram_runtime(state=state)
             except Exception as exc:
