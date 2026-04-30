@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-05-01 06:38 | WARP🔹CMD-direct | Priority 9 FINAL ACCEPTANCE: ACCEPTED as public paper-beta. Evidence: PR #840 smoke matrix (6/8 PASS, 2 ENV constraint). All activation guards NOT SET. final_acceptance_gate.md updated to ACCEPTED. Capital/live activation deferred. Tier: MINOR. Zero runtime change.
+
 2026-05-01 06:37 | WARP🔹CMD | Priority 9 COMPLETE — CrusaderBot public paper-beta ACCEPTED. Smoke evidence: 6/8 PASS, Telegram BLOCKED (env constraint). All activation guards NOT SET. final_acceptance_gate.md updated with WARP🔹CMD decision. No source code change.
 
 2026-05-01 06:37 | WARP/p9-runtime-smoke-evidence | WARP🔹CMD FINAL DECISION: Priority 9 Lane 5 ACCEPTED as public paper-beta. Smoke evidence: 6/8 API surfaces PASS (local in-process), Telegram BLOCKED (env constraint, routing verified). All activation guards NOT SET. docs/final_acceptance_gate.md updated. Priority 9 COMPLETE. Live/capital activation remains blocked.
