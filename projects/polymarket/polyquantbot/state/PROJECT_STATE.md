@@ -13,6 +13,7 @@ Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENT
 - WARP/worktodo-priority8-sync merged to main via PR #821 (Tier MINOR); pre-Priority-9 state truth sync — WORKTODO P8 SENTINEL closure + Right Now / Simple Execution Order alignment + Priority 9 plan reference added to PROJECT_STATE NEXT PRIORITY.
 
 [IN PROGRESS]
+- Priority 9 Lane 3 (WARP/p9-monitoring-admin-surfaces) — merged PR #831; monitoring/admin index + operator checklist + release dashboard complete.
 - EXECUTION_PATH_VALIDATED NOT SET — env-gate decision required (WARP🔹CMD + Mr. Walker).
 - CAPITAL_MODE_CONFIRMED NOT SET — pending env decision + operator-issued DB receipt via /capital_mode_confirm two-step.
 - ENABLE_LIVE_TRADING NOT SET — guard remains off; no live-trading authority claimed.
