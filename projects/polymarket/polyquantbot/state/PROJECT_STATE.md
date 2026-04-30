@@ -1,5 +1,5 @@
-Last Updated : 2026-04-30 21:30
-Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENTINEL APPROVED 98/97/100). Pre-work sync merged via PR #821 (WARP/worktodo-priority8-sync). Priority 9 lane execution active: Lane 4 (WARP/p9-repo-hygiene-final) in progress — archive sweep moved 456 stale reports (>7 days) under reports/archive/forge|sentinel/, ROADMAP P9 lane list added, WORKTODO P1–P7 hygiene swept (deferred items intentionally kept open — onboarding/persistence-test/per-wallet-exposure/docs-sync still tracked correctly). EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. No live-trading-ready or production-capital-ready claim.
+Last Updated : 2026-04-30 23:03
+Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENTINEL APPROVED 98/97/100). Pre-work sync merged via PR #821 (WARP/worktodo-priority8-sync). Priority 9 lane execution active: Lane 4 merged (WARP/p9-repo-hygiene-final). Lane 1 (WARP/p9-public-product-docs) in progress — README + docs sync + launch summary + onboarding/support docs. Lane 2 (WARP/p9-ops-handoff) in progress — deployment guide + secrets/env guide + runbook ref. EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. No live-trading-ready or production-capital-ready claim.
 
 [COMPLETED]
 - P8-A capital readiness foundation merged to main via PR #790 (WARP/capital-readiness-p8a); 16/16 tests (CR-01..CR-12).
@@ -18,8 +18,6 @@ Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENT
 - ENABLE_LIVE_TRADING NOT SET — guard remains off; no live-trading authority claimed.
 
 [NOT STARTED]
-- Priority 9 Lane 1 (WARP/p9-public-product-docs) — README + docs sync + launch summary + onboarding/support docs.
-- Priority 9 Lane 2 (WARP/p9-ops-handoff) — deployment guide + secrets/env guide.
 - Priority 9 Lane 3 (WARP/p9-monitoring-admin-surfaces) — admin index + operator checklist + release dashboard.
 - Priority 9 Lane 5 (WARP/p9-final-acceptance) — acceptance ceremony; gated on P8 activation + Lanes 1–4 merged.
 
