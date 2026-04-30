@@ -117,3 +117,59 @@ Returns:
 - User routes: session-authenticated via `X-Session-Id` / `X-Auth-*` trusted headers.
 - Capital/operator routes: `X-Operator-Api-Key` header required.
 - Portfolio routes: hardcode `paper_user` scope — per-user binding deferred to Priority 9.
+
+## 9) Capital mode activation procedure (P8-E)
+
+The `CAPITAL_MODE_CONFIRMED` gate is now defended in two layers:
+
+1. **Env var** — `CAPITAL_MODE_CONFIRMED=true` set in deployment secrets; read once at process start.
+2. **DB receipt** — an unrevoked row in `capital_mode_confirmations`, inserted only via the operator confirmation flow described below.
+
+`LiveExecutionGuard.check_with_receipt()` requires both layers. Either missing ⇒ live execution refused with reason `capital_mode_env_gates_missing` or `capital_mode_no_active_receipt`.
+
+### 9.1 Activation checklist (in order)
+
+Do these steps in order. Each step is gated on the previous succeeding.
+
+1. **Pre-flight upstream** — confirm prior SENTINEL gates have all been set in deployment secrets:
+   - `ENABLE_LIVE_TRADING=true`
+   - `RISK_CONTROLS_VALIDATED=true`
+   - `EXECUTION_PATH_VALIDATED=true`
+   - `SECURITY_HARDENING_VALIDATED=true`
+2. **Set the env layer** — `fly secrets set CAPITAL_MODE_CONFIRMED=true -a crusaderbot && fly deploy --strategy immediate`.
+3. **Confirm gate visibility** — operator Telegram: `/capital_status`. All 5 gates must show ✅. If any show ❌, stop and reconcile env before continuing.
+4. **Issue receipt — step 1/2** — operator Telegram: `/capital_mode_confirm` (no argument). Bot replies with a 16-character hex token, the gate snapshot, and a 60-second TTL window.
+5. **Commit receipt — step 2/2** — operator Telegram (within 60s): `/capital_mode_confirm <token>`. Bot replies with the persisted `confirmation_id` + `confirmed_at` timestamp. The gate is now fully open.
+6. **Verify** — issue any live-execution-bound action (or check `/capital_status` for `capital_mode_allowed: true`). The `live_execution_guard_with_receipt_passed` event must appear in structured logs.
+
+If step 4 or 5 fails with `rejected_missing_gates`, return to step 1 and reconcile the listed env vars. Do not retry the confirm flow until all gates show green.
+
+### 9.2 Rollback / revoke procedure (incident response)
+
+Use this when an incident requires immediately disabling live execution without waiting for an env redeploy.
+
+1. Operator Telegram: `/capital_mode_revoke <reason>`. Single-step (no token) — must be fast.
+2. Bot replies with the revoked `confirmation_id`, `revoked_at`, and the reason captured in the audit log.
+3. Subsequent `LiveExecutionGuard.check_with_receipt()` calls now refuse with reason `capital_mode_no_active_receipt`. Live execution paths halt deterministically.
+4. To re-arm: repeat §9.1 steps 4–6 once root cause is resolved. Env vars remain unchanged — only the DB receipt is revoked.
+
+For full env rollback (if the incident is at the env-gate layer), additionally: `fly secrets set CAPITAL_MODE_CONFIRMED=false -a crusaderbot && fly deploy --strategy immediate`.
+
+### 9.3 Audit trail surfaces
+
+Every confirm/revoke outcome — success, refusal, token mismatch, store unavailable — emits a structured event:
+
+| Log event | Severity | Emitted on |
+|---|---|---|
+| `capital_mode_confirm_attempt` | INFO / WARNING | every step-1 issuance, step-2 commit, refusal, token mismatch, store-not-ready |
+| `capital_mode_revoke_attempt` | INFO / WARNING | every revoke call (success + no-active-row) |
+| `live_execution_guard_with_receipt_passed` | INFO | each guard pass with both layers green |
+| `live_execution_guard_blocked` | WARNING | each guard refusal — `reason` includes `capital_mode_no_active_receipt` when only the DB layer is missing |
+
+Tail with: `fly logs -a crusaderbot | grep -E "capital_mode_(confirm|revoke)_attempt|live_execution_guard"`.
+
+### 9.4 Boundary reminders
+
+- The two commands `/capital_mode_confirm` and `/capital_mode_revoke` are gated to the operator chat-id match (`_INTERNAL_COMMANDS`). Non-operator users cannot reach the endpoints from Telegram.
+- The HTTP routes themselves require `X-Operator-Api-Key`. Direct API access without that header returns 403.
+- Pending tokens are held in-process (`_PENDING_CAPITAL_CONFIRMS`). A process restart between step 1 and step 2 invalidates the pending token; operator must re-issue from step 1.

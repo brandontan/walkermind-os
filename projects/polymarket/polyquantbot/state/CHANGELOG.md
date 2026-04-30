@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-04-30 14:35 | WARP/capital-mode-confirm | P8-E follow-up: operator confirmation receipt flow — two-layer CAPITAL_MODE_CONFIRMED gate (env var + new DB receipt). Migration 002_capital_mode_confirmations + CapitalModeConfirmationStore + LiveExecutionGuard.check_with_receipt() + POST /beta/capital_mode_confirm (two-step 60s token) + POST /beta/capital_mode_revoke + Telegram /capital_mode_confirm and /capital_mode_revoke + operator_runbook §9. 15/15 P8-E tests (P8E-01..P8E-15); 100/100 prior P8 + real-clob regression; 21/21 settlement + 25/25 telegram regression — zero regressions. Tier: MAJOR. WARP•SENTINEL validation required before merge.
+
 2026-04-30 05:19 | WARP/capital-validation-p8e | P8-E: §54 capital validation + claim review — dry-run PASS 4/4, 70/70 tests, docs audit clean (no overclaim), boundary_registry 2 surfaces NEEDS_HARDENING→BLOCKED. CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet). Tier: STANDARD.
 
 2026-04-30 06:00 | WARP/repo-truth-sync-p8e | Repo truth sync post P8-E: ROADMAP.md active project summary + current focus updated (Phase 10 cleanup label removed; P8-E state as current truth); WORKTODO.md Simple Execution Order P8-E pending removed + WARP🔹CMD review next step added. Docs/state only — no runtime changes. Tier: MINOR.
