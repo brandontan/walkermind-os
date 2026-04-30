@@ -1,5 +1,5 @@
-Last Updated : 2026-05-01 03:38 Asia/Jakarta
-Status       : Priority 9 public paper-beta finish path is in final acceptance prep. Priority 8 build is complete but live/capital activation remains gated. Priority 9 Lane 4, Lane 1+2, and Lane 3 are merged. Priority 9 Lane 5 final acceptance is now the remaining finish task. COMMANDER.md GitHub-issue auto-create rules added on `WARP/commander-github-issue-rules` (Tier MINOR, doc-only, awaiting WARP🔹CMD review).
+Last Updated : 2026-05-01 03:44 Asia/Jakarta
+Status       : Priority 9 public paper-beta finish path is in final acceptance prep. Priority 8 build is complete but live/capital activation remains gated. Priority 9 Lane 4, Lane 1+2, and Lane 3 are merged. Priority 9 Lane 5 final acceptance is now the remaining finish task. COMMANDER.md GitHub-issue auto-create rules merged via PR #833 SHA 2d5722c58eac.
 
 [COMPLETED]
 - Priority 1 public bot runtime baseline completed.
