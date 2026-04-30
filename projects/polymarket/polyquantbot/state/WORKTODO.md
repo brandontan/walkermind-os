@@ -46,5 +46,5 @@ Done condition:
 - [x] Merge PR #832.
 - [x] Close stale PR #835.
 - [x] Record HOLD posture on `WARP/p9-final-acceptance-hold`.
-- [ ] Capture runtime smoke evidence from `docs/final_acceptance_gate.md`.
+- [x] Capture runtime smoke evidence from `docs/final_acceptance_gate.md` — DONE via WARP/p9-runtime-smoke-evidence PR; report at projects/polymarket/polyquantbot/reports/forge/p9-runtime-smoke-evidence.md.
 - [ ] Record final COMMANDER acceptance decision after evidence exists.
