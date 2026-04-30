@@ -330,6 +330,28 @@ CREATE TABLE IF NOT EXISTS settlement_reconciliation_results (
 """
 
 
+# ── Priority 8-E: Capital mode confirmation receipts ──────────────────────────
+
+_DDL_CAPITAL_MODE_CONFIRMATIONS = """
+CREATE TABLE IF NOT EXISTS capital_mode_confirmations (
+    confirmation_id         TEXT        PRIMARY KEY,
+    operator_id             TEXT        NOT NULL,
+    mode                    TEXT        NOT NULL,
+    acknowledgment_token    TEXT        NOT NULL,
+    upstream_gates_snapshot JSONB       NOT NULL DEFAULT '{}',
+    confirmed_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    revoked_at              TIMESTAMPTZ,
+    revoked_by              TEXT,
+    revoke_reason           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_capital_mode_confirmations_active
+    ON capital_mode_confirmations (mode, confirmed_at DESC)
+    WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_capital_mode_confirmations_operator
+    ON capital_mode_confirmations (operator_id, confirmed_at DESC);
+"""
+
+
 # ── DatabaseClient ─────────────────────────────────────────────────────────────
 
 
@@ -501,6 +523,8 @@ class DatabaseClient:
             await conn.execute(_DDL_SETTLEMENT_EVENTS)
             await conn.execute(_DDL_SETTLEMENT_RETRY_HISTORY)
             await conn.execute(_DDL_SETTLEMENT_RECONCILIATION_RESULTS)
+            # Priority 8-E: capital mode confirmation receipts
+            await conn.execute(_DDL_CAPITAL_MODE_CONFIRMATIONS)
         log.info("db_schema_applied")
 
     # ── Trades ────────────────────────────────────────────────────────────────
