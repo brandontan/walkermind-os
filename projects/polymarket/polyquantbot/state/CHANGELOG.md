@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-04-30 21:30 | WARP/p9-repo-hygiene-final | Priority 9 Lane 4 — repo hygiene final: archive sweep moved 456 stale reports (>7 days, internal date <2026-04-23) under reports/archive/forge|sentinel/ (384 forge + 72 sentinel) preserving all files via git mv; ROADMAP.md gains Priority 9 lane status table; PROJECT_STATE.md Status refined + COMPLETED pruned to 9/10 cap + NOT STARTED expanded to 4 explicit P9 lanes + NEXT PRIORITY item 2 updated to Lane 4 merge gate; WORKTODO.md surveyed (P1–P7 deferred items intentionally kept open). Docs/state + report archive only — zero runtime impact, zero file deletion, zero content modification on archived reports. Tier: MINOR.
+
 2026-04-30 20:07 | WARP/worktodo-priority8-sync | Pre-Priority-9 state sync: WORKTODO §54 SENTINEL line + Right Now PR #818 lines marked complete (PR #818 SENTINEL APPROVED 100/100); Simple Execution Order PRIORITY 8 note updated to BUILD COMPLETE / activation pending env-gate; PROJECT_STATE Last Updated bumped + NEXT PRIORITY adds Priority 9 lane scoping. Docs/state only — zero runtime impact. Tier: MINOR.
 
 2026-04-30 16:30 | WARP/capital-mode-confirm | sentinel: capital-mode-confirm-live-integration — APPROVED 100/100, 0 critical, 3 advisory (F-1 mocked-mode label pre-existing, F-2 P8C asyncio deprecated test pattern, F-3 store docstring stale). All 6 SENTINEL TASK items pass with file:line evidence. Report: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md. Awaiting WARP🔹CMD merge decision on PR #818.

@@ -24,7 +24,7 @@
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
 **Status:** Public-ready paper beta path complete; Priority 8 capital readiness (P8-A/B/C/D/E) all merged; real CLOB foundation merged via PR #813 (SENTINEL APPROVED 98/100, NARROW INTEGRATION); capital-mode-confirm DB-backed two-layer gate merged via PR #815 (chunk1, SENTINEL APPROVED 97/100) and PR #818 (live integration — strict check_with_receipt() wired, revoke returns 503 on persistence failure, SENTINEL APPROVED 100/100, 167/167 tests). EXECUTION_PATH_VALIDATED NOT SET. CAPITAL_MODE_CONFIRMED NOT SET. ENABLE_LIVE_TRADING NOT SET. No production-capital-ready or live-trading-ready claim. Next gate: WARP🔹CMD + Mr. Walker env-gate decision, then operator /capital_mode_confirm receipt.
-**Last Updated:** 2026-04-30 19:18
+**Last Updated:** 2026-04-30 21:30
 
 # Board Overview
 
@@ -74,6 +74,20 @@
 ### Execution Tracking Source
 - Detailed checklist, priority ordering, and right-now operational tasks live at: [projects/polymarket/polyquantbot/state/WORKTODO.md](projects/polymarket/polyquantbot/state/WORKTODO.md).
 - ROADMAP.md remains summary-level and milestone-oriented.
+
+### Priority 9 — Final Product Completion / Handoff (Plan)
+
+5 independently mergeable lanes per `projects/polymarket/polyquantbot/reports/forge/worktodo-priority8-sync.md` plan reference. Lane 4 sequenced first to clean truth surface before doc lanes write against it.
+
+| Lane | Branch | Tier | Status |
+|---|---|---|---|
+| 4 | `WARP/p9-repo-hygiene-final` | MINOR | 🚧 In Progress (this lane) — stale doc cleanup + report archive sweep + state/roadmap sync |
+| 1 | `WARP/p9-public-product-docs` | MINOR | ❌ Not Started — README + docs sync + launch summary + onboarding/support docs |
+| 2 | `WARP/p9-ops-handoff` | MINOR | ❌ Not Started — deployment guide + secrets/env guide |
+| 3 | `WARP/p9-monitoring-admin-surfaces` | STANDARD | ❌ Not Started — admin index + operator checklist + release dashboard |
+| 5 | `WARP/p9-final-acceptance` | STANDARD (gated) | ❌ Not Started — acceptance ceremony; held until Priority 8 activation complete + Lanes 1–4 merged |
+
+Recommended sequencing: Lane 4 → Lanes 1+2 in parallel (zero file overlap) → Lane 3 → Lane 5 (gated). Each lane requires explicit WARP🔹CMD-declared `WARP/{feature}` branch before WARP•FORGE starts.
 
 ---
 ## CrusaderBot — Multi-User Foundation Checklist
