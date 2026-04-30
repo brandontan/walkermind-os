@@ -16,7 +16,10 @@ jobs:
     name: Send PR notification to WARP CMD
     runs-on: ubuntu-latest
     continue-on-error: true
-    if: startsWith(github.head_ref, 'WARP/')
+    if: |
+      startsWith(github.head_ref, 'WARP/') &&
+      !startsWith(github.head_ref, 'WARP/STATE-SYNC-') &&
+      !startsWith(github.head_ref, 'WARP/ECHO-')
     permissions:
       pull-requests: write
 
