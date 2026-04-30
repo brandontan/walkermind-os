@@ -1,6 +1,6 @@
 # WARP•FORGE Report — real-clob-execution-path
 
-Branch: WARP/real-clob-execution-path-0ef5
+Branch: WARP/real-clob-execution-path
 Last Updated: 2026-04-30 08:32
 Validation Tier: MAJOR
 Claim Level: NARROW INTEGRATION
