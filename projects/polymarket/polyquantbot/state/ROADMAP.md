@@ -83,7 +83,7 @@
 |---|---|---|---|
 | 4 | `WARP/p9-repo-hygiene-final` | MINOR | ✅ Done — merged via PR #822; archive sweep + state/roadmap sync complete |
 | 1+2 | `WARP/p9-readiness-docs-ops` | MINOR | 🚧 In Progress — Lane 1 + Lane 2 consolidated: README + launch_summary + onboarding + support + ops/deployment_guide + ops/secrets_env_guide + ops/runbook_quick_ref. PR open; pending WARP🔹CMD review |
-| 3 | `WARP/p9-monitoring-admin-surfaces` | STANDARD | ❌ Not Started — admin index + operator checklist + release dashboard |
+| 3 | `WARP/p9-monitoring-admin-surfaces` | STANDARD | ✅ Done — merged via PR #831; monitoring_admin_index + operator_checklist + release_dashboard complete |
 | 5 | `WARP/p9-final-acceptance` | STANDARD (gated) | ❌ Not Started — acceptance ceremony; held until Priority 8 activation complete + Lanes 1–4 merged |
 
 Recommended sequencing: Lane 4 → Lane 1+2 (combined) → Lane 3 → Lane 5 (gated). Each lane requires explicit WARP🔹CMD-declared `WARP/{feature}` branch before WARP•FORGE starts.
