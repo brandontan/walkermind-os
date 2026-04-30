@@ -613,5 +613,7 @@ This is the final finish layer.
 - [x] FORGE: P8-E capital validation + claim review (§54) — dry-run PASS, docs clean, boundary registry updated; CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet)
 - [x] WARP🔹CMD: scope real CLOB execution lane (WARP/real-clob-execution-path) — scoped and in progress
 - [x] SENTINEL: validate WARP/real-clob-execution-path (Tier MAJOR) — APPROVED 98/100, 0 critical; report: projects/polymarket/polyquantbot/reports/sentinel/real-clob-execution-path.md
-- [ ] WARP🔹CMD: after SENTINEL verdict, decide EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars
+- [x] WARP🔹CMD: merge WARP/real-clob-execution-path — PR #813 squash-merged to main on 2026-04-30 (merge SHA 6916a09ea02609bc3673db0ab8acba457f2ce4cf); guarded real CLOB execution-path foundation landed (NARROW INTEGRATION only)
+- [x] WARP/post-merge-sync-real-clob: repo-state truth synchronized post PR #813 merge (PROJECT_STATE.md / ROADMAP.md / WORKTODO.md / CHANGELOG.md); EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET
+- [ ] WARP🔹CMD: env-gate decision over merged real CLOB foundation — decide EXECUTION_PATH_VALIDATED, then CAPITAL_MODE_CONFIRMED path. No further real CLOB build required for this lane.
 
