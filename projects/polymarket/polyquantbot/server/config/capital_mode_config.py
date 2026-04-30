@@ -35,6 +35,7 @@ from __future__ import annotations
 import math
 import os
 from dataclasses import dataclass
+from typing import Any
 
 import structlog
 
@@ -220,6 +221,46 @@ class CapitalModeConfig:
             "execution_path_validated": self.execution_path_validated,
             "security_hardening_validated": self.security_hardening_validated,
         }
+
+    async def is_capital_mode_fully_allowed(
+        self, store: Any
+    ) -> tuple[bool, str | None]:
+        """Two-layer capital-mode gate (env var + DB receipt).
+
+        Combines :meth:`is_capital_mode_allowed` (env-var layer) with a runtime
+        check that an unrevoked confirmation row exists for the current
+        ``trading_mode`` in :class:`CapitalModeConfirmationStore`.
+
+        ``store`` must expose ``async get_active(mode: str) -> object | None``.
+
+        Returns:
+            (True, None) when both layers pass; (False, reason) otherwise. The
+            reason is a stable machine-readable token suitable for structured
+            logging or operator alerts.
+        """
+        if not self.is_capital_mode_allowed():
+            missing = self._missing_gates()
+            reason = (
+                "capital_mode_env_gates_missing:" + ",".join(missing)
+                if missing
+                else "capital_mode_not_live"
+            )
+            return False, reason
+
+        try:
+            active = await store.get_active(self.trading_mode)
+        except Exception as exc:
+            log.error(
+                "capital_mode_confirmation_lookup_error",
+                error=str(exc),
+                trading_mode=self.trading_mode,
+            )
+            return False, "capital_mode_confirmation_lookup_error"
+
+        if active is None:
+            return False, "capital_mode_no_active_receipt"
+
+        return True, None
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
