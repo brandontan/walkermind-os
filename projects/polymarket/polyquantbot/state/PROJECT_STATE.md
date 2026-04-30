@@ -1,5 +1,5 @@
-Last Updated : 2026-04-30 23:03
-Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENTINEL APPROVED 98/97/100). Pre-work sync merged via PR #821 (WARP/worktodo-priority8-sync). Priority 9 lane execution active: Lane 4 merged (WARP/p9-repo-hygiene-final). Lane 1 (WARP/p9-public-product-docs) in progress — README + docs sync + launch summary + onboarding/support docs. Lane 2 (WARP/p9-ops-handoff) in progress — deployment guide + secrets/env guide + runbook ref. EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. No live-trading-ready or production-capital-ready claim.
+Last Updated : 2026-04-30 13:44
+Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENTINEL APPROVED 98/97/100). Pre-work sync merged via PR #821 (WARP/worktodo-priority8-sync). Priority 9 lane execution active: Lane 4 merged (WARP/p9-repo-hygiene-final). Lane 1 + Lane 2 consolidated into single combined lane WARP/p9-readiness-docs-ops (Tier MINOR, FOUNDATION) — public product docs (README/launch_summary/onboarding/support) + ops handoff docs (deployment_guide/secrets_env_guide/runbook_quick_ref) finalized; pending WARP🔹CMD review. EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. No live-trading-ready or production-capital-ready claim.
 
 [COMPLETED]
 - P8-A capital readiness foundation merged to main via PR #790 (WARP/capital-readiness-p8a); 16/16 tests (CR-01..CR-12).
@@ -16,14 +16,16 @@ Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENT
 - EXECUTION_PATH_VALIDATED NOT SET — env-gate decision required (WARP🔹CMD + Mr. Walker).
 - CAPITAL_MODE_CONFIRMED NOT SET — pending env decision + operator-issued DB receipt via /capital_mode_confirm two-step.
 - ENABLE_LIVE_TRADING NOT SET — guard remains off; no live-trading authority claimed.
+- Priority 9 Lane 1+2 combined (WARP/p9-readiness-docs-ops) — public product docs + ops handoff docs finalized on branch; PR opened; pending WARP🔹CMD review (MINOR, FOUNDATION).
 
 [NOT STARTED]
 - Priority 9 Lane 3 (WARP/p9-monitoring-admin-surfaces) — admin index + operator checklist + release dashboard.
 - Priority 9 Lane 5 (WARP/p9-final-acceptance) — acceptance ceremony; gated on P8 activation + Lanes 1–4 merged.
 
 [NEXT PRIORITY]
+- WARP🔹CMD: review WARP/p9-readiness-docs-ops PR (Tier MINOR, FOUNDATION; docs/ops only; no runtime change; no activation overclaim). Forge report: projects/polymarket/polyquantbot/reports/forge/p9-readiness-docs-ops.md.
 - WARP🔹CMD: Priority 8 build complete. To activate: (1) set EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars in deployment, (2) operator issues /capital_mode_confirm two-step on Telegram → DB receipt persisted, (3) Priority 8 closeable.
-- WARP🔹CMD: Lane 4 (WARP/p9-repo-hygiene-final) merge gate. After merge, scope Lanes 1+2 in parallel (zero file overlap), then Lane 3, then Lane 5 (gated).
+- WARP🔹CMD: after p9-readiness-docs-ops merge, scope Lane 3, then Lane 5 (gated).
 
 [KNOWN ISSUES]
 - PaperBetaWorker.run_once() skips price_updater() entirely in live mode — market_data_provider injection path in price_updater() is never reached from worker loop (deferred fix; non-critical per SENTINEL F-1).

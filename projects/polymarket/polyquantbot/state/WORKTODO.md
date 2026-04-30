@@ -351,7 +351,7 @@ Build this after wallet lifecycle is ready.
 - [x] Show admin/operator portfolio surface
 - [x] Add persistence and recovery
 - [x] Validate all calculations (25/25 tests passing)
-- [ ] Sync docs after completion (deferred to Priority 9 final docs lane)
+- [x] Sync docs after completion (closed via Priority 9 Lane 1+2 combined lane `WARP/p9-readiness-docs-ops`: launch_summary + onboarding + support + ops/deployment_guide + ops/secrets_env_guide + ops/runbook_quick_ref)
 
 ### Done Condition
 

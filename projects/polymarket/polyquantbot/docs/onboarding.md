@@ -33,14 +33,15 @@ Copy `.env.example` (if present) or create `.env` manually:
 
 ```
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/crusaderbot
+DB_DSN=postgresql://user:pass@localhost:5432/crusaderbot
+CRUSADER_DB_RUNTIME_ENABLED=true
 
 # Redis
 REDIS_URL=redis://localhost:6379
 
 # Telegram
 TELEGRAM_BOT_TOKEN=<your-bot-token>
-TELEGRAM_OPERATOR_CHAT_ID=<your-chat-id>
+TELEGRAM_CHAT_ID=<your-operator-chat-id>
 
 # Falcon (optional — signals disabled if not set)
 FALCON_ENABLED=false
@@ -48,9 +49,10 @@ FALCON_API_KEY=
 FALCON_BASE_URL=
 FALCON_TIMEOUT=30
 
-# Operator (admin routes)
-OPERATOR_API_KEY=<generate-a-random-key>
+# Operator / Admin (admin routes)
+CRUSADER_OPERATOR_API_KEY=<generate-a-random-key>
 ORCHESTRATION_ADMIN_TOKEN=<generate-a-random-key>
+SETTLEMENT_ADMIN_TOKEN=<generate-a-random-key>
 ```
 
 For the full env var reference, see `docs/ops/secrets_env_guide.md`.
