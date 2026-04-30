@@ -1,5 +1,5 @@
-Last Updated : 2026-04-30 16:30
-Status       : WARP/capital-mode-confirm follow-up (PR #818, LIVE INTEGRATION) — WARP•SENTINEL APPROVED 100/100, 0 critical, 3 advisory findings (F-1 pre-existing mocked-mode label not enforced, F-2 P8C asyncio deprecated pattern, F-3 store docstring stale). Source: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md. PR #815 chunk1 scaffold merged earlier (SHA 6ea3b457, SENTINEL APPROVED 97/100). PR #813 real-CLOB foundation merged (SHA 6916a09e). 167/167 regression across all touched-area suites. EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. Awaiting WARP🔹CMD merge decision + env-gate decision. No live-trading-ready or production-capital-ready claim.
+Last Updated : 2026-04-30 15:25
+Status       : WARP/capital-mode-confirm follow-up MERGED to main via PR #818 (merge SHA 5d314839). SENTINEL APPROVED 100/100, 0 critical, 3 advisory (non-blocking). LIVE INTEGRATION — check_with_receipt() strictly enforced at PaperBetaWorker + ClobExecutionAdapter; revoke 503 on persistence failure. 167/167 tests pass. WARP🔹CMD merge complete. EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. No live-trading-ready or production-capital-ready claim.
 
 [COMPLETED]
 - Priority 7 settlement lane fully closed: DDL PR #786, operator routes PR #787, Telegram wiring PR #789; 66/66 tests passing.
@@ -13,20 +13,19 @@ Status       : WARP/capital-mode-confirm follow-up (PR #818, LIVE INTEGRATION) �
 - PR notification workflow hardened via WARP/pr-notify-robust-ce09.
 - P8-E capital validation sweep complete via WARP/capital-validation-p8e; dry-run PASS 4/4, 70/70 P8 tests passing, docs audit clean, boundary registry updated.
 - WARP/real-clob-execution-path merged to main via PR #813 (merge SHA 6916a09e); SENTINEL APPROVED 98/100, 0 critical. 30/30 RCLOB + 70/70 P8 regressions passing. NARROW INTEGRATION only — adapter/mock/live market-data guard foundation.
-- WARP/capital-mode-confirm chunk1 merged to main via PR #815 (merge SHA 6ea3b457); SENTINEL APPROVED 97/100, 0 critical. NARROW INTEGRATION only — DB layer + store + guard + API + Telegram scaffold. check_with_receipt() defined but not wired into runtime live call sites (deferred to follow-up lane).
-- WARP/capital-mode-confirm follow-up (this lane, PR #818): LIVE INTEGRATION — strict check_with_receipt() enforcement at PaperBetaWorker.run_once() and ClobExecutionAdapter.submit_order(); ClobExecutionAdapter mode='live' fail-fast at construction without confirmation_store; revoke persistence failure now distinguished via CapitalModeRevokeFailedError → 503 (instead of misreporting no_active). 21/21 P8-E (P8E-01..P8E-21) + 30/30 RCLOB + 100/100 prior P8 + 21/21 settlement + 25/25 telegram regression.
+- WARP/capital-mode-confirm chunk1 merged to main via PR #815 (merge SHA 6ea3b457); SENTINEL APPROVED 97/100, 0 critical. NARROW INTEGRATION only — DB layer + store + guard + API + Telegram scaffold.
+- WARP/capital-mode-confirm follow-up merged to main via PR #818 (merge SHA 5d314839); SENTINEL APPROVED 100/100, 0 critical. LIVE INTEGRATION — check_with_receipt() strictly enforced at both production call sites. 167/167 tests pass. Priority 8 build complete. Awaiting WARP🔹CMD env-gate + operator confirmation to activate.
 
 [IN PROGRESS]
-- WARP/capital-mode-confirm follow-up (PR #818): WARP•SENTINEL APPROVED 100/100 (LIVE INTEGRATION verdict, 0 critical, 3 advisory). Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md.
-- EXECUTION_PATH_VALIDATED NOT SET — WARP🔹CMD env-gate decision required after PR #818 merge.
-- CAPITAL_MODE_CONFIRMED NOT SET — pending WARP🔹CMD env decision + operator-issued DB receipt via /capital_mode_confirm two-step.
+- EXECUTION_PATH_VALIDATED NOT SET — env-gate decision required (WARP🔹CMD + Mr. Walker).
+- CAPITAL_MODE_CONFIRMED NOT SET — pending env decision + operator-issued DB receipt via /capital_mode_confirm two-step.
 - ENABLE_LIVE_TRADING NOT SET — guard remains off; no live-trading authority claimed.
 
 [NOT STARTED]
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
-- WARP🔹CMD: review SENTINEL APPROVED 100/100 verdict on PR #818 (source: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md), then: (1) merge PR #818, (2) set EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars in deployment, (3) operator issues /capital_mode_confirm two-step on operator Telegram → DB receipt persisted, (4) Priority 8 closeable, (5) scope Priority 9.
+- WARP🔹CMD: Priority 8 build complete. To activate: (1) set EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars in deployment, (2) operator issues /capital_mode_confirm two-step on Telegram → DB receipt persisted, (3) Priority 8 closeable, (4) scope Priority 9.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.run_once() skips price_updater() entirely in live mode — market_data_provider injection path in price_updater() is never reached from worker loop (deferred fix; non-critical per SENTINEL F-1).
@@ -39,4 +38,5 @@ Status       : WARP/capital-mode-confirm follow-up (PR #818, LIVE INTEGRATION) �
 - OperatorConsole.apply_admin_intervention() does not persist intervention record to DB -- audit log emitted via structlog (operator_admin_intervention_audit) on every intervention; DB persistence deferred to P9 storage lane.
 - get_failed_batches() always returns [] -- batch results not persisted in current settlement persistence layer; /failed_batches Telegram reply acknowledges this explicitly.
 - Capital-mode pending-token store is in-process (_PENDING_CAPITAL_CONFIRMS in server/api/public_beta_routes.py). Multi-replica deployments will require Redis-backed swap before horizontal scale; current single-machine Fly runtime is acceptable.
-
+- ClobExecutionAdapter mode='mocked' label not enforced against client type — pre-existing risk (SENTINEL F-1, PR #813). Deferred to P9 hardening.
+- P8C asyncio.get_event_loop().run_until_complete deprecated pattern breaks test isolation when run after P8E — pre-existing fragility (SENTINEL F-2). Deferred.
