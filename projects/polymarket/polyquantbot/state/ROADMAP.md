@@ -82,12 +82,11 @@
 | Lane | Branch | Tier | Status |
 |---|---|---|---|
 | 4 | `WARP/p9-repo-hygiene-final` | MINOR | ✅ Done — merged via PR #822; archive sweep + state/roadmap sync complete |
-| 1 | `WARP/p9-public-product-docs` | MINOR | 🚧 In Progress — README + docs sync + launch summary + onboarding/support docs |
-| 2 | `WARP/p9-ops-handoff` | MINOR | 🚧 In Progress — deployment guide + secrets/env guide + runbook ref |
+| 1+2 | `WARP/p9-readiness-docs-ops` | MINOR | 🚧 In Progress — Lane 1 + Lane 2 consolidated: README + launch_summary + onboarding + support + ops/deployment_guide + ops/secrets_env_guide + ops/runbook_quick_ref. PR open; pending WARP🔹CMD review |
 | 3 | `WARP/p9-monitoring-admin-surfaces` | STANDARD | ❌ Not Started — admin index + operator checklist + release dashboard |
 | 5 | `WARP/p9-final-acceptance` | STANDARD (gated) | ❌ Not Started — acceptance ceremony; held until Priority 8 activation complete + Lanes 1–4 merged |
 
-Recommended sequencing: Lane 4 → Lanes 1+2 in parallel (zero file overlap) → Lane 3 → Lane 5 (gated). Each lane requires explicit WARP🔹CMD-declared `WARP/{feature}` branch before WARP•FORGE starts.
+Recommended sequencing: Lane 4 → Lane 1+2 (combined) → Lane 3 → Lane 5 (gated). Each lane requires explicit WARP🔹CMD-declared `WARP/{feature}` branch before WARP•FORGE starts.
 
 ---
 ## CrusaderBot — Multi-User Foundation Checklist
