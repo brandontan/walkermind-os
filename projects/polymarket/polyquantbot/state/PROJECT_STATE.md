@@ -10,17 +10,13 @@ Status       : Priority 9 COMPLETE. P9 Lane 5 ACCEPTED as public paper-beta (202
 - Priority 9 Lane 5 final acceptance gate prep completed via PR #832.
 - COMMANDER.md GitHub issue auto-create rules merged via PR #833 SHA 2d5722c58eac.
 - Priority 9 Lane 5 HOLD posture recording merged via PR #836 (WARP/p9-final-acceptance-hold). Scope: docs/state/report only. Tier: MINOR.
+- Priority 9 smoke evidence captured via PR #840 (WARP/p9-runtime-smoke-evidence). WARP🔹CMD decision: ACCEPTED as public paper-beta. SHA 91929fa34534.
 - Priority 9 Lane 5 ACCEPTED: smoke evidence merged via PR #840 SHA 91929fa34534. WARP🔹CMD final decision recorded in docs/final_acceptance_gate.md. Priority 9 COMPLETE.
 
 [IN PROGRESS]
 - None.
 
 [BLOCKED / GATED]
-- Public paper-beta: ACCEPTED. Live/capital activation remains blocked.
-- `EXECUTION_PATH_VALIDATED` NOT SET.
-- `CAPITAL_MODE_CONFIRMED` NOT SET.
-- `ENABLE_LIVE_TRADING` NOT SET.
-- Production-capital readiness and live trading remain blocked.
-
+- Capital/live activation (ENABLE_LIVE_TRADING, CAPITAL_MODE_CONFIRMED, EXECUTION_PATH_VALIDATED) — NOT SET. Requires separate explicit Mr. Walker + WARP🔹CMD decision.
 [NEXT PRIORITY]
-- Priority 10 planning or live/capital activation sequence — requires explicit Mr. Walker instruction.
+- No active priority. P9 complete. Awaiting Mr. Walker decision on next priority or live/capital activation.
