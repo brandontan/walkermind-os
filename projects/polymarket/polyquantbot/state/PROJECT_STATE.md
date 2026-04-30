@@ -1,5 +1,5 @@
-Last Updated : 2026-05-01 06:33 Asia/Jakarta
-Status       : Runtime smoke evidence captured via WARP/p9-runtime-smoke-evidence. API surfaces 1-4 and 7-8 PASS. Telegram surfaces BLOCKED (env constraint, not code defect). All activation guards NOT SET. Awaiting WARP🔹CMD final acceptance decision.
+Last Updated : 2026-05-01 06:37 Asia/Jakarta
+Status       : Priority 9 COMPLETE. P9 Lane 5 ACCEPTED as public paper-beta (2026-05-01 06:37 WIB). Runtime smoke evidence: 6/8 PASS, Telegram BLOCKED (env, not code defect). All activation guards NOT SET. Live/capital activation remains blocked pending separate owner decision.
 
 [COMPLETED]
 - Priorities 1-7 completed.
@@ -12,15 +12,14 @@ Status       : Runtime smoke evidence captured via WARP/p9-runtime-smoke-evidenc
 - Priority 9 Lane 5 HOLD posture recording merged via PR #836 (WARP/p9-final-acceptance-hold). Scope: docs/state/report only. Tier: MINOR.
 
 [IN PROGRESS]
-- None — runtime smoke evidence captured; awaiting WARP🔹CMD final decision.
+- None.
 
 [BLOCKED / GATED]
-- Public paper-beta final acceptance is not granted yet because required runtime smoke evidence is not captured in repo.
+- Public paper-beta: ACCEPTED. Live/capital activation remains blocked.
 - `EXECUTION_PATH_VALIDATED` NOT SET.
 - `CAPITAL_MODE_CONFIRMED` NOT SET.
 - `ENABLE_LIVE_TRADING` NOT SET.
 - Production-capital readiness and live trading remain blocked.
 
 [NEXT PRIORITY]
-- WARP🔹CMD reviews smoke evidence at `projects/polymarket/polyquantbot/reports/forge/p9-runtime-smoke-evidence.md`.
-- Record final decision in `docs/final_acceptance_gate.md`: ACCEPTED as public paper-beta, HOLD, or ESCALATE TO OWNER-GATED ACTIVATION REVIEW.
+- Priority 10 planning or live/capital activation sequence — requires explicit Mr. Walker instruction.
