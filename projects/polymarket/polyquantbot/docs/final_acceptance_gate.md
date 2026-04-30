@@ -60,3 +60,30 @@ Not allowed claims:
 
 All lanes done. Final acceptance recorded. System status: public paper-beta ACCEPTED.
 Live/capital activation remains a separate owner-gated decision sequence.
+
+---
+
+## WARP🔹CMD Final Decision
+
+**Decision:** ACCEPTED as public paper-beta
+**Date:** 2026-05-01 06:37 Asia/Jakarta
+**Decided by:** WARP🔹CMD
+**Evidence:** `projects/polymarket/polyquantbot/reports/forge/p9-runtime-smoke-evidence.md` (PR #840, SHA 91929fa34534)
+
+**Rationale:**
+- 6/8 API surfaces PASS via local in-process FastAPI (TestClient)
+- 2/8 Telegram surfaces BLOCKED — env constraint (no TELEGRAM_BOT_TOKEN in CI), not code defect
+- Telegram routes delegate to verified API surfaces — code routing confirmed
+- All 3 activation guards NOT SET: ENABLE_LIVE_TRADING / CAPITAL_MODE_CONFIRMED / EXECUTION_PATH_VALIDATED
+- All risk constants match AGENTS.md fixed values
+- Zero source code changes in smoke PR
+
+**What ACCEPTED means:**
+- Priority 9 (public paper-beta release) is COMPLETE
+- System is cleared for public paper-beta operation
+- Live trading / production capital activation remains blocked — requires separate Mr. Walker + WARP🔹CMD decision
+
+**What ACCEPTED does NOT mean:**
+- Live trading is not enabled
+- Production capital is not activated
+- No activation env vars have been set
