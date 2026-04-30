@@ -1,590 +1,142 @@
 ## CrusaderBot Work Checklist
 
-### From Now to Finish
+Last Updated: 2026-05-01 02:55 Asia/Jakarta
 
 ---
 
-## PRIORITY 1 — Bot Public-Ready Baseline
-
-This must be finished first.
-
-### Status Snapshot (2026-04-23)
-
-#### DONE / Mostly Done
-
-- [x] Fly app is alive
-- [x] Telegram runtime is active on Fly
-- [x] Telegram startup is automatic in the deploy path
-- [x] `/ready` includes Telegram runtime truth
-- [x] `/start` replies on deployed environment
-- [x] Onboarding/public-safe/paper-only copy refined
-- [x] Fallback/error copy refined
-- [x] Monitor Integration + Observability Hardening lane closed on main
-- [x] Phase 10.2 public-safe command expansion lane closed on main (PR #713 merged truth)
-
-#### Latest merged truth (2026-04-23 14:15 Asia/Jakarta)
-
-- Public Telegram copy layer is consolidated through shared presentation helpers in `client/telegram/presentation.py` so `/start`, onboarding-required, onboarding-started, linked/active-session variants, temporary backend/runtime issues, and unknown-command fallback share one structure.
-- `/help` and `/status` keep a consistent boundary block with the same public paper-beta posture and no live-trading/production-capital readiness overclaim.
-- Live Telegram baseline evidence is recorded in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.md` with supporting log in `projects/polymarket/polyquantbot/reports/forge/telegram_runtime_05_priority1-live-proof.log`.
-- Verified from live runtime evidence: `/start`, `/help`, `/status`, and unknown-command fallback all returned non-empty/non-dummy responses.
-- Public baseline path showed no silent fail behavior during the verified command checks.
-- Paper-only public-safe boundary remained visible in live replies; no live-trading or production-capital readiness claim is introduced.
-- Remaining debt is unchanged: repeated `/start` progression flow still feels stepwise and should be refined further without expanding runtime activation scope.
-
-### 2. Baseline Public Commands
-
-- [x] Make sure responses are not empty or dummy
-- [x] Make sure there is no timeout or silent failure
-
-### 3. Path to Public Telegram UX Refinement
-
-- [ ] Refine the existing Telegram onboarding flow
-- [x] Refine the existing Telegram command UX
-- [x] Refine the current welcome intro for new users
-- [x] Refine the current help and status copy
-- [x] Refine paper-only messaging across the existing Telegram flow
-- [x] Refine the next-step guidance for new users
-- [x] Refine the unlinked-user flow using the current foundation
-- [x] Refine the linked-user flow using the current foundation
-- [x] Refine fallback and error messaging
-- [x] Refine Telegram formatting and readability
-
-### 4. Public Command Set
-
-- [x] Keep the existing public command baseline clean and useful
-- [x] Prepare `/paper`
-- [x] Prepare `/about`
-- [x] Prepare `/risk_info` (public informational command)
-- [x] Prepare `/account` and `/link`
-- [x] Keep `/risk` limited to runtime/operator path (not public-safe command baseline)
-- [x] Separate public commands from admin/operator commands
-- [x] Hide commands that are not ready yet
-
-### 5. Public-Safe Boundaries
-
-- [x] Do not claim live trading readiness
-- [x] Do not claim production-capital readiness
-- [x] Keep the paper-only boundary visible everywhere
-- [x] Guard admin/internal paths properly
-
-### 6. Observability Baseline
-
-- [x] Add bot startup logs
-- [x] Add command received logs
-- [x] Add command handled logs
-- [x] Add reply success/failure logs
-- [x] Add missing env / disabled mode logs
-- [x] Add Sentry Python runtime initialization + exception capture guardrails (env-only `SENTRY_DSN`, FastAPI + Telegram/runtime exception surfaces)
-
-### 7. End-to-End Validation
-
-- [x] Deploy the latest version
-- [x] Confirm `/health` is OK
-- [x] Confirm `/ready` is OK
-- [x] Confirm `/start` is OK
-- [x] Confirm `/help` is OK
-- [x] Confirm `/status` is OK
-- [x] Save validation evidence
-
-Current truth (2026-04-22 02:31 Asia/Jakarta): live baseline command proof now exists for `/start`, `/help`, `/status`, and unknown fallback on deployed runtime; onboarding/session UX repetition on repeated `/start` remains open as follow-up refinement debt only.
-
-### Done Condition
-
-- [x] The bot is truly usable as a public-ready paper bot baseline
-
----
-
-## PRIORITY 2 — DB, Persistence, and Runtime Hardening
-
-Finish this after the public bot baseline works.
-
-### Status Snapshot (2026-04-24 11:53 Asia/Jakarta)
-
-#### MERGED ON MAIN
-
-- [x] Phase 10.4 / Priority 2 DB readiness/startup hardening closed on main via PR #725 and PR #726
-- [x] Phase 10.5 / Priority 2 persistence stabilization baseline closed on main via PR #727 and PR #728
-- [x] Phase 10.6 / Priority 2 runtime config + readiness truth hardening closed on main via PR #729 and PR #730
-- [x] Phase 10.7 / Priority 2 shutdown/restart/dependency resilience hardening closed on main via PR #731 and PR #732
-
-#### MERGED ON MAIN (latest)
-
-- [x] Phase 10.8 / Priority 2 logging and monitoring hardening closed on main via PR #734, PR #736, and PR #737
-
-#### MERGED ON MAIN (latest security lane closure)
-
-- [x] Phase 10.9 / Priority 2 security baseline hardening closed with final SENTINEL APPROVED gate for PR #742 (59-pass targeted rerun + exact branch-truth sync)
-
-#### MERGED ON MAIN (Deployment Hardening lane closure)
-
-- [x] Deployment Hardening lane closed: PR #759 merged to main on 2026-04-24 11:21 Asia/Jakarta by COMMANDER (SENTINEL APPROVED 98/100, zero critical issues)
-- [x] Clean up the Dockerfile
-- [x] Keep `fly.toml` in sync
-- [x] Define restart policy clearly
-- [x] Define rollback strategy clearly
-- [x] Define post-deploy smoke tests clearly
-
-### 9. Supabase / Postgres Integration Hardening
-
-- [x] Finalize a stable `DATABASE_URL`
-- [x] Make sure `sslmode=require` is used where needed
-- [x] Confirm pooled connection strategy
-- [x] Add DB health checks
-- [x] Make sure startup does not fail when DB is slow
-
-### 10. Persistence Stabilization
-
-- [x] Audit any state still stored in files or temp storage
-- [x] Move critical user/session state into DB
-- [x] Move link/account state into DB
-- [x] Remove split-brain state between file storage and DB
-- [x] Make sure restart/redeploy does not break state
-
-### 11. Runtime Config Hardening
-
-- [x] Validate required env vars at boot
-- [x] Make missing-secret errors clear
-- [x] Reduce unsafe defaults
-- [x] Make startup config summary safe and truthful
-
-### 12. Health / Readiness Truth Hardening
-
-- [x] Make `/health` check the main process properly
-- [x] Make `/ready` check relevant dependencies properly
-- [x] Include Telegram runtime state in readiness
-- [x] Include DB state in readiness
-- [x] Remove false green status
-
-### 13. Error Handling and Resilience
-
-- [x] Make graceful shutdown work properly
-- [x] Make restart safety reliable
-- [x] Prevent worker crash from corrupting state
-- [x] Add retry handling for non-fatal dependencies
-
-### 14. Logging and Monitoring Hardening
-
-- [x] Keep structured logging consistent
-- [x] Improve startup logs
-- [x] Make error traces easy to follow
-- [x] Prepare minimum viable monitoring
-
-### 15. Security Baseline (DONE)
-
-- [x] Make sure secrets never appear in logs
-- [x] Remove any hardcoded credentials
-- [x] Protect admin access properly
-- [x] Restrict sensitive routes
-
-### 16. Deployment Hardening
-
-- [x] Clean up the Dockerfile
-- [x] Keep `fly.toml` in sync
-- [x] Define restart policy clearly
-- [x] Define rollback strategy clearly
-- [x] Define post-deploy smoke tests clearly
-
-### Done Condition
-
-- [x] The bot is not just running, but stable and persistent
-
----
-
-## PRIORITY 3 — Paper Trading Product Completion
-
-Finish this after runtime and persistence are stable.
-
-### 17. Paper Account Model
-
-- [x] Define the paper balance model
-- [x] Define paper position tracking
-- [x] Define paper PnL tracking
-- [x] Add reset/test flow for operators
-
-### 18. Paper Execution Engine
-
-- [x] Define paper order intent flow
-- [x] Enable paper entry logic
-- [x] Enable paper exit logic
-- [x] Make paper fill assumptions clear
-- [x] Make paper execution logging clear
-
-### 19. Paper Portfolio Surface
-
-- [x] Show open paper positions
-- [x] Show realized PnL
-- [x] Show unrealalized PnL
-- [x] Show summary through bot/API
-
-### 20. Paper Risk Controls
-
-- [x] Enforce exposure caps
-- [x] Enforce drawdown caps
-- [x] Enforce kill switch
-- [x] Show risk state clearly
-
-### 21. Paper Strategy Visibility
-
-- [x] Show strategy state
-- [x] Show signal state
-- [x] Show enable/disable visibility
-- [x] Show suppressed/blocked reasons
-
-### 22. Admin / Operator Paper Controls
-
-- [x] Show runtime paper summary
-- [x] Show readiness paper state
-- [x] Add pause/resume if supported
-- [x] Keep admin commands separate
-
-### 23. Public Paper UX Completion
-
-- [x] Make sure users understand paper mode
-- [x] Show paper product status clearly
-- [x] Show product limitations clearly
-- [x] Keep messaging premium and clear
-
-### 24. Paper Validation
-
-- [x] Run end-to-end execution tests
-- [ ] Run persistence tests (deferred — requires live DB; covered in SENTINEL gate)
-- [ ] Run restart/redeploy tests (deferred — Fly.io env; covered in SENTINEL gate)
-- [x] Store logs and evidence
-
-### Done Condition
-
-- [x] The bot is usable as a real paper trading product
-
----
-
-## PRIORITY 4 — Wallet Lifecycle Foundation
-
-Build this after the paper product is solid.
-
-### 25. Wallet Domain Model
-
-- [x] Finalize wallet entity model
-- [x] Settle ownership model
-- [x] Finalize wallet status/state model
-
-### 26. Wallet Lifecycle
-
-- [x] Build create/init wallet lifecycle
-- [x] Build link/unlink lifecycle
-- [x] Build activation/deactivation lifecycle
-- [x] Handle invalid/blocked wallet states
-
-### 27. Secure Wallet Persistence
-
-- [x] Persist wallet records safely
-- [x] Handle secrets safely
-- [x] Add minimum audit trail
-
-### 28. Wallet Auth Boundary
-
-- [x] Verify ownership clearly
-- [x] Separate admin vs user wallet access
-- [x] Prevent privilege crossover
-
-### 29. Wallet Surfaces
-
-- [x] Show wallet status clearly
-- [x] Show wallet lifecycle state clearly
-- [ ] Show link state clearly (deferred — full link surface to Priority 6 multi-wallet lane)
-- [x] Keep user-facing copy safe
-
-### 30. Wallet Recovery and Tests
-
-- [x] Handle broken-link recovery
-- [x] Handle stale wallet recovery
-- [x] Handle duplicate wallet conflicts
-- [x] Add lifecycle tests
-- [x] Add integration tests
-
-### Done Condition
-
-- [x] Wallet lifecycle is complete and stable — SENTINEL MAJOR validation complete; merged to main via NWAP/wallet-lifecycle-foundation and related PRs.
-
----
-
-## PRIORITY 5 — Portfolio Management Logic
-
-Build this after wallet lifecycle is ready.
-
-### 31. Portfolio Model
-
-- [x] Refine portfolio entity model
-- [x] Refine per-user portfolio model
-- [x] Refine per-wallet portfolio relation
-
-### 32. Exposure Aggregation
-
-- [x] Build aggregate exposure logic
-- [x] Build per-market exposure logic
-- [x] Build per-user exposure logic
-- [ ] Build per-wallet exposure logic (deferred to Priority 6 multi-wallet lane)
-
-### 33. Allocation Logic
-
-- [x] Build bankroll allocation model
-- [x] Build strategy allocation model
-- [x] Build user/wallet-aware allocation
-
-### 34. PnL Logic
-
-- [x] Build realized PnL computation
-- [x] Build unrealized PnL computation
-- [x] Build portfolio-level summary
-- [x] Build history/snapshot structure
-
-### 35. Portfolio Guardrails
-
-- [x] Enforce exposure caps
-- [x] Enforce drawdown caps
-- [x] Enforce concentration caps
-- [x] Connect portfolio logic to kill switch
-
-### 36. Portfolio Surfaces and Validation
-
-- [x] Show portfolio summary in bot/API
-- [x] Show admin/operator portfolio surface
-- [x] Add persistence and recovery
-- [x] Validate all calculations (25/25 tests passing)
-- [x] Sync docs after completion (closed via Priority 9 Lane 1+2 combined lane `WARP/p9-readiness-docs-ops`: launch_summary + onboarding + support + ops/deployment_guide + ops/secrets_env_guide + ops/runbook_quick_ref)
-
-### Done Condition
-
-- [x] Portfolio is managed at system level, not manually
-
----
-
-## PRIORITY 6 — Multi-Wallet Orchestration
-
-Build this after wallet and portfolio are ready.
-
-### 37. Orchestration Model
-
-- [x] Define multi-wallet routing model
-- [x] Define wallet selection rules
-- [x] Define ownership-aware routing
-
-### 38. Allocation Across Wallets
-
-- [x] Build balance-aware allocation
-- [x] Build strategy-aware allocation
-- [x] Build risk-aware allocation
-- [x] Build failover wallet selection
-
-### 39. Cross-Wallet State Truth
-
-- [x] Build unified view across wallets
-- [x] Prevent duplicate/conflicting state
-- [x] Build shared exposure truth
-
-### 40. Cross-Wallet Controls
-
-- [x] Add per-wallet enable/disable
-- [x] Add per-wallet health status
-- [x] Add per-wallet risk state
-- [x] Add portfolio-wide control overlay
-
-### 41. UX/API and Recovery
-
-- [x] Add admin/operator visibility
-- [x] Add safe user summaries if needed
-- [x] Handle unavailable wallet cases
-- [x] Handle routing conflicts
-- [x] Handle degraded mode behavior
-
-### 42. Persistence and Validation
-
-- [x] Persist orchestration state
-- [x] Persist reconciliation traces where needed
-- [x] Add simulations/tests
-- [ ] Sync docs after completion
-
-### Done Condition
-
-- [x] The system can coordinate multiple wallets safely and truthfully — SENTINEL MAJOR validation complete; merged to main via NWAP/multi-wallet-orchestration and related PRs.
-
----
-
-## PRIORITY 7 — Settlement, Retry, Reconciliation, and Ops Automation
-
-Build this after orchestration is ready.
-
-### 43. Settlement Workflow
-
-- [x] Define settlement workflow
-- [x] Define status transitions
-- [x] Define idempotency model
-
-### 44. Retry Engine
-
-- [x] Define retry rules
-- [x] Define retry caps
-- [x] Define backoff strategy
-- [x] Distinguish fatal vs retryable failures
-
-### 45. Batching Logic
-
-- [x] Define settlement batching rules
-- [x] Define queueing model
-- [x] Handle partial batches
-- [x] Add batch observability
-
-### 46. Reconciliation Logic
-
-- [x] Build internal vs external reconciliation
-- [x] Detect mismatches
-- [x] Detect stuck states
-- [x] Add repair/recovery flow
-
-### 47. Operator Tooling
-
-- [x] Show settlement status
-- [x] Show retry status
-- [x] Show failed batches
-- [x] Add admin intervention paths
-
-### 48. Persistence, Alerts, and Validation
-
-- [x] Persist settlement events
-- [x] Persist retry history
-- [x] Persist reconciliation results
-- [x] Add critical alerts
-- [x] Add drift alerts
-- [x] Validate all flows
-- [x] DDL migration files created (Gate 1a — PR #786)
-- [x] HTTP route wiring complete (Gate 1b — WARP/settlement-operator-routes)
-- [x] Telegram wiring (Gate 1c — WARP/settlement-telegram-wiring)
-
-### Done Condition
-
-- [x] Ops flow is resilient, observable, and recoverable
+## Current Truth
+
+CrusaderBot is at the public paper-beta finish layer.
+
+Priority 1 through Priority 7 are complete.
+Priority 8 production-capital readiness build is complete, but activation remains gated.
+Priority 9 final product completion is nearly complete:
+- Lane 4 repo hygiene final: DONE via PR #822.
+- Lane 1+2 public product docs + ops handoff: DONE via PR #825, PR #826, PR #827.
+- Lane 3 monitoring/admin surfaces: DONE via PR #831.
+- Lane 5 final acceptance: OPEN / gated.
+
+Activation guards remain off:
+- `EXECUTION_PATH_VALIDATED` NOT SET
+- `CAPITAL_MODE_CONFIRMED` NOT SET
+- `ENABLE_LIVE_TRADING` NOT SET
+
+No live-trading or production-capital readiness claim is authorized.
 
 ---
 
 ## PRIORITY 8 — Production-Capital Readiness
 
-This is the last major capability layer.
+Status: BUILD COMPLETE / ACTIVATION GATED
 
-### 49. Capability Boundary Review
-
-- [x] Audit all paper-only assumptions
-- [x] Identify all unsafe areas for capital mode
-- [x] Define exact capital-readiness criteria
-
-### 50. Capital-Mode Config Model
-
-- [x] Define capital-mode config
-- [x] Add strict feature gating
-- [x] Add explicit enable path
-- [x] Keep safeguards default-off
-
-### 51. Capital Risk Controls Hardening
-
-- [x] Harden position sizing
-- [x] Harden max loss protection
-- [x] Harden drawdown protection
-- [x] Harden kill switch
-- [x] Harden circuit breakers
-
-### 52. Live Execution Readiness
-
-- [x] Audit live execution path
-- [x] Verify live order flow truth
-- [x] Review external dependency risks
-- [x] Review failure modes
-- [x] Add rollback/disable path
-
-### 53. Security and Observability Hardening
-
-- [x] Harden secret handling (audit clean — no secrets in logs/responses/Telegram)
-- [x] Harden permission model (two-tier boundary documented; capital routes operator-key protected)
-- [x] Harden admin action guardrails (operator_admin_intervention_audit at single exit point)
-- [x] Add production-grade alerting (capital_mode_guard_blocked CRITICAL, capital_daily_loss_limit_tripped CRITICAL, capital_daily_loss_approaching_limit WARNING)
-- [x] Add incident visibility (/capital_status Telegram+API + runbook section 8)
-- [x] Prepare runbooks (operator_runbook.md section 8 — capital-mode incident response)
-
-### 54. Capital Validation and Claim Review
-
-- [x] Run dry-run validation
-- [x] Run staged rollout validation
-- [x] Review docs/policy/claims
-- [x] Remove overclaim
-- [x] Build operator confirmation receipt flow (WARP/capital-mode-confirm — DB-backed second-layer gate, /capital_mode_confirm two-step + /capital_mode_revoke, runbook §9, 15/15 P8-E tests + 100/100 prior P8 + 46/46 settlement+telegram regression)
-- [x] WARP•SENTINEL MAJOR validate WARP/capital-mode-confirm — APPROVED 100/100 via PR #818 merged 2026-04-30 (SHA 5d314839); LIVE INTEGRATION evidence; report: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md
-- [ ] Make release decision (deferred — EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars NOT SET; WARP🔹CMD env-gate decision required; both SENTINEL gates complete on PR #813 and capital-mode-confirm)
-
-### Done Condition
-
-- [ ] The project can truthfully claim production-capital readiness
+- [x] P8-A capability boundary review
+- [x] P8-B capital risk controls hardening
+- [x] P8-C live execution readiness
+- [x] P8-D security and observability hardening
+- [x] P8-E capital validation and claim review
+- [x] Real CLOB execution-path foundation merged via PR #813
+- [x] Capital-mode-confirm DB gate merged via PR #815 and PR #818
+- [ ] Make release/activation decision
+  - Deferred: `EXECUTION_PATH_VALIDATED` and `CAPITAL_MODE_CONFIRMED` env vars are NOT SET.
+  - Deferred: operator `/capital_mode_confirm` DB receipt is required before capital activation.
+- [ ] Claim production-capital readiness
+  - Blocked until owner + WARP🔹CMD activation decision and evidence.
 
 ---
 
 ## PRIORITY 9 — Final Product Completion, Launch Assets, and Handoff
 
-This is the final finish layer.
+Status: FINAL ACCEPTANCE PREP
 
 ### 55. Public Product Assets
 
-- [ ] Finalize README
-- [ ] Finalize docs sync
-- [ ] Finalize launch summary
-- [ ] Finalize onboarding docs
-- [ ] Finalize support/help docs
+- [x] Finalize README
+- [x] Finalize docs sync
+- [x] Finalize launch summary
+- [x] Finalize onboarding docs
+- [x] Finalize support/help docs
+
+Completed via Priority 9 Lane 1+2:
+- PR #825
+- PR #826
+- PR #827
+- Branch: `WARP/p9-readiness-docs-ops`
 
 ### 56. Ops Handoff Assets
 
-- [ ] Prepare deployment guide
-- [ ] Prepare secrets/env guide
+- [x] Prepare deployment guide
+- [x] Prepare secrets/env guide
 - [x] Prepare troubleshooting guide
 - [x] Prepare incident guide
 - [x] Prepare rollback guide
+- [x] Prepare runbook quick reference
+
+Completed via Priority 9 Lane 1+2:
+- PR #825
+- PR #826
+- PR #827
+- Branch: `WARP/p9-readiness-docs-ops`
 
 ### 57. Monitoring and Admin Surfaces
 
-- [ ] Finalize project monitor
-- [ ] Finalize admin visibility
-- [ ] Finalize operator checklists
-- [ ] Finalize release dashboard
+- [x] Finalize project monitor
+- [x] Finalize admin visibility
+- [x] Finalize operator checklist
+- [x] Finalize release dashboard
+
+Completed via Priority 9 Lane 3:
+- PR #831
+- Branch: `WARP/p9-monitoring-admin-surfaces`
+- Files:
+  - `docs/ops/monitoring_admin_index.md`
+  - `docs/ops/operator_checklist.md`
+  - `docs/release_dashboard.md`
+  - `reports/forge/p9-monitoring-admin-surfaces.md`
 
 ### 58. Repo Hygiene Final
 
-- [ ] Clean stale docs
-- [ ] Clarify/archive stale reports
-- [ ] Finalize roadmap sync
-- [ ] Finalize project state sync
-- [ ] Remove misleading checklists
+- [x] Clean stale docs
+- [x] Clarify/archive stale reports
+- [x] Finalize roadmap sync
+- [x] Finalize project state sync
+- [x] Remove misleading checklists
+
+Completed via Priority 9 Lane 4:
+- PR #822
+- Branch: `WARP/p9-repo-hygiene-final`
 
 ### 59. Validation Archive
 
-- [ ] Organize FORGE reports
-- [ ] Organize SENTINEL reports
+- [x] Organize FORGE reports
+- [x] Organize SENTINEL reports
+- [x] Preserve milestone evidence
 - [ ] Organize BRIEFER assets
-- [ ] Preserve milestone evidence
+  - Deferred unless final public handoff requires a new BRIEFER artifact.
 
 ### 60. Final Acceptance
 
 - [ ] Confirm runtime stability
+  - Requires live smoke evidence before public announcement.
 - [ ] Confirm persistence stability
-- [ ] Confirm wallet lifecycle completion
-- [ ] Confirm portfolio completion
-- [ ] Confirm multi-wallet orchestration completion
-- [ ] Confirm settlement/retry/reconciliation completion
+  - Requires DB/persistence evidence where applicable.
+- [x] Confirm wallet lifecycle completion
+- [x] Confirm portfolio completion
+- [x] Confirm multi-wallet orchestration completion
+- [x] Confirm settlement/retry/reconciliation completion
 - [ ] Confirm capital readiness completion
-- [ ] Confirm docs and ops completion
+  - Build complete, activation gated; production-capital claim remains blocked.
+- [x] Confirm docs and ops completion
+  - Lane 1+2 + Lane 3 + Lane 4 merged.
 - [ ] Get final COMMANDER acceptance
+  - Current branch prepares this gate.
 
-### Done Condition
-
-- [ ] Project is finished 100%
+Done condition:
+- [ ] Project is finished 100% as public paper-beta, with activation boundaries explicit.
+- [ ] Any live/capital activation decision is recorded as a separate Mr. Walker + WARP🔹CMD gate.
 
 ---
 
-### Simple Execution Order
+## Simple Execution Order
 
 - [x] PRIORITY 1 — Public Bot Runtime and Baseline
 - [x] PRIORITY 2 — DB, Persistence, and Runtime Hardening
@@ -593,32 +145,19 @@ This is the final finish layer.
 - [x] PRIORITY 5 — Portfolio Management Logic
 - [x] PRIORITY 6 — Multi-Wallet Orchestration
 - [x] PRIORITY 7 — Settlement / Retry / Reconciliation
-- [ ] PRIORITY 8 — Production-Capital Readiness (P8-A/B/C/D/E merged; capital-mode-confirm PR #815 + PR #818 merged — SENTINEL APPROVED 100/100; EXECUTION_PATH_VALIDATED NOT SET; CAPITAL_MODE_CONFIRMED NOT SET; env-gate + operator receipt required before capital activation — WARP🔹CMD + Mr. Walker decision gate open)
+- [ ] PRIORITY 8 — Production-Capital Readiness
+  - Build complete; activation gated.
 - [ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
+  - Lanes 1+2, 3, and 4 complete; Lane 5 final acceptance open.
 
 ---
 
-### Right Now
+## Right Now
 
-- [x] COMMANDER to scope Priority 3 paper trading product completion
-- [x] Define paper balance model (section 17 — first task)
-- [x] Define paper order intent flow (section 18 — first task)
-- [x] Priority 3 kickoff — paper account model + execution engine first
-- [x] COMMANDER: review SENTINEL MAJOR validation for NWAP/paper-product-core before merge — PR #770 merged to main 2026-04-25 11:38 WIB
-- [x] COMMANDER: scope Priority 4 wallet lifecycle foundation kickoff — confirmed 2026-04-25; branch NWAP/wallet-lifecycle-foundation
-- [x] SENTINEL: validate Priority 4 wallet lifecycle foundation — superseded; P4 merged via PR #772; full SENTINEL deferred to pre-public sweep per WARP●CMD decision (2026-04-25)
-- [x] COMMANDER: scope Priority 6 multi-wallet orchestration Phase A kickoff — confirmed 2026-04-25; branch NWAP/multi-wallet-orchestration
-- [x] SENTINEL: validate Priority 6 Phase A orchestration foundation — superseded; P6 Phase A merged via PR #776; Phase B merged via PR #779; priority fully closed on main
-- [x] FORGE-X: Priority 6 Phase C (sections 41-42) built on NWAP/multi-wallet-orchestration-phase-c — 18/18 tests passing (WO-28..WO-45)
-- [x] SENTINEL: validate Priority 6 Phase C — superseded; P6 Phase B/C merged to main; priority fully closed
-- [x] P8-A/B/C/D all merged to main (PRs #790, #794, #795, #800); register-agent-env-files, sentinel-timeout-resilience, commander-pr-comment-rule merged (PRs #792, #797, #799)
-- [x] FORGE: P8-E capital validation + claim review (§54) — dry-run PASS, docs clean, boundary registry updated; CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet)
-- [x] WARP🔹CMD: scope real CLOB execution lane (WARP/real-clob-execution-path) — scoped and in progress
-- [x] SENTINEL: validate WARP/real-clob-execution-path (Tier MAJOR) — APPROVED 98/100, 0 critical; report: projects/polymarket/polyquantbot/reports/sentinel/real-clob-execution-path.md
-- [x] WARP🔹CMD: merge WARP/real-clob-execution-path — PR #813 squash-merged to main on 2026-04-30 (merge SHA 6916a09ea02609bc3673db0ab8acba457f2ce4cf); guarded real CLOB execution-path foundation landed (NARROW INTEGRATION only)
-- [x] WARP/post-merge-sync-real-clob: repo-state truth synchronized post PR #813 merge (PROJECT_STATE.md / ROADMAP.md / WORKTODO.md / CHANGELOG.md); EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET
-- [x] WARP/capital-mode-confirm chunk1 (DB layer + store + guard + API + Telegram) merged to main via PR #815 (merge SHA 6ea3b457); SENTINEL APPROVED 97/100, 0 critical (NARROW INTEGRATION — check_with_receipt defined but not wired)
-- [x] FORGE: build WARP/capital-mode-confirm follow-up (Tier MAJOR, LIVE INTEGRATION, PR #818) — strict check_with_receipt() at PaperBetaWorker + ClobExecutionAdapter, revoke 503 on persistence failure, P8E-16..P8E-21 + RCLOB-24 update; 167/167 across all touched-area suites
-- [x] SENTINEL: validate WARP/capital-mode-confirm follow-up (Tier MAJOR, LIVE INTEGRATION) — APPROVED 100/100, 0 critical, 3 advisory; PR #818 merged to main (merge SHA 5d314839); report: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md; 167/167 tests pass
-- [ ] WARP🔹CMD + Mr. Walker: env-gate decision — set EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED in deployment env, then operator issues /capital_mode_confirm two-step on operator Telegram to complete DB receipt gate
-
+- [x] Merge Priority 9 Lane 3 monitoring/admin surfaces — PR #831.
+- [x] Start combined post-merge state sync + final acceptance prep.
+- [ ] Merge `WARP/p9-post-merge-final-acceptance`.
+- [ ] Run final acceptance decision.
+- [ ] Decide activation posture:
+  - Public paper-beta final acceptance only, or
+  - Separate owner-gated capital/live activation sequence.
