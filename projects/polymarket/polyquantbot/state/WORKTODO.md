@@ -515,8 +515,8 @@ This is the last major capability layer.
 - [x] Review docs/policy/claims
 - [x] Remove overclaim
 - [x] Build operator confirmation receipt flow (WARP/capital-mode-confirm — DB-backed second-layer gate, /capital_mode_confirm two-step + /capital_mode_revoke, runbook §9, 15/15 P8-E tests + 100/100 prior P8 + 46/46 settlement+telegram regression)
-- [ ] WARP•SENTINEL MAJOR validate WARP/capital-mode-confirm (source: projects/polymarket/polyquantbot/reports/forge/capital-mode-confirm.md)
-- [ ] Make release decision (deferred — EXECUTION_PATH_VALIDATED prerequisite unmet; WARP🔹CMD decision after SENTINEL on both PR #813 and capital-mode-confirm)
+- [x] WARP•SENTINEL MAJOR validate WARP/capital-mode-confirm — APPROVED 100/100 via PR #818 merged 2026-04-30 (SHA 5d314839); LIVE INTEGRATION evidence; report: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md
+- [ ] Make release decision (deferred — EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars NOT SET; WARP🔹CMD env-gate decision required; both SENTINEL gates complete on PR #813 and capital-mode-confirm)
 
 ### Done Condition
 
