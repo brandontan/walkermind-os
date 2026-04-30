@@ -1,5 +1,5 @@
-Last Updated : 2026-05-01 02:55 Asia/Jakarta
-Status       : Priority 9 public paper-beta finish path is in final acceptance prep. Priority 8 build is complete but live/capital activation remains gated. Priority 9 Lane 4, Lane 1+2, and Lane 3 are merged. Priority 9 Lane 5 final acceptance is now the remaining finish task.
+Last Updated : 2026-05-01 03:38 Asia/Jakarta
+Status       : Priority 9 public paper-beta finish path is in final acceptance prep. Priority 8 build is complete but live/capital activation remains gated. Priority 9 Lane 4, Lane 1+2, and Lane 3 are merged. Priority 9 Lane 5 final acceptance is now the remaining finish task. COMMANDER.md GitHub-issue auto-create rules added on `WARP/commander-github-issue-rules` (Tier MINOR, doc-only, awaiting WARP🔹CMD review).
 
 [COMPLETED]
 - Priority 1 public bot runtime baseline completed.
@@ -26,6 +26,13 @@ Status       : Priority 9 public paper-beta finish path is in final acceptance p
   - `docs/release_dashboard.md`
   - Forge report: `reports/forge/p9-monitoring-admin-surfaces.md`
   - Scope: docs/admin visibility only; no runtime/API/Telegram behavior change; no secrets.
+- COMMANDER.md GitHub-issue auto-create rules drafted on `WARP/commander-github-issue-rules`.
+  - New section `## GITHUB ISSUE AUTO-CREATE RULE` defining issue creation for STANDARD / MAJOR tasks.
+  - PR COMMENT AUTO-POST RULE updated with MINOR / reclassification rules.
+  - WARP•FORGE TASK TEMPLATE adds `Issue:` field.
+  - Version bump 2.4 -> 2.5.
+  - Forge report: `projects/polymarket/polyquantbot/reports/forge/commander-github-issue-rules.md`
+  - Tier MINOR, doc-only, no runtime/state/risk impact.
 
 [IN PROGRESS]
 - Priority 9 Lane 5 final acceptance prep / post-merge state sync.

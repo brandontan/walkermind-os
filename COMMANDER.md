@@ -5,8 +5,8 @@ For all system rules (tiers, claims, branch format, report/state/roadmap rules, 
 
 Rule priority: `AGENTS.md` > `PROJECT_REGISTRY.md` > `{PROJECT_ROOT}/state/PROJECT_STATE.md` > `{PROJECT_ROOT}/state/ROADMAP.md` > latest relevant forge report > this file.
 
-Version: 2.4
-Last Updated: 2026-04-29 13:44 Asia/Jakarta
+Version: 2.5
+Last Updated: 2026-05-01 03:38 Asia/Jakarta
 
 ---
 
@@ -881,7 +881,97 @@ NEXT GATE:
 - One comment per PR review cycle — batch all findings in one comment
 - If PR is clean and no action needed -> no comment required
 - If merging directly -> no comment needed, execute merge
+- MINOR fix tasks: post PR comment only — no GitHub Issue created
+- Fix tasks reclassified to STANDARD or MAJOR mid-review:
+  create GitHub Issue AND post PR comment with issue reference
 - Comment task body always in English — consistent with standard task format
+
+---
+
+## GITHUB ISSUE AUTO-CREATE RULE
+
+Setiap kali WARP🔹CMD generate task untuk WARP🔸CORE (STANDARD atau MAJOR),
+WARP🔹CMD MUST auto-create GitHub Issue di repo walkermind-os sebelum task
+dikirim ke agent.
+
+Issue = paper trail resmi. Task tanpa issue = untracked work.
+
+### When to create
+
+| Tier | Issue required? | Who creates |
+|---|---|---|
+| MAJOR | YES — FORGE issue + SENTINEL issue (separate) | WARP🔹CMD |
+| STANDARD | YES — FORGE issue only | WARP🔹CMD |
+| MINOR | NO — PR comment atau direct-fix saja | — |
+
+SENTINEL issue dibuat AFTER FORGE PR is ready and before SENTINEL task
+is dispatched. Never pre-create SENTINEL issue at FORGE dispatch time.
+
+### Labels (both must be applied)
+
+`warp-core` + `major` / `standard`
+
+### Issue format
+
+```
+Title: [WARP•FORGE / WARP•SENTINEL / WARP•ECHO] {short task name}
+
+---
+**Branch:** `WARP/{feature}`
+**Tier:** MAJOR / STANDARD
+**Claim Level:** FOUNDATION / NARROW INTEGRATION / FULL RUNTIME INTEGRATION
+
+## Objective
+[clear, scoped — one task]
+
+## Scope
+- [explicit include]
+
+## Validation Target
+[exact scope]
+
+## Not in Scope
+[explicit exclusions]
+
+## Done Criteria
+- [ ] Report at correct path
+- [ ] PROJECT_STATE.md updated
+- [ ] PR opened from declared branch
+- [ ] Final output includes Report: / State: / Validation Tier: / Claim Level:
+
+## References
+- Report: `{PROJECT_ROOT}/reports/{forge|sentinel}/{feature}.md`
+- Related issue: #{FORGE issue number}   <- SENTINEL issue only
+- Related PR: #{PR number if exists}
+```
+
+### Auto-close behavior
+
+- Issue closes automatically when linked PR is merged
+- WARP•FORGE must include `Closes #{issue_number}` in PR description
+- WARP•SENTINEL must include `Closes #{sentinel_issue_number}` in
+  sentinel PR description
+- If PR abandoned without merge: WARP🔹CMD closes issue manually
+  with label `wont-fix` + reason comment
+- Issue close does NOT replace post-merge sync —
+  PROJECT_STATE.md / ROADMAP.md sync still required
+
+### Commit message format (per role)
+
+| Role | Format |
+|---|---|
+| WARP•FORGE | `warp-forge: {feature} — refs #{issue_number}` |
+| WARP•SENTINEL | `warp-sentinel: {feature} — refs #{issue_number}` |
+| WARP•ECHO | `warp-echo: {feature} — refs #{issue_number}` |
+
+### Rules
+
+- Create issue BEFORE sending task to agent
+- Include issue number in task body: `Issue: #{number}`
+- One FORGE issue per lane — do not split per file or per commit
+- SENTINEL issue is separate, linked to FORGE issue via References
+- WARP•SENTINEL posts verdict comment on SENTINEL issue before PR close
+- Issue is canonical task reference — report is execution evidence
 
 ---
 
@@ -996,6 +1086,10 @@ Branch    : WARP/{feature}
               ^ VERIFY before any commit: git rev-parse --abbrev-ref HEAD = WARP/{feature}
               ^ If git returns wrong branch -> STOP, report to WARP🔹CMD, do not write any artifact
 Env       : dev / staging / prod
+Issue   : #{github_issue_number}
+              ^ created by WARP🔹CMD before task dispatch — STANDARD and MAJOR only
+              ^ PR description must include: Closes #{issue_number}
+              ^ commit message format: warp-forge: {feature} — refs #{issue_number}
 
 OBJECTIVE:
 [clear, scoped — one task]
