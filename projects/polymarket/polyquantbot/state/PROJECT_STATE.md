@@ -1,5 +1,5 @@
-Last Updated : 2026-04-30 11:11
-Status       : real-clob-execution-path SENTINEL APPROVED 98/100 — 0 critical issues. 30/30 RCLOB + 70/70 P8 regressions passing. Guard chain verified unbypassable. EXECUTION_PATH_VALIDATED NOT SET — requires WARP🔹CMD decision post-SENTINEL. CAPITAL_MODE_CONFIRMED NOT SET. No live-trading-ready or production-capital-ready claim.
+Last Updated : 2026-04-30 14:00
+Status       : WARP/real-clob-execution-path merged to main via PR #813 (merge SHA 6916a09ea02609bc3673db0ab8acba457f2ce4cf). SENTINEL APPROVED 98/100, 0 critical. 30/30 RCLOB + 70/70 P8 regressions passing. Guarded real CLOB execution-path foundation landed (NARROW INTEGRATION — adapter/mock/live market-data guard only). EXECUTION_PATH_VALIDATED NOT SET. CAPITAL_MODE_CONFIRMED NOT SET. ENABLE_LIVE_TRADING NOT SET. No live-trading-ready or production-capital-ready claim.
 
 [COMPLETED]
 - Priority 7 settlement lane fully closed: DDL PR #786, operator routes PR #787, Telegram wiring PR #789; 66/66 tests passing.
@@ -11,18 +11,19 @@ Status       : real-clob-execution-path SENTINEL APPROVED 98/100 — 0 critical 
 - Sentinel timeout resilience merged to main via PR #797 (WARP/sentinel-timeout-resilience).
 - Commander PR comment rule merged to main via PR #799 (WARP/commander-pr-comment-rule).
 - PR notification workflow hardened via WARP/pr-notify-robust-ce09.
-- P8-E capital validation sweep complete via WARP/capital-validation-p8e; dry-run PASS 4/4, 70/70 P8 tests passing, docs audit clean, boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET. EXECUTION_PATH_VALIDATED unmet — real CLOB execution path not built or validated. RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED ready for WARP🔹CMD deployment env decision.
+- P8-E capital validation sweep complete via WARP/capital-validation-p8e; dry-run PASS 4/4, 70/70 P8 tests passing, docs audit clean, boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET. RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED ready for WARP🔹CMD deployment env decision.
+- WARP/real-clob-execution-path merged to main via PR #813 (merge SHA 6916a09ea02609bc3673db0ab8acba457f2ce4cf); SENTINEL APPROVED 98/100, 0 critical (report: projects/polymarket/polyquantbot/reports/sentinel/real-clob-execution-path.md). 30/30 RCLOB + 70/70 P8 regressions passing. NARROW INTEGRATION only — adapter/mock/live market-data guard foundation. No full runtime integration or production-capital readiness claimed.
 
 [IN PROGRESS]
-- WARP/real-clob-execution-path (PR #813): SENTINEL APPROVED 98/100. Awaiting WARP🔹CMD merge decision and EXECUTION_PATH_VALIDATED env var decision.
-- EXECUTION_PATH_VALIDATED NOT SET — SENTINEL approved; WARP🔹CMD must explicitly set after reviewing sentinel report.
+- EXECUTION_PATH_VALIDATED NOT SET — SENTINEL approved real CLOB foundation; WARP🔹CMD env-gate decision required before any activation.
 - CAPITAL_MODE_CONFIRMED NOT SET — pending EXECUTION_PATH_VALIDATED prerequisite and WARP🔹CMD decision.
+- ENABLE_LIVE_TRADING NOT SET — guard remains off; no live-trading authority claimed.
 
 [NOT STARTED]
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
-- WARP🔹CMD: review SENTINEL report (projects/polymarket/polyquantbot/reports/sentinel/real-clob-execution-path.md), merge PR #813, decide EXECUTION_PATH_VALIDATED env var, then scope CAPITAL_MODE_CONFIRMED path.
+- WARP🔹CMD: env-gate decision over the merged real CLOB foundation — review SENTINEL report (projects/polymarket/polyquantbot/reports/sentinel/real-clob-execution-path.md), decide EXECUTION_PATH_VALIDATED, then scope CAPITAL_MODE_CONFIRMED path. Real CLOB execution-path foundation is merged on main; no further build required for this lane.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.run_once() skips price_updater() entirely in live mode — market_data_provider injection path in price_updater() is never reached from worker loop (deferred fix; non-critical per SENTINEL F-1).
