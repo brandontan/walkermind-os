@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-04-30 16:30 | WARP/capital-mode-confirm | sentinel: capital-mode-confirm-live-integration — APPROVED 100/100, 0 critical, 3 advisory (F-1 mocked-mode label pre-existing, F-2 P8C asyncio deprecated test pattern, F-3 store docstring stale). All 6 SENTINEL TASK items pass with file:line evidence. Report: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-integration.md. Awaiting WARP🔹CMD merge decision on PR #818.
+
 2026-04-30 14:35 | WARP/capital-mode-confirm | P8-E follow-up: operator confirmation receipt flow — two-layer CAPITAL_MODE_CONFIRMED gate (env var + new DB receipt). Migration 002_capital_mode_confirmations + CapitalModeConfirmationStore + LiveExecutionGuard.check_with_receipt() + POST /beta/capital_mode_confirm (two-step 60s token) + POST /beta/capital_mode_revoke + Telegram /capital_mode_confirm and /capital_mode_revoke + operator_runbook §9. 15/15 P8-E tests (P8E-01..P8E-15); 100/100 prior P8 + real-clob regression; 21/21 settlement + 25/25 telegram regression — zero regressions. Tier: MAJOR. WARP•SENTINEL validation required before merge.
 
 2026-04-30 05:19 | WARP/capital-validation-p8e | P8-E: §54 capital validation + claim review — dry-run PASS 4/4, 70/70 tests, docs audit clean (no overclaim), boundary_registry 2 surfaces NEEDS_HARDENING→BLOCKED. CAPITAL_MODE_CONFIRMED NOT SET (EXECUTION_PATH_VALIDATED prerequisite unmet). Tier: STANDARD.
