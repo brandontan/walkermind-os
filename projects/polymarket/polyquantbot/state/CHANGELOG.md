@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-05-01 06:37 | WARP/p9-runtime-smoke-evidence | WARP🔹CMD FINAL DECISION: Priority 9 Lane 5 ACCEPTED as public paper-beta. Smoke evidence: 6/8 API surfaces PASS (local in-process), Telegram BLOCKED (env constraint, routing verified). All activation guards NOT SET. docs/final_acceptance_gate.md updated. Priority 9 COMPLETE. Live/capital activation remains blocked.
+
 2026-05-01 06:33 | WARP/p9-runtime-smoke-evidence | Runtime smoke evidence captured for Priority 9 Lane 5 final acceptance gate. 6 of 8 API surfaces PASS (local in-process). Telegram surfaces BLOCKED (env constraint, not code defect). All activation guards NOT SET. Risk constants verified. Tier: STANDARD. Claim: NARROW INTEGRATION. READY FOR COMMANDER DECISION.
 
 2026-05-01 03:06 | WARP/p9-post-merge-final-acceptance | Priority 9 Lane 5 (post-merge final acceptance prep) merged via PR #832: docs/final_acceptance_gate.md (new — acceptance criteria, smoke requirements, boundary, 3 decision slots), state/PROJECT_STATE.md (updated — status synced to final acceptance prep, Lanes 1-4 done), state/WORKTODO.md (trimmed — P1–P7 completed tasks archived, current truth section added). Tier: MINOR. Claim: FOUNDATION. Zero runtime change. All 3 activation guards NOT SET. WARP🔹CMD post-merge audit: RATIFIED.
