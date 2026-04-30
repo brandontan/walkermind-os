@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import os
+import secrets
+import time
+from typing import Optional
+
 import structlog
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from starlette import status as http_status
 from pydantic import BaseModel
 
@@ -14,6 +18,24 @@ from projects.polymarket.polyquantbot.server.risk.capital_risk_gate import Capit
 
 log = structlog.get_logger(__name__)
 _OPERATOR_API_KEY_HEADER = "X-Operator-Api-Key"
+
+# ── P8-E: capital mode confirmation pending-token store ──────────────────────
+# Per-operator pending two-step tokens. Step 1 issues a token + snapshot;
+# step 2 must echo the same token within _CAPITAL_MODE_TOKEN_TTL_S seconds to
+# commit the receipt. In-process only — single-instance deployment is current
+# operating envelope. Multi-replica rollout would require Redis-backed storage.
+_CAPITAL_MODE_TOKEN_TTL_S: float = 60.0
+_PENDING_CAPITAL_CONFIRMS: dict[str, dict[str, object]] = {}
+
+
+class CapitalModeConfirmRequest(BaseModel):
+    operator_id: str
+    acknowledgment_token: str = ""
+
+
+class CapitalModeRevokeRequest(BaseModel):
+    revoked_by: str
+    reason: str = ""
 
 
 class ModeRequest(BaseModel):
@@ -310,5 +332,228 @@ def build_public_beta_router(falcon: FalconGateway) -> APIRouter:
         except Exception as exc:
             log.error("capital_status_error", error=str(exc))
             return {"ok": False, "detail": "capital_status_unavailable", "error": str(exc)}
+
+    @router.post("/capital_mode_confirm")
+    async def capital_mode_confirm(
+        body: CapitalModeConfirmRequest,
+        request: Request,
+        __: None = Depends(_require_operator_api_key),
+    ) -> dict[str, object]:
+        """Two-step capital-mode confirmation.
+
+        Step 1 (no token): pre-flight all 5 env gates, issue a 60-second
+        token plus the gate snapshot. No DB row is written.
+        Step 2 (with token): re-verify pre-flight, validate the echoed token
+        against the pending entry for the operator, insert a receipt row.
+
+        Operator-only — requires X-Operator-Api-Key header.
+        """
+        cfg = CapitalModeConfig.from_env()
+        snapshot = cfg.open_gates_report()
+        snapshot["trading_mode"] = cfg.trading_mode
+        missing = cfg._missing_gates() if cfg.trading_mode == "LIVE" else []
+
+        if cfg.trading_mode != "LIVE":
+            log.info(
+                "capital_mode_confirm_attempt",
+                operator_id=body.operator_id,
+                outcome="rejected_not_live",
+                trading_mode=cfg.trading_mode,
+            )
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail={
+                    "outcome": "rejected_not_live",
+                    "reason": "capital_mode_confirm_only_in_live_mode",
+                    "trading_mode": cfg.trading_mode,
+                },
+            )
+
+        if missing:
+            log.info(
+                "capital_mode_confirm_attempt",
+                operator_id=body.operator_id,
+                outcome="rejected_missing_gates",
+                missing=missing,
+            )
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail={
+                    "outcome": "rejected_missing_gates",
+                    "reason": "capital_mode_env_gates_missing",
+                    "missing": missing,
+                    "snapshot": snapshot,
+                },
+            )
+
+        store = getattr(request.app.state, "capital_mode_confirmation_store", None)
+        if store is None:
+            log.error(
+                "capital_mode_confirm_attempt",
+                operator_id=body.operator_id,
+                outcome="store_not_ready",
+            )
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="capital_mode_confirmation_store_not_ready",
+            )
+
+        now = time.monotonic()
+        # Drop expired pending entries before any work.
+        for op_id in list(_PENDING_CAPITAL_CONFIRMS):
+            if _PENDING_CAPITAL_CONFIRMS[op_id]["expires_at"] <= now:
+                _PENDING_CAPITAL_CONFIRMS.pop(op_id, None)
+
+        # ── Step 1: issue a token ────────────────────────────────────────
+        if not body.acknowledgment_token:
+            token = secrets.token_hex(8)
+            _PENDING_CAPITAL_CONFIRMS[body.operator_id] = {
+                "token": token,
+                "mode": "LIVE",
+                "snapshot": snapshot,
+                "expires_at": now + _CAPITAL_MODE_TOKEN_TTL_S,
+            }
+            log.info(
+                "capital_mode_confirm_attempt",
+                operator_id=body.operator_id,
+                outcome="token_issued",
+                ttl_seconds=int(_CAPITAL_MODE_TOKEN_TTL_S),
+            )
+            return {
+                "ok": True,
+                "stage": "token_issued",
+                "acknowledgment_token": token,
+                "ttl_seconds": int(_CAPITAL_MODE_TOKEN_TTL_S),
+                "snapshot": snapshot,
+                "detail": (
+                    "Reply with /capital_mode_confirm <token> within "
+                    f"{int(_CAPITAL_MODE_TOKEN_TTL_S)}s to commit."
+                ),
+            }
+
+        # ── Step 2: validate token and commit ────────────────────────────
+        pending = _PENDING_CAPITAL_CONFIRMS.get(body.operator_id)
+        if pending is None:
+            log.info(
+                "capital_mode_confirm_attempt",
+                operator_id=body.operator_id,
+                outcome="rejected_no_pending_token",
+            )
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail={
+                    "outcome": "rejected_no_pending_token",
+                    "reason": "no_pending_token_request_one_first",
+                },
+            )
+        if not secrets.compare_digest(
+            str(pending["token"]), body.acknowledgment_token
+        ):
+            log.warning(
+                "capital_mode_confirm_attempt",
+                operator_id=body.operator_id,
+                outcome="rejected_token_mismatch",
+            )
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail={
+                    "outcome": "rejected_token_mismatch",
+                    "reason": "acknowledgment_token_does_not_match_pending",
+                },
+            )
+
+        _PENDING_CAPITAL_CONFIRMS.pop(body.operator_id, None)
+
+        record = await store.insert(
+            operator_id=body.operator_id,
+            mode="LIVE",
+            acknowledgment_token=body.acknowledgment_token,
+            upstream_gates_snapshot=snapshot,
+        )
+        if record is None:
+            log.error(
+                "capital_mode_confirm_attempt",
+                operator_id=body.operator_id,
+                outcome="db_insert_failed",
+            )
+            raise HTTPException(
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "outcome": "db_insert_failed",
+                    "reason": "capital_mode_confirm_persistence_failed",
+                },
+            )
+        log.info(
+            "capital_mode_confirm_attempt",
+            operator_id=body.operator_id,
+            outcome="committed",
+            confirmation_id=record.confirmation_id,
+            mode=record.mode,
+        )
+        return {
+            "ok": True,
+            "stage": "committed",
+            "confirmation_id": record.confirmation_id,
+            "operator_id": record.operator_id,
+            "mode": record.mode,
+            "confirmed_at": record.confirmed_at.isoformat(),
+            "snapshot": record.upstream_gates_snapshot,
+        }
+
+    @router.post("/capital_mode_revoke")
+    async def capital_mode_revoke(
+        body: CapitalModeRevokeRequest,
+        request: Request,
+        __: None = Depends(_require_operator_api_key),
+    ) -> dict[str, object]:
+        """Revoke the most-recent active capital-mode confirmation.
+
+        Single-step (no token) — revocation must be fast for incident response.
+        Operator-only — requires X-Operator-Api-Key header.
+        """
+        store = getattr(request.app.state, "capital_mode_confirmation_store", None)
+        if store is None:
+            log.error(
+                "capital_mode_revoke_attempt",
+                revoked_by=body.revoked_by,
+                outcome="store_not_ready",
+            )
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="capital_mode_confirmation_store_not_ready",
+            )
+
+        reason = body.reason.strip() or "operator_revoke_no_reason"
+        record = await store.revoke_latest(
+            mode="LIVE",
+            revoked_by=body.revoked_by,
+            reason=reason,
+        )
+        if record is None:
+            log.info(
+                "capital_mode_revoke_attempt",
+                revoked_by=body.revoked_by,
+                outcome="no_active_to_revoke",
+            )
+            return {
+                "ok": False,
+                "stage": "no_active",
+                "detail": "no active capital_mode confirmation to revoke",
+            }
+        log.warning(
+            "capital_mode_revoke_attempt",
+            revoked_by=body.revoked_by,
+            outcome="revoked",
+            confirmation_id=record.confirmation_id,
+            reason=reason,
+        )
+        return {
+            "ok": True,
+            "stage": "revoked",
+            "confirmation_id": record.confirmation_id,
+            "revoked_by": record.revoked_by,
+            "revoked_at": record.revoked_at.isoformat() if record.revoked_at else None,
+            "reason": record.revoke_reason,
+        }
 
     return router

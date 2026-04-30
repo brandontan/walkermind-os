@@ -65,6 +65,9 @@ class TelegramDispatcher:
         "/settlement_intervene",
         # P8-D capital mode operator commands
         "/capital_status",
+        # P8-E capital mode confirmation flow
+        "/capital_mode_confirm",
+        "/capital_mode_revoke",
     }
 
     def __init__(self, backend: CrusaderBackendClient, operator_chat_id: str = "") -> None:
@@ -401,6 +404,98 @@ class TelegramDispatcher:
                     f"• Open positions: {d.get('open_positions', 0)}\n"
                     "Gate booleans:\n"
                     f"{gate_lines}"
+                ),
+            )
+
+        # ── P8-E capital mode confirmation flow ──────────────────────────────
+        if command == "/capital_mode_confirm":
+            payload: dict[str, object] = {
+                "operator_id": ctx.user_id,
+                "acknowledgment_token": arg,
+            }
+            data = await self._backend.beta_post(
+                "/beta/capital_mode_confirm", payload
+            )
+            if not data.get("ok"):
+                detail = data.get("detail")
+                if isinstance(detail, dict):
+                    reason = detail.get("reason", "unknown")
+                    missing = detail.get("missing")
+                    extra = f"\n• Missing: {', '.join(missing)}" if missing else ""
+                    return DispatchResult(
+                        outcome="ok",
+                        reply_text=(
+                            "❌ Capital mode confirm rejected\n"
+                            f"• Reason: {reason}{extra}"
+                        ),
+                    )
+                return DispatchResult(
+                    outcome="ok",
+                    reply_text=(
+                        "❌ Capital mode confirm rejected\n"
+                        f"• Detail: {detail or 'unknown_error'}"
+                    ),
+                )
+            stage = data.get("stage", "")
+            if stage == "token_issued":
+                token = data.get("acknowledgment_token", "")
+                ttl = data.get("ttl_seconds", 0)
+                snapshot = data.get("snapshot", {}) or {}
+                gate_lines = "\n".join(
+                    f"  • {k}: {'✅' if v else '❌'}"
+                    for k, v in snapshot.items()
+                    if isinstance(v, bool)
+                )
+                return DispatchResult(
+                    outcome="ok",
+                    reply_text=(
+                        "🟡 Capital mode confirm — step 1/2\n"
+                        f"• Token: `{token}`\n"
+                        f"• Reply within {ttl}s with: /capital_mode_confirm {token}\n"
+                        "• Gate snapshot:\n"
+                        f"{gate_lines or '  (no gate data)'}"
+                    ),
+                )
+            if stage == "committed":
+                return DispatchResult(
+                    outcome="ok",
+                    reply_text=(
+                        "✅ Capital mode confirmed — receipt persisted\n"
+                        f"• confirmation_id: {data.get('confirmation_id', 'n/a')}\n"
+                        f"• operator_id: {data.get('operator_id', 'n/a')}\n"
+                        f"• mode: {data.get('mode', 'n/a')}\n"
+                        f"• confirmed_at: {data.get('confirmed_at', 'n/a')}"
+                    ),
+                )
+            return DispatchResult(
+                outcome="ok",
+                reply_text=f"Capital mode confirm: unexpected stage={stage!r}",
+            )
+
+        if command == "/capital_mode_revoke":
+            data = await self._backend.beta_post(
+                "/beta/capital_mode_revoke",
+                {
+                    "revoked_by": ctx.user_id,
+                    "reason": arg or "operator_revoke_no_reason",
+                },
+            )
+            if data.get("ok"):
+                return DispatchResult(
+                    outcome="ok",
+                    reply_text=(
+                        "🛑 Capital mode confirmation revoked\n"
+                        f"• confirmation_id: {data.get('confirmation_id', 'n/a')}\n"
+                        f"• revoked_by: {data.get('revoked_by', 'n/a')}\n"
+                        f"• revoked_at: {data.get('revoked_at', 'n/a')}\n"
+                        f"• reason: {data.get('reason', 'n/a')}"
+                    ),
+                )
+            return DispatchResult(
+                outcome="ok",
+                reply_text=(
+                    "⚠️ Capital mode revoke — no active confirmation\n"
+                    f"• Detail: {data.get('detail', 'unknown')}"
                 ),
             )
 
