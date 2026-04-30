@@ -1,5 +1,5 @@
 Last Updated : 2026-04-30 20:07
-Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENTINEL APPROVED 98/97/100). Priority 9 plan scoped into 5 independently mergeable lanes (pre-work sync + public-product-docs + ops-handoff + monitoring-admin-surfaces + repo-hygiene-final + final-acceptance gated on P8 activation). Pre-work sync lane in progress on WARP/worktodo-priority8-sync — WORKTODO drift cleaned (P8 SENTINEL closure reflected). EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. No live-trading-ready or production-capital-ready claim.
+Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENTINEL APPROVED 98/97/100). Priority 9 plan scoped into 5 independently mergeable lanes (public-product-docs + ops-handoff + monitoring-admin-surfaces + repo-hygiene-final + final-acceptance gated on P8 activation), preceded by this pre-work sync lane on WARP/worktodo-priority8-sync — WORKTODO drift cleaned (P8 SENTINEL closure reflected). EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. No live-trading-ready or production-capital-ready claim.
 
 [COMPLETED]
 - Priority 7 settlement lane fully closed: DDL PR #786, operator routes PR #787, Telegram wiring PR #789; 66/66 tests passing.
