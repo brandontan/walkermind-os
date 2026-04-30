@@ -1,5 +1,5 @@
-Last Updated : 2026-04-30 11:11
-Status       : real-clob-execution-path SENTINEL APPROVED 98/100 — 0 critical issues. 30/30 RCLOB + 70/70 P8 regressions passing. Guard chain verified unbypassable. EXECUTION_PATH_VALIDATED NOT SET — requires WARP🔹CMD decision post-SENTINEL. CAPITAL_MODE_CONFIRMED NOT SET. No live-trading-ready or production-capital-ready claim.
+Last Updated : 2026-04-30 13:30
+Status       : capital-mode-confirm chunk 1 SENTINEL APPROVED 97/100 — 0 critical issues. DB schema + store + guard method + API endpoints + Telegram wiring validated. check_with_receipt() defined but not wired to any active execution path (NARROW INTEGRATION confirmed). Two deferred non-critical items. Awaiting WARP🔹CMD merge decision on PR #815.
 
 [COMPLETED]
 - Priority 7 settlement lane fully closed: DDL PR #786, operator routes PR #787, Telegram wiring PR #789; 66/66 tests passing.
@@ -17,15 +17,19 @@ Status       : real-clob-execution-path SENTINEL APPROVED 98/100 — 0 critical 
 - WARP/real-clob-execution-path (PR #813): SENTINEL APPROVED 98/100. Awaiting WARP🔹CMD merge decision and EXECUTION_PATH_VALIDATED env var decision.
 - EXECUTION_PATH_VALIDATED NOT SET — SENTINEL approved; WARP🔹CMD must explicitly set after reviewing sentinel report.
 - CAPITAL_MODE_CONFIRMED NOT SET — pending EXECUTION_PATH_VALIDATED prerequisite and WARP🔹CMD decision.
+- WARP/capital-mode-confirm (PR #815): SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision.
 
 [NOT STARTED]
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
-- WARP🔹CMD: review SENTINEL report (projects/polymarket/polyquantbot/reports/sentinel/real-clob-execution-path.md), merge PR #813, decide EXECUTION_PATH_VALIDATED env var, then scope CAPITAL_MODE_CONFIRMED path.
+- WARP🔹CMD: review SENTINEL report (projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-chunk1.md), merge PR #815, acknowledge revoke-single-step design decision.
+- WARP🔹CMD: also review PR #813 SENTINEL report and decide EXECUTION_PATH_VALIDATED env var.
 
 [KNOWN ISSUES]
 - PaperBetaWorker.run_once() skips price_updater() entirely in live mode — market_data_provider injection path in price_updater() is never reached from worker loop (deferred fix; non-critical per SENTINEL F-1).
+- [DEFERRED] Dead `return` after `self._block()` in check_with_receipt exception handler (live_execution_control.py:254) — found in WARP/capital-mode-confirm chunk 1.
+- [DEFERRED] mode="LIVE" hardcoded in 3 locations in public_beta_routes.py — extract to constant — found in WARP/capital-mode-confirm chunk 1.
 - handle_wallet_lifecycle_status() is not yet wired to a Telegram command -- function exists and is tested but routing is deferred.
 - Wallet lifecycle live PostgreSQL validation is deferred to pre-public sweep.
 - Portfolio routes hardcode tenant_id=system and user_id=paper_user -- per-user route binding deferred to full multi-user rollout.

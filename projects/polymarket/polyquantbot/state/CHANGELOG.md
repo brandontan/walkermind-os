@@ -63,3 +63,4 @@
 2026-04-30 08:32 | WARP/real-clob-execution-path-0ef5 | real-clob-execution-path: ClobExecutionAdapter + MockClobClient + LiveMarketDataProvider + price_updater_live(); 30/30 RCLOB tests, 70/70 P8 regressions clean; boundary registry updated; EXECUTION_PATH_VALIDATED NOT SET
 2026-04-30 09:13 | WARP/real-clob-execution-path | traceability repair: branch renamed from -0ef5 suffix to exact WARP/real-clob-execution-path; supersedes PR #812; forge report branch corrected
 2026-04-30 11:11 | WARP/real-clob-execution-path | SENTINEL APPROVED 98/100 — 0 critical issues; guard bypass verified; 30/30 RCLOB + 70/70 P8 regressions; EXECUTION_PATH_VALIDATED NOT SET pending WARP🔹CMD decision
+2026-04-30 13:30 | WARP/capital-mode-confirm | SENTINEL APPROVED 97/100 — 0 critical issues; DB schema + store + guard method + API endpoints + Telegram wiring validated; check_with_receipt() not wired to execution paths (NARROW INTEGRATION); 2 non-critical findings deferred
