@@ -5,6 +5,11 @@ P8-C hardening:
 - price_updater() raises LiveExecutionBlockedError when STATE.mode == 'live'
   (no-op stub is only valid in paper mode)
 - LiveExecutionGuard is checked before any execute() call when mode == 'live'
+
+real-clob-execution-path hardening:
+- Optional clob_adapter slot (ClobExecutionAdapter) for real/mocked CLOB submission in live mode
+- price_updater_live() accepts a MarketDataProvider for real mark-to-market in live mode
+- price_updater() paper path unchanged; live path now delegates to market_data_provider when set
 """
 from __future__ import annotations
 
@@ -21,6 +26,17 @@ from projects.polymarket.polyquantbot.server.core.live_execution_control import 
     disable_live_execution,
 )
 from projects.polymarket.polyquantbot.server.core.public_beta_state import STATE, WorkerIterationSummary
+from projects.polymarket.polyquantbot.server.data.live_market_data import (
+    LiveMarketDataGuard,
+    LiveMarketDataUnavailableError,
+    MarketDataProvider,
+    StaleMarketDataError,
+)
+from projects.polymarket.polyquantbot.server.execution.clob_execution_adapter import (
+    ClobExecutionAdapter,
+    ClobSubmissionBlockedError,
+    ClobSubmissionError,
+)
 from projects.polymarket.polyquantbot.server.execution.paper_execution import PaperExecutionEngine
 from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import FalconGateway
 from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import PaperPortfolio, _register_portfolio
@@ -42,12 +58,16 @@ class PaperBetaWorker:
         engine: PaperExecutionEngine,
         live_guard: LiveExecutionGuard | None = None,
         provider: WalletFinancialProvider | None = None,
+        clob_adapter: ClobExecutionAdapter | None = None,
+        market_data_provider: MarketDataProvider | None = None,
     ) -> None:
         self._falcon = falcon
         self._risk_gate = risk_gate
         self._engine = engine
         self._live_guard = live_guard
         self._provider = provider
+        self._clob_adapter = clob_adapter
+        self._market_data_provider = market_data_provider
 
     async def run_once(self) -> list[dict[str, object]]:
         await self.market_sync()
@@ -130,17 +150,71 @@ class PaperBetaWorker:
                     reason=decision.reason,
                 )
                 continue
-            event = await self._engine.execute(candidate, STATE)
-            summary.accepted_count += 1
-            events.append(event)
-            log.info(
-                "paper_beta_worker_position_opened",
-                signal_id=candidate.signal_id,
-                condition_id=event["condition_id"],
-                side=event["side"],
-                mode=event["mode"],
-                size=event["size"],
-            )
+
+            if STATE.mode != "paper" and self._clob_adapter is not None:
+                # Live mode with CLOB adapter — submit real/mocked order
+                resolved_provider_for_adapter: WalletFinancialProvider = (
+                    self._provider if self._provider is not None else PortfolioFinancialProvider(STATE)
+                )
+                token_id = str(getattr(candidate, "condition_id", ""))
+                try:
+                    clob_result = await self._clob_adapter.submit_order(
+                        state=STATE,
+                        signal=candidate,
+                        token_id=token_id,
+                        provider=resolved_provider_for_adapter,
+                    )
+                    event = {
+                        "mode": clob_result.mode,
+                        "condition_id": clob_result.condition_id,
+                        "token_id": clob_result.token_id,
+                        "side": clob_result.side,
+                        "size": clob_result.size,
+                        "price": clob_result.price,
+                        "order_id": clob_result.order_id,
+                        "status": clob_result.status,
+                        "dedup_key": clob_result.dedup_key,
+                    }
+                    summary.accepted_count += 1
+                    events.append(event)
+                    log.info(
+                        "paper_beta_worker_clob_order_submitted",
+                        signal_id=candidate.signal_id,
+                        order_id=clob_result.order_id,
+                        condition_id=clob_result.condition_id,
+                        side=clob_result.side,
+                        mode=clob_result.mode,
+                        status=clob_result.status,
+                    )
+                except ClobSubmissionBlockedError as exc:
+                    STATE.last_risk_reason = f"clob_blocked:{exc.reason}"
+                    summary.skip_mode_count += 1
+                    log.warning(
+                        "paper_beta_worker_clob_submission_blocked",
+                        reason=exc.reason,
+                        signal_id=candidate.signal_id,
+                    )
+                except ClobSubmissionError as exc:
+                    STATE.last_risk_reason = "clob_submission_error"
+                    summary.skip_mode_count += 1
+                    log.error(
+                        "paper_beta_worker_clob_submission_error",
+                        error=str(exc),
+                        signal_id=candidate.signal_id,
+                    )
+            else:
+                # Paper mode — use paper execution engine
+                event = await self._engine.execute(candidate, STATE)
+                summary.accepted_count += 1
+                events.append(event)
+                log.info(
+                    "paper_beta_worker_position_opened",
+                    signal_id=candidate.signal_id,
+                    condition_id=event["condition_id"],
+                    side=event["side"],
+                    mode=event["mode"],
+                    size=event["size"],
+                )
 
         await self.position_monitor()
         # price_updater() is a no-op stub — unsafe in live mode; skip it to keep the
@@ -189,20 +263,25 @@ class PaperBetaWorker:
         return len(STATE.positions)
 
     async def price_updater(self) -> None:
-        """Update unrealized PnL for open positions using live market prices.
+        """Update unrealized PnL for open positions.
 
         In paper mode: no-op stub (live mark-to-market deferred to market data integration).
-        In live mode: raises LiveExecutionBlockedError — the stub must not run with real capital.
+        In live mode:
+          - If market_data_provider is set: delegates to price_updater_live().
+          - If no provider: raises LiveExecutionBlockedError (stub unsafe for real capital).
 
         Raises:
-            LiveExecutionBlockedError: When STATE.mode == 'live' (stub is unsafe for live capital).
+            LiveExecutionBlockedError: When STATE.mode == 'live' and no provider is set.
         """
         if STATE.mode == "live":
+            if self._market_data_provider is not None:
+                await self.price_updater_live(self._market_data_provider)
+                return
             reason = "price_updater_stub_live_mode_blocked"
             detail = (
                 "price_updater() is a no-op stub and must not run in live mode — "
                 "unrealized PnL would be stale with real capital at risk. "
-                "Implement a real market data integration before enabling live mode."
+                "Inject a real MarketDataProvider to enable live mark-to-market."
             )
             log.error(
                 "price_updater_live_mode_blocked",
@@ -214,6 +293,49 @@ class PaperBetaWorker:
             raise LiveExecutionBlockedError(reason=reason, detail=detail)
         # Paper mode: safe no-op
         await asyncio.sleep(0)
+
+    async def price_updater_live(self, provider: MarketDataProvider) -> None:
+        """Update unrealized PnL using real market prices from a live provider.
+
+        Iterates open positions and fetches the current price from provider.
+        Stale prices and unavailable data are logged and skipped (position PnL
+        is not updated rather than using stale data).
+
+        Args:
+            provider: MarketDataProvider — must be a real (non-stub) implementation
+                      when called in live mode. Guarded by LiveMarketDataGuard.
+
+        Raises:
+            LiveMarketDataUnavailableError: Provider is a paper stub in live mode.
+        """
+        guarded = LiveMarketDataGuard(provider=provider, mode=STATE.mode)
+        updated = 0
+        skipped = 0
+        for position in list(STATE.positions):
+            token_id = str(getattr(position, "condition_id", ""))
+            try:
+                market_price = await guarded.get_price(token_id)
+                if hasattr(position, "unrealized_pnl") and hasattr(position, "entry_price"):
+                    entry = float(position.entry_price)
+                    size = float(getattr(position, "size", 0.0))
+                    pnl = (market_price.price - entry) * size
+                    object.__setattr__(position, "unrealized_pnl", pnl)
+                updated += 1
+            except (StaleMarketDataError, LiveMarketDataUnavailableError) as exc:
+                skipped += 1
+                log.warning(
+                    "price_updater_live_price_skipped",
+                    token_id=token_id,
+                    error=str(exc),
+                    open_positions=len(STATE.positions),
+                )
+        log.info(
+            "price_updater_live_complete",
+            updated=updated,
+            skipped=skipped,
+            open_positions=len(STATE.positions),
+            mode=STATE.mode,
+        )
 
 
 async def run_worker_loop(iterations: int = 1) -> None:
