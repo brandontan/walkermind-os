@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-05-01 03:41 | WARP/commander-github-issue-rules | COMMANDER.md v2.4 → v2.5: new ## GITHUB ISSUE AUTO-CREATE RULE — STANDARD/MAJOR tasks require GitHub issue before dispatch; MINOR = no issue; issue format, labels (warp-core + tier), auto-close, commit msg format per role; FORGE TASK TEMPLATE adds Issue: field. Forge report: reports/forge/commander-github-issue-rules.md. Tier: MINOR. Claim: FOUNDATION. Zero runtime change. Merged via PR #833 (SHA 2d5722c58eac). WARP🔹CMD verdict: MERGE ✅.
+
 2026-05-01 03:44 | WARP/commander-github-issue-rules | COMMANDER.md v2.4 → v2.5: new GITHUB ISSUE AUTO-CREATE RULE section — STANDARD/MAJOR tasks require GitHub Issue before dispatch; MINOR = no issue; SENTINEL issue created post-FORGE PR; issue format/labels/auto-close/commit format defined. PR COMMENT RULE updated with MINOR/reclassification bullets. FORGE TASK TEMPLATE: Issue field added. Tier: MINOR. Claim: FOUNDATION. Zero runtime change. Merged via PR #833 SHA 2d5722c58eac. WARP🔹CMD: MERGE ✅.
 
 2026-05-01 03:06 | WARP/p9-post-merge-final-acceptance | Priority 9 Lane 5 (post-merge final acceptance prep) merged via PR #832: docs/final_acceptance_gate.md (new — acceptance criteria, smoke requirements, boundary, 3 decision slots), state/PROJECT_STATE.md (updated — status synced to final acceptance prep, Lanes 1-4 done), state/WORKTODO.md (trimmed — P1–P7 completed tasks archived, current truth section added). Tier: MINOR. Claim: FOUNDATION. Zero runtime change. All 3 activation guards NOT SET. WARP🔹CMD post-merge audit: RATIFIED.
