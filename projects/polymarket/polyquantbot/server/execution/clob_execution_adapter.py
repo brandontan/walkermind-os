@@ -26,10 +26,13 @@ Paper-mode / test use:
   building → guard → client call → result parsing) without any live
   network call or real fund movement.
 
-Claim level: NARROW INTEGRATION
-  This module provides a tested adapter path.  It does NOT set any
-  gate env var.  EXECUTION_PATH_VALIDATED remains NOT SET until
-  WARP•SENTINEL approves.
+Claim level: LIVE INTEGRATION (post WARP/capital-mode-confirm follow-up — PR #818)
+  This module's mode='live' construction now REQUIRES a
+  CapitalModeConfirmationStore (ValueError otherwise) and submit_order()
+  routes through LiveExecutionGuard.check_with_receipt() — env-var-only
+  authorization can no longer admit live capital execution.
+  This module does NOT set any gate env var. EXECUTION_PATH_VALIDATED and
+  CAPITAL_MODE_CONFIRMED remain NOT SET until WARP🔹CMD acts.
 """
 from __future__ import annotations
 

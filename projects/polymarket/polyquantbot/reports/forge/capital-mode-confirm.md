@@ -1,11 +1,13 @@
-# WARP•FORGE Report — capital-mode-confirm
+# WARP•FORGE Report — capital-mode-confirm (follow-up to PR #815)
 
 **Branch:** WARP/capital-mode-confirm
-**Date:** 2026-04-30 15:30 (revised after Codex P1 round)
+**PR:** #818 (rebased on main after PR #815 merged the chunk-1 scaffold; merge SHA 6ea3b457)
+**Date:** 2026-04-30 16:10 (revised after WARP🔹CMD HOLD: rebase + claim correction)
 **Validation Tier:** MAJOR
-**Claim Level:** NARROW INTEGRATION
-**Validation Target:** Operator confirmation receipt flow (DB-backed, two-step) layered on top of the existing env-var `CAPITAL_MODE_CONFIRMED` gate, plus `LiveExecutionGuard.check_with_receipt()` and **strict enforcement at the two production live call sites** (`PaperBetaWorker.run_once`, `ClobExecutionAdapter.submit_order`). Does not authorise live trading; does not set any env var; does not merge PR #813.
-**Not in Scope:** Setting `EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, or `ENABLE_LIVE_TRADING` on any deployed environment; merging PR #813 (real-clob-execution-path); flipping live trading; deferred items from the PR #813 SENTINEL fix-list (run_once price_updater wiring, MockClobMarketDataClient protocol tightening, AiohttpClobClient build, order dedup persistence); Priority 9 launch + handoff; multi-replica Redis-backed pending-token storage.
+**Claim Level:** **LIVE INTEGRATION**
+**Validation Target:** Strict enforcement of `LiveExecutionGuard.check_with_receipt()` at the two production live call sites — `PaperBetaWorker.run_once()` and `ClobExecutionAdapter.submit_order()` — plus `CapitalModeRevokeFailedError` to distinguish revoke persistence failure from "no active receipt". `ClobExecutionAdapter(mode='live', confirmation_store=None)` now fails fast at construction. This is a runtime live execution path change, not a scaffold. Does not authorise live trading; does not set any env var.
+**Distinguishing claim from PR #815:** PR #815 (NARROW INTEGRATION, SENTINEL APPROVED 97/100) shipped the receipt scaffold — store, migration, `check_with_receipt()` defined, two-step `/beta/capital_mode_confirm` route, Telegram surfaces. This PR (LIVE INTEGRATION) makes that scaffold the **only** way to admit live capital execution at the worker + adapter call sites; previously a misconfigured wiring could bypass the receipt by calling sync `check()`.
+**Not in Scope:** Setting `EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, or `ENABLE_LIVE_TRADING` on any deployed environment; flipping live trading; deferred items from the PR #813 SENTINEL fix-list (run_once price_updater wiring, MockClobMarketDataClient protocol tightening, AiohttpClobClient build, order dedup persistence); Priority 9 launch + handoff; multi-replica Redis-backed pending-token storage. PR #813 has already merged.
 
 ---
 
