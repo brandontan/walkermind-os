@@ -19,7 +19,7 @@ Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENT
 - Priority 9 Lane 1+2 combined (WARP/p9-readiness-docs-ops) — public product docs + ops handoff docs finalized on branch; PR opened; pending WARP🔹CMD review (MINOR, FOUNDATION).
 
 [NOT STARTED]
-- Priority 9 Lane 3 (WARP/p9-monitoring-admin-surfaces) — admin index + operator checklist + release dashboard.
+- Priority 9 Lane 5 (WARP/p9-final-acceptance) — acceptance ceremony; gated on P8 activation + Lanes 1–4 merged.
 - Priority 9 Lane 5 (WARP/p9-final-acceptance) — acceptance ceremony; gated on P8 activation + Lanes 1–4 merged.
 
 [NEXT PRIORITY]
