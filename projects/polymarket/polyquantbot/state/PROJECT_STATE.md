@@ -1,5 +1,5 @@
-Last Updated : 2026-04-30 16:10
-Status       : WARP/real-clob-execution-path merged via PR #813 (SHA 6916a09e). WARP/capital-mode-confirm chunk1 (DB+store+guard+API+Telegram) merged via PR #815 (SHA 6ea3b457, SENTINEL APPROVED 97/100). WARP/capital-mode-confirm follow-up (this PR #818) extends to LIVE INTEGRATION: strict check_with_receipt() at runtime call sites in PaperBetaWorker + ClobExecutionAdapter, revoke 503 on persistence failure. 21/21 P8-E + 30/30 RCLOB + 100/100 prior P8 + 46/46 settlement+telegram regression. Awaiting WARP•SENTINEL MAJOR. EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. No live-trading-ready or production-capital-ready claim.
+Last Updated : 2026-04-30 15:19
+Status       : WARP/capital-mode-confirm follow-up (PR #818) SENTINEL APPROVED 98/100, 0 critical. LIVE INTEGRATION validated: strict check_with_receipt() at PaperBetaWorker + ClobExecutionAdapter, revoke 503 on persistence failure. 21/21 P8-E + 30/30 RCLOB + 100/100 prior P8 + 46/46 settlement+telegram regression. EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. Awaiting WARP🔹CMD final merge decision.
 
 [COMPLETED]
 - Priority 7 settlement lane fully closed: DDL PR #786, operator routes PR #787, Telegram wiring PR #789; 66/66 tests passing.
@@ -17,16 +17,17 @@ Status       : WARP/real-clob-execution-path merged via PR #813 (SHA 6916a09e). 
 - WARP/capital-mode-confirm follow-up (this lane, PR #818): LIVE INTEGRATION — strict check_with_receipt() enforcement at PaperBetaWorker.run_once() and ClobExecutionAdapter.submit_order(); ClobExecutionAdapter mode='live' fail-fast at construction without confirmation_store; revoke persistence failure now distinguished via CapitalModeRevokeFailedError → 503 (instead of misreporting no_active). 21/21 P8-E (P8E-01..P8E-21) + 30/30 RCLOB + 100/100 prior P8 + 21/21 settlement + 25/25 telegram regression.
 
 [IN PROGRESS]
-- WARP/capital-mode-confirm follow-up (PR #818): WARP•FORGE complete after Codex P1 fix; awaiting WARP•SENTINEL MAJOR validation. Source: projects/polymarket/polyquantbot/reports/forge/capital-mode-confirm.md.
+- WARP/capital-mode-confirm follow-up (PR #818): SENTINEL APPROVED 98/100; awaiting WARP🔹CMD merge decision. Report: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-enforcement.md.
 - EXECUTION_PATH_VALIDATED NOT SET — SENTINEL approved real CLOB foundation; WARP🔹CMD env-gate decision required.
-- CAPITAL_MODE_CONFIRMED NOT SET — pending capital-mode-confirm follow-up SENTINEL + WARP🔹CMD env decision + operator-issued DB receipt via /capital_mode_confirm.
+- CAPITAL_MODE_CONFIRMED NOT SET — pending WARP🔹CMD merge of PR #818 + env decision + operator-issued DB receipt via /capital_mode_confirm.
 - ENABLE_LIVE_TRADING NOT SET — guard remains off; no live-trading authority claimed.
 
 [NOT STARTED]
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
-- WARP•SENTINEL: validate WARP/capital-mode-confirm follow-up (Tier MAJOR, PR #818). Source: projects/polymarket/polyquantbot/reports/forge/capital-mode-confirm.md. After SENTINEL verdict, return to WARP🔹CMD for: (1) merge PR #818, (2) set EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars in deployment, (3) operator issues /capital_mode_confirm two-step on operator Telegram, (4) Priority 8 closeable, (5) scope Priority 9.
+- WARP🔹CMD: review SENTINEL report (98/100, APPROVED). Merge PR #818. Set EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED in deployment. Operator issues /capital_mode_confirm two-step. Priority 8 closeable. Then scope Priority 9.
+- Sentinel report: projects/polymarket/polyquantbot/reports/sentinel/capital-mode-confirm-live-enforcement.md
 
 [KNOWN ISSUES]
 - PaperBetaWorker.run_once() skips price_updater() entirely in live mode — market_data_provider injection path in price_updater() is never reached from worker loop (deferred fix; non-critical per SENTINEL F-1).
