@@ -59,7 +59,7 @@ PAPER_ONLY_BOUNDARIES: tuple[PaperOnlyBoundary, ...] = (
     PaperOnlyBoundary(
         surface="PaperExecutionEngine",
         file_path="projects/polymarket/polyquantbot/server/execution/paper_execution.py",
-        assumption="All order fills are simulated — no real CLOB order submission path exists in this layer. LiveExecutionGuard blocks live execution attempts at PaperBetaWorker level (P8-C).",
+        assumption="All order fills are simulated — real CLOB adapter (ClobExecutionAdapter) now exists at server/execution/clob_execution_adapter.py and is wired into PaperBetaWorker.run_once() live path. LiveExecutionGuard blocks live execution unless all 5 gates pass. CLOB adapter path tested with MockClobClient (30 RCLOB tests passing).",
         capital_risk="CRITICAL",
         readiness_gate="P8-C",
         status="NEEDS_HARDENING",
@@ -67,15 +67,15 @@ PAPER_ONLY_BOUNDARIES: tuple[PaperOnlyBoundary, ...] = (
     PaperOnlyBoundary(
         surface="PaperBetaWorker.price_updater",
         file_path="projects/polymarket/polyquantbot/server/workers/paper_beta_worker.py",
-        assumption="price_updater() is a no-op stub in paper mode — raises LiveExecutionBlockedError in live mode (P8-C hardened). Real market data integration deferred. Surface actively blocked from capital mode until real data feed is implemented.",
+        assumption="price_updater() now delegates to price_updater_live(market_data_provider) when a MarketDataProvider is injected in live mode. LiveMarketDataGuard rejects paper_stub and stale prices (>60s). Without a real provider injected, still raises LiveExecutionBlockedError. Real HTTP market data client not yet wired in production — integration deferred.",
         capital_risk="HIGH",
         readiness_gate="P8-C",
-        status="BLOCKED",
+        status="NEEDS_HARDENING",
     ),
     PaperOnlyBoundary(
         surface="LiveExecutionGuard",
         file_path="projects/polymarket/polyquantbot/server/core/live_execution_control.py",
-        assumption="LiveExecutionGuard (P8-C) enforces all 5 capital gates + WalletFinancialProvider non-zero check before any live execution attempt. Blocks and logs deterministically.",
+        assumption="LiveExecutionGuard (P8-C) enforces all 5 capital gates + WalletFinancialProvider non-zero check before any live execution attempt. Blocks and logs deterministically. ClobExecutionAdapter wraps the guard — every CLOB submission passes through guard first. EXECUTION_PATH_VALIDATED NOT SET — requires WARP•SENTINEL approval.",
         capital_risk="CRITICAL",
         readiness_gate="P8-C",
         status="NEEDS_HARDENING",

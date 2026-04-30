@@ -1,5 +1,5 @@
-Last Updated : 2026-04-30 06:10
-Status       : P8-E complete. Dry-run PASS 4/4. P8 tests PASS 70/70. Docs audit clean. Boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET. EXECUTION_PATH_VALIDATED unmet — real CLOB execution path not built. RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED ready for WARP🔹CMD deployment env decision. No live-trading-ready or production-capital-ready claim.
+Last Updated : 2026-04-30 11:11
+Status       : real-clob-execution-path SENTINEL APPROVED 98/100 — 0 critical issues. 30/30 RCLOB + 70/70 P8 regressions passing. Guard chain verified unbypassable. EXECUTION_PATH_VALIDATED NOT SET — requires WARP🔹CMD decision post-SENTINEL. CAPITAL_MODE_CONFIRMED NOT SET. No live-trading-ready or production-capital-ready claim.
 
 [COMPLETED]
 - Priority 7 settlement lane fully closed: DDL PR #786, operator routes PR #787, Telegram wiring PR #789; 66/66 tests passing.
@@ -14,17 +14,18 @@ Status       : P8-E complete. Dry-run PASS 4/4. P8 tests PASS 70/70. Docs audit 
 - P8-E capital validation sweep complete via WARP/capital-validation-p8e; dry-run PASS 4/4, 70/70 P8 tests passing, docs audit clean, boundary registry updated. CAPITAL_MODE_CONFIRMED NOT SET. EXECUTION_PATH_VALIDATED unmet — real CLOB execution path not built or validated. RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED ready for WARP🔹CMD deployment env decision.
 
 [IN PROGRESS]
-- WARP🔹CMD review of P8-E findings pending — decide on RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED deployment env vars, scope real CLOB execution lane.
-- Do not claim live-trading-ready or production-capital-ready; CAPITAL_MODE_CONFIRMED NOT SET pending EXECUTION_PATH_VALIDATED prerequisite.
+- WARP/real-clob-execution-path (PR #813): SENTINEL APPROVED 98/100. Awaiting WARP🔹CMD merge decision and EXECUTION_PATH_VALIDATED env var decision.
+- EXECUTION_PATH_VALIDATED NOT SET — SENTINEL approved; WARP🔹CMD must explicitly set after reviewing sentinel report.
+- CAPITAL_MODE_CONFIRMED NOT SET — pending EXECUTION_PATH_VALIDATED prerequisite and WARP🔹CMD decision.
 
 [NOT STARTED]
 - Final public product completion, launch assets, and handoff (Priority 9).
 
 [NEXT PRIORITY]
-- WARP🔹CMD: review P8-E report (projects/polymarket/polyquantbot/reports/forge/capital-validation-p8e.md), decide RISK_CONTROLS_VALIDATED + SECURITY_HARDENING_VALIDATED env vars, scope real CLOB execution lane to unblock EXECUTION_PATH_VALIDATED and CAPITAL_MODE_CONFIRMED.
+- WARP🔹CMD: review SENTINEL report (projects/polymarket/polyquantbot/reports/sentinel/real-clob-execution-path.md), merge PR #813, decide EXECUTION_PATH_VALIDATED env var, then scope CAPITAL_MODE_CONFIRMED path.
 
 [KNOWN ISSUES]
-- PaperBetaWorker.price_updater() raises LiveExecutionBlockedError in live mode (P8-C hardened) -- real market data integration still deferred; unrealized PnL will not update in live mode until implemented.
+- PaperBetaWorker.run_once() skips price_updater() entirely in live mode — market_data_provider injection path in price_updater() is never reached from worker loop (deferred fix; non-critical per SENTINEL F-1).
 - handle_wallet_lifecycle_status() is not yet wired to a Telegram command -- function exists and is tested but routing is deferred.
 - Wallet lifecycle live PostgreSQL validation is deferred to pre-public sweep.
 - Portfolio routes hardcode tenant_id=system and user_id=paper_user -- per-user route binding deferred to full multi-user rollout.
