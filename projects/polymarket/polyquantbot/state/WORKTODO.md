@@ -514,7 +514,9 @@ This is the last major capability layer.
 - [x] Run staged rollout validation
 - [x] Review docs/policy/claims
 - [x] Remove overclaim
-- [ ] Make release decision (deferred — EXECUTION_PATH_VALIDATED prerequisite unmet; WARP🔹CMD decision)
+- [x] Build operator confirmation receipt flow (WARP/capital-mode-confirm — DB-backed second-layer gate, /capital_mode_confirm two-step + /capital_mode_revoke, runbook §9, 15/15 P8-E tests + 100/100 prior P8 + 46/46 settlement+telegram regression)
+- [ ] WARP•SENTINEL MAJOR validate WARP/capital-mode-confirm (source: projects/polymarket/polyquantbot/reports/forge/capital-mode-confirm.md)
+- [ ] Make release decision (deferred — EXECUTION_PATH_VALIDATED prerequisite unmet; WARP🔹CMD decision after SENTINEL on both PR #813 and capital-mode-confirm)
 
 ### Done Condition
 
@@ -591,7 +593,7 @@ This is the final finish layer.
 - [x] PRIORITY 5 — Portfolio Management Logic
 - [x] PRIORITY 6 — Multi-Wallet Orchestration
 - [x] PRIORITY 7 — Settlement / Retry / Reconciliation
-- [ ] PRIORITY 8 — Production-Capital Readiness (P8-A/B/C/D/E merged; CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet; WARP🔹CMD review required)
+- [ ] PRIORITY 8 — Production-Capital Readiness (P8-A/B/C/D/E merged; capital-mode-confirm built — WARP•SENTINEL MAJOR pending; CAPITAL_MODE_CONFIRMED NOT SET — EXECUTION_PATH_VALIDATED prerequisite unmet; WARP🔹CMD review required after both SENTINEL verdicts)
 - [ ] PRIORITY 9 — Final Completion / Handoff / Launch Assets
 
 ---
@@ -615,5 +617,8 @@ This is the final finish layer.
 - [x] SENTINEL: validate WARP/real-clob-execution-path (Tier MAJOR) — APPROVED 98/100, 0 critical; report: projects/polymarket/polyquantbot/reports/sentinel/real-clob-execution-path.md
 - [x] WARP🔹CMD: merge WARP/real-clob-execution-path — PR #813 squash-merged to main on 2026-04-30 (merge SHA 6916a09ea02609bc3673db0ab8acba457f2ce4cf); guarded real CLOB execution-path foundation landed (NARROW INTEGRATION only)
 - [x] WARP/post-merge-sync-real-clob: repo-state truth synchronized post PR #813 merge (PROJECT_STATE.md / ROADMAP.md / WORKTODO.md / CHANGELOG.md); EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET
-- [ ] WARP🔹CMD: env-gate decision over merged real CLOB foundation — decide EXECUTION_PATH_VALIDATED, then CAPITAL_MODE_CONFIRMED path. No further real CLOB build required for this lane.
+- [x] WARP/capital-mode-confirm chunk1 (DB layer + store + guard + API + Telegram) merged to main via PR #815 (merge SHA 6ea3b457); SENTINEL APPROVED 97/100, 0 critical (NARROW INTEGRATION — check_with_receipt defined but not wired)
+- [x] FORGE: build WARP/capital-mode-confirm follow-up (Tier MAJOR, LIVE INTEGRATION, PR #818) — strict check_with_receipt() at PaperBetaWorker + ClobExecutionAdapter, revoke 503 on persistence failure, P8E-16..P8E-21 + RCLOB-24 update; 167/167 across all touched-area suites
+- [ ] SENTINEL: validate WARP/capital-mode-confirm follow-up (Tier MAJOR, LIVE INTEGRATION) — source: projects/polymarket/polyquantbot/reports/forge/capital-mode-confirm.md
+- [ ] WARP🔹CMD: after SENTINEL verdict on PR #818, decide EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars, then operator issues /capital_mode_confirm two-step on operator Telegram
 

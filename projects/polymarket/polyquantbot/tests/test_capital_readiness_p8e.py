@@ -529,3 +529,308 @@ def test_p8e_15_revoke_clears_active_confirmation() -> None:
     # Underlying row is now revoked → next get_active returns None.
     assert db.rows[0]["revoked_by"] == "op_bob"
     assert db.rows[0]["revoked_at"] is not None
+
+
+# ── P8E-16 .. P8E-21: Strict receipt enforcement at runtime call sites ───────
+
+
+@pytest.mark.asyncio
+async def test_p8e_16_worker_live_without_store_blocks() -> None:
+    """P8E-16: PaperBetaWorker.run_once() in live mode without confirmation_store
+    refuses live execution and triggers disable_live_execution.
+
+    Proves that live runtime callers cannot bypass the receipt layer just by
+    forgetting to inject the store at construction.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    from projects.polymarket.polyquantbot.server.core.public_beta_state import (
+        PublicBetaState as _PBS,
+    )
+    from projects.polymarket.polyquantbot.server.execution.paper_execution import (
+        PaperExecutionEngine,
+    )
+    from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import (
+        CandidateSignal,
+    )
+    from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import (
+        PaperPortfolio,
+    )
+    from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import (
+        PaperRiskGate,
+    )
+    from projects.polymarket.polyquantbot.server.workers.paper_beta_worker import (
+        PaperBetaWorker,
+    )
+    import projects.polymarket.polyquantbot.server.workers.paper_beta_worker as wmod
+
+    state = _PBS()
+    state.mode = "live"
+    state.kill_switch = False
+    state.autotrade_enabled = True
+
+    cfg_env = {**_ALL_GATES_ON}
+    with patch.dict(os.environ, cfg_env, clear=False):
+        cfg = CapitalModeConfig.from_env()
+    guard = LiveExecutionGuard(config=cfg)
+
+    falcon = MagicMock()
+    falcon.rank_candidates = AsyncMock(
+        return_value=[
+            CandidateSignal(
+                signal_id="sig-p8e16",
+                condition_id="cond-001",
+                side="YES",
+                edge=0.05,
+                liquidity=20000.0,
+                price=0.6,
+            )
+        ]
+    )
+    portfolio = PaperPortfolio()
+    engine = PaperExecutionEngine(portfolio)
+    worker = PaperBetaWorker(
+        falcon=falcon,
+        risk_gate=PaperRiskGate(),
+        engine=engine,
+        live_guard=guard,
+        provider=_StubProvider(),
+        confirmation_store=None,  # ← the gap that must be enforced
+    )
+
+    orig_state = wmod.STATE
+    wmod.STATE = state
+    try:
+        with patch.dict(os.environ, cfg_env, clear=False):
+            events = await worker.run_once()
+    finally:
+        wmod.STATE = orig_state
+
+    assert events == []
+    assert state.kill_switch is True
+    assert "no_confirmation_store_injected" in state.last_risk_reason
+
+
+@pytest.mark.asyncio
+async def test_p8e_17_worker_live_with_store_no_receipt_blocks() -> None:
+    """P8E-17: Worker live mode with store wired but no active receipt
+    refuses with reason capital_mode_no_active_receipt."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from projects.polymarket.polyquantbot.server.core.public_beta_state import (
+        PublicBetaState as _PBS,
+    )
+    from projects.polymarket.polyquantbot.server.execution.paper_execution import (
+        PaperExecutionEngine,
+    )
+    from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import (
+        CandidateSignal,
+    )
+    from projects.polymarket.polyquantbot.server.portfolio.paper_portfolio import (
+        PaperPortfolio,
+    )
+    from projects.polymarket.polyquantbot.server.risk.paper_risk_gate import (
+        PaperRiskGate,
+    )
+    from projects.polymarket.polyquantbot.server.workers.paper_beta_worker import (
+        PaperBetaWorker,
+    )
+    import projects.polymarket.polyquantbot.server.workers.paper_beta_worker as wmod
+
+    state = _PBS()
+    state.mode = "live"
+    state.kill_switch = False
+    state.autotrade_enabled = True
+
+    cfg_env = {**_ALL_GATES_ON}
+    with patch.dict(os.environ, cfg_env, clear=False):
+        cfg = CapitalModeConfig.from_env()
+    guard = LiveExecutionGuard(config=cfg)
+
+    db = _StubDB()
+    store = CapitalModeConfirmationStore(db=db)  # type: ignore[arg-type]
+
+    falcon = MagicMock()
+    falcon.rank_candidates = AsyncMock(
+        return_value=[
+            CandidateSignal(
+                signal_id="sig-p8e17",
+                condition_id="cond-001",
+                side="YES",
+                edge=0.05,
+                liquidity=20000.0,
+                price=0.6,
+            )
+        ]
+    )
+    portfolio = PaperPortfolio()
+    engine = PaperExecutionEngine(portfolio)
+    worker = PaperBetaWorker(
+        falcon=falcon,
+        risk_gate=PaperRiskGate(),
+        engine=engine,
+        live_guard=guard,
+        provider=_StubProvider(),
+        confirmation_store=store,  # store wired but no row inserted
+    )
+
+    orig_state = wmod.STATE
+    wmod.STATE = state
+    try:
+        with patch.dict(os.environ, cfg_env, clear=False):
+            events = await worker.run_once()
+    finally:
+        wmod.STATE = orig_state
+
+    assert events == []
+    assert state.kill_switch is True
+    assert "capital_mode_no_active_receipt" in state.last_risk_reason
+
+
+def test_p8e_18_adapter_mode_live_without_store_raises() -> None:
+    """P8E-18: ClobExecutionAdapter mode='live' without confirmation_store
+    raises ValueError at construction. Fail-closed default for production live."""
+    from projects.polymarket.polyquantbot.server.execution.clob_execution_adapter import (
+        ClobExecutionAdapter,
+    )
+    from projects.polymarket.polyquantbot.server.execution.mock_clob_client import (
+        MockClobClient,
+    )
+
+    cfg_env = {**_ALL_GATES_ON}
+    with patch.dict(os.environ, cfg_env, clear=False):
+        cfg = CapitalModeConfig.from_env()
+
+    with pytest.raises(ValueError) as exc_info:
+        ClobExecutionAdapter(
+            config=cfg,
+            client=MockClobClient(order_id="x", status="MATCHED"),
+            mode="live",
+            confirmation_store=None,
+        )
+    assert "confirmation_store" in str(exc_info.value)
+    assert "P8-E receipt layer" in str(exc_info.value)
+
+
+def test_p8e_19_adapter_mode_live_with_store_and_receipt_submits() -> None:
+    """P8E-19: ClobExecutionAdapter mode='live' with store + active receipt
+    + all env gates set submits an order successfully — full chain pass."""
+    from projects.polymarket.polyquantbot.server.execution.clob_execution_adapter import (
+        ClobExecutionAdapter,
+        ClobOrderResult,
+    )
+    from projects.polymarket.polyquantbot.server.execution.mock_clob_client import (
+        MockClobClient,
+    )
+    from projects.polymarket.polyquantbot.server.integrations.falcon_gateway import (
+        CandidateSignal,
+    )
+
+    cfg_env = {**_ALL_GATES_ON}
+    with patch.dict(os.environ, cfg_env, clear=False):
+        cfg = CapitalModeConfig.from_env()
+
+    db = _StubDB()
+    store = CapitalModeConfirmationStore(db=db)  # type: ignore[arg-type]
+    asyncio.run(
+        store.insert(
+            operator_id="op_p8e19",
+            mode="LIVE",
+            acknowledgment_token="p8e19_tok",
+            upstream_gates_snapshot={"enable_live_trading": True},
+        )
+    )
+
+    state = PublicBetaState()
+    state.mode = "live"
+    state.kill_switch = False
+
+    client = MockClobClient(order_id="p8e19-001", status="MATCHED")
+    adapter = ClobExecutionAdapter(
+        config=cfg,
+        client=client,
+        mode="live",
+        confirmation_store=store,
+    )
+
+    signal = CandidateSignal(
+        signal_id="sig-p8e19",
+        condition_id="cond-001",
+        side="BUY",
+        price=0.6,
+        edge=0.05,
+        liquidity=20000.0,
+    )
+    with patch.dict(os.environ, cfg_env, clear=False):
+        result = asyncio.run(
+            adapter.submit_order(
+                state, signal, token_id="tok-p8e19", provider=_StubProvider()
+            )
+        )
+    assert isinstance(result, ClobOrderResult)
+    assert result.order_id == "p8e19-001"
+    assert client.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_p8e_20_revoke_persistence_failure_raises() -> None:
+    """P8E-20: store.revoke_latest raises CapitalModeRevokeFailedError when
+    DB persistence fails after locating an active row.
+
+    Distinguishes from the no-active case (returns None) so callers can
+    treat the failure as service-unavailable rather than misleadingly
+    reporting nothing-to-revoke.
+    """
+    from projects.polymarket.polyquantbot.server.storage.capital_mode_confirmation_store import (
+        CapitalModeRevokeFailedError,
+    )
+
+    db = _StubDB()
+    store = CapitalModeConfirmationStore(db=db)  # type: ignore[arg-type]
+    await store.insert(
+        operator_id="op_p8e20",
+        mode="LIVE",
+        acknowledgment_token="p8e20_tok",
+        upstream_gates_snapshot={},
+    )
+    db.fail_execute = True
+
+    with pytest.raises(CapitalModeRevokeFailedError) as exc_info:
+        await store.revoke_latest(
+            mode="LIVE", revoked_by="op_x", reason="db_outage_test"
+        )
+    assert "may still be in force" in str(exc_info.value)
+
+
+def test_p8e_21_revoke_route_returns_503_on_persistence_failure() -> None:
+    """P8E-21: POST /beta/capital_mode_revoke returns 503 when the store
+    raises CapitalModeRevokeFailedError instead of misreporting no_active."""
+    db = _StubDB()
+    store = CapitalModeConfirmationStore(db=db)  # type: ignore[arg-type]
+    env = {**_ALL_GATES_ON, "CRUSADER_OPERATOR_API_KEY": _OPERATOR_API_KEY}
+    with patch.dict(os.environ, env, clear=False):
+        client = _make_app(store=store)
+        # Seed an active confirmation directly (bypass step1/step2 dance).
+        first = client.post(
+            "/beta/capital_mode_confirm",
+            json={"operator_id": "op_alice"},
+            headers=_OPERATOR_HEADERS,
+        )
+        token = first.json()["acknowledgment_token"]
+        client.post(
+            "/beta/capital_mode_confirm",
+            json={"operator_id": "op_alice", "acknowledgment_token": token},
+            headers=_OPERATOR_HEADERS,
+        )
+        # Now simulate DB outage on revoke.
+        db.fail_execute = True
+        resp = client.post(
+            "/beta/capital_mode_revoke",
+            json={"revoked_by": "op_bob", "reason": "incident_drill"},
+            headers=_OPERATOR_HEADERS,
+        )
+    assert resp.status_code == 503, resp.text
+    detail = resp.json()["detail"]
+    assert detail["outcome"] == "persistence_failed"
+    assert detail["reason"] == "capital_mode_revoke_persistence_failed"
+    assert "may still be in force" in detail["warning"]

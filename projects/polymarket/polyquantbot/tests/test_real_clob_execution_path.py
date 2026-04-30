@@ -607,11 +607,29 @@ def test_rclob_23_price_updater_live_rejects_paper_stub() -> None:
 def test_rclob_24_run_once_uses_clob_adapter_in_live_mode() -> None:
     from unittest.mock import AsyncMock, MagicMock, patch
 
+    from projects.polymarket.polyquantbot.server.storage.capital_mode_confirmation_store import (
+        CapitalModeConfirmationStore,
+    )
+    from projects.polymarket.polyquantbot.tests.test_capital_readiness_p8e import _StubDB
+
     state = _live_state()
     cfg = _live_cfg_all_gates()
     provider = _RealProvider()
     signal = _make_signal()
     mock_client = MockClobClient(order_id="live-test-001", status="MATCHED")
+    # P8-E receipt store: seed an active confirmation row so the worker's
+    # check_with_receipt passes. Without this seed the worker would refuse
+    # live execution at the receipt layer.
+    db = _StubDB()
+    confirmation_store = CapitalModeConfirmationStore(db=db)  # type: ignore[arg-type]
+    asyncio.run(
+        confirmation_store.insert(
+            operator_id="op_rclob24",
+            mode="LIVE",
+            acknowledgment_token="rclob24_token",
+            upstream_gates_snapshot={"enable_live_trading": True},
+        )
+    )
     adapter = ClobExecutionAdapter(config=cfg, client=mock_client, mode="mocked")
     guard = LiveExecutionGuard(config=cfg)
 
@@ -632,6 +650,7 @@ def test_rclob_24_run_once_uses_clob_adapter_in_live_mode() -> None:
         provider=provider,
         clob_adapter=adapter,
         market_data_provider=None,
+        confirmation_store=confirmation_store,
     )
 
     import projects.polymarket.polyquantbot.server.workers.paper_beta_worker as wmod
