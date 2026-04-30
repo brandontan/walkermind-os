@@ -82,7 +82,7 @@
 | Lane | Branch | Tier | Status |
 |---|---|---|---|
 | 4 | `WARP/p9-repo-hygiene-final` | MINOR | ✅ Done — merged via PR #822; archive sweep + state/roadmap sync complete |
-| 1+2 | `WARP/p9-readiness-docs-ops` | MINOR | 🚧 In Progress — Lane 1 + Lane 2 consolidated: README + launch_summary + onboarding + support + ops/deployment_guide + ops/secrets_env_guide + ops/runbook_quick_ref. PR open; pending WARP🔹CMD review |
+| 1+2 | `WARP/p9-readiness-docs-ops` | MINOR | ✅ Done — Lane 1 + Lane 2 merged (PR #825 + #826 + #827); public docs + ops handoff complete |
 | 3 | `WARP/p9-monitoring-admin-surfaces` | STANDARD | ✅ Done — merged via PR #831; monitoring_admin_index + operator_checklist + release_dashboard complete |
 | 5 | `WARP/p9-final-acceptance` | STANDARD (gated) | ❌ Not Started — acceptance ceremony; held until Priority 8 activation complete + Lanes 1–4 merged |
 
