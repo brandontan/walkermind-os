@@ -1,43 +1,54 @@
-Last Updated : 2026-04-30 13:44
-Status       : Priority 8 BUILD COMPLETE (PR #813 + #815 + #818 all merged; SENTINEL APPROVED 98/97/100). Pre-work sync merged via PR #821 (WARP/worktodo-priority8-sync). Priority 9 lane execution active: Lane 4 merged (WARP/p9-repo-hygiene-final). Lane 1 + Lane 2 consolidated into single combined lane WARP/p9-readiness-docs-ops (Tier MINOR, FOUNDATION) — public product docs (README/launch_summary/onboarding/support) + ops handoff docs (deployment_guide/secrets_env_guide/runbook_quick_ref) finalized; pending WARP🔹CMD review. EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET. No live-trading-ready or production-capital-ready claim.
+Last Updated : 2026-05-01 02:55 Asia/Jakarta
+Status       : Priority 9 public paper-beta finish path is in final acceptance prep. Priority 8 build is complete but live/capital activation remains gated. Priority 9 Lane 4, Lane 1+2, and Lane 3 are merged. Priority 9 Lane 5 final acceptance is now the remaining finish task.
 
 [COMPLETED]
-- P8-A capital readiness foundation merged to main via PR #790 (WARP/capital-readiness-p8a); 16/16 tests (CR-01..CR-12).
-- P8-B capital risk controls hardening merged to main via PR #794 (WARP/capital-readiness-p8b); 12/12 tests (CR-13..CR-22). RISK_CONTROLS_VALIDATED ready.
-- P8-C live execution readiness merged to main via PR #795 (WARP/capital-readiness-p8c); SENTINEL CONDITIONAL 78/100, 0 critical. FLAG-1 carried to P8-D.
-- P8-D security + observability hardening merged to main via PR #800 (WARP/capital-readiness-p8d); SENTINEL APPROVED 97/100, 0 critical. FLAG-1 fixed. SECURITY_HARDENING_VALIDATED ready.
-- P8-E capital validation sweep complete via WARP/capital-validation-p8e; dry-run PASS 4/4, 70/70 P8 tests passing, docs audit clean, boundary registry updated.
-- WARP/real-clob-execution-path merged to main via PR #813 (merge SHA 6916a09e); SENTINEL APPROVED 98/100, 0 critical. 30/30 RCLOB + 70/70 P8 regressions passing. NARROW INTEGRATION only — adapter/mock/live market-data guard foundation.
-- WARP/capital-mode-confirm chunk1 merged to main via PR #815 (merge SHA 6ea3b457); SENTINEL APPROVED 97/100, 0 critical. NARROW INTEGRATION only — DB layer + store + guard + API + Telegram scaffold.
-- WARP/capital-mode-confirm follow-up merged to main via PR #818 (merge SHA 5d314839); SENTINEL APPROVED 100/100, 0 critical. LIVE INTEGRATION — check_with_receipt() strictly enforced at both production call sites. 167/167 tests pass. Priority 8 build complete. Awaiting WARP🔹CMD env-gate + operator confirmation to activate.
-- WARP/worktodo-priority8-sync merged to main via PR #821 (Tier MINOR); pre-Priority-9 state truth sync — WORKTODO P8 SENTINEL closure + Right Now / Simple Execution Order alignment + Priority 9 plan reference added to PROJECT_STATE NEXT PRIORITY.
+- Priority 1 public bot runtime baseline completed.
+- Priority 2 DB, persistence, runtime, security, logging, monitoring, and deployment hardening completed.
+- Priority 3 paper trading product completion completed.
+- Priority 4 wallet lifecycle foundation completed.
+- Priority 5 portfolio management logic completed.
+- Priority 6 multi-wallet orchestration completed.
+- Priority 7 settlement / retry / reconciliation completed.
+- Priority 8 production-capital readiness build completed:
+  - P8-A/B/C/D/E merged.
+  - Real CLOB execution-path foundation merged via PR #813.
+  - Capital-mode-confirm DB-backed second-layer gate merged via PR #815 and PR #818.
+  - SENTINEL approvals recorded for the major P8 gates.
+  - `EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, and `ENABLE_LIVE_TRADING` remain NOT SET.
+- Priority 9 Lane 4 repo hygiene final completed via PR #822.
+- Priority 9 Lane 1+2 public product docs + ops handoff completed via PR #825, PR #826, and PR #827.
+  - Public product docs: README, launch summary, onboarding, support.
+  - Ops handoff docs: deployment guide, secrets/env guide, runbook quick reference.
+  - Scope: docs/ops only; no runtime change; no env activation.
+- Priority 9 Lane 3 monitoring/admin surfaces completed via PR #831.
+  - `docs/ops/monitoring_admin_index.md`
+  - `docs/ops/operator_checklist.md`
+  - `docs/release_dashboard.md`
+  - Forge report: `reports/forge/p9-monitoring-admin-surfaces.md`
+  - Scope: docs/admin visibility only; no runtime/API/Telegram behavior change; no secrets.
 
 [IN PROGRESS]
-- Priority 9 Lane 3 (WARP/p9-monitoring-admin-surfaces) — merged PR #831; monitoring/admin index + operator checklist + release dashboard complete.
-- EXECUTION_PATH_VALIDATED NOT SET — env-gate decision required (WARP🔹CMD + Mr. Walker).
-- CAPITAL_MODE_CONFIRMED NOT SET — pending env decision + operator-issued DB receipt via /capital_mode_confirm two-step.
-- ENABLE_LIVE_TRADING NOT SET — guard remains off; no live-trading authority claimed.
-- Priority 9 Lane 1+2 combined (WARP/p9-readiness-docs-ops) — public product docs + ops handoff docs finalized on branch; PR opened; pending WARP🔹CMD review (MINOR, FOUNDATION).
+- Priority 9 Lane 5 final acceptance prep / post-merge state sync.
+  - Branch: `WARP/p9-post-merge-final-acceptance`
+  - Goal: synchronize canonical state files after PR #831 and define final acceptance gate for public paper-beta finish.
+  - Scope: docs/state/report only.
+  - WARP•SENTINEL is not required unless this lane expands into runtime behavior, API behavior, Telegram behavior, security posture, env activation, or live/capital claims.
 
-[NOT STARTED]
-- Priority 9 Lane 5 (WARP/p9-final-acceptance) — acceptance ceremony; gated on P8 activation + Lanes 1–4 merged.
-- Priority 9 Lane 5 (WARP/p9-final-acceptance) — acceptance ceremony; gated on P8 activation + Lanes 1–4 merged.
+[BLOCKED / GATED]
+- Production-capital readiness claim remains blocked.
+- Live trading remains blocked.
+- Required activation gates are still NOT SET:
+  - `EXECUTION_PATH_VALIDATED`
+  - `CAPITAL_MODE_CONFIRMED`
+  - `ENABLE_LIVE_TRADING`
+- Capital mode cannot be considered active until:
+  1. Mr. Walker + WARP🔹CMD authorize env-gate changes.
+  2. Deployment env sets the required activation variables intentionally.
+  3. Operator completes `/capital_mode_confirm` two-step DB receipt.
+  4. Runtime evidence confirms guard truth.
+- Priority 9 Lane 5 cannot mark the project 100% finished unless final COMMANDER acceptance is recorded.
 
 [NEXT PRIORITY]
-- WARP🔹CMD: review WARP/p9-readiness-docs-ops PR (Tier MINOR, FOUNDATION; docs/ops only; no runtime change; no activation overclaim). Forge report: projects/polymarket/polyquantbot/reports/forge/p9-readiness-docs-ops.md.
-- WARP🔹CMD: Priority 8 build complete. To activate: (1) set EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env vars in deployment, (2) operator issues /capital_mode_confirm two-step on Telegram → DB receipt persisted, (3) Priority 8 closeable.
-- WARP🔹CMD: after p9-readiness-docs-ops merge, scope Lane 3, then Lane 5 (gated).
-
-[KNOWN ISSUES]
-- PaperBetaWorker.run_once() skips price_updater() entirely in live mode — market_data_provider injection path in price_updater() is never reached from worker loop (deferred fix; non-critical per SENTINEL F-1).
-- handle_wallet_lifecycle_status() is not yet wired to a Telegram command -- function exists and is tested but routing is deferred.
-- Wallet lifecycle live PostgreSQL validation is deferred to pre-public sweep.
-- Portfolio routes hardcode tenant_id=system and user_id=paper_user -- per-user route binding deferred to full multi-user rollout.
-- Portfolio unrealized PnL relies on current_price in paper_positions -- live mark-to-market deferred to market data integration lane.
-- WalletCandidate financial fields (balance_usd, exposure_pct, drawdown_pct) default to 0.0 -- risk gate thresholds will not trigger in orchestration routing until market data integration is complete.
-- No migration runner configured -- 001_settlement_tables.sql and 002_capital_mode_confirmations.sql must be applied manually or via operator tooling; auto-create in _apply_schema() remains the runtime path.
-- OperatorConsole.apply_admin_intervention() does not persist intervention record to DB -- audit log emitted via structlog (operator_admin_intervention_audit) on every intervention; DB persistence deferred to P9 storage lane.
-- get_failed_batches() always returns [] -- batch results not persisted in current settlement persistence layer; /failed_batches Telegram reply acknowledges this explicitly.
-- Capital-mode pending-token store is in-process (_PENDING_CAPITAL_CONFIRMS in server/api/public_beta_routes.py). Multi-replica deployments will require Redis-backed swap before horizontal scale; current single-machine Fly runtime is acceptable.
-- ClobExecutionAdapter mode='mocked' label not enforced against client type — pre-existing risk (SENTINEL F-1, PR #813). Deferred to P9 hardening.
-- P8C asyncio.get_event_loop().run_until_complete deprecated pattern breaks test isolation when run after P8E — pre-existing fragility (SENTINEL F-2). Deferred.
+- WARP🔹CMD: review and merge `WARP/p9-post-merge-final-acceptance`.
+- After merge: decide whether Lane 5 is final public paper-beta acceptance only, or whether Priority 8 activation remains deferred as a separate owner-gated decision.
+- Do not enable live trading or production capital in this task.
