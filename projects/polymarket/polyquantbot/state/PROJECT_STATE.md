@@ -1,4 +1,4 @@
-Last Updated : 2026-05-01 08:39 Asia/Jakarta
+Last Updated : 2026-05-01 08:47 Asia/Jakarta
 Status       : Priority 9 COMPLETE. P9 Lane 5 ACCEPTED as public paper-beta (2026-05-01 06:37 WIB). Runtime smoke evidence: 6/8 PASS, Telegram BLOCKED (env, not code defect). All activation guards NOT SET. Live/capital activation remains blocked pending separate owner decision.
 
 [COMPLETED]
@@ -10,9 +10,8 @@ Status       : Priority 9 COMPLETE. P9 Lane 5 ACCEPTED as public paper-beta (202
 - Priority 9 Lane 5 final acceptance gate prep completed via PR #832.
 - COMMANDER.md GitHub issue auto-create rules merged via PR #833 SHA 2d5722c58eac.
 - Priority 9 Lane 5 HOLD posture recording merged via PR #836 (WARP/p9-final-acceptance-hold). Scope: docs/state/report only. Tier: MINOR.
-- Priority 9 COMPLETE. Smoke evidence PR #840 merged (SHA 91929fa34534). WARP🔹CMD decision: ACCEPTED as public paper-beta. Date: 2026-05-01.
-- Priority 9 smoke evidence captured via PR #840 (WARP/p9-runtime-smoke-evidence). WARP🔹CMD decision: ACCEPTED as public paper-beta. SHA 91929fa34534.
 - Priority 9 Lane 5 ACCEPTED: smoke evidence merged via PR #840 SHA 91929fa34534. WARP🔹CMD final decision recorded in docs/final_acceptance_gate.md. Priority 9 COMPLETE.
+- Priority 9 truth sync completed via PR #841 (WARP/p9-completion-truth-sync). WORKTODO + ROADMAP aligned to P9 COMPLETE/ACCEPTED truth. Tier: MINOR.
 
 [IN PROGRESS]
 - None.
