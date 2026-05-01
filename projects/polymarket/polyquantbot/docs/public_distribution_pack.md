@@ -91,4 +91,4 @@ Do not publish any copy that says or implies:
 
 Public paper-beta distribution may proceed using this pack.
 
-Live/capital activation remains a separate MAJOR lanke and requires WARP•SENTINEL.
+Live/capital activation remains a separate MAJOR lane and requires WARP•SENTINEL.
