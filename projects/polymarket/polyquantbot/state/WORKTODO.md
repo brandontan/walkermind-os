@@ -1,6 +1,6 @@
 ## CrusaderBot Work Checklist
 
-Last Updated: 2026-05-01 08:39 Asia/Jakarta
+Last Updated: 2026-05-01 18:49 Asia/Jakarta
 
 ## Current Truth
 
@@ -49,4 +49,5 @@ Out of P9 scope (gated, not blocking P9 closure):
 - [x] Record HOLD posture on `WARP/p9-final-acceptance-hold`.
 - [x] Capture runtime smoke evidence from `docs/final_acceptance_gate.md` — DONE via WARP/p9-runtime-smoke-evidence PR; report at projects/polymarket/polyquantbot/reports/forge/p9-runtime-smoke-evidence.md.
 - [x] Record final COMMANDER acceptance decision — ACCEPTED as public paper-beta (2026-05-01); recorded in `docs/final_acceptance_gate.md`.
+- [x] Public distribution pack merged via PR #844 (WARP/public-distribution-pack) — channel copy, pre-publish checklist, boundary language delivered.
 - [ ] Awaiting WARP🔹CMD direction on next priority or separate live/capital activation decision (gated).
