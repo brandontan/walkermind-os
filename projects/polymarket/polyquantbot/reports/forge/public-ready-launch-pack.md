@@ -16,14 +16,12 @@ The launch pack consolidates public-safe claim wording, evidence basis, operator
 - projects/polymarket/polyquantbot/docs/public_ready_launch_pack.md
 - projects/polymarket/polyquantbot/reports/forge/public-ready-launch-pack.md
 - projects/polymarket/polyquantbot/state/PROJECT_STATE.md
-- projects/polymarket/polyquantbot/state/WORKTODO.md
-- projects/polymarket/polyquantbot/state/CHANGELOG.md
 
 ## 3. Validation Tier / Claim Level / Target / Not in Scope
 
 Validation Tier: MINOR
 Claim Level: FOUNDATION
-Validation Target: public paper-beta launch documentation and state tracking only
+Validation Target: public paper-beta launch documentation and PROJECT_STATE.md tracking only
 Not in Scope: runtime behavior, API behavior, Telegram behavior, deployment, live trading, production capital, activation env vars, strategy logic, risk logic
 
 ## Guard boundary
