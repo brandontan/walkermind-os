@@ -1,5 +1,5 @@
-Last Updated : 2026-05-01 08:39 Asia/Jakarta
-Status       : Priority 9 COMPLETE. P9 Lane 5 ACCEPTED as public paper-beta (2026-05-01 06:37 WIB). Runtime smoke evidence: 6/8 PASS, Telegram BLOCKED (env, not code defect). All activation guards NOT SET. Live/capital activation remains blocked pending separate owner decision.
+Last Updated : 2026-05-01 09:20 Asia/Jakarta
+Status       : Priority 9 COMPLETE. P9 Lane 5 ACCEPTED as public paper-beta (2026-05-01 06:37 WIB). Public-ready launch pack prepared on WARP/public-ready-launch-pack. Runtime smoke evidence: 6/8 PASS, Telegram BLOCKED (env, not code defect). All activation guards NOT SET. Live/capital activation remains blocked pending separate owner decision.
 
 [COMPLETED]
 - Priorities 1-7 completed.
@@ -13,11 +13,12 @@ Status       : Priority 9 COMPLETE. P9 Lane 5 ACCEPTED as public paper-beta (202
 - Priority 9 COMPLETE. Smoke evidence PR #840 merged (SHA 91929fa34534). WARP🔹CMD decision: ACCEPTED as public paper-beta. Date: 2026-05-01.
 - Priority 9 smoke evidence captured via PR #840 (WARP/p9-runtime-smoke-evidence). WARP🔹CMD decision: ACCEPTED as public paper-beta. SHA 91929fa34534.
 - Priority 9 Lane 5 ACCEPTED: smoke evidence merged via PR #840 SHA 91929fa34534. WARP🔹CMD final decision recorded in docs/final_acceptance_gate.md. Priority 9 COMPLETE.
+- Public-ready launch pack prepared on WARP/public-ready-launch-pack: docs/public_ready_launch_pack.md added with public paper-beta claim, launch checklist, and guard boundary. No runtime/env/capital changes.
 
 [IN PROGRESS]
 - None.
 
 [BLOCKED / GATED]
-- Capital/live activation (ENABLE_LIVE_TRADING, CAPITAL_MODE_CONFIRMED, EXECUTION_PATH_VALIDATED) — NOT SET. Requires separate explicit Mr. Walker + WARP🔹CMD decision.
+- Capital/live activation (ENABLE_LIVE_TRADING, CAPITAL_MODE_CONFIRMED, EXECUTION_PATH_VALIDATED) -- NOT SET. Requires separate explicit Mr. Walker + WARP🔹CMD decision.
 [NEXT PRIORITY]
-- No active priority. P9 complete. Awaiting Mr. Walker decision on next priority or live/capital activation.
+- No active priority. P9 complete. Public paper-beta launch pack prepared. Awaiting Mr. Walker decision on public distribution or separate live/capital activation review.
