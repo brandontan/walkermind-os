@@ -12,7 +12,7 @@
 
 | Project | Platform | Status | Current Phase |
 |---|---|---|---|
-| Crusader | Polymarket | Active (Capital Readiness P8-E complete; real CLOB foundation merged via PR #813; capital-mode-confirm SENTINEL APPROVED 100/100 via PR #818 merged — EXECUTION_PATH_VALIDATED NOT SET; WARP🔹CMD + Mr. Walker env-gate decision required) | Priority 8 — Capital Readiness (P8-A/B/C/D/E merged; capital-mode-confirm DB gate built and SENTINEL APPROVED — PR #815 + PR #818 merged; EXECUTION_PATH_VALIDATED NOT SET; CAPITAL_MODE_CONFIRMED NOT SET; env-gate + operator receipt required before capital activation) |
+| Crusader | Polymarket | Active (Priority 9 COMPLETE — public paper-beta ACCEPTED 2026-05-01 via PR #840 SHA 91929fa34534; smoke matrix 6/8 PASS, Telegram BLOCKED by env constraint not code; EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING all NOT SET; live/capital activation remains a separate gated decision) | Priority 9 — Public-Ready Paper Beta Path: COMPLETE / ACCEPTED as public paper-beta. Capital/live activation gated pending separate Mr. Walker + WARP🔹CMD decision. |
 | TradingView Indicators | TradingView (Pine Script v5) | ❌ Not Started | — |
 | MT5 Expert Advisors | MT4/MT5 (MQL5) | ❌ Not Started | — |
 | Kalshi Bot | Kalshi | ❌ Not Started | — |
@@ -23,8 +23,8 @@
 
 **Description:** Non-custodial Polymarket trading platform — multi-user, closed beta first.  
 **Tech Stack:** Python · FastAPI · PostgreSQL · Redis · Polymarket CLOB API · WebSocket · Polygon · Telegram Bot · Fly.io  
-**Status:** Public-ready paper beta path complete; Priority 8 capital readiness (P8-A/B/C/D/E) all merged; real CLOB foundation merged via PR #813 (SENTINEL APPROVED 98/100, NARROW INTEGRATION); capital-mode-confirm DB-backed two-layer gate merged via PR #815 (chunk1, SENTINEL APPROVED 97/100) and PR #818 (live integration — strict check_with_receipt() wired, revoke returns 503 on persistence failure, SENTINEL APPROVED 100/100, 167/167 tests). EXECUTION_PATH_VALIDATED NOT SET. CAPITAL_MODE_CONFIRMED NOT SET. ENABLE_LIVE_TRADING NOT SET. No production-capital-ready or live-trading-ready claim. Next gate: WARP🔹CMD + Mr. Walker env-gate decision, then operator /capital_mode_confirm receipt.
-**Last Updated:** 2026-04-30 21:30
+**Status:** Priority 9 COMPLETE. Public paper-beta path ACCEPTED by WARP🔹CMD on 2026-05-01 via PR #840 (WARP/p9-runtime-smoke-evidence) SHA 91929fa34534; runtime smoke matrix 6/8 PASS (local in-process), Telegram surfaces BLOCKED by env constraint (routing verified, not code defect); decision recorded in `projects/polymarket/polyquantbot/docs/final_acceptance_gate.md`. Priority 8 capital readiness (P8-A/B/C/D/E) all merged; real CLOB foundation merged via PR #813 (SENTINEL APPROVED 98/100, NARROW INTEGRATION); capital-mode-confirm DB-backed two-layer gate merged via PR #815 (SENTINEL APPROVED 97/100) and PR #818 (SENTINEL APPROVED 100/100, 167/167 tests). EXECUTION_PATH_VALIDATED NOT SET. CAPITAL_MODE_CONFIRMED NOT SET. ENABLE_LIVE_TRADING NOT SET. No production-capital-ready or live-trading-ready claim. Capital/live activation remains a separate gated decision pending explicit Mr. Walker + WARP🔹CMD ruling.
+**Last Updated:** 2026-05-01 08:39
 
 # Board Overview
 
@@ -48,15 +48,16 @@
 
 **Roadmap Intent:** Keep ROADMAP.md as milestone-level planning truth and keep execution-level task tracking in `projects/polymarket/polyquantbot/state/WORKTODO.md`.
 
-### Current State (2026-04-30 19:18)
+### Current State (2026-05-01 08:39)
 
+- Priority 9 COMPLETE. Public paper-beta path ACCEPTED by WARP🔹CMD on 2026-05-01 via PR #840 (WARP/p9-runtime-smoke-evidence) SHA 91929fa34534. Smoke matrix: 6/8 surfaces PASS (local in-process FastAPI TestClient); 2 Telegram surfaces BLOCKED by env constraint (routing verified, not code defect). Decision recorded in `projects/polymarket/polyquantbot/docs/final_acceptance_gate.md`.
 - P8-E capital validation sweep complete via WARP/capital-validation-p8e: dry-run PASS 4/4, 70/70 tests passing, docs audit clean, boundary registry updated.
 - Guarded real CLOB execution-path foundation merged to main via PR #813 (WARP/real-clob-execution-path; merge SHA 6916a09); SENTINEL APPROVED 98/100, 0 critical; 30/30 RCLOB + 70/70 P8 regressions passing. NARROW INTEGRATION only.
 - Capital-mode-confirm DB-backed two-layer gate: chunk1 merged via PR #815 (SENTINEL APPROVED 97/100, 0 critical); live integration merged via PR #818 (merge SHA 5d314839) — strict check_with_receipt() enforced at PaperBetaWorker + ClobExecutionAdapter production call sites, revoke returns 503 on persistence failure; SENTINEL APPROVED 100/100, 0 critical, 3 advisory; 167/167 tests passing.
 - EXECUTION_PATH_VALIDATED NOT SET. CAPITAL_MODE_CONFIRMED NOT SET. ENABLE_LIVE_TRADING NOT SET.
 - RISK_CONTROLS_VALIDATED and SECURITY_HARDENING_VALIDATED ready for WARP🔹CMD to set in deployment env (P8-B and P8-D SENTINEL APPROVED).
 - No production-capital-ready or live-trading-ready claim. Paper-only boundary preserved.
-- Next gate: WARP🔹CMD + Mr. Walker env-gate decision (EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED), then operator /capital_mode_confirm receipt on operator Telegram.
+- Capital/live activation remains a separate gated decision pending explicit Mr. Walker + WARP🔹CMD ruling (EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env-gate, then operator /capital_mode_confirm receipt). Not a P9 blocker.
 
 ### Phase 10 Historical Completion Summary (merged-main truth)
 - Phase 10.2 post-merge sync and public command-surface refinement is merged on main (PR #713) with paper-only/non-custodial posture preserved.
@@ -84,9 +85,9 @@
 | 4 | `WARP/p9-repo-hygiene-final` | MINOR | ✅ Done — merged via PR #822; archive sweep + state/roadmap sync complete |
 | 1+2 | `WARP/p9-readiness-docs-ops` | MINOR | ✅ Done — Lane 1 + Lane 2 merged (PR #825 + #826 + #827); public docs + ops handoff complete |
 | 3 | `WARP/p9-monitoring-admin-surfaces` | STANDARD | ✅ Done — merged via PR #831; monitoring_admin_index + operator_checklist + release_dashboard complete |
-| 5 | `WARP/p9-final-acceptance` | STANDARD (gated) | ❌ Not Started — acceptance ceremony; held until Priority 8 activation complete + Lanes 1–4 merged |
+| 5 | `WARP/p9-runtime-smoke-evidence` | STANDARD | ✅ Done — ACCEPTED as public paper-beta. Smoke evidence merged via PR #840 SHA 91929fa34534 (6/8 PASS local in-process; Telegram BLOCKED by env constraint, not code). WARP🔹CMD final decision recorded in `docs/final_acceptance_gate.md`. Priority 9 COMPLETE. |
 
-Recommended sequencing: Lane 4 → Lane 1+2 (combined) → Lane 3 → Lane 5 (gated). Each lane requires explicit WARP🔹CMD-declared `WARP/{feature}` branch before WARP•FORGE starts.
+Sequencing closed: Lane 4 → Lane 1+2 (combined) → Lane 3 → Lane 5 — all merged. Capital/live activation remains a separate gated decision and is NOT part of Priority 9.
 
 ---
 ## CrusaderBot — Multi-User Foundation Checklist
