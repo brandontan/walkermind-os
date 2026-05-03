@@ -857,8 +857,10 @@ for additional instruction from Mr. Walker.
 ```
 WARP•FORGE TASK: [short task name]
 ============
-Repo   : https://github.com/bayuewalker/walkermind-os
-Branch : [exact branch from PR]
+Repo      : https://github.com/bayuewalker/walkermind-os
+Project   : [name from PROJECT_REGISTRY.md]
+Repo path : {PROJECT_ROOT}
+Branch    : [exact branch from PR]
 
 ISSUE FOUND:
 [short description of finding]
@@ -890,6 +892,8 @@ NEXT GATE:
 WARP•SENTINEL TASK: [short task name]
 =============
 Repo         : https://github.com/bayuewalker/walkermind-os
+Project      : [name from PROJECT_REGISTRY.md]
+Repo path    : {PROJECT_ROOT}
 Branch       : [exact branch from PR]
 Tier         : MAJOR
 Source       : [forge report path]

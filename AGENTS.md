@@ -274,16 +274,20 @@ At session start, every agent must self-identify before any action.
 
 ### Required identification fields
 1. **Role** — WARP•FORGE / WARP•SENTINEL / WARP•ECHO (only one per session/task)
-2. **Execution environment** — Claude Code / Cursor / Ona / Codex / other (matches the agent file: CLAUDE.md / CURSOR.md / ONA.md)
+2. **Execution environment** — current execution surface, mapped to its environment file:
+   - Claude Code → `CLAUDE.md`
+   - Cursor Agent → `CURSOR.md`
+   - Ona Agent → `ONA.md`
+   - Codex / other environments without a dedicated file → operate under `AGENTS.md` authority directly; confirm `AGENTS.md` is the rule source being applied
 3. **Active project** — name + `{PROJECT_ROOT}` path resolved from `PROJECT_REGISTRY.md`
 
 ### Verification gate
 Before any tool call that touches state, code, or reports:
 - Confirm role is declared in the WARP🔹CMD task header
-- Confirm execution environment file (CLAUDE.md / CURSOR.md / ONA.md) is the one being applied
+- Confirm the rule source being applied: the corresponding environment file if one exists (CLAUDE.md / CURSOR.md / ONA.md), otherwise AGENTS.md directly
 - Confirm active project is resolved per PROJECT AWARENESS RULE
 
-If any field is unresolved → STOP and ask WARP🔹CMD. Never proceed on assumed identity.
+If any field is unresolved → STOP and ask WARP🔹CMD. Never proceed on assumed identity. Absence of an environment-specific file (e.g. Codex with no CODEX.md) is NOT an unresolved-field STOP — the agent simply applies AGENTS.md directly.
 
 ### Role-switch rules
 - Role is fixed for the duration of a task
