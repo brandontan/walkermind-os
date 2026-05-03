@@ -49,10 +49,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     db_connected = False
     cache_connected = False
     bot_app = None
+    bot_initialized = False
     bot_started = False
     polling_started = False
 
     async def _unwind() -> None:
+        # Reverse-order, per-step cleanup. Each step is independent — a failure
+        # in one does not skip the rest. PTB lifecycle: updater.stop -> stop -> shutdown.
         if polling_started and bot_app is not None and bot_app.updater is not None and bot_app.updater.running:
             try:
                 await bot_app.updater.stop()
@@ -61,6 +64,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if bot_started and bot_app is not None:
             try:
                 await bot_app.stop()
+            except Exception as exc:
+                log.warning("shutdown.step_failed", step="bot.stop", error=str(exc))
+        if bot_initialized and bot_app is not None:
+            try:
                 await bot_app.shutdown()
             except Exception as exc:
                 log.warning("shutdown.step_failed", step="bot.shutdown", error=str(exc))
@@ -85,6 +92,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         bot_app = get_application()
         setup_handlers(bot_app)
         await bot_app.initialize()
+        bot_initialized = True
         await bot_app.start()
         bot_started = True
         await bot_app.updater.start_polling()
