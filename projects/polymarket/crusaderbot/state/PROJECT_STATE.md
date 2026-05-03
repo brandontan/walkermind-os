@@ -1,12 +1,13 @@
-Last Updated : 2026-05-04 00:28
-Status       : R1 skeleton complete. Paper mode. All activation guards OFF. CrusaderBot project path moved to projects/polymarket/crusaderbot; polyquantbot legacy tree DORMANT (Priority 9 COMPLETE, archived). Awaiting WARP🔹CMD review on PR for WARP/crusaderbot-r1-skeleton.
+Last Updated : 2026-05-04 06:22
+Status       : R1 skeleton merged (PR #847). FastAPI + DB + Redis + Telegram + governance path migration complete. Paper mode. All activation guards OFF. Awaiting WARP🔹CMD direction on R2 (user onboarding + HD wallet generation).
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
 - crusaderbot/ project path established under projects/polymarket/
+- R1 skeleton — FastAPI + DB + Redis + Telegram polling + migrations (WARP/crusaderbot-r1-skeleton, PR #847, STANDARD, FOUNDATION)
 
 [IN PROGRESS]
-- crusaderbot-r1-skeleton (PR open against main, awaiting WARP🔹CMD review)
+- None
 
 [NOT STARTED]
 - R2 onboarding + HD wallet generation
