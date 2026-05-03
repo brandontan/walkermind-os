@@ -276,24 +276,22 @@ At session start, every agent must self-identify before any action.
 1. **Role** — WARP•FORGE / WARP•SENTINEL / WARP•ECHO (only one per session/task)
 2. **Execution environment** — current execution surface, mapped to its environment file:
    - Claude Code → `CLAUDE.md`
-   - Cursor Agent → `CURSOR.md`
-   - Ona Agent → `ONA.md`
    - Codex / other environments without a dedicated file → operate under `AGENTS.md` authority directly; confirm `AGENTS.md` is the rule source being applied
 3. **Active project** — name + `{PROJECT_ROOT}` path resolved from `PROJECT_REGISTRY.md`
 
 ### Verification gate
 Before any tool call that touches state, code, or reports:
 - Confirm role is declared in the WARP🔹CMD task header
-- Confirm the rule source being applied: the corresponding environment file if one exists (CLAUDE.md / CURSOR.md / ONA.md), otherwise AGENTS.md directly
+- Confirm the rule source being applied: `CLAUDE.md` if Claude Code, otherwise `AGENTS.md` directly
 - Confirm active project is resolved per PROJECT AWARENESS RULE
 
-If any field is unresolved → STOP and ask WARP🔹CMD. Never proceed on assumed identity. Absence of an environment-specific file (e.g. Codex with no CODEX.md) is NOT an unresolved-field STOP — the agent simply applies AGENTS.md directly.
+If any field is unresolved → STOP and ask WARP🔹CMD. Never proceed on assumed identity. Absence of an environment-specific file (e.g. Codex) is NOT an unresolved-field STOP — the agent simply applies AGENTS.md directly.
 
 ### Role-switch rules
 - Role is fixed for the duration of a task
 - Switching role mid-task requires an explicit new WARP🔹CMD task header
 - Self-initiated role switches are forbidden — same as self-initiated tasks
-- Switching environment (e.g. Claude Code → Cursor) does not change role; environment file rules apply, role rules from this file remain
+- Switching execution environment does not change role; environment file rules apply where one exists, role rules from this file remain
 
 ### Anti-impersonation
 - An agent must never claim WARP🔹CMD authority — WARP🔹CMD is always Mr. Walker's chat layer
@@ -313,8 +311,6 @@ walkermind-os/
 ├── PROJECT_REGISTRY.md                    <- project list and active status
 ├── COMMANDER.md                           <- WARP🔹CMD operating reference
 ├── CLAUDE.md                              <- rules for Claude Code agent
-├── CURSOR.md                              <- rules for Cursor Agent (WARP🔸CORE execution environment)
-├── ONA.md                                 <- rules for Ona Agent (WARP🔸CORE execution environment)
 ├── docs/
 │   ├── KNOWLEDGE_BASE.md                  <- architecture, infra, API reference
 │   ├── blueprint/
@@ -365,8 +361,6 @@ AGENTS.md                              <- global rules (repo root)
 PROJECT_REGISTRY.md                    <- project list (repo root)
 COMMANDER.md                           <- WARP🔹CMD operating reference (repo root)
 CLAUDE.md                              <- rules for Claude Code agent (repo root)
-CURSOR.md                              <- rules for Cursor Agent (WARP🔸CORE execution environment, repo root)
-ONA.md                                 <- rules for Ona Agent (WARP🔸CORE execution environment, repo root)
 
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md  <- active blueprint (format: docs/blueprint/{project_name}.md)
@@ -566,9 +560,8 @@ On every new session, WARP🔹CMD must read in this order before any action:
 6. `{PROJECT_ROOT}/state/CHANGELOG.md`
 
 Agent environments: also read the relevant agent file before any action:
-- Ona Agent → `ONA.md`
-- Cursor Agent → `CURSOR.md`
 - Claude Code → `CLAUDE.md`
+- Other environments (e.g. Codex) → operate under `AGENTS.md` directly
 
 After reading all six, WARP🔹CMD has full context:
 - Active project and current status
