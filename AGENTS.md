@@ -6,8 +6,8 @@
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walkermind-os
-Version: 2.5
-Last Updated: 2026-04-29 13:44 Asia/Jakarta
+Version: 2.6
+Last Updated: 2026-05-03 18:30 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
            workflow, and operational boundaries. All other files are
            supporting documents. When conflict exists, AGENTS.md wins.
@@ -235,17 +235,83 @@ Navigation rules:
 
 ---
 
+## PROJECT AWARENESS RULE (AUTHORITATIVE)
+
+Every agent action — read, write, build, validate, report — must be scoped to an explicit project. Cross-project assumptions or implicit defaults are forbidden.
+
+### Pre-action requirement
+Before any tool call that touches state, code, reports, or roadmap:
+1. Read `PROJECT_REGISTRY.md` and identify which projects are active
+2. Determine which project this task targets (single active default OR explicit task tag)
+3. State the active project and resolved `{PROJECT_ROOT}` in working context
+4. Refuse any action where target project cannot be resolved
+
+### Project resolution flow
+- 1 project active in registry → that project is default, no tag required
+- Multi-project active in registry → every task must declare project tag explicitly; no tag = STOP and ask
+- Tag references a project not in registry → STOP, report drift, do not proceed
+- Tag references a `💤 DORMANT` or `⏸️ PAUSED` project → STOP, ask WARP🔹CMD before proceeding
+
+### {PROJECT_ROOT} dynamic resolution
+- `{PROJECT_ROOT}` resolves from `PROJECT_REGISTRY.md` Path field for the active project
+- Never hardcode `{PROJECT_ROOT}` substitution from memory in agent logic
+- When switching active project, only `PROJECT_REGISTRY.md` is the source of truth — not prior session memory
+- Report and state paths must always be derived from the resolved `{PROJECT_ROOT}` of the active task project
+
+### Cross-project bleed prevention
+- Do not read state files from inactive projects unless task explicitly scopes them
+- Do not write state, code, or reports against a project that is not the declared task target
+- Do not infer the active project from filename context alone — registry is authoritative
+- If a single task touches multiple projects, split into per-project tasks under WARP🔹CMD direction
+
+Failure to scope an action to an explicit project = drift. STOP and report.
+
+---
+
+## AGENT IDENTITY VERIFICATION (AUTHORITATIVE)
+
+At session start, every agent must self-identify before any action.
+
+### Required identification fields
+1. **Role** — WARP•FORGE / WARP•SENTINEL / WARP•ECHO (only one per session/task)
+2. **Execution environment** — current execution surface, mapped to its environment file:
+   - Claude Code → `CLAUDE.md`
+   - Codex / other environments without a dedicated file → operate under `AGENTS.md` authority directly; confirm `AGENTS.md` is the rule source being applied
+3. **Active project** — name + `{PROJECT_ROOT}` path resolved from `PROJECT_REGISTRY.md`
+
+### Verification gate
+Before any tool call that touches state, code, or reports:
+- Confirm role is declared in the WARP🔹CMD task header
+- Confirm the rule source being applied: `CLAUDE.md` if Claude Code, otherwise `AGENTS.md` directly
+- Confirm active project is resolved per PROJECT AWARENESS RULE
+
+If any field is unresolved → STOP and ask WARP🔹CMD. Never proceed on assumed identity. Absence of an environment-specific file (e.g. Codex) is NOT an unresolved-field STOP — the agent simply applies AGENTS.md directly.
+
+### Role-switch rules
+- Role is fixed for the duration of a task
+- Switching role mid-task requires an explicit new WARP🔹CMD task header
+- Self-initiated role switches are forbidden — same as self-initiated tasks
+- Switching execution environment does not change role; environment file rules apply where one exists, role rules from this file remain
+
+### Anti-impersonation
+- An agent must never claim WARP🔹CMD authority — WARP🔹CMD is always Mr. Walker's chat layer
+- An agent must never speak on behalf of another role's outputs (e.g. WARP•FORGE summarizing a WARP•SENTINEL verdict that does not exist)
+- Reports must be filed under the role that actually produced the work, with the correct path (`reports/forge/`, `reports/sentinel/`, `reports/briefer/`)
+- If role identity is ambiguous in a task, default to STOP and ask — never guess
+
+Identity drift (wrong role declared, wrong environment file applied, wrong project scope) is a workflow-blocking defect.
+
+---
+
 ## REPO STRUCTURE
 
 ```text
 walkermind-os/
 ├── AGENTS.md                              <- highest authority (global rules)
 ├── PROJECT_REGISTRY.md                    <- project list and active status
+├── COMMANDER.md                           <- WARP🔹CMD operating reference
 ├── CLAUDE.md                              <- rules for Claude Code agent
-├── CURSOR.md                              <- rules for Cursor Agent (WARP🔸CORE execution environment)
-├── ONA.md                                 <- rules for Ona Agent (WARP🔸CORE execution environment)
 ├── docs/
-│   ├── COMMANDER.md                       <- WARP🔹CMD operating reference
 │   ├── KNOWLEDGE_BASE.md                  <- architecture, infra, API reference
 │   ├── blueprint/
 │   │   └── crusaderbot.md             <- format: docs/blueprint/{project_name}.md
@@ -293,11 +359,9 @@ walkermind-os/
 ```text
 AGENTS.md                              <- global rules (repo root)
 PROJECT_REGISTRY.md                    <- project list (repo root)
+COMMANDER.md                           <- WARP🔹CMD operating reference (repo root)
 CLAUDE.md                              <- rules for Claude Code agent (repo root)
-CURSOR.md                              <- rules for Cursor Agent (WARP🔸CORE execution environment, repo root)
-ONA.md                                 <- rules for Ona Agent (WARP🔸CORE execution environment, repo root)
 
-COMMANDER.md
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md  <- active blueprint (format: docs/blueprint/{project_name}.md)
 docs/templates/PROJECT_STATE_TEMPLATE.md
@@ -496,9 +560,8 @@ On every new session, WARP🔹CMD must read in this order before any action:
 6. `{PROJECT_ROOT}/state/CHANGELOG.md`
 
 Agent environments: also read the relevant agent file before any action:
-- Ona Agent → `ONA.md`
-- Cursor Agent → `CURSOR.md`
 - Claude Code → `CLAUDE.md`
+- Other environments (e.g. Codex) → operate under `AGENTS.md` directly
 
 After reading all six, WARP🔹CMD has full context:
 - Active project and current status
@@ -667,6 +730,38 @@ Immediate FAIL / BLOCKED if:
 - `PROJECT_STATE.md` exists outside `{PROJECT_ROOT}/state/`
 - WARP•SENTINEL opens or recommends direct-to-main bypass of validated source branch
 - file contains mojibake or non-UTF-8 byte sequences (encoding corruption)
+
+---
+
+## ESCALATION MATRIX
+
+Severity classification for issues encountered during execution. Determines who handles, response time, and whether work continues.
+
+| Severity | Trigger | Handler | Action |
+|---|---|---|---|
+| `DRIFT` | Repo-truth artifact mismatch (branch / state / report wording) without runtime impact | WARP🔹CMD direct-fix or WARP•FORGE MINOR lane | Fix in same session before next task opens |
+| `REPO-TRUTH DEFECT` | Code vs report disagreement, state vs roadmap contradiction, claim level not matching evidence | WARP🔹CMD review → WARP•FORGE consolidated fix | STOP downstream gates until resolved |
+| `SAFETY-CRITICAL` | Risk constants drift, full Kelly attempt, ENABLE_LIVE_TRADING bypass, async-core race, capital path defect | WARP•SENTINEL BLOCKED → WARP🔹CMD → WARP•FORGE root-cause fix | Hard stop. No merge. No next task. Mr. Walker notified. |
+| `CROSS-PROJECT BLEED` | Action targeting wrong project, state file written under wrong `{PROJECT_ROOT}`, report filed under wrong project tree | WARP🔹CMD → WARP•FORGE corrective revert + correct re-file | STOP, audit affected files, restore truth before next task |
+| `UNRESOLVED BLOCKER (after 2 SENTINEL runs)` | Same critical issue persists after 2 WARP•SENTINEL validation passes on same task | Mr. Walker | Anti-loop limit reached. Run 3+ requires explicit Mr. Walker approval. |
+
+### Escalation rules
+- Lower severity must not be silently upgraded to higher severity to dodge gates
+- Higher severity must not be downgraded to "noise" to skip review
+- WARP🔹CMD owns severity classification at intake; agents flag, never decide
+- An issue can only escalate one tier per cycle — `DRIFT` → `REPO-TRUTH DEFECT` requires evidence, not opinion
+- Escalation to Mr. Walker happens only when WARP🔹CMD authority is insufficient (live/capital decisions, anti-loop limits, owner-level scope changes)
+
+### Reporting format
+When raising an escalation:
+```text
+ESCALATION: {severity}
+- component:
+- expected:
+- actual:
+- evidence:
+```
+Then STOP scoped action and wait for handler decision.
 
 ---
 
@@ -893,6 +988,12 @@ STOP, do not write any artifact, report mismatch to WARP🔹CMD.
 - worktree label mismatch (git rev-parse returns `work` or detached HEAD) alone is never a blocker
   — this is an env artifact, fall back to declared WARP🔹CMD branch name
   — a real branch name that differs from declared = hard stop, not a cosmetic issue
+
+### Legacy `NWAP/` prefix handling
+- `NWAP/` is a historical branch prefix from earlier protocol naming. It is NOT a valid branch prefix today.
+- Existing `NWAP/...` references in `{PROJECT_ROOT}/state/CHANGELOG.md` and historical reports are preserved as historical record only — do not rewrite history.
+- All NEW work uses `WARP/{feature}` exclusively. Creating a new `NWAP/...` branch today is drift — fix immediately by checking out a correctly named `WARP/{feature}` branch and reporting the slip to WARP🔹CMD.
+- Any NEW report, state entry, PR, or commit referencing `NWAP/` for current work = drift, treat as a repo-truth defect.
 
 ---
 
@@ -1603,6 +1704,38 @@ All agents operating under this AGENTS.md:
 **WARP•FORGE, WARP•SENTINEL, WARP•ECHO, WARP🔸CORE.**
 
 WARP🔹CMD is responsible for enforcing chunk boundaries when orchestrating multi-agent pipelines.
+
+---
+
+## PR SIZE RULE (AUTHORITATIVE — UNIVERSAL)
+
+Before opening any PR, count the number of new components, modules, or distinct system areas in the lane.
+
+### Split criteria
+Split into separate PRs if ANY of the following is true:
+- New components or modules **> 3**
+- New test cases **> 15**
+- Lane touches **> 2 distinct system areas** (e.g. core logic + frontend + infra)
+
+### How to split
+- One PR per component. Each PR must be **self-contained and independently mergeable**.
+- Declare merge order explicitly in each PR description:
+  ```text
+  Merge Order: PR #X -> PR #Y -> PR #Z
+  Depends on: PR #X (must be merged first)
+  ```
+- Never open PR N+1 until PR N is merged, unless they have zero shared file overlap.
+
+### Dependency notation
+- Use the explicit `Depends on:` line in PR description for any prerequisite PR
+- WARP•SENTINEL PRs depend on the corresponding WARP•FORGE PR — must be declared
+- Cross-PR dependency is repo-truth, not commentary — treat unmet dependency as a merge blocker
+
+### Out of scope here
+Tooling-specific pagination behavior (e.g. how `getPRFiles` pages large PRs) is execution-environment specific and lives in the relevant agent file (e.g. `CLAUDE.md`). This rule covers only the universal split / merge-order policy.
+
+### Applies To
+All agents producing PRs under this AGENTS.md: WARP•FORGE, WARP•SENTINEL, WARP•ECHO. WARP🔹CMD enforces split posture at task generation and PR review.
 
 ---
 ## FINAL ROLE SUMMARY

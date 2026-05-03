@@ -5,8 +5,8 @@
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walkermind-os
-Version: 2.4
-Last Updated: 2026-04-29 13:44 Asia/Jakarta
+Version: 2.6
+Last Updated: 2026-05-03 18:30 Asia/Jakarta
 
 ---
 
@@ -68,8 +68,6 @@ If any required file is missing -> STOP -> report to WARP🔹CMD -> wait.
 AGENTS.md                                    <- master rules (repo root)
 PROJECT_REGISTRY.md                          <- project list and active status (repo root)
 CLAUDE.md                                    <- this file (repo root)
-CURSOR.md                                    <- rules for Cursor Agent (WARP🔸CORE execution environment, repo root)
-ONA.md                                       <- rules for Ona Agent (WARP🔸CORE execution environment, repo root)
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md                <- CrusaderBot architecture reference
 docs/templates/TPL_INTERACTIVE_REPORT.html
@@ -176,6 +174,7 @@ Do not write any report, state file, or artifact until WARP🔹CMD resolves.
 * Use full repo-root paths in reports and instructions
 * `ENABLE_LIVE_TRADING` guard must never be bypassed
 * `{PROJECT_ROOT}/reports/forge/` only — never `report/` (singular) or repo root
+* Encoding: see AGENTS.md ENCODING RULE (UTF-8 without BOM)
 
 ---
 
@@ -296,6 +295,100 @@ Rules:
 * No markdown headings (`##` / `###`) inside sections
 * One flat bullet per line
 * Items outside current task scope must be preserved verbatim
+
+---
+
+## CHANGELOG RULE
+
+Location: `{PROJECT_ROOT}/state/CHANGELOG.md`
+Format: append-only log. One entry per lane closure.
+
+Entry format:
+
+```
+YYYY-MM-DD HH:MM | WARP/{branch} | one-line summary of what closed
+```
+
+Rules:
+
+* Append only — never edit or delete existing entries
+* One entry per lane closure or significant merge
+* Written by WARP•FORGE at end of task process, or WARP🔹CMD at post-merge sync
+* Timestamp: Asia/Jakarta (UTC+7) — full format required
+* Summary must be one line — concise, factual, no padding
+
+---
+
+## WORKTODO RULE
+
+Location: `{PROJECT_ROOT}/state/WORKTODO.md`
+Format: markdown checklist — priorities, sections, items, done conditions.
+
+Update rules:
+
+* Check `[x]` only items directly completed by the current task
+* Uncheck `[ ]` only if explicitly reversed by current task
+* Do NOT delete or reword items outside current scope
+* Do NOT regenerate or rewrite the file from memory
+* Do NOT check items that are only partially done
+* "Right Now" section: update only when active lane changes
+* New items may only be added under WARP🔹CMD direction
+* Preserve all section headings, done conditions, and structure verbatim
+
+Surgical edit only — read full file before any write.
+
+---
+
+## SURGICAL EDIT RULE (ALL STATE FILES)
+
+Applies to: `PROJECT_STATE.md`, `ROADMAP.md`, `WORKTODO.md`, `CHANGELOG.md`
+
+* Read full file content BEFORE any write
+* Edit only the specific section, line, or item in scope
+* Never overwrite the entire file
+* Never regenerate file content from memory
+* If current file content is uncertain — read first, then edit
+* Partial write failure = STOP, report to WARP🔹CMD, do not retry blindly
+* A rewritten file that looks correct is still a violation if it was not read first
+
+---
+
+## STATE FILE SYNC RULE
+
+All state files must stay in sync at all times:
+
+* `{PROJECT_ROOT}/state/PROJECT_STATE.md`
+* `{PROJECT_ROOT}/state/ROADMAP.md`
+* `{PROJECT_ROOT}/state/WORKTODO.md`
+
+Discrepancies between these files constitute drift.
+
+Update triggers:
+
+* Every code change impacting project status
+* Lane closure or task completion
+* Phase or milestone changes
+* Validation passes confirmed by WARP•SENTINEL
+
+WARP•FORGE must update relevant state files in every PR. State files reflect actual code truth, not aspirational status.
+
+Drift detection trigger: any of the three files contradicts another on operational truth → STOP, report drift, sync before next task.
+
+---
+
+## PROJECT AWARENESS
+
+Every action scoped to an explicit project resolved from `PROJECT_REGISTRY.md`. `{PROJECT_ROOT}` derived dynamically — never hardcoded from memory. Cross-project bleed is drift.
+
+Authoritative version: see AGENTS.md PROJECT AWARENESS RULE (AUTHORITATIVE).
+
+---
+
+## AGENT IDENTITY VERIFICATION
+
+At session start identify role + execution environment + active project. Role-switch requires explicit WARP🔹CMD instruction. No impersonation across roles.
+
+Authoritative version: see AGENTS.md AGENT IDENTITY VERIFICATION (AUTHORITATIVE).
 
 ---
 
@@ -772,33 +865,9 @@ Never create a PR mid-task.
   report in one tool call.
 
 ---
-## PR Size & Pagination Protocol
+## getPRFiles Pagination Protocol (Claude Code specific)
 
----
-
-### PR Split Rule
-
-Before creating any PR, count the number of new components, modules, or distinct system areas in the task.
-
-**Split into separate PRs if ANY of the following is true:**
-
-- New components or modules **> 3**
-- New test cases **> 15**
-- Task touches **> 2 distinct system areas** (e.g., core logic + frontend + infra)
-
-**How to split:**
-
-- One PR per component. Each PR must be **self-contained and independently mergeable**.
-- Declare merge order explicitly in each PR description:
-
-```
-Merge Order: PR #X → PR #Y → PR #Z
-Depends on: PR #X (must be merged first)
-```
-
-- Never create PR N+1 until PR N is merged, unless they have zero shared file overlap.
-
-**If task is small enough for a single PR** — proceed normally, no split needed.
+PR Split Rule: see AGENTS.md PR SIZE RULE (universal). Pagination logic below is Claude Code-specific tooling behavior.
 
 ---
 
@@ -826,10 +895,9 @@ Never load patch content for all files simultaneously. Fetch patch per file only
 
 ### Applies To
 
-All agents operating under this CLAUDE.md:
-**WARP•FORGE, WARP•SENTINEL, WARP•ECHO, WARP🔸CORE, Claude Code.**
+Claude Code execution environment under this CLAUDE.md.
 
-WARP🔹CMD is responsible for enforcing chunk boundaries when orchestrating multi-agent pipelines.
+WARP🔹CMD is responsible for enforcing PR-split posture (universal rule in AGENTS.md) when orchestrating multi-agent pipelines.
 
 ---
 
