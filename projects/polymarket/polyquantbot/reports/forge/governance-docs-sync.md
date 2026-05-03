@@ -13,7 +13,7 @@ Governance docs cross-file sync per WARP🔹CMD audit (v2.6). Single batched MIN
 
 ### AGENTS.md (2.5 → 2.6)
 - Path drift fixed: COMMANDER.md is at repo root, not under `docs/`.
-  - REPO STRUCTURE tree: COMMANDER.md moved out of `docs/` and listed as a sibling of AGENTS.md / PROJECT_REGISTRY.md / CLAUDE.md / CURSOR.md / ONA.md.
+  - REPO STRUCTURE tree: COMMANDER.md moved out of `docs/` and listed as a root sibling alongside AGENTS.md / PROJECT_REGISTRY.md / CLAUDE.md.
   - KEY FILE LOCATIONS: COMMANDER.md regrouped with root-level files and annotated `(repo root)`.
   - Global pass: zero remaining `docs/COMMANDER.md` references in AGENTS.md.
 - 4 new authoritative sections added:
@@ -42,7 +42,7 @@ Governance docs cross-file sync per WARP🔹CMD audit (v2.6). Single batched MIN
 - Header version bumped 2.4 → 2.6, Last Updated set to 2026-05-03 18:30 Asia/Jakarta.
 
 ### COMMANDER.md (2.5 → 2.6)
-- New rule added: PROJECT CONTEXT IN TASKS (AUTHORITATIVE) — placed after WARP🔹CMD INTERACTION RULES (after `aturan sistem lain` cross-reference). Required `Project:` and `Repo path:` fields per task; single-active still includes for defensive clarity; multi-active mandatory tag enforcement; agent must reject task without project context. Cross-references AGENTS.md PROJECT AWARENESS RULE.
+- New rule added: PROJECT CONTEXT IN TASKS (AUTHORITATIVE) — placed after WARP🔹CMD INTERACTION RULES (after `aturan sistem lain` cross-reference). `Project:` and `Repo path:` fields recommended on every task. Single-active project: tag is RECOMMENDED but NOT required (matches AGENTS.md PROJECT AWARENESS RULE: "1 project active → no tag required"); agent resolves from registry default and does NOT reject. Multi-active project: tag is MANDATORY; agent rejects task without `Project:`. AGENTS.md is authoritative on conflict per RULE PRIORITY.
 - 3 task templates updated (FORGE / SENTINEL / ECHO):
   - `Project: [name from PROJECT_REGISTRY.md]` field added after `Repo:` line.
   - `Repo path: {PROJECT_ROOT}` field added after `Project:` line.
