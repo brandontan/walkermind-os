@@ -1,4 +1,4 @@
-Last Updated : 2026-05-03 18:30 Asia/Jakarta
+Last Updated : 2026-05-03 20:44 Asia/Jakarta
 Status       : Priority 9 COMPLETE. CrusaderBot is ACCEPTED as public paper-beta. Public-ready launch pack and public distribution pack are prepared. Runtime smoke evidence: 6/8 PASS, Telegram BLOCKED (env, not code defect). All activation guards NOT SET. Live/capital activation remains blocked pending separate owner decision. Governance docs synced to v2.6 (AGENTS.md / CLAUDE.md / COMMANDER.md).
 
 [COMPLETED]
