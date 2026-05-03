@@ -46,15 +46,53 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         guards=settings.guard_states,
     )
 
-    await db.connect()
-    await cache.connect()
-    await db.run_migrations()
+    db_connected = False
+    cache_connected = False
+    bot_app = None
+    bot_started = False
+    polling_started = False
 
-    bot_app = get_application()
-    setup_handlers(bot_app)
-    await bot_app.initialize()
-    await bot_app.start()
-    await bot_app.updater.start_polling()
+    async def _unwind() -> None:
+        if polling_started and bot_app is not None and bot_app.updater is not None and bot_app.updater.running:
+            try:
+                await bot_app.updater.stop()
+            except Exception as exc:
+                log.warning("shutdown.step_failed", step="updater.stop", error=str(exc))
+        if bot_started and bot_app is not None:
+            try:
+                await bot_app.stop()
+                await bot_app.shutdown()
+            except Exception as exc:
+                log.warning("shutdown.step_failed", step="bot.shutdown", error=str(exc))
+        if cache_connected:
+            try:
+                await cache.disconnect()
+            except Exception as exc:
+                log.warning("shutdown.step_failed", step="cache.disconnect", error=str(exc))
+        if db_connected:
+            try:
+                await db.disconnect()
+            except Exception as exc:
+                log.warning("shutdown.step_failed", step="db.disconnect", error=str(exc))
+
+    try:
+        await db.connect()
+        db_connected = True
+        await cache.connect()
+        cache_connected = True
+        await db.run_migrations()
+
+        bot_app = get_application()
+        setup_handlers(bot_app)
+        await bot_app.initialize()
+        await bot_app.start()
+        bot_started = True
+        await bot_app.updater.start_polling()
+        polling_started = True
+    except Exception as exc:
+        log.error("startup.failed", error=str(exc), error_type=type(exc).__name__)
+        await _unwind()
+        raise
 
     log.info("startup.complete")
 
@@ -62,12 +100,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         log.info("shutdown.begin")
-        if bot_app.updater is not None and bot_app.updater.running:
-            await bot_app.updater.stop()
-        await bot_app.stop()
-        await bot_app.shutdown()
-        await cache.disconnect()
-        await db.disconnect()
+        await _unwind()
         log.info("shutdown.complete")
 
 

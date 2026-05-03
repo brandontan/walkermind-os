@@ -7,18 +7,17 @@ Target architecture: see `docs/blueprint/crusaderbot.md` (Blueprint v3.1).
 
 ## Run
 
-From `projects/polymarket/` (so `crusaderbot` is importable as a package):
+`crusaderbot/` is a Python package. To run uvicorn with `crusaderbot.main:app`, the parent directory (`projects/polymarket/`) must be on `PYTHONPATH` so the `crusaderbot` package resolves at the top level.
 
 ```bash
-cp crusaderbot/.env.example crusaderbot/.env
+cd projects/polymarket/crusaderbot
+cp .env.example .env
 # fill in real values
 
-cd crusaderbot
 poetry install
 
-# from one level up so crusaderbot is on sys.path
-cd ..
-poetry --directory=crusaderbot run uvicorn crusaderbot.main:app \
+# Run uvicorn from inside crusaderbot/ with the parent dir on PYTHONPATH:
+PYTHONPATH=.. poetry run uvicorn crusaderbot.main:app \
     --host 0.0.0.0 --port 8000 --reload
 ```
 
