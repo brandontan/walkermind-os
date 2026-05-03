@@ -1,8 +1,8 @@
 # CrusaderBot — Multi-User Auto-Trade Blueprint v3
 
-**Status:** Draft v3.1 — pending owner lock-in
+**Status:** v3.1 LOCKED — CrusaderBot auto-trade pivot target architecture
 **Version:** 3.1
-**Last Updated:** 2026-05-03 (revised) Asia/Jakarta
+**Last Updated:** 2026-05-03 22:13 Asia/Jakarta
 **Owner:** Bayue Walker (Mr. Walker)
 **Project Path (target):** `projects/polymarket/crusaderbot/`
 **Authority:** This blueprint is target architecture intent. Code truth defines current reality. AGENTS.md remains highest authority.

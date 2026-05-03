@@ -59,6 +59,10 @@
 - No production-capital-ready or live-trading-ready claim. Paper-only boundary preserved.
 - Capital/live activation remains a separate gated decision pending explicit Mr. Walker + WARP🔹CMD ruling (EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED env-gate, then operator /capital_mode_confirm receipt). Not a P9 blocker.
 
+### Auto-Trade Pivot — New Roadmap (Blueprint v3.1)
+
+Blueprint v3.1 establishes a new build roadmap for CrusaderBot auto-trade pivot. Phase numbering resets from Phase 0 (owner gates) through Phase 11 (open beta). This is distinct from the legacy Priority 1-9 completion record above which remains historical truth. Active build path: see docs/blueprint/crusaderbot.md v3.1. Replit MVP build: R1-R12 (paper mode, validation before Fly.io deploy).
+
 ### Phase 10 Historical Completion Summary (merged-main truth)
 - Phase 10.2 post-merge sync and public command-surface refinement is merged on main (PR #713) with paper-only/non-custodial posture preserved.
 - Active Telegram public-safe command baseline is `/start`, `/help`, `/status`, `/paper`, `/about`, `/risk_info`, `/account`, and `/link`; runtime/operator `/risk` remains separate and is not part of the public-safe informational set.

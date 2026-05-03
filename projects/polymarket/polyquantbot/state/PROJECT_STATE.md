@@ -1,5 +1,5 @@
-Last Updated : 2026-05-03 18:30 Asia/Jakarta
-Status       : Priority 9 COMPLETE. CrusaderBot is ACCEPTED as public paper-beta. Public-ready launch pack and public distribution pack are prepared. Runtime smoke evidence: 6/8 PASS, Telegram BLOCKED (env, not code defect). All activation guards NOT SET. Live/capital activation remains blocked pending separate owner decision. Governance docs synced to v2.6 (AGENTS.md / CLAUDE.md / COMMANDER.md).
+Last Updated : 2026-05-03 22:13 Asia/Jakarta
+Status       : Priority 9 COMPLETE. Blueprint v3.1 locked — CrusaderBot auto-trade pivot roadmap active. Next: Phase 0 owner gates + Replit MVP build (R1-R12, paper mode).
 
 [COMPLETED]
 - Priorities 1-7 completed.
@@ -17,8 +17,8 @@ Status       : Priority 9 COMPLETE. CrusaderBot is ACCEPTED as public paper-beta
 - Live/capital activation review is not started.
 
 [NEXT PRIORITY]
-- Public paper-beta distribution may proceed using docs/public_distribution_pack.md.
-- Live/capital activation requires a separate MAJOR lane and WARP•SENTINEL.
+- Phase 0 owner gates: Polymarket ToS, beta cohort, capital ceiling
+- Replit MVP R1: project skeleton + FastAPI + DB + Telegram polling
 
 [KNOWN ISSUES]
 - Capital/live activation (ENABLE_LIVE_TRADING, CAPITAL_MODE_CONFIRMED, EXECUTION_PATH_VALIDATED) -- NOT SET. Requires separate explicit Mr. Walker + WARP🔹CMD decision.
