@@ -49,4 +49,6 @@ Out of P9 scope (gated, not blocking P9 closure):
 - [x] Record HOLD posture on `WARP/p9-final-acceptance-hold`.
 - [x] Capture runtime smoke evidence from `docs/final_acceptance_gate.md` — DONE via WARP/p9-runtime-smoke-evidence PR; report at projects/polymarket/polyquantbot/reports/forge/p9-runtime-smoke-evidence.md.
 - [x] Record final COMMANDER acceptance decision — ACCEPTED as public paper-beta (2026-05-01); recorded in `docs/final_acceptance_gate.md`.
-- [ ] Awaiting WARP🔹CMD direction on next priority or separate live/capital activation decision (gated).
+- [x] Blueprint v3.1 locked — PR #846 merged (WARP/blueprint-v3-commit). docs/blueprint/crusaderbot.md v3.1 on main. Auto-trade pivot roadmap active.
+- [ ] Phase 0 owner gates: Polymarket ToS, beta cohort, capital ceiling — awaiting WARP🔹CMD lane open.
+- [ ] Replit MVP R1: project skeleton + FastAPI + DB + Telegram polling — awaiting WARP🔹CMD lane open.
