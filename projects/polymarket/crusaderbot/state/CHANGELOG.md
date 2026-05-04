@@ -4,6 +4,21 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+## 2026-05-05 05:46 Asia/Jakarta — State Sync (PR #856 post-merge)
+
+### Merged
+- PR #857: chore(crusaderbot): state sync — PR #856 post-merge
+  WARP•ECHO routine. Updated PROJECT_STATE.md (R12b merged, R12a in progress) and CHANGELOG.md (R12b entry prepended).
+
+### Changes
+- projects/polymarket/crusaderbot/state/PROJECT_STATE.md — Status updated post R12b merge; [COMPLETED] R12b entry added; [IN PROGRESS] R12b removed
+- projects/polymarket/crusaderbot/state/CHANGELOG.md — R12b Fly.io Health Alerts entry prepended
+
+### State
+- R12b complete. R12a CI/CD pipeline PR open (WARP/CRUSADERBOT-R12A-CICD-PIPELINE).
+- WORKTODO.md not initialized for CrusaderBot — skipped.
+- Paper mode only. All activation guards OFF.
+
 ## 2026-05-05 05:00 Asia/Jakarta — R12b Fly.io Health Alerts
 
 ### Merged
