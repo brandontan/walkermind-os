@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 05:00
-Status       : R12b observability layer scaffolded — PR open, awaiting WARP🔹CMD review. R12a still open. Paper-default.
+Last Updated : 2026-05-05 04:58
+Status       : R12b observability layer merged (PR #856). R12a CI/CD PR still open. Paper-default.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
@@ -12,10 +12,10 @@ Status       : R12b observability layer scaffolded — PR open, awaiting WARP�
 - C1 resolved: KELLY_FRACTION applied, capital_alloc_pct capped <1.0
 - C2 resolved: migrations/004 idempotent DO $$ blocks
 - C3 resolved: Tier 3 promotion gated on MIN_DEPOSIT_USDC
+- R12b — observability layer: /health probes + operator alerts + JSON logging (PR #856 merged)
 
 [IN PROGRESS]
 - R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
-- R12b — Fly.io Health Alerts — PR open: WARP/CRUSADERBOT-R12B-HEALTH-ALERTS — STANDARD tier, awaiting WARP🔹CMD review
 
 [NOT STARTED]
 - R12c — Auto-Close / Take-Profit (MAJOR — execution path)
@@ -25,7 +25,7 @@ Status       : R12b observability layer scaffolded — PR open, awaiting WARP�
 - R12 — Deployment (Fly.io) — final (MAJOR)
 
 [NEXT PRIORITY]
-- WARP🔹CMD review of R12b PR (STANDARD tier, no SENTINEL required). Source: projects/polymarket/crusaderbot/reports/forge/r12b-health-alerts.md. R12a PR review remains open in parallel.
+- WARP🔹CMD review of R12a PR (STANDARD tier, no SENTINEL required). Source: projects/polymarket/crusaderbot/reports/forge/r12a-cicd-pipeline.md.
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)

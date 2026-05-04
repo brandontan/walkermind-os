@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-05-05 04:58 | WARP/CRUSADERBOT-R12B-HEALTH-ALERTS | R12b merged (PR #856) — /health probes 4 deps with 3s timeout, Telegram operator alerts (2-fail threshold + 5-min cooldown), startup env validation (key-only), JSON request logging, fly.toml interval=10s/grace=10s
+
 2026-05-04 19:00 | WARP/CRUSADERBOT-R12B-HEALTH-ALERTS | observability layer: /health probes 4 deps with 3s timeout, Telegram operator alerts (2-fail threshold + 5-min cooldown), startup env validation (key-only), JSON request logging, fly.toml interval=10s/grace=10s
 
 ## 2026-05-05 00:10 Asia/Jakarta — R1-R11 Import + SENTINEL PASS
