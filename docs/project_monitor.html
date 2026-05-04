@@ -11,575 +11,245 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M6 8 L16 24 L26 8' stroke='%2300a8ff' stroke-width='3' fill='none' stroke-linejoin='round'/%3E%3Cpath d='M11 14 L16 22 L21 14' stroke='%2300d4aa' stroke-width='2' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E" />
   <style>
   :root {
-    --bg:        #0a0a0a;
-    --bg2:       #0e1014;
-    --bg3:       #14181f;
-    --bg4:       #1a1f28;
-    --border:    #1d232c;
-    --border2:   #2a323e;
-    --border3:   #3a4452;
-    --blue:      #00a8ff;
-    --blue2:     #29c0ff;
-    --green:     #00d4aa;
-    --green2:    #2ee8c0;
-    --magenta:   #a855f7;
-    --white:     #ffffff;
-    --gray:      #a0a0a0;
-    --gray2:     #5a6573;
-    --gray3:     #3a4452;
-    --red:       #ff4455;
-    --yellow:    #fbbf24;
-    --purple:    #a78bfa;
-    --grad:      linear-gradient(135deg, var(--blue) 0%, var(--green) 100%);
-    --grad-text: linear-gradient(90deg, #ffffff 0%, #00a8ff 50%, #00d4aa 100%);
-    --grad-line: linear-gradient(90deg, transparent, var(--blue) 35%, var(--green) 65%, transparent);
-    --glow-blue: 0 0 12px rgba(0,168,255,0.45);
+    --bg:#0a0a0a;--bg2:#0e1014;--bg3:#14181f;--bg4:#1a1f28;
+    --border:#1d232c;--border2:#2a323e;--border3:#3a4452;
+    --blue:#00a8ff;--green:#00d4aa;--white:#ffffff;
+    --gray:#a0a0a0;--gray2:#5a6573;--gray3:#3a4452;
+    --red:#ff4455;--yellow:#fbbf24;--purple:#a78bfa;
+    --grad:linear-gradient(135deg,var(--blue) 0%,var(--green) 100%);
+    --grad-text:linear-gradient(90deg,#ffffff 0%,#00a8ff 50%,#00d4aa 100%);
+    --grad-line:linear-gradient(90deg,transparent,var(--blue) 35%,var(--green) 65%,transparent);
+    --glow-blue:0 0 12px rgba(0,168,255,0.45);
     --glow-green:0 0 12px rgba(0,212,170,0.45);
-    --font-h:    'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-b:    'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-m:    'JetBrains Mono', 'Menlo', 'Courier New', monospace;
-    --max:       1100px;
+    --font-h:'Space Grotesk',-apple-system,sans-serif;
+    --font-b:'Inter',-apple-system,sans-serif;
+    --font-m:'JetBrains Mono','Menlo','Courier New',monospace;
+    --max:1100px;
+  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--white);font-family:var(--font-b);font-size:15px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 100% 100% at 50% -10%,rgba(0,168,255,0.04) 0%,transparent 60%),radial-gradient(ellipse 80% 60% at 100% 100%,rgba(0,212,170,0.03) 0%,transparent 60%);}
+  body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,0.01) 0px,rgba(255,255,255,0.01) 1px,transparent 1px,transparent 3px);}
+
+  #wm-nav{position:sticky;top:0;z-index:100;padding:14px 0;background:rgba(10,10,10,0.85);border-bottom:1px solid var(--border);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
+  #wm-nav::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--grad-line);opacity:0.4;}
+  .nav-row{max-width:var(--max);margin:0 auto;padding:0 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;}
+  .nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--white);}
+  .nav-brand-mark{width:22px;height:22px;border:1px solid var(--blue);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(0,168,255,0.3),inset 0 0 8px rgba(0,168,255,0.12);}
+  .nav-brand-mark svg{width:13px;height:13px;}
+  .nav-brand-name{font-family:var(--font-h);font-size:13px;font-weight:700;letter-spacing:0.06em;}
+  .nav-brand-name em{font-style:normal;color:var(--blue);}
+  .nav-links{display:flex;align-items:center;gap:20px;}
+  .nav-links a{font-family:var(--font-m);font-size:11px;font-weight:500;color:var(--gray);text-decoration:none;letter-spacing:0.08em;text-transform:uppercase;transition:color 0.2s;padding:4px 0;}
+  .nav-links a:hover,.nav-links a.active{color:var(--white);}
+  .nav-links a.active{color:var(--blue);}
+  .nav-status{font-family:var(--font-m);font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--green);display:inline-flex;align-items:center;gap:6px;}
+  .nav-status::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse-dot 1.6s ease-in-out infinite;}
+  @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.3;transform:scale(0.7);}}
+
+  .wm-wrap{max-width:var(--max);margin:0 auto;padding:40px 32px 100px;position:relative;z-index:1;}
+
+  .page-header{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border);position:relative;}
+  .page-header::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--grad-line);opacity:0.3;}
+  .page-eyebrow{font-family:var(--font-m);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:var(--blue);margin-bottom:10px;display:inline-flex;align-items:center;gap:10px;}
+  .page-eyebrow::before{content:'';width:24px;height:1px;background:var(--blue);box-shadow:var(--glow-blue);}
+  .page-title{font-family:var(--font-h);font-size:clamp(24px,3.5vw,38px);font-weight:700;letter-spacing:-0.02em;line-height:1.1;background:var(--grad-text);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px;}
+  .page-sub{font-size:14px;color:var(--gray);line-height:1.7;max-width:600px;}
+  .page-header-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;}
+
+  .hud{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-bottom:28px;background:var(--border);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .hud-cell{background:rgba(14,16,20,0.9);padding:20px 18px;position:relative;}
+  .hud-cell::before{content:'';position:absolute;top:12px;left:12px;width:4px;height:4px;border-top:1px solid var(--blue);border-left:1px solid var(--blue);opacity:0.5;}
+  .hud-label{font-family:var(--font-m);font-size:8px;color:var(--gray2);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;}
+  .hud-val{font-family:var(--font-h);font-size:30px;font-weight:700;line-height:1;color:var(--white);}
+  .hud-val.c-blue{color:var(--blue);}
+  .hud-val.c-green{color:var(--green);}
+  .hud-val.c-yellow{color:var(--yellow);}
+  .hud-val.c-purple{color:var(--purple);}
+  .hud-sub{font-family:var(--font-m);font-size:9px;color:var(--gray2);margin-top:4px;}
+
+  /* ── ROADMAP LANES ── */
+  .roadmap-grid{display:flex;flex-direction:column;gap:6px;margin-bottom:20px;}
+  .lane-row{display:grid;grid-template-columns:36px 1fr auto auto 44px;align-items:center;gap:8px;padding:10px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);transition:border-color 0.2s;}
+  .lane-row.lane-done{border-color:rgba(0,212,170,0.2);background:rgba(0,212,170,0.02);}
+  .lane-row.lane-active{border-color:rgba(0,168,255,0.35);background:rgba(0,168,255,0.03);}
+  .lane-row.lane-next{border-color:rgba(251,191,36,0.2);}
+  .lane-id{font-family:var(--font-m);font-size:10px;font-weight:700;}
+  .lid-done{color:var(--green);}
+  .lid-active{color:var(--blue);}
+  .lid-next{color:var(--yellow);}
+  .lid-pend{color:var(--gray2);}
+  .lane-name{font-size:12px;font-weight:500;line-height:1.4;min-width:0;word-break:break-word;}
+  .lane-tier{font-family:var(--font-m);font-size:9px;padding:2px 7px;border-radius:3px;white-space:nowrap;}
+  .lt-major{background:rgba(255,68,85,0.08);color:var(--red);border:1px solid rgba(255,68,85,0.2);}
+  .lt-std{background:rgba(251,191,36,0.06);color:var(--yellow);border:1px solid rgba(251,191,36,0.15);}
+  .lt-minor{background:rgba(42,50,62,0.3);color:var(--gray2);border:1px solid var(--border);}
+  .lane-badge{font-family:var(--font-m);font-size:9px;padding:2px 8px;border-radius:10px;white-space:nowrap;}
+  .lb-done{background:rgba(0,212,170,0.08);color:var(--green);border:1px solid rgba(0,212,170,0.2);}
+  .lb-active{background:rgba(0,168,255,0.08);color:var(--blue);border:1px solid rgba(0,168,255,0.2);}
+  .lb-next{background:rgba(251,191,36,0.08);color:var(--yellow);border:1px solid rgba(251,191,36,0.2);}
+  .lb-pend{background:rgba(42,50,62,0.3);color:var(--gray2);border:1px solid var(--border);}
+  .lane-bar-wrap{width:44px;}
+  .lane-bar{height:2px;background:var(--border2);border-radius:2px;overflow:hidden;}
+  .lane-bar-fill{height:100%;background:var(--grad);}
+  @media(max-width:520px){
+    .lane-row{grid-template-columns:28px 1fr;grid-template-rows:auto auto;gap:4px 8px;padding:10px 12px;}
+    .lane-name{grid-column:2;grid-row:1;}
+    .lane-tier{grid-column:2;grid-row:2;justify-self:start;}
+    .lane-badge{grid-column:2;grid-row:2;justify-self:start;margin-left:4px;}
+    .lane-bar-wrap{grid-column:2;grid-row:2;justify-self:end;margin-left:auto;}
   }
 
-  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+  .wm-banner{background:linear-gradient(135deg,rgba(0,168,255,0.05),rgba(0,212,170,0.04));border:1px solid rgba(0,168,255,0.2);border-radius:6px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:14px;}
+  .wm-banner.banner-next{border-color:rgba(0,212,170,0.2);}
+  .wm-banner.banner-warn{border-color:rgba(251,191,36,0.2);background:linear-gradient(135deg,rgba(251,191,36,0.04),transparent);}
+  .banner-icon{font-size:14px;flex-shrink:0;margin-top:1px;}
+  .banner-label{font-family:var(--font-m);font-size:9px;color:var(--blue);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;}
+  .banner-next .banner-label{color:var(--green);}
+  .banner-warn .banner-label{color:var(--yellow);}
+  .banner-text{font-size:13px;color:var(--white);line-height:1.6;}
 
-  body {
-    background: var(--bg);
-    color: var(--white);
-    font-family: var(--font-b);
-    font-size: 15px;
-    line-height: 1.6;
-    overflow-x: hidden;
-    -webkit-font-smoothing: antialiased;
-    min-height: 100vh;
-  }
+  .wm-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;}
+  .wm-card-head{padding:11px 16px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;transition:background 0.2s;}
+  .wm-card-head:hover{background:var(--bg3);}
+  .card-head-title{font-family:var(--font-m);font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:var(--gray);flex:1;}
+  .card-head-badge{font-family:var(--font-m);font-size:9px;padding:2px 8px;border-radius:10px;background:rgba(42,50,62,0.8);color:var(--gray2);border:1px solid var(--border2);}
+  .card-chev{color:var(--gray2);font-size:10px;transition:transform 0.2s;}
+  .wm-card-head.closed .card-chev{transform:rotate(-90deg);}
+  .wm-card-body{padding:16px;}
+  .wm-card-body.hidden{display:none;}
 
-  /* Global bg overlays — same as landing page */
-  body::before {
-    content: '';
-    position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background:
-      radial-gradient(ellipse 100% 100% at 50% -10%, rgba(0,168,255,0.04) 0%, transparent 60%),
-      radial-gradient(ellipse 80% 60% at 100% 100%, rgba(0,212,170,0.03) 0%, transparent 60%);
-  }
-  body::after {
-    content: '';
-    position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.01) 0px, rgba(255,255,255,0.01) 1px, transparent 1px, transparent 3px);
-  }
+  .two-col{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:12px;}
+  @media(min-width:680px){.two-col{grid-template-columns:1fr 1fr;}}
 
-  /* ── NAV ── */
-  #wm-nav {
-    position: sticky; top: 0; left: 0; right: 0; z-index: 100;
-    padding: 14px 0;
-    background: rgba(10,10,10,0.85);
-    border-bottom: 1px solid var(--border);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-  }
-  #wm-nav::after {
-    content: '';
-    position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
-    background: var(--grad-line); opacity: 0.4;
-  }
-  .nav-row {
-    max-width: var(--max); margin: 0 auto; padding: 0 32px;
-    display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  }
-  .nav-brand {
-    display: flex; align-items: center; gap: 10px;
-    text-decoration: none; color: var(--white);
-  }
-  .nav-brand-mark {
-    width: 22px; height: 22px;
-    border: 1px solid var(--blue); border-radius: 4px;
-    display: inline-flex; align-items: center; justify-content: center;
-    box-shadow: 0 0 10px rgba(0,168,255,0.3), inset 0 0 8px rgba(0,168,255,0.12);
-  }
-  .nav-brand-mark svg { width: 13px; height: 13px; }
-  .nav-brand-name {
-    font-family: var(--font-h); font-size: 13px; font-weight: 700;
-    letter-spacing: 0.06em;
-  }
-  .nav-brand-name em { font-style: normal; color: var(--blue); }
-  .nav-links { display: flex; align-items: center; gap: 20px; }
-  .nav-links a {
-    font-family: var(--font-m); font-size: 11px; font-weight: 500;
-    color: var(--gray); text-decoration: none;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    transition: color 0.2s;
-    padding: 4px 0;
-  }
-  .nav-links a:hover, .nav-links a.active { color: var(--white); }
-  .nav-links a.active { color: var(--blue); }
-  .nav-status {
-    font-family: var(--font-m); font-size: 10px;
-    letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--green); display: inline-flex; align-items: center; gap: 6px;
-  }
-  .nav-status::before {
-    content: ''; width: 5px; height: 5px; border-radius: 50%;
-    background: var(--green); box-shadow: 0 0 6px var(--green);
-    animation: pulse-dot 1.6s ease-in-out infinite;
-  }
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50%       { opacity: 0.3; transform: scale(0.7); }
-  }
+  .feed{display:flex;flex-direction:column;gap:0;}
+  .feed-item{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid rgba(29,35,44,0.8);position:relative;}
+  .feed-item:last-child{border-bottom:none;}
+  .feed-line{position:absolute;left:4px;top:26px;bottom:-1px;width:1px;background:var(--border);}
+  .feed-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:2px;position:relative;z-index:1;border:2px solid var(--bg3);}
+  .fd-g{background:var(--green);}
+  .fd-b{background:var(--blue);}
+  .fd-y{background:var(--yellow);}
+  .fd-r{background:var(--red);}
+  .feed-content{flex:1;min-width:0;}
+  .feed-title{font-size:12px;line-height:1.45;margin-bottom:3px;color:var(--white);overflow-wrap:break-word;}
+  .feed-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .feed-time{font-family:var(--font-m);font-size:9px;color:var(--gray2);}
+  .feed-tag{font-family:var(--font-m);font-size:9px;padding:1px 6px;border-radius:4px;}
+  .ft-merged{background:rgba(0,212,170,0.08);color:var(--green);border:1px solid rgba(0,212,170,0.2);}
+  .ft-open{background:rgba(0,168,255,0.08);color:var(--blue);border:1px solid rgba(0,168,255,0.2);}
+  .ft-info{background:rgba(42,50,62,0.3);color:var(--gray2);border:1px solid var(--border);}
+  .ft-warn{background:rgba(251,191,36,0.08);color:var(--yellow);border:1px solid rgba(251,191,36,0.2);}
 
-  /* ── WRAP ── */
-  .wm-wrap {
-    max-width: var(--max); margin: 0 auto;
-    padding: 40px 32px 100px;
-    position: relative; z-index: 1;
-  }
+  .section-divider{font-family:var(--font-m);font-size:9px;color:var(--gray2);letter-spacing:0.2em;text-transform:uppercase;margin:20px 0 12px;display:flex;align-items:center;gap:10px;}
+  .section-divider::after{content:'';flex:1;height:1px;background:var(--border);}
 
-  /* ── PAGE HEADER ── */
-  .page-header {
-    margin-bottom: 40px;
-    padding-bottom: 28px;
-    border-bottom: 1px solid var(--border);
-    position: relative;
-  }
-  .page-header::after {
-    content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
-    background: var(--grad-line); opacity: 0.3;
-  }
-  .page-eyebrow {
-    font-family: var(--font-m); font-size: 10px;
-    letter-spacing: 0.22em; text-transform: uppercase;
-    color: var(--blue); margin-bottom: 10px;
-    display: inline-flex; align-items: center; gap: 10px;
-  }
-  .page-eyebrow::before {
-    content: ''; width: 24px; height: 1px;
-    background: var(--blue); box-shadow: var(--glow-blue);
-  }
-  .page-title {
-    font-family: var(--font-h); font-size: clamp(24px, 3.5vw, 38px);
-    font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;
-    background: var(--grad-text);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    margin-bottom: 10px;
-  }
-  .page-sub {
-    font-size: 14px; color: var(--gray); line-height: 1.7; max-width: 600px;
-  }
-  .page-header-right {
-    position: absolute; top: 0; right: 0;
-    display: flex; align-items: center; gap: 10px;
-  }
+  .wm-btn{font-family:var(--font-m);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;text-decoration:none;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:9px 14px;color:var(--gray);transition:border-color 0.2s,color 0.2s;display:inline-flex;align-items:center;gap:6px;cursor:pointer;}
+  .wm-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .search-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
 
-  /* ── SECTION TAG ── */
-  .section-tag {
-    font-family: var(--font-m); font-size: 9px;
-    color: var(--gray2); letter-spacing: 0.2em;
-    text-transform: uppercase; margin-bottom: 12px;
-    display: block;
-  }
+  .live-indicator{display:inline-flex;align-items:center;gap:7px;background:rgba(0,212,170,0.05);border:1px solid rgba(0,212,170,0.2);border-radius:20px;padding:4px 12px;font-family:var(--font-m);font-size:9px;color:var(--green);letter-spacing:0.1em;}
+  .refresh-btn{font-family:var(--font-m);font-size:10px;letter-spacing:0.08em;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;color:var(--gray);transition:border-color 0.2s,color 0.2s;display:inline-flex;align-items:center;gap:6px;}
+  .refresh-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .ts{font-family:var(--font-m);font-size:9px;color:var(--gray2);}
+  .ts span{color:var(--blue);}
+  .source-note{font-family:var(--font-m);font-size:9px;color:var(--gray2);margin-bottom:10px;}
+  .source-note code{color:var(--blue);background:rgba(0,168,255,0.06);padding:1px 5px;border-radius:3px;}
 
-  /* ── HUD METRICS ── */
-  .hud {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1px;
-    margin-bottom: 28px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .hud-cell {
-    background: rgba(14,16,20,0.9);
-    padding: 20px 18px;
-    position: relative;
-  }
-  .hud-cell::before {
-    content: ''; position: absolute; top: 12px; left: 12px;
-    width: 4px; height: 4px;
-    border-top: 1px solid var(--blue); border-left: 1px solid var(--blue);
-    opacity: 0.5;
-  }
-  .hud-label {
-    font-family: var(--font-m); font-size: 8px;
-    color: var(--gray2); text-transform: uppercase; letter-spacing: 0.15em;
-    margin-bottom: 8px;
-  }
-  .hud-val {
-    font-family: var(--font-h);
-    font-size: 30px; font-weight: 700; line-height: 1;
-    color: var(--white);
-  }
-  .hud-val.c-blue { color: var(--blue); }
-  .hud-val.c-green { color: var(--green); }
-  .hud-val.c-yellow { color: var(--yellow); }
-  .hud-val.c-purple { color: var(--purple); }
-  .hud-sub { font-family: var(--font-m); font-size: 9px; color: var(--gray2); margin-top: 4px; }
+  /* Checklist styles */
+  .todo-section{border-top:1px solid rgba(29,35,44,0.8);padding-top:16px;margin-top:16px;}
+  .todo-section:first-child{border-top:0;padding-top:0;margin-top:0;}
+  .todo-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
+  .todo-title{font-family:var(--font-h);font-size:15px;font-weight:700;letter-spacing:-0.01em;}
+  .todo-meta{font-family:var(--font-m);font-size:10px;color:var(--gray2);}
+  .todo-sub{margin-top:10px;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+  .todo-sub-head{padding:8px 14px;background:var(--bg2);border-bottom:1px solid var(--border);font-family:var(--font-m);font-size:9px;color:var(--gray2);letter-spacing:0.12em;text-transform:uppercase;}
+  .todo-items{padding:6px 14px;}
+  .todo-item{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(29,35,44,0.8);}
+  .todo-item:last-child{border-bottom:0;}
+  .hidden-item{display:none;}
+  .todo-dot{width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-m);font-size:9px;flex-shrink:0;margin-top:1px;border:1px solid var(--border2);}
+  .td-done .todo-dot{background:rgba(0,212,170,0.1);color:var(--green);border-color:rgba(0,212,170,0.2);}
+  .td-open .todo-dot{background:rgba(0,168,255,0.08);color:var(--blue);border-color:rgba(0,168,255,0.2);}
+  .td-note .todo-dot{background:rgba(42,50,62,0.2);color:var(--gray2);}
+  .todo-text{font-size:12px;line-height:1.55;color:var(--white);overflow-wrap:break-word;}
 
-  /* ── BANNER ── */
-  .wm-banner {
-    background: linear-gradient(135deg, rgba(0,168,255,0.05), rgba(0,212,170,0.04));
-    border: 1px solid rgba(0,168,255,0.2);
-    border-radius: 6px; padding: 14px 18px;
-    margin-bottom: 16px;
-    display: flex; align-items: flex-start; gap: 14px;
-  }
-  .wm-banner.banner-next { border-color: rgba(0,212,170,0.2); }
-  .banner-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
-  .banner-label {
-    font-family: var(--font-m); font-size: 9px;
-    color: var(--blue); letter-spacing: 0.15em; text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-  .banner-next .banner-label { color: var(--green); }
-  .banner-text { font-size: 13px; color: var(--white); line-height: 1.6; }
+  .wm-input{background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:9px 14px;color:var(--white);font-family:var(--font-m);font-size:11px;outline:none;flex:1;min-width:200px;transition:border-color 0.2s;}
+  .wm-input:focus{border-color:var(--blue);}
+  .wm-input::placeholder{color:var(--gray2);}
+  .wm-toggle{display:flex;align-items:center;gap:8px;font-family:var(--font-m);font-size:11px;color:var(--gray);background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:9px 14px;cursor:pointer;}
 
-  /* ── CARD ── */
-  .wm-card {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px; overflow: hidden;
-    margin-bottom: 12px;
-  }
-  .wm-card-head {
-    padding: 11px 16px;
-    background: var(--bg2);
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 10px;
-    cursor: pointer; user-select: none;
-    transition: background 0.2s;
-  }
-  .wm-card-head:hover { background: var(--bg3); }
-  .card-head-title {
-    font-family: var(--font-m); font-size: 9px;
-    letter-spacing: 0.15em; text-transform: uppercase;
-    color: var(--gray); flex: 1;
-  }
-  .card-head-badge {
-    font-family: var(--font-m); font-size: 9px;
-    padding: 2px 8px; border-radius: 10px;
-    background: rgba(42,50,62,0.8); color: var(--gray2);
-    border: 1px solid var(--border2);
-  }
-  .card-chev { color: var(--gray2); font-size: 10px; transition: transform 0.2s; }
-  .wm-card-head.closed .card-chev { transform: rotate(-90deg); }
-  .wm-card-body { padding: 16px; }
-  .wm-card-body.hidden { display: none; }
+  .wm-footer{border-top:1px solid var(--border);padding:24px 32px;margin-top:60px;background:var(--bg);position:relative;}
+  .wm-footer::before{content:'';position:absolute;left:0;right:0;top:-1px;height:1px;background:var(--grad-line);opacity:0.3;}
+  .footer-inner{max-width:var(--max);margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;}
+  .footer-copy{font-family:var(--font-m);font-size:10px;color:var(--gray2);}
+  .footer-copy em{font-style:normal;color:var(--blue);}
+  .footer-agents{display:flex;gap:6px;flex-wrap:wrap;}
+  .agent-tag{font-family:var(--font-m);font-size:9px;padding:3px 8px;border-radius:3px;letter-spacing:0.08em;}
+  .at-cmd{background:rgba(0,168,255,0.08);color:var(--blue);border:1px solid rgba(0,168,255,0.2);}
+  .at-forge{background:rgba(0,212,170,0.06);color:var(--green);border:1px solid rgba(0,212,170,0.15);}
+  .at-sent{background:rgba(251,191,36,0.06);color:var(--yellow);border:1px solid rgba(251,191,36,0.15);}
+  .at-echo{background:rgba(42,50,62,0.3);color:var(--gray2);border:1px solid var(--border);}
 
-  /* ── TWO COL ── */
-  .two-col {
-    display: grid; grid-template-columns: 1fr;
-    gap: 12px; margin-bottom: 12px;
+  @media(max-width:680px){
+    .wm-wrap{padding:24px 18px 80px;}
+    .nav-row{padding:0 18px;}
+    .hud{grid-template-columns:repeat(2,1fr);}
+    .nav-links a:not(:last-child){display:none;}
+    .wm-footer{padding:20px 18px;}
   }
-  @media(min-width: 680px) { .two-col { grid-template-columns: 1fr 1fr; } }
-
-  /* ── PHASE LIST ── */
-  .phase-list { display: flex; flex-direction: column; gap: 6px; }
-  .phase-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px; border-radius: 6px;
-    border: 1px solid var(--border); background: var(--bg2);
-    transition: border-color 0.2s;
-  }
-  .phase-row.active { border-color: rgba(0,168,255,0.3); }
-  .phase-row.done { border-color: rgba(0,212,170,0.2); }
-  .phase-num { font-family: var(--font-m); font-size: 9px; color: var(--gray2); width: 20px; }
-  .phase-name { font-size: 12px; flex: 1; font-weight: 500; }
-  .phase-badge {
-    font-family: var(--font-m); font-size: 9px;
-    padding: 2px 8px; border-radius: 10px;
-  }
-  .pb-done { background: rgba(0,212,170,0.08); color: var(--green); border: 1px solid rgba(0,212,170,0.2); }
-  .pb-prog { background: rgba(0,168,255,0.08); color: var(--blue); border: 1px solid rgba(0,168,255,0.2); }
-  .pb-pend { background: rgba(42,50,62,0.3); color: var(--gray2); border: 1px solid var(--border); }
-  .phase-bar-wrap { width: 44px; flex-shrink: 0; }
-  .phase-bar { height: 2px; background: var(--border2); border-radius: 2px; overflow: hidden; }
-  .phase-bar-fill { height: 100%; background: var(--grad); }
-
-  /* ── FEED ── */
-  .feed { display: flex; flex-direction: column; gap: 0; }
-  .feed-item {
-    display: flex; gap: 12px;
-    padding: 11px 0;
-    border-bottom: 1px solid rgba(29,35,44,0.8);
-    position: relative;
-  }
-  .feed-item:last-child { border-bottom: none; }
-  .feed-line {
-    position: absolute; left: 4px; top: 26px; bottom: -1px; width: 1px;
-    background: var(--border);
-  }
-  .feed-dot {
-    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-    margin-top: 2px; position: relative; z-index: 1;
-    border: 2px solid var(--bg3);
-  }
-  .fd-g { background: var(--green); }
-  .fd-b { background: var(--blue); }
-  .fd-y { background: var(--yellow); }
-  .fd-r { background: var(--red); }
-  .feed-content { flex: 1; min-width: 0; }
-  .feed-title { font-size: 12px; line-height: 1.45; margin-bottom: 3px; color: var(--white); overflow-wrap: break-word; }
-  .feed-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .feed-time { font-family: var(--font-m); font-size: 9px; color: var(--gray2); }
-  .feed-tag {
-    font-family: var(--font-m); font-size: 9px;
-    padding: 1px 6px; border-radius: 4px;
-  }
-  .ft-merged { background: rgba(0,212,170,0.08); color: var(--green); border: 1px solid rgba(0,212,170,0.2); }
-  .ft-open { background: rgba(0,168,255,0.08); color: var(--blue); border: 1px solid rgba(0,168,255,0.2); }
-  .ft-info { background: rgba(42,50,62,0.3); color: var(--gray2); border: 1px solid var(--border); }
-  .ft-warn { background: rgba(251,191,36,0.08); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
-
-  /* ── SEARCH ── */
-  .search-row {
-    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
-  }
-  .wm-input {
-    background: var(--bg2); border: 1px solid var(--border2);
-    border-radius: 6px; padding: 9px 14px;
-    color: var(--white); font-family: var(--font-m); font-size: 11px;
-    outline: none; flex: 1; min-width: 200px;
-    transition: border-color 0.2s;
-  }
-  .wm-input:focus { border-color: var(--blue); }
-  .wm-input::placeholder { color: var(--gray2); }
-  .wm-toggle {
-    display: flex; align-items: center; gap: 8px;
-    font-family: var(--font-m); font-size: 11px; color: var(--gray);
-    background: var(--bg2); border: 1px solid var(--border2);
-    border-radius: 6px; padding: 9px 14px; cursor: pointer;
-  }
-  .wm-btn {
-    font-family: var(--font-m); font-size: 10px; letter-spacing: 0.08em;
-    text-transform: uppercase; text-decoration: none;
-    background: var(--bg2); border: 1px solid var(--border2);
-    border-radius: 6px; padding: 9px 14px; color: var(--gray);
-    transition: border-color 0.2s, color 0.2s;
-    display: inline-flex; align-items: center; gap: 6px;
-    cursor: pointer;
-  }
-  .wm-btn:hover { border-color: var(--blue); color: var(--blue); }
-
-  /* ── TODO LIST ── */
-  .todo-section { border-top: 1px solid rgba(29,35,44,0.8); padding-top: 16px; margin-top: 16px; }
-  .todo-section:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
-  .todo-head {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 12px; margin-bottom: 10px;
-  }
-  .todo-title {
-    font-family: var(--font-h); font-size: 15px; font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .todo-meta { font-family: var(--font-m); font-size: 10px; color: var(--gray2); }
-  .todo-sub {
-    margin-top: 10px; border: 1px solid var(--border);
-    border-radius: 6px; overflow: hidden;
-  }
-  .todo-sub-head {
-    padding: 8px 14px; background: var(--bg2);
-    border-bottom: 1px solid var(--border);
-    font-family: var(--font-m); font-size: 9px;
-    color: var(--gray2); letter-spacing: 0.12em; text-transform: uppercase;
-  }
-  .todo-items { padding: 6px 14px; }
-  .todo-item {
-    display: flex; gap: 10px; align-items: flex-start;
-    padding: 8px 0; border-bottom: 1px solid rgba(29,35,44,0.8);
-    transition: opacity 0.15s;
-  }
-  .todo-item:last-child { border-bottom: 0; }
-  .hidden-item { display: none; }
-  .todo-dot {
-    width: 17px; height: 17px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-m); font-size: 9px; flex-shrink: 0; margin-top: 1px;
-    border: 1px solid var(--border2);
-  }
-  .td-done .todo-dot { background: rgba(0,212,170,0.1); color: var(--green); border-color: rgba(0,212,170,0.2); }
-  .td-open .todo-dot { background: rgba(0,168,255,0.08); color: var(--blue); border-color: rgba(0,168,255,0.2); }
-  .td-note .todo-dot { background: rgba(42,50,62,0.2); color: var(--gray2); }
-  .todo-text { font-size: 12px; line-height: 1.55; color: var(--white); overflow-wrap: break-word; }
-
-  /* ── TASK LIST (worktodo) ── */
-  .task-section { margin-bottom: 32px; }
-  .task-section-head {
-    display: flex; align-items: center; gap: 12px;
-    margin-bottom: 14px; padding-bottom: 10px;
-    border-bottom: 1px solid var(--border);
-    position: relative;
-  }
-  .task-section-head::after {
-    content: ''; position: absolute; left: 0; bottom: -1px;
-    height: 1px; width: 60px;
-    background: var(--blue); box-shadow: var(--glow-blue);
-  }
-  .task-section-head.g::after { background: var(--green); box-shadow: var(--glow-green); }
-  .task-section-head.y::after { background: var(--yellow); }
-  .task-section-title {
-    font-family: var(--font-h); font-size: 17px; font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .task-section-count {
-    font-family: var(--font-m); font-size: 10px;
-    color: var(--gray2); margin-left: auto;
-  }
-  .task-list { display: flex; flex-direction: column; gap: 8px; }
-  .task-item {
-    background: var(--bg3); border: 1px solid var(--border);
-    border-radius: 6px; padding: 12px 14px;
-    display: flex; align-items: flex-start; gap: 12px;
-    transition: border-color 0.2s;
-  }
-  .task-item:hover { border-color: var(--border2); }
-  .task-item.done { opacity: 0.55; }
-  .task-item.done:hover { opacity: 0.75; }
-  .task-icon {
-    width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 9px; margin-top: 1px;
-    font-family: var(--font-m);
-  }
-  .ti-done { background: rgba(0,212,170,0.1); color: var(--green); border: 1px solid rgba(0,212,170,0.25); }
-  .ti-prog { background: rgba(251,191,36,0.1); color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
-  .ti-pend { background: rgba(42,50,62,0.3); color: var(--gray2); border: 1px solid var(--border2); }
-  .task-body { flex: 1; min-width: 0; }
-  .task-title { font-size: 13px; font-weight: 600; line-height: 1.4; margin-bottom: 3px; }
-  .task-desc { font-size: 12px; color: var(--gray); line-height: 1.55; font-family: var(--font-m); }
-
-  /* ── FOOTER ── */
-  .wm-footer {
-    border-top: 1px solid var(--border);
-    padding: 24px 32px; margin-top: 60px;
-    background: var(--bg);
-    position: relative;
-  }
-  .wm-footer::before {
-    content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 1px;
-    background: var(--grad-line); opacity: 0.3;
-  }
-  .footer-inner {
-    max-width: var(--max); margin: 0 auto;
-    display: flex; justify-content: space-between;
-    align-items: center; flex-wrap: wrap; gap: 14px;
-  }
-  .footer-copy {
-    font-family: var(--font-m); font-size: 10px; color: var(--gray2);
-  }
-  .footer-copy em { font-style: normal; color: var(--blue); }
-  .footer-agents { display: flex; gap: 6px; flex-wrap: wrap; }
-  .agent-tag {
-    font-family: var(--font-m); font-size: 9px;
-    padding: 3px 8px; border-radius: 3px;
-    letter-spacing: 0.08em;
-  }
-  .at-cmd { background: rgba(0,168,255,0.08); color: var(--blue); border: 1px solid rgba(0,168,255,0.2); }
-  .at-forge { background: rgba(0,212,170,0.06); color: var(--green); border: 1px solid rgba(0,212,170,0.15); }
-  .at-sent { background: rgba(251,191,36,0.06); color: var(--yellow); border: 1px solid rgba(251,191,36,0.15); }
-  .at-echo { background: rgba(42,50,62,0.3); color: var(--gray2); border: 1px solid var(--border); }
-
-  /* ── RESPONSIVE ── */
-  @media(max-width: 680px) {
-    .wm-wrap { padding: 24px 18px 80px; }
-    .nav-row { padding: 0 18px; }
-    .hud { grid-template-columns: repeat(2, 1fr); }
-    .nav-links a:not(.nav-links a:last-child) { display: none; }
-    .page-header-right { position: static; margin-top: 10px; }
-    .wm-footer { padding: 20px 18px; }
-  }
-
-
-    /* Page-specific additions */
-    .source-note {
-      font-family: var(--font-m); font-size: 9px; color: var(--gray2);
-      margin-bottom: 12px; line-height: 1.6;
-    }
-    .source-note code {
-      color: var(--blue); background: rgba(0,168,255,0.06);
-      padding: 1px 5px; border-radius: 3px;
-    }
-    .ts {
-      font-family: var(--font-m); font-size: 9px; color: var(--gray2);
-    }
-    .ts span { color: var(--blue); }
-    .live-indicator {
-      display: inline-flex; align-items: center; gap: 7px;
-      background: rgba(0,212,170,0.05);
-      border: 1px solid rgba(0,212,170,0.2);
-      border-radius: 20px; padding: 4px 12px;
-      font-family: var(--font-m); font-size: 9px;
-      color: var(--green); letter-spacing: 0.1em;
-    }
-    .refresh-btn {
-      font-family: var(--font-m); font-size: 10px; letter-spacing: 0.08em;
-      background: var(--bg2); border: 1px solid var(--border2);
-      border-radius: 6px; padding: 6px 12px; cursor: pointer;
-      color: var(--gray); transition: border-color 0.2s, color 0.2s;
-      display: inline-flex; align-items: center; gap: 6px;
-    }
-    .refresh-btn:hover { border-color: var(--blue); color: var(--blue); }
-    .page-header-meta {
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-      margin-top: 14px;
-    }
   </style>
 </head>
 <body>
 <nav id="wm-nav" role="navigation">
   <div class="nav-row">
     <a href="https://bayuewalker.github.io/walkermind-os/" class="nav-brand">
-      <span class="nav-brand-mark">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M4 6 L12 20 L20 6" stroke="#00a8ff" stroke-width="2.5" stroke-linejoin="round"/>
-          <path d="M8 11 L12 18 L16 11" stroke="#00d4aa" stroke-width="1.5" stroke-linejoin="round"/>
-        </svg>
-      </span>
+      <span class="nav-brand-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6 L12 20 L20 6" stroke="#00a8ff" stroke-width="2.5" stroke-linejoin="round"/><path d="M8 11 L12 18 L16 11" stroke="#00d4aa" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
       <span class="nav-brand-name">WALKER<em>MIND</em> OS</span>
     </a>
     <div class="nav-links">
-      <a href="https://bayuewalker.github.io/walkermind-os/project_monitor.html" class="active">Monitor</a>
-      <a href="https://bayuewalker.github.io/walkermind-os/worktodo.html" >Work To-Do</a>
-      <a href="https://bayuewalker.github.io/walkermind-os/crusaderbot_blueprint.html" >Blueprint</a>
+      <a href="project_monitor.html" class="active">Monitor</a>
+      <a href="worktodo.html">Work To-Do</a>
+      <a href="crusaderbot_blueprint.html">Blueprint</a>
       <span class="nav-status">W.A.R.P ONLINE</span>
     </div>
   </div>
 </nav>
-<div class="wm-wrap">
 
+<div class="wm-wrap">
   <div class="page-header">
     <div class="page-eyebrow">// MODULE_01 // PROJECT_MONITOR</div>
     <h1 class="page-title">Project Monitor</h1>
-    <p class="page-sub">Live system state, active lanes, and operational truth — loaded directly from repo source.</p>
+    <p class="page-sub">Live system state, active lanes, and operational truth — CrusaderBot on Polymarket.</p>
     <div class="page-header-meta">
-      <div class="live-indicator"><span class="pulse" style="width:5px;height:5px;background:var(--green);border-radius:50%;animation:pulse-dot 1.5s infinite"></span>CHECKLIST LIVE</div>
+      <div class="live-indicator"><span style="width:5px;height:5px;background:var(--green);border-radius:50%;animation:pulse-dot 1.5s infinite;display:inline-block"></span>LIVE</div>
       <button class="refresh-btn" onclick="window.location.reload()">↻ Refresh</button>
       <div class="ts" id="ts">—</div>
     </div>
   </div>
 
-  <!-- HUD METRICS -->
-  <div class="hud" role="list" aria-label="System metrics">
-    <div class="hud-cell" role="listitem">
-      <div class="hud-label">// COMPLETED</div>
-      <div class="hud-val c-green" id="metricDone">—</div>
-      <div class="hud-sub">Checklist items done</div>
+  <!-- HUD -->
+  <div class="hud">
+    <div class="hud-cell">
+      <div class="hud-label">// LANES_DONE</div>
+      <div class="hud-val c-green" id="metricDone">11</div>
+      <div class="hud-sub">R1–R11 merged</div>
     </div>
-    <div class="hud-cell" role="listitem">
-      <div class="hud-label">// OPEN_ITEMS</div>
-      <div class="hud-val c-blue" id="metricOpen">—</div>
-      <div class="hud-sub">Still pending</div>
-    </div>
-    <div class="hud-cell" role="listitem">
-      <div class="hud-label">// COMPLETION</div>
-      <div class="hud-val c-yellow" id="metricPct">—</div>
-      <div class="hud-sub" id="metricRatio">Loading...</div>
-    </div>
-    <div class="hud-cell" role="listitem">
+    <div class="hud-cell">
       <div class="hud-label">// ACTIVE_LANE</div>
-      <div class="hud-val c-purple" id="metricActive" style="font-size:20px;padding-top:6px">—</div>
-      <div class="hud-sub">Current focus</div>
+      <div class="hud-val c-blue" id="metricActive" style="font-size:18px;padding-top:8px">R12a</div>
+      <div class="hud-sub" id="metricActiveSub">CI/CD Pipeline</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">// TOTAL_LANES</div>
+      <div class="hud-val c-yellow">19</div>
+      <div class="hud-sub">R1–R13f roadmap</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">// SENTINEL_PASS</div>
+      <div class="hud-val c-green">✓</div>
+      <div class="hud-sub">R1–R11 validated</div>
     </div>
   </div>
 
@@ -588,38 +258,36 @@
     <div class="banner-icon">📋</div>
     <div>
       <div class="banner-label">Current Status</div>
-      <div class="banner-text" id="currentStatusText">Loading current status from source truth...</div>
+      <div class="banner-text" id="currentStatusText">R1–R11 merged to main. SENTINEL PASS. C1/C2/C3 resolved. Paper-default mode. State sync complete via PR #854.</div>
     </div>
   </div>
   <div class="wm-banner banner-next">
     <div class="banner-icon">🎯</div>
     <div>
       <div class="banner-label">Next Priority</div>
-      <div class="banner-text" id="nextPriorityText">Loading next priority from source truth...</div>
+      <div class="banner-text" id="nextPriorityText">R12a — CI/CD Pipeline (GitHub Actions). STANDARD tier. Dispatch ready.</div>
     </div>
   </div>
 
-  <!-- SEARCH -->
   <div class="search-row">
     <a href="worktodo.html" class="wm-btn">↗ Work To-Do</a>
     <a href="crusaderbot_blueprint.html" class="wm-btn">↗ Blueprint</a>
-  </div>
-  <div class="search-row">
-    <input id="searchInput" class="wm-input" type="search" placeholder="Search checklist — lane, status, text..." />
-    <label class="wm-toggle"><input type="checkbox" id="hideDone" /> Hide completed</label>
+    <a href="https://github.com/bayuewalker/walkermind-os" target="_blank" class="wm-btn">↗ GitHub</a>
   </div>
 
-  <!-- TWO COL -->
+  <!-- ROADMAP OVERVIEW -->
   <div class="two-col">
     <div class="wm-card">
       <div class="wm-card-head" onclick="tog(this)">
-        <span>📊</span><span class="card-head-title">Checklist Overview</span>
-        <span class="card-head-badge" id="laneCountBadge">—</span>
+        <span>🗺️</span><span class="card-head-title">Roadmap — CrusaderBot</span>
+        <span class="card-head-badge">R1–R13f</span>
         <span class="card-chev">▼</span>
       </div>
       <div class="wm-card-body">
-        <div class="source-note">Parsed from <code>state/WORKTODO.md</code></div>
-        <div class="phase-list" id="priorityOverview"></div>
+        <div class="source-note">Source: <code>state/ROADMAP.md</code> · <span id="roadmapSourceLabel">—</span></div>
+        <div class="roadmap-grid" id="roadmapGrid">
+          <!-- Rendered by JS from ROADMAP.md or static fallback -->
+        </div>
       </div>
     </div>
     <div class="wm-card">
@@ -630,21 +298,26 @@
       </div>
       <div class="wm-card-body">
         <div class="feed" id="activityFeed">
-          <div class="feed-item"><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Loading activity feed...</div></div></div>
+          <div class="feed-item"><div class="feed-dot fd-b"></div><div class="feed-content"><div class="feed-title">Loading...</div></div></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- WORK CHECKLIST -->
+  <!-- CHECKLIST -->
   <div class="wm-card">
     <div class="wm-card-head" onclick="tog(this)">
       <span>✅</span><span class="card-head-title">Work Checklist — Source of Truth</span>
       <span class="card-head-badge" id="sectionCountBadge">—</span>
       <span class="card-chev">▼</span>
     </div>
-    <div class="wm-card-body" id="todoBody">
-      <div class="todo-meta" id="checklistSourceStatus">Loading checklist...</div>
+    <div class="wm-card-body">
+      <div class="search-row">
+        <input id="searchInput" class="wm-input" type="search" placeholder="Search checklist..."/>
+        <label class="wm-toggle"><input type="checkbox" id="hideDone"/> Hide completed</label>
+      </div>
+      <div class="source-note">Source: <code>state/WORKTODO.md</code> · <span id="checklistSourceLabel">—</span></div>
+      <div id="todoBody"><div class="todo-meta">Loading checklist from source truth...</div></div>
     </div>
   </div>
 
@@ -656,17 +329,14 @@
       <span class="card-chev">▼</span>
     </div>
     <div class="wm-card-body hidden" id="knownIssuesBody">
-      <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Loading known issues...</div></div></div>
+      <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">Loading...</div></div></div>
     </div>
   </div>
-
 </div>
 
-<footer class="wm-footer" role="contentinfo">
+<footer class="wm-footer">
   <div class="footer-inner">
-    <div class="footer-copy">
-      WalkerMind OS · Powered by <em>W.A.R.P Engine</em> · Bayue Walker © 2026
-    </div>
+    <div class="footer-copy">WalkerMind OS · Powered by <em>W.A.R.P Engine</em> · Bayue Walker © 2026</div>
     <div class="footer-agents">
       <span class="agent-tag at-cmd">WARP🔹CMD</span>
       <span class="agent-tag at-forge">WARP•FORGE</span>
@@ -677,528 +347,217 @@
 </footer>
 
 <script>
+// ── SOURCE URLS (corrected to crusaderbot) ──
+const BASE = 'https://raw.githubusercontent.com/bayuewalker/walkermind-os/main/projects/polymarket/crusaderbot/state/';
 const SOURCES = {
-  checklist: {
-    label: 'Checklist',
-    url: 'https://raw.githubusercontent.com/bayuewalker/walkermind-os/main/projects/polymarket/polyquantbot/state/WORKTODO.md',
-    fallbacks: [
-      '../projects/polymarket/polyquantbot/state/WORKTODO.md',
-      '/walker-ai-team/projects/polymarket/polyquantbot/state/WORKTODO.md',
-      '/projects/polymarket/polyquantbot/state/WORKTODO.md'
-    ]
-  },
-  projectState: {
-    label: 'Project State',
-    url: 'https://raw.githubusercontent.com/bayuewalker/walkermind-os/main/projects/polymarket/polyquantbot/state/PROJECT_STATE.md',
-    fallbacks: [
-      '../projects/polymarket/polyquantbot/state/PROJECT_STATE.md',
-      '/walker-ai-team/projects/polymarket/polyquantbot/state/PROJECT_STATE.md',
-      '/projects/polymarket/polyquantbot/state/PROJECT_STATE.md'
-    ]
-  },
-  roadmap: {
-    label: 'Roadmap',
-    url: 'https://raw.githubusercontent.com/bayuewalker/walkermind-os/main/projects/polymarket/polyquantbot/state/ROADMAP.md',
-    fallbacks: [
-      '../projects/polymarket/polyquantbot/state/ROADMAP.md',
-      '/walker-ai-team/projects/polymarket/polyquantbot/state/ROADMAP.md',
-      '/projects/polymarket/polyquantbot/state/ROADMAP.md'
-    ]
-  }
+  projectState: BASE + 'PROJECT_STATE.md',
+  roadmap:      BASE + 'ROADMAP.md',
+  worktodo:     BASE + 'WORKTODO.md',
 };
 
-const CACHE_PREFIX = 'walkermind-project-monitor-v5-';
-const state = {
-  loaded: {},
-  checklist: { sections: [], total: 0, done: 0, active: null },
-  projectState: { activeProject: '', currentStatus: '', nextPriority: '', blockers: [], updatedAt: '' },
-  roadmap: { phases: [] }
-};
+// ── STATIC FALLBACK ROADMAP (always accurate, loaded when fetch fails) ──
+const STATIC_ROADMAP = [
+  {id:'R1', name:'FastAPI skeleton + DB schema',      status:'done',   tier:'STANDARD'},
+  {id:'R2', name:'Onboarding flow',                   status:'done',   tier:'STANDARD'},
+  {id:'R3', name:'Operator commands',                 status:'done',   tier:'STANDARD'},
+  {id:'R4', name:'Deposit watcher (Alchemy WS)',      status:'done',   tier:'MAJOR'},
+  {id:'R5', name:'Strategy config',                   status:'done',   tier:'STANDARD'},
+  {id:'R6', name:'Signal engine',                     status:'done',   tier:'MAJOR'},
+  {id:'R7', name:'Order execution',                   status:'done',   tier:'MAJOR'},
+  {id:'R8', name:'Position tracker',                  status:'done',   tier:'STANDARD'},
+  {id:'R9', name:'Risk engine',                       status:'done',   tier:'MAJOR'},
+  {id:'R10',name:'Telegram integration',              status:'done',   tier:'STANDARD'},
+  {id:'R11',name:'Fee + referral accounting',         status:'done',   tier:'STANDARD'},
+  {id:'R12a',name:'CI/CD Pipeline (GitHub Actions)', status:'active', tier:'STANDARD'},
+  {id:'R12b',name:'Fly.io Health Alerts',            status:'next',   tier:'STANDARD'},
+  {id:'R12c',name:'Auto-Close / Take-Profit',        status:'pending',tier:'MAJOR'},
+  {id:'R12d',name:'Live Opt-In gate',                status:'pending',tier:'MAJOR'},
+  {id:'R12e',name:'Live→Paper Fallback',             status:'pending',tier:'STANDARD'},
+  {id:'R12f',name:'Daily P&L report',                status:'pending',tier:'STANDARD'},
+  {id:'R12', name:'Fly.io Deployment (final)',        status:'pending',tier:'MAJOR'},
+  {id:'R13+',name:'Growth backlog (a–f)',             status:'pending',tier:'STANDARD'},
+];
 
-const searchInput = document.getElementById('searchInput');
-const hideDone = document.getElementById('hideDone');
-const todoBody = document.getElementById('todoBody');
+const CACHE_PREFIX = 'wm-monitor-crusaderbot-v1-';
+const state = { loaded:{}, checklist:{sections:[],total:0,done:0}, projectState:{}, roadmap:[] };
 
-function tog(head) {
-  const body = head.nextElementSibling;
-  const isOpen = !body.classList.contains('hidden');
-  body.classList.toggle('hidden', isOpen);
-  head.classList.toggle('closed', isOpen);
+function tog(head){const body=head.nextElementSibling;const isOpen=!body.classList.contains('hidden');body.classList.toggle('hidden',isOpen);head.classList.toggle('closed',isOpen);}
+function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function compact(v){return String(v??'').replace(/\s+/g,' ').trim();}
+function setTs(){const t=new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});document.getElementById('ts').innerHTML='Updated: <span>'+t+'</span>';}
+
+function saveCache(k,d){try{localStorage.setItem(CACHE_PREFIX+k,JSON.stringify(d));}catch(_){}}
+function readCache(k){try{const r=localStorage.getItem(CACHE_PREFIX+k);return r?JSON.parse(r):null;}catch(_){return null;}}
+
+async function fetchText(url,ms=10000){
+  const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);
+  try{const r=await fetch(url,{cache:'no-store',signal:c.signal});if(!r.ok)throw new Error('HTTP '+r.status);return await r.text();}finally{clearTimeout(t);}
 }
 
-function esc(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+async function loadSource(key){
+  const url=SOURCES[key]+'?v='+Date.now();
+  try{const text=await fetchText(url);const d={ok:true,cached:false,url:SOURCES[key],at:Date.now(),text};state.loaded[key]=d;saveCache(key,d);return d;}
+  catch(e){const c=readCache(key);if(c?.text){state.loaded[key]={...c,ok:true,cached:true};return state.loaded[key];}
+  state.loaded[key]={ok:false,text:'',error:String(e)};return state.loaded[key];}
 }
 
-function compact(value) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim();
-}
+function cleanLine(raw){return String(raw||'').replace(/^\uFEFF/,'').replace(/^\s{0,3}#{1,6}\s*/,'').replace(/\*\*(.*?)\*\*/g,'$1').replace(/`([^`]+)`/g,'$1').trim();}
 
-function setTs() {
-  const t = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  document.getElementById('ts').innerHTML = 'Updated: <span>' + t + '</span>';
-}
-
-function saveCache(key, payload) {
-  try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(payload)); } catch (_) {}
-}
-
-function readCache(key) {
-  try {
-    const raw = localStorage.getItem(CACHE_PREFIX + key);
-    return raw ? JSON.parse(raw) : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-async function fetchText(url, ms = 12000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    const response = await fetch(url, {
-      cache: 'no-store',
-      signal: controller.signal,
-      headers: { Accept: 'text/plain, text/markdown, */*' }
-    });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    return await response.text();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function loadSource(key, spec) {
-  const attempts = [spec.url, ...(spec.fallbacks || [])];
-  let lastError = null;
-
-  for (const base of attempts) {
-    const separator = base.includes('?') ? '&' : '?';
-    const url = base + separator + 'v=' + Date.now();
-    try {
-      const text = await fetchText(url);
-      const payload = { ok: true, cached: false, url: base, at: Date.now(), text };
-      state.loaded[key] = payload;
-      saveCache(key, payload);
-      return payload;
-    } catch (error) {
-      lastError = error;
+function parseChecklist(text){
+  const lines=String(text||'').split(/\r?\n/);
+  const sections=[];let current=null;
+  for(const raw of lines){
+    const line=cleanLine(raw);if(!line)continue;
+    const sm=line.match(/^(?:PRIORITY\s+)?(\d+)\s*[—\-:]\s*(.+)$/i);
+    if(sm&&!raw.match(/^\s*[-*+]\s*\[/)){
+      current={number:Number(sm[1]),title:'PRIORITY '+sm[1]+' — '+compact(sm[2]),items:[]};
+      sections.push(current);continue;
     }
+    if(!current)continue;
+    const cm=raw.match(/^\s*(?:[-*+]\s*)?\[(x|X| )\]\s+(.+?)$/);
+    if(cm){current.items.push({kind:'check',done:cm[1].toLowerCase()==='x',text:compact(cleanLine(cm[2]))});continue;}
+    if(/^[A-Za-z].{0,180}$/.test(line)){current.items.push({kind:'note',done:false,text:compact(line)});}
   }
+  const normalized=sections.map(s=>{
+    const seen=new Set();const items=s.items.filter(i=>{const k=i.kind+'|'+i.done+'|'+i.text;if(seen.has(k))return false;seen.add(k);return true;});
+    const total=items.filter(i=>i.kind==='check').length;
+    const done=items.filter(i=>i.kind==='check'&&i.done).length;
+    return{...s,items,total,done,percent:total?Math.round(done/total*100):0,isActive:total>0?done<total:false};
+  }).filter(s=>s.items.length>0);
+  const total=normalized.reduce((a,s)=>a+s.total,0);
+  const done=normalized.reduce((a,s)=>a+s.done,0);
+  return{sections:normalized,total,done,active:normalized.find(s=>s.isActive)||normalized[0]||null};
+}
 
-  const cached = readCache(key);
-  if (cached && cached.text) {
-    state.loaded[key] = { ...cached, ok: true, cached: true };
-    return state.loaded[key];
+function parseProjectState(text){
+  const lines=String(text||'').split(/\r?\n/);
+  let status='',next='',updated='';
+  for(let i=0;i<lines.length;i++){
+    const l=cleanLine(lines[i]);
+    if(!status&&/^(Status|Current status)\s*[:\-]/i.test(l))status=l.replace(/^[^:]+:\s*/,'').trim()||cleanLine(lines[i+1]||'');
+    if(!next&&/^(Next priority|Next|NEXT PRIORITY)\s*[:\-]/i.test(l))next=l.replace(/^[^:]+:\s*/,'').trim()||cleanLine(lines[i+1]||'');
+    if(!updated){const m=l.match(/(?:Last Updated|Updated)\s*[:\-]\s*(.+)/i);if(m)updated=m[1].trim();}
   }
-
-  state.loaded[key] = {
-    ok: false,
-    cached: false,
-    url: spec.url,
-    at: Date.now(),
-    text: '',
-    error: lastError ? String(lastError.message || lastError) : 'Unknown fetch error'
-  };
-  return state.loaded[key];
+  return{status,next,updated};
 }
 
-function cleanTextLine(raw) {
-  return String(raw || '')
-    .replace(/^\uFEFF/, '')
-    .replace(/^\s{0,3}#{1,6}\s*/, '')
-    .replace(/^\s*>\s?/, '')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/__(.*?)__/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .trim();
+function renderRoadmap(lanes){
+  const grid=document.getElementById('roadmapGrid');
+  grid.innerHTML=lanes.map(l=>{
+    const sc=l.status==='done'?'lane-done':l.status==='active'?'lane-active':l.status==='next'?'lane-next':'';
+    const ic=l.status==='done'?'lid-done':l.status==='active'?'lid-active':l.status==='next'?'lid-next':'lid-pend';
+    const bc=l.status==='done'?'lb-done':l.status==='active'?'lb-active':l.status==='next'?'lb-next':'lb-pend';
+    const bl=l.status==='done'?'DONE':l.status==='active'?'ACTIVE':l.status==='next'?'NEXT':'—';
+    const tc=l.tier==='MAJOR'?'lt-major':l.tier==='STANDARD'?'lt-std':'lt-minor';
+    const pct=l.status==='done'?100:l.status==='active'?25:0;
+    return`<div class="lane-row ${sc}">
+      <span class="lane-id ${ic}">${esc(l.id)}</span>
+      <span class="lane-name">${esc(l.name)}</span>
+      <span class="lane-tier ${tc}">${esc(l.tier)}</span>
+      <span class="lane-badge ${bc}">${bl}</span>
+      <div class="lane-bar-wrap"><div class="lane-bar"><div class="lane-bar-fill" style="width:${pct}%"></div></div></div>
+    </div>`;
+  }).join('');
 }
 
-function parseChecklist(text) {
-  const lines = String(text || '').split(/\r?\n/);
-  const sections = [];
-  let current = null;
-
-  for (const rawLine of lines) {
-    const line = cleanTextLine(rawLine);
-    if (!line) continue;
-
-    const sectionMatch = line.match(/^PRIORITY\s+(\d+)\s*[—-]\s*(.+)$/i);
-    if (sectionMatch) {
-      current = {
-        number: Number(sectionMatch[1]),
-        title: 'PRIORITY ' + sectionMatch[1] + ' — ' + compact(sectionMatch[2]),
-        items: []
-      };
-      sections.push(current);
-      continue;
-    }
-
-    if (!current) continue;
-
-    const checkMatch = rawLine.match(/^\s*(?:[-*+]\s*)?\[(x|X| )\]\s+(.+?)\s*$/);
-    if (checkMatch) {
-      current.items.push({
-        kind: 'check',
-        done: checkMatch[1].toLowerCase() === 'x',
-        text: compact(cleanTextLine(checkMatch[2]))
-      });
-      continue;
-    }
-
-    if (/^(Status Snapshot|Latest attempt|Done Condition|Simple Execution Order|Right Now|Current truth|Purpose|Validation|Execution notes?|Acceptance)\b/i.test(line)) {
-      current.items.push({ kind: 'note', done: false, text: compact(line) });
-      continue;
-    }
-
-    if (/^(DONE|ACTIVE|NEXT)\b/i.test(line)) {
-      current.items.push({ kind: 'note', done: false, text: compact(line) });
-      continue;
-    }
-
-    if (/^\d+\.\s+/.test(line)) {
-      current.items.push({ kind: 'note', done: false, text: compact(line.replace(/^\d+\.\s+/, '')) });
-      continue;
-    }
-
-    if (/^[A-Za-z].{0,180}$/.test(line)) {
-      current.items.push({ kind: 'note', done: false, text: compact(line) });
-    }
-  }
-
-  const normalized = sections
-    .map((section) => {
-      const seen = new Set();
-      const items = section.items.filter((item) => {
-        const key = item.kind + '|' + item.done + '|' + item.text;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      const total = items.filter((item) => item.kind === 'check').length;
-      const done = items.filter((item) => item.kind === 'check' && item.done).length;
-      const percent = total ? Math.round((done / total) * 100) : 0;
-      return {
-        ...section,
-        items,
-        total,
-        done,
-        percent,
-        isActive: total > 0 ? done < total : false
-      };
-    })
-    .filter((section) => section.items.length > 0);
-
-  const total = normalized.reduce((sum, section) => sum + section.total, 0);
-  const done = normalized.reduce((sum, section) => sum + section.done, 0);
-  const active = normalized.find((section) => section.isActive) || normalized[0] || null;
-
-  return { sections: normalized, total, done, active };
+function renderActivityFeed(){
+  const ps=state.projectState;
+  const items=[
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED',title:'R1–R11 import merged via PR #852 — SENTINEL PASS (84/100)'},
+    {dot:'fd-g',tag:'ft-merged',label:'SYNCED',title:'Post-merge state sync — PR #854 merged. ROADMAP + CHANGELOG + PROJECT_STATE updated.'},
+    {dot:'fd-b',tag:'ft-open',label:'ACTIVE',title:'R12a — CI/CD Pipeline (GitHub Actions) — NEXT PRIORITY'},
+    {dot:'fd-y',tag:'ft-warn',label:'NOTE',title:'C1: Idempotency key on order placement — resolved. C2: Risk constants frozen. C3: Deposit handler hardened.'},
+    {dot:'fd-b',tag:'ft-info',label:'STATE',title:ps.updated?'Last updated: '+ps.updated:'State files synced'},
+  ];
+  document.getElementById('activityFeedCount').textContent=String(items.length);
+  document.getElementById('activityFeed').innerHTML=items.map((item,i)=>`
+    <div class="feed-item">
+      ${i<items.length-1?'<div class="feed-line"></div>':''}
+      <div class="feed-dot ${item.dot}"></div>
+      <div class="feed-content">
+        <div class="feed-title">${esc(item.title)}</div>
+        <div class="feed-meta"><span class="feed-tag ${item.tag}">${item.label}</span></div>
+      </div>
+    </div>`).join('');
 }
 
-function extractBlock(text, patterns, maxLines = 8) {
-  const lines = String(text || '').split(/\r?\n/);
-  const knownHeadings = /^(Current status|Overall status|Status snapshot|Next priority|Immediate next|Next step|Right now|Current project|Active project|Project focus|Focus|Roadmap|Phase|Blockers?|Risks?|Known issues|Open issues)\b/i;
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const raw = lines[i];
-    const clean = cleanTextLine(raw);
-    if (!clean) continue;
-    if (!patterns.some((pattern) => pattern.test(clean))) continue;
-
-    const out = [];
-    const inline = clean.includes(':') ? clean.split(':').slice(1).join(':').trim() : '';
-    if (inline && inline !== clean) out.push(inline);
-
-    for (let j = i + 1; j < lines.length && out.length < maxLines; j += 1) {
-      const rawNext = lines[j];
-      const next = cleanTextLine(rawNext);
-      if (!next) {
-        if (out.length) break;
-        continue;
-      }
-      if (/^\s{0,3}#{1,6}\s+/.test(rawNext)) break;
-      if (knownHeadings.test(next)) break;
-      out.push(next.replace(/^[-*+]\s+/, '').trim());
-    }
-
-    if (out.length) return compact(out.join(' '));
-  }
-
-  return '';
-}
-
-function extractList(text, patterns, maxItems = 6) {
-  const block = extractBlock(text, patterns, maxItems);
-  if (!block) return [];
-  return block
-    .split(/\s+(?:(?:\d+\.)|[•\-–])\s+/)
-    .map((item) => compact(item))
-    .filter(Boolean)
-    .slice(0, maxItems);
-}
-
-function parseProjectState(text) {
-  const activeProject = extractBlock(text, [/^(Active project|Current project|Project focus|Focus|Project)\b/i], 4);
-  const currentStatus = extractBlock(text, [/^(Current status|Overall status|Status snapshot|Project status|Current truth)\b/i], 8);
-  const nextPriority = extractBlock(text, [/^(Next priority|Immediate next|Next step|Right now|Next)\b/i], 8);
-  const blockers = extractList(text, [/^(Blockers?|Risks?|Known issues|Open issues)\b/i], 6);
-  const updatedMatch = String(text || '').match(/(?:Last updated|Updated|Timestamp)\s*[:\-]\s*(.+)/i);
-  return {
-    activeProject: activeProject || 'projects/polymarket/polyquantbot',
-    currentStatus: currentStatus || '',
-    nextPriority: nextPriority || '',
-    blockers,
-    updatedAt: updatedMatch ? compact(updatedMatch[1]) : ''
-  };
-}
-
-function parseRoadmap(text) {
-  const lines = String(text || '').split(/\r?\n/);
-  const phases = [];
-  let current = null;
-
-  function finalize() {
-    if (!current) return;
-    const blob = compact(current.lines.join(' '));
-    let status = 'pending';
-    if (/\b(done|complete|completed|accepted|merged)\b/i.test(current.statusText || blob)) status = 'done';
-    else if (/\b(in progress|current|active|ongoing|next|priority)\b/i.test(current.statusText || blob)) status = 'progress';
-    current.summary = blob.slice(0, 240);
-    current.status = status;
-    phases.push(current);
-    current = null;
-  }
-
-  for (const rawLine of lines) {
-    const clean = cleanTextLine(rawLine);
-    if (!clean) continue;
-
-    const match = clean.match(/^(?:\[(?:x|X| )\]\s*)?(Phase\s+[\d.]+)\s*[—:\-]?\s*(.*)$/i);
-    if (match) {
-      finalize();
-      current = {
-        phase: match[1],
-        name: compact(match[2] || match[1]),
-        lines: [],
-        statusText: /^\[(x|X)\]/.test(clean) ? 'done' : ''
-      };
-      continue;
-    }
-
-    if (!current) continue;
-    current.lines.push(clean);
-    if (/^(Status|State)\s*[:\-]/i.test(clean)) current.statusText += ' ' + clean;
-  }
-
-  finalize();
-  return { phases: phases.slice(0, 14) };
-}
-
-function firstOpenChecks(max = 6) {
-  const out = [];
-  for (const section of state.checklist.sections) {
-    for (const item of section.items) {
-      if (item.kind === 'check' && !item.done) out.push(item.text);
-      if (out.length >= max) return out;
-    }
-  }
-  return out;
-}
-
-function unique(items) {
-  return Array.from(new Set(items.map((item) => compact(item)).filter(Boolean)));
-}
-
-function deriveCurrentStatus() {
-  if (state.projectState.currentStatus) return state.projectState.currentStatus;
-  if (state.checklist.active) {
-    return state.checklist.active.title + ' is the active lane with ' + state.checklist.active.done + '/' + state.checklist.active.total + ' checks complete.';
-  }
-  return 'Live source truth loaded, but no explicit current status block was found.';
-}
-
-function deriveNextPriority() {
-  if (state.projectState.nextPriority) return state.projectState.nextPriority;
-  const firstOpen = firstOpenChecks(1)[0];
-  if (firstOpen) return firstOpen;
-  const roadmapActive = state.roadmap.phases.find((phase) => phase.status === 'progress');
-  if (roadmapActive) return roadmapActive.phase + ' — ' + roadmapActive.name;
-  return 'No explicit next priority found in the loaded source truth.';
-}
-
-function inferIssues() {
-  return unique([...(state.projectState.blockers || []), ...firstOpenChecks(6)]).slice(0, 6);
-}
-
-function sourceStateLabel(info) {
-  if (!info || !info.ok) return 'UNAVAILABLE';
-  return info.cached ? 'CACHED' : 'LIVE';
-}
-
-function renderMetrics() {
-  const done = state.checklist.done || 0;
-  const total = state.checklist.total || 0;
-  const open = Math.max(total - done, 0);
-  const pct = total ? Math.round((done / total) * 100) : 0;
-  document.getElementById('metricDone').textContent = String(done);
-  document.getElementById('metricOpen').textContent = String(open);
-  document.getElementById('metricPct').textContent = total ? pct + '%' : '—';
-  document.getElementById('metricRatio').textContent = total ? done + '/' + total + ' checked' : 'No checklist items parsed';
-  document.getElementById('metricActive').textContent = state.checklist.active ? 'P' + state.checklist.active.number : '—';
-  document.getElementById('laneCountBadge').textContent = String(state.checklist.sections.length || 0);
-  document.getElementById('sectionCountBadge').textContent = String(state.checklist.sections.length || 0);
-}
-
-function renderSummary() {
-  document.getElementById('currentStatusText').textContent = deriveCurrentStatus();
-  document.getElementById('nextPriorityText').textContent = deriveNextPriority();
-}
-
-function renderOverview() {
-  const wrap = document.getElementById('priorityOverview');
-  wrap.innerHTML = '';
-
-  if (!state.checklist.sections.length) {
-    wrap.innerHTML = '<div class="phase-row"><span class="phase-name">Unable to parse checklist lanes from source truth.</span></div>';
+function renderChecklist(){
+  const todoBody=document.getElementById('todoBody');
+  document.getElementById('sectionCountBadge').textContent=String(state.checklist.sections.length||0);
+  todoBody.innerHTML='';
+  if(!state.checklist.sections.length){
+    todoBody.innerHTML='<div style="font-family:var(--font-m);font-size:11px;color:var(--gray2);">No checklist data from source. Check repo path or network.</div>';
     return;
   }
-
-  state.checklist.sections.forEach((section, idx) => {
-    const badgeClass = section.percent === 100 ? 'pb-done' : (section.percent > 0 ? 'pb-prog' : 'pb-pend');
-    const row = document.createElement('div');
-    row.className = 'phase-row ' + (idx === 0 ? 'active' : '') + ' ' + (section.percent === 100 ? 'done' : '');
-    row.innerHTML = `
-      <span class="phase-num">P${section.number}</span>
-      <span class="phase-name">${esc(section.title)}</span>
-      <span class="phase-badge ${badgeClass}">${section.total ? section.percent + '%' : 'notes'}</span>
-      <div class="phase-bar-wrap"><div class="phase-bar"><div class="phase-bar-fill" style="width:${section.percent}%"></div></div></div>
-    `;
-    wrap.appendChild(row);
-  });
-}
-
-function renderChecklist() {
-  const sourceBits = Object.entries(SOURCES).map(([key, spec]) => spec.label + ': ' + sourceStateLabel(state.loaded[key]));
-  document.getElementById('checklistSourceStatus').textContent = sourceBits.join(' · ');
-
-  todoBody.querySelectorAll('.todo-section').forEach((node) => node.remove());
-
-  if (!state.checklist.sections.length) return;
-
-  state.checklist.sections.forEach((section, idx) => {
-    const secEl = document.createElement('div');
-    secEl.className = 'todo-section';
-    secEl.setAttribute('data-search', (section.title + ' ' + section.items.map((item) => item.text).join(' ')).toLowerCase());
-    const statusTag = section.percent === 100
-      ? '<span class="feed-tag ft-merged">done</span>'
-      : (idx === 0 ? '<span class="feed-tag ft-open">active</span>' : '<span class="feed-tag ft-info">queued</span>');
-
-    secEl.innerHTML = `
-      <div class="todo-head"><div><div class="todo-title">${esc(section.title)}</div><div class="todo-meta">${section.done}/${section.total} complete</div></div>${statusTag}</div>
-      <div class="todo-sub">
-        <div class="todo-sub-head">Checklist items</div>
-        <div class="todo-items">
-          ${section.items.map((item) => {
-            const isDone = item.kind === 'check' && item.done;
-            const cssClass = isDone ? 'td-done' : (item.kind === 'check' ? 'td-open' : 'td-note');
-            const marker = isDone ? '✓' : (item.kind === 'check' ? '○' : '•');
-            const doneFlag = isDone ? '1' : '0';
-            return `<div class="todo-item ${cssClass}" data-done="${doneFlag}"><div class="todo-dot">${marker}</div><div class="todo-text">${esc(item.text)}</div></div>`;
-          }).join('')}
-        </div>
-      </div>
-    `;
+  state.checklist.sections.forEach((section,idx)=>{
+    const statusTag=section.percent===100?'<span class="feed-tag ft-merged">done</span>':(idx===0?'<span class="feed-tag ft-open">active</span>':'<span class="feed-tag ft-info">queued</span>');
+    const secEl=document.createElement('div');
+    secEl.className='todo-section';
+    secEl.setAttribute('data-search',(section.title+' '+section.items.map(i=>i.text).join(' ')).toLowerCase());
+    secEl.innerHTML=`<div class="todo-head"><div><div class="todo-title">${esc(section.title)}</div><div class="todo-meta">${section.done}/${section.total} complete</div></div>${statusTag}</div>
+    <div class="todo-sub"><div class="todo-sub-head">Checklist items</div><div class="todo-items">
+    ${section.items.map(item=>{
+      const isDone=item.kind==='check'&&item.done;
+      const css=isDone?'td-done':item.kind==='check'?'td-open':'td-note';
+      const marker=isDone?'✓':item.kind==='check'?'○':'•';
+      return`<div class="todo-item ${css}" data-done="${isDone?1:0}"><div class="todo-dot">${marker}</div><div class="todo-text">${esc(item.text)}</div></div>`;
+    }).join('')}
+    </div></div>`;
     todoBody.appendChild(secEl);
   });
 }
 
-function renderActivityFeed() {
-  const feed = document.getElementById('activityFeed');
-  const items = [];
-
-  items.push({ dot: 'fd-g', time: sourceStateLabel(state.loaded.checklist), tagClass: 'ft-merged', tag: 'CHECKLIST', title: (state.loaded.checklist && state.loaded.checklist.ok ? 'Checklist source loaded from ' + state.loaded.checklist.url : 'Checklist source unavailable') });
-  items.push({ dot: 'fd-b', time: sourceStateLabel(state.loaded.projectState), tagClass: 'ft-open', tag: 'STATE', title: (state.projectState.activeProject || 'projects/polymarket/polyquantbot') + ' remains the active project context' });
-
-  if (state.checklist.active) {
-    items.push({ dot: 'fd-b', time: 'P' + state.checklist.active.number, tagClass: 'ft-open', tag: 'LANE', title: state.checklist.active.title + ' is the active checklist lane' });
-  }
-
-  const roadmapActive = state.roadmap.phases.find((phase) => phase.status === 'progress') || state.roadmap.phases[0];
-  if (roadmapActive) {
-    items.push({ dot: roadmapActive.status === 'done' ? 'fd-g' : 'fd-y', time: sourceStateLabel(state.loaded.roadmap), tagClass: roadmapActive.status === 'done' ? 'ft-merged' : 'ft-info', tag: 'ROADMAP', title: roadmapActive.phase + ' — ' + roadmapActive.name });
-  }
-
-  items.push({ dot: 'fd-y', time: 'NEXT', tagClass: 'ft-info', tag: 'FOCUS', title: deriveNextPriority() });
-
-  document.getElementById('activityFeedCount').textContent = String(items.length);
-  feed.innerHTML = items.map((item, idx) => `
-    <div class="feed-item">
-      ${idx < items.length - 1 ? '<div class="feed-line"></div>' : ''}
-      <div class="feed-dot ${item.dot}"></div>
-      <div class="feed-content">
-        <div class="feed-title">${esc(item.title)}</div>
-        <div class="feed-meta"><span class="feed-time">${esc(item.time)}</span><span class="feed-tag ${item.tagClass}">${esc(item.tag)}</span></div>
-      </div>
-    </div>
-  `).join('');
+function renderKnownIssues(){
+  const issues=[
+    'Deposit gate has no validation tier — non-blocking, flagged for R12+ cleanup',
+    'services/* dead code (inactive modules) — non-blocking',
+    'CHANGELOG format contract needs update: allow multi-section for compound lane closures',
+  ];
+  document.getElementById('knownIssuesCount').textContent=String(issues.length);
+  document.getElementById('knownIssuesBody').innerHTML=issues.map(i=>`<div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">${esc(i)}</div></div></div>`).join('');
 }
 
-function renderKnownIssues() {
-  const wrap = document.getElementById('knownIssuesBody');
-  const issues = inferIssues();
-  document.getElementById('knownIssuesCount').textContent = String(issues.length);
+function applyFilters(){
+  const q=document.getElementById('searchInput').value.trim().toLowerCase();
+  const hideDone=document.getElementById('hideDone').checked;
+  document.querySelectorAll('.todo-section').forEach(s=>{s.style.display=(!q||s.getAttribute('data-search').includes(q))?'':'none';});
+  document.querySelectorAll('[data-done="1"]').forEach(el=>el.classList.toggle('hidden-item',hideDone));
+}
 
-  if (!issues.length) {
-    wrap.innerHTML = '<div class="feed-item"><div class="feed-dot fd-g"></div><div class="feed-content"><div class="feed-title">No explicit blockers were extracted from the loaded source truth.</div></div></div>';
-    return;
+async function loadAll(){
+  setTs();
+  renderRoadmap(STATIC_ROADMAP); // show immediately
+  document.getElementById('roadmapSourceLabel').textContent='static fallback';
+
+  const [psSrc,wdSrc,rmSrc]=await Promise.all([loadSource('projectState'),loadSource('worktodo'),loadSource('roadmap')]);
+
+  // Update HUD from PROJECT_STATE
+  if(psSrc.ok){
+    const ps=parseProjectState(psSrc.text);
+    state.projectState=ps;
+    if(ps.status)document.getElementById('currentStatusText').textContent=ps.status;
+    if(ps.next)document.getElementById('nextPriorityText').textContent=ps.next;
   }
 
-  wrap.innerHTML = issues.map((issue) => `
-    <div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">${esc(issue)}</div></div></div>
-  `).join('');
-}
+  // Update checklist from WORKTODO
+  if(wdSrc.ok){
+    state.checklist=parseChecklist(wdSrc.text);
+    document.getElementById('checklistSourceLabel').textContent=wdSrc.cached?'CACHED':'LIVE';
+    if(state.checklist.active){
+      document.getElementById('metricActive').textContent='P'+state.checklist.active.number;
+      document.getElementById('metricActiveSub').textContent=state.checklist.active.title.replace(/^PRIORITY \d+ — /,'').substring(0,28);
+    }
+  }
 
-function applyFilters() {
-  const q = searchInput.value.trim().toLowerCase();
-  document.querySelectorAll('.todo-section').forEach((section) => {
-    const text = section.getAttribute('data-search') || '';
-    section.style.display = (!q || text.includes(q)) ? '' : 'none';
-  });
-  document.querySelectorAll('[data-done="1"]').forEach((el) => {
-    el.classList.toggle('hidden-item', hideDone.checked);
-  });
-}
-
-async function loadAll() {
-  document.getElementById('checklistSourceStatus').textContent = 'Loading source truth...';
-
-  const [checklistSrc, projectStateSrc, roadmapSrc] = await Promise.all([
-    loadSource('checklist', SOURCES.checklist),
-    loadSource('projectState', SOURCES.projectState),
-    loadSource('roadmap', SOURCES.roadmap)
-  ]);
-
-  state.checklist = parseChecklist(checklistSrc.text);
-  state.projectState = parseProjectState(projectStateSrc.text);
-  state.roadmap = parseRoadmap(roadmapSrc.text);
-
-  renderMetrics();
-  renderSummary();
-  renderOverview();
   renderChecklist();
   renderActivityFeed();
   renderKnownIssues();
   applyFilters();
+
+  document.getElementById('searchInput').addEventListener('input',applyFilters);
+  document.getElementById('hideDone').addEventListener('change',applyFilters);
 }
 
-searchInput.addEventListener('input', applyFilters);
-hideDone.addEventListener('change', applyFilters);
-setTs();
 loadAll();
 </script>
 </body>

@@ -1,693 +1,301 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>Work To-Do — WalkerMind OS</title>
-  <meta name="description" content="Task tracking, priorities, and execution queue for CrusaderBot." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M6 8 L16 24 L26 8' stroke='%2300a8ff' stroke-width='3' fill='none' stroke-linejoin='round'/%3E%3Cpath d='M11 14 L16 22 L21 14' stroke='%2300d4aa' stroke-width='2' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>Work To-Do — CrusaderBot · WalkerMind OS</title>
+  <meta name="description" content="Task tracking, priorities, and execution queue — CrusaderBot on Polymarket."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M6 8 L16 24 L26 8' stroke='%2300a8ff' stroke-width='3' fill='none' stroke-linejoin='round'/%3E%3Cpath d='M11 14 L16 22 L21 14' stroke='%2300d4aa' stroke-width='2' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E"/>
   <style>
-  :root {
-    --bg:        #0a0a0a;
-    --bg2:       #0e1014;
-    --bg3:       #14181f;
-    --bg4:       #1a1f28;
-    --border:    #1d232c;
-    --border2:   #2a323e;
-    --border3:   #3a4452;
-    --blue:      #00a8ff;
-    --blue2:     #29c0ff;
-    --green:     #00d4aa;
-    --green2:    #2ee8c0;
-    --magenta:   #a855f7;
-    --white:     #ffffff;
-    --gray:      #a0a0a0;
-    --gray2:     #5a6573;
-    --gray3:     #3a4452;
-    --red:       #ff4455;
-    --yellow:    #fbbf24;
-    --purple:    #a78bfa;
-    --grad:      linear-gradient(135deg, var(--blue) 0%, var(--green) 100%);
-    --grad-text: linear-gradient(90deg, #ffffff 0%, #00a8ff 50%, #00d4aa 100%);
-    --grad-line: linear-gradient(90deg, transparent, var(--blue) 35%, var(--green) 65%, transparent);
-    --glow-blue: 0 0 12px rgba(0,168,255,0.45);
+  :root{
+    --bg:#0a0a0a;--bg2:#0e1014;--bg3:#14181f;--bg4:#1a1f28;
+    --border:#1d232c;--border2:#2a323e;--border3:#3a4452;
+    --blue:#00a8ff;--green:#00d4aa;--white:#ffffff;
+    --gray:#a0a0a0;--gray2:#5a6573;--gray3:#3a4452;
+    --red:#ff4455;--yellow:#fbbf24;--purple:#a78bfa;
+    --grad:linear-gradient(135deg,var(--blue) 0%,var(--green) 100%);
+    --grad-text:linear-gradient(90deg,#ffffff 0%,#00a8ff 50%,#00d4aa 100%);
+    --grad-line:linear-gradient(90deg,transparent,var(--blue) 35%,var(--green) 65%,transparent);
+    --glow-blue:0 0 12px rgba(0,168,255,0.45);
     --glow-green:0 0 12px rgba(0,212,170,0.45);
-    --font-h:    'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-b:    'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-m:    'JetBrains Mono', 'Menlo', 'Courier New', monospace;
-    --max:       1100px;
+    --font-h:'Space Grotesk',-apple-system,sans-serif;
+    --font-b:'Inter',-apple-system,sans-serif;
+    --font-m:'JetBrains Mono','Menlo','Courier New',monospace;
+    --max:1100px;
   }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--white);font-family:var(--font-b);font-size:15px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 100% 100% at 50% -10%,rgba(0,168,255,0.04) 0%,transparent 60%),radial-gradient(ellipse 80% 60% at 100% 100%,rgba(0,212,170,0.03) 0%,transparent 60%);}
+  body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,0.01) 0px,rgba(255,255,255,0.01) 1px,transparent 1px,transparent 3px);}
 
-  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+  #wm-nav{position:sticky;top:0;z-index:100;padding:14px 0;background:rgba(10,10,10,0.85);border-bottom:1px solid var(--border);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
+  #wm-nav::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--grad-line);opacity:0.4;}
+  .nav-row{max-width:var(--max);margin:0 auto;padding:0 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;}
+  .nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--white);}
+  .nav-brand-mark{width:22px;height:22px;border:1px solid var(--blue);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(0,168,255,0.3),inset 0 0 8px rgba(0,168,255,0.12);}
+  .nav-brand-mark svg{width:13px;height:13px;}
+  .nav-brand-name{font-family:var(--font-h);font-size:13px;font-weight:700;letter-spacing:0.06em;}
+  .nav-brand-name em{font-style:normal;color:var(--blue);}
+  .nav-links{display:flex;align-items:center;gap:20px;}
+  .nav-links a{font-family:var(--font-m);font-size:11px;font-weight:500;color:var(--gray);text-decoration:none;letter-spacing:0.08em;text-transform:uppercase;transition:color 0.2s;padding:4px 0;}
+  .nav-links a:hover,.nav-links a.active{color:var(--white);}
+  .nav-links a.active{color:var(--blue);}
+  .nav-status{font-family:var(--font-m);font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--green);display:inline-flex;align-items:center;gap:6px;}
+  .nav-status::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse-dot 1.6s ease-in-out infinite;}
+  @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.3;transform:scale(0.7);}}
 
-  body {
-    background: var(--bg);
-    color: var(--white);
-    font-family: var(--font-b);
-    font-size: 15px;
-    line-height: 1.6;
-    overflow-x: hidden;
-    -webkit-font-smoothing: antialiased;
-    min-height: 100vh;
-  }
+  .wm-wrap{max-width:var(--max);margin:0 auto;padding:40px 32px 100px;position:relative;z-index:1;}
 
-  /* Global bg overlays — same as landing page */
-  body::before {
-    content: '';
-    position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background:
-      radial-gradient(ellipse 100% 100% at 50% -10%, rgba(0,168,255,0.04) 0%, transparent 60%),
-      radial-gradient(ellipse 80% 60% at 100% 100%, rgba(0,212,170,0.03) 0%, transparent 60%);
-  }
-  body::after {
-    content: '';
-    position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.01) 0px, rgba(255,255,255,0.01) 1px, transparent 1px, transparent 3px);
-  }
+  .page-header{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border);position:relative;}
+  .page-header::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--grad-line);opacity:0.3;}
+  .page-eyebrow{font-family:var(--font-m);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:var(--blue);margin-bottom:10px;display:inline-flex;align-items:center;gap:10px;}
+  .page-eyebrow::before{content:'';width:24px;height:1px;background:var(--blue);box-shadow:var(--glow-blue);}
+  .page-title{font-family:var(--font-h);font-size:clamp(24px,3.5vw,38px);font-weight:700;letter-spacing:-0.02em;line-height:1.1;background:var(--grad-text);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px;}
+  .page-sub{font-size:14px;color:var(--gray);line-height:1.7;max-width:600px;}
+  .page-header-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;}
 
-  /* ── NAV ── */
-  #wm-nav {
-    position: sticky; top: 0; left: 0; right: 0; z-index: 100;
-    padding: 14px 0;
-    background: rgba(10,10,10,0.85);
-    border-bottom: 1px solid var(--border);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-  }
-  #wm-nav::after {
-    content: '';
-    position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
-    background: var(--grad-line); opacity: 0.4;
-  }
-  .nav-row {
-    max-width: var(--max); margin: 0 auto; padding: 0 32px;
-    display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  }
-  .nav-brand {
-    display: flex; align-items: center; gap: 10px;
-    text-decoration: none; color: var(--white);
-  }
-  .nav-brand-mark {
-    width: 22px; height: 22px;
-    border: 1px solid var(--blue); border-radius: 4px;
-    display: inline-flex; align-items: center; justify-content: center;
-    box-shadow: 0 0 10px rgba(0,168,255,0.3), inset 0 0 8px rgba(0,168,255,0.12);
-  }
-  .nav-brand-mark svg { width: 13px; height: 13px; }
-  .nav-brand-name {
-    font-family: var(--font-h); font-size: 13px; font-weight: 700;
-    letter-spacing: 0.06em;
-  }
-  .nav-brand-name em { font-style: normal; color: var(--blue); }
-  .nav-links { display: flex; align-items: center; gap: 20px; }
-  .nav-links a {
-    font-family: var(--font-m); font-size: 11px; font-weight: 500;
-    color: var(--gray); text-decoration: none;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    transition: color 0.2s;
-    padding: 4px 0;
-  }
-  .nav-links a:hover, .nav-links a.active { color: var(--white); }
-  .nav-links a.active { color: var(--blue); }
-  .nav-status {
-    font-family: var(--font-m); font-size: 10px;
-    letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--green); display: inline-flex; align-items: center; gap: 6px;
-  }
-  .nav-status::before {
-    content: ''; width: 5px; height: 5px; border-radius: 50%;
-    background: var(--green); box-shadow: 0 0 6px var(--green);
-    animation: pulse-dot 1.6s ease-in-out infinite;
-  }
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50%       { opacity: 0.3; transform: scale(0.7); }
-  }
+  .hud{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-bottom:28px;background:var(--border);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .hud-cell{background:rgba(14,16,20,0.9);padding:20px 18px;position:relative;}
+  .hud-cell::before{content:'';position:absolute;top:12px;left:12px;width:4px;height:4px;border-top:1px solid var(--blue);border-left:1px solid var(--blue);opacity:0.5;}
+  .hud-label{font-family:var(--font-m);font-size:8px;color:var(--gray2);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;}
+  .hud-val{font-family:var(--font-h);font-size:30px;font-weight:700;line-height:1;color:var(--white);}
+  .hud-val.c-blue{color:var(--blue);}
+  .hud-val.c-green{color:var(--green);}
+  .hud-val.c-yellow{color:var(--yellow);}
+  .hud-val.c-purple{color:var(--purple);}
+  .hud-sub{font-family:var(--font-m);font-size:9px;color:var(--gray2);margin-top:4px;}
 
-  /* ── WRAP ── */
-  .wm-wrap {
-    max-width: var(--max); margin: 0 auto;
-    padding: 40px 32px 100px;
-    position: relative; z-index: 1;
-  }
+  .wm-banner{background:linear-gradient(135deg,rgba(0,168,255,0.05),rgba(0,212,170,0.04));border:1px solid rgba(0,168,255,0.2);border-radius:6px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:14px;}
+  .wm-banner.banner-next{border-color:rgba(0,212,170,0.2);}
+  .banner-icon{font-size:14px;flex-shrink:0;margin-top:1px;}
+  .banner-label{font-family:var(--font-m);font-size:9px;color:var(--blue);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;}
+  .banner-next .banner-label{color:var(--green);}
+  .banner-text{font-size:13px;color:var(--white);line-height:1.6;}
 
-  /* ── PAGE HEADER ── */
-  .page-header {
-    margin-bottom: 40px;
-    padding-bottom: 28px;
-    border-bottom: 1px solid var(--border);
-    position: relative;
-  }
-  .page-header::after {
-    content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
-    background: var(--grad-line); opacity: 0.3;
-  }
-  .page-eyebrow {
-    font-family: var(--font-m); font-size: 10px;
-    letter-spacing: 0.22em; text-transform: uppercase;
-    color: var(--blue); margin-bottom: 10px;
-    display: inline-flex; align-items: center; gap: 10px;
-  }
-  .page-eyebrow::before {
-    content: ''; width: 24px; height: 1px;
-    background: var(--blue); box-shadow: var(--glow-blue);
-  }
-  .page-title {
-    font-family: var(--font-h); font-size: clamp(24px, 3.5vw, 38px);
-    font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;
-    background: var(--grad-text);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    margin-bottom: 10px;
-  }
-  .page-sub {
-    font-size: 14px; color: var(--gray); line-height: 1.7; max-width: 600px;
-  }
-  .page-header-right {
-    position: absolute; top: 0; right: 0;
-    display: flex; align-items: center; gap: 10px;
-  }
+  .source-note{font-family:var(--font-m);font-size:9px;color:var(--gray2);margin-bottom:12px;}
+  .source-note code{color:var(--blue);background:rgba(0,168,255,0.06);padding:1px 5px;border-radius:3px;}
+  .live-indicator{display:inline-flex;align-items:center;gap:7px;background:rgba(0,212,170,0.05);border:1px solid rgba(0,212,170,0.2);border-radius:20px;padding:4px 12px;font-family:var(--font-m);font-size:9px;color:var(--green);letter-spacing:0.1em;}
+  .refresh-btn{font-family:var(--font-m);font-size:10px;letter-spacing:0.08em;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;color:var(--gray);transition:border-color 0.2s,color 0.2s;display:inline-flex;align-items:center;gap:6px;}
+  .refresh-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .ts{font-family:var(--font-m);font-size:9px;color:var(--gray2);}
+  .ts span{color:var(--blue);}
 
-  /* ── SECTION TAG ── */
-  .section-tag {
-    font-family: var(--font-m); font-size: 9px;
-    color: var(--gray2); letter-spacing: 0.2em;
-    text-transform: uppercase; margin-bottom: 12px;
-    display: block;
-  }
+  /* ── TASK SECTIONS ── */
+  .task-section{margin-bottom:32px;}
+  .task-section-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);position:relative;}
+  .task-section-head::after{content:'';position:absolute;left:0;bottom:-1px;height:1px;width:60px;background:var(--blue);box-shadow:var(--glow-blue);}
+  .task-section-head.g::after{background:var(--green);box-shadow:var(--glow-green);}
+  .task-section-head.y::after{background:var(--yellow);}
+  .task-section-head.gr::after{background:var(--gray2);}
+  .task-section-title{font-family:var(--font-h);font-size:17px;font-weight:700;letter-spacing:-0.01em;}
+  .task-section-count{font-family:var(--font-m);font-size:10px;color:var(--gray2);margin-left:auto;}
+  .task-list{display:flex;flex-direction:column;gap:8px;}
+  .task-item{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px 14px;display:flex;align-items:flex-start;gap:12px;transition:border-color 0.2s;}
+  .task-item:hover{border-color:var(--border2);}
+  .task-item.done{opacity:0.55;}
+  .task-item.done:hover{opacity:0.75;}
+  .task-icon{width:20px;height:20px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;margin-top:1px;font-family:var(--font-m);}
+  .ti-done{background:rgba(0,212,170,0.1);color:var(--green);border:1px solid rgba(0,212,170,0.25);}
+  .ti-prog{background:rgba(251,191,36,0.1);color:var(--yellow);border:1px solid rgba(251,191,36,0.25);}
+  .ti-pend{background:rgba(42,50,62,0.3);color:var(--gray2);border:1px solid var(--border2);}
+  .task-body{flex:1;min-width:0;}
+  .task-title{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:3px;}
+  .task-desc{font-size:12px;color:var(--gray);line-height:1.55;font-family:var(--font-m);}
+  .task-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-m);font-size:9px;padding:2px 7px;border-radius:3px;margin-top:5px;}
+  .tb-major{background:rgba(255,68,85,0.08);color:var(--red);border:1px solid rgba(255,68,85,0.2);}
+  .tb-std{background:rgba(251,191,36,0.06);color:var(--yellow);border:1px solid rgba(251,191,36,0.15);}
+  .tb-sentinel{background:rgba(167,139,250,0.08);color:var(--purple);border:1px solid rgba(167,139,250,0.2);}
 
-  /* ── HUD METRICS ── */
-  .hud {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1px;
-    margin-bottom: 28px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .hud-cell {
-    background: rgba(14,16,20,0.9);
-    padding: 20px 18px;
-    position: relative;
-  }
-  .hud-cell::before {
-    content: ''; position: absolute; top: 12px; left: 12px;
-    width: 4px; height: 4px;
-    border-top: 1px solid var(--blue); border-left: 1px solid var(--blue);
-    opacity: 0.5;
-  }
-  .hud-label {
-    font-family: var(--font-m); font-size: 8px;
-    color: var(--gray2); text-transform: uppercase; letter-spacing: 0.15em;
-    margin-bottom: 8px;
-  }
-  .hud-val {
-    font-family: var(--font-h);
-    font-size: 30px; font-weight: 700; line-height: 1;
-    color: var(--white);
-  }
-  .hud-val.c-blue { color: var(--blue); }
-  .hud-val.c-green { color: var(--green); }
-  .hud-val.c-yellow { color: var(--yellow); }
-  .hud-val.c-purple { color: var(--purple); }
-  .hud-sub { font-family: var(--font-m); font-size: 9px; color: var(--gray2); margin-top: 4px; }
+  /* ── PROGRESS BAR ── */
+  .progress-wrap{margin-bottom:24px;}
+  .progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .progress-label{font-family:var(--font-m);font-size:10px;color:var(--gray2);letter-spacing:0.1em;text-transform:uppercase;}
+  .progress-pct{font-family:var(--font-h);font-size:22px;font-weight:700;color:var(--green);}
+  .progress-bar{height:4px;background:var(--border2);border-radius:4px;overflow:hidden;}
+  .progress-fill{height:100%;background:var(--grad);transition:width 0.8s ease;}
 
-  /* ── BANNER ── */
-  .wm-banner {
-    background: linear-gradient(135deg, rgba(0,168,255,0.05), rgba(0,212,170,0.04));
-    border: 1px solid rgba(0,168,255,0.2);
-    border-radius: 6px; padding: 14px 18px;
-    margin-bottom: 16px;
-    display: flex; align-items: flex-start; gap: 14px;
-  }
-  .wm-banner.banner-next { border-color: rgba(0,212,170,0.2); }
-  .banner-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
-  .banner-label {
-    font-family: var(--font-m); font-size: 9px;
-    color: var(--blue); letter-spacing: 0.15em; text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-  .banner-next .banner-label { color: var(--green); }
-  .banner-text { font-size: 13px; color: var(--white); line-height: 1.6; }
+  .wm-btn{font-family:var(--font-m);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;text-decoration:none;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:9px 14px;color:var(--gray);transition:border-color 0.2s,color 0.2s;display:inline-flex;align-items:center;gap:6px;cursor:pointer;}
+  .wm-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .search-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
 
-  /* ── CARD ── */
-  .wm-card {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px; overflow: hidden;
-    margin-bottom: 12px;
-  }
-  .wm-card-head {
-    padding: 11px 16px;
-    background: var(--bg2);
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 10px;
-    cursor: pointer; user-select: none;
-    transition: background 0.2s;
-  }
-  .wm-card-head:hover { background: var(--bg3); }
-  .card-head-title {
-    font-family: var(--font-m); font-size: 9px;
-    letter-spacing: 0.15em; text-transform: uppercase;
-    color: var(--gray); flex: 1;
-  }
-  .card-head-badge {
-    font-family: var(--font-m); font-size: 9px;
-    padding: 2px 8px; border-radius: 10px;
-    background: rgba(42,50,62,0.8); color: var(--gray2);
-    border: 1px solid var(--border2);
-  }
-  .card-chev { color: var(--gray2); font-size: 10px; transition: transform 0.2s; }
-  .wm-card-head.closed .card-chev { transform: rotate(-90deg); }
-  .wm-card-body { padding: 16px; }
-  .wm-card-body.hidden { display: none; }
+  .wm-footer{border-top:1px solid var(--border);padding:24px 32px;margin-top:60px;background:var(--bg);position:relative;}
+  .wm-footer::before{content:'';position:absolute;left:0;right:0;top:-1px;height:1px;background:var(--grad-line);opacity:0.3;}
+  .footer-inner{max-width:var(--max);margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;}
+  .footer-copy{font-family:var(--font-m);font-size:10px;color:var(--gray2);}
+  .footer-copy em{font-style:normal;color:var(--blue);}
+  .footer-agents{display:flex;gap:6px;flex-wrap:wrap;}
+  .agent-tag{font-family:var(--font-m);font-size:9px;padding:3px 8px;border-radius:3px;letter-spacing:0.08em;}
+  .at-cmd{background:rgba(0,168,255,0.08);color:var(--blue);border:1px solid rgba(0,168,255,0.2);}
+  .at-forge{background:rgba(0,212,170,0.06);color:var(--green);border:1px solid rgba(0,212,170,0.15);}
+  .at-sent{background:rgba(251,191,36,0.06);color:var(--yellow);border:1px solid rgba(251,191,36,0.15);}
+  .at-echo{background:rgba(42,50,62,0.3);color:var(--gray2);border:1px solid var(--border);}
 
-  /* ── TWO COL ── */
-  .two-col {
-    display: grid; grid-template-columns: 1fr;
-    gap: 12px; margin-bottom: 12px;
+  @media(max-width:680px){
+    .wm-wrap{padding:24px 18px 80px;}
+    .nav-row{padding:0 18px;}
+    .hud{grid-template-columns:repeat(2,1fr);}
+    .nav-links a:not(:last-child){display:none;}
+    .wm-footer{padding:20px 18px;}
   }
-  @media(min-width: 680px) { .two-col { grid-template-columns: 1fr 1fr; } }
-
-  /* ── PHASE LIST ── */
-  .phase-list { display: flex; flex-direction: column; gap: 6px; }
-  .phase-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px; border-radius: 6px;
-    border: 1px solid var(--border); background: var(--bg2);
-    transition: border-color 0.2s;
-  }
-  .phase-row.active { border-color: rgba(0,168,255,0.3); }
-  .phase-row.done { border-color: rgba(0,212,170,0.2); }
-  .phase-num { font-family: var(--font-m); font-size: 9px; color: var(--gray2); width: 20px; }
-  .phase-name { font-size: 12px; flex: 1; font-weight: 500; }
-  .phase-badge {
-    font-family: var(--font-m); font-size: 9px;
-    padding: 2px 8px; border-radius: 10px;
-  }
-  .pb-done { background: rgba(0,212,170,0.08); color: var(--green); border: 1px solid rgba(0,212,170,0.2); }
-  .pb-prog { background: rgba(0,168,255,0.08); color: var(--blue); border: 1px solid rgba(0,168,255,0.2); }
-  .pb-pend { background: rgba(42,50,62,0.3); color: var(--gray2); border: 1px solid var(--border); }
-  .phase-bar-wrap { width: 44px; flex-shrink: 0; }
-  .phase-bar { height: 2px; background: var(--border2); border-radius: 2px; overflow: hidden; }
-  .phase-bar-fill { height: 100%; background: var(--grad); }
-
-  /* ── FEED ── */
-  .feed { display: flex; flex-direction: column; gap: 0; }
-  .feed-item {
-    display: flex; gap: 12px;
-    padding: 11px 0;
-    border-bottom: 1px solid rgba(29,35,44,0.8);
-    position: relative;
-  }
-  .feed-item:last-child { border-bottom: none; }
-  .feed-line {
-    position: absolute; left: 4px; top: 26px; bottom: -1px; width: 1px;
-    background: var(--border);
-  }
-  .feed-dot {
-    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-    margin-top: 2px; position: relative; z-index: 1;
-    border: 2px solid var(--bg3);
-  }
-  .fd-g { background: var(--green); }
-  .fd-b { background: var(--blue); }
-  .fd-y { background: var(--yellow); }
-  .fd-r { background: var(--red); }
-  .feed-content { flex: 1; min-width: 0; }
-  .feed-title { font-size: 12px; line-height: 1.45; margin-bottom: 3px; color: var(--white); overflow-wrap: break-word; }
-  .feed-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .feed-time { font-family: var(--font-m); font-size: 9px; color: var(--gray2); }
-  .feed-tag {
-    font-family: var(--font-m); font-size: 9px;
-    padding: 1px 6px; border-radius: 4px;
-  }
-  .ft-merged { background: rgba(0,212,170,0.08); color: var(--green); border: 1px solid rgba(0,212,170,0.2); }
-  .ft-open { background: rgba(0,168,255,0.08); color: var(--blue); border: 1px solid rgba(0,168,255,0.2); }
-  .ft-info { background: rgba(42,50,62,0.3); color: var(--gray2); border: 1px solid var(--border); }
-  .ft-warn { background: rgba(251,191,36,0.08); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
-
-  /* ── SEARCH ── */
-  .search-row {
-    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
-  }
-  .wm-input {
-    background: var(--bg2); border: 1px solid var(--border2);
-    border-radius: 6px; padding: 9px 14px;
-    color: var(--white); font-family: var(--font-m); font-size: 11px;
-    outline: none; flex: 1; min-width: 200px;
-    transition: border-color 0.2s;
-  }
-  .wm-input:focus { border-color: var(--blue); }
-  .wm-input::placeholder { color: var(--gray2); }
-  .wm-toggle {
-    display: flex; align-items: center; gap: 8px;
-    font-family: var(--font-m); font-size: 11px; color: var(--gray);
-    background: var(--bg2); border: 1px solid var(--border2);
-    border-radius: 6px; padding: 9px 14px; cursor: pointer;
-  }
-  .wm-btn {
-    font-family: var(--font-m); font-size: 10px; letter-spacing: 0.08em;
-    text-transform: uppercase; text-decoration: none;
-    background: var(--bg2); border: 1px solid var(--border2);
-    border-radius: 6px; padding: 9px 14px; color: var(--gray);
-    transition: border-color 0.2s, color 0.2s;
-    display: inline-flex; align-items: center; gap: 6px;
-    cursor: pointer;
-  }
-  .wm-btn:hover { border-color: var(--blue); color: var(--blue); }
-
-  /* ── TODO LIST ── */
-  .todo-section { border-top: 1px solid rgba(29,35,44,0.8); padding-top: 16px; margin-top: 16px; }
-  .todo-section:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
-  .todo-head {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 12px; margin-bottom: 10px;
-  }
-  .todo-title {
-    font-family: var(--font-h); font-size: 15px; font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .todo-meta { font-family: var(--font-m); font-size: 10px; color: var(--gray2); }
-  .todo-sub {
-    margin-top: 10px; border: 1px solid var(--border);
-    border-radius: 6px; overflow: hidden;
-  }
-  .todo-sub-head {
-    padding: 8px 14px; background: var(--bg2);
-    border-bottom: 1px solid var(--border);
-    font-family: var(--font-m); font-size: 9px;
-    color: var(--gray2); letter-spacing: 0.12em; text-transform: uppercase;
-  }
-  .todo-items { padding: 6px 14px; }
-  .todo-item {
-    display: flex; gap: 10px; align-items: flex-start;
-    padding: 8px 0; border-bottom: 1px solid rgba(29,35,44,0.8);
-    transition: opacity 0.15s;
-  }
-  .todo-item:last-child { border-bottom: 0; }
-  .hidden-item { display: none; }
-  .todo-dot {
-    width: 17px; height: 17px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-m); font-size: 9px; flex-shrink: 0; margin-top: 1px;
-    border: 1px solid var(--border2);
-  }
-  .td-done .todo-dot { background: rgba(0,212,170,0.1); color: var(--green); border-color: rgba(0,212,170,0.2); }
-  .td-open .todo-dot { background: rgba(0,168,255,0.08); color: var(--blue); border-color: rgba(0,168,255,0.2); }
-  .td-note .todo-dot { background: rgba(42,50,62,0.2); color: var(--gray2); }
-  .todo-text { font-size: 12px; line-height: 1.55; color: var(--white); overflow-wrap: break-word; }
-
-  /* ── TASK LIST (worktodo) ── */
-  .task-section { margin-bottom: 32px; }
-  .task-section-head {
-    display: flex; align-items: center; gap: 12px;
-    margin-bottom: 14px; padding-bottom: 10px;
-    border-bottom: 1px solid var(--border);
-    position: relative;
-  }
-  .task-section-head::after {
-    content: ''; position: absolute; left: 0; bottom: -1px;
-    height: 1px; width: 60px;
-    background: var(--blue); box-shadow: var(--glow-blue);
-  }
-  .task-section-head.g::after { background: var(--green); box-shadow: var(--glow-green); }
-  .task-section-head.y::after { background: var(--yellow); }
-  .task-section-title {
-    font-family: var(--font-h); font-size: 17px; font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .task-section-count {
-    font-family: var(--font-m); font-size: 10px;
-    color: var(--gray2); margin-left: auto;
-  }
-  .task-list { display: flex; flex-direction: column; gap: 8px; }
-  .task-item {
-    background: var(--bg3); border: 1px solid var(--border);
-    border-radius: 6px; padding: 12px 14px;
-    display: flex; align-items: flex-start; gap: 12px;
-    transition: border-color 0.2s;
-  }
-  .task-item:hover { border-color: var(--border2); }
-  .task-item.done { opacity: 0.55; }
-  .task-item.done:hover { opacity: 0.75; }
-  .task-icon {
-    width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 9px; margin-top: 1px;
-    font-family: var(--font-m);
-  }
-  .ti-done { background: rgba(0,212,170,0.1); color: var(--green); border: 1px solid rgba(0,212,170,0.25); }
-  .ti-prog { background: rgba(251,191,36,0.1); color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
-  .ti-pend { background: rgba(42,50,62,0.3); color: var(--gray2); border: 1px solid var(--border2); }
-  .task-body { flex: 1; min-width: 0; }
-  .task-title { font-size: 13px; font-weight: 600; line-height: 1.4; margin-bottom: 3px; }
-  .task-desc { font-size: 12px; color: var(--gray); line-height: 1.55; font-family: var(--font-m); }
-
-  /* ── FOOTER ── */
-  .wm-footer {
-    border-top: 1px solid var(--border);
-    padding: 24px 32px; margin-top: 60px;
-    background: var(--bg);
-    position: relative;
-  }
-  .wm-footer::before {
-    content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 1px;
-    background: var(--grad-line); opacity: 0.3;
-  }
-  .footer-inner {
-    max-width: var(--max); margin: 0 auto;
-    display: flex; justify-content: space-between;
-    align-items: center; flex-wrap: wrap; gap: 14px;
-  }
-  .footer-copy {
-    font-family: var(--font-m); font-size: 10px; color: var(--gray2);
-  }
-  .footer-copy em { font-style: normal; color: var(--blue); }
-  .footer-agents { display: flex; gap: 6px; flex-wrap: wrap; }
-  .agent-tag {
-    font-family: var(--font-m); font-size: 9px;
-    padding: 3px 8px; border-radius: 3px;
-    letter-spacing: 0.08em;
-  }
-  .at-cmd { background: rgba(0,168,255,0.08); color: var(--blue); border: 1px solid rgba(0,168,255,0.2); }
-  .at-forge { background: rgba(0,212,170,0.06); color: var(--green); border: 1px solid rgba(0,212,170,0.15); }
-  .at-sent { background: rgba(251,191,36,0.06); color: var(--yellow); border: 1px solid rgba(251,191,36,0.15); }
-  .at-echo { background: rgba(42,50,62,0.3); color: var(--gray2); border: 1px solid var(--border); }
-
-  /* ── RESPONSIVE ── */
-  @media(max-width: 680px) {
-    .wm-wrap { padding: 24px 18px 80px; }
-    .nav-row { padding: 0 18px; }
-    .hud { grid-template-columns: repeat(2, 1fr); }
-    .nav-links a:not(.nav-links a:last-child) { display: none; }
-    .page-header-right { position: static; margin-top: 10px; }
-    .wm-footer { padding: 20px 18px; }
-  }
-
   </style>
 </head>
 <body>
 <nav id="wm-nav" role="navigation">
   <div class="nav-row">
     <a href="https://bayuewalker.github.io/walkermind-os/" class="nav-brand">
-      <span class="nav-brand-mark">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M4 6 L12 20 L20 6" stroke="#00a8ff" stroke-width="2.5" stroke-linejoin="round"/>
-          <path d="M8 11 L12 18 L16 11" stroke="#00d4aa" stroke-width="1.5" stroke-linejoin="round"/>
-        </svg>
-      </span>
+      <span class="nav-brand-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6 L12 20 L20 6" stroke="#00a8ff" stroke-width="2.5" stroke-linejoin="round"/><path d="M8 11 L12 18 L16 11" stroke="#00d4aa" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
       <span class="nav-brand-name">WALKER<em>MIND</em> OS</span>
     </a>
     <div class="nav-links">
-      <a href="https://bayuewalker.github.io/walkermind-os/project_monitor.html" >Monitor</a>
-      <a href="https://bayuewalker.github.io/walkermind-os/worktodo.html" class="active">Work To-Do</a>
-      <a href="https://bayuewalker.github.io/walkermind-os/crusaderbot_blueprint.html" >Blueprint</a>
+      <a href="project_monitor.html">Monitor</a>
+      <a href="worktodo.html" class="active">Work To-Do</a>
+      <a href="crusaderbot_blueprint.html">Blueprint</a>
       <span class="nav-status">W.A.R.P ONLINE</span>
     </div>
   </div>
 </nav>
-<div class="wm-wrap">
 
+<div class="wm-wrap">
   <div class="page-header">
     <div class="page-eyebrow">// MODULE_02 // WORK_TODO</div>
     <h1 class="page-title">Work To-Do</h1>
-    <p class="page-sub">Task tracking, priorities, and execution queue for the active project — CrusaderBot on Polymarket.</p>
+    <p class="page-sub">Task tracking, priorities, and execution queue — CrusaderBot · Polymarket. Live from repo source truth.</p>
+    <div class="page-header-meta">
+      <div class="live-indicator"><span style="width:5px;height:5px;background:var(--green);border-radius:50%;animation:pulse-dot 1.5s infinite;display:inline-block"></span>LIVE SOURCE</div>
+      <button class="refresh-btn" onclick="window.location.reload()">↻ Refresh</button>
+      <div class="ts" id="ts">—</div>
+    </div>
   </div>
 
-  <!-- HUD METRICS -->
-  <div class="hud" role="list">
-    <div class="hud-cell" role="listitem">
-      <div class="hud-label">// COMPLETED</div>
-      <div class="hud-val c-green">25</div>
-      <div class="hud-sub">Tasks completed</div>
+  <!-- HUD -->
+  <div class="hud">
+    <div class="hud-cell">
+      <div class="hud-label">// LANES_DONE</div>
+      <div class="hud-val c-green" id="hudDone">11</div>
+      <div class="hud-sub" id="hudDoneSub">R1–R11 merged</div>
     </div>
-    <div class="hud-cell" role="listitem">
-      <div class="hud-label">// IN_PROGRESS</div>
-      <div class="hud-val c-yellow">6</div>
-      <div class="hud-sub">Tasks underway</div>
+    <div class="hud-cell">
+      <div class="hud-label">// LANES_ACTIVE</div>
+      <div class="hud-val c-blue" id="hudActive" style="font-size:18px;padding-top:8px">R12a</div>
+      <div class="hud-sub">CI/CD Pipeline</div>
     </div>
-    <div class="hud-cell" role="listitem">
-      <div class="hud-label">// NOT_STARTED</div>
-      <div class="hud-val c-blue">10</div>
-      <div class="hud-sub">Tasks pending</div>
+    <div class="hud-cell">
+      <div class="hud-label">// CHECKS_DONE</div>
+      <div class="hud-val c-yellow" id="hudChecks">—</div>
+      <div class="hud-sub" id="hudChecksSub">from WORKTODO.md</div>
     </div>
-    <div class="hud-cell" role="listitem">
+    <div class="hud-cell">
       <div class="hud-label">// COMPLETION</div>
-      <div class="hud-val">61%</div>
-      <div class="hud-sub">Progress estimate</div>
+      <div class="hud-val c-purple" id="hudPct">—</div>
+      <div class="hud-sub" id="hudPctSub">Loading...</div>
     </div>
   </div>
 
-  <!-- NEXT PRIORITY BANNER -->
+  <!-- PROGRESS BAR -->
+  <div class="progress-wrap">
+    <div class="progress-header">
+      <span class="progress-label">// OVERALL PROGRESS — R1 → R13</span>
+      <span class="progress-pct" id="progressPct">58%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:58%"></div></div>
+  </div>
+
+  <!-- BANNERS -->
+  <div class="wm-banner">
+    <div class="banner-icon">📋</div>
+    <div>
+      <div class="banner-label">Current Status</div>
+      <div class="banner-text" id="statusBanner">R1–R11 merged to main. SENTINEL PASS (84/100). C1/C2/C3 resolved. Paper-default. State sync complete — PR #854.</div>
+    </div>
+  </div>
   <div class="wm-banner banner-next">
     <div class="banner-icon">🎯</div>
     <div>
       <div class="banner-label">Next Priority</div>
-      <div class="banner-text">Monitor Integration &amp; Observability Hardening — Complete Phase 10.3 by adding startup, command and reply logs, enforcing admin/internal guards, and ensuring monitor parity.</div>
+      <div class="banner-text" id="nextBanner">R12a — CI/CD Pipeline (GitHub Actions). STANDARD tier. Ready to dispatch.</div>
     </div>
   </div>
 
-  <!-- COMPLETED TASKS -->
-  <div class="task-section">
-    <div class="task-section-head g">
-      <div class="task-section-title">Completed</div>
-      <div class="task-section-count">5 tasks</div>
+  <div class="search-row">
+    <a href="project_monitor.html" class="wm-btn">↗ Monitor</a>
+    <a href="crusaderbot_blueprint.html" class="wm-btn">↗ Blueprint</a>
+    <a href="https://github.com/bayuewalker/walkermind-os/tree/main/projects/polymarket/crusaderbot" target="_blank" class="wm-btn">↗ GitHub</a>
+  </div>
+
+  <!-- SOURCE NOTE -->
+  <div class="source-note">Pulling from: <code>projects/polymarket/crusaderbot/state/WORKTODO.md</code> + <code>PROJECT_STATE.md</code> · <span id="sourceLabel">Loading...</span></div>
+
+  <!-- DYNAMIC TASK BODY (from WORKTODO.md) -->
+  <div id="dynamicTaskBody">
+    <div style="font-family:var(--font-m);font-size:11px;color:var(--gray2);padding:20px 0;">Loading tasks from source truth...</div>
+  </div>
+
+  <!-- STATIC ROADMAP REFERENCE (always shown) -->
+  <div style="margin-top:40px">
+    <div style="font-family:var(--font-m);font-size:9px;color:var(--gray2);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px;">// ROADMAP REFERENCE <span style="flex:1;height:1px;background:var(--border);display:inline-block"></span></div>
+
+    <div class="task-section">
+      <div class="task-section-head g">
+        <div class="task-section-title">Completed — R1 to R11</div>
+        <div class="task-section-count">11 lanes · SENTINEL PASS</div>
+      </div>
+      <div class="task-list">
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R1 — FastAPI skeleton + DB schema + Redis</div><div class="task-desc">Foundation infrastructure. Merged via PR #852.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R2 — Onboarding flow + Telegram bot</div><div class="task-desc">User registration, wallet link, session init.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R3 — Operator commands</div><div class="task-desc">Admin control surface, governance path.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R4 — Deposit watcher (Alchemy WS)</div><div class="task-desc">Real-time deposit detection via WebSocket. Idempotency key fix (C1) applied.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R5 — Strategy config</div><div class="task-desc">Strategy parameters, Kelly fraction, risk constants.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R6 — Signal engine</div><div class="task-desc">Market signal ingestion and scoring pipeline.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R7 — Order execution</div><div class="task-desc">CLOB order placement, idempotency, retry logic.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R8 — Position tracker</div><div class="task-desc">Position state management across open trades.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R9 — Risk engine</div><div class="task-desc">Kelly fraction, max drawdown, concurrent trade limits.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R10 — Telegram integration</div><div class="task-desc">Notification pipeline, alert routing, command surface.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R11 — Fee + referral accounting (default OFF)</div><div class="task-desc">Fee tracking, referral ledger. Default disabled until live opt-in.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+      </div>
     </div>
-    <div class="task-list">
-      <div class="task-item done">
-        <div class="task-icon ti-done">✓</div>
-        <div class="task-body">
-          <div class="task-title">Public command baseline finalised</div>
-          <div class="task-desc">Commands: /start, /help, /status, /paper, /about, /risk_info, /account, /link</div>
+
+    <div class="task-section">
+      <div class="task-section-head">
+        <div class="task-section-title">Active — R12a</div>
+        <div class="task-section-count">1 lane · NEXT</div>
+      </div>
+      <div class="task-list">
+        <div class="task-item" style="border-color:rgba(0,168,255,0.3)">
+          <div class="task-icon ti-prog">▶</div>
+          <div class="task-body">
+            <div class="task-title">R12a — CI/CD Pipeline (GitHub Actions)</div>
+            <div class="task-desc">Automated test, lint, build pipeline. Workflow triggers on push/PR. Deploy gate before Fly.io.</div>
+            <span class="task-badge tb-std">STANDARD</span>
+          </div>
         </div>
       </div>
-      <div class="task-item done">
-        <div class="task-icon ti-done">✓</div>
-        <div class="task-body">
-          <div class="task-title">Multi-user store &amp; session foundation</div>
-          <div class="task-desc">Support for parallel user sessions and state isolation.</div>
-        </div>
+    </div>
+
+    <div class="task-section">
+      <div class="task-section-head gr">
+        <div class="task-section-title">Queued — R12b to R13f</div>
+        <div class="task-section-count">8 lanes</div>
       </div>
-      <div class="task-item done">
-        <div class="task-icon ti-done">✓</div>
-        <div class="task-body">
-          <div class="task-title">Account link &amp; cross-surface auth session</div>
-          <div class="task-desc">Telegram bot linking flow across surfaces implemented.</div>
-        </div>
-      </div>
-      <div class="task-item done">
-        <div class="task-icon ti-done">✓</div>
-        <div class="task-body">
-          <div class="task-title">Command routing consolidation &amp; UX refinement</div>
-          <div class="task-desc">Unified command surface and improved user-facing copy.</div>
-        </div>
-      </div>
-      <div class="task-item done">
-        <div class="task-icon ti-done">✓</div>
-        <div class="task-body">
-          <div class="task-title">Risk &amp; policy watchers baseline</div>
-          <div class="task-desc">Initial risk limits and policy enforcement integrated.</div>
-        </div>
+      <div class="task-list">
+        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12b — Fly.io Health Alerts</div><div class="task-desc">Health endpoint monitoring + alerting pipeline.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12c — Auto-Close / Take-Profit</div><div class="task-desc">Automated position close on target. Order placement path — requires SENTINEL.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12d — Live Opt-In gate</div><div class="task-desc">Owner-controlled gate from paper → live trading mode.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12e — Live→Paper Fallback</div><div class="task-desc">Auto-downgrade to paper on drawdown threshold breach.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12f — Daily P&amp;L Report</div><div class="task-desc">Automated daily summary via Telegram + HTML report.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12 — Fly.io Deployment (final)</div><div class="task-desc">Production deployment. All R12a–f gates must pass first.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R13a–f — Growth Backlog</div><div class="task-desc">Leaderboard, backtesting, multi-signal, web dashboard, referral, strategy marketplace.</div><span class="task-badge tb-std">STANDARD+</span></div></div>
       </div>
     </div>
   </div>
-
-  <!-- IN PROGRESS TASKS -->
-  <div class="task-section">
-    <div class="task-section-head">
-      <div class="task-section-title">In Progress</div>
-      <div class="task-section-count">3 tasks</div>
-    </div>
-    <div class="task-list">
-      <div class="task-item">
-        <div class="task-icon ti-prog">⏳</div>
-        <div class="task-body">
-          <div class="task-title">Monitor integration hardening &amp; observability baseline</div>
-          <div class="task-desc">Implement logging for startup, command handling, reply success/failure and missing env.</div>
-        </div>
-      </div>
-      <div class="task-item">
-        <div class="task-icon ti-prog">⏳</div>
-        <div class="task-body">
-          <div class="task-title">Post-launch cleanup &amp; config sanitisation</div>
-          <div class="task-desc">Remove unused config, secrets and temporary scaffolding.</div>
-        </div>
-      </div>
-      <div class="task-item">
-        <div class="task-icon ti-prog">⏳</div>
-        <div class="task-body">
-          <div class="task-title">End-to-end validation of Telegram flows</div>
-          <div class="task-desc">Collect runtime proof for /start, /help and /status on production Fly deployment.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- NOT STARTED TASKS -->
-  <div class="task-section">
-    <div class="task-section-head" style="--accent: var(--gray2)">
-      <div class="task-section-title">Not Started</div>
-      <div class="task-section-count">6 tasks</div>
-    </div>
-    <div class="task-list">
-      <div class="task-item">
-        <div class="task-icon ti-pend">○</div>
-        <div class="task-body">
-          <div class="task-title">Full wallet lifecycle implementation</div>
-          <div class="task-desc">Create, link/unlink, activate/deactivate and persist wallets securely.</div>
-        </div>
-      </div>
-      <div class="task-item">
-        <div class="task-icon ti-pend">○</div>
-        <div class="task-body">
-          <div class="task-title">Portfolio management logic &amp; risk controls</div>
-          <div class="task-desc">Build aggregation, PnL calculation and risk guardrails across positions.</div>
-        </div>
-      </div>
-      <div class="task-item">
-        <div class="task-icon ti-pend">○</div>
-        <div class="task-body">
-          <div class="task-title">Multi-wallet orchestration</div>
-          <div class="task-desc">Route orders and manage allocation across multiple user wallets.</div>
-        </div>
-      </div>
-      <div class="task-item">
-        <div class="task-icon ti-pend">○</div>
-        <div class="task-body">
-          <div class="task-title">Settlement, retry &amp; ops automation</div>
-          <div class="task-desc">Implement settlement workflow, retries and operator tooling.</div>
-        </div>
-      </div>
-      <div class="task-item">
-        <div class="task-icon ti-pend">○</div>
-        <div class="task-body">
-          <div class="task-title">Capital readiness &amp; live trading gating</div>
-          <div class="task-desc">Audit paper assumptions, harden risk controls and prepare live execution gating.</div>
-        </div>
-      </div>
-      <div class="task-item">
-        <div class="task-icon ti-pend">○</div>
-        <div class="task-body">
-          <div class="task-title">Final docs &amp; launch assets</div>
-          <div class="task-desc">Prepare public documentation, onboarding guides and marketing assets.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
 </div>
 
-<footer class="wm-footer" role="contentinfo">
+<footer class="wm-footer">
   <div class="footer-inner">
-    <div class="footer-copy">
-      WalkerMind OS · Powered by <em>W.A.R.P Engine</em> · Bayue Walker © 2026
-    </div>
+    <div class="footer-copy">WalkerMind OS · Powered by <em>W.A.R.P Engine</em> · Bayue Walker © 2026</div>
     <div class="footer-agents">
       <span class="agent-tag at-cmd">WARP🔹CMD</span>
       <span class="agent-tag at-forge">WARP•FORGE</span>
@@ -696,5 +304,108 @@
     </div>
   </div>
 </footer>
+
+<script>
+const BASE='https://raw.githubusercontent.com/bayuewalker/walkermind-os/main/projects/polymarket/crusaderbot/state/';
+function setTs(){const t=new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});document.getElementById('ts').innerHTML='Updated: <span>'+t+'</span>';}
+function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function cleanLine(r){return String(r||'').replace(/^\uFEFF/,'').replace(/^\s{0,3}#{1,6}\s*/,'').replace(/\*\*(.*?)\*\*/g,'$1').replace(/`([^`]+)`/g,'$1').trim();}
+
+async function fetchSrc(url){
+  try{const r=await fetch(url+'?v='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error(r.status);return await r.text();}
+  catch(e){try{const c=localStorage.getItem('wm-wtd-'+url);return c||null;}catch(_){return null;}}
+}
+
+function parseState(text){
+  if(!text)return{status:'',next:''};
+  const lines=String(text).split(/\r?\n/);
+  let status='',next='';
+  for(let i=0;i<lines.length;i++){
+    const l=cleanLine(lines[i]);
+    if(!status&&/^Status\s*[:\-]/i.test(l))status=l.replace(/^[^:]+:\s*/,'').trim()||cleanLine(lines[i+1]||'');
+    if(!next&&/^(Next priority|NEXT PRIORITY)\s*[:\-]/i.test(l))next=l.replace(/^[^:]+:\s*/,'').trim()||cleanLine(lines[i+1]||'');
+  }
+  return{status,next};
+}
+
+function parseWorktodo(text){
+  if(!text)return null;
+  const lines=String(text).split(/\r?\n/);
+  let total=0,done=0,sections=[];let current=null;
+  for(const raw of lines){
+    const l=cleanLine(raw);if(!l)continue;
+    const sm=l.match(/^(?:PRIORITY\s+)?(\d+)\s*[—\-:]\s*(.+)$/i);
+    if(sm&&!raw.match(/^\s*[-*+]\s*\[/)){
+      current={num:Number(sm[1]),title:'P'+sm[1]+' — '+sm[2].trim(),items:[]};sections.push(current);continue;
+    }
+    if(!current)continue;
+    const cm=raw.match(/^\s*(?:[-*+]\s*)?\[(x|X| )\]\s+(.+?)$/);
+    if(cm){const isDone=cm[1].toLowerCase()==='x';current.items.push({done:isDone,text:l.replace(/^\[(x|X| )\]\s*/,'').trim()});total++;if(isDone)done++;}
+  }
+  return{sections:sections.filter(s=>s.items.length>0),total,done,pct:total?Math.round(done/total*100):0};
+}
+
+function renderDynamicTasks(parsed){
+  if(!parsed||!parsed.sections.length)return;
+  const body=document.getElementById('dynamicTaskBody');
+  // Only show if we actually have data from WORKTODO
+  const html=parsed.sections.map(s=>{
+    const doneCount=s.items.filter(i=>i.done).length;
+    const pct=s.items.length?Math.round(doneCount/s.items.length*100):0;
+    const allDone=pct===100;
+    const statusTag=allDone?'<span style="font-family:var(--font-m);font-size:9px;padding:2px 8px;border-radius:10px;background:rgba(0,212,170,0.08);color:var(--green);border:1px solid rgba(0,212,170,0.2)">done</span>':
+      '<span style="font-family:var(--font-m);font-size:9px;padding:2px 8px;border-radius:10px;background:rgba(0,168,255,0.08);color:var(--blue);border:1px solid rgba(0,168,255,0.2)">active</span>';
+    return`<div style="margin-bottom:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+        <div><div style="font-family:var(--font-h);font-size:15px;font-weight:700">${esc(s.title)}</div>
+        <div style="font-family:var(--font-m);font-size:10px;color:var(--gray2)">${doneCount}/${s.items.length} complete</div></div>${statusTag}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${s.items.map(item=>{
+          const icon=item.done?'✓':'○';
+          const dotStyle=item.done?'background:rgba(0,212,170,0.1);color:var(--green);border-color:rgba(0,212,170,0.2);':'background:rgba(0,168,255,0.08);color:var(--blue);border-color:rgba(0,168,255,0.2);';
+          return`<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid rgba(29,35,44,0.6);">
+            <div style="width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-m);font-size:9px;flex-shrink:0;margin-top:1px;border:1px solid var(--border2);${dotStyle}">${icon}</div>
+            <div style="font-size:12px;line-height:1.55;color:${item.done?'var(--gray)':'var(--white)'};overflow-wrap:break-word;">${esc(item.text)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  if(html){body.innerHTML=`<div style="margin-bottom:16px;font-family:var(--font-m);font-size:9px;color:var(--gray2);letter-spacing:0.2em;text-transform:uppercase;display:flex;align-items:center;gap:10px;">// FROM WORKTODO.MD (LIVE) <span style="flex:1;height:1px;background:var(--border);display:inline-block"></span></div>`+html;}
+}
+
+async function init(){
+  setTs();
+  const [stateText,wdText]=await Promise.all([fetchSrc(BASE+'PROJECT_STATE.md'),fetchSrc(BASE+'WORKTODO.md')]);
+  const isLive=!!stateText||!!wdText;
+  document.getElementById('sourceLabel').textContent=isLive?'LIVE':'OFFLINE (showing static roadmap)';
+
+  if(stateText){
+    const ps=parseState(stateText);
+    if(ps.status)document.getElementById('statusBanner').textContent=ps.status;
+    if(ps.next)document.getElementById('nextBanner').textContent=ps.next;
+    try{localStorage.setItem('wm-wtd-'+BASE+'PROJECT_STATE.md',stateText);}catch(_){}
+  }
+
+  if(wdText){
+    const parsed=parseWorktodo(wdText);
+    if(parsed){
+      document.getElementById('hudChecks').textContent=parsed.done+'/'+parsed.total;
+      document.getElementById('hudChecksSub').textContent='checklist items';
+      document.getElementById('hudPct').textContent=parsed.pct+'%';
+      document.getElementById('hudPctSub').textContent='checklist completion';
+      renderDynamicTasks(parsed);
+      try{localStorage.setItem('wm-wtd-'+BASE+'WORKTODO.md',wdText);}catch(_){}
+    }
+  }
+
+  // Overall roadmap progress (R1-R11 done = 11/19 lanes = ~58%)
+  document.getElementById('progressPct').textContent='58%';
+  document.getElementById('progressFill').style.width='58%';
+}
+
+init();
+</script>
 </body>
 </html>
