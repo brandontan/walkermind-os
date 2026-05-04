@@ -1,13 +1,19 @@
 # WARP•SENTINEL — crusaderbot-replit-import
 
 Verdict: **BLOCKED**
-Score: **62 / 100**
+Score: **64 / 100**
 Critical findings: **3**
 Validation Tier: MAJOR
 Claim Level: FULL RUNTIME INTEGRATION (R1-R11 import + P1 fixes)
 
 Audited commit: `8c6aded3d6db2f7e92d2638ede72636976c17ea4` on `origin/WARP/CRUSADERBOT-REPLIT-IMPORT` (PR #852).
-Reproduce findings via `git show 8c6aded3:<path>` for any file:line reference below.
+Reproduce findings (one-time setup from a fresh clone):
+```
+git fetch origin WARP/CRUSADERBOT-REPLIT-IMPORT       # makes 8c6aded3 resolvable
+# OR: gh pr checkout 852
+git show 8c6aded3:projects/polymarket/crusaderbot/<path>
+```
+Every `file:line` reference below resolves once the audited branch is fetched. The commit object is **not** present on PR #853's branch — that branch carries only the audit report, by design.
 Worktree branch carrying THIS report: `claude/audit-crusaderbot-import-Ar983` (Claude Code worktree — Sentinel rule: do not block on branch name alone). The audit-report PR (#853) intentionally contains only `reports/sentinel/crusaderbot-replit-import.md`; the source files under audit live on PR #852.
 Audit scope: every production source file and migration under `projects/polymarket/crusaderbot/` on the audited commit — 38 `.py` modules + 4 `migrations/*.sql` + `db/schema_r4.sql` + `.env.example` + `config/main` entry points. Out of scope: tests, deployment config (`Dockerfile`, `fly.toml`, `Procfile`), `state/` markdown.
 Date: 2026-05-04 Asia/Jakarta
@@ -269,14 +275,16 @@ Each finding cites file:line, observed behavior, expected behavior, and severity
   `ledger_entries`, neither of which is created by any
   `migrations/*.sql`. The table DDL exists only in
   `db/schema_r4.sql`, which is not in the migration run path.
-- Severity: HIGH. Today the code is inert and harmless. The hazard is
-  that a future commit wires either `services/deposit_watcher.start`
-  or `bot/middleware/tier_gate.require_tier` into a real handler and
-  ships against a schema that does not back it. Recommend deleting
-  the entire `services/` tree (R4 spec is satisfied by `scheduler.py`
-  + `wallet/ledger.py`) OR wiring it as the canonical path with a
-  matching migration `005_sub_accounts.sql` and removing the legacy
-  scheduler poll.
+- Severity: **LOW (code-hygiene / latent)**. The runtime path on the
+  audited commit does not import any of these modules, so today's
+  go-live behavior is unaffected. Downgraded from the initial HIGH
+  framing per Codex P2 review — severity should reflect demonstrated
+  runtime behavior, not hypothetical future wiring. The cleanup is
+  still worth doing (delete the `services/` tree, since R4 is
+  satisfied by `scheduler.py` + `wallet/ledger.py`; alternatively,
+  wire it as the canonical path with a matching migration
+  `005_sub_accounts.sql` and retire the legacy poll), but it is not
+  a go-live blocker.
 
 ### H3 — Two divergent ledger schemas in tree
 
@@ -287,7 +295,11 @@ Each finding cites file:line, observed behavior, expected behavior, and severity
 - `daily_pnl` and gate.py drawdown/balance reads only consider the
   `ledger` table. Any future code that writes to `ledger_entries`
   will be invisible to the gate.
-- Severity: HIGH (architectural drift; makes C2 cleanup safer).
+- Severity: **LOW (architectural drift, latent)**. Same downgrade
+  rationale as H2: the `ledger_entries` half is unused on the audited
+  runtime path, so today's gate sees a consistent view. The drift
+  becomes a real defect only if/when the dead `services/` tree is
+  wired in (tracked under H2). Not a go-live blocker.
 
 ### M1 — Dead `db/schema_r4.sql` duplicates migration 004
 
@@ -352,19 +364,21 @@ Each finding cites file:line, observed behavior, expected behavior, and severity
 
 | Category | Weight | Score |
 |---|---|---|
-| Architecture (clean structure, no shims, layered domain) | 20 | 14 |
+| Architecture (clean structure, no shims, layered domain) | 20 | 16 |
 | Functional (gate, paper, live, router, deposit credit) | 20 | 14 |
 | Failure modes (CLOB ambiguity ✓, reorg ✗ in active path) | 20 | 12 |
 | Risk rules (Kelly absent, tier-promo bypass) | 20 | 9 |
 | Infra + Telegram (TLS webhook ✓, kill switch ✓, audit append-only ✓) | 10 | 8 |
 | Latency (retry+backoff on every external call) | 10 | 5 |
-| **Total** | **100** | **62** |
+| **Total** | **100** | **64** |
+
+Architecture bumped +2 after H2/H3 severity downgrade (dead-code drift is hygiene, not runtime defect). Total band (CONDITIONAL) and verdict (BLOCKED, on critical findings alone) are unchanged.
 
 ---
 
 ## 6. Go-Live Status
 
-**BLOCKED.** Score 62/100 (CONDITIONAL band) AND 3 critical findings.
+**BLOCKED.** Score 64/100 (CONDITIONAL band) AND 3 critical findings.
 
 Per WARP•SENTINEL rule "ANY single critical issue = BLOCKED. No exceptions",
 verdict is BLOCKED on the strength of C1, C2, or C3 individually. Score
@@ -418,7 +432,7 @@ must each produce a green finding; otherwise verdict remains BLOCKED.
 
 ```
 🔒 GO-LIVE: BLOCKED  (CrusaderBot R1–R11 import)
-Score: 62/100 · Critical: 3
+Score: 64/100 · Critical: 3
 
 Top blockers:
 1. Kelly absent + capital_alloc_pct accepts 100%
@@ -454,7 +468,7 @@ plus REST `POST /admin/kill`, `POST /admin/force-redeem`, and
 
 ---
 
-Done -- GO-LIVE: BLOCKED. Score: 62/100. Critical: 3.
+Done -- GO-LIVE: BLOCKED. Score: 64/100. Critical: 3.
 PR: WARP/CRUSADERBOT-REPLIT-IMPORT (#852)
 Report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-replit-import.md
 State: PROJECT_STATE.md NOT updated by Sentinel — declared worktree branch
