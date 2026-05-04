@@ -50,10 +50,6 @@ USDC_DECIMAL_FACTOR = Decimal(10) ** USDC_DECIMALS
 INITIAL_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 60.0
 ADDRESS_REFRESH_SECONDS = 60.0
-# When a Transfer log misses the in-memory address map, force one refresh —
-# but at most this often, to bound DB load if the chain spams unrelated
-# transfers to the watched USDC contract.
-ADDRESS_MISS_REFRESH_DEBOUNCE_SECONDS = 5.0
 
 
 def _topic_to_address(topic_hex: str) -> str:
@@ -94,7 +90,6 @@ class DepositWatcher:
         self._address_map: dict[str, tuple[UUID, int]] = {}
         self._address_map_lock = asyncio.Lock()
         self._last_refresh_ts: float = 0.0
-        self._last_miss_refresh_ts: float = 0.0
         self._sub_id: Optional[str] = None
 
     # ---- lifecycle -------------------------------------------------------
@@ -162,21 +157,36 @@ class DepositWatcher:
         if loop.time() - self._last_refresh_ts >= ADDRESS_REFRESH_SECONDS:
             await self._refresh_address_map()
 
-    async def _refresh_on_miss(self) -> None:
-        """Force an address-map refresh when a Transfer hits an unknown `to`.
+    async def _lookup_in_db(
+        self, address: str,
+    ) -> Optional[tuple[UUID, int]]:
+        """Fall back to a single-row DB lookup when the in-memory map misses.
 
-        The 60s periodic refresh leaves a window where a freshly provisioned
-        wallet's first deposit can hit before the map sees it; eth_subscribe
-        will not replay that log, so silently dropping it is a permanent
-        missed credit. We refresh on miss but debounce so unrelated transfers
-        in busy blocks cannot pin the DB.
+        `wallets.deposit_address` is UNIQUE (implicit index), so this is an
+        O(log n) targeted lookup — safe to run on every miss in busy blocks.
+        Positive hits are folded into the in-memory map so subsequent logs
+        for the same wallet hit the fast path. Negative results are not
+        cached: the cost of one indexed select per unrelated USDC transfer
+        is acceptable to guarantee zero missed credits for newly provisioned
+        wallets, and a poisoned negative cache could itself drop deposits.
         """
-        loop = asyncio.get_event_loop()
-        now = loop.time()
-        if now - self._last_miss_refresh_ts < ADDRESS_MISS_REFRESH_DEBOUNCE_SECONDS:
-            return
-        self._last_miss_refresh_ts = now
-        await self._refresh_address_map()
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT w.user_id, u.telegram_user_id "
+                "FROM wallets w JOIN users u ON u.id = w.user_id "
+                "WHERE w.deposit_address = $1",
+                address,
+            )
+        if row is None:
+            return None
+        match: tuple[UUID, int] = (row["user_id"], row["telegram_user_id"])
+        async with self._address_map_lock:
+            self._address_map[address] = match
+        log.info(
+            "deposit_watcher.address_hot_loaded",
+            user_id=str(match[0]),
+        )
+        return match
 
     async def _lookup(self, address: str) -> Optional[tuple[UUID, int]]:
         async with self._address_map_lock:
@@ -347,12 +357,14 @@ class DepositWatcher:
 
         match = await self._lookup(to_addr)
         if match is None:
-            # Unknown `to` — could be a brand-new wallet provisioned since the
-            # last periodic refresh. Force a debounced refresh and re-check
-            # before discarding, otherwise we permanently lose first-deposit
-            # credits during the 60s refresh window.
-            await self._refresh_on_miss()
-            match = await self._lookup(to_addr)
+            # In-memory miss — could be a brand-new wallet provisioned since
+            # the last periodic refresh. Fall back to a single-row indexed
+            # DB lookup on every miss (no debounce). eth_subscribe will not
+            # replay this log, so a debounced miss path can permanently drop
+            # the first deposit if any unrelated transfer consumed the
+            # debounce window first. The wallets.deposit_address UNIQUE
+            # index makes this O(log n) per miss.
+            match = await self._lookup_in_db(to_addr)
         if match is None:
             return
 
