@@ -247,7 +247,15 @@ async def evaluate(ctx: GateContext) -> GateResult:
         await _log(ctx.user_id, ctx.market_id, 13, False,
                    f"market_status_{ctx.market_status}")
         return GateResult(False, "market_inactive", 13)
-    max_pos_size = balance * Decimal(str(profile["max_pos_pct"]))
+    # Fractional Kelly enforcement (CLAUDE.md hard rule: a=0.25, full Kelly forbidden).
+    # Global K.KELLY_FRACTION acts as the hard cap; per-profile kelly is clamped to it.
+    assert 0 < K.KELLY_FRACTION <= 0.5, \
+        f"KELLY_FRACTION {K.KELLY_FRACTION} out of safe range"
+    kelly = min(float(profile.get("kelly", K.KELLY_FRACTION)), K.KELLY_FRACTION)
+    max_pos_pct = float(profile["max_pos_pct"])
+    assert 0 < max_pos_pct < 1.0, \
+        f"max_pos_pct {max_pos_pct} must be < 1.0"
+    max_pos_size = balance * Decimal(str(max_pos_pct)) * Decimal(str(kelly))
     final_size = min(ctx.proposed_size_usdc, max_pos_size)
     if final_size <= 0:
         await _log(ctx.user_id, ctx.market_id, 13, False, "size_zero_after_cap")

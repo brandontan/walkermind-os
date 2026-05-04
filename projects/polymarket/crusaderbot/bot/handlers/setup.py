@@ -76,8 +76,9 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     elif sub == "capital":
         ctx.user_data["awaiting"] = "capital_pct"
         await q.message.reply_text(
-            "Enter capital allocation percentage (1-100). Example: `50` = use up to "
-            "50% of balance per trade. Send the number now.",
+            "Enter capital allocation percentage (1-95). Example: `50` = use up to "
+            "50% of balance per trade. Max 95% — full allocation is forbidden. "
+            "Send the number now.",
             parse_mode=ParseMode.MARKDOWN,
         )
     elif sub == "tpsl":
@@ -234,9 +235,19 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
     try:
         if awaiting == "capital_pct":
             pct = float(text)
-            if not 1 <= pct <= 100:
-                raise ValueError("range")
-            await update_settings(user["id"], capital_alloc_pct=pct / 100.0)
+            # Cap strictly < 1.0 (max 95%). Full allocation is forbidden by
+            # CLAUDE.md hard rule (no full Kelly equivalent).
+            if not 1 <= pct <= 95:
+                await update.message.reply_text(
+                    "❌ capital_alloc_pct must be less than 1.0 (100%). "
+                    "Max allowed: 0.95"
+                )
+                # Keep `awaiting` so the user can retry immediately.
+                return True
+            capital_alloc = pct / 100.0
+            assert 0 < capital_alloc < 1.0, \
+                f"capital_alloc_pct {capital_alloc} must be < 1.0"
+            await update_settings(user["id"], capital_alloc_pct=capital_alloc)
             await update.message.reply_text(
                 f"✅ Capital allocation set to {pct:.0f}%."
             )

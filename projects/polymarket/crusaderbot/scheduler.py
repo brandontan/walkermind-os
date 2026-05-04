@@ -100,6 +100,8 @@ async def watch_deposits() -> None:
     persisted (or non-credited because the address belongs to no user).
     """
     pool = get_pool()
+    settings = get_settings()
+    min_deposit = Decimal(str(settings.MIN_DEPOSIT_USDC))
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT user_id, deposit_address FROM wallets",
@@ -118,7 +120,7 @@ async def watch_deposits() -> None:
         logger.warning("watch_deposits scan failed (no cursor advance): %s", exc)
         return
 
-    notify_after: list[tuple[int, Decimal, str]] = []
+    notify_after: list[tuple[int, Decimal, str, bool]] = []
     all_ok = True
     for t in transfers:
         to_addr = t["to"].lower()
@@ -151,11 +153,35 @@ async def watch_deposits() -> None:
                         conn, user_id, amount, ledger.T_DEPOSIT,
                         ref_id=row["id"], note=t["tx_hash"],
                     )
-                    await conn.execute(
-                        "UPDATE users SET access_tier = GREATEST(access_tier, 3) "
-                        "WHERE id = $1",
+                    # Tier 3 promotion gated on cumulative confirmed deposits
+                    # >= MIN_DEPOSIT_USDC. Dust deposits must not bypass the
+                    # funded-beta tier gate.
+                    total_balance = Decimal(str(await conn.fetchval(
+                        "SELECT COALESCE(SUM(amount_usdc), 0) FROM deposits "
+                        "WHERE user_id = $1 AND confirmed_at IS NOT NULL",
                         user_id,
-                    )
+                    ) or 0))
+                    tier_promoted = total_balance >= min_deposit
+                    if tier_promoted:
+                        await conn.execute(
+                            "UPDATE users SET access_tier = GREATEST(access_tier, 3) "
+                            "WHERE id = $1",
+                            user_id,
+                        )
+                        logger.info(
+                            "user promoted to Tier 3: user_id=%s "
+                            "total_balance=%s min_required=%s",
+                            user_id, float(total_balance),
+                            float(settings.MIN_DEPOSIT_USDC),
+                        )
+                    else:
+                        logger.info(
+                            "deposit credited but below MIN_DEPOSIT_USDC — "
+                            "Tier 3 not granted: user_id=%s total_balance=%s "
+                            "min_required=%s",
+                            user_id, float(total_balance),
+                            float(settings.MIN_DEPOSIT_USDC),
+                        )
                     u = await conn.fetchrow(
                         "SELECT telegram_user_id FROM users WHERE id=$1",
                         user_id,
@@ -163,9 +189,12 @@ async def watch_deposits() -> None:
             await audit.write(actor_role="bot", action="deposit_confirmed",
                               user_id=user_id,
                               payload={"tx_hash": t["tx_hash"],
-                                       "amount": str(amount)})
+                                       "amount": str(amount),
+                                       "tier_promoted": tier_promoted})
             if u:
-                notify_after.append((u["telegram_user_id"], amount, t["tx_hash"]))
+                notify_after.append(
+                    (u["telegram_user_id"], amount, t["tx_hash"], tier_promoted)
+                )
         except Exception as exc:
             logger.error("deposit credit failed for %s: %s — cursor will not advance",
                          t["tx_hash"], exc)
@@ -174,11 +203,18 @@ async def watch_deposits() -> None:
     if all_ok:
         await _write_cursor("usdc_deposits", scanned_to)
 
-    for tg_id, amt, tx in notify_after:
+    for tg_id, amt, tx, tier_promoted in notify_after:
+        if tier_promoted:
+            tail = "You're now Tier 3 — auto-trade unlocked."
+        else:
+            tail = (
+                f"Below minimum (${float(min_deposit):.2f} USDC) — "
+                "Tier 3 not yet unlocked. Top up to enable auto-trade."
+            )
         await notifications.send(
             tg_id,
             f"✅ *Deposit confirmed:* ${float(amt):.2f} USDC\n"
-            f"`{tx}`\nYou're now Tier 3 — auto-trade unlocked.",
+            f"`{tx}`\n{tail}",
         )
 
 
