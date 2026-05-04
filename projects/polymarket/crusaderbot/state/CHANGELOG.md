@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-05-05 00:33 | WARP/CRUSADERBOT-STATE-SYNC | Post-merge state sync for PR #852 + PR #853 (R1-R11 import + SENTINEL PASS): PROJECT_STATE.md, ROADMAP.md, CHANGELOG.md updated to reflect R1-R11 complete and C1/C2/C3 resolved. (PR #854)
+
 ## 2026-05-05 00:10 Asia/Jakarta — R1-R11 Import + SENTINEL PASS
 
 **Branches:** `WARP/CRUSADERBOT-REPLIT-IMPORT` → main (PR #852); `claude/audit-crusaderbot-import-Ar983` → main (PR #853, SENTINEL worktree audit)

@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 00:10
-Status       : R1-R11 merged to main. SENTINEL PASS. C1/C2/C3 resolved. Paper-default. Ready for R12a.
+Last Updated : 2026-05-05 00:33
+Status       : R1-R11 merged to main. SENTINEL PASS. C1/C2/C3 resolved. State sync complete (PR #854). Paper-default. Ready for R12a.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
@@ -12,6 +12,7 @@ Status       : R1-R11 merged to main. SENTINEL PASS. C1/C2/C3 resolved. Paper-de
 - C1 resolved: KELLY_FRACTION applied, capital_alloc_pct capped <1.0
 - C2 resolved: migrations/004 idempotent DO $$ blocks
 - C3 resolved: Tier 3 promotion gated on MIN_DEPOSIT_USDC
+- PR #854 — post-merge state sync: PROJECT_STATE, ROADMAP, CHANGELOG updated to reflect R1-R11 + SENTINEL PASS
 
 [IN PROGRESS]
 - None — no open PRs
