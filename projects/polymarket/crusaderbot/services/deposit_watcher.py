@@ -317,14 +317,23 @@ class DepositWatcher:
 
     async def _handle_log(self, log_obj: dict) -> None:
         # Reorg gate: chain reorganizations re-emit affected logs with
-        # `removed: true`. We refuse to credit those — reversing an already-
-        # credited deposit on reorg is a deferred enhancement (a confirmation-
-        # delay model is the cleaner long-term fix and is out of R4 scope).
+        # `removed: true`. If the original log was already credited as
+        # canonical, the deposit row + ledger entry must be reversed or the
+        # user balance stays overstated. If the matching deposit was never
+        # credited, the removal is a no-op.
         if log_obj.get("removed") is True:
-            log.debug(
-                "deposit_watcher.reorg_skip",
-                tx_hash=log_obj.get("transactionHash"),
-            )
+            tx_hash = log_obj.get("transactionHash")
+            log_index_hex = log_obj.get("logIndex", "0x0")
+            try:
+                log_index = int(log_index_hex, 16)
+            except (TypeError, ValueError):
+                log_index = 0
+            if isinstance(tx_hash, str):
+                await self._reverse_deposit(tx_hash, log_index)
+            else:
+                log.warning(
+                    "deposit_watcher.reorg_missing_tx_hash", log=log_obj,
+                )
             return
 
         topics = log_obj.get("topics") or []
@@ -505,6 +514,70 @@ class DepositWatcher:
             amount=amount,
             balance=balance,
             promoted=promoted,
+        )
+
+    async def _reverse_deposit(self, tx_hash: str, log_index: int) -> None:
+        """Atomically reverse a previously-credited deposit on chain reorg.
+
+        Posts a `deposit_reorg` debit equal to the original credit and deletes
+        the deposit row so the canonical re-emission of the same transfer (if
+        it lands in the new canonical chain) can credit fresh via the
+        `ON CONFLICT (tx_hash, log_index) DO NOTHING` insert path.
+
+        Tier downgrade is intentionally not done here: a transient reorg can
+        flap a balance below the funded threshold and back within seconds,
+        and CrusaderBot R4 has no tier-down workflow. The balance correction
+        is the primary correctness concern; tier rectification is deferred.
+        """
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                deposit_row = await conn.fetchrow(
+                    "SELECT id, user_id, amount_usdc FROM deposits "
+                    "WHERE tx_hash=$1 AND log_index=$2 FOR UPDATE",
+                    tx_hash, log_index,
+                )
+                if deposit_row is None:
+                    log.info(
+                        "deposit_watcher.reorg_no_credit",
+                        tx_hash=tx_hash,
+                        log_index=log_index,
+                    )
+                    return
+                deposit_id: UUID = deposit_row["id"]
+                user_id: UUID = deposit_row["user_id"]
+                amount: Decimal = Decimal(deposit_row["amount_usdc"])
+
+                sub_account_id = await conn.fetchval(
+                    "SELECT id FROM sub_accounts WHERE user_id=$1",
+                    user_id,
+                )
+                if sub_account_id is None:
+                    raise RuntimeError(
+                        f"reorg reversal: sub_account missing for "
+                        f"user_id={user_id}, deposit_id={deposit_id}"
+                    )
+
+                await ledger.debit(
+                    self._pool,
+                    sub_account_id,
+                    amount,
+                    deposit_id,
+                    type=ledger.ENTRY_TYPE_DEPOSIT_REORG,
+                    conn=conn,
+                )
+
+                await conn.execute(
+                    "DELETE FROM deposits WHERE id=$1",
+                    deposit_id,
+                )
+
+        log.warning(
+            "deposit_watcher.deposit_reversed",
+            tx_hash=tx_hash,
+            log_index=log_index,
+            user_id=str(user_id),
+            deposit_id=str(deposit_id),
+            amount=str(amount),
         )
 
     async def _notify_user(

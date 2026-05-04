@@ -27,6 +27,7 @@ log = structlog.get_logger(__name__)
 _LEDGER_LOCK = asyncio.Lock()
 
 ENTRY_TYPE_DEPOSIT = "deposit"
+ENTRY_TYPE_DEPOSIT_REORG = "deposit_reorg"
 ENTRY_TYPE_WITHDRAW = "withdraw"
 ENTRY_TYPE_TRADE_DEBIT = "trade_debit"
 ENTRY_TYPE_TRADE_CREDIT = "trade_credit"
@@ -150,19 +151,34 @@ async def debit(
     amount: Decimal,
     ref_id: Optional[UUID],
     type: str,
+    *,
+    conn: Optional[asyncpg.Connection] = None,
 ) -> UUID:
     """Append a negative ledger entry. `amount` is given as a positive number
-    and stored as -amount. Scaffold only — no caller in R4."""
+    and stored as -amount.
+
+    When `conn` is supplied the insert runs on the caller's connection so it
+    composes into a larger transaction (deposit watcher uses this to keep a
+    reorg reversal atomic with the matching deposit-row deletion).
+    """
     if amount <= 0:
         raise ValueError(f"debit amount must be positive, got {amount}")
-    async with _LEDGER_LOCK:
-        async with pool.acquire() as conn:
-            entry_id: UUID = await conn.fetchval(
-                "INSERT INTO ledger_entries "
-                "(sub_account_id, type, amount_usdc, ref_id) "
-                "VALUES ($1, $2, $3, $4) RETURNING id",
-                sub_account_id, type, -amount, ref_id,
-            )
+    if conn is not None:
+        entry_id: UUID = await conn.fetchval(
+            "INSERT INTO ledger_entries "
+            "(sub_account_id, type, amount_usdc, ref_id) "
+            "VALUES ($1, $2, $3, $4) RETURNING id",
+            sub_account_id, type, -amount, ref_id,
+        )
+    else:
+        async with _LEDGER_LOCK:
+            async with pool.acquire() as acquired:
+                entry_id = await acquired.fetchval(
+                    "INSERT INTO ledger_entries "
+                    "(sub_account_id, type, amount_usdc, ref_id) "
+                    "VALUES ($1, $2, $3, $4) RETURNING id",
+                    sub_account_id, type, -amount, ref_id,
+                )
     log.info(
         "ledger.debit",
         sub_account_id=str(sub_account_id),
