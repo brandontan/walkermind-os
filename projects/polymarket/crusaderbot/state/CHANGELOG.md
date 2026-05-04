@@ -6,6 +6,8 @@
 
 ## 2026-05-05 00:10 Asia/Jakarta — R1-R11 Import + SENTINEL PASS
 
+**Branches:** `WARP/CRUSADERBOT-REPLIT-IMPORT` → main (PR #852); `claude/audit-crusaderbot-import-Ar983` → main (PR #853, SENTINEL worktree audit)
+
 ### Merged
 - PR #852: feat(crusaderbot): import full Replit build R1-R11
   42 files, 4,280 lines. Supersedes R1-R4 stubs (PRs #847-#850).
