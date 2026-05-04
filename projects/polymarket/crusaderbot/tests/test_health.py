@@ -187,6 +187,81 @@ def test_record_health_result_alerts_after_threshold_then_cools_down():
         assert len(sent) == 1
 
 
+def test_health_payload_does_not_leak_exception_message():
+    """Public /health payload must NOT include raw exception text.
+
+    httpx errors include the full request URL, and Alchemy embeds the API
+    key in the URL path — so leaking ``str(exc)`` would dump credentials
+    to anyone hitting the unauthenticated endpoint. The payload should
+    surface only the exception class name.
+    """
+    SECRET_URL = "https://polygon.alchemy.com/v2/SUPER_SECRET_API_KEY_42"
+
+    async def _leaks() -> bool:
+        # Mimic httpx.HTTPStatusError whose __str__ embeds the full URL.
+        raise RuntimeError(
+            f"Client error '401 Unauthorized' for url '{SECRET_URL}'"
+        )
+
+    with patch.object(monitoring_health, "check_alchemy_rpc", new=_leaks):
+        result = _run(monitoring_health.run_health_checks())
+    rpc_reason = result["checks"]["alchemy_rpc"]
+    assert rpc_reason == "error: RuntimeError"
+    # Defence-in-depth: scan the entire payload for any leak surface.
+    payload_str = repr(result)
+    assert SECRET_URL not in payload_str
+    assert "SUPER_SECRET_API_KEY_42" not in payload_str
+    assert "401 Unauthorized" not in payload_str
+
+
+def test_schedule_health_record_returns_none_without_running_loop():
+    """Outside an async context the helper must no-op without raising."""
+    task = monitoring_alerts.schedule_health_record(
+        {"status": "ok", "checks": {"database": "ok"}}
+    )
+    assert task is None
+
+
+def test_schedule_health_record_does_not_block_on_alert_delivery():
+    """The route helper must return immediately even when the alert path
+    sleeps — proving /health latency is decoupled from Telegram I/O.
+    """
+
+    async def _slow_send(chat_id, text, parse_mode=None):
+        await asyncio.sleep(2.0)  # would blow Fly's 5s budget if awaited
+
+    fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
+    bad = {
+        "status": "down",
+        "checks": {"database": "error: down", "telegram": "ok"},
+    }
+
+    async def _scenario():
+        with patch(
+            "projects.polymarket.crusaderbot.monitoring.alerts.notifications.send",
+            new=_slow_send,
+        ), patch(
+            "projects.polymarket.crusaderbot.monitoring.alerts.get_settings",
+            return_value=fake_settings,
+        ):
+            # First failure -> threshold not yet hit, no alert.
+            await monitoring_alerts.record_health_result(bad)
+            # Second failure -> alert would trigger; schedule must return fast.
+            t0 = asyncio.get_event_loop().time()
+            task = monitoring_alerts.schedule_health_record(bad)
+            elapsed = asyncio.get_event_loop().time() - t0
+            assert task is not None
+            assert elapsed < 0.05, f"schedule blocked for {elapsed:.3f}s"
+            # Cancel to avoid leaving a pending task across test boundaries.
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+    _run(_scenario())
+
+
 def test_record_health_result_per_check_reset_while_degraded():
     """A check that recovers must NOT page on its next isolated failure even
     if the overall verdict stayed ``degraded`` the whole time because some

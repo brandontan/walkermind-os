@@ -17,6 +17,7 @@ Implementation notes:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from datetime import datetime, timezone
@@ -156,6 +157,38 @@ async def record_health_result(result: dict) -> None:
     }
     if breached:
         await alert_health_degraded(status, breached)
+
+
+async def _run_health_record_safely(result: dict) -> None:
+    """Background-task wrapper that swallows + logs alert dispatch failures.
+
+    Used by ``schedule_health_record`` so a failed Telegram call never
+    surfaces as an unhandled task exception or affects the /health response
+    that already returned to the caller.
+    """
+    try:
+        await record_health_result(result)
+    except Exception as exc:  # noqa: BLE001 — must not raise from a bg task
+        logger.error("background alert dispatch failed: %s", exc, exc_info=True)
+
+
+def schedule_health_record(result: dict) -> Optional[asyncio.Task]:
+    """Schedule ``record_health_result`` on the running loop and return.
+
+    The /health route MUST NOT await alert delivery: ``notifications.send``
+    retries with exponential backoff (3 attempts, up to several seconds
+    per attempt) before returning, which can exceed Fly's 5-second probe
+    timeout when Telegram is slow/unreachable and turn a degradable
+    dependency into failed health probes + machine restarts.
+
+    Returns the created Task, or ``None`` when there is no running loop
+    (test/sync contexts) so callers can no-op safely without a try/except.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+    return loop.create_task(_run_health_record_safely(result))
 
 
 def reset_state() -> None:

@@ -36,14 +36,24 @@ async def _with_timeout(
     """Run a check coroutine, return ``'ok'`` or ``'error: <reason>'``.
 
     Catches every exception — health endpoint must never raise.
+
+    The returned reason string is exposed by the unauthenticated ``/health``
+    endpoint, so it MUST NOT contain raw exception messages: ``httpx``
+    request errors, for instance, embed the full request URL and Alchemy
+    encodes the API key in that URL path. Only the exception class name is
+    surfaced publicly; full details (including ``str(exc)``) go to internal
+    logs at ERROR.
     """
     try:
         ok = await asyncio.wait_for(coro_factory(), timeout=CHECK_TIMEOUT_SECONDS)
         return "ok" if ok else f"error: {name} reported unhealthy"
     except asyncio.TimeoutError:
         return f"error: {name} timeout after {CHECK_TIMEOUT_SECONDS:.0f}s"
-    except Exception as exc:  # noqa: BLE001 — surfaced as health string
-        return f"error: {type(exc).__name__}: {exc}"
+    except Exception as exc:  # noqa: BLE001 — surfaced as sanitised health string
+        logger.error(
+            "health check failed: name=%s exc=%s", name, exc, exc_info=True,
+        )
+        return f"error: {type(exc).__name__}"
 
 
 async def check_database() -> bool:

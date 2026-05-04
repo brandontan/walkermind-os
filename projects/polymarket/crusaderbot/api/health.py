@@ -27,9 +27,10 @@ async def health(response: Response):
     # http_checks) can react. ``degraded`` keeps ``ready=true`` per spec, so
     # we still report 200 there — operators are paged via the alert path.
     response.status_code = 200 if result["ready"] else 503
-    # Update the consecutive-failure counter and dispatch operator alerts.
-    # Cooldown + threshold gating live inside the alerts module.
-    await monitoring_alerts.record_health_result(result)
+    # Fire-and-forget: alert delivery (Telegram retry+backoff) MUST NOT
+    # extend /health latency. Cooldown + threshold gating live inside the
+    # alerts module; the background task swallows + logs any failure.
+    monitoring_alerts.schedule_health_record(result)
     return result
 
 
