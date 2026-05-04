@@ -126,18 +126,24 @@ async def watch_deposits() -> None:
         if not user_id:
             continue  # address not ours — safe to skip and advance cursor
         amount = Decimal(str(t["amount"]))
+        # log_index disambiguates multiple USDC Transfer logs in the same tx
+        # routed to distinct tracked addresses. Without it, ON CONFLICT would
+        # silently drop every Transfer past the first and under-credit users.
+        log_index = int(t.get("log_index", 0))
         try:
             async with pool.acquire() as conn:
                 async with conn.transaction():
                     row = await conn.fetchrow(
                         """
-                        INSERT INTO deposits (user_id, tx_hash, amount_usdc,
-                                              block_number, confirmed_at)
-                        VALUES ($1,$2,$3,$4,NOW())
-                        ON CONFLICT (tx_hash) DO NOTHING
+                        INSERT INTO deposits (user_id, tx_hash, log_index,
+                                              amount_usdc, block_number,
+                                              confirmed_at)
+                        VALUES ($1,$2,$3,$4,$5,NOW())
+                        ON CONFLICT (tx_hash, log_index) DO NOTHING
                         RETURNING id
                         """,
-                        user_id, t["tx_hash"], amount, t["block_number"],
+                        user_id, t["tx_hash"], log_index, amount,
+                        t["block_number"],
                     )
                     if row is None:
                         continue  # already credited

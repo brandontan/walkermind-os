@@ -168,6 +168,7 @@ async def scan_usdc_transfers(
             decoded = contract.events.Transfer().process_log(log)
             out.append({
                 "tx_hash": log["transactionHash"].hex(),
+                "log_index": int(log["logIndex"]),
                 "block_number": int(log["blockNumber"]),
                 "from": decoded["args"]["from"],
                 "to": decoded["args"]["to"],

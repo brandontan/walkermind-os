@@ -226,10 +226,37 @@ async def close_position(*, position: dict, exit_price: float,
     # the close SELL submits the SAME quantity regardless of exit_price.
     entry = float(position["entry_price"])
     shares_to_sell = float(position["size_usdc"]) / max(entry, 0.0001)
-    await polymarket.submit_live_order(
-        token_id=token_id, side="SELL",
-        shares=shares_to_sell, price=exit_price,
-    )
+
+    # Atomic claim BEFORE the external SELL: prevents a double on-chain SELL
+    # when the exit watcher and a manual close fire concurrently on the same
+    # open position. Only the winning UPDATE proceeds; the loser sees no row
+    # and bails. Status flips to 'closing' for the duration of the submit.
+    async with pool.acquire() as conn:
+        claimed = await conn.fetchval(
+            "UPDATE positions SET status='closing' "
+            "WHERE id=$1 AND status='open' RETURNING id",
+            position["id"],
+        )
+    if claimed is None:
+        logger.info("live close skip — position %s already closing/closed",
+                    position["id"])
+        return {"pnl_usdc": Decimal("0"), "exit_price": exit_price,
+                "exit_reason": "already_closed"}
+
+    # Submit only after the claim is ours. If the broker submit raises, roll
+    # the claim back to 'open' so a subsequent retry can re-attempt cleanly.
+    try:
+        await polymarket.submit_live_order(
+            token_id=token_id, side="SELL",
+            shares=shares_to_sell, price=exit_price,
+        )
+    except Exception:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE positions SET status='open' WHERE id=$1",
+                position["id"],
+            )
+        raise
 
     size = Decimal(str(position["size_usdc"]))
     if position["side"] == "yes":
@@ -246,10 +273,16 @@ async def close_position(*, position: dict, exit_price: float,
             updated = await conn.fetchval(
                 "UPDATE positions SET status='closed', exit_reason=$2, "
                 "current_price=$3, pnl_usdc=$4, closed_at=NOW() "
-                "WHERE id=$1 AND status='open' RETURNING id",
+                "WHERE id=$1 AND status='closing' RETURNING id",
                 position["id"], exit_reason, exit_price, pnl,
             )
             if updated is None:
+                # The claim was ours; status should still be 'closing'. If we
+                # reach this branch the SELL was already accepted on-chain —
+                # surface for operator reconciliation rather than re-submit.
+                logger.error("live close finalize: position %s no longer "
+                             "'closing' after successful SELL — manual "
+                             "reconciliation required", position["id"])
                 return {"pnl_usdc": Decimal("0"), "exit_price": exit_price,
                         "exit_reason": "already_closed"}
             await ledger.credit_in_conn(
