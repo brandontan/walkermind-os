@@ -4,6 +4,26 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+## 2026-05-05 05:00 Asia/Jakarta — R12b Fly.io Health Alerts
+
+### Merged
+- PR #856: feat(crusaderbot): R12b observability — /health probes + operator alerts + JSON logging
+  Health probes for 4 deps (database, telegram, alchemy_rpc, alchemy_ws) with asyncio 3s timeout per check, Telegram operator alerts with 2-consecutive-failure threshold + 5-min cooldown per key, JSON request logging, fly.toml 10s interval/grace.
+
+### Changes
+- monitoring/health.py — 4-dependency probe with asyncio.wait_for 3s timeout per check
+- monitoring/alerts.py — Telegram operator-alert dispatcher (2-fail threshold, 5-min cooldown)
+- monitoring/logging.py — JSON formatter + RequestLogMiddleware (method/path/status_code/duration_ms)
+- config.py — REQUIRED_ENV_VARS + validate_required_env() key-only; Optional[str] ALCHEMY_WS alias
+- api/health.py — route returns documented JSON shape, feeds alert dispatcher
+- main.py — env validation + Fly.io machine-restart alert + boot-time dependency probe
+- fly.toml — http_checks interval 15s → 10s, grace_period 30s → 10s
+
+### State
+- R12b closed. R12a CI/CD pipeline PR open (WARP/CRUSADERBOT-R12A-CICD-PIPELINE).
+- All activation guards OFF — paper mode only.
+- ROADMAP.md R12b row needs ✅ Done update. WORKTODO.md not initialized for CrusaderBot.
+
 2026-05-04 19:00 | WARP/CRUSADERBOT-R12B-HEALTH-ALERTS | observability layer: /health probes 4 deps with 3s timeout, Telegram operator alerts (2-fail threshold + 5-min cooldown), startup env validation (key-only), JSON request logging, fly.toml interval=10s/grace=10s
 
 ## 2026-05-05 00:10 Asia/Jakarta — R1-R11 Import + SENTINEL PASS
