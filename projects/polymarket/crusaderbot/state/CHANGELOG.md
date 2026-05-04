@@ -4,6 +4,32 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+## 2026-05-05 00:10 Asia/Jakarta — R1-R11 Import + SENTINEL PASS
+
+**Branches:** `WARP/CRUSADERBOT-REPLIT-IMPORT` → main (PR #852); `claude/audit-crusaderbot-import-Ar983` → main (PR #853, SENTINEL worktree audit)
+
+### Merged
+- PR #852: feat(crusaderbot): import full Replit build R1-R11
+  42 files, 4,280 lines. Supersedes R1-R4 stubs (PRs #847-#850).
+  Source: Replit commit 86f6e55e (6 internal review rounds).
+- PR #853: sentinel: crusaderbot-replit-import PASS (post C1/C2/C3 fix)
+
+### SENTINEL findings resolved
+- C1: KELLY_FRACTION applied in live sizing path
+      capital_alloc_pct capped at <1.0 (max 0.95)
+- C2: migrations/004 fully idempotent (DO $$ IF NOT EXISTS)
+- C3: Tier 3 promotion gated on MIN_DEPOSIT_USDC cumulative balance
+
+### P1 fixes (pre-SENTINEL)
+- deposits unique on (tx_hash, log_index)
+- live.close_position: atomic DB claim before SELL submit
+- polygon.scan_usdc_transfers: log_index passthrough
+
+### State
+- Paper-default: all live activation guards OFF
+- PTB: python-telegram-bot pinned >=21.0,<22.0
+- Next: R12a CI/CD Pipeline
+
 2026-05-04 00:28 | WARP/crusaderbot-r1-skeleton | R1 skeleton lane. PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT). New project tree at projects/polymarket/crusaderbot/ with FastAPI app (main.py + asynccontextmanager lifespan: DB → Redis → migrations → Telegram polling → reverse on shutdown), pydantic-settings config (12 required env vars fail-fast on import + 5 activation guards default OFF), asyncpg pool with rerun-safe run_migrations() (idempotency check on users table), redis.asyncio cache wrapper (JSON serialize internally + ping/get/set/delete), api/health (GET /health + GET /ready returns db/cache/live_trading/paper_mode), bot/dispatcher (Telegram /start "👋 CrusaderBot online. Paper mode active." + /status guard-state visibility), domain/risk/constants (Kelly=0.25, MAX_POSITION_PCT=0.10, MAX_CORRELATED_EXPOSURE=0.40, MAX_CONCURRENT_TRADES=5, DAILY_LOSS_HARD_STOP=-2000, MAX_DRAWDOWN_HALT=0.08, MIN_LIQUIDITY=10000, MIN_EDGE_BPS=200 + 3 risk profiles + STRATEGY_AVAILABILITY + effective_daily_loss most-restrictive helper). migrations/001_init.sql: 16 main-schema tables (users, sessions, wallets, deposits, ledger, user_settings, copy_targets, markets, orders, positions, risk_log, idempotency_keys, fees, referral_codes, kill_switch with seed FALSE row) + audit schema (audit.log) + all indexes. .env.example (no real secrets) + pyproject.toml (Poetry, package-mode=false, all blueprint deps incl. python-telegram-bot/asyncpg/redis/web3/eth-account/py-clob-client/structlog/pydantic-settings) + README. State files (PROJECT_STATE, ROADMAP, CHANGELOG) initialized for new project root. NOT in scope: HD wallet derivation (R2), deposit watcher (R4), signal engine (R6), risk gate execution (R7), paper exec (R8), tests. Documentation + skeleton only — paper mode, all guards OFF, no live trading, no real wallet ops. Tier: STANDARD. Claim: FOUNDATION.
 
 2026-05-04 12:10 | WARP/CRUSADERBOT-R3-ALLOWLIST | R3 operator allowlist + Tier 2 gate lane. New services/allowlist.py: AllowlistStore (asyncio.Lock-guarded set[int]) + module-level helpers add_to_allowlist / remove_from_allowlist / is_allowlisted / get_user_tier (returns 1 if not in allowlist, 2 if in) + tier_label. New bot/middleware/tier_gate.py: require_tier(min_tier) decorator that short-circuits with TIER_DENIED_MESSAGE for under-tier callers (scaffolded but not applied to any current command — R5+ /config, /strategy, /risk, /paper handlers will use it). New bot/handlers/admin.py: handle_allowlist subcommand router for /allowlist [add|remove|list], operator-only via OPERATOR_CHAT_ID match (UNAUTHORIZED reply for non-operator). bot/dispatcher.py modified: registered /allowlist with partial(handle_allowlist, config=) binding; /status now prepends caller's tier (Tier 1 — Browse only / Tier 2 — Community allowlisted) above guard states. /start, /help, /status remain unrestricted across tiers per task spec. main.py UNCHANGED (allowlist is module-level singleton like db/cache — no injection needed). OPERATOR_CHAT_ID reused (no new env var added) per WARP🔹CMD direction. Persistence to Postgres deferred. NOT in scope: trading logic, wallet logic, activation guards, fee system, applying tier gate to existing commands. Tier: STANDARD. Claim: FOUNDATION.
