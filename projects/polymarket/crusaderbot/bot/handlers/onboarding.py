@@ -47,7 +47,18 @@ async def handle_start(
         return
 
     user_id = user["id"]
-    existing = await get_wallet(pool, user_id)
+    try:
+        existing = await get_wallet(pool, user_id)
+    except Exception as exc:
+        log.error(
+            "handle_start.wallet_lookup_failed",
+            user_id=str(user_id),
+            error=str(exc),
+        )
+        await update.effective_message.reply_text(
+            "⚠️ Could not load your wallet. Please try /start again."
+        )
+        return
 
     if existing is None:
         # MAX(hd_index)+1 is read outside the INSERT, so two concurrent /start
