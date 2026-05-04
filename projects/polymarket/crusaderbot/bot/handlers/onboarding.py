@@ -50,7 +50,13 @@ async def handle_start(
     existing = await get_wallet(pool, user_id)
 
     if existing is None:
-        try:
+        # MAX(hd_index)+1 is read outside the INSERT, so two concurrent /start
+        # callers can pick the same index. UNIQUE(hd_index) catches the race;
+        # we retry up to 3x with a fresh index. Only hd_index conflicts retry —
+        # user_id / deposit_address conflicts indicate a real bug and surface as failure.
+        max_attempts = 3
+        address: str | None = None
+        for attempt in range(1, max_attempts + 1):
             hd_index = await get_next_hd_index(pool)
             address, private_key = derive_address(
                 config.WALLET_HD_SEED, hd_index
@@ -59,23 +65,56 @@ async def handle_start(
             # Drop the cleartext key from this scope before any further await.
             private_key = ""
             del private_key
-            await store_wallet(pool, user_id, address, hd_index, encrypted)
-            log.info(
-                "wallet.provisioned",
-                user_id=str(user_id),
-                hd_index=hd_index,
-                address=address,
-            )
-        except Exception as exc:
-            log.error(
-                "handle_start.wallet_provision_failed",
-                user_id=str(user_id),
-                error=str(exc),
-            )
-            await update.effective_message.reply_text(
-                "⚠️ Wallet setup failed. Please try /start again."
-            )
-            return
+            try:
+                await store_wallet(pool, user_id, address, hd_index, encrypted)
+                log.info(
+                    "wallet.provisioned",
+                    user_id=str(user_id),
+                    hd_index=hd_index,
+                    address=address,
+                    attempt=attempt,
+                )
+                break
+            except asyncpg.UniqueViolationError as exc:
+                if exc.constraint_name and "hd_index" in exc.constraint_name:
+                    log.warning(
+                        "wallet.provision_hd_index_race",
+                        user_id=str(user_id),
+                        hd_index=hd_index,
+                        attempt=attempt,
+                        constraint=exc.constraint_name,
+                    )
+                    if attempt == max_attempts:
+                        log.error(
+                            "wallet.provision_max_retries_exceeded",
+                            user_id=str(user_id),
+                            attempts=max_attempts,
+                        )
+                        await update.effective_message.reply_text(
+                            "⚠️ Wallet setup failed after retries. Please try /start again."
+                        )
+                        return
+                    continue
+                log.error(
+                    "wallet.provision_unique_violation",
+                    user_id=str(user_id),
+                    constraint=exc.constraint_name,
+                    error=str(exc),
+                )
+                await update.effective_message.reply_text(
+                    "⚠️ Wallet setup failed. Please try /start again."
+                )
+                return
+            except Exception as exc:
+                log.error(
+                    "handle_start.wallet_provision_failed",
+                    user_id=str(user_id),
+                    error=str(exc),
+                )
+                await update.effective_message.reply_text(
+                    "⚠️ Wallet setup failed. Please try /start again."
+                )
+                return
     else:
         address = existing["deposit_address"]
         log.info(
