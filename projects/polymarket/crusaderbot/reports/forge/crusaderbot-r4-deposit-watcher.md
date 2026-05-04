@@ -1,9 +1,14 @@
 # WARP•FORGE Report — crusaderbot-r4-deposit-watcher
 
 **Branch:** WARP/CRUSADERBOT-R4-DEPOSIT-WATCHER
-**Last Updated:** 2026-05-04 19:30 Asia/Jakarta
+**Last Updated:** 2026-05-04 20:30 Asia/Jakarta
 **Validation Tier:** MAJOR
 **Claim Level:** MAJOR — on-chain reader + ledger write path
+
+**SENTINEL findings resolved (round 1, PR #850):**
+1. **Atomic transaction (CRITICAL).** `_credit_deposit` now runs deposits insert + sub-account upsert + `ledger.credit()` + `bump_tier()` inside a single `async with conn.transaction()` block. `ledger.credit`, `ledger.get_balance`, and `user_service.bump_tier` accept an optional `conn` parameter so they compose into the caller's transaction without losing standalone behavior. Telegram notification stays out of the txn (best-effort).
+2. **Dedupe key tx_hash + log_index (CRITICAL).** Schema migration already ships the composite `UNIQUE (tx_hash, log_index)` and `log_index INTEGER NOT NULL DEFAULT 0` column. Watcher now parses with `log_obj.get("logIndex", "0x0")` and converts hex → int (defaults to 0 on parse failure) instead of refusing the credit.
+3. **Reorg guard (HIGH).** `_handle_log` short-circuits at the top with `log.debug("deposit_watcher.reorg_skip", tx_hash=…)` and returns when `removed: true` arrives, before any DB or downstream work.
 
 ---
 

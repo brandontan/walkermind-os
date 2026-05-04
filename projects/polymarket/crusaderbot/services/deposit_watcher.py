@@ -321,11 +321,9 @@ class DepositWatcher:
         # credited deposit on reorg is a deferred enhancement (a confirmation-
         # delay model is the cleaner long-term fix and is out of R4 scope).
         if log_obj.get("removed") is True:
-            log.warning(
-                "deposit_watcher.removed_log_skipped",
+            log.debug(
+                "deposit_watcher.reorg_skip",
                 tx_hash=log_obj.get("transactionHash"),
-                log_index=log_obj.get("logIndex"),
-                block_number=log_obj.get("blockNumber"),
             )
             return
 
@@ -364,17 +362,11 @@ class DepositWatcher:
             log.warning("deposit_watcher.missing_tx_hash", log=log_obj)
             return
 
-        log_index_hex = log_obj.get("logIndex")
+        log_index_hex = log_obj.get("logIndex", "0x0")
         try:
-            log_index = int(log_index_hex, 16) if log_index_hex is not None else None
+            log_index = int(log_index_hex, 16)
         except (TypeError, ValueError):
-            log_index = None
-        if log_index is None:
-            # Without a logIndex we cannot dedupe two Transfer events emitted
-            # by the same EVM tx — refuse rather than silently collapse them.
-            log.warning("deposit_watcher.missing_log_index",
-                        tx_hash=tx_hash)
-            return
+            log_index = 0
 
         block_number_hex = log_obj.get("blockNumber")
         block_number: Optional[int]
@@ -402,18 +394,25 @@ class DepositWatcher:
         amount: Decimal,
         block_number: Optional[int],
     ) -> None:
-        """Atomic deposit insert + sub-account ensure + ledger credit, then
-        out-of-band tier bump + Telegram notification.
+        """Atomic deposit insert + ledger credit + tier bump, then best-effort
+        Telegram notification.
 
         Idempotency is enforced by `UNIQUE (tx_hash, log_index)` on the
         `deposits` table — a single EVM tx can emit multiple Transfer events
         distinguished by `log_index`, and the previous tx_hash-only key
-        silently collapsed them into one credit. The deposit row insert,
-        sub-account upsert, and ledger entry insert all run inside one DB
-        transaction so a partial-success window cannot leave a deposit
-        recorded with no matching ledger credit (which would then be skipped
-        forever by ON CONFLICT on retry).
+        silently collapsed them into one credit.
+
+        The deposit row insert, sub-account upsert, ledger entry insert, and
+        tier bump all run inside one DB transaction. A partial-success window
+        is unacceptable: a deposit recorded without its ledger credit would
+        be skipped forever by ON CONFLICT on retry, and a credit recorded
+        without its tier bump would leave a funded user stuck below the
+        Tier 3 gate. Failure of any step rolls back all of them.
         """
+        deposit_id: Optional[UUID] = None
+        promoted = False
+        balance = Decimal("0")
+
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 deposit_row = await conn.fetchrow(
@@ -432,7 +431,7 @@ class DepositWatcher:
                         user_id=str(user_id),
                     )
                     return
-                deposit_id: UUID = deposit_row["id"]
+                deposit_id = deposit_row["id"]
 
                 sub_row = await conn.fetchrow(
                     "INSERT INTO sub_accounts (user_id) VALUES ($1) "
@@ -447,23 +446,45 @@ class DepositWatcher:
                         user_id,
                     )
                     if sub_account_id is None:
-                        # Should be unreachable: ON CONFLICT means a row
-                        # exists. Raise to roll back the transaction so the
-                        # deposit row is not orphaned.
                         raise RuntimeError(
                             f"sub_account upsert returned no row for "
                             f"user_id={user_id}"
                         )
 
-                await conn.execute(
-                    "INSERT INTO ledger_entries "
-                    "(sub_account_id, type, amount_usdc, ref_id) "
-                    "VALUES ($1, $2, $3, $4)",
+                await ledger.credit(
+                    self._pool,
                     sub_account_id,
-                    ledger.ENTRY_TYPE_DEPOSIT,
                     amount,
                     deposit_id,
+                    type=ledger.ENTRY_TYPE_DEPOSIT,
+                    conn=conn,
                 )
+
+                balance = await ledger.get_balance(
+                    self._pool, user_id, conn=conn,
+                )
+                threshold = Decimal(str(self._config.MIN_DEPOSIT_USDC))
+                if balance >= threshold:
+                    current_tier = await conn.fetchval(
+                        "SELECT access_tier FROM users WHERE id=$1 "
+                        "FOR UPDATE",
+                        user_id,
+                    )
+                    if current_tier is None:
+                        # Wallet matched in-process but the user row vanished
+                        # — refuse to credit a ghost account.
+                        raise RuntimeError(
+                            f"user row missing for tier bump: {user_id}"
+                        )
+                    if current_tier < TIER_FUNDED:
+                        await bump_tier(
+                            self._pool,
+                            user_id=user_id,
+                            new_tier=TIER_FUNDED,
+                            actor_role="deposit_watcher",
+                            conn=conn,
+                        )
+                        promoted = True
 
         log.info(
             "deposit_watcher.deposit_credited",
@@ -473,56 +494,18 @@ class DepositWatcher:
             log_index=log_index,
             amount=str(amount),
             block_number=block_number,
+            promoted=promoted,
+            balance=str(balance),
         )
 
-        # Out of transaction:
-        #  - bump_tier opens its own transaction (SELECT FOR UPDATE +
-        #    UPDATE + audit INSERT) — composing into the deposit txn would
-        #    extend lock scope unnecessarily.
-        #  - notify is best-effort and must not roll back a confirmed credit.
-        balance = await ledger.get_balance(self._pool, user_id)
-        promoted = await self._maybe_promote_tier(
-            user_id=user_id, balance=balance,
-        )
+        # Notification is best-effort and intentionally outside the txn —
+        # a Telegram outage must not roll back a confirmed credit.
         await self._notify_user(
             telegram_user_id=telegram_user_id,
             amount=amount,
             balance=balance,
             promoted=promoted,
         )
-
-    async def _maybe_promote_tier(
-        self, *, user_id: UUID, balance: Decimal,
-    ) -> bool:
-        """If balance >= MIN_DEPOSIT_USDC and current tier < 3, bump to 3."""
-        threshold = Decimal(str(self._config.MIN_DEPOSIT_USDC))
-        if balance < threshold:
-            return False
-        async with self._pool.acquire() as conn:
-            current_tier = await conn.fetchval(
-                "SELECT access_tier FROM users WHERE id=$1", user_id,
-            )
-        if current_tier is None:
-            log.warning("deposit_watcher.user_missing_for_tier_bump",
-                        user_id=str(user_id))
-            return False
-        if current_tier >= TIER_FUNDED:
-            return False
-        try:
-            await bump_tier(
-                self._pool,
-                user_id=user_id,
-                new_tier=TIER_FUNDED,
-                actor_role="deposit_watcher",
-            )
-        except Exception as exc:
-            log.error(
-                "deposit_watcher.tier_bump_failed",
-                user_id=str(user_id),
-                error=str(exc),
-            )
-            return False
-        return True
 
     async def _notify_user(
         self,

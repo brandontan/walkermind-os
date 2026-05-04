@@ -63,13 +63,22 @@ async def ensure_sub_account(pool: asyncpg.Pool, user_id: UUID) -> UUID:
     return existing
 
 
-async def get_balance(pool: asyncpg.Pool, user_id: UUID) -> Decimal:
+async def get_balance(
+    pool: asyncpg.Pool,
+    user_id: UUID,
+    *,
+    conn: Optional[asyncpg.Connection] = None,
+) -> Decimal:
     """Return current balance = SUM(amount_usdc) over the user's ledger.
 
     Returns Decimal('0') if no sub-account yet exists or no entries yet.
     Credits are positive amounts, debits are negative — we sum directly.
+
+    When `conn` is supplied, the caller's transaction is reused so a
+    post-credit balance read inside an open transaction observes the
+    just-inserted entry.
     """
-    async with pool.acquire() as conn:
+    if conn is not None:
         total = await conn.fetchval(
             "SELECT COALESCE(SUM(le.amount_usdc), 0) "
             "FROM ledger_entries le "
@@ -77,6 +86,15 @@ async def get_balance(pool: asyncpg.Pool, user_id: UUID) -> Decimal:
             "WHERE sa.user_id = $1",
             user_id,
         )
+    else:
+        async with pool.acquire() as acquired:
+            total = await acquired.fetchval(
+                "SELECT COALESCE(SUM(le.amount_usdc), 0) "
+                "FROM ledger_entries le "
+                "JOIN sub_accounts sa ON sa.id = le.sub_account_id "
+                "WHERE sa.user_id = $1",
+                user_id,
+            )
     return Decimal(total) if total is not None else Decimal("0")
 
 
@@ -86,18 +104,35 @@ async def credit(
     amount: Decimal,
     ref_id: Optional[UUID],
     type: str = ENTRY_TYPE_DEPOSIT,
+    *,
+    conn: Optional[asyncpg.Connection] = None,
 ) -> UUID:
-    """Append a positive ledger entry. `amount` MUST be > 0."""
+    """Append a positive ledger entry. `amount` MUST be > 0.
+
+    When `conn` is supplied the insert runs on the caller's connection so
+    it can be composed into a larger transaction (deposit watcher uses
+    this to keep deposit insert + ledger credit + tier bump atomic). The
+    intra-process `_LEDGER_LOCK` is bypassed in that path because the
+    enclosing transaction already holds row-level guarantees.
+    """
     if amount <= 0:
         raise ValueError(f"credit amount must be positive, got {amount}")
-    async with _LEDGER_LOCK:
-        async with pool.acquire() as conn:
-            entry_id: UUID = await conn.fetchval(
-                "INSERT INTO ledger_entries "
-                "(sub_account_id, type, amount_usdc, ref_id) "
-                "VALUES ($1, $2, $3, $4) RETURNING id",
-                sub_account_id, type, amount, ref_id,
-            )
+    if conn is not None:
+        entry_id: UUID = await conn.fetchval(
+            "INSERT INTO ledger_entries "
+            "(sub_account_id, type, amount_usdc, ref_id) "
+            "VALUES ($1, $2, $3, $4) RETURNING id",
+            sub_account_id, type, amount, ref_id,
+        )
+    else:
+        async with _LEDGER_LOCK:
+            async with pool.acquire() as acquired:
+                entry_id = await acquired.fetchval(
+                    "INSERT INTO ledger_entries "
+                    "(sub_account_id, type, amount_usdc, ref_id) "
+                    "VALUES ($1, $2, $3, $4) RETURNING id",
+                    sub_account_id, type, amount, ref_id,
+                )
     log.info(
         "ledger.credit",
         sub_account_id=str(sub_account_id),
