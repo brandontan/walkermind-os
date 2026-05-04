@@ -14,7 +14,7 @@ git fetch origin WARP/CRUSADERBOT-REPLIT-IMPORT       # makes 8c6aded3 resolvabl
 git show 8c6aded3:projects/polymarket/crusaderbot/<path>
 ```
 Every `file:line` reference below resolves once the audited branch is fetched. The commit object is **not** present on PR #853's branch — that branch carries only the audit report, by design.
-Worktree branch carrying THIS report: `claude/audit-crusaderbot-import-Ar983` (Claude Code worktree — Sentinel rule: do not block on branch name alone). The audit-report PR (#853) intentionally contains only `reports/sentinel/crusaderbot-replit-import.md`; the source files under audit live on PR #852.
+Worktree branch carrying THIS report: `claude/audit-crusaderbot-import-Ar983` (Claude Code worktree — Sentinel rule: do not block on branch name alone). PR #853 carries the audit artifacts only — the new audit report `reports/sentinel/crusaderbot-replit-import.md` plus the surgical update to `state/PROJECT_STATE.md` required by AGENTS.md FAILURE CONDITIONS line 723. The source files under audit live on PR #852 at commit 8c6aded3 and are not duplicated here.
 Audit scope: every production source file and migration under `projects/polymarket/crusaderbot/` on the audited commit — 38 `.py` modules + 4 `migrations/*.sql` + `db/schema_r4.sql` + `.env.example` + `config/main` entry points. Out of scope: tests, deployment config (`Dockerfile`, `fly.toml`, `Procfile`), `state/` markdown.
 Date: 2026-05-04 21:52 Asia/Jakarta
 
