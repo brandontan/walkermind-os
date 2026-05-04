@@ -1,0 +1,57 @@
+name: CrusaderBot CI
+
+# Lint + test on every push to WARP/* feature branches and on PRs targeting main.
+# Runs only when crusaderbot/ paths change (or this workflow itself is edited).
+
+on:
+  push:
+    branches:
+      - 'WARP/**'
+      - main
+    paths:
+      - 'projects/polymarket/crusaderbot/**'
+      - '.github/workflows/crusaderbot-ci.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'projects/polymarket/crusaderbot/**'
+      - '.github/workflows/crusaderbot-ci.yml'
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: crusaderbot-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: Lint + Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: projects/polymarket/crusaderbot
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install lint and test tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ruff pytest
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Run tests (pytest)
+        run: pytest tests/ -v --tb=short

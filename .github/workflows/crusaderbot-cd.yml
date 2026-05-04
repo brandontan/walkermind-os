@@ -1,0 +1,43 @@
+name: CrusaderBot CD
+
+# Deploy to Fly.io on merge to main, scoped to crusaderbot/ path changes.
+# FLY_API_TOKEN must be configured as a GitHub Actions repository secret.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'projects/polymarket/crusaderbot/**'
+      - '.github/workflows/crusaderbot-cd.yml'
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: crusaderbot-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        # Run flyctl from the crusaderbot directory so the Docker build context
+        # matches the Dockerfile assumptions (`COPY pyproject.toml /app/`,
+        # `COPY . /app/crusaderbot/`). flyctl picks up fly.toml from the CWD.
+        working-directory: projects/polymarket/crusaderbot
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

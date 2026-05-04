@@ -28,3 +28,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["crusaderbot*"]
+
+[tool.ruff.lint]
+# R12a baseline — syntax errors + undefined references only.
+# F401 (unused imports) and stylistic rules are deferred to a dedicated
+# cleanup lane to keep R12a scope-clean (no Python source modifications).
+select = ["E9", "F63", "F7", "F82"]
