@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - 'WARP/**'
+      - main
     paths:
       - 'projects/polymarket/crusaderbot/**'
       - '.github/workflows/crusaderbot-ci.yml'
