@@ -88,10 +88,14 @@ async def handle_start(
                 break
             except asyncpg.UniqueViolationError as exc:
                 constraint = exc.constraint_name or ""
-                if "hd_index" in constraint:
-                    # Race on hd_index allocation — retry with a fresh index.
+                # Both hd_index and deposit_address conflicts are surfaces of the
+                # same underlying allocator race: two callers picked the same
+                # hd_index (the second insert collides on whichever unique index
+                # Postgres checks first). Retry re-allocates a fresh hd_index
+                # which derives a different address, so both paths recover.
+                if "hd_index" in constraint or "deposit_address" in constraint:
                     log.warning(
-                        "wallet.provision_hd_index_race",
+                        "wallet.provision_allocator_race",
                         user_id=str(user_id),
                         hd_index=hd_index,
                         attempt=attempt,
@@ -108,10 +112,9 @@ async def handle_start(
                         )
                         return
                     continue
-                # PK on user_id or UNIQUE on deposit_address: a concurrent /start
-                # for this user already provisioned. Idempotent recovery — re-fetch
-                # the winning wallet and use its address rather than surfacing a
-                # false-positive failure to the user.
+                # PK on user_id (wallets_pkey): a concurrent /start for THIS user
+                # has already provisioned. Idempotent recovery — re-fetch the
+                # winning wallet and surface its address rather than a false error.
                 race_winner = await get_wallet(pool, user_id)
                 if race_winner is not None:
                     address = race_winner["deposit_address"]
