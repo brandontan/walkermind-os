@@ -71,34 +71,34 @@
 
   /* ── ROADMAP LANES ── */
   .roadmap-grid{display:flex;flex-direction:column;gap:6px;margin-bottom:20px;}
-  .lane-row{display:grid;grid-template-columns:36px 1fr auto auto 44px;align-items:center;gap:8px;padding:10px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);transition:border-color 0.2s;}
+  .lane-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);transition:border-color 0.2s;}
   .lane-row.lane-done{border-color:rgba(0,212,170,0.2);background:rgba(0,212,170,0.02);}
   .lane-row.lane-active{border-color:rgba(0,168,255,0.35);background:rgba(0,168,255,0.03);}
   .lane-row.lane-next{border-color:rgba(251,191,36,0.2);}
-  .lane-id{font-family:var(--font-m);font-size:10px;font-weight:700;}
+  .lane-id{font-family:var(--font-m);font-size:10px;font-weight:700;flex-shrink:0;width:36px;}
   .lid-done{color:var(--green);}
   .lid-active{color:var(--blue);}
   .lid-next{color:var(--yellow);}
   .lid-pend{color:var(--gray2);}
-  .lane-name{font-size:12px;font-weight:500;line-height:1.4;min-width:0;word-break:break-word;}
-  .lane-tier{font-family:var(--font-m);font-size:9px;padding:2px 7px;border-radius:3px;white-space:nowrap;}
+  .lane-name{font-size:12px;font-weight:500;line-height:1.4;min-width:0;flex:1;}
+  .lane-meta{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:nowrap;}
+  .lane-tier{font-family:var(--font-m);font-size:9px;padding:2px 7px;border-radius:3px;white-space:nowrap;flex-shrink:0;}
   .lt-major{background:rgba(255,68,85,0.08);color:var(--red);border:1px solid rgba(255,68,85,0.2);}
   .lt-std{background:rgba(251,191,36,0.06);color:var(--yellow);border:1px solid rgba(251,191,36,0.15);}
   .lt-minor{background:rgba(42,50,62,0.3);color:var(--gray2);border:1px solid var(--border);}
-  .lane-badge{font-family:var(--font-m);font-size:9px;padding:2px 8px;border-radius:10px;white-space:nowrap;}
+  .lane-badge{font-family:var(--font-m);font-size:9px;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0;}
   .lb-done{background:rgba(0,212,170,0.08);color:var(--green);border:1px solid rgba(0,212,170,0.2);}
   .lb-active{background:rgba(0,168,255,0.08);color:var(--blue);border:1px solid rgba(0,168,255,0.2);}
   .lb-next{background:rgba(251,191,36,0.08);color:var(--yellow);border:1px solid rgba(251,191,36,0.2);}
   .lb-pend{background:rgba(42,50,62,0.3);color:var(--gray2);border:1px solid var(--border);}
-  .lane-bar-wrap{width:44px;}
+  .lane-bar-wrap{width:44px;flex-shrink:0;}
   .lane-bar{height:2px;background:var(--border2);border-radius:2px;overflow:hidden;}
   .lane-bar-fill{height:100%;background:var(--grad);}
-  @media(max-width:520px){
-    .lane-row{grid-template-columns:28px 1fr;grid-template-rows:auto auto;gap:4px 8px;padding:10px 12px;}
-    .lane-name{grid-column:2;grid-row:1;}
-    .lane-tier{grid-column:2;grid-row:2;justify-self:start;}
-    .lane-badge{grid-column:2;grid-row:2;justify-self:start;margin-left:4px;}
-    .lane-bar-wrap{grid-column:2;grid-row:2;justify-self:end;margin-left:auto;}
+  @media(max-width:600px){
+    .lane-row{flex-wrap:wrap;gap:6px 8px;padding:10px 12px;}
+    .lane-id{width:32px;}
+    .lane-name{flex:1 1 calc(100% - 44px);}
+    .lane-meta{width:100%;padding-left:40px;}
   }
 
   .wm-banner{background:linear-gradient(135deg,rgba(0,168,255,0.05),rgba(0,212,170,0.04));border:1px solid rgba(0,168,255,0.2);border-radius:6px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:14px;}
@@ -272,7 +272,6 @@
   <div class="search-row">
     <a href="worktodo.html" class="wm-btn">↗ Work To-Do</a>
     <a href="crusaderbot_blueprint.html" class="wm-btn">↗ Blueprint</a>
-    <a href="https://github.com/bayuewalker/walkermind-os" target="_blank" class="wm-btn">↗ GitHub</a>
   </div>
 
   <!-- ROADMAP OVERVIEW -->
@@ -453,9 +452,11 @@ function renderRoadmap(lanes){
     return`<div class="lane-row ${sc}">
       <span class="lane-id ${ic}">${esc(l.id)}</span>
       <span class="lane-name">${esc(l.name)}</span>
-      <span class="lane-tier ${tc}">${esc(l.tier)}</span>
-      <span class="lane-badge ${bc}">${bl}</span>
-      <div class="lane-bar-wrap"><div class="lane-bar"><div class="lane-bar-fill" style="width:${pct}%"></div></div></div>
+      <div class="lane-meta">
+        <span class="lane-tier ${tc}">${esc(l.tier)}</span>
+        <span class="lane-badge ${bc}">${bl}</span>
+        <div class="lane-bar-wrap"><div class="lane-bar"><div class="lane-bar-fill" style="width:${pct}%"></div></div></div>
+      </div>
     </div>`;
   }).join('');
 }
