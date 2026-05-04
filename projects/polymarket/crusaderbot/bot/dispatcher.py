@@ -17,6 +17,7 @@ from ..config import Settings, settings
 from ..services.allowlist import get_user_tier, tier_label
 from .handlers.admin import handle_allowlist
 from .handlers.onboarding import handle_start
+from .handlers.wallet import handle_deposit, handle_wallet
 
 log = structlog.get_logger(__name__)
 
@@ -54,12 +55,16 @@ def setup_handlers(
     """
     bound_start = partial(handle_start, pool=db_pool, config=config)
     bound_allowlist = partial(handle_allowlist, config=config)
+    bound_wallet = partial(handle_wallet, pool=db_pool, config=config)
+    bound_deposit = partial(handle_deposit, pool=db_pool, config=config)
     app.add_handler(CommandHandler("start", bound_start))
     app.add_handler(CommandHandler("status", status_handler))
     app.add_handler(CommandHandler("allowlist", bound_allowlist))
+    app.add_handler(CommandHandler("wallet", bound_wallet))
+    app.add_handler(CommandHandler("deposit", bound_deposit))
     log.info(
         "bot.handlers_registered",
-        commands=["start", "status", "allowlist"],
+        commands=["start", "status", "allowlist", "wallet", "deposit"],
     )
 
 

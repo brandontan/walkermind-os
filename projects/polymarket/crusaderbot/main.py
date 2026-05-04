@@ -17,6 +17,7 @@ from .bot.dispatcher import get_application, setup_handlers
 from .cache import cache
 from .config import settings
 from .database import db
+from .services.deposit_watcher import DepositWatcher
 
 
 def _configure_logging() -> None:
@@ -52,10 +53,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     bot_initialized = False
     bot_started = False
     polling_started = False
+    watcher: DepositWatcher | None = None
+    watcher_started = False
 
     async def _unwind() -> None:
         # Reverse-order, per-step cleanup. Each step is independent — a failure
         # in one does not skip the rest. PTB lifecycle: updater.stop -> stop -> shutdown.
+        if watcher_started and watcher is not None:
+            try:
+                await watcher.stop()
+            except Exception as exc:
+                log.warning("shutdown.step_failed",
+                            step="deposit_watcher.stop", error=str(exc))
         if polling_started and bot_app is not None and bot_app.updater is not None and bot_app.updater.running:
             try:
                 await bot_app.updater.stop()
@@ -97,6 +106,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         bot_started = True
         await bot_app.updater.start_polling()
         polling_started = True
+
+        watcher = DepositWatcher(
+            pool=db.pool, bot_app=bot_app, config=settings,
+        )
+        await watcher.start()
+        watcher_started = True
     except Exception as exc:
         log.error("startup.failed", error=str(exc), error_type=type(exc).__name__)
         await _unwind()

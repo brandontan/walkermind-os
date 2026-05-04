@@ -1,17 +1,17 @@
-Last Updated : 2026-05-04 12:10
-Status       : R3 allowlist gate lane open. Paper mode. All activation guards OFF. Tier 2 allowlist (in-memory, asyncio.Lock-guarded) + /allowlist operator command (add/remove/list) live; require_tier decorator scaffolded for future Tier 2+ commands; /status now displays caller's effective tier.
+Last Updated : 2026-05-04 18:30
+Status       : R4 deposit watcher + ledger lane open. Paper mode. All activation guards OFF. Alchemy WS subscription to USDC Transfer events on Polygon, in-process address-map filter, idempotent inserts to deposits (UNIQUE tx_hash), sub-account ledger credit, Tier 3 auto-bump on balance >= MIN_DEPOSIT_USDC, Telegram deposit-confirmed notification. /wallet (all tiers) and /deposit (Tier 2+) registered.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
 - crusaderbot/ project path established under projects/polymarket/
 - R1 skeleton — FastAPI + DB + Redis + Telegram polling + migrations + risk constants (PR #847 merged)
 - R2 onboarding + HD wallet generation (PR #848 merged)
+- R3 operator allowlist + Tier 2 gate (PR merged)
 
 [IN PROGRESS]
-- crusaderbot-r3-allowlist (PR open against main, awaiting WARP🔹CMD review)
+- crusaderbot-r4-deposit-watcher (PR open against main, awaiting WARP🔹CMD review + WARP•SENTINEL validation)
 
 [NOT STARTED]
-- R4 deposit watcher + ledger
 - R5 strategy config
 - R6 signal engine (copy-trade + signal-following)
 - R7 risk gate (13-step)
@@ -22,7 +22,9 @@ Status       : R3 allowlist gate lane open. Paper mode. All activation guards OF
 - R12 ops + monitoring
 
 [NEXT PRIORITY]
-- R4 — deposit watcher + ledger crediting
+- WARP•SENTINEL validation required for R4 deposit watcher before merge.
+  Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-r4-deposit-watcher.md
+  Tier: MAJOR
 
 [KNOWN ISSUES]
 - None

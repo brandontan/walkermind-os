@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-04 12:10 Asia/Jakarta
+**Last Updated:** 2026-05-04 18:30 Asia/Jakarta
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -10,8 +10,8 @@
 |---|---|---|---|---|
 | R1 | Skeleton — FastAPI + DB + Redis + Telegram polling + migrations | ✅ Done | STANDARD | Merged via PR #847 |
 | R2 | User onboarding + HD wallet generation | ✅ Done | STANDARD | Merged via PR #848 |
-| R3 | Operator allowlist (Tier 2 access gate) | 🚧 In Progress | STANDARD | This lane (`WARP/CRUSADERBOT-R3-ALLOWLIST`) |
-| R4 | Deposit watcher + ledger crediting | ❌ Not Started | MAJOR | — |
+| R3 | Operator allowlist (Tier 2 access gate) | ✅ Done | STANDARD | Merged |
+| R4 | Deposit watcher + ledger crediting | 🚧 In Progress | MAJOR | This lane (`WARP/CRUSADERBOT-R4-DEPOSIT-WATCHER`) |
 | R5 | Strategy config (risk profile + filters + capital alloc) | ❌ Not Started | STANDARD | — |
 | R6 | Signal engine (copy-trade + signal-following) | ❌ Not Started | MAJOR | — |
 | R7 | Risk gate (13-step pre-execution) | ❌ Not Started | MAJOR | — |

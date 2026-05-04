@@ -52,21 +52,33 @@ class Database:
     async def run_migrations(self) -> None:
         if self._pool is None:
             raise RuntimeError("database.run_migrations called before connect()")
-        migrations_path = Path(__file__).parent / "migrations" / "001_init.sql"
-        if not migrations_path.exists():
-            raise FileNotFoundError(f"migrations file missing: {migrations_path}")
+        base = Path(__file__).parent
+        init_path = base / "migrations" / "001_init.sql"
+        if not init_path.exists():
+            raise FileNotFoundError(f"migrations file missing: {init_path}")
         async with self._pool.acquire() as conn:
             already = await conn.fetchval(
                 "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
                 "WHERE table_schema='public' AND table_name='users')"
             )
-            if already:
-                log.info("database.migrations_skipped", reason="schema already initialized")
-                return
-            sql = migrations_path.read_text(encoding="utf-8")
-            async with conn.transaction():
-                await conn.execute(sql)
-        log.info("database.migrations_applied", file=str(migrations_path))
+            if not already:
+                sql = init_path.read_text(encoding="utf-8")
+                async with conn.transaction():
+                    await conn.execute(sql)
+                log.info("database.migrations_applied", file=str(init_path))
+            else:
+                log.info("database.migrations_skipped",
+                         reason="schema already initialized",
+                         file=str(init_path))
+
+        # R4 additive schema — uses IF NOT EXISTS guards, safe to rerun.
+        r4_path = base / "db" / "schema_r4.sql"
+        if r4_path.exists():
+            async with self._pool.acquire() as conn:
+                sql_r4 = r4_path.read_text(encoding="utf-8")
+                async with conn.transaction():
+                    await conn.execute(sql_r4)
+            log.info("database.migrations_applied", file=str(r4_path))
 
     @property
     def pool(self) -> asyncpg.Pool:

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str
     POLYGON_RPC_URL: str
+    ALCHEMY_POLYGON_RPC_URL: str
+    ALCHEMY_POLYGON_WS_URL: str
+    USDC_CONTRACT_ADDRESS: str
     MASTER_WALLET_ADDRESS: str
     MASTER_WALLET_PRIVATE_KEY: str
     WALLET_HD_SEED: str
