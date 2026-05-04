@@ -6,9 +6,10 @@ Critical findings: **3**
 Validation Tier: MAJOR
 Claim Level: FULL RUNTIME INTEGRATION (R1-R11 import + P1 fixes)
 
-PR: #852 (origin/WARP/CRUSADERBOT-REPLIT-IMPORT)
-Worktree branch: `claude/audit-crusaderbot-import-Ar983` (Claude Code worktree — Sentinel rule: do not block on branch name alone)
-Audit scope: `projects/polymarket/crusaderbot/` (62 files reviewed; tests + deploy config out of scope)
+Audited commit: `8c6aded3d6db2f7e92d2638ede72636976c17ea4` on `origin/WARP/CRUSADERBOT-REPLIT-IMPORT` (PR #852).
+Reproduce findings via `git show 8c6aded3:<path>` for any file:line reference below.
+Worktree branch carrying THIS report: `claude/audit-crusaderbot-import-Ar983` (Claude Code worktree — Sentinel rule: do not block on branch name alone). The audit-report PR (#853) intentionally contains only `reports/sentinel/crusaderbot-replit-import.md`; the source files under audit live on PR #852.
+Audit scope: every production source file and migration under `projects/polymarket/crusaderbot/` on the audited commit — 38 `.py` modules + 4 `migrations/*.sql` + `db/schema_r4.sql` + `.env.example` + `config/main` entry points. Out of scope: tests, deployment config (`Dockerfile`, `fly.toml`, `Procfile`), `state/` markdown.
 Date: 2026-05-04 Asia/Jakarta
 
 ---
@@ -163,6 +164,27 @@ Each finding cites file:line, observed behavior, expected behavior, and severity
   FORBIDDEN"). The 10% gate cap is a backstop, not Kelly.
 
 ### C2 — CRITICAL — `migrations/004` is non-idempotent → bot fails to restart
+
+> Verification (run against the audited commit):
+> ```
+> $ git show 8c6aded3:projects/polymarket/crusaderbot/database.py | sed -n '45,57p'
+> async def run_migrations() -> None:
+>     pool = await init_pool()
+>     migrations_dir = Path(__file__).parent / "migrations"
+>     files = sorted(migrations_dir.glob("*.sql"))
+>     ...
+>     async with pool.acquire() as conn:
+>         for f in files:
+>             sql = f.read_text(encoding="utf-8")
+>             logger.info("Running migration %s", f.name)
+>             await conn.execute(sql)
+> ```
+> The runner globs `migrations/*.sql` only. `db/schema_r4.sql` is **not**
+> referenced anywhere in `database.py` on this commit (the R4 forge
+> report at `reports/forge/crusaderbot-r4-deposit-watcher.md:22, 99`
+> claims it is, but that claim is stale — the wiring never landed). C2
+> therefore depends solely on `migrations/004`'s shape, which is:
+
 
 - File: `projects/polymarket/crusaderbot/migrations/004_deposit_log_index.sql:14-16`:
   ```sql
