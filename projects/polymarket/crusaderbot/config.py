@@ -20,6 +20,7 @@ REQUIRED_ENV_VARS: tuple[str, ...] = (
     "DATABASE_URL",
     "ALCHEMY_POLYGON_WS_URL",
     "OPERATOR_CHAT_ID",
+    "WALLET_HD_SEED",
     "WALLET_ENCRYPTION_KEY",
 )
 

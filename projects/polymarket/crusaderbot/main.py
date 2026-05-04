@@ -150,11 +150,12 @@ async def lifespan(_: FastAPI):
         monitoring_alerts.schedule_alert(
             monitoring_alerts.alert_startup(restart_detected=True),
         )
-        for key in missing_env:
+        if missing_env:
+            # One aggregated page covers all missing keys; per-variable
+            # alerts would collide on the same cooldown bucket and silently
+            # drop every key after the first.
             monitoring_alerts.schedule_alert(
-                monitoring_alerts.alert_dependency_unreachable(
-                    "env", f"required env var missing: {key}",
-                ),
+                monitoring_alerts.alert_missing_env(missing_env),
             )
         boot_health = await run_health_checks()
         if boot_health["status"] != "ok":

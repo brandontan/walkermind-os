@@ -421,6 +421,64 @@ def test_record_health_result_per_check_reset_while_degraded():
     assert rpc_alerts == [], f"unexpected rpc alert: {rpc_alerts!r}"
 
 
+def test_alert_missing_env_aggregates_all_keys_in_one_alert():
+    """The lifespan boot path used to call alert_dependency_unreachable
+    once per missing key, but the cooldown key was always
+    ("startup_dep_fail", "env") — so only the first key paged. The
+    aggregated alert sends ONE message containing every missing key,
+    and a different missing-set on a later boot produces a NEW alert
+    because the cooldown key is derived from the sorted set.
+    """
+    sent: list[Any] = []
+
+    async def _fake_send(chat_id, text, parse_mode=None):
+        sent.append(text)
+        return True
+
+    fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
+    with patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.notifications.send",
+        new=_fake_send,
+    ), patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.get_settings",
+        return_value=fake_settings,
+    ):
+        _run(monitoring_alerts.alert_missing_env(["FOO", "BAR", "BAZ"]))
+        assert len(sent) == 1, "must emit a single aggregated alert"
+        body = sent[0]
+        assert "FOO" in body and "BAR" in body and "BAZ" in body, (
+            f"every missing key must appear in the aggregated body: {body!r}"
+        )
+        # Same set inside the cooldown window: suppressed.
+        _run(monitoring_alerts.alert_missing_env(["FOO", "BAR", "BAZ"]))
+        assert len(sent) == 1
+        # Different set on a later boot: pages immediately because the
+        # cooldown key is derived from the sorted missing-set.
+        _run(monitoring_alerts.alert_missing_env(["QUX"]))
+        assert len(sent) == 2
+        assert "QUX" in sent[1]
+
+
+def test_alert_missing_env_noop_for_empty_list():
+    """No alert should fire when the missing list is empty."""
+    sent: list[Any] = []
+
+    async def _fake_send(chat_id, text, parse_mode=None):
+        sent.append(text)
+        return True
+
+    fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
+    with patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.notifications.send",
+        new=_fake_send,
+    ), patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.get_settings",
+        return_value=fake_settings,
+    ):
+        _run(monitoring_alerts.alert_missing_env([]))
+    assert sent == []
+
+
 def test_dispatch_does_not_arm_cooldown_on_send_failure():
     """A permanent Telegram failure must NOT arm the cooldown — otherwise
     the operator is silenced for 5 minutes during the very outage they
@@ -505,6 +563,7 @@ def test_validate_required_env_reads_dotenv_file(tmp_path, monkeypatch):
         "ALCHEMY_POLYGON_RPC_URL=https://rpc\n"
         "ALCHEMY_POLYGON_WS_URL=wss://ws\n"
         "OPERATOR_CHAT_ID=42\n"
+        "WALLET_HD_SEED=seed\n"
         "WALLET_ENCRYPTION_KEY=k\n"
     )
     _clear_all_required_env(monkeypatch)
@@ -525,6 +584,7 @@ def test_validate_required_env_accepts_legacy_polygon_rpc_url(tmp_path, monkeypa
         "POLYGON_RPC_URL=https://rpc-legacy\n"
         "ALCHEMY_POLYGON_WS_URL=wss://ws\n"
         "OPERATOR_CHAT_ID=42\n"
+        "WALLET_HD_SEED=seed\n"
         "WALLET_ENCRYPTION_KEY=k\n"
     )
     _clear_all_required_env(monkeypatch)
@@ -544,9 +604,17 @@ def test_validate_required_env_reports_rpc_group_when_no_alias_set(tmp_path, mon
     monkeypatch.setenv("DATABASE_URL", "postgresql://x")
     monkeypatch.setenv("ALCHEMY_POLYGON_WS_URL", "wss://ws")
     monkeypatch.setenv("OPERATOR_CHAT_ID", "1")
+    monkeypatch.setenv("WALLET_HD_SEED", "seed")
     monkeypatch.setenv("WALLET_ENCRYPTION_KEY", "k")
     missing = crusaderbot_config.validate_required_env()
     assert missing == ["ALCHEMY_POLYGON_RPC_URL or POLYGON_RPC_URL"]
+
+
+def test_validate_required_env_includes_wallet_hd_seed():
+    """REQUIRED_ENV_VARS must list every Settings-required str field so the
+    preflight matches Settings's actual contract — a missing WALLET_HD_SEED
+    used to pass preflight then crash at get_settings()."""
+    assert "WALLET_HD_SEED" in crusaderbot_config.REQUIRED_ENV_VARS
 
 
 def test_validate_required_env_lists_missing_keys_only(monkeypatch, tmp_path):

@@ -106,6 +106,27 @@ async def alert_dependency_unreachable(check_name: str, reason: str) -> None:
     await _dispatch("startup_dep_fail", check_name, body)
 
 
+async def alert_missing_env(keys: list[str]) -> None:
+    """Single aggregated alert for any number of missing required env vars.
+
+    Per-variable alerts collide on the ``("startup_dep_fail", "env")``
+    cooldown key, so a boot with N missing vars would page the operator
+    only once and silently swallow the rest. Aggregating into one message
+    surfaces every missing key in a single actionable line, and the
+    cooldown key is derived from the sorted missing set so a DIFFERENT
+    set of missing keys on a later boot pages immediately.
+    """
+    if not keys:
+        return
+    body = (
+        f"[CrusaderBot] required env vars missing at startup\n"
+        f"time: {_now_iso()}\n"
+        f"keys:\n  - " + "\n  - ".join(keys)
+    )
+    cooldown_key = ",".join(sorted(keys))
+    await _dispatch("startup_missing_env", cooldown_key, body)
+
+
 async def alert_health_degraded(
     overall_status: str, failing: dict[str, str],
 ) -> None:
