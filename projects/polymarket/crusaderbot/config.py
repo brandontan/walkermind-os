@@ -18,10 +18,17 @@ logger = logging.getLogger(__name__)
 REQUIRED_ENV_VARS: tuple[str, ...] = (
     "TELEGRAM_BOT_TOKEN",
     "DATABASE_URL",
-    "ALCHEMY_POLYGON_RPC_URL",
     "ALCHEMY_POLYGON_WS_URL",
     "OPERATOR_CHAT_ID",
     "WALLET_ENCRYPTION_KEY",
+)
+
+# "At least one of" groups: validation passes for the group when any of its
+# members resolves to a non-empty value. ``check_alchemy_rpc`` falls back to
+# the legacy ``POLYGON_RPC_URL`` when the Alchemy alias is unset, so a
+# deployment using only the legacy name is healthy and must NOT be paged.
+REQUIRED_ENV_VAR_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("ALCHEMY_POLYGON_RPC_URL", "POLYGON_RPC_URL"),
 )
 
 
@@ -158,7 +165,15 @@ def validate_required_env() -> list[str]:
         if key not in resolved:
             resolved[key] = value
 
-    missing = [k for k in REQUIRED_ENV_VARS if not (resolved.get(k) or "").strip()]
+    def _has(key: str) -> bool:
+        return bool((resolved.get(key) or "").strip())
+
+    missing: list[str] = [k for k in REQUIRED_ENV_VARS if not _has(k)]
+    for group in REQUIRED_ENV_VAR_GROUPS:
+        if not any(_has(name) for name in group):
+            # Report the group as a single composite key so the operator
+            # sees both candidate names without two duplicate alerts.
+            missing.append(" or ".join(group))
     for key in missing:
         logger.error("required env var missing: %s", key)
     return missing

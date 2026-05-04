@@ -142,17 +142,27 @@ async def lifespan(_: FastAPI):
     # --- observability: startup alert + dependency probe ---
     # Fly.io starts a fresh machine on every deploy or VM restart, so a boot
     # event always counts as a machine restart from the operator's POV.
+    # Alert delivery is fire-and-forget so a slow Telegram cannot stall
+    # app.startup past Fly's 10s grace_period and trigger a restart loop.
+    # run_health_checks() is bounded by its own per-check 3s timeout, so
+    # awaiting it here is safe.
     try:
-        await monitoring_alerts.alert_startup(restart_detected=True)
+        monitoring_alerts.schedule_alert(
+            monitoring_alerts.alert_startup(restart_detected=True),
+        )
         for key in missing_env:
-            await monitoring_alerts.alert_dependency_unreachable(
-                "env", f"required env var missing: {key}",
+            monitoring_alerts.schedule_alert(
+                monitoring_alerts.alert_dependency_unreachable(
+                    "env", f"required env var missing: {key}",
+                ),
             )
         boot_health = await run_health_checks()
         if boot_health["status"] != "ok":
             for name, reason in boot_health["checks"].items():
                 if reason != "ok":
-                    await monitoring_alerts.alert_dependency_unreachable(name, reason)
+                    monitoring_alerts.schedule_alert(
+                        monitoring_alerts.alert_dependency_unreachable(name, reason),
+                    )
     except Exception as exc:  # noqa: BLE001 — observability must never crash boot
         log.error("startup observability hook failed: %s", exc, exc_info=True)
 

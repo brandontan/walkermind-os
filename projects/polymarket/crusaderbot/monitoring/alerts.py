@@ -200,6 +200,42 @@ def schedule_health_record(result: dict) -> Optional[asyncio.Task]:
     return loop.create_task(_run_health_record_safely(result))
 
 
+def _log_task_exception(task: "asyncio.Task") -> None:
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.error(
+            "background alert failed: %s", exc,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+
+
+def schedule_alert(coro) -> Optional[asyncio.Task]:
+    """Fire-and-forget wrapper for any alert coroutine.
+
+    Used by the lifespan boot path so the same retry/backoff chain that
+    blocks ``/health`` cannot block ``app.startup`` either — Fly's
+    ``grace_period`` is now 10s, so a slow Telegram during boot would
+    otherwise turn a notification outage into failed startup probes and
+    restart loops.
+
+    The coroutine itself is scheduled as the task body (rather than wrapped
+    in another ``async def``), so cancellation cleanly closes it without
+    leaving an un-awaited coroutine. A done-callback logs any exception at
+    ERROR. Returns ``None`` and closes the coro when no event loop is
+    running, so test/sync callers no-op safely.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        coro.close()
+        return None
+    task = loop.create_task(coro)
+    task.add_done_callback(_log_task_exception)
+    return task
+
+
 def reset_state() -> None:
     """Clear cooldown + counter state. Test-only entrypoint."""
     _last_alert_at.clear()

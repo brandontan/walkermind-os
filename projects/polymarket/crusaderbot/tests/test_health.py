@@ -217,6 +217,65 @@ def test_health_payload_does_not_leak_exception_message():
     assert "401 Unauthorized" not in payload_str
 
 
+def test_schedule_alert_does_not_block_on_slow_send():
+    """Lifespan boot path uses schedule_alert for startup pages so a slow
+    Telegram cannot stall app.startup past Fly's 10s grace_period.
+    """
+
+    async def _slow_send(chat_id, text, parse_mode=None):
+        await asyncio.sleep(2.0)  # would stall boot if awaited
+        return True
+
+    fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
+
+    async def _scenario():
+        with patch(
+            "projects.polymarket.crusaderbot.monitoring.alerts.notifications.send",
+            new=_slow_send,
+        ), patch(
+            "projects.polymarket.crusaderbot.monitoring.alerts.get_settings",
+            return_value=fake_settings,
+        ):
+            t0 = asyncio.get_event_loop().time()
+            task = monitoring_alerts.schedule_alert(
+                monitoring_alerts.alert_startup(restart_detected=True),
+            )
+            elapsed = asyncio.get_event_loop().time() - t0
+            assert task is not None
+            assert elapsed < 0.05, f"schedule_alert blocked for {elapsed:.3f}s"
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+    _run(_scenario())
+
+
+def test_schedule_alert_returns_none_without_running_loop():
+    """Outside an event loop the helper must no-op and not raise the
+    ``coroutine was never awaited`` warning.
+    """
+
+    async def _never_awaited(chat_id, text, parse_mode=None):
+        return True
+
+    # Build a coro on a settings stub that has OPERATOR_CHAT_ID; the helper
+    # should close it without scheduling because there's no running loop.
+    fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
+    with patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.notifications.send",
+        new=_never_awaited,
+    ), patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.get_settings",
+        return_value=fake_settings,
+    ):
+        task = monitoring_alerts.schedule_alert(
+            monitoring_alerts.alert_startup(restart_detected=True),
+        )
+    assert task is None
+
+
 def test_schedule_health_record_returns_none_without_running_loop():
     """Outside an async context the helper must no-op without raising."""
     task = monitoring_alerts.schedule_health_record(
@@ -373,6 +432,14 @@ def test_dispatch_arms_cooldown_only_on_successful_send():
         assert len(sent) == 1, "successful send should arm the cooldown"
 
 
+def _clear_all_required_env(monkeypatch):
+    for key in crusaderbot_config.REQUIRED_ENV_VARS:
+        monkeypatch.delenv(key, raising=False)
+    for group in crusaderbot_config.REQUIRED_ENV_VAR_GROUPS:
+        for key in group:
+            monkeypatch.delenv(key, raising=False)
+
+
 def test_validate_required_env_reads_dotenv_file(tmp_path, monkeypatch):
     """``validate_required_env`` must merge ``.env`` with ``os.environ`` —
     otherwise local/staging deployments running on a ``.env`` file get
@@ -387,21 +454,53 @@ def test_validate_required_env_reads_dotenv_file(tmp_path, monkeypatch):
         "OPERATOR_CHAT_ID=42\n"
         "WALLET_ENCRYPTION_KEY=k\n"
     )
-    # Strip every required key from os.environ so only .env can satisfy them.
-    for key in crusaderbot_config.REQUIRED_ENV_VARS:
-        monkeypatch.delenv(key, raising=False)
+    _clear_all_required_env(monkeypatch)
     monkeypatch.chdir(tmp_path)
     missing = crusaderbot_config.validate_required_env()
     assert missing == [], f"expected zero missing, got {missing!r}"
+
+
+def test_validate_required_env_accepts_legacy_polygon_rpc_url(tmp_path, monkeypatch):
+    """A deployment that supplies only the legacy ``POLYGON_RPC_URL`` (no
+    Alchemy alias) is healthy because ``check_alchemy_rpc`` falls back to
+    it. Validation must NOT page in that case.
+    """
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "TELEGRAM_BOT_TOKEN=tok\n"
+        "DATABASE_URL=postgresql://x\n"
+        "POLYGON_RPC_URL=https://rpc-legacy\n"
+        "ALCHEMY_POLYGON_WS_URL=wss://ws\n"
+        "OPERATOR_CHAT_ID=42\n"
+        "WALLET_ENCRYPTION_KEY=k\n"
+    )
+    _clear_all_required_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    missing = crusaderbot_config.validate_required_env()
+    assert missing == [], f"legacy RPC url should satisfy the group: {missing!r}"
+
+
+def test_validate_required_env_reports_rpc_group_when_no_alias_set(tmp_path, monkeypatch):
+    """When NEITHER alias in the RPC group is set, validation must report
+    the group exactly once with both candidate names so the operator sees
+    a single actionable line rather than two duplicate alerts.
+    """
+    _clear_all_required_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "x")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://x")
+    monkeypatch.setenv("ALCHEMY_POLYGON_WS_URL", "wss://ws")
+    monkeypatch.setenv("OPERATOR_CHAT_ID", "1")
+    monkeypatch.setenv("WALLET_ENCRYPTION_KEY", "k")
+    missing = crusaderbot_config.validate_required_env()
+    assert missing == ["ALCHEMY_POLYGON_RPC_URL or POLYGON_RPC_URL"]
 
 
 def test_validate_required_env_lists_missing_keys_only(monkeypatch, tmp_path):
     """When neither ``os.environ`` nor ``.env`` has the value, the key
     appears in the missing list — but the actual value never does.
     """
-    for key in crusaderbot_config.REQUIRED_ENV_VARS:
-        monkeypatch.delenv(key, raising=False)
-    # No .env file in cwd.
+    _clear_all_required_env(monkeypatch)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "secret-token-value")
     missing = crusaderbot_config.validate_required_env()
