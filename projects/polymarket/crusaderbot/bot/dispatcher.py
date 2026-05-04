@@ -1,72 +1,73 @@
-"""Telegram dispatcher: builds Application, registers /start, /status, /allowlist."""
+"""Wire all Telegram handlers into the python-telegram-bot Application."""
 from __future__ import annotations
 
-from functools import partial
+import logging
 
-import asyncpg
-import structlog
 from telegram import Update
 from telegram.ext import (
-    Application,
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
+    Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters,
 )
 
-from ..config import Settings, settings
-from ..services.allowlist import get_user_tier, tier_label
-from .handlers.admin import handle_allowlist
-from .handlers.onboarding import handle_start
-from .handlers.wallet import handle_deposit, handle_wallet
+from .handlers import admin, dashboard, emergency, onboarding, setup, wallet
 
-log = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-async def status_handler(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    """Show caller's tier + system guard states. Unrestricted (any tier can call)."""
-    if update.effective_message is None or update.effective_user is None:
+async def _text_router(update, ctx):
+    """Route plain text: first to setup awaiting-prompts, then to menu buttons."""
+    if await setup.text_input(update, ctx):
         return
-
-    caller_tier = await get_user_tier(update.effective_user.id)
-
-    lines = [f"Your access tier: {tier_label(caller_tier)}", ""]
-    lines.append("Guard states:")
-    for name, value in settings.guard_states.items():
-        marker = "✅ ON" if value else "⚪ OFF"
-        lines.append(f"- {name}: {marker}")
-    mode = "LIVE" if settings.ENABLE_LIVE_TRADING else "PAPER"
-    lines.append("")
-    lines.append(f"Mode: {mode}")
-    lines.append(f"Env: {settings.APP_ENV}")
-    await update.effective_message.reply_text("\n".join(lines))
-
-
-def setup_handlers(
-    app: Application,
-    *,
-    db_pool: asyncpg.Pool,
-    config: Settings,
-) -> None:
-    """Register handlers. db_pool/config are bound via partial as needed.
-
-    Both required keyword args fail fast at call time if missing.
-    """
-    bound_start = partial(handle_start, pool=db_pool, config=config)
-    bound_allowlist = partial(handle_allowlist, config=config)
-    bound_wallet = partial(handle_wallet, pool=db_pool, config=config)
-    bound_deposit = partial(handle_deposit, pool=db_pool, config=config)
-    app.add_handler(CommandHandler("start", bound_start))
-    app.add_handler(CommandHandler("status", status_handler))
-    app.add_handler(CommandHandler("allowlist", bound_allowlist))
-    app.add_handler(CommandHandler("wallet", bound_wallet))
-    app.add_handler(CommandHandler("deposit", bound_deposit))
-    log.info(
-        "bot.handlers_registered",
-        commands=["start", "status", "allowlist", "wallet", "deposit"],
-    )
+    if update.message is None:
+        return
+    text = (update.message.text or "").strip()
+    routes = {
+        "💰 Wallet": wallet.wallet_root,
+        "🤖 Setup": setup.setup_root,
+        "📊 Dashboard": dashboard.dashboard,
+        "📈 Positions": dashboard.positions,
+        "📋 Activity": dashboard.activity,
+        "🛑 Emergency": emergency.emergency_root,
+        "ℹ️ Help": onboarding.help_handler,
+        "⚙️ Settings": onboarding.help_handler,
+    }
+    handler = routes.get(text)
+    if handler:
+        await handler(update, ctx)
 
 
-def get_application() -> Application:
-    return ApplicationBuilder().token(settings.TELEGRAM_BOT_TOKEN).build()
+async def _global_error_handler(update: object, ctx) -> None:
+    logger.error("unhandled bot error: %s", ctx.error, exc_info=ctx.error)
+
+
+def register(app: Application) -> None:
+    # Command handlers
+    app.add_handler(CommandHandler("start", onboarding.start_handler))
+    app.add_handler(CommandHandler("help", onboarding.help_handler))
+    app.add_handler(CommandHandler("menu", onboarding.menu_handler))
+    app.add_handler(CommandHandler("dashboard", dashboard.dashboard))
+    app.add_handler(CommandHandler("positions", dashboard.positions))
+    app.add_handler(CommandHandler("activity", dashboard.activity))
+    app.add_handler(CommandHandler("emergency", emergency.emergency_root))
+    app.add_handler(CommandHandler("admin", admin.admin_root))
+    app.add_handler(CommandHandler("allowlist", admin.allowlist_command))
+
+    # Callback queries
+    app.add_handler(CallbackQueryHandler(wallet.wallet_callback, pattern=r"^wallet:"))
+    app.add_handler(CallbackQueryHandler(setup.setup_callback,  pattern=r"^setup:"))
+    app.add_handler(CallbackQueryHandler(setup.set_strategy,    pattern=r"^set_strategy:"))
+    app.add_handler(CallbackQueryHandler(setup.set_risk,        pattern=r"^set_risk:"))
+    app.add_handler(CallbackQueryHandler(setup.set_category,    pattern=r"^set_cat:"))
+    app.add_handler(CallbackQueryHandler(setup.set_mode,        pattern=r"^set_mode:"))
+    app.add_handler(CallbackQueryHandler(setup.set_redeem_mode, pattern=r"^set_redeem:"))
+    app.add_handler(CallbackQueryHandler(dashboard.autotrade_toggle_cb,
+                                         pattern=r"^autotrade:"))
+    app.add_handler(CallbackQueryHandler(dashboard.close_position_cb,
+                                         pattern=r"^position:close:"))
+    app.add_handler(CallbackQueryHandler(emergency.emergency_callback,
+                                         pattern=r"^emergency:"))
+    app.add_handler(CallbackQueryHandler(admin.admin_callback,  pattern=r"^admin:"))
+
+    # Free text — must be last
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))
+
+    app.add_error_handler(_global_error_handler)

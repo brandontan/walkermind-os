@@ -1,169 +1,69 @@
-"""Onboarding flow: /start handler — user upsert + HD wallet provisioning."""
+"""/start onboarding — creates user, derives wallet, shows main menu."""
 from __future__ import annotations
 
-import asyncpg
-import structlog
+import logging
+
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from ...config import Settings
-from ...services.user_service import get_or_create_user
-from ...wallet.generator import derive_address, encrypt_pk
-from ...wallet.vault import get_next_hd_index, get_wallet, store_wallet
+from ... import audit
+from ...users import upsert_user
+from ...wallet.vault import create_wallet_for_user, get_wallet
+from ..keyboards import main_menu
 
-log = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-async def handle_start(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-    *,
-    pool: asyncpg.Pool,
-    config: Settings,
-) -> None:
-    """Handle /start: upsert user, provision HD wallet on first contact, reply with deposit address.
-
-    Idempotent: subsequent /start calls return the existing wallet without provisioning a new one.
-    Private keys are encrypted at rest and never appear in any log line or Telegram reply.
-    """
-    if update.effective_user is None or update.effective_message is None:
+async def start_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user is None or update.message is None:
         return
+    tg_user = update.effective_user
+    user = await upsert_user(tg_user.id, tg_user.username)
+    wallet = await get_wallet(user["id"])
+    if wallet is None:
+        addr, idx = await create_wallet_for_user(user["id"])
+        wallet = {"deposit_address": addr, "hd_index": idx}
+        await audit.write(actor_role="user", action="wallet_created",
+                          user_id=user["id"],
+                          payload={"hd_index": idx, "address": addr})
 
-    telegram_user_id = update.effective_user.id
-    username = update.effective_user.username
-
-    try:
-        user = await get_or_create_user(pool, telegram_user_id, username)
-    except Exception as exc:
-        log.error(
-            "handle_start.user_upsert_failed",
-            telegram_user_id=telegram_user_id,
-            error=str(exc),
-        )
-        await update.effective_message.reply_text(
-            "⚠️ Could not register your account. Please try again later."
-        )
-        return
-
-    user_id = user["id"]
-    try:
-        existing = await get_wallet(pool, user_id)
-    except Exception as exc:
-        log.error(
-            "handle_start.wallet_lookup_failed",
-            user_id=str(user_id),
-            error=str(exc),
-        )
-        await update.effective_message.reply_text(
-            "⚠️ Could not load your wallet. Please try /start again."
-        )
-        return
-
-    if existing is None:
-        # MAX(hd_index)+1 is read outside the INSERT, so two concurrent /start
-        # callers can pick the same index. UNIQUE(hd_index) catches the race;
-        # we retry up to 3x with a fresh index. Only hd_index conflicts retry —
-        # user_id / deposit_address conflicts indicate a real bug and surface as failure.
-        max_attempts = 3
-        address: str | None = None
-        for attempt in range(1, max_attempts + 1):
-            hd_index = await get_next_hd_index(pool)
-            address, private_key = derive_address(
-                config.WALLET_HD_SEED, hd_index
-            )
-            encrypted = encrypt_pk(private_key, config.WALLET_ENCRYPTION_KEY)
-            # Drop the cleartext key from this scope before any further await.
-            private_key = ""
-            del private_key
-            try:
-                await store_wallet(pool, user_id, address, hd_index, encrypted)
-                log.info(
-                    "wallet.provisioned",
-                    user_id=str(user_id),
-                    hd_index=hd_index,
-                    address=address,
-                    attempt=attempt,
-                )
-                break
-            except asyncpg.UniqueViolationError as exc:
-                constraint = exc.constraint_name or ""
-                # Both hd_index and deposit_address conflicts are surfaces of the
-                # same underlying allocator race: two callers picked the same
-                # hd_index (the second insert collides on whichever unique index
-                # Postgres checks first). Retry re-allocates a fresh hd_index
-                # which derives a different address, so both paths recover.
-                if "hd_index" in constraint or "deposit_address" in constraint:
-                    log.warning(
-                        "wallet.provision_allocator_race",
-                        user_id=str(user_id),
-                        hd_index=hd_index,
-                        attempt=attempt,
-                        constraint=constraint,
-                    )
-                    if attempt == max_attempts:
-                        log.error(
-                            "wallet.provision_max_retries_exceeded",
-                            user_id=str(user_id),
-                            attempts=max_attempts,
-                        )
-                        await update.effective_message.reply_text(
-                            "⚠️ Wallet setup failed after retries. Please try /start again."
-                        )
-                        return
-                    continue
-                # PK on user_id (wallets_pkey): a concurrent /start for THIS user
-                # has already provisioned. Idempotent recovery — re-fetch the
-                # winning wallet and surface its address rather than a false error.
-                race_winner = await get_wallet(pool, user_id)
-                if race_winner is not None:
-                    address = race_winner["deposit_address"]
-                    log.info(
-                        "wallet.race_resolved_idempotent",
-                        user_id=str(user_id),
-                        constraint=constraint,
-                        address=address,
-                    )
-                    break
-                # Unique conflict but no wallet for this user — genuine defect.
-                log.error(
-                    "wallet.provision_unique_violation",
-                    user_id=str(user_id),
-                    constraint=constraint,
-                    error=str(exc),
-                )
-                await update.effective_message.reply_text(
-                    "⚠️ Wallet setup failed. Please try /start again."
-                )
-                return
-            except Exception as exc:
-                log.error(
-                    "handle_start.wallet_provision_failed",
-                    user_id=str(user_id),
-                    error=str(exc),
-                )
-                await update.effective_message.reply_text(
-                    "⚠️ Wallet setup failed. Please try /start again."
-                )
-                return
-    else:
-        address = existing["deposit_address"]
-        log.info(
-            "wallet.exists",
-            user_id=str(user_id),
-            address=address,
-        )
-
-    reply = (
-        "👋 Welcome to CrusaderBot!\n"
-        "📄 Paper mode active — no real money at risk.\n"
-        "\n"
-        "💳 Your deposit address:\n"
-        f"`{address}` (tap to copy)\n"
-        "\n"
-        "Send USDC on Polygon to this address to fund your account.\n"
-        f"Minimum deposit: ${config.MIN_DEPOSIT_USDC:.0f}\n"
-        "\n"
-        "Use /menu to explore features."
+    text = (
+        f"⚔️ *Welcome to CrusaderBot, {tg_user.first_name or 'user'}!*\n\n"
+        "Autonomous Polymarket trading. Telegram-controlled. Safety-first.\n\n"
+        "*Your USDC deposit address (Polygon):*\n"
+        f"`{wallet['deposit_address']}`\n"
+        "_(tap to copy)_\n\n"
+        f"*Tier:* {user['access_tier']} — "
+        f"{'Browse' if user['access_tier'] == 1 else 'Allowlisted' if user['access_tier'] == 2 else 'Funded' if user['access_tier'] == 3 else 'Live'}\n\n"
+        "Send USDC on Polygon to the address above to unlock paper trading. "
+        "Use the menu below to configure your strategy."
     )
-    await update.effective_message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(
+        text, parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu(),
+    )
+    await audit.write(actor_role="user", action="start", user_id=user["id"],
+                      payload={"username": tg_user.username})
+
+
+async def help_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.message is None:
+        return
+    await update.message.reply_text(
+        "*CrusaderBot commands*\n\n"
+        "/start — onboarding / main menu\n"
+        "/menu — show main menu\n"
+        "/dashboard — current status & PnL\n"
+        "/positions — open positions\n"
+        "/activity — recent trades\n"
+        "/emergency — pause / close all\n"
+        "/admin — operator controls (operator only)\n",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=main_menu(),
+    )
+
+
+async def menu_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.message is None:
+        return
+    await update.message.reply_text("Main menu:", reply_markup=main_menu())

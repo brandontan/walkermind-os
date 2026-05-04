@@ -1,61 +1,77 @@
-"""Wallet persistence boundary — DB-backed deposit address registry."""
+"""Encrypted private-key storage helpers (DB-backed via wallets table)."""
 from __future__ import annotations
 
-from typing import Optional
+import logging
 from uuid import UUID
 
-import asyncpg
-import structlog
+from ..config import get_settings
+from ..database import get_pool
+from .generator import decrypt_pk, derive_address, encrypt_pk
 
-log = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-async def get_next_hd_index(pool: asyncpg.Pool) -> int:
-    """Return the next free HD index (monotonic, starts at 0).
-
-    Note: this read+insert sequence is not atomic; the DB UNIQUE(hd_index)
-    constraint catches racing inserters. R2 caller does not retry — safe
-    under the low concurrency expected at this lane.
-    """
+async def next_hd_index() -> int:
+    """Atomically reserve and return the next HD index (1+)."""
+    pool = get_pool()
     async with pool.acquire() as conn:
-        result = await conn.fetchval(
-            "SELECT COALESCE(MAX(hd_index), -1) + 1 FROM wallets"
-        )
-    return int(result)
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "UPDATE hd_index_counter SET next_index = next_index + 1 "
+                "RETURNING next_index - 1 AS reserved"
+            )
+    return int(row["reserved"])
 
 
-async def store_wallet(
-    pool: asyncpg.Pool,
-    user_id: UUID,
-    address: str,
-    hd_index: int,
-    encrypted_key: str,
-) -> None:
-    """Persist a new wallet record. UNIQUE(deposit_address) and UNIQUE(hd_index)
-    + PRIMARY KEY(user_id) are enforced at the schema level.
-    """
+async def create_wallet_for_user(user_id: UUID) -> tuple[str, int]:
+    """Derive a fresh HD address, encrypt + store, return (address, hd_index)."""
+    settings = get_settings()
+    idx = await next_hd_index()
+    address, pk = derive_address(settings.WALLET_HD_SEED, idx)
+    encrypted = encrypt_pk(pk, settings.WALLET_ENCRYPTION_KEY)
+    pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
             "INSERT INTO wallets (user_id, deposit_address, hd_index, encrypted_key) "
-            "VALUES ($1, $2, $3, $4)",
-            user_id, address, hd_index, encrypted_key,
+            "VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO NOTHING",
+            user_id, address, idx, encrypted,
         )
-    log.info("wallet.stored", user_id=str(user_id), hd_index=hd_index)
-
-
-async def get_wallet(
-    pool: asyncpg.Pool,
-    user_id: UUID,
-) -> Optional[dict]:
-    """Return wallet row for user, or None if not yet provisioned.
-
-    `encrypted_key` is included for downstream signing flows; callers MUST NEVER
-    log it or surface it to users.
-    """
-    async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT user_id, deposit_address, hd_index, encrypted_key, "
-            "balance_usdc, created_at FROM wallets WHERE user_id=$1",
+            "SELECT deposit_address, hd_index FROM wallets WHERE user_id = $1",
             user_id,
         )
-    return dict(row) if row else None
+    return row["deposit_address"], int(row["hd_index"])
+
+
+async def get_wallet(user_id: UUID) -> dict | None:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT deposit_address, hd_index, balance_usdc FROM wallets "
+            "WHERE user_id = $1",
+            user_id,
+        )
+        return dict(row) if row else None
+
+
+async def get_decrypted_pk(user_id: UUID) -> str | None:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT encrypted_key FROM wallets WHERE user_id = $1", user_id,
+        )
+    if not row:
+        return None
+    settings = get_settings()
+    return decrypt_pk(row["encrypted_key"], settings.WALLET_ENCRYPTION_KEY)
+
+
+def master_wallet() -> tuple[str, str]:
+    """Master/hot-pool wallet: HD index 0 unless explicitly overridden in env."""
+    settings = get_settings()
+    if settings.MASTER_WALLET_ADDRESS and settings.MASTER_WALLET_PRIVATE_KEY:
+        pk = settings.MASTER_WALLET_PRIVATE_KEY
+        if not pk.startswith("0x"):
+            pk = "0x" + pk
+        return settings.MASTER_WALLET_ADDRESS, pk
+    return derive_address(settings.WALLET_HD_SEED, 0)
