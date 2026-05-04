@@ -50,6 +50,10 @@ USDC_DECIMAL_FACTOR = Decimal(10) ** USDC_DECIMALS
 INITIAL_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 60.0
 ADDRESS_REFRESH_SECONDS = 60.0
+# When a Transfer log misses the in-memory address map, force one refresh —
+# but at most this often, to bound DB load if the chain spams unrelated
+# transfers to the watched USDC contract.
+ADDRESS_MISS_REFRESH_DEBOUNCE_SECONDS = 5.0
 
 
 def _topic_to_address(topic_hex: str) -> str:
@@ -90,6 +94,7 @@ class DepositWatcher:
         self._address_map: dict[str, tuple[UUID, int]] = {}
         self._address_map_lock = asyncio.Lock()
         self._last_refresh_ts: float = 0.0
+        self._last_miss_refresh_ts: float = 0.0
         self._sub_id: Optional[str] = None
 
     # ---- lifecycle -------------------------------------------------------
@@ -156,6 +161,22 @@ class DepositWatcher:
         loop = asyncio.get_event_loop()
         if loop.time() - self._last_refresh_ts >= ADDRESS_REFRESH_SECONDS:
             await self._refresh_address_map()
+
+    async def _refresh_on_miss(self) -> None:
+        """Force an address-map refresh when a Transfer hits an unknown `to`.
+
+        The 60s periodic refresh leaves a window where a freshly provisioned
+        wallet's first deposit can hit before the map sees it; eth_subscribe
+        will not replay that log, so silently dropping it is a permanent
+        missed credit. We refresh on miss but debounce so unrelated transfers
+        in busy blocks cannot pin the DB.
+        """
+        loop = asyncio.get_event_loop()
+        now = loop.time()
+        if now - self._last_miss_refresh_ts < ADDRESS_MISS_REFRESH_DEBOUNCE_SECONDS:
+            return
+        self._last_miss_refresh_ts = now
+        await self._refresh_address_map()
 
     async def _lookup(self, address: str) -> Optional[tuple[UUID, int]]:
         async with self._address_map_lock:
@@ -318,6 +339,13 @@ class DepositWatcher:
             return
 
         match = await self._lookup(to_addr)
+        if match is None:
+            # Unknown `to` — could be a brand-new wallet provisioned since the
+            # last periodic refresh. Force a debounced refresh and re-check
+            # before discarding, otherwise we permanently lose first-deposit
+            # credits during the 60s refresh window.
+            await self._refresh_on_miss()
+            match = await self._lookup(to_addr)
         if match is None:
             return
 
