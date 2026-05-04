@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 02:00
-Status       : R1-R11 merged. R12a CI/CD pipeline scaffolded — PR open, awaiting WARP🔹CMD review. Paper-default.
+Last Updated : 2026-05-05 02:59
+Status       : R1-R12a merged. CI/CD pipeline live (GitHub Actions + Fly.io). Paper-default. Next: configure FLY_API_TOKEN secret + proceed to R12b.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
@@ -12,9 +12,10 @@ Status       : R1-R11 merged. R12a CI/CD pipeline scaffolded — PR open, awaiti
 - C1 resolved: KELLY_FRACTION applied, capital_alloc_pct capped <1.0
 - C2 resolved: migrations/004 idempotent DO $$ blocks
 - C3 resolved: Tier 3 promotion gated on MIN_DEPOSIT_USDC
+- R12a — CI/CD Pipeline (GitHub Actions + Fly.io) merged — PR #855
 
 [IN PROGRESS]
-- R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
+- None.
 
 [NOT STARTED]
 - R12b — Fly.io Health Alerts
@@ -25,7 +26,8 @@ Status       : R1-R11 merged. R12a CI/CD pipeline scaffolded — PR open, awaiti
 - R12 — Deployment (Fly.io) — final (MAJOR)
 
 [NEXT PRIORITY]
-- WARP🔹CMD review of R12a PR (STANDARD tier, no SENTINEL required). After merge: configure FLY_API_TOKEN repo secret + fly secrets for runtime env, then proceed to R12b.
+- Configure FLY_API_TOKEN repo secret + fly secrets for runtime env (post-R12a merge action)
+- Proceed to R12b — Fly.io Health Alerts
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)
