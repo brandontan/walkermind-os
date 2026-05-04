@@ -1,5 +1,9 @@
 # fly.toml — CrusaderBot on Fly.io
 # Adjust app name before first deploy: `fly launch --name <your-app-name>`
+#
+# Secrets (TELEGRAM_BOT_TOKEN, DATABASE_URL, REDIS_URL, ALCHEMY_POLYGON_*,
+# WALLET_ENCRYPTION_KEY, OPERATOR_CHAT_ID, ...) are NOT defined here.
+# Set them via `fly secrets set KEY=VALUE -a crusaderbot` before deploying.
 
 app = "crusaderbot"
 primary_region = "sin"       # Singapore — closest to Asia/Jakarta
@@ -9,16 +13,25 @@ kill_timeout = "30s"
 [build]
   dockerfile = "Dockerfile"
 
+# Non-secret env only. Activation guards default to OFF — flip via
+# `fly secrets set` after WARP🔹CMD owner gate + SENTINEL approval.
 [env]
-  APP_ENV        = "production"
-  PORT           = "8080"
-  HOST           = "0.0.0.0"
-  TIMEZONE       = "Asia/Jakarta"
-  DB_POOL_MAX    = "5"
-  LOG_LEVEL      = "INFO"
+  APP_ENV                       = "production"
+  PORT                          = "8080"
+  HOST                          = "0.0.0.0"
+  TIMEZONE                      = "Asia/Jakarta"
+  DB_POOL_MAX                   = "5"
+  LOG_LEVEL                     = "INFO"
+  ENABLE_LIVE_TRADING           = "false"
+  EXECUTION_PATH_VALIDATED      = "false"
+  CAPITAL_MODE_CONFIRMED        = "false"
+  RISK_CONTROLS_VALIDATED       = "false"
+  SECURITY_HARDENING_VALIDATED  = "false"
+  FEE_COLLECTION_ENABLED        = "false"
+  AUTO_REDEEM_ENABLED           = "false"
 
 [[services]]
-  protocol    = "tcp"
+  protocol      = "tcp"
   internal_port = 8080
 
   [[services.ports]]
@@ -35,12 +48,12 @@ kill_timeout = "30s"
     hard_limit = 100
 
   [[services.http_checks]]
-    interval       = "15s"
-    timeout        = "5s"
-    grace_period   = "30s"
-    method         = "GET"
-    path           = "/health"
-    protocol       = "http"
+    interval     = "15s"
+    timeout      = "5s"
+    grace_period = "30s"
+    method       = "GET"
+    path         = "/health"
+    protocol     = "http"
 
 [[vm]]
   size   = "shared-cpu-1x"

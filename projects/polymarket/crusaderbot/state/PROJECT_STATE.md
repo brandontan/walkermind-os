@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 00:10
-Status       : R1-R11 merged to main. SENTINEL PASS. C1/C2/C3 resolved. Paper-default. Ready for R12a.
+Last Updated : 2026-05-05 02:00
+Status       : R1-R11 merged. R12a CI/CD pipeline scaffolded — PR open, awaiting WARP🔹CMD review. Paper-default.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
@@ -14,10 +14,9 @@ Status       : R1-R11 merged to main. SENTINEL PASS. C1/C2/C3 resolved. Paper-de
 - C3 resolved: Tier 3 promotion gated on MIN_DEPOSIT_USDC
 
 [IN PROGRESS]
-- None — no open PRs
+- R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
 
 [NOT STARTED]
-- R12a — CI/CD Pipeline (GitHub Actions)
 - R12b — Fly.io Health Alerts
 - R12c — Auto-Close / Take-Profit (MAJOR — execution path)
 - R12d — Live Opt-In Checklist (MAJOR — hard gate before EXE)
@@ -26,7 +25,7 @@ Status       : R1-R11 merged to main. SENTINEL PASS. C1/C2/C3 resolved. Paper-de
 - R12 — Deployment (Fly.io) — final (MAJOR)
 
 [NEXT PRIORITY]
-- R12a — CI/CD Pipeline (GitHub Actions)
+- WARP🔹CMD review of R12a PR (STANDARD tier, no SENTINEL required). After merge: configure FLY_API_TOKEN repo secret + fly secrets for runtime env, then proceed to R12b.
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)
