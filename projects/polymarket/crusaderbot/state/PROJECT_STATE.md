@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 05:00
-Status       : R12b observability merged (PR #856). R12a CI/CD pipeline PR open, awaiting WARP🔹CMD review. Paper-default.
+Last Updated : 2026-05-05 05:48
+Status       : R12b merged (PR #856), ROADMAP drift resolved (PR #857). R12a CI/CD pipeline PR open, awaiting WARP🔹CMD review. Paper-default.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -21,7 +21,6 @@ Status       : R12b observability merged (PR #856). R12a CI/CD pipeline PR open,
 
 [NEXT PRIORITY]
 - WARP🔹CMD review of R12a PR (STANDARD tier, no SENTINEL required). Source: projects/polymarket/crusaderbot/reports/forge/r12a-cicd-pipeline.md
-- ROADMAP.md R12b row needs ✅ Done update (WARP🔹CMD or WARP•FORGE to handle — out of WARP•ECHO scope)
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)

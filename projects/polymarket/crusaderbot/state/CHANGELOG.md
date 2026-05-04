@@ -4,6 +4,8 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-05-05 05:48 | WARP/STATE-SYNC-856 | post-merge sync PR #857: ROADMAP.md R12b row updated to Done, PROJECT_STATE.md drift resolved
+
 ## 2026-05-05 05:00 Asia/Jakarta — R12b Fly.io Health Alerts
 
 ### Merged
