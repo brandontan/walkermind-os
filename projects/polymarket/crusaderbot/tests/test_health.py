@@ -190,6 +190,59 @@ def test_record_health_result_alerts_after_threshold_then_cools_down():
         assert len(sent) == 1
 
 
+def test_health_log_does_not_leak_exception_url(caplog):
+    """The ERROR log emitted by ``_with_timeout`` must NOT contain the
+    raw exception URL: httpx errors include the full request URL and
+    Alchemy embeds the API key in the URL path. The endpoint payload is
+    sanitised already; the application log stream must be too.
+    """
+    SECRET_PATH = "v2/ALCHEMY_KEY_DO_NOT_LEAK"
+    SECRET_URL = f"https://polygon-mainnet.g.alchemy.com/{SECRET_PATH}"
+
+    async def _leaks() -> bool:
+        raise RuntimeError(
+            f"Client error '401 Unauthorized' for url '{SECRET_URL}'"
+        )
+
+    with caplog.at_level("ERROR", logger="projects.polymarket.crusaderbot.monitoring.health"):
+        with patch.object(monitoring_health, "check_alchemy_rpc", new=_leaks):
+            _run(monitoring_health.run_health_checks())
+    log_text = "\n".join(rec.getMessage() for rec in caplog.records)
+    assert SECRET_URL not in log_text, f"raw URL leaked into logs: {log_text!r}"
+    assert SECRET_PATH not in log_text, f"URL path leaked into logs: {log_text!r}"
+    assert "ALCHEMY_KEY_DO_NOT_LEAK" not in log_text
+    # The scrubbed substitution must still surface enough detail to diagnose:
+    # exception class name + a redacted URL marker.
+    assert "RuntimeError" in log_text
+    assert "<redacted>" in log_text
+
+
+def test_settings_accepts_alias_only_polygon_rpc_url(monkeypatch):
+    """Alias-only deployments (only ALCHEMY_POLYGON_RPC_URL set, no legacy
+    POLYGON_RPC_URL) must construct ``Settings`` without raising. The
+    legacy field is auto-populated from the alias by a model-validator,
+    keeping the contract used by other modules (``settings.POLYGON_RPC_URL``)
+    consistent with ``validate_required_env``'s either-or group.
+    """
+    # Bust the lru_cache so this test sees the new env.
+    crusaderbot_config.get_settings.cache_clear()
+
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
+    monkeypatch.setenv("OPERATOR_CHAT_ID", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://x")
+    monkeypatch.setenv("WALLET_HD_SEED", "seed")
+    monkeypatch.setenv("WALLET_ENCRYPTION_KEY", "k")
+    monkeypatch.delenv("POLYGON_RPC_URL", raising=False)
+    monkeypatch.setenv("ALCHEMY_POLYGON_RPC_URL", "https://alchemy.example/v2/key")
+    monkeypatch.setenv("ALCHEMY_POLYGON_WS_URL", "wss://alchemy.example/v2/key")
+
+    settings = crusaderbot_config.Settings()  # type: ignore[call-arg]
+    assert settings.POLYGON_RPC_URL == "https://alchemy.example/v2/key"
+    assert settings.ALCHEMY_POLYGON_RPC_URL == "https://alchemy.example/v2/key"
+
+    crusaderbot_config.get_settings.cache_clear()
+
+
 def test_health_payload_does_not_leak_exception_message():
     """Public /health payload must NOT include raw exception text.
 

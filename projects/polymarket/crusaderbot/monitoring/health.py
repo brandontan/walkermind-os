@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Awaitable, Callable
 from urllib.parse import urlparse
 
@@ -28,6 +29,17 @@ from ..database import ping as db_ping
 logger = logging.getLogger(__name__)
 
 CHECK_TIMEOUT_SECONDS: float = 3.0
+
+# Strip the path (and any query/fragment) from anything that looks like a URL
+# in a string. Alchemy embeds the API key in the URL path
+# (``https://polygon-mainnet.g.alchemy.com/v2/<API_KEY>``), so any HTTP
+# client exception text we log MUST have the path component removed before
+# it reaches Fly's log aggregation.
+_URL_RE = re.compile(r"(https?://)([^/\s'\"<>]+)([/?#]\S*)?")
+
+
+def _scrub_url(text: str) -> str:
+    return _URL_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}/<redacted>", text)
 
 
 async def _with_timeout(
@@ -50,8 +62,16 @@ async def _with_timeout(
     except asyncio.TimeoutError:
         return f"error: {name} timeout after {CHECK_TIMEOUT_SECONDS:.0f}s"
     except Exception as exc:  # noqa: BLE001 — surfaced as sanitised health string
+        # Both ``str(exc)`` and the formatted traceback can embed the full
+        # request URL on httpx errors (Alchemy carries the API key in the
+        # URL path). Scrub URLs and skip ``exc_info`` so the application
+        # log stream — which fans out to Fly's log aggregation — never
+        # sees the secret. The exception class name + scrubbed message is
+        # enough for diagnosis given the small number of check entry
+        # points.
         logger.error(
-            "health check failed: name=%s exc=%s", name, exc, exc_info=True,
+            "health check failed: name=%s type=%s msg=%s",
+            name, type(exc).__name__, _scrub_url(str(exc)),
         )
         return f"error: {type(exc).__name__}"
 

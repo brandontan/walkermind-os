@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -108,6 +108,23 @@ class Settings(BaseSettings):
     # live position becomes redeemable, defer to the hourly queue. ---
     INSTANT_REDEEM_GAS_GWEI_MAX: float = 200.0
 
+    @model_validator(mode="before")
+    @classmethod
+    def _alias_polygon_rpc_url(cls, data):
+        """Allow alias-only deployments: when only ``ALCHEMY_POLYGON_RPC_URL``
+        is supplied, copy it into ``POLYGON_RPC_URL`` so the latter's
+        ``str`` (required) field is satisfied. ``validate_required_env``
+        and ``check_alchemy_rpc`` both accept either name; this keeps
+        ``Settings`` consistent with that contract instead of raising a
+        validation error at boot in the alias-only path.
+        """
+        if isinstance(data, dict):
+            legacy = data.get("POLYGON_RPC_URL")
+            alias = data.get("ALCHEMY_POLYGON_RPC_URL")
+            if (legacy is None or str(legacy).strip() == "") and alias:
+                data["POLYGON_RPC_URL"] = alias
+        return data
+
     @field_validator("DATABASE_URL")
     @classmethod
     def normalize_database_url(cls, v: str) -> str:
@@ -130,23 +147,24 @@ def _load_env_file_values() -> dict[str, str]:
     real environment values. Missing or unreadable files yield an empty
     dict — validation must never crash boot.
 
-    Looked up in the same order ``pydantic-settings`` uses: cwd-relative
-    ``.env`` first, then a sibling of this config module.
+    Path resolution intentionally matches ``SettingsConfigDict(env_file=".env")``
+    exactly: cwd-relative only. A module-dir fallback would read a file
+    that ``get_settings()`` will NOT read, which could suppress missing-env
+    alerts the operator needs to see and let boot fail later with a
+    ``ValidationError`` instead.
     """
-    candidates = [Path(".env"), Path(__file__).resolve().parent / ".env"]
-    for path in candidates:
-        try:
-            if not path.exists():
-                continue
-            from dotenv import dotenv_values
+    path = Path(".env")
+    if not path.exists():
+        return {}
+    try:
+        from dotenv import dotenv_values
 
-            return {k: v for k, v in dotenv_values(str(path)).items() if v is not None}
-        except Exception as exc:  # noqa: BLE001 — never crash boot on .env read
-            logger.warning(
-                "config validation: .env read failed at %s: %s", path, exc,
-            )
-            return {}
-    return {}
+        return {k: v for k, v in dotenv_values(str(path)).items() if v is not None}
+    except Exception as exc:  # noqa: BLE001 — never crash boot on .env read
+        logger.warning(
+            "config validation: .env read failed at %s: %s", path, exc,
+        )
+        return {}
 
 
 def validate_required_env() -> list[str]:
