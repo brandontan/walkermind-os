@@ -173,11 +173,22 @@ class DepositWatcher:
                     ping_timeout=20,
                     close_timeout=5,
                 ) as ws:
-                    await self._subscribe(ws)
+                    pre_ack = await self._subscribe(ws)
                     backoff = INITIAL_BACKOFF_SECONDS
                     log.info("deposit_watcher.connected",
                              host=self._ws_host(),
-                             sub_id=self._sub_id)
+                             sub_id=self._sub_id,
+                             pre_ack_buffered=len(pre_ack))
+                    for log_obj in pre_ack:
+                        try:
+                            await self._handle_log(log_obj)
+                        except Exception as exc:
+                            log.error(
+                                "deposit_watcher.pre_ack_replay_failed",
+                                error=str(exc),
+                                error_type=type(exc).__name__,
+                                tx_hash=log_obj.get("transactionHash"),
+                            )
                     await self._consume(ws)
             except asyncio.CancelledError:
                 raise
@@ -199,7 +210,17 @@ class DepositWatcher:
             except asyncio.TimeoutError:
                 backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
 
-    async def _subscribe(self, ws: "websockets.WebSocketClientProtocol") -> None:
+    async def _subscribe(
+        self, ws: "websockets.WebSocketClientProtocol"
+    ) -> list[dict]:
+        """Send eth_subscribe and wait for the subscription ack.
+
+        Returns any log frames that arrived before the ack (pre-ack buffer).
+        On high-frequency chains like Polygon, a Transfer event can legally
+        arrive in the same read-loop iteration as the subscribe request — the
+        old code dropped those frames silently. Callers must replay the
+        returned frames through `_handle_log` before entering `_consume`.
+        """
         sub_req = {
             "jsonrpc": "2.0",
             "id": 1,
@@ -216,21 +237,29 @@ class DepositWatcher:
             ],
         }
         await ws.send(json.dumps(sub_req))
-        # Subscription handshake — first message is the {result: sub_id} ack.
-        # We tolerate the ack arriving interleaved with an early notification
-        # by scanning until we see a frame carrying `result`.
+        pre_ack_buffer: list[dict] = []
         while True:
             raw = await ws.recv()
             msg = json.loads(raw)
             if "result" in msg and msg.get("id") == 1:
                 self._sub_id = msg["result"]
-                return
+                return pre_ack_buffer
             if "error" in msg:
                 raise RuntimeError(
                     f"eth_subscribe failed: {msg['error']}"
                 )
-            # An unexpected notification before ack — drop it; resubscribe will
-            # re-deliver via the chain head if the WS truly skipped frames.
+            # Notification arrived before the ack — buffer it for post-subscribe
+            # replay so no deposit event is silently dropped.
+            if msg.get("method") == "eth_subscription":
+                params = msg.get("params") or {}
+                log_obj = params.get("result")
+                if isinstance(log_obj, dict):
+                    pre_ack_buffer.append(log_obj)
+                    log.info(
+                        "deposit_watcher.pre_ack_log_buffered",
+                        tx_hash=log_obj.get("transactionHash"),
+                        buffered_count=len(pre_ack_buffer),
+                    )
 
     async def _consume(self, ws: "websockets.WebSocketClientProtocol") -> None:
         while not self._stop_event.is_set():
