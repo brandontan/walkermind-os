@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await db.run_migrations()
 
         bot_app = get_application()
-        setup_handlers(bot_app)
+        setup_handlers(bot_app, db_pool=db.pool, config=settings)
         await bot_app.initialize()
         bot_initialized = True
         await bot_app.start()

@@ -1,15 +1,15 @@
-Last Updated : 2026-05-04 00:28
-Status       : R1 skeleton complete. Paper mode. All activation guards OFF. CrusaderBot project path moved to projects/polymarket/crusaderbot; polyquantbot legacy tree DORMANT (Priority 9 COMPLETE, archived). Awaiting WARP🔹CMD review on PR for WARP/crusaderbot-r1-skeleton.
+Last Updated : 2026-05-04 08:36
+Status       : R2 onboarding + HD wallet generation lane open. Paper mode. All activation guards OFF. /start now provisions per-user HD wallet on first contact; subsequent /start calls return existing address (idempotent). Private keys encrypted at rest via Fernet, never logged or surfaced.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
 - crusaderbot/ project path established under projects/polymarket/
+- R1 skeleton — FastAPI + DB + Redis + Telegram polling + migrations + risk constants (PR #847 merged)
 
 [IN PROGRESS]
-- crusaderbot-r1-skeleton (PR open against main, awaiting WARP🔹CMD review)
+- crusaderbot-r2-onboarding (PR open against main, awaiting WARP🔹CMD review)
 
 [NOT STARTED]
-- R2 onboarding + HD wallet generation
 - R3 operator allowlist
 - R4 deposit watcher + ledger
 - R5 strategy config
@@ -22,7 +22,7 @@ Status       : R1 skeleton complete. Paper mode. All activation guards OFF. Crus
 - R12 ops + monitoring
 
 [NEXT PRIORITY]
-- R2 — user onboarding + HD wallet generation
+- R3 — operator allowlist (Tier 2 access gate)
 
 [KNOWN ISSUES]
 - None
