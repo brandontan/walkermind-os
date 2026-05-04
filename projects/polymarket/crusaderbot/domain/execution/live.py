@@ -1,0 +1,265 @@
+"""Live execution engine — real Polymarket CLOB orders.
+
+Defense-in-depth: re-validates ALL five activation guards before submitting.
+Persists order as 'pending' BEFORE submission to guarantee idempotency. Raises
+typed errors so the router can decide whether a paper fallback is safe.
+
+Close paths intentionally skip the open-time guard check: an existing live
+position must be unwindable even when guards are later disabled.
+"""
+from __future__ import annotations
+
+import logging
+from decimal import Decimal
+from uuid import UUID
+
+from ... import audit, notifications
+from ...config import get_settings
+from ...database import get_pool
+from ...integrations import polymarket
+from ...wallet import ledger
+
+logger = logging.getLogger(__name__)
+
+
+class LivePreSubmitError(RuntimeError):
+    """Raised before any CLOB submission — safe for the router to paper-fallback."""
+
+
+class LivePostSubmitError(RuntimeError):
+    """Raised after a CLOB submission has occurred — paper-fallback is UNSAFE."""
+
+
+def assert_live_guards(access_tier: int, trading_mode: str) -> None:
+    """Raise unless ALL five activation guards pass."""
+    s = get_settings()
+    if not s.ENABLE_LIVE_TRADING:
+        raise LivePreSubmitError("ENABLE_LIVE_TRADING=false")
+    if not s.EXECUTION_PATH_VALIDATED:
+        raise LivePreSubmitError("EXECUTION_PATH_VALIDATED=false")
+    if not s.CAPITAL_MODE_CONFIRMED:
+        raise LivePreSubmitError("CAPITAL_MODE_CONFIRMED=false")
+    if access_tier < 4:
+        raise LivePreSubmitError(f"tier {access_tier}<4")
+    if trading_mode != "live":
+        raise LivePreSubmitError(f"user trading_mode={trading_mode}")
+
+
+async def execute(
+    *,
+    user_id: UUID,
+    telegram_user_id: int,
+    access_tier: int,
+    trading_mode: str,
+    market_id: str,
+    market_question: str | None,
+    yes_token_id: str | None,
+    no_token_id: str | None,
+    side: str,
+    size_usdc: Decimal,
+    price: float,
+    idempotency_key: str,
+    strategy_type: str,
+    tp_pct: float | None,
+    sl_pct: float | None,
+) -> dict:
+    assert_live_guards(access_tier, trading_mode)
+    token_id = yes_token_id if side == "yes" else no_token_id
+    if not token_id:
+        raise LivePreSubmitError("missing token_id for live order")
+
+    # Convert USDC notional → exact share count at the entry price. We persist
+    # both size_usdc and entry_price so close-side can recompute the same
+    # share count and submit an exact-quantity SELL (no exit-price re-quoting).
+    shares = float(size_usdc) / max(price, 0.0001)
+
+    pool = get_pool()
+    # Step 1: claim idempotency by inserting order as 'pending' BEFORE submit.
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                INSERT INTO orders (user_id, market_id, side, size_usdc, price,
+                                    mode, status, idempotency_key, strategy_type)
+                VALUES ($1,$2,$3,$4,$5,'live','pending',$6,$7)
+                ON CONFLICT (idempotency_key) DO NOTHING
+                RETURNING id
+                """,
+                user_id, market_id, side, size_usdc, price,
+                idempotency_key, strategy_type,
+            )
+    if row is None:
+        logger.info("live.execute idempotent skip key=%s", idempotency_key)
+        return {"status": "duplicate", "mode": "live"}
+    order_id = row["id"]
+
+    # Step 2a: PREPARE (local-only signing, no network). A failure here means
+    # no broker request has been made → safe to paper-fall-back.
+    try:
+        prepared = polymarket.prepare_live_order(
+            token_id=token_id, side="BUY", shares=shares, price=price,
+        )
+    except Exception as exc:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE orders SET status='failed', error_msg=$2 WHERE id=$1",
+                order_id, str(exc)[:500],
+            )
+        await audit.write(actor_role="bot", action="live_pre_submit_failed",
+                          user_id=user_id,
+                          payload={"order_id": str(order_id),
+                                   "error": str(exc)[:500]})
+        raise LivePreSubmitError(f"prepare failed: {exc}") from exc
+
+    # Step 2b: SUBMIT (network). ANY failure here is AMBIGUOUS — the order
+    # may have been accepted by the broker even though we never received the
+    # ack (timeout, dropped TLS, transient 5xx after queueing, etc.). Mark
+    # the order 'unknown', alert the operator for manual reconciliation, and
+    # raise LivePostSubmitError so the router REFUSES to paper-fall-back
+    # (paper-fallback after a possible live fill would duplicate exposure).
+    try:
+        submit_result = await polymarket.submit_signed_live_order(prepared)
+    except Exception as exc:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE orders SET status='unknown', error_msg=$2 WHERE id=$1",
+                order_id, f"submit ambiguous: {str(exc)[:480]}",
+            )
+        await audit.write(actor_role="bot", action="live_submit_ambiguous",
+                          user_id=user_id,
+                          payload={"order_id": str(order_id),
+                                   "error": str(exc)[:500]})
+        try:
+            await notifications.notify_operator(
+                f"⚠️ *AMBIGUOUS LIVE SUBMIT*\n"
+                f"order_id=`{order_id}` user=`{user_id}`\n"
+                f"market=`{market_id}` side=`{side}` shares=`{shares:.4f}` "
+                f"price=`{price:.4f}`\n"
+                f"Reconcile via Polymarket dashboard before clearing.\n"
+                f"err: `{str(exc)[:300]}`"
+            )
+        except Exception as notify_exc:
+            logger.error("operator notify failed during ambiguous submit: %s",
+                         notify_exc)
+        raise LivePostSubmitError(
+            f"ambiguous submit (order_id={order_id}): {exc}"
+        ) from exc
+
+    polymarket_order_id = (
+        submit_result.get("orderID")
+        or submit_result.get("order_id")
+        or submit_result.get("id")
+        or ""
+    )
+
+    # Step 3: persist position + ledger debit atomically with order update.
+    # If this fails, the CLOB order EXISTS — we MUST raise LivePostSubmitError
+    # so the router does not paper-duplicate.
+    try:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "UPDATE orders SET status='submitted', polymarket_order_id=$2 "
+                    "WHERE id=$1",
+                    order_id, str(polymarket_order_id),
+                )
+                pos_row = await conn.fetchrow(
+                    """
+                    INSERT INTO positions (user_id, market_id, order_id, side,
+                                           size_usdc, entry_price, current_price,
+                                           tp_pct, sl_pct, mode, status)
+                    VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'live','open')
+                    RETURNING id
+                    """,
+                    user_id, market_id, order_id, side,
+                    size_usdc, price, tp_pct, sl_pct,
+                )
+                position_id = pos_row["id"]
+                await ledger.debit_in_conn(
+                    conn, user_id, size_usdc, ledger.T_TRADE_OPEN,
+                    ref_id=position_id, note=f"live open {side} {market_id}",
+                )
+    except Exception as exc:
+        await audit.write(actor_role="bot", action="live_post_submit_db_error",
+                          user_id=user_id,
+                          payload={"order_id": str(order_id),
+                                   "polymarket_order_id": str(polymarket_order_id),
+                                   "error": str(exc)[:500]})
+        raise LivePostSubmitError(
+            f"live order submitted (id={polymarket_order_id}) but DB persist failed: {exc}"
+        ) from exc
+
+    await audit.write(actor_role="bot", action="live_open", user_id=user_id,
+                      payload={"order_id": str(order_id),
+                               "position_id": str(position_id),
+                               "market_id": market_id,
+                               "polymarket_order_id": str(polymarket_order_id),
+                               "size_usdc": str(size_usdc),
+                               "price": price})
+    label = market_question or market_id
+    await notifications.send(
+        telegram_user_id,
+        f"📈 *[LIVE] Opened*\n{label}\n*{side.upper()}* @ {price:.3f}\n"
+        f"Size: ${size_usdc:.2f}",
+    )
+    return {"order_id": order_id, "position_id": position_id, "mode": "live"}
+
+
+async def close_position(*, position: dict, exit_price: float,
+                         exit_reason: str) -> dict:
+    """Close an EXISTING live position. Does NOT re-check open-time guards —
+    a real on-chain exposure must always be unwindable.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        market = await conn.fetchrow(
+            "SELECT yes_token_id, no_token_id FROM markets WHERE id=$1",
+            position["market_id"],
+        )
+    token_id = (market["yes_token_id"] if position["side"] == "yes"
+                else market["no_token_id"])
+    if not token_id:
+        raise RuntimeError("missing token_id for live close")
+
+    # Close exactly the share count we acquired at open. Computing this from
+    # the persisted size_usdc + entry_price guarantees open/close parity:
+    # the close SELL submits the SAME quantity regardless of exit_price.
+    entry = float(position["entry_price"])
+    shares_to_sell = float(position["size_usdc"]) / max(entry, 0.0001)
+    await polymarket.submit_live_order(
+        token_id=token_id, side="SELL",
+        shares=shares_to_sell, price=exit_price,
+    )
+
+    size = Decimal(str(position["size_usdc"]))
+    if position["side"] == "yes":
+        ret_pct = (exit_price - entry) / max(entry, 1e-6)
+    else:
+        comp_entry = 1 - entry
+        comp_exit = 1 - exit_price
+        ret_pct = (comp_exit - comp_entry) / max(comp_entry, 1e-6)
+    pnl = size * Decimal(str(ret_pct))
+    proceeds = size + pnl
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            updated = await conn.fetchval(
+                "UPDATE positions SET status='closed', exit_reason=$2, "
+                "current_price=$3, pnl_usdc=$4, closed_at=NOW() "
+                "WHERE id=$1 AND status='open' RETURNING id",
+                position["id"], exit_reason, exit_price, pnl,
+            )
+            if updated is None:
+                return {"pnl_usdc": Decimal("0"), "exit_price": exit_price,
+                        "exit_reason": "already_closed"}
+            await ledger.credit_in_conn(
+                conn, position["user_id"], proceeds, ledger.T_TRADE_CLOSE,
+                ref_id=position["id"], note=f"live close {exit_reason}",
+            )
+    await audit.write(actor_role="bot", action="live_close",
+                      user_id=position["user_id"],
+                      payload={"position_id": str(position["id"]),
+                               "exit_price": exit_price,
+                               "exit_reason": exit_reason,
+                               "pnl_usdc": str(pnl)})
+    return {"pnl_usdc": pnl, "exit_price": exit_price, "exit_reason": exit_reason}

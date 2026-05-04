@@ -1,140 +1,216 @@
-"""CrusaderBot FastAPI application entrypoint.
-
-Lifespan: connect DB → connect Redis → run migrations → start Telegram polling.
-Shutdown reverses the order. Paper mode by default; live trading guarded.
-"""
+"""Entry point: FastAPI + Telegram (polling OR webhook) + APScheduler in one process."""
 from __future__ import annotations
 
 import logging
+import os
+import secrets
+import sys
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, Request, Response
+from telegram import Update
+from telegram.ext import Application
 
-from .api.health import router as health_router
-from .bot.dispatcher import get_application, setup_handlers
-from .cache import cache
-from .config import settings
-from .database import db
-from .services.deposit_watcher import DepositWatcher
+from . import notifications
+from .api import admin as api_admin, health as api_health
+from .bot.dispatcher import register as register_handlers
+from .cache import close_cache, init_cache
+from .config import get_settings
+from .database import close_pool, init_pool, run_migrations
+from .scheduler import setup_scheduler
 
+# ----- structured logging -----
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.add_log_level,
+        structlog.dev.ConsoleRenderer(),
+    ],
+)
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    stream=sys.stdout,
+)
+log = logging.getLogger("crusaderbot")
 
-def _configure_logging() -> None:
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso", utc=True),
-            structlog.processors.JSONRenderer(),
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
+bot_app: Application | None = None
+scheduler_app = None
 
-
-_configure_logging()
-log = structlog.get_logger(__name__)
+# Set to the active webhook secret only when webhook mode is running.
+# Remains None in polling mode — the endpoint rejects all requests in that case.
+_webhook_secret: str | None = None
+_webhook_mode_active: bool = False
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(_: FastAPI):
+    global bot_app, scheduler_app, _webhook_secret, _webhook_mode_active
+    settings = get_settings()
     log.info(
-        "startup.begin",
-        env=settings.APP_ENV,
-        paper_mode=not settings.ENABLE_LIVE_TRADING,
-        guards=settings.guard_states,
+        "CrusaderBot starting (env=%s, live_trading_enabled=%s, "
+        "execution_path_validated=%s, capital_mode_confirmed=%s)",
+        settings.APP_ENV,
+        settings.ENABLE_LIVE_TRADING,
+        settings.EXECUTION_PATH_VALIDATED,
+        settings.CAPITAL_MODE_CONFIRMED,
     )
 
-    db_connected = False
-    cache_connected = False
-    bot_app = None
-    bot_initialized = False
-    bot_started = False
-    polling_started = False
-    watcher: DepositWatcher | None = None
-    watcher_started = False
+    await init_pool()
+    await run_migrations()
+    await init_cache()
 
-    async def _unwind() -> None:
-        # Reverse-order, per-step cleanup. Each step is independent — a failure
-        # in one does not skip the rest. PTB lifecycle: updater.stop -> stop -> shutdown.
-        if watcher_started and watcher is not None:
-            try:
-                await watcher.stop()
-            except Exception as exc:
-                log.warning("shutdown.step_failed",
-                            step="deposit_watcher.stop", error=str(exc))
-        if polling_started and bot_app is not None and bot_app.updater is not None and bot_app.updater.running:
-            try:
-                await bot_app.updater.stop()
-            except Exception as exc:
-                log.warning("shutdown.step_failed", step="updater.stop", error=str(exc))
-        if bot_started and bot_app is not None:
-            try:
-                await bot_app.stop()
-            except Exception as exc:
-                log.warning("shutdown.step_failed", step="bot.stop", error=str(exc))
-        if bot_initialized and bot_app is not None:
-            try:
-                await bot_app.shutdown()
-            except Exception as exc:
-                log.warning("shutdown.step_failed", step="bot.shutdown", error=str(exc))
-        if cache_connected:
-            try:
-                await cache.disconnect()
-            except Exception as exc:
-                log.warning("shutdown.step_failed", step="cache.disconnect", error=str(exc))
-        if db_connected:
-            try:
-                await db.disconnect()
-            except Exception as exc:
-                log.warning("shutdown.step_failed", step="db.disconnect", error=str(exc))
+    use_webhook = bool(settings.TELEGRAM_WEBHOOK_URL)
 
-    try:
-        await db.connect()
-        db_connected = True
-        await cache.connect()
-        cache_connected = True
-        await db.run_migrations()
+    builder = Application.builder().token(settings.TELEGRAM_BOT_TOKEN)
+    if use_webhook:
+        # Disable the built-in updater so PTB does not start its own polling
+        # loop; we drive updates manually via the /telegram/webhook route.
+        builder = builder.updater(None)
 
-        bot_app = get_application()
-        setup_handlers(bot_app, db_pool=db.pool, config=settings)
-        await bot_app.initialize()
-        bot_initialized = True
-        await bot_app.start()
-        bot_started = True
-        await bot_app.updater.start_polling()
-        polling_started = True
+    bot_app = builder.build()
+    register_handlers(bot_app)
+    notifications.set_bot(bot_app.bot)
 
-        watcher = DepositWatcher(
-            pool=db.pool, bot_app=bot_app, config=settings,
+    await bot_app.initialize()
+    await bot_app.start()
+
+    if use_webhook:
+        # Always enforce secret validation in webhook mode.
+        # Generate one at runtime only if the operator hasn't set one explicitly.
+        # The generated value is NOT logged (it is a secret); set
+        # TELEGRAM_WEBHOOK_SECRET explicitly so it survives restarts.
+        secret = settings.TELEGRAM_WEBHOOK_SECRET or secrets.token_hex(32)
+        if not settings.TELEGRAM_WEBHOOK_SECRET:
+            log.warning(
+                "TELEGRAM_WEBHOOK_SECRET is not set — using an ephemeral secret. "
+                "Set this env var explicitly so it survives restarts."
+            )
+
+        await bot_app.bot.set_webhook(
+            url=settings.TELEGRAM_WEBHOOK_URL,
+            secret_token=secret,
+            allowed_updates=Update.ALL_TYPES,
         )
-        await watcher.start()
-        watcher_started = True
-    except Exception as exc:
-        log.error("startup.failed", error=str(exc), error_type=type(exc).__name__)
-        await _unwind()
-        raise
+        # Only activate the endpoint after the webhook is registered and secret is ready.
+        _webhook_secret = secret
+        _webhook_mode_active = True
+        log.info("Telegram webhook registered: %s", settings.TELEGRAM_WEBHOOK_URL)
+    else:
+        if bot_app.updater:
+            await bot_app.updater.start_polling(drop_pending_updates=True)
+        log.info("Telegram polling started.")
 
-    log.info("startup.complete")
+    scheduler_app = setup_scheduler()
+    scheduler_app.start()
+    log.info("Scheduler started with %d jobs.", len(scheduler_app.get_jobs()))
+
+    all_guards_ready = (
+        settings.ENABLE_LIVE_TRADING
+        and settings.EXECUTION_PATH_VALIDATED
+        and settings.CAPITAL_MODE_CONFIRMED
+    )
+
+    # Persist a timestamped audit record whenever all three operator guards are
+    # enabled at startup. This creates an append-only DB proof that the operator
+    # consciously activated live-trading gates — queryable via audit.log.
+    if all_guards_ready:
+        from . import audit as _audit
+        await _audit.write(
+            actor_role="operator",
+            action="live_gate_opened",
+            payload={
+                "ENABLE_LIVE_TRADING": settings.ENABLE_LIVE_TRADING,
+                "EXECUTION_PATH_VALIDATED": settings.EXECUTION_PATH_VALIDATED,
+                "CAPITAL_MODE_CONFIRMED": settings.CAPITAL_MODE_CONFIRMED,
+                "APP_ENV": settings.APP_ENV,
+                "note": (
+                    "All three operator guards are True at startup. "
+                    "Tier 4 users who have switched to live mode will now "
+                    "route real orders to the Polymarket CLOB."
+                ),
+            },
+        )
+        log.info("live_gate_opened audit event written (all operator guards enabled)")
+
+    await notifications.send(
+        settings.OPERATOR_CHAT_ID,
+        f"🟢 CrusaderBot up\nenv: {settings.APP_ENV}\n"
+        f"mode: {'webhook' if use_webhook else 'polling'}\n"
+        f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
+        f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
+        f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
+        f"{'✅ operator guards OPEN — Tier 4 users can trade live' if all_guards_ready else '🔒 operator guards LOCKED — all trades route to paper'}",
+        parse_mode=None,
+    )
 
     try:
         yield
     finally:
-        log.info("shutdown.begin")
-        await _unwind()
-        log.info("shutdown.complete")
+        log.info("CrusaderBot shutting down…")
+        # Deactivate the endpoint before tearing down the bot.
+        _webhook_mode_active = False
+        _webhook_secret = None
+        try:
+            if use_webhook and bot_app:
+                await bot_app.bot.delete_webhook()
+        except Exception as exc:
+            log.warning("delete_webhook error: %s", exc)
+        try:
+            if scheduler_app:
+                scheduler_app.shutdown(wait=False)
+        except Exception as exc:
+            log.warning("scheduler shutdown error: %s", exc)
+        try:
+            if bot_app and bot_app.updater:
+                await bot_app.updater.stop()
+        except Exception as exc:
+            log.warning("updater stop error: %s", exc)
+        try:
+            if bot_app:
+                await bot_app.stop()
+                await bot_app.shutdown()
+        except Exception as exc:
+            log.warning("bot shutdown error: %s", exc)
+        await close_cache()
+        await close_pool()
 
 
-def create_app() -> FastAPI:
-    app = FastAPI(
-        title="CrusaderBot",
-        version="0.1.0-r1-skeleton",
-        lifespan=lifespan,
-    )
-    app.include_router(health_router)
-    return app
+app = FastAPI(title="CrusaderBot", version="0.1.0", lifespan=lifespan)
+app.include_router(api_health.router)
+app.include_router(api_admin.router)
 
 
-app = create_app()
+@app.get("/")
+async def root():
+    return {"service": "crusaderbot", "status": "running"}
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+):
+    """Receive Telegram update pushes when running in webhook mode.
+
+    Returns 404 if the app is running in polling mode (webhook not configured).
+    Returns 403 if the secret token header is missing or incorrect.
+    Secret validation is always enforced — there is no unauthenticated path.
+    """
+    # Reject all requests when webhook mode is not active (e.g. polling mode).
+    if not _webhook_mode_active:
+        raise HTTPException(status_code=404, detail="webhook not enabled")
+
+    # At this point _webhook_secret is always set (assigned before _webhook_mode_active
+    # is flipped to True), so secret validation is unconditional.
+    if x_telegram_bot_api_secret_token != _webhook_secret:
+        raise HTTPException(status_code=403, detail="invalid secret token")
+
+    if bot_app is None:
+        raise HTTPException(status_code=503, detail="bot not ready")
+
+    data = await request.json()
+    update = Update.de_json(data, bot_app.bot)
+    await bot_app.process_update(update)
+    return Response(status_code=200)

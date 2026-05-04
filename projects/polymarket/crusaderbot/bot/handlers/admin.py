@@ -1,118 +1,135 @@
-"""Admin/operator command handlers — currently the /allowlist subcommand router."""
+"""Operator-only admin commands. Requires update.effective_user.id == OPERATOR_CHAT_ID."""
 from __future__ import annotations
 
-import structlog
+import logging
+
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from ...config import Settings
-from ...services.allowlist import (
-    add_to_allowlist,
-    allowlist,
-    remove_from_allowlist,
-)
+from ... import audit
+from ...config import get_settings
+from ...database import get_pool, is_kill_switch_active, set_kill_switch
+from ...users import force_set_tier, get_user_by_username
+from ..keyboards import admin_menu
+from ..tier import Tier
 
-log = structlog.get_logger(__name__)
-
-UNAUTHORIZED_MESSAGE = "⛔ Unauthorized."
-
-USAGE_MESSAGE = (
-    "Usage:\n"
-    "  /allowlist add <telegram_user_id>\n"
-    "  /allowlist remove <telegram_user_id>\n"
-    "  /allowlist list"
-)
+logger = logging.getLogger(__name__)
 
 
-def _is_operator(telegram_user_id: int, config: Settings) -> bool:
-    return telegram_user_id == config.OPERATOR_CHAT_ID
+def _is_operator(update: Update) -> bool:
+    if update.effective_user is None:
+        return False
+    return update.effective_user.id == get_settings().OPERATOR_CHAT_ID
 
 
-async def handle_allowlist(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-    *,
-    config: Settings,
-) -> None:
-    """Handle /allowlist [add|remove|list] subcommands. Operator-only."""
-    if update.effective_user is None or update.effective_message is None:
+async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_operator(update) or update.message is None:
+        if update.message:
+            await update.message.reply_text("⛔ Operator only.")
         return
+    active = await is_kill_switch_active()
+    await update.message.reply_text(
+        f"*⚙️ Admin*\n\nKill switch: {'🔴 ACTIVE' if active else '🟢 inactive'}",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=admin_menu(active),
+    )
 
-    caller_id = update.effective_user.id
-    if not _is_operator(caller_id, config):
-        log.warning(
-            "allowlist.unauthorized_attempt",
-            caller_id=caller_id,
-            operator_id=config.OPERATOR_CHAT_ID,
+
+async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    if q is None or not _is_operator(update):
+        if q:
+            await q.answer("Operator only.", show_alert=True)
+        return
+    await q.answer()
+    sub = (q.data or "").split(":", 1)[-1]
+
+    if sub == "kill":
+        active = await is_kill_switch_active()
+        await set_kill_switch(not active, reason="operator_toggle",
+                              changed_by=None)
+        await audit.write(actor_role="operator",
+                          action="kill_switch_" + ("on" if not active else "off"))
+        await q.message.reply_text(
+            f"Kill switch is now *{'ON 🔴' if not active else 'OFF 🟢'}*.",
+            parse_mode=ParseMode.MARKDOWN,
         )
-        await update.effective_message.reply_text(UNAUTHORIZED_MESSAGE)
-        return
+    elif sub == "status":
+        await _send_status(q.message)
+    elif sub == "force_redeem":
+        from ...scheduler import redeem_hourly
+        await redeem_hourly()
+        await q.message.reply_text("✅ Force-redeem run dispatched.")
 
-    args = context.args or []
+
+async def _send_status(message) -> None:
+    from ...cache import ping_cache
+    from ...database import ping
+    pool = get_pool()
+    db_ok = await ping()
+    cache_ok = await ping_cache()
+    async with pool.acquire() as conn:
+        users_n = await conn.fetchval("SELECT COUNT(*) FROM users")
+        funded_n = await conn.fetchval("SELECT COUNT(*) FROM users WHERE access_tier>=3")
+        live_n = await conn.fetchval("SELECT COUNT(*) FROM users WHERE access_tier>=4")
+        open_paper = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='paper'")
+        open_live = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'")
+    s = get_settings()
+    await message.reply_text(
+        "*🩺 System status*\n\n"
+        f"DB: {'✅' if db_ok else '❌'}  Cache: {'✅' if cache_ok else '❌'}\n"
+        f"Users: {users_n} · Funded: {funded_n} · Live: {live_n}\n"
+        f"Open positions: {open_paper} paper · {open_live} live\n\n"
+        f"Guards:\n"
+        f"  ENABLE_LIVE_TRADING={s.ENABLE_LIVE_TRADING}\n"
+        f"  EXECUTION_PATH_VALIDATED={s.EXECUTION_PATH_VALIDATED}\n"
+        f"  CAPITAL_MODE_CONFIRMED={s.CAPITAL_MODE_CONFIRMED}\n"
+        f"  AUTO_REDEEM_ENABLED={s.AUTO_REDEEM_ENABLED}\n",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_operator(update) or update.message is None:
+        if update.message:
+            await update.message.reply_text("⛔ Operator only.")
+        return
+    args = ctx.args or []
     if not args:
-        await update.effective_message.reply_text(USAGE_MESSAGE)
-        return
-
-    subcommand = args[0].lower()
-
-    if subcommand == "list":
-        members = await allowlist.list_all()
-        if not members:
-            await update.effective_message.reply_text("📋 Allowlist is empty.")
-            return
-        formatted = "\n".join(f"- `{uid}`" for uid in members)
-        plural = "s" if len(members) != 1 else ""
-        await update.effective_message.reply_text(
-            f"📋 Tier 2 allowlist ({len(members)} member{plural}):\n{formatted}",
-            parse_mode="Markdown",
+        await update.message.reply_text(
+            "Usage: `/allowlist @username` or `/allowlist <telegram_user_id> [tier]`",
+            parse_mode=ParseMode.MARKDOWN,
         )
         return
-
-    if subcommand in ("add", "remove"):
-        if len(args) < 2:
-            await update.effective_message.reply_text(USAGE_MESSAGE)
-            return
+    target = args[0]
+    tier = int(args[1]) if len(args) > 1 else Tier.ALLOWLISTED
+    user = None
+    if target.startswith("@"):
+        user = await get_user_by_username(target)
+    else:
         try:
-            target_id = int(args[1])
+            from ...users import get_user_by_telegram_id
+            user = await get_user_by_telegram_id(int(target))
         except ValueError:
-            await update.effective_message.reply_text(
-                f"⚠️ Invalid user_id: `{args[1]}` (must be an integer).",
-                parse_mode="Markdown",
-            )
-            return
-
-        if subcommand == "add":
-            added = await add_to_allowlist(target_id)
-            msg = (
-                f"✅ User {target_id} added to Tier 2 allowlist."
-                if added
-                else f"ℹ️ User {target_id} is already on the allowlist."
-            )
-            log.info(
-                "allowlist.command_add",
-                caller_id=caller_id,
-                target=target_id,
-                newly_added=added,
-            )
-            await update.effective_message.reply_text(msg)
-            return
-
-        removed = await remove_from_allowlist(target_id)
-        msg = (
-            f"✅ User {target_id} removed from allowlist."
-            if removed
-            else f"ℹ️ User {target_id} was not on the allowlist."
+            user = None
+    if user is None:
+        await update.message.reply_text(
+            f"User {target} not found. They must /start first."
         )
-        log.info(
-            "allowlist.command_remove",
-            caller_id=caller_id,
-            target=target_id,
-            removed=removed,
-        )
-        await update.effective_message.reply_text(msg)
         return
-
-    await update.effective_message.reply_text(
-        f"⚠️ Unknown subcommand: `{subcommand}`.\n\n{USAGE_MESSAGE}",
-        parse_mode="Markdown",
+    await force_set_tier(user["id"], tier)
+    await audit.write(actor_role="operator", action="allowlist", user_id=user["id"],
+                      payload={"new_tier": tier})
+    await update.message.reply_text(
+        f"✅ {target} promoted to Tier {tier}."
+    )
+    # Route through notifications.send so the call inherits R12's
+    # tenacity retry+backoff and consistent ERROR-on-final-failure logging.
+    from ... import notifications
+    await notifications.send(
+        user["telegram_user_id"],
+        f"🎉 You've been promoted to Tier {tier}. New features unlocked!",
     )
