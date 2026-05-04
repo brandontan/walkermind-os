@@ -76,13 +76,15 @@ async def handle_start(
                 )
                 break
             except asyncpg.UniqueViolationError as exc:
-                if exc.constraint_name and "hd_index" in exc.constraint_name:
+                constraint = exc.constraint_name or ""
+                if "hd_index" in constraint:
+                    # Race on hd_index allocation — retry with a fresh index.
                     log.warning(
                         "wallet.provision_hd_index_race",
                         user_id=str(user_id),
                         hd_index=hd_index,
                         attempt=attempt,
-                        constraint=exc.constraint_name,
+                        constraint=constraint,
                     )
                     if attempt == max_attempts:
                         log.error(
@@ -95,10 +97,25 @@ async def handle_start(
                         )
                         return
                     continue
+                # PK on user_id or UNIQUE on deposit_address: a concurrent /start
+                # for this user already provisioned. Idempotent recovery — re-fetch
+                # the winning wallet and use its address rather than surfacing a
+                # false-positive failure to the user.
+                race_winner = await get_wallet(pool, user_id)
+                if race_winner is not None:
+                    address = race_winner["deposit_address"]
+                    log.info(
+                        "wallet.race_resolved_idempotent",
+                        user_id=str(user_id),
+                        constraint=constraint,
+                        address=address,
+                    )
+                    break
+                # Unique conflict but no wallet for this user — genuine defect.
                 log.error(
                     "wallet.provision_unique_violation",
                     user_id=str(user_id),
-                    constraint=exc.constraint_name,
+                    constraint=constraint,
                     error=str(exc),
                 )
                 await update.effective_message.reply_text(
