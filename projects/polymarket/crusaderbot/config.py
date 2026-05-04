@@ -1,11 +1,27 @@
 """Application configuration — loaded from environment, fail-fast on missing secrets."""
 from __future__ import annotations
 
+import logging
+import os
 from functools import lru_cache
 from typing import Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+# Names checked at boot by ``validate_required_env``. Missing entries are
+# logged at ERROR (key only — values are NEVER logged) so the operator alert
+# layer can surface a degraded state without crashing the process.
+REQUIRED_ENV_VARS: tuple[str, ...] = (
+    "TELEGRAM_BOT_TOKEN",
+    "DATABASE_URL",
+    "ALCHEMY_POLYGON_RPC_URL",
+    "ALCHEMY_POLYGON_WS_URL",
+    "OPERATOR_CHAT_ID",
+    "WALLET_ENCRYPTION_KEY",
+)
 
 
 class Settings(BaseSettings):
@@ -23,6 +39,12 @@ class Settings(BaseSettings):
     POLYGON_RPC_URL: str
     WALLET_HD_SEED: str
     WALLET_ENCRYPTION_KEY: str
+
+    # --- Alchemy endpoints (optional aliases used by deposit watcher + health) ---
+    # Falling back through ``ALCHEMY_POLYGON_RPC_URL`` lets operators provide a
+    # single Alchemy URL without renaming the legacy ``POLYGON_RPC_URL``.
+    ALCHEMY_POLYGON_RPC_URL: Optional[str] = None
+    ALCHEMY_POLYGON_WS_URL: Optional[str] = None
 
     # --- Optional infra ---
     REDIS_URL: Optional[str] = None  # falls back to in-memory cache if missing
@@ -93,3 +115,21 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
+
+
+def validate_required_env() -> list[str]:
+    """Return the list of REQUIRED env vars that are missing at boot.
+
+    Logs an ERROR line per missing variable (key name only — values are NEVER
+    logged). The process is allowed to continue so that the health endpoint
+    can surface the degraded state via the operator alert path. Callers must
+    NOT log the returned values; they are key names only.
+    """
+    missing: list[str] = []
+    for key in REQUIRED_ENV_VARS:
+        value = os.environ.get(key)
+        if value is None or value.strip() == "":
+            missing.append(key)
+    for key in missing:
+        logger.error("required env var missing: %s", key)
+    return missing
