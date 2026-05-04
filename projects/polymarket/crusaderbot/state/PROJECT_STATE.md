@@ -1,14 +1,15 @@
-Last Updated : 2026-05-04 12:10
-Status       : R3 allowlist gate lane open. Paper mode. All activation guards OFF. Tier 2 allowlist (in-memory, asyncio.Lock-guarded) + /allowlist operator command (add/remove/list) live; require_tier decorator scaffolded for future Tier 2+ commands; /status now displays caller's effective tier.
+Last Updated : 2026-05-04 13:04
+Status       : R3 allowlist gate lane MERGED (PR #849). Paper mode. All activation guards OFF. Tier 2 allowlist (in-memory, asyncio.Lock-guarded) + /allowlist operator command (add/remove/list) live; require_tier decorator scaffolded for future Tier 2+ commands. Next: R4 deposit watcher + ledger.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
 - crusaderbot/ project path established under projects/polymarket/
 - R1 skeleton — FastAPI + DB + Redis + Telegram polling + migrations + risk constants (PR #847 merged)
 - R2 onboarding + HD wallet generation (PR #848 merged)
+- R3 operator allowlist + Tier 2 access gate (PR #849 merged)
 
 [IN PROGRESS]
-- crusaderbot-r3-allowlist (PR open against main, awaiting WARP🔹CMD review)
+- None
 
 [NOT STARTED]
 - R4 deposit watcher + ledger
