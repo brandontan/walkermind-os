@@ -44,16 +44,25 @@ def _retry():
     )
 
 
-async def send(chat_id: int, text: str, parse_mode: str = ParseMode.MARKDOWN) -> None:
+async def send(chat_id: int, text: str, parse_mode: str = ParseMode.MARKDOWN) -> bool:
+    """Send a Telegram message with retry, swallowing permanent failures.
+
+    Returns ``True`` on successful delivery and ``False`` on permanent
+    failure (after retries). Existing call sites that ignore the return
+    value continue to work; the alert dispatcher uses it to avoid
+    arming the cooldown when delivery did not actually happen.
+    """
     try:
         async for attempt in _retry():
             with attempt:
                 await get_bot().send_message(
                     chat_id=chat_id, text=text, parse_mode=parse_mode,
                 )
+        return True
     except Exception as exc:
         # Final failure (after retries) — surface as ERROR, never swallow silently.
         logger.error("Telegram send permanently failed chat=%s err=%s", chat_id, exc)
+        return False
 
 
 async def notify_operator(text: str) -> None:

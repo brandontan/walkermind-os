@@ -4,10 +4,8 @@ from __future__ import annotations
 import logging
 import os
 import secrets
-import sys
 from contextlib import asynccontextmanager
 
-import structlog
 from fastapi import FastAPI, Header, HTTPException, Request, Response
 from telegram import Update
 from telegram.ext import Application
@@ -16,23 +14,15 @@ from . import notifications
 from .api import admin as api_admin, health as api_health
 from .bot.dispatcher import register as register_handlers
 from .cache import close_cache, init_cache
-from .config import get_settings
+from .config import get_settings, validate_required_env
 from .database import close_pool, init_pool, run_migrations
+from .monitoring import alerts as monitoring_alerts
+from .monitoring.health import run_health_checks
+from .monitoring.logging import RequestLogMiddleware, configure_json_logging
 from .scheduler import setup_scheduler
 
-# ----- structured logging -----
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.add_log_level,
-        structlog.dev.ConsoleRenderer(),
-    ],
-)
-logging.basicConfig(
-    level=os.environ.get("LOG_LEVEL", "INFO"),
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    stream=sys.stdout,
-)
+# ----- structured logging (JSON baseline) -----
+configure_json_logging(level=os.environ.get("LOG_LEVEL", "INFO"))
 log = logging.getLogger("crusaderbot")
 
 bot_app: Application | None = None
@@ -47,6 +37,10 @@ _webhook_mode_active: bool = False
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global bot_app, scheduler_app, _webhook_secret, _webhook_mode_active
+    # Log missing REQUIRED env vars (key names only — values never logged) so
+    # that the operator can correlate /health "down" / "degraded" states with
+    # configuration drift. Boot continues; surfacing happens via /health.
+    missing_env = validate_required_env()
     settings = get_settings()
     log.info(
         "CrusaderBot starting (env=%s, live_trading_enabled=%s, "
@@ -145,6 +139,34 @@ async def lifespan(_: FastAPI):
         parse_mode=None,
     )
 
+    # --- observability: startup alert + dependency probe ---
+    # Fly.io starts a fresh machine on every deploy or VM restart, so a boot
+    # event always counts as a machine restart from the operator's POV.
+    # Alert delivery is fire-and-forget so a slow Telegram cannot stall
+    # app.startup past Fly's 10s grace_period and trigger a restart loop.
+    # run_health_checks() is bounded by its own per-check 3s timeout, so
+    # awaiting it here is safe.
+    try:
+        monitoring_alerts.schedule_alert(
+            monitoring_alerts.alert_startup(restart_detected=True),
+        )
+        if missing_env:
+            # One aggregated page covers all missing keys; per-variable
+            # alerts would collide on the same cooldown bucket and silently
+            # drop every key after the first.
+            monitoring_alerts.schedule_alert(
+                monitoring_alerts.alert_missing_env(missing_env),
+            )
+        boot_health = await run_health_checks()
+        if boot_health["status"] != "ok":
+            for name, reason in boot_health["checks"].items():
+                if reason != "ok":
+                    monitoring_alerts.schedule_alert(
+                        monitoring_alerts.alert_dependency_unreachable(name, reason),
+                    )
+    except Exception as exc:  # noqa: BLE001 — observability must never crash boot
+        log.error("startup observability hook failed: %s", exc, exc_info=True)
+
     try:
         yield
     finally:
@@ -178,6 +200,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="CrusaderBot", version="0.1.0", lifespan=lifespan)
+app.add_middleware(RequestLogMiddleware)
 app.include_router(api_health.router)
 app.include_router(api_admin.router)
 

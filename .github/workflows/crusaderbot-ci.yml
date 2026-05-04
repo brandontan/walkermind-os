@@ -50,6 +50,20 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ruff pytest
 
+      - name: Install runtime dependencies (from pyproject.toml)
+        # Tests in tests/test_health.py import the monitoring package, which
+        # transitively pulls httpx, pydantic-settings, asyncpg, etc. We read
+        # the dependency list directly from pyproject.toml so the CI install
+        # stays in sync with the project without a duplicated requirements
+        # file. Python 3.11 provides tomllib in the standard library.
+        run: |
+          python - <<'PY'
+          import subprocess, sys, tomllib
+          with open("pyproject.toml", "rb") as f:
+              deps = tomllib.load(f)["project"]["dependencies"]
+          subprocess.check_call([sys.executable, "-m", "pip", "install", *deps])
+          PY
+
       - name: Lint (ruff)
         run: ruff check .
 
