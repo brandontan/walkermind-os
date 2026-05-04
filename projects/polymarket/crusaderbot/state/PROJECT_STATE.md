@@ -1,5 +1,5 @@
-Last Updated : 2026-05-04 19:30
-Status       : R4 deposit watcher + ledger lane open. Paper mode. All activation guards OFF. Alchemy WS subscription to USDC Transfer events on Polygon, in-process address-map filter, atomic deposit-insert + ledger-credit transaction keyed on UNIQUE (tx_hash, log_index), reorg-removed logs gated, Tier 3 auto-bump on balance >= MIN_DEPOSIT_USDC, Telegram deposit-confirmed notification. /wallet (all tiers) and /deposit (Tier 2+) registered. Codex auto-review P1 findings addressed in follow-up commit.
+Last Updated : 2026-05-04 21:52
+Status       : WARP•SENTINEL audit of CrusaderBot R1–R11 Replit import (PR #852, audited commit 8c6aded3) completed — verdict BLOCKED, 64/100, 3 critical findings (C1 Kelly absent + capital_alloc_pct accepts 100%; C2 migrations/004 non-idempotent → restart fails; C3 scheduler.watch_deposits promotes Tier 3 on any deposit). P1 fixes verified correct (deposit dedup on (tx_hash,log_index), live close idempotency, polygon log_index passthrough). Audit report on PR #853. Paper mode. All activation guards OFF.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
@@ -9,7 +9,8 @@ Status       : R4 deposit watcher + ledger lane open. Paper mode. All activation
 - R3 operator allowlist + Tier 2 gate (PR merged)
 
 [IN PROGRESS]
-- crusaderbot-r4-deposit-watcher (PR open against main, awaiting WARP🔹CMD review + WARP•SENTINEL validation)
+- WARP/CRUSADERBOT-REPLIT-IMPORT (PR #852, audited commit 8c6aded3) — Sentinel BLOCKED with 3 critical findings; awaiting WARP🔹CMD remediation decision
+- WARP/sentinel-crusaderbot-replit-import (PR #853) — audit-report PR carrying projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-replit-import.md
 
 [NOT STARTED]
 - R5 strategy config
@@ -22,9 +23,11 @@ Status       : R4 deposit watcher + ledger lane open. Paper mode. All activation
 - R12 ops + monitoring
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for R4 deposit watcher before merge.
-  Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-r4-deposit-watcher.md
+- WARP🔹CMD decision on PR #852 remediation. Sentinel verdict BLOCKED until C1/C2/C3 patched, then re-validation.
+  Source: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-replit-import.md
   Tier: MAJOR
 
 [KNOWN ISSUES]
-- None
+- C1 Kelly fraction not enforced; capital_alloc_pct accepts 100% (setup.py:237-239 + copy_trade.py:30 + constants.py:4 declared but never referenced).
+- C2 migrations/004_deposit_log_index.sql:14-16 uses bare ADD CONSTRAINT (no IF NOT EXISTS support in Postgres) — bot fails restart after first deploy.
+- C3 scheduler.py:154-158 promotes Tier 3 on any deposit credit, ignoring MIN_DEPOSIT_USDC=50.

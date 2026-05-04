@@ -16,7 +16,7 @@ git show 8c6aded3:projects/polymarket/crusaderbot/<path>
 Every `file:line` reference below resolves once the audited branch is fetched. The commit object is **not** present on PR #853's branch — that branch carries only the audit report, by design.
 Worktree branch carrying THIS report: `claude/audit-crusaderbot-import-Ar983` (Claude Code worktree — Sentinel rule: do not block on branch name alone). The audit-report PR (#853) intentionally contains only `reports/sentinel/crusaderbot-replit-import.md`; the source files under audit live on PR #852.
 Audit scope: every production source file and migration under `projects/polymarket/crusaderbot/` on the audited commit — 38 `.py` modules + 4 `migrations/*.sql` + `db/schema_r4.sql` + `.env.example` + `config/main` entry points. Out of scope: tests, deployment config (`Dockerfile`, `fly.toml`, `Procfile`), `state/` markdown.
-Date: 2026-05-04 Asia/Jakarta
+Date: 2026-05-04 21:52 Asia/Jakarta
 
 ---
 
@@ -471,9 +471,10 @@ plus REST `POST /admin/kill`, `POST /admin/force-redeem`, and
 Done -- GO-LIVE: BLOCKED. Score: 64/100. Critical: 3.
 PR: WARP/CRUSADERBOT-REPLIT-IMPORT (#852)
 Report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-replit-import.md
-State: PROJECT_STATE.md NOT updated by Sentinel — declared worktree branch
-       is `claude/audit-crusaderbot-import-Ar983`, not the canonical
-       `WARP/CRUSADERBOT-REPLIT-IMPORT`. Per CLAUDE.md non-worktree mismatch
-       rule, state-file edit is held until WARP🔹CMD confirms which branch
-       owns the state update.
+State: projects/polymarket/crusaderbot/state/PROJECT_STATE.md updated
+       (surgical 7-section edit; Last Updated 2026-05-04 21:52). Treating
+       `claude/audit-crusaderbot-import-Ar983` as the Claude Code
+       worktree-equivalent of Codex's `work` branch per the Sentinel
+       branch-name rule, and AGENTS.md FAILURE CONDITIONS line 723
+       requiring report+state both update on Sentinel completion.
 NEXT GATE: Return to WARP🔹CMD for final decision (fix C1–C3, then revalidate).
