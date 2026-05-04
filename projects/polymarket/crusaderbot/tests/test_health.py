@@ -187,6 +187,49 @@ def test_record_health_result_alerts_after_threshold_then_cools_down():
         assert len(sent) == 1
 
 
+def test_record_health_result_per_check_reset_while_degraded():
+    """A check that recovers must NOT page on its next isolated failure even
+    if the overall verdict stayed ``degraded`` the whole time because some
+    OTHER dependency is still down.
+
+    Sequence (simulates Codex's reported false-page scenario):
+      1. tg down, rpc ok        -> tg counter=1
+      2. tg down, rpc down      -> tg=2 (alerts), rpc=1 -- cooldown engaged
+      3. tg down, rpc ok        -> tg=3, rpc must reset to 0
+      4. tg down, rpc down      -> tg=4 (cooldown), rpc=1 -- must NOT page
+    """
+    sent: list[Any] = []
+
+    async def _fake_send(chat_id, text, parse_mode=None):
+        sent.append((chat_id, text))
+
+    fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
+    tg_only = {
+        "status": "degraded",
+        "checks": {"telegram": "error: down", "alchemy_rpc": "ok"},
+    }
+    both = {
+        "status": "degraded",
+        "checks": {"telegram": "error: down", "alchemy_rpc": "error: down"},
+    }
+    with patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.notifications.send",
+        new=_fake_send,
+    ), patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.get_settings",
+        return_value=fake_settings,
+    ):
+        _run(monitoring_alerts.record_health_result(tg_only))   # tg=1
+        _run(monitoring_alerts.record_health_result(both))      # tg=2 (paged), rpc=1
+        first_alerts = len(sent)
+        assert first_alerts >= 1  # tg breach paged
+        _run(monitoring_alerts.record_health_result(tg_only))   # rpc resets to 0
+        _run(monitoring_alerts.record_health_result(both))      # rpc=1, NOT 2
+    # No NEW alert triggered solely by rpc — only the original tg breach.
+    rpc_alerts = [a for _, a in sent if "alchemy_rpc" in a]
+    assert rpc_alerts == [], f"unexpected rpc alert: {rpc_alerts!r}"
+
+
 def test_record_health_result_resets_on_recovery():
     sent: list[Any] = []
 

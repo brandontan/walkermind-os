@@ -134,6 +134,16 @@ async def record_health_result(result: dict) -> None:
             _consecutive_failures[name] = 0
         return
 
+    # Per-check reset: any check that is OK this round breaks its own
+    # consecutive-failure streak even if the overall verdict is still
+    # degraded because some OTHER dependency is still down. Without this
+    # reset, a single failing check could keep the system in "degraded" long
+    # enough for an unrelated check's stale counter to trip the threshold on
+    # a later isolated failure and page the operator falsely.
+    for name in list(_consecutive_failures.keys()):
+        if name not in failing:
+            _consecutive_failures[name] = 0
+
     # Increment counters only for the checks that actually failed.
     for name in failing:
         _consecutive_failures[name] = _consecutive_failures.get(name, 0) + 1
