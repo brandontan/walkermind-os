@@ -1,13 +1,14 @@
-Last Updated : 2026-05-04 08:36
-Status       : R2 onboarding + HD wallet generation lane open. Paper mode. All activation guards OFF. /start now provisions per-user HD wallet on first contact; subsequent /start calls return existing address (idempotent). Private keys encrypted at rest via Fernet, never logged or surfaced.
+Last Updated : 2026-05-04 10:39
+Status       : R2 onboarding + HD wallet generation merged (PR #848). Paper mode. All activation guards OFF. /start provisions per-user HD wallet on first contact; subsequent /start calls return existing address (idempotent). Private keys encrypted at rest via Fernet, never logged or surfaced. Next: R3 operator allowlist.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
 - crusaderbot/ project path established under projects/polymarket/
 - R1 skeleton — FastAPI + DB + Redis + Telegram polling + migrations + risk constants (PR #847 merged)
+- R2 onboarding + HD wallet generation — user upsert + /start flow + wallet derive/encrypt/store (PR #848 merged)
 
 [IN PROGRESS]
-- crusaderbot-r2-onboarding (PR open against main, awaiting WARP🔹CMD review)
+- None
 
 [NOT STARTED]
 - R3 operator allowlist
@@ -22,7 +23,7 @@ Status       : R2 onboarding + HD wallet generation lane open. Paper mode. All a
 - R12 ops + monitoring
 
 [NEXT PRIORITY]
-- R3 — operator allowlist (Tier 2 access gate)
+- R3 — operator allowlist (Tier 2 access gate) — open new lane
 
 [KNOWN ISSUES]
 - None
