@@ -17,14 +17,13 @@ Status       : R1-R11 merged to main. SENTINEL PASS. C1/C2/C3 resolved. Paper-de
 - None — no open PRs
 
 [NOT STARTED]
-- R5 strategy config
-- R6 signal engine (copy-trade + signal-following)
-- R7 risk gate (13-step)
-- R8 paper execution engine
-- R9 exit logic (TP/SL + force-close)
-- R10 auto-redeem (instant/hourly)
-- R11 fee + referral accounting
-- R12 ops + monitoring
+- R12a — CI/CD Pipeline (GitHub Actions)
+- R12b — Fly.io Health Alerts
+- R12c — Auto-Close / Take-Profit (MAJOR — execution path)
+- R12d — Live Opt-In Checklist (MAJOR — hard gate before EXE)
+- R12e — Live → Paper Auto-Fallback (MAJOR)
+- R12f — Daily P&L Summary
+- R12 — Deployment (Fly.io) — final (MAJOR)
 
 [NEXT PRIORITY]
 - R12a — CI/CD Pipeline (GitHub Actions)

@@ -21,7 +21,7 @@
 | R11 | Fee + referral accounting (default OFF) | ✅ Done | STANDARD | Merged via PR #852, SENTINEL PASS |
 | R12a | CI/CD Pipeline (GitHub Actions) | ❌ Not Started | STANDARD | Next priority |
 | R12b | Fly.io Health Alerts | ❌ Not Started | STANDARD | — |
-| R12c | Auto-Close / Take-Profit | ❌ Not Started | STANDARD | — |
+| R12c | Auto-Close / Take-Profit | ❌ Not Started | MAJOR | Order-path / execution — SENTINEL required |
 | R12d | Live Opt-In Checklist | ❌ Not Started | MAJOR | Hard gate before EXE |
 | R12e | Live → Paper Auto-Fallback | ❌ Not Started | MAJOR | — |
 | R12f | Daily P&L Summary | ❌ Not Started | STANDARD | — |
