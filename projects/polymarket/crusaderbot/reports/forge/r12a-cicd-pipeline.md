@@ -15,7 +15,7 @@
 R12a lane: production-grade CI/CD scaffold for CrusaderBot. Paper mode preserved end-to-end. All activation guards remain OFF and are now also pinned OFF in `fly.toml [env]`.
 
 - **GitHub Actions CI** (`.github/workflows/crusaderbot-ci.yml`): triggers on push to any `WARP/**` branch and on pull requests targeting `main`. Path-filtered to `projects/polymarket/crusaderbot/**` and the workflow file itself, so polyquantbot / docs / unrelated lanes do not trigger this pipeline. Job pins Python 3.11, caches pip, installs `ruff` + `pytest` (lean tooling — full runtime deps stay in Docker), runs `ruff check .` and `pytest tests/ -v --tb=short` from the crusaderbot working directory. Fail-fast: any non-zero exit blocks the job. Concurrency group cancels superseded runs on the same ref. Job timeout 10 min.
-- **GitHub Actions CD** (`.github/workflows/crusaderbot-cd.yml`): triggers only on push to `main` with a path filter on `projects/polymarket/crusaderbot/**` (and the workflow file). Uses `superfly/flyctl-actions/setup-flyctl@master` to install flyctl, then runs `flyctl deploy --remote-only --config projects/polymarket/crusaderbot/fly.toml`. `FLY_API_TOKEN` is referenced via `${{ secrets.FLY_API_TOKEN }}` only — never hardcoded, never echoed. Job timeout 15 min, `environment: production` (so a future GitHub environment-protection rule can gate manual approval if WARP🔹CMD wants it).
+- **GitHub Actions CD** (`.github/workflows/crusaderbot-cd.yml`): triggers only on push to `main` with a path filter on `projects/polymarket/crusaderbot/**` (and the workflow file). Uses `superfly/flyctl-actions/setup-flyctl@master` to install flyctl, then runs `flyctl deploy --remote-only` with `working-directory: projects/polymarket/crusaderbot`. The working-directory pin is required: the Dockerfile's `COPY pyproject.toml /app/` and `COPY . /app/crusaderbot/` assume the build context root is `crusaderbot/`, and `--config` alone does not set the build context per Fly's docs. `FLY_API_TOKEN` is referenced via `${{ secrets.FLY_API_TOKEN }}` only — never hardcoded, never echoed. Job timeout 15 min, `environment: production` (so a future GitHub environment-protection rule can gate manual approval if WARP🔹CMD wants it).
 - **Dockerfile hardening** (`projects/polymarket/crusaderbot/Dockerfile`): retained the existing Python 3.11-slim base, build deps (`gcc`, `libpq-dev`), pyproject install path, and uvicorn entry. Added a non-root system user `app` (uid/gid 1001), `chown -R app:app /app`, and `USER app` before `CMD`. PORT/PYTHONUNBUFFERED/PYTHONDONTWRITEBYTECODE env unchanged.
 - **fly.toml activation-guard defaults** (`projects/polymarket/crusaderbot/fly.toml`): kept `app = "crusaderbot"`, `primary_region = "sin"`, the existing `[build] dockerfile = "Dockerfile"`, the http service block on internal_port 8080, the `/health` http_check, the metrics block, and the VM size. Added a header comment documenting that runtime secrets go to `fly secrets set` (never the file). Extended `[env]` with the seven activation guards from `state/ROADMAP.md` (`ENABLE_LIVE_TRADING`, `EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, `RISK_CONTROLS_VALIDATED`, `SECURITY_HARDENING_VALIDATED`, `FEE_COLLECTION_ENABLED`, `AUTO_REDEEM_ENABLED`) all defaulted to `"false"`. No real secret value lives in this file.
 - **Pytest entry stub** (`projects/polymarket/crusaderbot/tests/__init__.py`, `projects/polymarket/crusaderbot/tests/test_smoke.py`): two trivial asserts (`assert True`, `sys.version_info >= (3, 11)`) — gives CI a discoverable suite without dragging in trading-runtime imports. Real coverage lands in subsequent lanes.
@@ -30,7 +30,7 @@ GitHub event
   │   crusaderbot-ci.yml
   │     checkout → setup-python@v5 (3.11, pip-cache)
   │     → pip install ruff pytest
-  │     → ruff check .
+  │     → ruff check .            (select = E9/F63/F7/F82)
   │     → pytest tests/ -v --tb=short
   │     fail-fast on any non-zero exit
   │
@@ -39,8 +39,8 @@ GitHub event
       crusaderbot-cd.yml
         checkout
         → superfly/flyctl-actions/setup-flyctl@master
-        → flyctl deploy --remote-only \
-              --config projects/polymarket/crusaderbot/fly.toml
+        → cd projects/polymarket/crusaderbot
+        → flyctl deploy --remote-only
               FLY_API_TOKEN = ${{ secrets.FLY_API_TOKEN }}
         environment: production  (slot for manual-approval gate)
         ↓
@@ -65,6 +65,7 @@ Created:
 Modified:
 - `projects/polymarket/crusaderbot/Dockerfile` — added non-root system user `app` (uid/gid 1001), `chown -R app:app /app`, and `USER app` directive before `CMD`. Base image, pyproject install, and uvicorn command unchanged.
 - `projects/polymarket/crusaderbot/fly.toml` — added header comment on secrets handling; extended `[env]` with seven activation guards defaulted to `"false"`. App name, region, build, http service, http_check, vm, and metrics blocks unchanged.
+- `projects/polymarket/crusaderbot/pyproject.toml` — appended a `[tool.ruff.lint]` block with `select = ["E9","F63","F7","F82"]` (R12a CI baseline; no other table touched). Project metadata, dependencies, and setuptools config unchanged.
 
 State (surgical edits — final chunk only, this report's commit):
 - `projects/polymarket/crusaderbot/state/PROJECT_STATE.md` — Last Updated, Status, [COMPLETED], [IN PROGRESS], [NEXT PRIORITY], [NOT STARTED] sections updated for R12a PR open.
@@ -73,7 +74,6 @@ State (surgical edits — final chunk only, this report's commit):
 
 Not modified:
 - All Python source under `projects/polymarket/crusaderbot/` (`main.py`, `bot/`, `services/`, `domain/`, `wallet/`, `db/`, `migrations/`, `api/`, `integrations/`, `config.py`, `database.py`, `cache.py`, `users.py`, `audit.py`, `notifications.py`, `scheduler.py`).
-- `projects/polymarket/crusaderbot/pyproject.toml` (no ruff config block added — defaults are sufficient for this lane).
 - Other workflows in `.github/workflows/` (`phase9_1_runtime_proof.yml`, `warp-issue-dispatch.yml`).
 - All other projects under `projects/` and all root-level CI / docs / blueprints.
 
@@ -93,7 +93,7 @@ Not modified:
 
 - **Runtime secrets not yet set on Fly.io.** First production CD run will fail at FastAPI startup until `fly secrets set TELEGRAM_BOT_TOKEN=... DATABASE_URL=... REDIS_URL=... ALCHEMY_POLYGON_RPC_URL=... ALCHEMY_POLYGON_WS_URL=... USDC_CONTRACT_ADDRESS=... WALLET_ENCRYPTION_KEY=... OPERATOR_CHAT_ID=...` is run against the `crusaderbot` Fly app. This is by design — secrets are not committed — but it must be done before the first deploy completes successfully.
 - **GitHub Actions repo secret `FLY_API_TOKEN` not configured by this lane.** WARP🔹CMD must add it under repo Settings → Secrets and variables → Actions before the first CD run. CD workflow will fail with an auth error otherwise.
-- **Ruff defaults only.** No `[tool.ruff]` block was added to `pyproject.toml` to keep this lane scope-clean. If existing source has any lint hits the default ruleset catches, the first CI run on this branch will surface them; address those in a follow-up lane (or rerun after a targeted fix). The lint scope is `projects/polymarket/crusaderbot/.` from the working directory.
+- **Ruff baseline narrowed to E9 / F63 / F7 / F82** (`[tool.ruff.lint]` block added to `crusaderbot/pyproject.toml`). The first CI run on dcbfa57 surfaced 11 `F401` (unused import) hits in existing source (`bot/dispatcher.py`, `bot/handlers/dashboard.py`, `cache.py`, `config.py`, `domain/risk/gate.py`, `scheduler.py`). Per WARP🔹CMD direction (Path B), the CI baseline is restricted to syntax errors + undefined references — no Python source was modified in this lane. F401 cleanup belongs to a dedicated follow-up lane that can also expand the rule set incrementally (E, F, I, B, …) once the codebase is clean.
 - **Pytest stub is intentionally trivial.** `tests/test_smoke.py` does not import any crusaderbot module. Meaningful unit coverage (risk gate, signal engine, ledger atomicity, deposit watcher idempotency) is not part of R12a — that needs separate lanes with proper fixtures and DB/Redis test doubles.
 - **CD `environment: production` has no protection rules attached yet.** The slot is wired so WARP🔹CMD can later add a required-reviewer rule in GitHub Settings → Environments without changing the workflow. Until configured, the deploy proceeds automatically on path-scoped main push.
 - **fly.toml `[[services]]` uses the legacy v1 schema** (matches the file as it shipped). Fly v2 prefers `[http_service]`. Both work; staying on the existing schema avoids a behaviour-changing rewrite in a CI/CD lane.

@@ -34,6 +34,10 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy to Fly.io
-        run: flyctl deploy --remote-only --config projects/polymarket/crusaderbot/fly.toml
+        # Run flyctl from the crusaderbot directory so the Docker build context
+        # matches the Dockerfile assumptions (`COPY pyproject.toml /app/`,
+        # `COPY . /app/crusaderbot/`). flyctl picks up fly.toml from the CWD.
+        working-directory: projects/polymarket/crusaderbot
+        run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
