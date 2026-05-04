@@ -1,6 +1,9 @@
-"""Telegram dispatcher: builds Application, registers /start and /status handlers."""
+"""Telegram dispatcher: builds Application, registers /start (onboarding) and /status."""
 from __future__ import annotations
 
+from functools import partial
+
+import asyncpg
 import structlog
 from telegram import Update
 from telegram.ext import (
@@ -10,19 +13,10 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from ..config import settings
+from ..config import Settings, settings
+from .handlers.onboarding import handle_start
 
 log = structlog.get_logger(__name__)
-
-
-async def start_handler(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    if update.effective_message is None:
-        return
-    await update.effective_message.reply_text(
-        "👋 CrusaderBot online. Paper mode active."
-    )
 
 
 async def status_handler(
@@ -42,8 +36,18 @@ async def status_handler(
     await update.effective_message.reply_text("\n".join(lines))
 
 
-def setup_handlers(app: Application) -> None:
-    app.add_handler(CommandHandler("start", start_handler))
+def setup_handlers(
+    app: Application,
+    *,
+    db_pool: asyncpg.Pool,
+    config: Settings,
+) -> None:
+    """Register handlers. db_pool and config are bound into /start via partial.
+
+    Both kwargs are required; missing them at call time raises TypeError fast.
+    """
+    bound_start = partial(handle_start, pool=db_pool, config=config)
+    app.add_handler(CommandHandler("start", bound_start))
     app.add_handler(CommandHandler("status", status_handler))
     log.info("bot.handlers_registered", commands=["start", "status"])
 
