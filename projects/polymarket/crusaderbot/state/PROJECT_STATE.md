@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 06:06
-Status       : PR #858 state sync complete. R12a CI/CD pipeline PR open, awaiting WARP🔹CMD review. Paper-default.
+Last Updated : 2026-05-05 06:18
+Status       : ROADMAP R12b drift fixed, WORKTODO.md initialized. PR open: WARP/CRUSADERBOT-STATE-FIX (STANDARD, awaiting WARP🔹CMD review). R12a CI/CD pipeline PR open. Paper-default.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -12,6 +12,7 @@ Status       : PR #858 state sync complete. R12a CI/CD pipeline PR open, awaitin
 - PR #858 — chore(crusaderbot): state sync — PR #857 post-merge (WARP•ECHO routine)
 
 [IN PROGRESS]
+- CRUSADERBOT-STATE-FIX — ROADMAP R12b drift fix + WORKTODO.md init — PR open: WARP/CRUSADERBOT-STATE-FIX — STANDARD tier, awaiting WARP🔹CMD review
 - R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
 
 [NOT STARTED]
@@ -22,8 +23,8 @@ Status       : PR #858 state sync complete. R12a CI/CD pipeline PR open, awaitin
 - R12 — Deployment (Fly.io) — final (MAJOR)
 
 [NEXT PRIORITY]
-- WARP🔹CMD review of R12a PR (STANDARD tier, no SENTINEL required). Source: projects/polymarket/crusaderbot/reports/forge/r12a-cicd-pipeline.md
-- ROADMAP.md R12b row needs ✅ Done update (WARP🔹CMD or WARP•FORGE to handle — out of WARP•ECHO scope)
+- WARP🔹CMD review of state-fix PR (STANDARD, no SENTINEL required). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-state-fix.md
+- After state-fix merge: WARP🔹CMD review of R12a PR (STANDARD, no SENTINEL required). Source: projects/polymarket/crusaderbot/reports/forge/r12a-cicd-pipeline.md
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)
