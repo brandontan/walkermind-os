@@ -1,5 +1,5 @@
-Last Updated : 2026-05-04 21:52
-Status       : WARP•SENTINEL audit of CrusaderBot R1–R11 Replit import (PR #852, audited commit 8c6aded3) completed — verdict BLOCKED, 64/100, 3 critical findings (C1 Kelly absent + capital_alloc_pct accepts 100%; C2 migrations/004 non-idempotent → restart fails; C3 scheduler.watch_deposits promotes Tier 3 on any deposit). P1 fixes verified correct (deposit dedup on (tx_hash,log_index), live close idempotency, polygon log_index passthrough). Audit report on PR #853. Paper mode. All activation guards OFF.
+Last Updated : 2026-05-04 23:50
+Status       : WARP•SENTINEL audit of CrusaderBot R1–R11 Replit import (PR #852) completed and merged (PR #853 merged). Verdict BLOCKED, 62/100, 3 critical findings. Awaiting WARP🔹CMD remediation decision on PR #852 before re-validation. Paper mode. All activation guards OFF.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)
@@ -7,10 +7,10 @@ Status       : WARP•SENTINEL audit of CrusaderBot R1–R11 Replit import (PR #
 - R1 skeleton — FastAPI + DB + Redis + Telegram polling + migrations + risk constants (PR #847 merged)
 - R2 onboarding + HD wallet generation (PR #848 merged)
 - R3 operator allowlist + Tier 2 gate (PR merged)
+- WARP•SENTINEL audit of CRUSADERBOT-REPLIT-IMPORT — verdict BLOCKED 62/100, 3 critical findings, report merged (PR #853)
 
 [IN PROGRESS]
-- WARP/CRUSADERBOT-REPLIT-IMPORT (PR #852, audited commit 8c6aded3) — Sentinel BLOCKED with 3 critical findings; awaiting WARP🔹CMD remediation decision
-- WARP/sentinel-crusaderbot-replit-import (PR #853) — audit-report PR carrying projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-replit-import.md
+- WARP/CRUSADERBOT-REPLIT-IMPORT (PR #852) — Sentinel BLOCKED; C1 Kelly not enforced + capital_alloc_pct accepts 100%, C2 migrations/004 non-idempotent restart failure, C3 Tier 3 promotion ignores MIN_DEPOSIT_USDC; awaiting WARP🔹CMD remediation decision
 
 [NOT STARTED]
 - R5 strategy config
