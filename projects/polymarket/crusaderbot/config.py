@@ -5,6 +5,8 @@ Activation guards default to False — flipping requires explicit env override.
 """
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +23,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str
     POLYGON_RPC_URL: str
+    # Reserved for future eth_getLogs reconciliation pass (R4.1 backfill lane).
+    # Optional until a caller actually uses it — making it required causes
+    # startup failure with no functional benefit in R4.
+    ALCHEMY_POLYGON_RPC_URL: Optional[str] = None
+    ALCHEMY_POLYGON_WS_URL: str
+    USDC_CONTRACT_ADDRESS: str
     MASTER_WALLET_ADDRESS: str
     MASTER_WALLET_PRIVATE_KEY: str
     WALLET_HD_SEED: str
