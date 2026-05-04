@@ -4,6 +4,23 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+## 2026-05-05 06:07 Asia/Jakarta — State Sync (PR #857 post-merge)
+
+### Merged
+- PR #858: chore(crusaderbot): state sync — PR #857 post-merge
+  WARP•ECHO routine. Updated PROJECT_STATE.md (PR #858 entry added to COMPLETED, timestamp/status updated) and CHANGELOG.md.
+
+### Changes
+- projects/polymarket/crusaderbot/state/PROJECT_STATE.md — PR #858 added to [COMPLETED]; Last Updated and Status updated
+- projects/polymarket/crusaderbot/state/CHANGELOG.md — PR #858 post-merge entry prepended
+
+### State
+- R12b complete. R12a CI/CD pipeline PR open (WARP/CRUSADERBOT-R12A-CICD-PIPELINE).
+- WORKTODO.md not initialized for CrusaderBot — skipped.
+- Paper mode only. All activation guards OFF.
+
+2026-05-05 06:07 | WARP/post-merge-state-sync-1655 | WARP•ECHO state sync for PR #858 (chore: state sync — PR #857 post-merge)
+
 ## 2026-05-05 05:46 Asia/Jakarta — State Sync (PR #856 post-merge)
 
 ### Merged

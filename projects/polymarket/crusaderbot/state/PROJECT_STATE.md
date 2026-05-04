@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 05:46
-Status       : R12b state sync complete (PR #857). R12a CI/CD pipeline PR open, awaiting WARP🔹CMD review. Paper-default.
+Last Updated : 2026-05-05 06:07
+Status       : R12b state sync complete (PR #858). R12a CI/CD pipeline PR open, awaiting WARP🔹CMD review. Paper-default.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -9,6 +9,7 @@ Status       : R12b state sync complete (PR #857). R12a CI/CD pipeline PR open, 
 - C3 resolved: Tier 3 promotion gated on MIN_DEPOSIT_USDC
 - R12b — Fly.io health probes + operator alerts + JSON logging (PR #856 merged)
 - PR #857 — chore(crusaderbot): state sync — PR #856 post-merge (WARP•ECHO routine)
+- PR #858 — chore(crusaderbot): state sync — PR #857 post-merge (WARP•ECHO routine)
 
 [IN PROGRESS]
 - R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
