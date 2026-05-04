@@ -53,26 +53,35 @@ def _cooldown_active(alert_type: str, key: str) -> bool:
 async def _dispatch(alert_type: str, key: str, body: str) -> bool:
     """Send a plain-text alert to ``OPERATOR_CHAT_ID`` if not in cooldown.
 
-    Returns ``True`` when the alert was dispatched, ``False`` if suppressed.
+    Returns ``True`` when the alert was successfully dispatched, ``False``
+    if suppressed by cooldown, missing chat target, or permanent send
+    failure.
 
-    No lock is used: the cooldown record is updated synchronously before the
-    network call, so a worst-case race produces at most one duplicate alert
-    per cooldown window — preferable to coupling the dispatcher to a single
-    asyncio loop instance.
+    The cooldown timestamp is recorded ONLY after a successful delivery —
+    so a Telegram outage will not silence the operator for the next 5
+    minutes. The trade-off is a small race window in which two concurrent
+    callers can both pass the cooldown check and both deliver; that is
+    preferable to missing alerts during an outage.
     """
     if _cooldown_active(alert_type, key):
         logger.debug(
             "alert suppressed by cooldown type=%s key=%s", alert_type, key,
         )
         return False
-    _last_alert_at[(alert_type, key)] = time.monotonic()
 
     chat_id: Optional[int] = get_settings().OPERATOR_CHAT_ID
     if not chat_id:
         logger.error("alert dispatch skipped — OPERATOR_CHAT_ID not set")
         return False
     # plain text: parse_mode=None — values must not be re-interpreted as Markdown.
-    await notifications.send(chat_id, body, parse_mode=None)
+    delivered = await notifications.send(chat_id, body, parse_mode=None)
+    if not delivered:
+        logger.warning(
+            "alert dispatch failed — cooldown NOT armed type=%s key=%s",
+            alert_type, key,
+        )
+        return False
+    _last_alert_at[(alert_type, key)] = time.monotonic()
     return True
 
 

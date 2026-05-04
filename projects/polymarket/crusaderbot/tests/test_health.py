@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from projects.polymarket.crusaderbot import config as crusaderbot_config
 from projects.polymarket.crusaderbot.monitoring import alerts as monitoring_alerts
 from projects.polymarket.crusaderbot.monitoring import health as monitoring_health
 
@@ -142,6 +143,7 @@ def test_record_health_result_no_alert_below_threshold():
 
     async def _fake_send(chat_id, text, parse_mode=None):
         sent.append((chat_id, text))
+        return True
 
     fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
     with patch(
@@ -163,6 +165,7 @@ def test_record_health_result_alerts_after_threshold_then_cools_down():
 
     async def _fake_send(chat_id, text, parse_mode=None):
         sent.append((chat_id, text))
+        return True
 
     fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
     bad = {
@@ -277,6 +280,7 @@ def test_record_health_result_per_check_reset_while_degraded():
 
     async def _fake_send(chat_id, text, parse_mode=None):
         sent.append((chat_id, text))
+        return True
 
     fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
     tg_only = {
@@ -305,11 +309,114 @@ def test_record_health_result_per_check_reset_while_degraded():
     assert rpc_alerts == [], f"unexpected rpc alert: {rpc_alerts!r}"
 
 
+def test_dispatch_does_not_arm_cooldown_on_send_failure():
+    """A permanent Telegram failure must NOT arm the cooldown — otherwise
+    the operator is silenced for 5 minutes during the very outage they
+    most need to know about.
+    """
+    sent: list[Any] = []
+
+    async def _failing_send(chat_id, text, parse_mode=None):
+        sent.append((chat_id, text))
+        return False  # mimics notifications.send post-retry permanent failure
+
+    fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
+    bad = {
+        "status": "down",
+        "checks": {"database": "error: down", "telegram": "ok"},
+    }
+    with patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.notifications.send",
+        new=_failing_send,
+    ), patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.get_settings",
+        return_value=fake_settings,
+    ):
+        # Cross the threshold to trigger an alert dispatch.
+        _run(monitoring_alerts.record_health_result(bad))
+        _run(monitoring_alerts.record_health_result(bad))
+        first_send_attempts = len(sent)
+        assert first_send_attempts == 1, "first dispatch should be attempted"
+        # Next probe at the same threshold MUST attempt to send again because
+        # the cooldown was not armed by the failed send.
+        _run(monitoring_alerts.record_health_result(bad))
+    assert len(sent) == 2, (
+        "cooldown was armed despite send failure — operator would be "
+        "silenced during an active outage"
+    )
+
+
+def test_dispatch_arms_cooldown_only_on_successful_send():
+    """When delivery succeeds, the cooldown DOES suppress repeats."""
+    sent: list[Any] = []
+
+    async def _ok_send(chat_id, text, parse_mode=None):
+        sent.append((chat_id, text))
+        return True
+
+    fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
+    bad = {
+        "status": "down",
+        "checks": {"database": "error: down", "telegram": "ok"},
+    }
+    with patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.notifications.send",
+        new=_ok_send,
+    ), patch(
+        "projects.polymarket.crusaderbot.monitoring.alerts.get_settings",
+        return_value=fake_settings,
+    ):
+        _run(monitoring_alerts.record_health_result(bad))
+        _run(monitoring_alerts.record_health_result(bad))
+        assert len(sent) == 1
+        _run(monitoring_alerts.record_health_result(bad))
+        assert len(sent) == 1, "successful send should arm the cooldown"
+
+
+def test_validate_required_env_reads_dotenv_file(tmp_path, monkeypatch):
+    """``validate_required_env`` must merge ``.env`` with ``os.environ`` —
+    otherwise local/staging deployments running on a ``.env`` file get
+    false-positive missing alerts at boot.
+    """
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "TELEGRAM_BOT_TOKEN=tok\n"
+        "DATABASE_URL=postgresql://x\n"
+        "ALCHEMY_POLYGON_RPC_URL=https://rpc\n"
+        "ALCHEMY_POLYGON_WS_URL=wss://ws\n"
+        "OPERATOR_CHAT_ID=42\n"
+        "WALLET_ENCRYPTION_KEY=k\n"
+    )
+    # Strip every required key from os.environ so only .env can satisfy them.
+    for key in crusaderbot_config.REQUIRED_ENV_VARS:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.chdir(tmp_path)
+    missing = crusaderbot_config.validate_required_env()
+    assert missing == [], f"expected zero missing, got {missing!r}"
+
+
+def test_validate_required_env_lists_missing_keys_only(monkeypatch, tmp_path):
+    """When neither ``os.environ`` nor ``.env`` has the value, the key
+    appears in the missing list — but the actual value never does.
+    """
+    for key in crusaderbot_config.REQUIRED_ENV_VARS:
+        monkeypatch.delenv(key, raising=False)
+    # No .env file in cwd.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "secret-token-value")
+    missing = crusaderbot_config.validate_required_env()
+    assert "TELEGRAM_BOT_TOKEN" not in missing
+    assert "DATABASE_URL" in missing
+    # Defence in depth: the value must NEVER appear in the returned list.
+    assert all("secret-token-value" not in entry for entry in missing)
+
+
 def test_record_health_result_resets_on_recovery():
     sent: list[Any] = []
 
     async def _fake_send(chat_id, text, parse_mode=None):
         sent.append((chat_id, text))
+        return True
 
     fake_settings = MagicMock(OPERATOR_CHAT_ID=12345)
     bad = {

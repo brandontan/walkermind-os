@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 from pydantic import Field, field_validator
@@ -117,19 +118,47 @@ def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
 
 
+def _load_env_file_values() -> dict[str, str]:
+    """Read the same ``.env`` file ``Settings`` consumes, without overriding
+    real environment values. Missing or unreadable files yield an empty
+    dict — validation must never crash boot.
+
+    Looked up in the same order ``pydantic-settings`` uses: cwd-relative
+    ``.env`` first, then a sibling of this config module.
+    """
+    candidates = [Path(".env"), Path(__file__).resolve().parent / ".env"]
+    for path in candidates:
+        try:
+            if not path.exists():
+                continue
+            from dotenv import dotenv_values
+
+            return {k: v for k, v in dotenv_values(str(path)).items() if v is not None}
+        except Exception as exc:  # noqa: BLE001 — never crash boot on .env read
+            logger.warning(
+                "config validation: .env read failed at %s: %s", path, exc,
+            )
+            return {}
+    return {}
+
+
 def validate_required_env() -> list[str]:
     """Return the list of REQUIRED env vars that are missing at boot.
 
-    Logs an ERROR line per missing variable (key name only — values are NEVER
-    logged). The process is allowed to continue so that the health endpoint
-    can surface the degraded state via the operator alert path. Callers must
-    NOT log the returned values; they are key names only.
+    Reads from the same sources ``Settings`` consumes: ``os.environ`` plus
+    the ``.env`` file (when present). Logs an ERROR line per missing
+    variable (key name only — values are NEVER logged). The process is
+    allowed to continue so that the health endpoint can surface the
+    degraded state via the operator alert path. Callers must NOT log the
+    returned values; they are key names only.
     """
-    missing: list[str] = []
-    for key in REQUIRED_ENV_VARS:
-        value = os.environ.get(key)
-        if value is None or value.strip() == "":
-            missing.append(key)
+    resolved: dict[str, str] = dict(os.environ)
+    for key, value in _load_env_file_values().items():
+        # os.environ wins over .env, matching pydantic-settings precedence.
+        if key not in resolved:
+            resolved[key] = value
+
+    missing = [k for k in REQUIRED_ENV_VARS if not (resolved.get(k) or "").strip()]
     for key in missing:
         logger.error("required env var missing: %s", key)
     return missing
