@@ -1,7 +1,7 @@
 # WARP•FORGE Report — crusaderbot-r4-deposit-watcher
 
 **Branch:** WARP/CRUSADERBOT-R4-DEPOSIT-WATCHER
-**Last Updated:** 2026-05-04 18:30 Asia/Jakarta
+**Last Updated:** 2026-05-04 19:30 Asia/Jakarta
 **Validation Tier:** MAJOR
 **Claim Level:** MAJOR — on-chain reader + ledger write path
 
@@ -11,9 +11,9 @@
 
 R4 lane: deposit detection + internal ledger crediting. Paper mode only. All activation guards remain OFF. No live trading code touched. No allowlist/tier/onboarding/fee changes.
 
-- **Alchemy WebSocket deposit watcher** (`services/deposit_watcher.py`): asyncio background task subscribed to USDC `Transfer` events on Polygon via `eth_subscribe`. In-process address-map filter (refreshed every 60s) routes incoming logs to the matching user. Confirmed transfers are inserted idempotently into `deposits` (existing R1 table; `UNIQUE(tx_hash)` is the guard), credited to the user's sub-account ledger, and announced via Telegram. Reconnect with exponential backoff (1 s → 60 s cap). Per-event isolation: a single bad log never kills the loop.
+- **Alchemy WebSocket deposit watcher** (`services/deposit_watcher.py`): asyncio background task subscribed to USDC `Transfer` events on Polygon via `eth_subscribe`. In-process address-map filter (refreshed every 60s) routes incoming logs to the matching user. Logs flagged `removed: true` (chain reorgs) are skipped with a structured warning and never credited. Confirmed canonical transfers are inserted into `deposits` keyed on `(tx_hash, log_index)` and credited to the user's sub-account ledger inside a single DB transaction (no partial-success window). Reconnect with exponential backoff (1 s → 60 s cap). Per-event isolation: a single bad log never kills the loop.
 - **Sub-account ledger** (`services/ledger.py`): `ensure_sub_account(pool, user_id)` (1:1 sub-account, race-safe via `INSERT … ON CONFLICT DO NOTHING`), `get_balance(pool, user_id)` (sums `ledger_entries` joined through `sub_accounts`), `credit / debit` (asyncio.Lock-guarded append, debit is scaffold-only for R4), `get_entries(sub_account_id, limit)`.
-- **Schema additions** (`db/schema_r4.sql`): `sub_accounts(id, user_id UNIQUE, created_at)` and `ledger_entries(id, sub_account_id, type, amount_usdc, ref_id, ts)`. Both `IF NOT EXISTS`; the legacy R1 `ledger` table and the R1 `deposits` table are left untouched. The R1 `deposits` table already carries `tx_hash UNIQUE`, so it doubles as the deposit-watcher idempotency guard with no schema churn.
+- **Schema additions** (`db/schema_r4.sql`): `sub_accounts(id, user_id UNIQUE, created_at)` and `ledger_entries(id, sub_account_id, type, amount_usdc, ref_id, ts)` — both `IF NOT EXISTS`. Plus an additive mutation to the existing R1 `deposits` table: add `log_index INTEGER NOT NULL DEFAULT 0`, drop the original `UNIQUE(tx_hash)` (`deposits_tx_hash_key`) and add a composite `UNIQUE (tx_hash, log_index)`. One EVM tx can emit multiple Transfer events distinguished by `logIndex` (multi-recipient distributions, batch contracts), and the original tx_hash-only key silently dropped legitimate credits when two recipients shared one transaction. The constraint swap is wrapped in idempotent `IF EXISTS` / `IF NOT EXISTS` blocks so the R4 schema applies cleanly on every startup, including a database that was created before R4. The legacy R1 `ledger` table is untouched.
 - **Migration runner** (`database.py`): `run_migrations()` now also reads `db/schema_r4.sql` on every startup. R1 init still gated behind the `users`-table existence check; R4 schema is additive and rerun-safe.
 - **Telegram surfaces** (`bot/handlers/wallet.py`):
   - `/wallet` — open to all tiers; shows address + USDC balance + effective tier (max of DB `users.access_tier` and the in-memory R3 allowlist tier).
@@ -33,15 +33,20 @@ services/deposit_watcher.DepositWatcher  (asyncio background task)
   ├── in-process map: deposit_address (lower) -> (user_id, telegram_user_id)
   │     reloaded every 60 s from wallets ⨝ users
   ├── per-log:
-  │     parse to_addr from topics[2]
+  │     if removed=true → skip with warning (chain reorg orphan)
+  │     parse to_addr from topics[2]; parse log_index (required)
   │     lookup user; if no match → drop
   │     parse amount_usdc = uint256(data) / 10^6
-  │     INSERT INTO deposits (...) ON CONFLICT (tx_hash) DO NOTHING RETURNING id
-  │       hit  → exit (idempotency guard)
-  │       miss → continue
-  │     ensure_sub_account(user_id)
-  │     ledger.credit(sub_account_id, amount, ref_id=deposit_id, type="deposit")
-  │     balance = ledger.get_balance(user_id)
+  │     BEGIN TRANSACTION
+  │       INSERT INTO deposits (..., log_index)
+  │         ON CONFLICT (tx_hash, log_index) DO NOTHING RETURNING id
+  │         hit  → COMMIT(no-op), exit (idempotency guard)
+  │         miss → continue inside same txn
+  │       INSERT INTO sub_accounts ON CONFLICT DO NOTHING; lookup id
+  │       INSERT INTO ledger_entries (sub_account_id, type='deposit', amount,
+  │                                   ref_id=deposit_id)
+  │     COMMIT
+  │     balance = ledger.get_balance(user_id)         (out of txn)
   │     if balance >= MIN_DEPOSIT_USDC and access_tier < 3:
   │         user_service.bump_tier(user_id, 3, actor_role="deposit_watcher")
   │     bot.send_message(chat_id=telegram_user_id, text="💰 Deposit confirmed …")
@@ -55,7 +60,10 @@ db/schema_r4.sql (idempotent, additive)
   sub_accounts     (id PK, user_id UNIQUE → users.id, created_at)
   ledger_entries   (id PK, sub_account_id → sub_accounts.id, type, amount_usdc,
                     ref_id, ts)
-  legacy R1 deposits + ledger tables left untouched
+  deposits         add log_index INTEGER NOT NULL DEFAULT 0;
+                   drop UNIQUE (tx_hash); add UNIQUE (tx_hash, log_index)
+                   — guarded with IF EXISTS / IF NOT EXISTS for rerun-safety
+  legacy R1 ledger table left untouched
 
 bot
   handlers/wallet.handle_wallet   (open)
@@ -104,9 +112,11 @@ main.py lifespan
 - Address-map filter is fully in-process (no per-user subscription), so newly provisioned wallets are picked up at the next 60 s refresh without resubscribing.
 - USDC amount parse: `int(data, 16) / Decimal(10 ** 6)` — produces `Decimal` to keep ledger arithmetic exact.
 - Topic-to-address: takes the last 40 hex chars of `topics[2]` and lowercases the result; rejects malformed topics with a structured warning.
-- Idempotency: `INSERT … ON CONFLICT (tx_hash) DO NOTHING RETURNING id` short-circuits before any ledger write or notification, so re-delivered logs (Alchemy can replay on reconnect) cannot double-credit.
-- Sub-account creation is race-safe via `ON CONFLICT (user_id) DO NOTHING` + read-back.
-- Ledger credit is `asyncio.Lock`-guarded inside a single process; the schema-level UNIQUE on `tx_hash` is the cross-process guarantee.
+- Idempotency at log granularity: `INSERT … ON CONFLICT (tx_hash, log_index) DO NOTHING RETURNING id`. The composite key handles the case of a single EVM transaction emitting multiple Transfer events (multi-recipient distributions, batch contracts) — the previous tx_hash-only key would have silently dropped every legitimate deposit after the first.
+- Atomic credit path: the deposit insert, sub-account upsert, and ledger entry insert all run inside one `async with conn.transaction()` block. There is no partial-success window where a `deposits` row exists without its matching `ledger_entries` row, which would otherwise cause permanent under-crediting (future retries would short-circuit on `ON CONFLICT`).
+- Reorg gate: any log carrying `removed: true` (chain reorganization orphan) is skipped with a structured `deposit_watcher.removed_log_skipped` warning before any DB write, so reorged-out transfers cannot pollute the ledger. Reversing a previously-credited deposit on a later `removed=true` is a deferred enhancement (a confirmation-delay model is the cleaner long-term fix).
+- Sub-account creation is race-safe via `ON CONFLICT (user_id) DO NOTHING` + read-back inside the same transaction.
+- Ledger credit lives entirely inside the deposit transaction for the watcher path (the standalone `ledger.credit` helper retains its `asyncio.Lock` for non-atomic callers).
 - Tier 3 promotion goes through the existing `user_service.bump_tier` (R2) — DB `users.access_tier` update + `audit.log` row inside one transaction with `SELECT … FOR UPDATE` lock; no allowlist file touched.
 - Effective tier shown on `/wallet` is `max(db_tier, allowlist_tier)`, so a Tier 2 allowlisted user who funds keeps Tier 3 visibility, and a Tier 3 funded user who is not on the allowlist still sees Tier 3.
 - `/deposit` is correctly gated by `require_tier(TIER_ALLOWLISTED)`; Tier 1 callers receive the existing R3 `🔒 …` denial and never see the address through this command (they can still see it via `/wallet`).
@@ -119,18 +129,20 @@ main.py lifespan
 
 - **In-process address-map refresh is 60 s.** A user who runs `/start` and immediately makes a deposit could see up to a one-minute delay before the watcher recognises their address. Acceptable for MVP — average human deposit flow is many minutes — but a future enhancement can push fresh addresses into the watcher synchronously from `handle_start`.
 - **No log replay on first connect.** The watcher only sees Transfer events that arrive after the WS subscription is alive. Deposits that landed while the bot was offline are not retroactively credited. A reconciliation pass (e.g. `eth_getLogs` from the last seen block at startup) is deferred — out of scope per task `Not in Scope`.
+- **Reorg-reversal of already-credited deposits is deferred.** The watcher refuses to credit any log with `removed: true`, but it does not currently reverse a previously-credited deposit if a later `removed: true` event re-emits its log identity. The cleaner long-term fix is a confirmation-delay model (defer credit until N block confirmations, e.g. 12) — tracked as a follow-up before live activation.
 - **No actual sweep to the hot pool.** The watcher only credits the internal ledger; the on-chain USDC stays at the per-user HD-derived address. The blueprint §7 sweep flow is explicitly deferred ("Not in Scope: Real sweep to hot pool").
 - **No withdraw flow.** `debit` is wired up as a scaffold for future use; nothing in R4 calls it. Withdraw is its own lane.
 - **Tier 4 gate not modelled.** Promotion stops at Tier 3 (Funded beta). Tier 4 (live auto-trade) requires the activation guards to be SET and is correctly out of scope.
 - **`OPERATOR_CHAT_ID` semantic dual-use** — same caveat carried over from R3; no change in R4.
 - **No automated tests in this lane.** Manual verification path:
   1. Set Alchemy WS URL + USDC contract in `.env`; bring stack up; confirm log line `deposit_watcher.connected`.
-  2. From a test wallet on Polygon, send 0.1 USDC to a known user's deposit address — confirm `deposit_watcher.deposit_inserted` log + Telegram message; confirm balance via `/wallet`.
-  3. Re-broadcast (or replay) the same `tx_hash` — confirm `deposit_watcher.duplicate_skipped` log and no extra credit / notification.
+  2. From a test wallet on Polygon, send 0.1 USDC to a known user's deposit address — confirm `deposit_watcher.deposit_credited` log (with `tx_hash` and `log_index`) + Telegram message; confirm balance via `/wallet`.
+  3. Replay the same `(tx_hash, log_index)` — confirm `deposit_watcher.duplicate_skipped` log and no extra credit / notification.
   4. Send another transfer that pushes balance ≥ $50 — confirm `user.tier_bumped` log (`old_tier=1` or `2`, `new_tier=3`) and the "Access tier: Tier 3 — Funded beta" line in the Telegram message.
-  5. From a Tier 1 caller: `/wallet` shows address + $0.00 + Tier 1; `/deposit` shows the R3 `🔒` denial.
-  6. From a Tier 2 (allowlisted) caller: `/deposit` shows the address + min-deposit instructions.
-  7. Regression: `/start`, `/status`, `/allowlist` all behave as before.
+  5. Send a synthetic log with `removed: true` (or trigger via reorg test rig) — confirm `deposit_watcher.removed_log_skipped` warning and zero DB writes.
+  6. From a Tier 1 caller: `/wallet` shows address + $0.00 + Tier 1; `/deposit` shows the R3 `🔒` denial.
+  7. From a Tier 2 (allowlisted) caller: `/deposit` shows the address + min-deposit instructions.
+  8. Regression: `/start`, `/status`, `/allowlist` all behave as before.
 - **Watcher does not pre-validate `USDC_CONTRACT_ADDRESS` checksum or chain.** A misconfigured env var would silently cause zero matches; ops-level alarm on "no deposits in N hours" is deferred to R12.
 - **`websockets` is added as a direct dep** even though `web3 ^6.15` already pulls it transitively. We use the API directly so an explicit pin is correct, but it widens the upgrade surface marginally.
 

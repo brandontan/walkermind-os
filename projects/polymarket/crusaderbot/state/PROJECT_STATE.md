@@ -1,5 +1,5 @@
-Last Updated : 2026-05-04 18:30
-Status       : R4 deposit watcher + ledger lane open. Paper mode. All activation guards OFF. Alchemy WS subscription to USDC Transfer events on Polygon, in-process address-map filter, idempotent inserts to deposits (UNIQUE tx_hash), sub-account ledger credit, Tier 3 auto-bump on balance >= MIN_DEPOSIT_USDC, Telegram deposit-confirmed notification. /wallet (all tiers) and /deposit (Tier 2+) registered.
+Last Updated : 2026-05-04 19:30
+Status       : R4 deposit watcher + ledger lane open. Paper mode. All activation guards OFF. Alchemy WS subscription to USDC Transfer events on Polygon, in-process address-map filter, atomic deposit-insert + ledger-credit transaction keyed on UNIQUE (tx_hash, log_index), reorg-removed logs gated, Tier 3 auto-bump on balance >= MIN_DEPOSIT_USDC, Telegram deposit-confirmed notification. /wallet (all tiers) and /deposit (Tier 2+) registered. Codex auto-review P1 findings addressed in follow-up commit.
 
 [COMPLETED]
 - PROJECT_REGISTRY updated (CrusaderBot path → projects/polymarket/crusaderbot, polyquantbot DORMANT)

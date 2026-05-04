@@ -266,6 +266,19 @@ class DepositWatcher:
     # ---- credit path -----------------------------------------------------
 
     async def _handle_log(self, log_obj: dict) -> None:
+        # Reorg gate: chain reorganizations re-emit affected logs with
+        # `removed: true`. We refuse to credit those — reversing an already-
+        # credited deposit on reorg is a deferred enhancement (a confirmation-
+        # delay model is the cleaner long-term fix and is out of R4 scope).
+        if log_obj.get("removed") is True:
+            log.warning(
+                "deposit_watcher.removed_log_skipped",
+                tx_hash=log_obj.get("transactionHash"),
+                log_index=log_obj.get("logIndex"),
+                block_number=log_obj.get("blockNumber"),
+            )
+            return
+
         topics = log_obj.get("topics") or []
         if len(topics) < 3 or topics[0].lower() != USDC_TRANSFER_TOPIC:
             return
@@ -294,6 +307,18 @@ class DepositWatcher:
             log.warning("deposit_watcher.missing_tx_hash", log=log_obj)
             return
 
+        log_index_hex = log_obj.get("logIndex")
+        try:
+            log_index = int(log_index_hex, 16) if log_index_hex is not None else None
+        except (TypeError, ValueError):
+            log_index = None
+        if log_index is None:
+            # Without a logIndex we cannot dedupe two Transfer events emitted
+            # by the same EVM tx — refuse rather than silently collapse them.
+            log.warning("deposit_watcher.missing_log_index",
+                        tx_hash=tx_hash)
+            return
+
         block_number_hex = log_obj.get("blockNumber")
         block_number: Optional[int]
         try:
@@ -305,6 +330,7 @@ class DepositWatcher:
             user_id=user_id,
             telegram_user_id=telegram_user_id,
             tx_hash=tx_hash,
+            log_index=log_index,
             amount=amount,
             block_number=block_number,
         )
@@ -315,50 +341,92 @@ class DepositWatcher:
         user_id: UUID,
         telegram_user_id: int,
         tx_hash: str,
+        log_index: int,
         amount: Decimal,
         block_number: Optional[int],
     ) -> None:
-        """Idempotent insert into `deposits` + ledger credit + tier bump + notify."""
+        """Atomic deposit insert + sub-account ensure + ledger credit, then
+        out-of-band tier bump + Telegram notification.
+
+        Idempotency is enforced by `UNIQUE (tx_hash, log_index)` on the
+        `deposits` table — a single EVM tx can emit multiple Transfer events
+        distinguished by `log_index`, and the previous tx_hash-only key
+        silently collapsed them into one credit. The deposit row insert,
+        sub-account upsert, and ledger entry insert all run inside one DB
+        transaction so a partial-success window cannot leave a deposit
+        recorded with no matching ledger credit (which would then be skipped
+        forever by ON CONFLICT on retry).
+        """
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "INSERT INTO deposits "
-                "(user_id, tx_hash, amount_usdc, block_number, confirmed_at) "
-                "VALUES ($1, $2, $3, $4, NOW()) "
-                "ON CONFLICT (tx_hash) DO NOTHING RETURNING id",
-                user_id, tx_hash, amount, block_number,
-            )
-        if row is None:
-            log.info(
-                "deposit_watcher.duplicate_skipped",
-                tx_hash=tx_hash,
-                user_id=str(user_id),
-            )
-            return
-        deposit_id: UUID = row["id"]
+            async with conn.transaction():
+                deposit_row = await conn.fetchrow(
+                    "INSERT INTO deposits "
+                    "(user_id, tx_hash, log_index, amount_usdc, block_number, "
+                    " confirmed_at) "
+                    "VALUES ($1, $2, $3, $4, $5, NOW()) "
+                    "ON CONFLICT (tx_hash, log_index) DO NOTHING RETURNING id",
+                    user_id, tx_hash, log_index, amount, block_number,
+                )
+                if deposit_row is None:
+                    log.info(
+                        "deposit_watcher.duplicate_skipped",
+                        tx_hash=tx_hash,
+                        log_index=log_index,
+                        user_id=str(user_id),
+                    )
+                    return
+                deposit_id: UUID = deposit_row["id"]
+
+                sub_row = await conn.fetchrow(
+                    "INSERT INTO sub_accounts (user_id) VALUES ($1) "
+                    "ON CONFLICT (user_id) DO NOTHING RETURNING id",
+                    user_id,
+                )
+                if sub_row is not None:
+                    sub_account_id: UUID = sub_row["id"]
+                else:
+                    sub_account_id = await conn.fetchval(
+                        "SELECT id FROM sub_accounts WHERE user_id=$1",
+                        user_id,
+                    )
+                    if sub_account_id is None:
+                        # Should be unreachable: ON CONFLICT means a row
+                        # exists. Raise to roll back the transaction so the
+                        # deposit row is not orphaned.
+                        raise RuntimeError(
+                            f"sub_account upsert returned no row for "
+                            f"user_id={user_id}"
+                        )
+
+                await conn.execute(
+                    "INSERT INTO ledger_entries "
+                    "(sub_account_id, type, amount_usdc, ref_id) "
+                    "VALUES ($1, $2, $3, $4)",
+                    sub_account_id,
+                    ledger.ENTRY_TYPE_DEPOSIT,
+                    amount,
+                    deposit_id,
+                )
+
         log.info(
-            "deposit_watcher.deposit_inserted",
+            "deposit_watcher.deposit_credited",
             deposit_id=str(deposit_id),
             user_id=str(user_id),
             tx_hash=tx_hash,
+            log_index=log_index,
             amount=str(amount),
             block_number=block_number,
         )
 
-        sub_account_id = await ledger.ensure_sub_account(self._pool, user_id)
-        await ledger.credit(
-            self._pool,
-            sub_account_id=sub_account_id,
-            amount=amount,
-            ref_id=deposit_id,
-            type=ledger.ENTRY_TYPE_DEPOSIT,
-        )
-
+        # Out of transaction:
+        #  - bump_tier opens its own transaction (SELECT FOR UPDATE +
+        #    UPDATE + audit INSERT) — composing into the deposit txn would
+        #    extend lock scope unnecessarily.
+        #  - notify is best-effort and must not roll back a confirmed credit.
         balance = await ledger.get_balance(self._pool, user_id)
-
         promoted = await self._maybe_promote_tier(
-            user_id=user_id, balance=balance
+            user_id=user_id, balance=balance,
         )
-
         await self._notify_user(
             telegram_user_id=telegram_user_id,
             amount=amount,
