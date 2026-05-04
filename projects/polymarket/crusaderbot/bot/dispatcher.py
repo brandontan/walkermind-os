@@ -1,4 +1,4 @@
-"""Telegram dispatcher: builds Application, registers /start (onboarding) and /status."""
+"""Telegram dispatcher: builds Application, registers /start, /status, /allowlist."""
 from __future__ import annotations
 
 from functools import partial
@@ -14,6 +14,8 @@ from telegram.ext import (
 )
 
 from ..config import Settings, settings
+from ..services.allowlist import get_user_tier, tier_label
+from .handlers.admin import handle_allowlist
 from .handlers.onboarding import handle_start
 
 log = structlog.get_logger(__name__)
@@ -22,11 +24,15 @@ log = structlog.get_logger(__name__)
 async def status_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
-    if update.effective_message is None:
+    """Show caller's tier + system guard states. Unrestricted (any tier can call)."""
+    if update.effective_message is None or update.effective_user is None:
         return
-    guards = settings.guard_states
-    lines = ["Guard states:"]
-    for name, value in guards.items():
+
+    caller_tier = await get_user_tier(update.effective_user.id)
+
+    lines = [f"Your access tier: {tier_label(caller_tier)}", ""]
+    lines.append("Guard states:")
+    for name, value in settings.guard_states.items():
         marker = "✅ ON" if value else "⚪ OFF"
         lines.append(f"- {name}: {marker}")
     mode = "LIVE" if settings.ENABLE_LIVE_TRADING else "PAPER"
@@ -42,14 +48,19 @@ def setup_handlers(
     db_pool: asyncpg.Pool,
     config: Settings,
 ) -> None:
-    """Register handlers. db_pool and config are bound into /start via partial.
+    """Register handlers. db_pool/config are bound via partial as needed.
 
-    Both kwargs are required; missing them at call time raises TypeError fast.
+    Both required keyword args fail fast at call time if missing.
     """
     bound_start = partial(handle_start, pool=db_pool, config=config)
+    bound_allowlist = partial(handle_allowlist, config=config)
     app.add_handler(CommandHandler("start", bound_start))
     app.add_handler(CommandHandler("status", status_handler))
-    log.info("bot.handlers_registered", commands=["start", "status"])
+    app.add_handler(CommandHandler("allowlist", bound_allowlist))
+    log.info(
+        "bot.handlers_registered",
+        commands=["start", "status", "allowlist"],
+    )
 
 
 def get_application() -> Application:
