@@ -1,5 +1,5 @@
-Last Updated : 2026-05-06T01:21:39Z
-Status       : P3b copy-trade strategy PR open (PR #877) — MAJOR tier, SENTINEL pending (Issue #878). Migration runner path decision needed before P3b merge. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
+Last Updated : 2026-05-05 18:45
+Status       : Migration runner path fixed — 008_strategy_tables.sql moved to migrations/ (MINOR, this branch). P3b copy-trade strategy PR open (PR #877) — MAJOR tier, SENTINEL pending (Issue #878). Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -33,12 +33,13 @@ Status       : P3b copy-trade strategy PR open (PR #877) — MAJOR tier, SENTINE
 - P3d — Per-user signal scan loop + execution queue wiring (MAJOR)
 
 [NEXT PRIORITY]
+- WARP🔹CMD merge this branch (WARP/CRUSADERBOT-FIX-MIGRATION-PATH, MINOR)
+- P3b owner: rebase PR #877 and move 009_copy_trade.sql from infra/migrations/ to migrations/ before SENTINEL
 - SENTINEL must run on PR #877 (Issue #878, label: agent:sentinel) before merge
-- Migration runner path: database.run_migrations() reads migrations/ — 008_strategy_tables.sql at infra/migrations/ not applied at startup. WARP🔹CMD decision: move 008 to migrations/ or update runner before P3b (009) merge.
 - After P3b merge: P3c → P3d → live activation sequence
 
 [KNOWN ISSUES]
-- Migration runner path: 008_strategy_tables.sql at infra/migrations/ — runner reads migrations/ only. Tables 008+009 never applied at startup. Fix required before P3b merge (WARP🔹CMD decision: move file vs update runner).
+- Migration runner path for 009: 009_copy_trade.sql still at infra/migrations/ on PR #877 branch (WARP/CRUSADERBOT-P3B-COPY-TRADE) — must be moved to migrations/ in a follow-up commit on that branch before P3b merges, otherwise copy-trade tables will not be applied at startup.
 - /deposit no tier gate (intentional, non-blocking)
 - services/* dead code (LOW, post-R12 cleanup)
 - check_alchemy_ws is TCP-only (no full WS handshake) — surfaces DNS/SSL/firewall; full handshake is follow-up
