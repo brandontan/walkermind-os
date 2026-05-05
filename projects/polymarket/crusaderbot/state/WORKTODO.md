@@ -1,14 +1,14 @@
 # CrusaderBot — WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-05 21:30 Asia/Jakarta
+**Last Updated:** 2026-05-05 05:04 UTC
 
 ---
 
 ## Right Now
 
-Active lane: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX — live position monitor (📈 Positions menu) with mark price + unrealized P&L + per-position [🛑 Force Close] confirm dialog wired to force_close_intent marker (Tier 2 view / Tier 3 close). STANDARD tier.
-Next: WARP🔹CMD review of R12d position UX PR; WARP•SENTINEL MAJOR audit of R12c exit watcher still pending; R12a CI/CD PR still awaiting WARP🔹CMD review.
+Active lane: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit pending.
+Next: WARP•SENTINEL MAJOR audit of R12c exit watcher (PR #865). R12a CI/CD PR awaiting WARP🔹CMD review.
 
 ---
 
@@ -17,7 +17,7 @@ Next: WARP🔹CMD review of R12d position UX PR; WARP•SENTINEL MAJOR audit of 
 - [x] R12b — Fly.io Health Alerts — Done (PR #856 merged)
 - [ ] R12a — CI/CD Pipeline (GitHub Actions) — IN PROGRESS: WARP/CRUSADERBOT-R12A-CICD-PIPELINE open, awaiting WARP🔹CMD review
 - [ ] R12c — Auto-Close / Take-Profit — IN PROGRESS: WARP/CRUSADERBOT-R12C-EXIT-WATCHER open, MAJOR — SENTINEL audit required
-- [ ] R12d — Telegram Position UX (live position monitor + per-position force close) — IN PROGRESS: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX open, STANDARD — awaiting WARP🔹CMD review
+- [x] R12d — Telegram Position UX — DONE (PR #868 merged 4f5e12201964) (live position monitor + per-position force close) — IN PROGRESS: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX open, STANDARD — awaiting WARP🔹CMD review
 - [ ] R12d — Live Opt-In Checklist — NOT STARTED (MAJOR — hard gate before EXE)
 - [ ] R12e — Live → Paper Auto-Fallback — NOT STARTED (MAJOR)
 - [ ] R12f — Daily P&L Summary — NOT STARTED (STANDARD)
