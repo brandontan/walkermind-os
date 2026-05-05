@@ -376,6 +376,57 @@ def test_text_input_trading_mode_confirm_re_checks_checklist_before_writing():
     assert msg.reply_text.call_args[0][0] == "🔒 fix list"
 
 
+def test_dispatcher_routes_activation_confirm_before_setup():
+    """Codex P1 regression: the dispatcher's _text_router must invoke
+    activation.text_input BEFORE setup.text_input so the CONFIRM reply
+    reaches activation. Setup.text_input pops unknown awaiting values
+    when it returns False — if it ran first, the live-activation
+    awaiting flag would be cleared before activation sees it and the
+    auto_trade_on / trading_mode flip would be lost.
+    """
+    import asyncio as _asyncio
+
+    from projects.polymarket.crusaderbot.bot import dispatcher
+
+    update, msg = _make_update(text="CONFIRM")
+    ctx = _make_ctx()
+    ctx.user_data[activation.AWAITING_KEY] = activation.AWAITING_LIVE_CONFIRM
+
+    passing = SimpleNamespace(ready_for_live=True)
+    with patch.object(activation, "upsert_user",
+                      AsyncMock(return_value=USER_ROW_OFF)), \
+         patch.object(activation.live_checklist, "evaluate",
+                      AsyncMock(return_value=passing)), \
+         patch.object(activation, "set_auto_trade",
+                      AsyncMock()) as flip:
+        _asyncio.run(dispatcher._text_router(update, ctx))
+    flip.assert_awaited_once_with(USER_ROW_OFF["id"], True)
+    assert activation.AWAITING_KEY not in ctx.user_data
+
+
+def test_setup_text_input_does_not_pop_activation_awaiting():
+    """Codex P1 defense-in-depth: even if setup.text_input is called
+    with an activation awaiting value (e.g. by another future consumer),
+    it must NOT pop the value from ctx.user_data — that would silently
+    swallow a live-activation CONFIRM reply.
+    """
+    import asyncio as _asyncio
+
+    from projects.polymarket.crusaderbot.bot.handlers import setup
+
+    update, msg = _make_update(text="CONFIRM")
+    ctx = _make_ctx()
+    ctx.user_data["awaiting"] = activation.AWAITING_LIVE_CONFIRM
+
+    with patch.object(setup, "upsert_user",
+                      AsyncMock(return_value=USER_ROW_OFF)):
+        consumed = _asyncio.run(setup.text_input(update, ctx))
+    assert consumed is False
+    # The activation awaiting flag must survive setup.text_input so the
+    # next consumer in the dispatcher chain can see it.
+    assert ctx.user_data["awaiting"] == activation.AWAITING_LIVE_CONFIRM
+
+
 def test_text_input_trading_mode_wrong_reply_cancels():
     update, msg = _make_update(text="cancel")
     ctx = _make_ctx()

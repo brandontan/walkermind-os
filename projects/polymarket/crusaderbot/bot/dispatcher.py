@@ -18,12 +18,21 @@ logger = logging.getLogger(__name__)
 
 
 async def _text_router(update, ctx):
-    """Route plain text: first to setup awaiting-prompts, then to menu buttons."""
-    if await setup.text_input(update, ctx):
-        return
-    # R12 live-activation: a pending CONFIRM reply for the auto-trade
-    # toggle takes priority over menu-button text routing.
+    """Route plain text consumers in priority order.
+
+    Activation is checked BEFORE setup because both share the same
+    ``ctx.user_data['awaiting']`` slot but recognise different values.
+    ``setup.text_input`` pops unknown ``awaiting`` values when it
+    returns False — if we ran setup first, the user's CONFIRM reply
+    after a live-activation flow would have its awaiting flag silently
+    cleared before activation ever saw it, and the auto-trade /
+    trading-mode flip would be lost. Activation consumes its own values
+    here so setup only sees the setup-prompt values it was designed
+    for.
+    """
     if await activation.text_input(update, ctx):
+        return
+    if await setup.text_input(update, ctx):
         return
     if update.message is None:
         return

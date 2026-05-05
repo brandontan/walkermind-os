@@ -263,7 +263,10 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
         elif awaiting == "copy_target":
             await _handle_copy_target_input(update, user, text)
         else:
-            ctx.user_data.pop("awaiting", None)
+            # Unknown awaiting value — could belong to another consumer
+            # (e.g. activation's CONFIRM flow). Do NOT pop it, otherwise
+            # the next consumer in the dispatcher chain would see no
+            # pending state and miss a real reply. Just decline.
             return False
     except Exception as exc:
         logger.warning("setup text input rejected: %s", exc)
