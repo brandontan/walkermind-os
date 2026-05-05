@@ -1,4 +1,4 @@
-Last Updated : 2026-05-05 18:45
+Last Updated : 2026-05-06 09:00
 Status       : Migration runner path fixed — 008_strategy_tables.sql moved to migrations/ (MINOR, this branch). P3b copy-trade strategy PR open (PR #877) — MAJOR tier, SENTINEL pending (Issue #878). Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
 
 [COMPLETED]
