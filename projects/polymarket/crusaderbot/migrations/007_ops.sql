@@ -26,15 +26,40 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Seed the kill-switch keys exactly once. INSERT … ON CONFLICT DO NOTHING
--- keeps the migration idempotent and never overwrites an active state on
--- redeploy: if the operator paused the switch before a deploy, the post-deploy
--- run must not silently flip it back to inactive.
-INSERT INTO system_settings (key, value)
-VALUES
-    ('kill_switch_active', 'false'),
-    ('kill_switch_lock_mode', 'false')
-ON CONFLICT (key) DO NOTHING;
+-- Seed the kill-switch keys exactly once. The block is idempotent — on
+-- re-run it does nothing because the keys already exist — AND it
+-- backfills from the legacy ``kill_switch`` table on first migration so
+-- a deploy onto a DB where the operator had paused via the pre-R12f
+-- code path inherits the paused state instead of silently re-opening
+-- trading. The latest row in ``kill_switch`` (ORDER BY id DESC LIMIT 1)
+-- is the authoritative legacy state.
+DO $$
+DECLARE
+    legacy_active BOOLEAN := FALSE;
+    has_legacy_table BOOLEAN;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM system_settings WHERE key = 'kill_switch_active'
+    ) THEN
+        SELECT to_regclass('public.kill_switch') IS NOT NULL
+          INTO has_legacy_table;
+        IF has_legacy_table THEN
+            SELECT COALESCE(active, FALSE) INTO legacy_active
+              FROM kill_switch ORDER BY id DESC LIMIT 1;
+        END IF;
+        INSERT INTO system_settings (key, value) VALUES (
+            'kill_switch_active',
+            CASE WHEN legacy_active THEN 'true' ELSE 'false' END
+        );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM system_settings WHERE key = 'kill_switch_lock_mode'
+    ) THEN
+        INSERT INTO system_settings (key, value)
+        VALUES ('kill_switch_lock_mode', 'false');
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS kill_switch_history (
     id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
