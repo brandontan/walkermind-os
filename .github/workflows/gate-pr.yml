@@ -44,9 +44,14 @@ jobs:
           }
           print(json.dumps(payload))
           ")
-          curl -s -X POST \
+          HTTP=$(curl -s -o /tmp/gate_resp.json -w "%{http_code}" \
+            -X POST \
             -H "Content-Type: application/json" \
             -H "x-warp-secret: ${WARP_SECRET}" \
             "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \
             -d "${PAYLOAD}" \
-            --max-time 30
+            --max-time 20) || HTTP=000
+          echo "Gate webhook response: HTTP ${HTTP}"
+          cat /tmp/gate_resp.json 2>/dev/null || true
+          # Always exit 0 — gate is fire-and-forget. CI must not fail on webhook errors.
+          exit 0
