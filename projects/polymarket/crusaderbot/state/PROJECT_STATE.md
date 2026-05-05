@@ -1,5 +1,5 @@
-Last Updated : 2026-05-06T01:21:39Z
-Status       : P3b copy-trade strategy PR open (PR #877) — MAJOR tier, SENTINEL pending (Issue #878). Migration runner path decision needed before P3b merge. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
+Last Updated : 2026-05-05 22:45 Asia/Jakarta
+Status       : P3b copy-trade strategy PR open (PR #877) — MAJOR tier, SENTINEL CONDITIONAL 71/100 (Sentinel PR #880). Migration runner path P0 must resolve before merge. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -20,9 +20,10 @@ Status       : P3b copy-trade strategy PR open (PR #877) — MAJOR tier, SENTINE
 - P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + migration 008) — PR #876 MERGED 2026-05-05 (STANDARD, FOUNDATION)
 
 [IN PROGRESS]
-- P3b — Copy Trade strategy — PR #877 OPEN — MAJOR tier, SENTINEL pending (Issue #878, label: agent:sentinel)
+- P3b — Copy Trade strategy — PR #877 OPEN — MAJOR tier, SENTINEL CONDITIONAL 71/100 (Sentinel PR #880)
   Branch: WARP/CRUSADERBOT-P3B-COPY-TRADE, SHA: c4df48c7
   CI: Lint+Test PASS
+  Conditions: (1) Resolve migration runner path P0 — WARP🔹CMD decision required; (2) Fix bootstrap_default_strategies private-attr access [MAJ-02]
 
 [NOT STARTED]
 - R12d — Live Opt-In Checklist (MAJOR — hard gate before EXE)
@@ -33,12 +34,12 @@ Status       : P3b copy-trade strategy PR open (PR #877) — MAJOR tier, SENTINE
 - P3d — Per-user signal scan loop + execution queue wiring (MAJOR)
 
 [NEXT PRIORITY]
-- SENTINEL must run on PR #877 (Issue #878, label: agent:sentinel) before merge
-- Migration runner path: database.run_migrations() reads migrations/ — 008_strategy_tables.sql at infra/migrations/ not applied at startup. WARP🔹CMD decision: move 008 to migrations/ or update runner before P3b (009) merge.
+- WARP🔹CMD merge decision required for P3b (PR #877) after conditions met. Verdict: SENTINEL CONDITIONAL 71/100. Report: projects/polymarket/crusaderbot/reports/sentinel/p3b-copy-trade.md
+- [P0 BLOCKER] Migration runner path: database.run_migrations() reads migrations/ — 008+009 at infra/migrations/ not applied at startup. WARP🔹CMD must decide: move runner to infra/migrations/ OR mirror 008+009 into migrations/ before merge.
 - After P3b merge: P3c → P3d → live activation sequence
 
 [KNOWN ISSUES]
-- Migration runner path: 008_strategy_tables.sql at infra/migrations/ — runner reads migrations/ only. Tables 008+009 never applied at startup. Fix required before P3b merge (WARP🔹CMD decision: move file vs update runner).
+- Migration runner path P0: 008_strategy_tables.sql + 009_copy_trade.sql at infra/migrations/ — runner reads migrations/ only. Tables never applied at startup. SENTINEL [MAJ-01] — must resolve before P3b merge (WARP🔹CMD decision).
 - /deposit no tier gate (intentional, non-blocking)
 - services/* dead code (LOW, post-R12 cleanup)
 - check_alchemy_ws is TCP-only (no full WS handshake) — surfaces DNS/SSL/firewall; full handshake is follow-up
