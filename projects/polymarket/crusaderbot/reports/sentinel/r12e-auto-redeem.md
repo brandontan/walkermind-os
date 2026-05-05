@@ -41,7 +41,7 @@ Phases 2 (pipeline E2E) and 6 (latency) inspected statically only; no runtime te
 ### Phase 0 — Pre-test (PASS)
 
 - FORGE report at correct path, all 6 sections + 5 metadata fields present (`reports/forge/r12e-auto-redeem.md:1-160`).
-- PROJECT_STATE.md updated: `Last Updated 2026-05-05 18:30 UTC`, R12e under [IN PROGRESS], NEXT PRIORITY points at SENTINEL audit (verified on PR branch via `git show`).
+- PROJECT_STATE.md on the PR branch under audit (`git show origin/WARP/CRUSADERBOT-R12E-AUTO-REDEEM:projects/polymarket/crusaderbot/state/PROJECT_STATE.md`) shows `Last Updated : 2026-05-05 18:30 UTC` (FORGE-set), R12e under [IN PROGRESS], NEXT PRIORITY pointing at this SENTINEL audit. PROJECT_STATE.md on the SENTINEL audit branch (this commit) is independently bumped per CLAUDE.md SENTINEL post-audit rule and carries its own non-future `Last Updated` — the two lineages reconcile when WARP🔹CMD merges.
 - No `phase*/` folders; legacy inline R10 redeem deleted from `scheduler.py` (only the 1-line delegations remain at `scheduler.py:365-382`).
 - Migration 006 lives under `projects/polymarket/crusaderbot/migrations/` — matches the loader convention. Forge-flagged path deviation (task spec `infra/migrations/`) is correct: spec path would never run.
 
