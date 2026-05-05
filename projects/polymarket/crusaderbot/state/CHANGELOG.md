@@ -4,6 +4,27 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+## 2026-05-05 08:23 Asia/Jakarta — [GATE NOTE] Pre-bot-setup commits attributed to bayuewalker
+
+### Context
+GATE identity fix applied 2026-05-05 08:23 WIB. All GATE auto-commits from this point forward
+use author override: `warp-gate[bot] <warp-gate[bot]@users.noreply.github.com>` via GitHub
+Contents API author field (Option C). Underlying OAuth token remains bayuewalker — see Issue #864
+for Option A (GitHub App) backlog.
+
+### Pre-fix commits attributed to bayuewalker (not warp-gate[bot])
+- `4eda17c5` — gate: post-merge sync for #861 — PROJECT_STATE.md [warp-gate-bot]
+  INCIDENT: Python Unicode escape SyntaxError caused 0-byte content — file wiped. Recovered in c1bf7cf7.
+- `c1bf7cf7` — gate: post-merge sync for #861 — PROJECT_STATE.md restored + updated [warp-gate-bot]
+  Recovery commit. Content correct.
+- `a64e9582` — gate: post-merge sync for #861 — CHANGELOG.md [warp-gate-bot]
+  Normal post-merge sync. Content correct.
+
+### Fix applied
+- gateWebhook.ts: added GATE_BOT_AUTHOR constant + gateBotCommitBody() helper
+- All future GATE direct commits pass explicit author/committer fields to GitHub API
+- Root cause documented in Issue #864 (systemic — pre-commit content guard missing)
+
 ## 2026-05-05 08:15 Asia/Jakarta — ROADMAP R12b drift fix + WORKTODO init
 
 ### Merged
