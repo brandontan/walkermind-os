@@ -1,14 +1,14 @@
 # CrusaderBot — WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-05 19:45 Asia/Jakarta
+**Last Updated:** 2026-05-05 11:15 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-Active lane: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — exit watcher worker (TP/SL/force-close + applied_* snapshot + retry-once-on-CLOB-error)
-Next: WARP•SENTINEL MAJOR audit of R12c exit watcher; then WARP🔹CMD merge decision. R12a PR still awaiting WARP🔹CMD review.
+R12c exit watcher merged (PR #865). Active: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — awaiting WARP🔹CMD review (STANDARD).
+Next: WARP🔹CMD review of R12a PR, then open R12d (Live Opt-In Checklist, MAJOR).
 
 ---
 
@@ -16,7 +16,7 @@ Next: WARP•SENTINEL MAJOR audit of R12c exit watcher; then WARP🔹CMD merge d
 
 - [x] R12b — Fly.io Health Alerts — Done (PR #856 merged)
 - [ ] R12a — CI/CD Pipeline (GitHub Actions) — IN PROGRESS: WARP/CRUSADERBOT-R12A-CICD-PIPELINE open, awaiting WARP🔹CMD review
-- [ ] R12c — Auto-Close / Take-Profit — IN PROGRESS: WARP/CRUSADERBOT-R12C-EXIT-WATCHER open, MAJOR — SENTINEL audit required
+- [x] R12c — Auto-Close / Take-Profit — DONE: PR #865 merged (WARP/CRUSADERBOT-R12C-EXIT-WATCHER, MAJOR)
 - [ ] R12d — Live Opt-In Checklist — NOT STARTED (MAJOR — hard gate before EXE)
 - [ ] R12e — Live → Paper Auto-Fallback — NOT STARTED (MAJOR)
 - [ ] R12f — Daily P&L Summary — NOT STARTED (STANDARD)
