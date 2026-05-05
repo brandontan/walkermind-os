@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-05 06:18 Asia/Jakarta
+**Last Updated:** 2026-05-06 01:22 Asia/Jakarta
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -19,9 +19,9 @@
 | R9 | Exit logic (TP/SL + strategy exit + force-close) | ✅ Done | MAJOR | Merged via PR #852, SENTINEL PASS |
 | R10 | Auto-redeem (instant/hourly modes) | ✅ Done | STANDARD | Merged via PR #852, SENTINEL PASS |
 | R11 | Fee + referral accounting (default OFF) | ✅ Done | STANDARD | Merged via PR #852, SENTINEL PASS |
-| R12a | CI/CD Pipeline (GitHub Actions) | ❌ Not Started | STANDARD | PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — awaiting WARP🔹CMD review |
+| R12a | CI/CD Pipeline (GitHub Actions) | ✅ Done | STANDARD | Merged PR #855 (2026-05-04) |
 | R12b | Fly.io Health Alerts | ✅ Done | STANDARD | Merged via PR #856 |
-| R12c | Auto-Close / Take-Profit | ❌ Not Started | MAJOR | Order-path / execution — SENTINEL required |
+| R12c | Auto-Close / Take-Profit | ✅ Done | MAJOR | Merged PR #865 (2026-05-05), SENTINEL APPROVED 95/100 |
 | R12d | Live Opt-In Checklist | ❌ Not Started | MAJOR | Hard gate before EXE |
 | R12e | Live → Paper Auto-Fallback | ❌ Not Started | MAJOR | — |
 | R12f | Daily P&L Summary | ❌ Not Started | STANDARD | — |
@@ -111,3 +111,13 @@ Blueprint v3.1 §13 defines product-gate phases (Phase 0 owner gates → Phase 1
 - Blueprint Phase 10-11 → closed/open beta (post-R12)
 
 Reference: `docs/blueprint/crusaderbot.md` §6 (Risk System), §12 (Activation Guards), §13 (Roadmap).
+
+## Phase 3 — Strategy Plane
+
+| Lane | Name | Status | Tier | Notes |
+|---|---|---|---|---|
+| P3a | Strategy Registry Foundation | ✅ Done | STANDARD | Merged PR #876 (2026-05-05), FOUNDATION |
+| P3b | Copy Trade strategy | ⏸ Pending | MAJOR | PR #877 open, SENTINEL pending (Issue #878) |
+| P3c | Signal Following strategy | ❌ Not Started | MAJOR | — |
+| P3d | Signal scan loop + execution queue wiring | ❌ Not Started | MAJOR | Wires registry into risk gate |
+
