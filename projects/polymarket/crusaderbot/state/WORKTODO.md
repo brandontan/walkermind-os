@@ -1,14 +1,14 @@
 # CrusaderBot — WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-05 06:18 Asia/Jakarta
+**Last Updated:** 2026-05-05 08:14 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-Active lane: WARP/CRUSADERBOT-STATE-FIX — state sync (ROADMAP R12b drift + WORKTODO init)
-Next: WARP🔹CMD review of R12a PR (WARP/CRUSADERBOT-R12A-CICD-PIPELINE) after state-fix merge.
+Active lane: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — CI/CD pipeline (PR open, awaiting WARP🔹CMD review)
+Previous lane closed: WARP/CRUSADERBOT-STATE-FIX — ROADMAP R12b drift fix + WORKTODO init (PR #861 merged)
 
 ---
 
