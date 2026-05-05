@@ -1,17 +1,7 @@
-Last Updated : 2026-05-06 02:53 Asia/Jakarta
-Status       : P3b copy-trade strategy MERGED (PR #877 — a369129d). SENTINEL CONDITIONAL 71/100 resolved. Migration 008+009 now in migrations/. Next: P3c Signal Following strategy. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
+Last Updated : 2026-05-06 03:11 Asia/Jakarta
+Status       : Migration path fix MERGED (PR #881 — 538fd999). 008_strategy_tables.sql now in migrations/ — runner applies at startup. Next: P3c Signal Following strategy. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
 
 [COMPLETED]
-- PR #852 — feat(crusaderbot): import full Replit build R1-R11
-- PR #853 — sentinel: crusaderbot-replit-import PASS (post-fix)
-- C1 resolved: KELLY_FRACTION applied, capital_alloc_pct capped <1.0
-- C2 resolved: migrations/004 idempotent DO $$ blocks
-- C3 resolved: Tier 3 promotion gated on MIN_DEPOSIT_USDC
-- R12b — Fly.io health probes + operator alerts + JSON logging (PR #856 merged)
-- PR #857 — chore: state sync post-PR #856
-- PR #858 — chore: state sync post-PR #857
-- PR #860 — chore: state sync post-PR #858
-- PR #861 — chore: ROADMAP R12b drift fix + WORKTODO init (STANDARD, merged)
 - R12a — CI/CD Pipeline GitHub Actions + Fly.io — PR #855 MERGED 2026-05-04 (STANDARD)
 - R12c — Auto-Close / Take-Profit exit watcher — PR #865 MERGED 2026-05-05 (MAJOR, SENTINEL APPROVED 95/100)
 - R12d — Telegram Position UX (live monitor + force close) — PR #868 MERGED 4f5e12201964 (STANDARD)
@@ -19,6 +9,7 @@ Status       : P3b copy-trade strategy MERGED (PR #877 — a369129d). SENTINEL C
 - R12f — Operator Dashboard + Kill Switch + Job Monitor — PR #874 MERGED 2026-05-05 (STANDARD)
 - P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + migration 008) — PR #876 MERGED 2026-05-05 (STANDARD, FOUNDATION)
 - P3b — Copy Trade strategy (CopyTradeStrategy + scaler + wallet_watcher + migration 009 + /copytrade Telegram + registry bootstrap) — PR #877 MERGED 2026-05-06 a369129d (MAJOR, SENTINEL CONDITIONAL 71/100 resolved)
+- PR #881 — fix(crusaderbot): move 008_strategy_tables.sql infra/migrations/ -> migrations/ (MINOR, FILE MOVE ONLY, 538fd999)
 
 [IN PROGRESS]
 - None

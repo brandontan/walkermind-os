@@ -1,21 +1,20 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-06 01:22 Asia/Jakarta
+**Last Updated:** 2026-05-06 03:11 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-Completed: P3b copy-trade strategy — PR #877 MERGED a369129d 2026-05-06
+Completed: migration path fix — PR #881 MERGED 538fd999 2026-05-06. Next lane: P3c Signal Following strategy.
 
 ---
 
 ## Phase 3 -- Strategy Plane
 
 - [x] P3a -- Strategy Registry Foundation -- MERGED PR #876 (2026-05-05), STANDARD, FOUNDATION
-- [ ] P3b -- Copy Trade strategy -- IN PROGRESS: PR #877 open, MAJOR, SENTINEL pending Issue #878
-  - WARNING BLOCKER: migration runner path -- 008+009 not applied at startup. Decision needed: move 008 to migrations/ or update runner
+- [x] P3b -- Copy Trade strategy -- MERGED PR #877 a369129d 2026-05-06, MAJOR, SENTINEL CONDITIONAL 71/100 resolved. Migration path fixed PR #881.
 - [ ] P3c -- Signal Following strategy -- NOT STARTED (MAJOR)
 - [ ] P3d -- Per-user signal scan loop + execution queue wiring -- NOT STARTED (MAJOR -- wires registry into risk gate)
 
@@ -50,7 +49,7 @@ Done condition: All R12 lanes merged + activation guards reviewed by WARP🔸CMD
 
 ## Known Issues / Tech Debt
 
-- [ ] Migration runner path: 008_strategy_tables.sql at infra/migrations/ -- runner reads migrations/ only (BLOCKER for P3b merge)
+- [x] Migration runner path: 008_strategy_tables.sql moved to migrations/ -- RESOLVED PR #881 (538fd999)
 - [ ] F401 unused imports: bot/dispatcher.py, bot/handlers/dashboard.py, cache.py, config.py, domain/risk/gate.py, scheduler.py (ruff cleanup, LOW)
 - [ ] check_alchemy_ws TCP-only, no full WS handshake (follow-up lane, LOW)
 - [ ] services/* dead code (post-R12 cleanup, LOW)
