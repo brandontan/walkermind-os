@@ -15,6 +15,8 @@ own per-key cooldown so a stuck position does not page on every tick.
 """
 from __future__ import annotations
 
+from uuid import UUID
+
 import logging
 
 from ...config import get_settings
@@ -72,7 +74,7 @@ async def run_once() -> None:
             logger.error("hourly worker row %s leaked: %s", r["id"], exc)
 
 
-async def _process(queue_id) -> None:
+async def _process(queue_id: UUID) -> None:
     claimed = await redeem_router.claim_queue_row(queue_id)
     if claimed is None:
         return
