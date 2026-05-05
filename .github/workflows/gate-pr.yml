@@ -11,7 +11,6 @@ jobs:
     if: startsWith(github.head_ref, 'WARP/')
     steps:
       - name: Send PR event to WARP gate_webhook
-        continue-on-error: true
         env:
           WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -45,14 +44,10 @@ jobs:
           }
           print(json.dumps(payload))
           ")
-          HTTP_CODE=$(curl -s -o /tmp/gate_resp.json -w "%{http_code}" \
-            -X POST \
+          curl -s -X POST \
             -H "Content-Type: application/json" \
             -H "x-warp-secret: ${WARP_SECRET}" \
             "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \
             -d "${PAYLOAD}" \
-            --max-time 30)
-          echo "Gate webhook HTTP: ${HTTP_CODE}"
-          cat /tmp/gate_resp.json || true
-          # Always exit 0 — gate handles its own state
-          exit 0
+            --max-time 30 \
+            --fail-with-body
