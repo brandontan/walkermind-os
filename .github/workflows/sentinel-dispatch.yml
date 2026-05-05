@@ -1,0 +1,67 @@
+name: WARP•SENTINEL Dispatch
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  sentinel-dispatch:
+    name: Dispatch WARP•SENTINEL
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    # Only run when label agent:sentinel is present on the issue
+    if: |
+      contains(toJson(github.event.issue.labels), '"agent:sentinel"') ||
+      github.event.label.name == 'agent:sentinel'
+
+    steps:
+      - name: Verify label and post dispatch comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 << 'EOF'
+          import os, json, urllib.request, urllib.error
+
+          GITHUB_TOKEN  = os.environ["GITHUB_TOKEN"]
+          ISSUE_NUMBER  = os.environ["ISSUE_NUMBER"]
+          ISSUE_TITLE   = os.environ.get("ISSUE_TITLE", "")
+          REPO          = os.environ["REPO"]
+
+          COMMENTS_URL = f"https://api.github.com/repos/{REPO}/issues/{ISSUE_NUMBER}/comments"
+
+          comment_body = (
+              "\u2699\ufe0f WARP\u2022SENTINEL dispatched \u2014 audit starting.\n\n"
+              f"**Issue:** #{ISSUE_NUMBER} \u2014 {ISSUE_TITLE}\n"
+              f"**Repo:** {REPO}\n\n"
+              "_SENTINEL will audit this issue and post findings as a follow-up comment._"
+          )
+
+          payload = json.dumps({"body": comment_body}).encode("utf-8")
+          req = urllib.request.Request(
+              COMMENTS_URL,
+              data=payload,
+              headers={
+                  "Authorization": f"Bearer {GITHUB_TOKEN}",
+                  "Content-Type": "application/json",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "warp-gate[bot]",
+              },
+              method="POST"
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  result = json.loads(resp.read())
+                  print(f"OK: comment posted — id={result.get('id')}, url={result.get('html_url')}")
+          except urllib.error.HTTPError as e:
+              body = e.read().decode()
+              print(f"HTTP {e.code}: {body}")
+              exit(1)
+          except Exception as e:
+              print(f"ERROR: {e}")
+              exit(1)
+          EOF
