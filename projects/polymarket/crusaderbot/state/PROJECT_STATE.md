@@ -1,4 +1,4 @@
-Last Updated : 2026-05-05 21:30
+Last Updated : 2026-05-05 05:04 UTC
 Status       : R12d Telegram position UX PR open: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX — live position monitor (📈 Positions menu) with mark price + unrealized P&L + per-position [🛑 Force Close] confirm dialog wired to force_close_intent marker (Tier 2 view / Tier 3 close). STANDARD tier — WARP🔹CMD review, no SENTINEL required. R12c exit watcher PR still open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required before merge. R12a CI/CD pipeline PR still open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE. Paper-default.
 
 [COMPLETED]
@@ -16,7 +16,7 @@ Status       : R12d Telegram position UX PR open: WARP/CRUSADERBOT-R12D-TELEGRAM
 [IN PROGRESS]
 - R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
 - R12c — Auto-Close / Take-Profit — PR open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required before merge
-- R12d — Telegram Position UX (live position monitor + per-position force close) — PR open: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX — STANDARD tier, awaiting WARP🔹CMD review
+- R12d — Telegram Position UX (live position monitor + per-position force close) — PR #868 MERGED (4f5e12201964) — STANDARD tier
 
 [NOT STARTED]
 - R12d — Live Opt-In Checklist (MAJOR — hard gate before EXE)
