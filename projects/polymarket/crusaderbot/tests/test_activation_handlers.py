@@ -270,3 +270,125 @@ def test_text_input_lowercase_confirm_does_not_match():
         consumed = asyncio.run(activation.text_input(update, ctx))
     assert consumed is True
     flip.assert_not_awaited()
+
+
+# ---------- /setup paper→live mode switch (Codex P1 follow-up) ---------------
+
+
+def test_trading_mode_live_pending_confirm_arms_when_checklist_passes():
+    """Codex P1 regression: switching trading_mode to live via /setup is
+    itself a live-activation event for users with auto_trade_on=true.
+    The picker must run the full checklist and arm CONFIRM rather than
+    silently writing trading_mode='live'.
+    """
+    update, msg = _make_update(callback=True)
+    ctx = _make_ctx()
+    passing = SimpleNamespace(ready_for_live=True)
+    with patch.object(activation, "upsert_user",
+                      AsyncMock(return_value=USER_ROW_OFF)), \
+         patch.object(activation.live_checklist, "evaluate",
+                      AsyncMock(return_value=passing)):
+        result = asyncio.run(
+            activation.trading_mode_live_pending_confirm(update, ctx),
+        )
+    assert result is True
+    assert ctx.user_data == {
+        activation.AWAITING_KEY:
+            activation.AWAITING_TRADING_MODE_LIVE_CONFIRM,
+    }
+    msg.reply_text.assert_awaited_once()
+    sent_text = msg.reply_text.call_args[0][0]
+    assert "CONFIRM" in sent_text
+    assert "LIVE" in sent_text
+
+
+def test_trading_mode_live_pending_confirm_refuses_when_checklist_fails():
+    """If any activation gate fails, the /setup live picker must NOT
+    arm CONFIRM and must NOT write trading_mode='live'. Show the fix
+    list instead.
+    """
+    update, msg = _make_update(callback=True)
+    ctx = _make_ctx()
+    failing = SimpleNamespace(ready_for_live=False)
+    with patch.object(activation, "upsert_user",
+                      AsyncMock(return_value=USER_ROW_OFF)), \
+         patch.object(activation.live_checklist, "evaluate",
+                      AsyncMock(return_value=failing)), \
+         patch.object(activation.live_checklist, "render_telegram",
+                      return_value="🔒 fix list"):
+        result = asyncio.run(
+            activation.trading_mode_live_pending_confirm(update, ctx),
+        )
+    # Picker is fully consumed, no CONFIRM armed.
+    assert result is True
+    assert activation.AWAITING_KEY not in ctx.user_data
+    msg.reply_text.assert_awaited_once()
+    assert msg.reply_text.call_args[0][0] == "🔒 fix list"
+
+
+def test_text_input_confirm_for_trading_mode_writes_live():
+    update, msg = _make_update(text="CONFIRM")
+    ctx = _make_ctx()
+    ctx.user_data[activation.AWAITING_KEY] = (
+        activation.AWAITING_TRADING_MODE_LIVE_CONFIRM
+    )
+    passing = SimpleNamespace(ready_for_live=True)
+    with patch.object(activation, "upsert_user",
+                      AsyncMock(return_value=USER_ROW_OFF)), \
+         patch.object(activation.live_checklist, "evaluate",
+                      AsyncMock(return_value=passing)), \
+         patch.object(activation, "update_settings",
+                      AsyncMock()) as upd, \
+         patch.object(activation, "set_auto_trade",
+                      AsyncMock()) as flip:
+        consumed = asyncio.run(activation.text_input(update, ctx))
+    assert consumed is True
+    upd.assert_awaited_once_with(USER_ROW_OFF["id"], trading_mode="live")
+    # The trading-mode CONFIRM path must NOT also flip auto_trade_on —
+    # mode and engagement are separate user actions.
+    flip.assert_not_awaited()
+    assert activation.AWAITING_KEY not in ctx.user_data
+
+
+def test_text_input_trading_mode_confirm_re_checks_checklist_before_writing():
+    """Defense-in-depth: a guard could have degraded between the picker
+    and the CONFIRM reply (operator flips ENABLE_LIVE_TRADING off, etc).
+    update_settings must NOT be called when the re-check fails.
+    """
+    update, msg = _make_update(text="CONFIRM")
+    ctx = _make_ctx()
+    ctx.user_data[activation.AWAITING_KEY] = (
+        activation.AWAITING_TRADING_MODE_LIVE_CONFIRM
+    )
+    failing = SimpleNamespace(ready_for_live=False)
+    with patch.object(activation, "upsert_user",
+                      AsyncMock(return_value=USER_ROW_OFF)), \
+         patch.object(activation.live_checklist, "evaluate",
+                      AsyncMock(return_value=failing)), \
+         patch.object(activation.live_checklist, "render_telegram",
+                      return_value="🔒 fix list"), \
+         patch.object(activation, "update_settings",
+                      AsyncMock()) as upd:
+        consumed = asyncio.run(activation.text_input(update, ctx))
+    assert consumed is True
+    upd.assert_not_awaited()
+    msg.reply_text.assert_awaited_once()
+    assert msg.reply_text.call_args[0][0] == "🔒 fix list"
+
+
+def test_text_input_trading_mode_wrong_reply_cancels():
+    update, msg = _make_update(text="cancel")
+    ctx = _make_ctx()
+    ctx.user_data[activation.AWAITING_KEY] = (
+        activation.AWAITING_TRADING_MODE_LIVE_CONFIRM
+    )
+    with patch.object(activation, "update_settings",
+                      AsyncMock()) as upd:
+        consumed = asyncio.run(activation.text_input(update, ctx))
+    assert consumed is True
+    upd.assert_not_awaited()
+    msg.reply_text.assert_awaited_once()
+    body = msg.reply_text.call_args[0][0]
+    assert "Cancelled" in body
+    assert "Trading mode unchanged" in body
+    assert activation.AWAITING_KEY not in ctx.user_data

@@ -23,13 +23,14 @@ from telegram.ext import ContextTypes
 
 from ...domain.activation import live_checklist
 from ...jobs import daily_pnl_summary
-from ...users import get_settings_for, set_auto_trade, upsert_user
+from ...users import get_settings_for, set_auto_trade, update_settings, upsert_user
 
 logger = logging.getLogger(__name__)
 
 
 AWAITING_KEY = "awaiting"
 AWAITING_LIVE_CONFIRM = "confirm_live_autotrade"
+AWAITING_TRADING_MODE_LIVE_CONFIRM = "confirm_trading_mode_live"
 
 
 # ---------------- /live_checklist -------------------------------------------
@@ -148,6 +149,42 @@ async def autotrade_toggle_pending_confirm(
     return True
 
 
+async def trading_mode_live_pending_confirm(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> bool:
+    """Arm CONFIRM when ``/setup`` would switch ``trading_mode`` to live.
+
+    Returns True when this handler has fully consumed the picker
+    interaction (either CONFIRM was armed or the checklist refused with
+    a fix list). The caller (``setup.set_mode``) MUST NOT call
+    ``update_settings(trading_mode='live')`` in that case — the actual
+    write happens in :func:`text_input` after the user types CONFIRM.
+    Returns False to let the caller proceed (paper switch, or live
+    switch that for some reason should not gate — currently never).
+    """
+    if update.effective_user is None:
+        return False
+    user = await upsert_user(
+        update.effective_user.id, update.effective_user.username,
+    )
+    result = await live_checklist.evaluate(user["id"])
+    if not result.ready_for_live:
+        await _reply(update, live_checklist.render_telegram(result))
+        return True
+    if ctx.user_data is not None:
+        ctx.user_data[AWAITING_KEY] = AWAITING_TRADING_MODE_LIVE_CONFIRM
+    await _reply(
+        update,
+        "⚠️ *You are switching trading mode to LIVE — real capital.*\n"
+        "All activation gates have passed.\n\n"
+        "If your auto-trade is already ON, the next signal will route "
+        "as a real Polymarket order.\n\n"
+        "Type *CONFIRM* (in capitals) to proceed, or anything else to "
+        "cancel.",
+    )
+    return True
+
+
 async def text_input(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 ) -> bool:
@@ -163,15 +200,21 @@ async def text_input(
     awaiting = (
         ctx.user_data.get(AWAITING_KEY) if ctx.user_data else None
     )
-    if awaiting != AWAITING_LIVE_CONFIRM:
+    if awaiting not in (
+        AWAITING_LIVE_CONFIRM, AWAITING_TRADING_MODE_LIVE_CONFIRM,
+    ):
         return False
     text = (update.message.text or "").strip()
     if ctx.user_data is not None:
         ctx.user_data.pop(AWAITING_KEY, None)
     if text != "CONFIRM":
+        cancelled_msg = (
+            "Cancelled. Auto-trade remains *OFF*."
+            if awaiting == AWAITING_LIVE_CONFIRM
+            else "Cancelled. Trading mode unchanged."
+        )
         await update.message.reply_text(
-            "Cancelled. Auto-trade remains *OFF*.",
-            parse_mode=ParseMode.MARKDOWN,
+            cancelled_msg, parse_mode=ParseMode.MARKDOWN,
         )
         return True
     user = await upsert_user(
@@ -189,10 +232,19 @@ async def text_input(
             parse_mode=ParseMode.MARKDOWN,
         )
         return True
-    await set_auto_trade(user["id"], True)
+    if awaiting == AWAITING_LIVE_CONFIRM:
+        await set_auto_trade(user["id"], True)
+        await update.message.reply_text(
+            "🟢 Auto-trade is now *ON* in *LIVE* mode. Existing risk "
+            "gates still apply on every signal.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return True
+    # AWAITING_TRADING_MODE_LIVE_CONFIRM
+    await update_settings(user["id"], trading_mode="live")
     await update.message.reply_text(
-        "🟢 Auto-trade is now *ON* in *LIVE* mode. Existing risk gates "
-        "still apply on every signal.",
+        "🟢 Trading mode set to *LIVE*. Existing risk gates still apply "
+        "on every signal. Toggle auto-trade to engage.",
         parse_mode=ParseMode.MARKDOWN,
     )
     return True
