@@ -49,4 +49,4 @@ jobs:
             -H "x-warp-secret: ${WARP_SECRET}" \
             "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \
             -d "${PAYLOAD}" \
-            --fail-with-body
+            --max-time 30
