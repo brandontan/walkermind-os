@@ -1,4 +1,4 @@
-Last Updated : 2026-05-05 22:45 Asia/Jakarta
+Last Updated : 2026-05-06 08:30 Asia/Jakarta
 Status       : P3b copy-trade strategy PR open (PR #877) — MAJOR tier, SENTINEL CONDITIONAL 71/100 (Sentinel PR #880). Migration runner path P0 must resolve before merge. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
 
 [COMPLETED]
