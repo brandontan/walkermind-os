@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Walker AI — GitHub Full Access",
-    "description": "Full read/write/review access to walkermind-os repo. Read files, write files, manage branches, create and merge PRs, fetch PR details and file diffs, manage issues and labels.",
-    "version": "3.0.0"
+    "description": "Full read/write/review access to walkermind-os repo. Read files, write files, manage branches, create and merge PRs, fetch PR details and file diffs, manage issues and labels. Note: warp-codx repo operations use the same GitHub API with repo path bayuewalker/warp-codx.",
+    "version": "3.1.0"
   },
   "servers": [
     {
@@ -11,7 +11,6 @@
     }
   ],
   "paths": {
-
     "/repos/bayuewalker/walkermind-os/contents/{path}": {
       "get": {
         "operationId": "getRepoContents",
@@ -22,20 +21,28 @@
             "name": "path",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "File or directory path from repo root. Examples: AGENTS.md | projects/polymarket/polyquantbot/state/PROJECT_STATE.md | docs/CLAUDE.md"
           },
           {
             "name": "ref",
             "in": "query",
             "required": false,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Branch name. Default: main"
           }
         ],
         "responses": {
-          "200": { "description": "File content (base64) or directory listing (array)" },
-          "404": { "description": "Not found" }
+          "200": {
+            "description": "File content (base64) or directory listing (array)"
+          },
+          "404": {
+            "description": "Not found"
+          }
         }
       },
       "put": {
@@ -47,7 +54,9 @@
             "name": "path",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Full file path from repo root. Example: projects/polymarket/polyquantbot/reports/forge/fix-signal-filter.md"
           }
         ],
@@ -57,24 +66,42 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["message", "content"],
+                "required": [
+                  "message",
+                  "content"
+                ],
                 "properties": {
-                  "message": { "type": "string", "description": "Commit message. Example: forge: add signal filter report" },
-                  "content": { "type": "string", "description": "Base64-encoded file content" },
-                  "sha": { "type": "string", "description": "Required when UPDATING existing file. Get SHA from getRepoContents first." },
-                  "branch": { "type": "string", "description": "Target branch. Default: main" }
+                  "message": {
+                    "type": "string",
+                    "description": "Commit message. Example: forge: add signal filter report"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Base64-encoded file content"
+                  },
+                  "sha": {
+                    "type": "string",
+                    "description": "Required when UPDATING existing file. Get SHA from getRepoContents first."
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": "Target branch. Default: main"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "File updated successfully" },
-          "201": { "description": "File created successfully" }
+          "200": {
+            "description": "File updated successfully"
+          },
+          "201": {
+            "description": "File created successfully"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/git/refs": {
       "post": {
         "operationId": "createBranch",
@@ -86,21 +113,31 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["ref", "sha"],
+                "required": [
+                  "ref",
+                  "sha"
+                ],
                 "properties": {
-                  "ref": { "type": "string", "description": "New branch ref. Format: refs/heads/WARP/{FEATURE-SLUG}. Example: refs/heads/WARP/FIX-SIGNAL-FILTER" },
-                  "sha": { "type": "string", "description": "SHA of the base commit (latest main). Get from getRepoBranch." }
+                  "ref": {
+                    "type": "string",
+                    "description": "New branch ref. Format: refs/heads/WARP/{FEATURE-SLUG}. Example: refs/heads/WARP/FIX-SIGNAL-FILTER"
+                  },
+                  "sha": {
+                    "type": "string",
+                    "description": "SHA of the base commit (latest main). Get from getRepoBranch."
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "201": { "description": "Branch created" }
+          "201": {
+            "description": "Branch created"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/git/refs/heads/{branch}": {
       "delete": {
         "operationId": "deleteBranch",
@@ -111,17 +148,22 @@
             "name": "branch",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Branch name to delete. Example: WARP/FIX-SIGNAL-FILTER"
           }
         ],
         "responses": {
-          "204": { "description": "Branch deleted" },
-          "422": { "description": "Branch cannot be deleted — may be protected" }
+          "204": {
+            "description": "Branch deleted"
+          },
+          "422": {
+            "description": "Branch cannot be deleted — may be protected"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/git/ref/heads/{branch}": {
       "get": {
         "operationId": "getRepoBranch",
@@ -132,16 +174,19 @@
             "name": "branch",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Branch name. Example: main"
           }
         ],
         "responses": {
-          "200": { "description": "Branch info with latest commit SHA" }
+          "200": {
+            "description": "Branch info with latest commit SHA"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/branches": {
       "get": {
         "operationId": "listBranches",
@@ -152,15 +197,19 @@
             "name": "per_page",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 50 }
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Array of branches with name and commit SHA" }
+          "200": {
+            "description": "Array of branches with name and commit SHA"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/issues": {
       "get": {
         "operationId": "listIssues",
@@ -171,24 +220,39 @@
             "name": "state",
             "in": "query",
             "required": false,
-            "schema": { "type": "string", "enum": ["open", "closed", "all"], "default": "open" }
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "default": "open"
+            }
           },
           {
             "name": "labels",
             "in": "query",
             "required": false,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Comma-separated label names to filter. Example: warp,forge-task"
           },
           {
             "name": "per_page",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 20 }
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Array of issues with number, title, labels, state, assignees" }
+          "200": {
+            "description": "Array of issues with number, title, labels, state, assignees"
+          }
         }
       },
       "post": {
@@ -201,18 +265,30 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["title"],
+                "required": [
+                  "title"
+                ],
                 "properties": {
-                  "title": { "type": "string", "description": "Issue title. Example: WARP•FORGE TASK: Fix signal filter edge case" },
-                  "body": { "type": "string", "description": "Issue body. Use WARP•FORGE TASK template from COMMANDER.md. No triple backtick nesting in task body." },
+                  "title": {
+                    "type": "string",
+                    "description": "Issue title. Example: WARP•FORGE TASK: Fix signal filter edge case"
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "Issue body. Use WARP•FORGE TASK template from COMMANDER.md. No triple backtick nesting in task body."
+                  },
                   "labels": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "Label names. Examples: [\"warp\"], [\"warp-sentinel\"], [\"forge-task\", \"major\"]"
                   },
                   "assignees": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "GitHub usernames to assign. Example: [\"baayuewalker\"]"
                   }
                 }
@@ -221,11 +297,12 @@
           }
         },
         "responses": {
-          "201": { "description": "Issue created — returns issue number and URL" }
+          "201": {
+            "description": "Issue created — returns issue number and URL"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/issues/{issue_number}": {
       "get": {
         "operationId": "getIssue",
@@ -236,12 +313,16 @@
             "name": "issue_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" },
+            "schema": {
+              "type": "integer"
+            },
             "description": "Issue number"
           }
         ],
         "responses": {
-          "200": { "description": "Full issue object" }
+          "200": {
+            "description": "Full issue object"
+          }
         }
       },
       "patch": {
@@ -253,7 +334,9 @@
             "name": "issue_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" },
+            "schema": {
+              "type": "integer"
+            },
             "description": "Issue number"
           }
         ],
@@ -264,13 +347,37 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "state": { "type": "string", "enum": ["open", "closed"], "description": "Set to 'closed' to close issue after PR merge" },
-                  "title": { "type": "string", "description": "Updated title (optional)" },
-                  "body": { "type": "string", "description": "Updated body (optional)" },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "closed"
+                    ],
+                    "description": "Set to 'closed' to close issue after PR merge"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Updated title (optional)"
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "Updated body (optional)"
+                  },
                   "labels": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "Replace all labels with this array"
+                  },
+                  "state_reason": {
+                    "type": "string",
+                    "enum": [
+                      "completed",
+                      "not_planned",
+                      "reopened"
+                    ],
+                    "description": "Reason for closing. Use 'not_planned' for stale/cancelled issues, 'completed' for done tasks. Only valid when state='closed'."
                   }
                 }
               }
@@ -278,11 +385,12 @@
           }
         },
         "responses": {
-          "200": { "description": "Issue updated" }
+          "200": {
+            "description": "Issue updated"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/issues/{issue_number}/comments": {
       "post": {
         "operationId": "addIssueComment",
@@ -293,7 +401,9 @@
             "name": "issue_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" },
+            "schema": {
+              "type": "integer"
+            },
             "description": "Issue or PR number"
           }
         ],
@@ -303,16 +413,23 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["body"],
+                "required": [
+                  "body"
+                ],
                 "properties": {
-                  "body": { "type": "string", "description": "Comment text. Use markdown." }
+                  "body": {
+                    "type": "string",
+                    "description": "Comment text. Use markdown."
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "201": { "description": "Comment added" }
+          "201": {
+            "description": "Comment added"
+          }
         }
       },
       "get": {
@@ -324,21 +441,27 @@
             "name": "issue_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": {
+              "type": "integer"
+            }
           },
           {
             "name": "per_page",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 50 }
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Array of comments with user, body, created_at" }
+          "200": {
+            "description": "Array of comments with user, body, created_at"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/issues/{issue_number}/labels": {
       "post": {
         "operationId": "addIssueLabel",
@@ -349,7 +472,9 @@
             "name": "issue_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "requestBody": {
@@ -358,11 +483,15 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["labels"],
+                "required": [
+                  "labels"
+                ],
                 "properties": {
                   "labels": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "Label names. Examples: [\"warp\"], [\"warp-sentinel\"], [\"ready-for-merge\"]"
                   }
                 }
@@ -371,44 +500,12 @@
           }
         },
         "responses": {
-          "200": { "description": "Labels added" }
-        }
-      },
-      "delete": {
-        "operationId": "removeIssueLabel",
-        "summary": "Remove a label from an issue or PR",
-        "description": "Remove a specific label. Use to clean up after task state changes.",
-        "parameters": [
-          {
-            "name": "issue_number",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "integer" }
+          "200": {
+            "description": "Labels added"
           }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["labels"],
-                "properties": {
-                  "labels": {
-                    "type": "array",
-                    "items": { "type": "string" }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Label removed" }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/issues/{issue_number}/assignees": {
       "post": {
         "operationId": "addAssignees",
@@ -419,7 +516,9 @@
             "name": "issue_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "requestBody": {
@@ -428,12 +527,16 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["assignees"],
+                "required": [
+                  "assignees"
+                ],
                 "properties": {
                   "assignees": {
                     "type": "array",
-                    "items": { "type": "string" },
-                    "description": "GitHub usernames. Example: [\"baayuewalker\"]"
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "GitHub usernames. Example: [\"bayuewalker\"]"
                   }
                 }
               }
@@ -441,7 +544,9 @@
           }
         },
         "responses": {
-          "201": { "description": "Assignees added" }
+          "201": {
+            "description": "Assignees added"
+          }
         }
       },
       "delete": {
@@ -452,7 +557,9 @@
             "name": "issue_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "requestBody": {
@@ -461,11 +568,15 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["assignees"],
+                "required": [
+                  "assignees"
+                ],
                 "properties": {
                   "assignees": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -473,11 +584,12 @@
           }
         },
         "responses": {
-          "200": { "description": "Assignees removed" }
+          "200": {
+            "description": "Assignees removed"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/labels": {
       "get": {
         "operationId": "listRepoLabels",
@@ -488,11 +600,16 @@
             "name": "per_page",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 50 }
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Array of labels with name, color, description" }
+          "200": {
+            "description": "Array of labels with name, color, description"
+          }
         }
       },
       "post": {
@@ -505,22 +622,34 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["name"],
+                "required": [
+                  "name"
+                ],
                 "properties": {
-                  "name": { "type": "string", "description": "Label name. Example: warp-sentinel" },
-                  "color": { "type": "string", "description": "Hex color without #. Example: e4e669 (yellow), d93f0b (red), 0075ca (blue)" },
-                  "description": { "type": "string", "description": "Label description. Example: Triggers WARP•SENTINEL validation routine" }
+                  "name": {
+                    "type": "string",
+                    "description": "Label name. Example: warp-sentinel"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "Hex color without #. Example: e4e669 (yellow), d93f0b (red), 0075ca (blue)"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Label description. Example: Triggers WARP•SENTINEL validation routine"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "201": { "description": "Label created" }
+          "201": {
+            "description": "Label created"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/pulls": {
       "get": {
         "operationId": "listPullRequests",
@@ -531,17 +660,30 @@
             "name": "state",
             "in": "query",
             "required": false,
-            "schema": { "type": "string", "enum": ["open", "closed", "all"], "default": "open" }
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "default": "open"
+            }
           },
           {
             "name": "per_page",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 10 }
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
           }
         ],
         "responses": {
-          "200": { "description": "List of pull requests" }
+          "200": {
+            "description": "List of pull requests"
+          }
         }
       },
       "post": {
@@ -554,23 +696,40 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["title", "head", "base"],
+                "required": [
+                  "title",
+                  "head",
+                  "base"
+                ],
                 "properties": {
-                  "title": { "type": "string", "description": "PR title. Example: WARP/FIX-SIGNAL-FILTER: fix edge case in signal dedup" },
-                  "head": { "type": "string", "description": "Source branch. Example: WARP/FIX-SIGNAL-FILTER" },
-                  "base": { "type": "string", "description": "Target branch. Always: main" },
-                  "body": { "type": "string", "description": "PR description. Include: scope, files changed, report path, validation tier, claim level." }
+                  "title": {
+                    "type": "string",
+                    "description": "PR title. Example: WARP/FIX-SIGNAL-FILTER: fix edge case in signal dedup"
+                  },
+                  "head": {
+                    "type": "string",
+                    "description": "Source branch. Example: WARP/FIX-SIGNAL-FILTER"
+                  },
+                  "base": {
+                    "type": "string",
+                    "description": "Target branch. Always: main"
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "PR description. Include: scope, files changed, report path, validation tier, claim level."
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "201": { "description": "PR created" }
+          "201": {
+            "description": "PR created"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/pulls/{pull_number}": {
       "patch": {
         "operationId": "updatePullRequest",
@@ -581,7 +740,9 @@
             "name": "pull_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "requestBody": {
@@ -591,32 +752,71 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "state": { "type": "string", "enum": ["open", "closed"] },
-                  "title": { "type": "string" },
-                  "body": { "type": "string" }
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "closed"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "PR updated" },
-          "422": { "description": "Validation error" }
+          "200": {
+            "description": "PR updated"
+          },
+          "422": {
+            "description": "Validation error"
+          }
         }
-      }
-    },
-
-    "/repos/bayuewalker/walkermind-os/pulls/{pull_number}/merge": {
-      "put": {
-        "operationId": "mergePullRequest",
-        "summary": "Merge a pull request",
-        "description": "Merges a PR into main. WARP🔸CORE never calls this — only WARP🔹CMD (Mr. Walker) authorizes merge. Squash method preferred to keep history clean.",
+      },
+      "get": {
+        "operationId": "getPullRequest",
+        "summary": "Get a single pull request by number",
+        "description": "Returns full PR object including: number, title, body, state, head (branch, sha), base, mergeable, mergeable_state, merged, merged_at, user. Use to check mergeable_state before attempting merge and to verify head SHA matches expected.",
         "parameters": [
           {
             "name": "pull_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": {
+              "type": "integer"
+            },
+            "description": "PR number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full PR object with mergeable, mergeable_state, head.sha, state, merged fields"
+          },
+          "404": {
+            "description": "PR not found"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walkermind-os/pulls/{pull_number}/merge": {
+      "put": {
+        "operationId": "mergePullRequest",
+        "summary": "Merge a pull request",
+        "description": "Merges a PR into main using squash method (preferred for clean history). WARP•FORGE and WARP•SENTINEL NEVER call this. WARP🔹CMD auto-merges MINOR and STANDARD tier PRs after all checks pass. MAJOR tier PRs require Mr. Walker explicit approval — WARP🔹CMD executes merge only after CMD go.",
+        "parameters": [
+          {
+            "name": "pull_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "requestBody": {
@@ -626,20 +826,34 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "commit_title": { "type": "string", "description": "Merge commit title" },
-                  "merge_method": { "type": "string", "enum": ["merge", "squash", "rebase"], "default": "squash" }
+                  "commit_title": {
+                    "type": "string",
+                    "description": "Merge commit title"
+                  },
+                  "merge_method": {
+                    "type": "string",
+                    "enum": [
+                      "merge",
+                      "squash",
+                      "rebase"
+                    ],
+                    "default": "squash"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "PR merged successfully" },
-          "405": { "description": "PR not mergeable — check review status and conflicts" }
+          "200": {
+            "description": "PR merged successfully"
+          },
+          "405": {
+            "description": "PR not mergeable — check review status and conflicts"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/pulls/{pull_number}/files": {
       "get": {
         "operationId": "getPRFiles",
@@ -650,21 +864,27 @@
             "name": "pull_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": {
+              "type": "integer"
+            }
           },
           {
             "name": "per_page",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 100 }
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Array of changed files with filename, status, additions, deletions, patch" }
+          "200": {
+            "description": "Array of changed files with filename, status, additions, deletions, patch"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/pulls/{pull_number}/reviews": {
       "get": {
         "operationId": "getPRReviews",
@@ -675,15 +895,18 @@
             "name": "pull_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Array of reviews with reviewer, state, submitted_at, body" }
+          "200": {
+            "description": "Array of reviews with reviewer, state, submitted_at, body"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/pulls/{pull_number}/comments": {
       "get": {
         "operationId": "getPRInlineComments",
@@ -694,21 +917,27 @@
             "name": "pull_number",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": {
+              "type": "integer"
+            }
           },
           {
             "name": "per_page",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 50 }
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Array of inline comments with path, line, body, user" }
+          "200": {
+            "description": "Array of inline comments with path, line, body, user"
+          }
         }
       }
     },
-
     "/repos/bayuewalker/walkermind-os/commits": {
       "get": {
         "operationId": "listCommits",
@@ -719,21 +948,94 @@
             "name": "sha",
             "in": "query",
             "required": false,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Branch name or commit SHA. Example: WARP/FIX-SIGNAL-FILTER"
           },
           {
             "name": "per_page",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 10 }
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Array of commits with sha, message, author, date" }
+          "200": {
+            "description": "Array of commits with sha, message, author, date"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walkermind-os/issues/{issue_number}/labels/{name}": {
+      "delete": {
+        "operationId": "removeIssueLabel",
+        "summary": "Remove a specific label from an issue or PR",
+        "description": "Removes one label by name from the URL path. Use to clean up after task state changes. To remove all labels, use DELETE /issues/{issue_number}/labels (no name).",
+        "parameters": [
+          {
+            "name": "issue_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Issue or PR number"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Label name to remove. Example: warp-sentinel"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remaining labels after removal"
+          },
+          "404": {
+            "description": "Label or issue not found"
+          }
+        }
+      }
+    },
+    "/repos/bayuewalker/walkermind-os/commits/{sha}/check-runs": {
+      "get": {
+        "operationId": "getCommitCheckRuns",
+        "summary": "Get CI check runs for a commit SHA",
+        "description": "Returns all check runs (CI jobs) for a specific commit. Used by WARP🔹CMD gate pipeline (Phase 0) to verify CI status before merge. Each check_run has: name, status (queued/in_progress/completed), conclusion (success/failure/neutral/cancelled/skipped).",
+        "parameters": [
+          {
+            "name": "sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Full or partial commit SHA. Example: 69dacd9218abc123"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Object with total_count and check_runs array. Each run: id, name, status, conclusion, started_at, completed_at, html_url"
+          }
         }
       }
     }
-
   }
 }
