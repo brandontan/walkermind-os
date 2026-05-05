@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 23:55 Asia/Jakarta
-Status       : R12 Live Readiness batch lane (live opt-in checklist + live-to-paper fallback + daily P&L summary) shipped on WARP/CRUSADERBOT-R12-LIVE-READINESS — STANDARD, NARROW INTEGRATION. 331/331 tests pass (305 → 331, +26). R12 final deployment unblocked pending P3c/P3d. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
+Last Updated : 2026-05-06 05:01 Asia/Jakarta
+Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist (8-gate) + Live-to-Paper Fallback + Daily P&L Summary. 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -19,7 +19,7 @@ Status       : R12 Live Readiness batch lane (live opt-in checklist + live-to-pa
 - R12f — Operator Dashboard + Kill Switch + Job Monitor — PR #874 MERGED 2026-05-05 (STANDARD)
 - P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + migration 008) — PR #876 MERGED 2026-05-05 (STANDARD, FOUNDATION)
 - P3b — Copy Trade strategy (CopyTradeStrategy + scaler + wallet_watcher + migration 009 + /copytrade Telegram + registry bootstrap) — PR #877 MERGED 2026-05-06 a369129d (MAJOR, SENTINEL CONDITIONAL 71/100 resolved)
-- R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR pending on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
+- R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR #883 MERGED 5a9cb22a (STANDARD, NARROW INTEGRATION)
 
 [IN PROGRESS]
 - None
