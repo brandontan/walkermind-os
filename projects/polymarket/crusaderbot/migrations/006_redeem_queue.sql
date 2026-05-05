@@ -43,8 +43,14 @@ CREATE TABLE IF NOT EXISTS redeem_queue (
     failure_count SMALLINT NOT NULL DEFAULT 0,
     last_error TEXT,
     queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    claimed_at TIMESTAMPTZ,
     processed_at TIMESTAMPTZ
 );
+
+-- Defensive ADD COLUMN for staging DBs that ran an earlier draft of this
+-- migration before claimed_at was added.
+ALTER TABLE redeem_queue
+    ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;
 
 -- One row per position. Re-detection of a still-resolved market must not
 -- double-enqueue. The unique index also lets the router use ON CONFLICT
@@ -62,6 +68,14 @@ CREATE INDEX IF NOT EXISTS idx_redeem_queue_pending
 CREATE INDEX IF NOT EXISTS idx_redeem_queue_failed
     ON redeem_queue(failure_count)
     WHERE failure_count > 0;
+
+-- Stale-processing reaper inspects processing rows by claimed_at age.
+-- A worker crash between claim and terminal-state transition leaves the
+-- row in 'processing'; the hourly worker reaps stale rows back to
+-- 'pending' so they don't get stranded.
+CREATE INDEX IF NOT EXISTS idx_redeem_queue_processing
+    ON redeem_queue(claimed_at)
+    WHERE status = 'processing';
 
 -- Defensive: ensure the user_settings.auto_redeem_mode column exists on
 -- pre-006 databases. 001_init.sql already declares it, so this is a no-op

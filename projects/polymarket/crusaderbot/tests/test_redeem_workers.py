@@ -244,6 +244,8 @@ def test_hourly_drains_pending_rows_success():
     with patch.object(hourly_worker, "get_settings") as gs, \
          patch.object(hourly_worker, "get_pool",
                       return_value=_stub_pool_returning(rows)), \
+         patch.object(redeem_router, "reap_stale_processing",
+                      new=AsyncMock(return_value=0)), \
          patch.object(redeem_router, "claim_queue_row",
                       new=AsyncMock(return_value=claim)), \
          patch.object(redeem_router, "settle_winning_position",
@@ -256,12 +258,55 @@ def test_hourly_drains_pending_rows_success():
         assert done.await_count == 2
 
 
+def test_hourly_reaps_stale_processing_before_drain():
+    """Stale processing rows are released back to pending each tick."""
+    rows = [{"id": uuid4()}]
+    claim = _make_claim()
+    with patch.object(hourly_worker, "get_settings") as gs, \
+         patch.object(hourly_worker, "get_pool",
+                      return_value=_stub_pool_returning(rows)), \
+         patch.object(redeem_router, "reap_stale_processing",
+                      new=AsyncMock(return_value=3)) as reap, \
+         patch.object(redeem_router, "claim_queue_row",
+                      new=AsyncMock(return_value=claim)), \
+         patch.object(redeem_router, "settle_winning_position",
+                      new=AsyncMock()), \
+         patch.object(redeem_router, "mark_done",
+                      new=AsyncMock()):
+        gs.return_value.AUTO_REDEEM_ENABLED = True
+        _run(hourly_worker.run_once())
+        reap.assert_awaited_once()
+
+
+def test_hourly_reap_failure_does_not_block_drain():
+    """Reaper failure is logged and the drain still runs."""
+    rows = [{"id": uuid4()}]
+    claim = _make_claim()
+    with patch.object(hourly_worker, "get_settings") as gs, \
+         patch.object(hourly_worker, "get_pool",
+                      return_value=_stub_pool_returning(rows)), \
+         patch.object(redeem_router, "reap_stale_processing",
+                      new=AsyncMock(side_effect=RuntimeError("db down"))), \
+         patch.object(redeem_router, "claim_queue_row",
+                      new=AsyncMock(return_value=claim)), \
+         patch.object(redeem_router, "settle_winning_position",
+                      new=AsyncMock()) as settle, \
+         patch.object(redeem_router, "mark_done",
+                      new=AsyncMock()) as done:
+        gs.return_value.AUTO_REDEEM_ENABLED = True
+        _run(hourly_worker.run_once())
+        settle.assert_awaited_once()
+        done.assert_awaited_once()
+
+
 def test_hourly_failure_increments_no_alert_below_threshold():
     rows = [{"id": uuid4()}]
     claim = _make_claim()
     with patch.object(hourly_worker, "get_settings") as gs, \
          patch.object(hourly_worker, "get_pool",
                       return_value=_stub_pool_returning(rows)), \
+         patch.object(redeem_router, "reap_stale_processing",
+                      new=AsyncMock(return_value=0)), \
          patch.object(redeem_router, "claim_queue_row",
                       new=AsyncMock(return_value=claim)), \
          patch.object(redeem_router, "settle_winning_position",
@@ -281,6 +326,8 @@ def test_hourly_failure_at_threshold_pages_operator():
     with patch.object(hourly_worker, "get_settings") as gs, \
          patch.object(hourly_worker, "get_pool",
                       return_value=_stub_pool_returning(rows)), \
+         patch.object(redeem_router, "reap_stale_processing",
+                      new=AsyncMock(return_value=0)), \
          patch.object(redeem_router, "claim_queue_row",
                       new=AsyncMock(return_value=claim)), \
          patch.object(redeem_router, "settle_winning_position",
@@ -305,6 +352,8 @@ def test_hourly_per_row_exception_isolated():
     with patch.object(hourly_worker, "get_settings") as gs, \
          patch.object(hourly_worker, "get_pool",
                       return_value=_stub_pool_returning(rows)), \
+         patch.object(redeem_router, "reap_stale_processing",
+                      new=AsyncMock(return_value=0)), \
          patch.object(redeem_router, "claim_queue_row", new=claim_seq), \
          patch.object(redeem_router, "settle_winning_position",
                       new=AsyncMock()) as settle, \
@@ -323,6 +372,8 @@ def test_hourly_empty_queue_noop():
     with patch.object(hourly_worker, "get_settings") as gs, \
          patch.object(hourly_worker, "get_pool",
                       return_value=_stub_pool_returning([])), \
+         patch.object(redeem_router, "reap_stale_processing",
+                      new=AsyncMock(return_value=0)), \
          patch.object(redeem_router, "claim_queue_row",
                       new=AsyncMock()) as claim:
         gs.return_value.AUTO_REDEEM_ENABLED = True

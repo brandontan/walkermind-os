@@ -28,11 +28,29 @@ OPERATOR_ALERT_THRESHOLD: int = 2
 
 
 async def run_once() -> None:
-    """Drain all pending redeem_queue rows. Sequential, never raises."""
+    """Drain all pending redeem_queue rows. Sequential, never raises.
+
+    Begins by reaping any rows stuck in ``processing`` past the
+    stale-after threshold — these are presumed orphaned by a crashed
+    instant worker or a process restart. The reaper runs ahead of the
+    drain SELECT so reaped rows are picked up in the same tick instead
+    of waiting another 60 minutes.
+    """
     s = get_settings()
     if not s.AUTO_REDEEM_ENABLED:
         logger.info("auto-redeem disabled, skipping hourly worker")
         return
+
+    try:
+        reaped = await redeem_router.reap_stale_processing()
+        if reaped:
+            logger.warning(
+                "hourly redeem reaper: released %d stale processing "
+                "row(s) back to pending", reaped,
+            )
+    except Exception as exc:
+        logger.error("hourly redeem reaper failed: %s — continuing drain",
+                     exc)
 
     pool = get_pool()
     async with pool.acquire() as conn:

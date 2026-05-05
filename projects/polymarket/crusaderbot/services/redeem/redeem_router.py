@@ -406,7 +406,8 @@ async def claim_queue_row(queue_id: UUID) -> dict[str, Any] | None:
     async with pool.acquire() as conn:
         async with conn.transaction():
             claimed_id = await conn.fetchval(
-                "UPDATE redeem_queue SET status='processing' "
+                "UPDATE redeem_queue SET status='processing', "
+                "claimed_at=NOW() "
                 "WHERE id=$1 AND status='pending' RETURNING id",
                 queue_id,
             )
@@ -441,6 +442,41 @@ async def mark_done(queue_id: UUID) -> None:
             "last_error=NULL WHERE id=$1",
             queue_id,
         )
+
+
+async def reap_stale_processing(stale_after_seconds: int = 300) -> int:
+    """Recover orphaned ``processing`` rows back to ``pending``.
+
+    A worker crash (or a process restart) between the pending → processing
+    flip in ``claim_queue_row`` and the terminal transition in
+    ``mark_done`` / ``release_back_to_pending`` leaves the queue row in
+    ``processing`` indefinitely. Detection won't re-enqueue (the unique
+    index on ``position_id`` blocks a duplicate row) and the hourly drain
+    only selects ``status='pending'``, so without this reaper the row
+    would be stranded forever.
+
+    The threshold default of 300 s is well past the instant worker's
+    bounded wall time (one settle attempt + 30 s sleep + one retry,
+    typically < 90 s) so an active worker is never reaped. Released rows
+    do NOT increment ``failure_count`` — a crash is not a settle failure
+    — but the action is logged at WARN so the operator can spot a stuck
+    process pattern.
+
+    Returns the number of rows released.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "UPDATE redeem_queue "
+            "   SET status='pending' "
+            " WHERE status='processing' "
+            "   AND claimed_at IS NOT NULL "
+            "   AND claimed_at < NOW() - "
+            "       ($1::int * INTERVAL '1 second') "
+            "RETURNING id",
+            stale_after_seconds,
+        )
+    return len(rows)
 
 
 async def release_back_to_pending(
