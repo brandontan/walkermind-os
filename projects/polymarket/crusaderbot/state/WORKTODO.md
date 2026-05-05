@@ -1,14 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-06 09:00 Asia/Jakarta
+**Last Updated:** 2026-05-06 01:22 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-Active lane: P3b copy-trade strategy -- PR #877 open, MAJOR tier, SENTINEL pending (Issue #878, label: agent:sentinel).
-Migration runner path: 008 fix in flight on WARP/CRUSADERBOT-FIX-MIGRATION-PATH (MINOR, awaiting WARP🔹CMD merge). 009 follow-up still required on PR #877 branch before SENTINEL.
+Completed: P3b copy-trade strategy — PR #877 MERGED a369129d 2026-05-06
 
 ---
 
@@ -16,7 +15,7 @@ Migration runner path: 008 fix in flight on WARP/CRUSADERBOT-FIX-MIGRATION-PATH 
 
 - [x] P3a -- Strategy Registry Foundation -- MERGED PR #876 (2026-05-05), STANDARD, FOUNDATION
 - [ ] P3b -- Copy Trade strategy -- IN PROGRESS: PR #877 open, MAJOR, SENTINEL pending Issue #878
-  - PRE-SENTINEL FIX: rebase PR #877 and git mv 009_copy_trade.sql from infra/migrations/ to migrations/ (008 already fixed on WARP/CRUSADERBOT-FIX-MIGRATION-PATH)
+  - WARNING BLOCKER: migration runner path -- 008+009 not applied at startup. Decision needed: move 008 to migrations/ or update runner
 - [ ] P3c -- Signal Following strategy -- NOT STARTED (MAJOR)
 - [ ] P3d -- Per-user signal scan loop + execution queue wiring -- NOT STARTED (MAJOR -- wires registry into risk gate)
 
@@ -51,7 +50,7 @@ Done condition: All R12 lanes merged + activation guards reviewed by WARP🔸CMD
 
 ## Known Issues / Tech Debt
 
-- [ ] Migration runner path 009: 009_copy_trade.sql still at infra/migrations/ on PR #877 branch -- must be moved to migrations/ before P3b SENTINEL/merge (008 fixed on WARP/CRUSADERBOT-FIX-MIGRATION-PATH)
+- [ ] Migration runner path: 008_strategy_tables.sql at infra/migrations/ -- runner reads migrations/ only (BLOCKER for P3b merge)
 - [ ] F401 unused imports: bot/dispatcher.py, bot/handlers/dashboard.py, cache.py, config.py, domain/risk/gate.py, scheduler.py (ruff cleanup, LOW)
 - [ ] check_alchemy_ws TCP-only, no full WS handshake (follow-up lane, LOW)
 - [ ] services/* dead code (post-R12 cleanup, LOW)
