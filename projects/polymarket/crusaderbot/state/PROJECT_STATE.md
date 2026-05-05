@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 19:45
-Status       : R12c exit watcher PR open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — TP/SL/force-close per-position auto-close + applied_* snapshot immutability + retry-once-on-CLOB-error. MAJOR tier — SENTINEL audit required before merge. R12a CI/CD pipeline PR still open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE. Paper-default.
+Last Updated : 2026-05-05 11:15
+Status       : R12c exit watcher MERGED and SENTINEL APPROVED (PR #865 + PR #866, 95/100). R12a CI/CD pipeline PR still open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE. Paper-default.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -12,10 +12,10 @@ Status       : R12c exit watcher PR open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER —
 - PR #858 — chore(crusaderbot): state sync — PR #857 post-merge (WARP•ECHO routine)
 - PR #860 — chore(crusaderbot): state sync — PR #858 post-merge (WARP•ECHO routine)
 - PR #861 — chore(crusaderbot): ROADMAP R12b drift fix + WORKTODO init (STANDARD, merged)
+- R12c — Auto-Close / Take-Profit — MERGED (PR #865) + SENTINEL APPROVED 95/100 (PR #866)
 
 [IN PROGRESS]
 - R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
-- R12c — Auto-Close / Take-Profit — PR open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required before merge
 
 [NOT STARTED]
 - R12d — Live Opt-In Checklist (MAJOR — hard gate before EXE)
@@ -24,7 +24,8 @@ Status       : R12c exit watcher PR open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER —
 - R12 — Deployment (Fly.io) — final (MAJOR)
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for R12c exit watcher before merge. Source: projects/polymarket/crusaderbot/reports/forge/r12c-exit-watcher.md. Tier: MAJOR. Branch: WARP/CRUSADERBOT-R12C-EXIT-WATCHER.
+- WARP🔹CMD review required for R12a CI/CD Pipeline. Source: projects/polymarket/crusaderbot/reports/forge/r12a-cicd-pipeline.md. Tier: STANDARD. Branch: WARP/CRUSADERBOT-R12A-CICD-PIPELINE.
+- Post-merge state sync for PR #865 + PR #866 (R12c closed). ROADMAP.md R12c row should be updated to Done.
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)
