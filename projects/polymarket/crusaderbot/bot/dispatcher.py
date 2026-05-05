@@ -8,7 +8,8 @@ from telegram.ext import (
     Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters,
 )
 
-from .handlers import admin, dashboard, emergency, onboarding, setup, wallet
+from .handlers import admin, dashboard, emergency, onboarding, positions, setup, wallet
+from .menus.main import get_menu_route
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +21,7 @@ async def _text_router(update, ctx):
     if update.message is None:
         return
     text = (update.message.text or "").strip()
-    routes = {
-        "💰 Wallet": wallet.wallet_root,
-        "🤖 Setup": setup.setup_root,
-        "📊 Dashboard": dashboard.dashboard,
-        "📈 Positions": dashboard.positions,
-        "📋 Activity": dashboard.activity,
-        "🛑 Emergency": emergency.emergency_root,
-        "ℹ️ Help": onboarding.help_handler,
-        "⚙️ Settings": onboarding.help_handler,
-    }
-    handler = routes.get(text)
+    handler = get_menu_route(text)
     if handler:
         await handler(update, ctx)
 
@@ -45,7 +36,7 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("help", onboarding.help_handler))
     app.add_handler(CommandHandler("menu", onboarding.menu_handler))
     app.add_handler(CommandHandler("dashboard", dashboard.dashboard))
-    app.add_handler(CommandHandler("positions", dashboard.positions))
+    app.add_handler(CommandHandler("positions", positions.show_positions))
     app.add_handler(CommandHandler("activity", dashboard.activity))
     app.add_handler(CommandHandler("emergency", emergency.emergency_root))
     app.add_handler(CommandHandler("admin", admin.admin_root))
@@ -63,6 +54,10 @@ def register(app: Application) -> None:
                                          pattern=r"^autotrade:"))
     app.add_handler(CallbackQueryHandler(dashboard.close_position_cb,
                                          pattern=r"^position:close:"))
+    app.add_handler(CallbackQueryHandler(positions.force_close_ask,
+                                         pattern=r"^position:fc_ask:"))
+    app.add_handler(CallbackQueryHandler(positions.force_close_confirm,
+                                         pattern=r"^position:fc_(yes|no):"))
     app.add_handler(CallbackQueryHandler(emergency.emergency_callback,
                                          pattern=r"^emergency:"))
     app.add_handler(CallbackQueryHandler(admin.admin_callback,  pattern=r"^admin:"))
