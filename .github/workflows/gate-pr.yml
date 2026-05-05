@@ -11,10 +11,12 @@ jobs:
     if: startsWith(github.head_ref, 'WARP/')
     steps:
       - name: Send PR event to WARP gate_webhook
+        continue-on-error: true
         env:
           WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BRANCH: ${{ github.head_ref }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
@@ -28,6 +30,7 @@ jobs:
             'pull_request': {
               'number': int(os.environ['PR_NUMBER']),
               'title': os.environ['PR_TITLE'],
+              'body': os.environ.get('PR_BODY', ''),
               'head': {
                 'ref': os.environ['PR_BRANCH'],
                 'sha': os.environ['PR_SHA']
@@ -42,17 +45,14 @@ jobs:
           }
           print(json.dumps(payload))
           ")
-          HTTP_STATUS=$(curl -s -X POST \
+          HTTP_CODE=$(curl -s -o /tmp/gate_resp.json -w "%{http_code}" \
+            -X POST \
             -H "Content-Type: application/json" \
             -H "x-warp-secret: ${WARP_SECRET}" \
-            -H "User-Agent: warp-gate-ci/1.0" \
             "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \
             -d "${PAYLOAD}" \
-            -o /tmp/gate_response.txt \
-            --max-time 30 \
-            -w "%{http_code}")
-          echo "Gate webhook response: HTTP $HTTP_STATUS"
-          cat /tmp/gate_response.txt || true
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "Warning: Gate webhook returned HTTP $HTTP_STATUS — check gate manually"
-          fi
+            --max-time 30)
+          echo "Gate webhook HTTP: ${HTTP_CODE}"
+          cat /tmp/gate_resp.json || true
+          # Always exit 0 — gate handles its own state
+          exit 0
