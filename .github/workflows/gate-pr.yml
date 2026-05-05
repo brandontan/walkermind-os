@@ -1,4 +1,4 @@
-name: WARP Gate — PR Review Pipeline
+name: WARP Gate -- PR Review Pipeline
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   gate-webhook:
-    name: Trigger WARP\ud83d\udd39CMD Gate
+    name: Trigger WARP CMD Gate
     runs-on: ubuntu-latest
     if: startsWith(github.head_ref, 'WARP/')
     steps:
@@ -15,7 +15,6 @@ jobs:
           WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BRANCH: ${{ github.head_ref }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
@@ -29,7 +28,6 @@ jobs:
             'pull_request': {
               'number': int(os.environ['PR_NUMBER']),
               'title': os.environ['PR_TITLE'],
-              'body': os.environ.get('PR_BODY', ''),
               'head': {
                 'ref': os.environ['PR_BRANCH'],
                 'sha': os.environ['PR_SHA']
@@ -44,10 +42,19 @@ jobs:
           }
           print(json.dumps(payload))
           ")
-          curl -s -X POST \
-            -H "Content-Type: application/json" \
-            -H "x-warp-secret: ${WARP_SECRET}" \
-            "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \
-            -d "${PAYLOAD}" \
-            --max-time 30 \
-            -o /dev/null || echo "gate-webhook: delivery attempted (non-blocking)"
+          HTTP_STATUS=$(curl -s -X POST \\
+            -H "Content-Type: application/json" \\
+            -H "x-warp-secret: ${WARP_SECRET}" \\
+            -H "User-Agent: warp-gate-ci/1.0" \\
+            "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \\
+            -d "${PAYLOAD}" \\
+            -o /tmp/gate_response.txt \\
+            --max-time 30 \\
+            -w "%{http_code}")
+          cat /tmp/gate_response.txt || true
+          echo "Gate webhook HTTP: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Gate notified OK"
+          else
+            echo "Warning: gate returned $HTTP_STATUS"
+          fi
