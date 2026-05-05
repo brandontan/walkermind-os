@@ -68,18 +68,35 @@ async def ping() -> bool:
 
 
 async def is_kill_switch_active() -> bool:
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT active FROM kill_switch ORDER BY id DESC LIMIT 1"
-        )
-        return bool(row and row["active"])
+    """Compatibility wrapper around the R12f kill-switch domain module.
+
+    R12f introduced ``system_settings.kill_switch_active`` as the single
+    source of truth (cached 30s on the hot path). Existing callers
+    (``api/admin.py``, the legacy admin inline-keyboard callback) keep
+    working through this wrapper without bypassing the cache or the
+    history table.
+    """
+    from .domain.ops.kill_switch import is_active as _is_active
+
+    return await _is_active()
 
 
 async def set_kill_switch(active: bool, reason: str | None, changed_by) -> None:
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO kill_switch (active, reason, changed_by) VALUES ($1, $2, $3)",
-            active, reason, changed_by,
-        )
+    """Compatibility wrapper that routes through ops.kill_switch.set_active.
+
+    The legacy ``kill_switch`` table is no longer authoritative — flips
+    persist to ``system_settings`` and a row is appended to
+    ``kill_switch_history``. ``changed_by`` is preserved as the actor id
+    when it is an int-like (Telegram user id); otherwise it is dropped.
+    """
+    from .domain.ops.kill_switch import set_active
+
+    actor_id: int | None = None
+    if isinstance(changed_by, int):
+        actor_id = changed_by
+
+    await set_active(
+        action="pause" if active else "resume",
+        actor_id=actor_id,
+        reason=reason,
+    )

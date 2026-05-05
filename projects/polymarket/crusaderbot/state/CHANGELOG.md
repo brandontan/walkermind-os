@@ -1,3 +1,5 @@
+2026-05-05 19:10 UTC | WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD | R12f operator dashboard built: /ops_dashboard, /killswitch (pause|resume|lock), /jobs, /auditlog. New domain.ops.kill_switch (30s cached non-blocking is_active), domain.ops.job_tracker + APScheduler listener, migration 007_ops.sql (system_settings + kill_switch_history + job_runs, idempotent). Risk gate step [1] now reads via the cached module; legacy database.is_kill_switch_active delegates. Operator-only gate (silent reject). 51 new tests, 140/140 suite green. Tier: STANDARD. Claim: OPERATOR TOOLING ONLY.
+
 2026-05-05 07:49 UTC | #869 feat(crusaderbot): R12e auto-redeem system — 7f8af0b90993 | SENTINEL APPROVED 92/100, 0 critical. NARROW INTEGRATION: instant+hourly workers, redeem_queue, Settings UI, 87/87 tests. EXECUTION_PATH_VALIDATED gate maintained.
 
 ---

@@ -8,8 +8,9 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from ...database import get_pool, is_kill_switch_active
+from ...database import get_pool
 from ...wallet.ledger import daily_pnl, get_balance
+from ..ops.kill_switch import is_active as kill_switch_is_active
 from . import constants as K
 
 logger = logging.getLogger(__name__)
@@ -146,8 +147,9 @@ async def evaluate(ctx: GateContext) -> GateResult:
     settings = get_settings()
     profile = K.profile_or_default(ctx.risk_profile)
 
-    # 1. Kill switch
-    if await is_kill_switch_active():
+    # 1. Kill switch — read goes through the domain module so we hit the
+    # 30s in-process cache instead of the DB on every signal evaluation.
+    if await kill_switch_is_active():
         await _log(ctx.user_id, ctx.market_id, 1, False, "kill_switch_active")
         return GateResult(False, "kill_switch_active", 1)
     await _log(ctx.user_id, ctx.market_id, 1, True, "ok")
