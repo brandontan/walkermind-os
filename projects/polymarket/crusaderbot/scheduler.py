@@ -6,6 +6,10 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+import asyncio
+from apscheduler.events import (
+    EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, EVENT_JOB_SUBMITTED,
+)
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from . import audit, notifications
@@ -13,6 +17,7 @@ from .config import get_settings
 from .database import get_pool
 from .domain.execution import exit_watcher
 from .domain.execution.router import execute as router_execute
+from .domain.ops import job_tracker
 from .domain.risk.gate import GateContext, evaluate
 from .domain.signal.copy_trade import CopyTradeStrategy
 from .integrations import polygon, polymarket
@@ -396,6 +401,51 @@ async def sweep_deposits() -> None:
     logger.info("sweep_deposits: %s deposits marked", n)
 
 
+def _job_tracker_listener(event) -> None:
+    """APScheduler listener that mirrors job outcomes into ``job_runs``.
+
+    Three event classes feed into a single sink:
+      * EVENT_JOB_SUBMITTED - capture a wallclock start so duration is
+        accurate even when ``scheduled_run_time`` is shifted by a misfire.
+      * EVENT_JOB_EXECUTED  - happy-path terminal event.
+      * EVENT_JOB_ERROR     - failure terminal event with exception text.
+
+    The DB write is dispatched onto the running event loop because
+    APScheduler invokes listeners synchronously. ``call_soon_threadsafe``
+    is used defensively in case APScheduler ever upgrades to a thread
+    pool — today the AsyncIO scheduler runs listeners on the loop thread.
+    """
+    if event.code == EVENT_JOB_SUBMITTED:
+        job_tracker.mark_job_submitted(event.job_id)
+        return
+    success = event.code == EVENT_JOB_EXECUTED
+    err = None
+    if not success:
+        exc = getattr(event, "exception", None)
+        if exc is not None:
+            err = f"{type(exc).__name__}: {exc}"
+    # Pop the start timestamp SYNCHRONOUSLY here so the next SUBMITTED
+    # event for the same job_id cannot overwrite it before our
+    # create_task'd record_job_event reads it. This closes the race
+    # Codex flagged on PR #874 (job_tracker.py:34).
+    started_at = job_tracker.pop_job_start(event.job_id)
+    coro = job_tracker.record_job_event(
+        job_id=event.job_id, success=success, error=err,
+        started_at=started_at,
+    )
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop (shouldn't happen with AsyncIOScheduler) — fire
+        # a fresh task so the write still lands.
+        try:
+            asyncio.run(coro)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("job_runs sync write failed: %s", exc)
+        return
+    loop.create_task(coro)
+
+
 def setup_scheduler() -> AsyncIOScheduler:
     s = get_settings()
     sched = AsyncIOScheduler(timezone=s.TIMEZONE)
@@ -412,4 +462,8 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(check_resolutions, "interval", seconds=s.RESOLUTION_CHECK_INTERVAL,
                   id="resolution", max_instances=1, coalesce=True)
     sched.add_job(sweep_deposits, "cron", hour=3, id="sweep", max_instances=1)
+    sched.add_listener(
+        _job_tracker_listener,
+        EVENT_JOB_SUBMITTED | EVENT_JOB_EXECUTED | EVENT_JOB_ERROR,
+    )
     return sched

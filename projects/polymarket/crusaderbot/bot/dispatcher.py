@@ -44,6 +44,11 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("emergency", emergency.emergency_root))
     app.add_handler(CommandHandler("admin", admin.admin_root))
     app.add_handler(CommandHandler("allowlist", admin.allowlist_command))
+    # R12f operator dashboard / ops plane.
+    app.add_handler(CommandHandler("ops_dashboard", admin.ops_dashboard_command))
+    app.add_handler(CommandHandler("killswitch", admin.killswitch_command))
+    app.add_handler(CommandHandler("jobs", admin.jobs_command))
+    app.add_handler(CommandHandler("auditlog", admin.auditlog_command))
 
     # Callback queries
     app.add_handler(CallbackQueryHandler(wallet.wallet_callback, pattern=r"^wallet:"))
@@ -66,6 +71,8 @@ def register(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(emergency.emergency_callback,
                                          pattern=r"^emergency:"))
     app.add_handler(CallbackQueryHandler(admin.admin_callback,  pattern=r"^admin:"))
+    app.add_handler(CallbackQueryHandler(admin.ops_dashboard_callback,
+                                         pattern=r"^ops:"))
 
     # Free text — must be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))
