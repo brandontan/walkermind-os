@@ -15,6 +15,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from ... import audit
+from . import fallback
 from . import live as live_engine
 from . import paper as paper_engine
 from .live import LivePostSubmitError, LivePreSubmitError
@@ -56,7 +57,16 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
             )
         except LivePostSubmitError:
             # CLOB order is live on-chain — DO NOT paper-duplicate. Re-raise.
+            # We DO flip the user's mode to paper so the NEXT signal goes
+            # through the paper engine even though this one is reconciled
+            # manually by the operator. The in-flight order itself is not
+            # touched (the close router still routes to live for the open
+            # position the ambiguous submit may have created).
             logger.error("router refusing paper fallback: live order already submitted")
+            try:
+                await fallback.trigger_for_clob_error(user_id)
+            except Exception as fb_exc:  # noqa: BLE001
+                logger.error("post-submit fallback trigger failed: %s", fb_exc)
             raise
         except LivePreSubmitError as exc:
             logger.warning("router live→paper fallback (pre-submit fail): %s", exc)
@@ -65,6 +75,17 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
                               user_id=user_id,
                               payload={"market_id": market_id,
                                        "reason": f"pre_submit:{exc}"})
+            # If the pre-submit failure was the runtime live-trading guard
+            # going dark (operator flipped ENABLE_LIVE_TRADING off mid-flight),
+            # also persist the paper fallback on the user's settings so future
+            # signal scans never re-attempt live until /live_checklist passes.
+            if "ENABLE_LIVE_TRADING=false" in str(exc):
+                try:
+                    await fallback.trigger_for_live_guard_unset(user_id)
+                except Exception as fb_exc:  # noqa: BLE001
+                    logger.error(
+                        "live_guard_unset fallback trigger failed: %s", fb_exc,
+                    )
             return await _paper(
                 user_id, telegram_user_id, market_id, market_question,
                 side, size_usdc, price, idempotency_key, strategy_type,

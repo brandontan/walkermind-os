@@ -10,6 +10,7 @@ from uuid import UUID
 
 from ...database import get_pool
 from ...wallet.ledger import daily_pnl, get_balance
+from ..execution import fallback as live_fallback
 from ..ops.kill_switch import is_active as kill_switch_is_active
 from . import constants as K
 
@@ -151,6 +152,14 @@ async def evaluate(ctx: GateContext) -> GateResult:
     # 30s in-process cache instead of the DB on every signal evaluation.
     if await kill_switch_is_active():
         await _log(ctx.user_id, ctx.market_id, 1, False, "kill_switch_active")
+        # If the user was in live mode when the kill switch tripped, drop
+        # them to paper so the next signal does not retry live the moment
+        # the operator releases the switch. R12 live-to-paper fallback.
+        if ctx.trading_mode == "live":
+            try:
+                await live_fallback.trigger_for_kill_switch_halt(ctx.user_id)
+            except Exception as fb_exc:  # noqa: BLE001
+                logger.error("kill_switch fallback trigger failed: %s", fb_exc)
         return GateResult(False, "kill_switch_active", 1)
     await _log(ctx.user_id, ctx.market_id, 1, True, "ok")
 
@@ -188,6 +197,11 @@ async def evaluate(ctx: GateContext) -> GateResult:
     # 6. Max drawdown
     if await _max_drawdown_breached(ctx.user_id):
         await _log(ctx.user_id, ctx.market_id, 6, False, "max_drawdown_halt")
+        if ctx.trading_mode == "live":
+            try:
+                await live_fallback.trigger_for_drawdown_halt(ctx.user_id)
+            except Exception as fb_exc:  # noqa: BLE001
+                logger.error("drawdown fallback trigger failed: %s", fb_exc)
         return GateResult(False, "max_drawdown_halt", 6)
     await _log(ctx.user_id, ctx.market_id, 6, True, "ok")
 

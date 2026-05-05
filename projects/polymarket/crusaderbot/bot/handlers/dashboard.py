@@ -65,6 +65,15 @@ async def autotrade_toggle_cb(update: Update,
     user, ok = await _ensure(update, Tier.FUNDED)
     if not ok:
         return
+    # When the toggle would enable LIVE auto-trade, defer the flip until
+    # the user types CONFIRM. ``autotrade_toggle_pending_confirm`` returns
+    # True when it has armed the confirmation flow — in that case the
+    # actual ``set_auto_trade`` happens in ``activation.text_input`` after
+    # the user replies. Returns False otherwise (turning OFF, or paper
+    # mode), and we fall through to the normal toggle.
+    from .activation import autotrade_toggle_pending_confirm
+    if await autotrade_toggle_pending_confirm(update, ctx):
+        return
     new_state = not user["auto_trade_on"]
     await set_auto_trade(user["id"], new_state)
     await q.message.reply_text(

@@ -9,7 +9,7 @@ from telegram.ext import (
 )
 
 from .handlers import (
-    admin, copy_trade, dashboard, emergency, onboarding, positions,
+    activation, admin, copy_trade, dashboard, emergency, onboarding, positions,
     settings as settings_handler, setup, wallet,
 )
 from .menus.main import get_menu_route
@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 async def _text_router(update, ctx):
     """Route plain text: first to setup awaiting-prompts, then to menu buttons."""
     if await setup.text_input(update, ctx):
+        return
+    # R12 live-activation: a pending CONFIRM reply for the auto-trade
+    # toggle takes priority over menu-button text routing.
+    if await activation.text_input(update, ctx):
         return
     if update.message is None:
         return
@@ -51,6 +55,12 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("auditlog", admin.auditlog_command))
     # P3b copy-trade strategy command surface.
     app.add_handler(CommandHandler("copytrade", copy_trade.copy_trade_command))
+    # R12 live-activation + daily-summary opt-in.
+    app.add_handler(CommandHandler(
+        "live_checklist", activation.live_checklist_command,
+    ))
+    app.add_handler(CommandHandler("summary_on", activation.summary_on_command))
+    app.add_handler(CommandHandler("summary_off", activation.summary_off_command))
 
     # Callback queries
     app.add_handler(CallbackQueryHandler(wallet.wallet_callback, pattern=r"^wallet:"))

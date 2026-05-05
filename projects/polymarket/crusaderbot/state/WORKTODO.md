@@ -1,13 +1,14 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-06 03:28 Asia/Jakarta
+**Last Updated:** 2026-05-05 23:55 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- No active lanes. Next: P3c -- Signal Following strategy.
+- R12 Live Readiness batch (live opt-in checklist + live-to-paper fallback + daily P&L summary) submitted on WARP/CRUSADERBOT-R12-LIVE-READINESS. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
+- After merge: P3c -- Signal Following strategy.
 
 ---
 
@@ -31,10 +32,10 @@ Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wi
 - [x] R12d -- Telegram Position UX (live monitor + per-position force close) -- DONE (PR #868 merged)
 - [x] R12e -- Auto-Redeem System -- DONE (PR #869 merged, MAJOR, SENTINEL CONDITIONAL 64/100 -- conditions resolved PR #879)
 - [x] R12f -- Operator Dashboard + Kill Switch + Job Monitor -- DONE (PR #874 merged 2026-05-05, STANDARD)
-- [ ] R12d -- Live Opt-In Checklist -- NOT STARTED (MAJOR -- hard gate before EXE)
-- [ ] R12e -- Live to Paper Auto-Fallback -- NOT STARTED (MAJOR)
-- [ ] R12f -- Daily P&L Summary -- NOT STARTED (STANDARD)
-- [ ] R12 -- Deployment (Fly.io) final -- NOT STARTED (MAJOR -- blocked on P3 complete + all R12 done + activation guards reviewed)
+- [x] R12 Live Readiness -- Live Opt-In Checklist (8 gates + audit + /live_checklist + CONFIRM dialog) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
+- [x] R12 Live Readiness -- Live to Paper Auto-Fallback (router + risk gate + kill switch lock cascade) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
+- [x] R12 Live Readiness -- Daily P&L Summary (cron 23:00 Jakarta + /summary_on /summary_off) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
+- [ ] R12 -- Deployment (Fly.io) final -- NOT STARTED (MAJOR -- blocked on P3c/P3d + activation guards reviewed)
 
 Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD before final deployment.
 
