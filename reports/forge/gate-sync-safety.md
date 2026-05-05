@@ -24,8 +24,8 @@ The section documents three rules to prevent silent data-destruction commits in 
 
 2. **Safe write pattern** — Python file I/O via `/tmp/` file instead of bash heredoc pipelines.
    Bash heredoc chained to Python (`python3 << ... <<< "$VAR"`) swallows subprocess errors silently
-   and can produce 0-byte output. The safe pattern reads back the written file and asserts non-empty
-   before encoding and committing.
+   and can produce 0-byte output. The safe pattern reads back the written file and raises ValueError
+   on empty or too-small content before encoding and committing.
 
 3. **Unicode escape rule** — `\U000XXXXX` (8 hex digits) not `\u{XXXXX}` (brace form).
    The brace form is not valid Python syntax; a SyntaxError in an f-string inside a heredoc pipeline

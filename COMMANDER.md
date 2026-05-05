@@ -1065,9 +1065,11 @@ with open('/tmp/state_update.md', 'w', encoding='utf-8') as f:
 with open('/tmp/state_update.md', 'r', encoding='utf-8') as f:
     verified = f.read()
 
-assert len(verified) > 100, "Content guard failed — abort PUT"
+if len(verified) <= 100:
+    raise ValueError("Content guard failed — abort PUT")
 encoded = base64.b64encode(verified.encode('utf-8')).decode('ascii')
-assert len(encoded) > 0, "Encoded guard failed — abort PUT"
+if len(encoded) == 0:
+    raise ValueError("Encoded guard failed — abort PUT")
 ```
 
 Never chain Python output through bash heredoc pipelines (`python3 << ... <<< "$VAR"`).
