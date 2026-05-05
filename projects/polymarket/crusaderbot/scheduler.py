@@ -424,8 +424,14 @@ def _job_tracker_listener(event) -> None:
         exc = getattr(event, "exception", None)
         if exc is not None:
             err = f"{type(exc).__name__}: {exc}"
+    # Pop the start timestamp SYNCHRONOUSLY here so the next SUBMITTED
+    # event for the same job_id cannot overwrite it before our
+    # create_task'd record_job_event reads it. This closes the race
+    # Codex flagged on PR #874 (job_tracker.py:34).
+    started_at = job_tracker.pop_job_start(event.job_id)
     coro = job_tracker.record_job_event(
         job_id=event.job_id, success=success, error=err,
+        started_at=started_at,
     )
     try:
         loop = asyncio.get_running_loop()

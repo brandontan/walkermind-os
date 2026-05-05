@@ -20,18 +20,32 @@ logger = logging.getLogger(__name__)
 # callback so the listener can compute duration without depending on
 # APScheduler's internal scheduled_run_time vs. wallclock skew. Keys are
 # job ids; values are aware UTC datetimes.
+#
+# The listener pops this value SYNCHRONOUSLY on EVENT_JOB_EXECUTED /
+# EVENT_JOB_ERROR and forwards it as a parameter to ``record_job_event``
+# (which is dispatched via ``loop.create_task``). The synchronous pop
+# avoids a race where a fresh SUBMITTED event for the same job_id
+# overwrites the slot before the prior completion's create_task gets to
+# read it — APScheduler's ``max_instances=1, coalesce=True`` only
+# guarantees serial execution; the EVENT delivery + create_task
+# scheduling boundary is still racy.
 _started_at: dict[str, datetime] = {}
 
 
 def mark_job_submitted(job_id: str) -> None:
-    """Record the wallclock start of a job execution.
-
-    Called from a scheduler ``EVENT_JOB_SUBMITTED`` listener so that
-    ``record_job_event`` can compute an accurate duration even when
-    APScheduler's ``scheduled_run_time`` is shifted by misfires or
-    coalescing.
-    """
+    """Record the wallclock start of a job execution."""
     _started_at[job_id] = datetime.now(timezone.utc)
+
+
+def pop_job_start(job_id: str) -> Optional[datetime]:
+    """Synchronous pop of the SUBMITTED-time wallclock for a job id.
+
+    Returned to the scheduler listener so the start timestamp is
+    captured at EXECUTED-event delivery (before the next SUBMITTED can
+    overwrite the slot). The returned value is then passed into
+    ``record_job_event`` as the ``started_at`` parameter.
+    """
+    return _started_at.pop(job_id, None)
 
 
 async def record_job_event(
@@ -49,7 +63,16 @@ async def record_job_event(
     row size; the operator dashboard further truncates to 80 chars when
     rendering.
     """
-    started = started_at or _started_at.pop(job_id, None) or datetime.now(timezone.utc)
+    # ``started_at`` is normally captured synchronously by the scheduler
+    # listener via ``pop_job_start`` to defeat the SUBMITTED-overwrite
+    # race. We still fall back to the dict + wallclock so a direct
+    # caller (e.g. unit tests, or a future code path) that omits the
+    # parameter degrades gracefully rather than crashing.
+    started = (
+        started_at
+        or _started_at.pop(job_id, None)
+        or datetime.now(timezone.utc)
+    )
     finished = finished_at or datetime.now(timezone.utc)
     status = "success" if success else "failed"
     err = (error or "")[:500] if not success else None

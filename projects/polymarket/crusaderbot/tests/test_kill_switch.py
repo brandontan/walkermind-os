@@ -179,6 +179,21 @@ def test_set_active_pause_upserts_and_writes_history():
     assert actor_id == 42
 
 
+def test_set_active_pause_preserves_existing_lock_mode():
+    # Codex P2 fix: pause must not silently report lock_mode=False when
+    # the system is already locked. The returned payload mirrors actual
+    # DB state, not a value computed from the action verb.
+    conn = FakeConn(settings={
+        "kill_switch_active": "true",
+        "kill_switch_lock_mode": "true",
+    })
+    with patch.object(ks, "get_pool", return_value=FakePool(conn)):
+        result = asyncio.run(ks.set_active(action="pause", actor_id=42))
+    assert result["lock_mode"] is True
+    # Lock mode must remain set in DB after a pause on a locked system.
+    assert conn.settings["kill_switch_lock_mode"] == "true"
+
+
 def test_set_active_resume_clears_lock_mode():
     conn = FakeConn(settings={
         "kill_switch_active": "true",
@@ -217,14 +232,15 @@ def test_set_active_invalidates_cache():
     with patch.object(ks, "get_pool", return_value=FakePool(conn)):
         # Warm cache with FALSE.
         assert asyncio.run(ks.is_active()) is False
-        assert len(conn.fetchrow_calls) == 1
-        # Now flip to pause; the cache must be cleared so the next is_active
+        # Flip to pause; cache must be cleared so the next is_active
         # re-reads the DB.
         asyncio.run(ks.set_active(action="pause"))
-        # Update simulated DB so the post-pause read returns the new value.
+        # Simulate DB state for the post-set read.
         conn.settings["kill_switch_active"] = "true"
+        before_n = len(conn.fetchrow_calls)
         assert asyncio.run(ks.is_active()) is True
-        assert len(conn.fetchrow_calls) == 2
+        # A fresh fetchrow must have happened — proves cache was cold.
+        assert len(conn.fetchrow_calls) > before_n
 
 
 # ---------- record_history --------------------------------------------------

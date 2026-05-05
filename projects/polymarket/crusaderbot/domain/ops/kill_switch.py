@@ -214,6 +214,8 @@ async def set_active(
 
     pool = get_pool()
     users_disabled = 0
+    new_active = False
+    new_lock = False
     async with pool.acquire() as conn:
         async with conn.transaction():
             if action == ACTION_PAUSE:
@@ -243,10 +245,16 @@ async def set_active(
             await record_history(
                 conn, action=action, actor_id=actor_id, reason=reason,
             )
+            # Read both flags back inside the transaction so the returned
+            # payload mirrors actual DB state. ``pause`` intentionally
+            # leaves lock_mode untouched, so a pause on an already-locked
+            # system must report lock_mode=true — computing the value
+            # from ``action`` alone would mis-report the audit payload
+            # written by the caller.
+            new_active = await _fetch_flag(conn, "kill_switch_active")
+            new_lock = await _fetch_flag(conn, "kill_switch_lock_mode")
 
     invalidate_cache()
-    new_active = action in (ACTION_PAUSE, ACTION_LOCK)
-    new_lock = action == ACTION_LOCK
     return {
         "active": new_active,
         "lock_mode": new_lock,
