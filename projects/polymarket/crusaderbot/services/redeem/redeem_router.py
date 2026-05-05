@@ -487,6 +487,13 @@ async def release_back_to_pending(
     When ``increment_failure`` is true, ``failure_count`` is bumped and
     ``last_error`` is recorded. Returns the post-update failure_count so
     the caller (hourly worker) can decide whether to page the operator.
+
+    The UPDATE is gated on ``status='processing'``: a delayed worker
+    whose claim was reaped (and the row subsequently re-claimed and
+    settled to ``done`` by another worker) must NOT flip the terminal
+    row back to ``pending`` and must NOT increment failure_count. Such a
+    delayed call returns 0 — the row is already settled, no false
+    persistent-failure alert is emitted.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -494,13 +501,15 @@ async def release_back_to_pending(
             row = await conn.fetchrow(
                 "UPDATE redeem_queue SET status='pending', "
                 "failure_count = failure_count + 1, last_error=$2 "
-                "WHERE id=$1 RETURNING failure_count",
+                "WHERE id=$1 AND status='processing' "
+                "RETURNING failure_count",
                 queue_id, (error or "")[:500],
             )
         else:
             row = await conn.fetchrow(
                 "UPDATE redeem_queue SET status='pending' "
-                "WHERE id=$1 RETURNING failure_count",
+                "WHERE id=$1 AND status='processing' "
+                "RETURNING failure_count",
                 queue_id,
             )
     return int(row["failure_count"]) if row else 0
