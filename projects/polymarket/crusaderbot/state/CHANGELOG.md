@@ -1,8 +1,8 @@
 ---
-# CHANGELOG
-# Lane closure and change history (CrusaderBot — projects/polymarket/crusaderbot)
-# Format: YYYY-MM-DD HH:MM | branch | summary
----
+## 2026-05-05 05:04 UTC — gate: post-merge sync PR #868 [warp-gate[bot]]
+
+feat(crusaderbot): R12d telegram position UX merged (#868) — commit 4f5e12201964. Live position monitor (Positions menu): CLOB midpoint mark price (3s cap), unrealized P&L, applied TP/SL. Per-position Force Close: Tier 3 gate, confirmation dialog, ownership-checked DB marker. 20 new tests. Delegates to R12c exit watcher. STANDARD | NARROW INTEGRATION.
+
 
 2026-05-05 19:45 | WARP/CRUSADERBOT-R12C-EXIT-WATCHER | R12c exit watcher: per-position async worker with priority chain (force_close_intent > tp_hit > sl_hit > strategy_exit > hold), applied_tp_pct/applied_sl_pct snapshot fields with DB-trigger immutability + frozen registry dataclass, close-with-retry helper (1 retry, 5s backoff), close_failure_count tracking + persistent-failure operator alert, five user-side alerts (TP/SL/force-close/strategy-exit/close-failed), migration 005 idempotent (ADD COLUMN IF NOT EXISTS + DO $$ pg_trigger guards + backfill from legacy tp_pct/sl_pct/force_close), emergency.pause_close migrated to position registry, scheduler.check_exits delegates to exit_watcher.run_once. 22 new tests pass, 49/49 total, ruff clean. Tier: MAJOR. Claim: FULL RUNTIME INTEGRATION.
 
