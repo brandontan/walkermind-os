@@ -11,51 +11,59 @@ jobs:
     if: startsWith(github.head_ref, 'WARP/')
     steps:
       - name: Send PR event to WARP gate_webhook
-        continue-on-error: true
         env:
           WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BRANCH: ${{ github.head_ref }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_ACTION: ${{ github.event.action }}
           PR_REPO: ${{ github.repository }}
         run: |
-          PAYLOAD=$(python3 -c "
-          import json, os
+          python3 << 'EOF'
+          import os, json, urllib.request, urllib.error
+
+          ENDPOINT = "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
+
           payload = {
-            'action': os.environ['PR_ACTION'],
-            'pull_request': {
-              'number': int(os.environ['PR_NUMBER']),
-              'title': os.environ['PR_TITLE'],
-              'head': {
-                'ref': os.environ['PR_BRANCH'],
-                'sha': os.environ['PR_SHA']
+              "action": os.environ["PR_ACTION"],
+              "pull_request": {
+                  "number": int(os.environ.get("PR_NUMBER", "0")),
+                  "title":  os.environ.get("PR_TITLE", ""),
+                  "body":   os.environ.get("PR_BODY", ""),
+                  "head": {
+                      "ref": os.environ.get("PR_BRANCH", ""),
+                      "sha": os.environ.get("PR_SHA", ""),
+                  },
+                  "user": {
+                      "login": os.environ.get("PR_AUTHOR", ""),
+                  },
               },
-              'user': {
-                'login': os.environ['PR_AUTHOR']
-              }
-            },
-            'repository': {
-              'full_name': os.environ['PR_REPO']
-            }
+              "repository": {
+                  "full_name": os.environ.get("PR_REPO", ""),
+              },
           }
-          print(json.dumps(payload))
-          ")
-          HTTP_STATUS=$(curl -s -X POST \\
-            -H "Content-Type: application/json" \\
-            -H "x-warp-secret: ${WARP_SECRET}" \\
-            -H "User-Agent: warp-gate-ci/1.0" \\
-            "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \\
-            -d "${PAYLOAD}" \\
-            -o /tmp/gate_response.txt \\
-            --max-time 30 \\
-            -w "%{http_code}")
-          cat /tmp/gate_response.txt || true
-          echo "Gate webhook HTTP: $HTTP_STATUS"
-          if [ "$HTTP_STATUS" = "200" ]; then
-            echo "Gate notified OK"
-          else
-            echo "Warning: gate returned $HTTP_STATUS"
-          fi
+
+          data = json.dumps(payload).encode("utf-8")
+          req = urllib.request.Request(
+              ENDPOINT,
+              data=data,
+              headers={
+                  "Content-Type":  "application/json",
+                  "x-warp-secret": os.environ["WARP_SECRET"],
+                  "User-Agent":    "WalkerMind-WARP-CMD/2.0",
+              },
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  print(f"OK {resp.status}: {resp.read().decode()[:200]}")
+          except urllib.error.HTTPError as e:
+              print(f"HTTP {e.code}: {e.read().decode()[:300]}")
+              raise SystemExit(1)
+          except Exception as e:
+              print(f"ERROR: {e}")
+              raise SystemExit(1)
+          EOF
