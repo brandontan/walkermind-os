@@ -16,6 +16,8 @@ from .domain.execution.router import execute as router_execute
 from .domain.risk.gate import GateContext, evaluate
 from .domain.signal.copy_trade import CopyTradeStrategy
 from .integrations import polygon, polymarket
+from .services.redeem import hourly_worker as redeem_hourly_worker
+from .services.redeem import redeem_router
 from .users import set_tier
 from .wallet import ledger
 from .wallet.vault import get_wallet
@@ -355,259 +357,29 @@ async def check_exits() -> None:
 
 
 # ---------------- Resolution + redeem ----------------
+# Detection, dispatch, and settlement live in services.redeem.
+# These wrappers preserve the long-standing scheduler entry points so the
+# APScheduler job table does not have to change when the implementation
+# moves out of this module.
 
 async def check_resolutions() -> None:
-    """Detect newly-resolved markets and trigger instant-redeem for opted-in users."""
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT DISTINCT p.market_id FROM positions p
-              JOIN markets m ON m.id = p.market_id
-             WHERE p.redeemed = FALSE
-               AND m.resolved = FALSE
-               AND ((p.status = 'open')
-                    OR (p.status = 'closed'
-                        AND m.resolution_at IS NOT NULL
-                        AND m.resolution_at < NOW()))
-            """
-        )
-    newly_resolved: list[str] = []
-    for r in rows:
-        try:
-            m = await polymarket.get_market(r["market_id"])
-            if not m or not m.get("closed"):
-                continue
-            outcomes = m.get("outcomePrices") or [0.5, 0.5]
-            winning = "yes" if float(outcomes[0]) > 0.5 else "no"
-            async with pool.acquire() as conn:
-                changed = await conn.fetchval(
-                    "UPDATE markets SET status='resolved', resolved=TRUE, "
-                    "winning_side=$2 WHERE id=$1 AND resolved=FALSE RETURNING id",
-                    r["market_id"], winning,
-                )
-            if changed:
-                newly_resolved.append(r["market_id"])
-        except Exception as exc:
-            logger.error("resolution check failed for %s: %s",
-                         r["market_id"], exc)
-    for mid in newly_resolved:
-        try:
-            await _instant_redeem_for_market(mid)
-        except Exception as exc:
-            logger.error("instant redeem dispatch failed for %s: %s", mid, exc)
+    """Drive the redeem router's resolution scan for one tick.
 
-
-async def _instant_redeem_for_market(market_id: str) -> None:
-    """R10: settle positions immediately for users with auto_redeem_mode='instant'.
-
-    Live positions are gated by an on-chain gas-spike guard; if gas is above
-    INSTANT_REDEEM_GAS_GWEI_MAX (or the gas read fails), they are deferred to
-    the hourly queue. Paper positions never need a gas check.
+    Detection + per-position classification (winners → redeem_queue,
+    instant-mode dispatch; losers → settle inline) lives in
+    ``services.redeem.redeem_router``. This wrapper only exists so the
+    APScheduler job id ``resolution`` keeps pointing at the same callable.
     """
-    s = get_settings()
-    if not s.AUTO_REDEEM_ENABLED:
-        return
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT p.*, m.winning_side, u.telegram_user_id, us.auto_redeem_mode
-              FROM positions p
-              JOIN markets m ON m.id = p.market_id
-              JOIN users u ON u.id = p.user_id
-              JOIN user_settings us ON us.user_id = p.user_id
-             WHERE p.market_id = $1
-               AND p.redeemed = FALSE
-               AND m.resolved = TRUE
-               AND us.auto_redeem_mode = 'instant'
-            """,
-            market_id,
-        )
-    if not rows:
-        return
-    gas_ok: bool | None = None  # cached gas decision per dispatch
-    for p in rows:
-        pd = dict(p)
-        try:
-            if pd["mode"] == "live" and pd["status"] == "open":
-                if gas_ok is None:
-                    try:
-                        gwei = await polygon.gas_price_gwei()
-                        gas_ok = gwei <= s.INSTANT_REDEEM_GAS_GWEI_MAX
-                        if not gas_ok:
-                            logger.warning(
-                                "instant redeem gas-spike defer: %.1f gwei > %.1f — "
-                                "hourly queue will retry",
-                                gwei, s.INSTANT_REDEEM_GAS_GWEI_MAX,
-                            )
-                    except Exception as exc:
-                        logger.error("instant redeem gas read failed: %s — "
-                                     "deferring live closes to hourly queue", exc)
-                        gas_ok = False
-                if not gas_ok:
-                    continue  # paper still proceeds; live waits for hourly retry
-            await _redeem_position(pd)
-        except Exception as exc:
-            logger.error("instant redeem failed for %s: %s", pd["id"], exc)
+    await redeem_router.detect_resolutions()
 
 
 async def redeem_hourly() -> None:
-    """Hourly catch-up: settle every redeemable position regardless of mode setting."""
-    s = get_settings()
-    if not s.AUTO_REDEEM_ENABLED:
-        return
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT p.*, m.winning_side, u.telegram_user_id
-              FROM positions p
-              JOIN markets m ON m.id = p.market_id
-              JOIN users u ON u.id = p.user_id
-             WHERE p.redeemed = FALSE
-               AND m.resolved = TRUE
-               AND m.winning_side IS NOT NULL
-            """
-        )
-    if not rows:
-        return
-    for p in rows:
-        try:
-            await _redeem_position(dict(p))
-        except Exception as exc:
-            logger.error("redeem failed for %s: %s", p["id"], exc)
+    """Drive the hourly redeem worker for one cron tick.
 
-
-async def _ensure_live_redemption(market_id: str) -> None:
-    """Submit the on-chain CTF.redeemPositions() tx ONCE per condition.
-
-    All winning user positions in the same market settle internally against
-    the master wallet's recovered USDC. Skips if EXECUTION_PATH_VALIDATED is
-    off (live engine then falls back to the internal-payout path only —
-    losing-side users redeem to 0, winning-side users get their share count
-    credited; redemption tx will be issued later when the operator enables
-    EXECUTION_PATH_VALIDATED and runs admin force-redeem).
+    Drains pending rows in ``redeem_queue`` sequentially and pages the
+    operator at >= 2 consecutive failures on the same row.
     """
-    s = get_settings()
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        market = await conn.fetchrow(
-            "SELECT condition_id FROM markets WHERE id=$1", market_id,
-        )
-    if not market or not market["condition_id"]:
-        logger.warning("live redeem skip: no condition_id for market %s", market_id)
-        return
-    cond = market["condition_id"]
-    async with pool.acquire() as conn:
-        existing = await conn.fetchval(
-            "SELECT tx_hash FROM live_redemptions WHERE condition_id=$1", cond,
-        )
-    if existing:
-        return
-    if not s.EXECUTION_PATH_VALIDATED:
-        logger.info("live on-chain redemption deferred (EXECUTION_PATH_VALIDATED=false) "
-                    "for condition %s", cond)
-        return
-    try:
-        result = await polymarket.submit_live_redemption(cond)
-    except Exception as exc:
-        logger.error("live on-chain redemption failed for %s: %s", cond, exc)
-        raise
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO live_redemptions (condition_id, tx_hash, gas_used) "
-            "VALUES ($1, $2, $3) ON CONFLICT (condition_id) DO NOTHING",
-            cond, result["tx_hash"], result.get("gas_used"),
-        )
-    await audit.write(actor_role="bot", action="live_redemption_onchain",
-                      payload={"condition_id": cond,
-                               "tx_hash": result["tx_hash"],
-                               "gas_used": result.get("gas_used")})
-
-
-async def _redeem_position(p: dict) -> None:
-    """Settle a resolved position. Idempotent.
-
-    Accounting model:
-      • status='closed': position was exited before resolution; proceeds were
-        already credited at close time. We ONLY mark redeemed=true. Crediting
-        anything here would be a double-pay (the round-3 review bug).
-      • status='open': pay the terminal value of the held shares directly to
-        the user's internal ledger (winners: shares * 1 USDC, losers: 0).
-        For LIVE positions, also trigger the master-wallet on-chain
-        CTF.redeemPositions() tx via _ensure_live_redemption (deduped per
-        condition).
-    """
-    pool = get_pool()
-    won = p["side"] == p["winning_side"]
-
-    if p["status"] == "closed":
-        async with pool.acquire() as conn:
-            updated = await conn.fetchval(
-                "UPDATE positions SET redeemed=TRUE, redeemed_at=NOW() "
-                "WHERE id=$1 AND redeemed=FALSE RETURNING id",
-                p["id"],
-            )
-        if updated is not None:
-            await audit.write(
-                actor_role="bot", action="redeem_noop_already_closed",
-                user_id=p["user_id"],
-                payload={"position_id": str(p["id"]),
-                         "winning_side": p["winning_side"],
-                         "won": won},
-            )
-        return
-
-    # Open at resolution: live → trigger on-chain redemption (idempotent per condition);
-    # paper → no on-chain side-effect, just credit internally.
-    if p["mode"] == "live":
-        try:
-            await _ensure_live_redemption(p["market_id"])
-        except Exception as exc:
-            logger.error("live redemption could not be guaranteed for %s "
-                         "(internal credit will still post): %s", p["id"], exc)
-
-    shares = Decimal(str(p["size_usdc"])) / Decimal(str(p["entry_price"]))
-    payoff = shares if won else Decimal("0")
-    pnl = payoff - Decimal(str(p["size_usdc"]))
-    exit_price = 1.0 if won else 0.0
-    exit_reason = "resolution_win" if won else "resolution_loss"
-
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            updated = await conn.fetchval(
-                """
-                UPDATE positions
-                   SET status='closed', exit_reason=$2, current_price=$3,
-                       pnl_usdc=$4, closed_at=NOW(),
-                       redeemed=TRUE, redeemed_at=NOW()
-                 WHERE id=$1 AND status='open' AND redeemed=FALSE
-                 RETURNING id
-                """,
-                p["id"], exit_reason, exit_price, pnl,
-            )
-            if updated is None:
-                return
-            if payoff > 0:
-                await ledger.credit_in_conn(
-                    conn, p["user_id"], payoff, ledger.T_REDEEM,
-                    ref_id=p["id"], note=f"resolution payoff {p['winning_side']}",
-                )
-
-    await audit.write(actor_role="bot", action="redeem", user_id=p["user_id"],
-                      payload={"position_id": str(p["id"]),
-                               "winning_side": p["winning_side"],
-                               "won": won,
-                               "shares": str(shares),
-                               "payoff": str(payoff)})
-    if won:
-        msg = (f"🏆 *Redeemed* — winning side `{p['winning_side']}`\n"
-               f"Payoff: *${float(payoff):+.2f}*")
-    else:
-        msg = (f"❌ *Resolved against you* — winning side "
-               f"`{p['winning_side']}`. Position closed at 0.")
-    await notifications.send(p["telegram_user_id"], msg)
+    await redeem_hourly_worker.run_once()
 
 
 async def sweep_deposits() -> None:

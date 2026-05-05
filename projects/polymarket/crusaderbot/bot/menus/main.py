@@ -17,7 +17,10 @@ from typing import Awaitable, Callable
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from ..handlers import dashboard, emergency, onboarding, positions, setup, wallet
+from ..handlers import (
+    dashboard, emergency, onboarding, positions,
+    settings as settings_handler, setup, wallet,
+)
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 
@@ -32,7 +35,7 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     "📋 Activity": dashboard.activity,
     "🛑 Emergency": emergency.emergency_root,
     "ℹ️ Help": onboarding.help_handler,
-    "⚙️ Settings": onboarding.help_handler,
+    "⚙️ Settings": settings_handler.settings_root,
 }
 
 
