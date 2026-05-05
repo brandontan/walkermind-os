@@ -8,7 +8,10 @@ from telegram.ext import (
     Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters,
 )
 
-from .handlers import admin, dashboard, emergency, onboarding, positions, setup, wallet
+from .handlers import (
+    admin, dashboard, emergency, onboarding, positions,
+    settings as settings_handler, setup, wallet,
+)
 from .menus.main import get_menu_route
 
 logger = logging.getLogger(__name__)
@@ -50,6 +53,8 @@ def register(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(setup.set_category,    pattern=r"^set_cat:"))
     app.add_handler(CallbackQueryHandler(setup.set_mode,        pattern=r"^set_mode:"))
     app.add_handler(CallbackQueryHandler(setup.set_redeem_mode, pattern=r"^set_redeem:"))
+    app.add_handler(CallbackQueryHandler(settings_handler.settings_callback,
+                                         pattern=r"^settings:"))
     app.add_handler(CallbackQueryHandler(dashboard.autotrade_toggle_cb,
                                          pattern=r"^autotrade:"))
     app.add_handler(CallbackQueryHandler(dashboard.close_position_cb,
