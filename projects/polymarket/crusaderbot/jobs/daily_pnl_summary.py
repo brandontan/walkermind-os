@@ -139,14 +139,16 @@ async def _fetch_user_summary_row(user_id: UUID) -> dict:
         current = Decimal(p["current_price"] or 0)
         if entry <= 0 or current <= 0:
             continue
-        if p["side"] == "yes":
-            ret = (current - entry) / entry
-        else:
-            comp_entry = Decimal(1) - entry
-            comp_current = Decimal(1) - current
-            if comp_entry <= 0:
-                continue
-            ret = (comp_current - comp_entry) / comp_entry
+        # ``positions.entry_price`` and ``positions.current_price`` are
+        # stored side-specific: a NO position holds the NO market price
+        # at entry (set from the strategy's side-specific cand.price)
+        # and the NO mark on every tick (registry.update_current_price
+        # persists the NO-side value via OpenPositionForExit.current_price).
+        # The unrealized P&L is therefore (current - entry) / entry for
+        # both sides — no YES/NO complement reversal. A NO bought at 0.40
+        # and marked at 0.60 yields ret = +0.5 (gain), which matches the
+        # USDC value of the held NO shares.
+        ret = (current - entry) / entry
         unrealized += size * ret
 
     exposure_pct = (

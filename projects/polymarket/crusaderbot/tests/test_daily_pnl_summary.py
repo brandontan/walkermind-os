@@ -214,12 +214,15 @@ def test_build_summary_for_user_assembles_lines():
         balance=100.0,
         mode="paper",
         positions=[
-            # YES side: entry 0.5, current 0.6, size 20 → ret +0.2 → +$4.0
+            # YES position. Entry/current are side-specific (YES price).
+            # entry 0.5, current 0.6, size 20 → ret +0.2 → +$4.0
             {"side": "yes", "size_usdc": Decimal("20"),
              "entry_price": Decimal("0.5"),
              "current_price": Decimal("0.6")},
-            # NO side: entry 0.4, current 0.3, size 10 →
-            # comp_entry=0.6 comp_current=0.7 ret=+0.1666 → +$1.6666...
+            # NO position. Entry/current are side-specific (NO price) —
+            # registry.update_current_price persists the NO mark for NO
+            # rows. Bought NO at 0.4, NO market dropped to 0.3 → loss.
+            # ret = (0.3 - 0.4) / 0.4 = -0.25 → -$2.50
             {"side": "no", "size_usdc": Decimal("10"),
              "entry_price": Decimal("0.4"),
              "current_price": Decimal("0.3")},
@@ -232,8 +235,34 @@ def test_build_summary_for_user_assembles_lines():
     assert "Open positions: `2`" in out
     assert "Exposure      : `30.0%`" in out
     assert "PAPER" in out
-    # Unrealized = $4.00 + $1.67 ≈ $5.67 (Decimal precision dependent)
-    assert "+$5." in out
+    # Unrealized = $4.00 (YES gain) + (-$2.50) (NO loss) = +$1.50
+    assert "+$1.50" in out
+
+
+def test_no_side_unrealized_gain_when_no_price_rises():
+    """Codex P2 regression: a NO position bought at NO=0.40 and marked
+    at NO=0.60 must show an UNREALIZED GAIN, not a loss.
+
+    The previous complement formula treated entry/current as YES-side
+    probabilities and inverted the sign for NO holdings. Prices are
+    actually stored side-specifically (registry.update_current_price
+    persists the NO mark for NO rows), so a direct
+    (current - entry) / entry formula is required for both sides.
+    """
+    conn = _SummaryConn(
+        realized=0.0, fees=0.0, balance=100.0, mode="paper",
+        positions=[
+            # Bought NO at 0.40 with $40 USDC → 100 NO shares.
+            # NO mark rises to 0.60 → shares worth $60 → +$20 gain.
+            {"side": "no", "size_usdc": Decimal("40"),
+             "entry_price": Decimal("0.4"),
+             "current_price": Decimal("0.6")},
+        ],
+    )
+    with patch.object(dp, "get_pool", return_value=_Pool(conn)):
+        out = asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
+    # Expected unrealized = (0.60 - 0.40) / 0.40 * 40 = +$20.00
+    assert "Unrealized P&L: `+$20.00`" in out, out
 
 
 def test_realized_pnl_query_targets_positions_pnl_usdc_not_ledger():
