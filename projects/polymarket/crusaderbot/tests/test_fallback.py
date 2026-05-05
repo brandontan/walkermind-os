@@ -240,6 +240,113 @@ def test_trigger_all_live_users_zero_affected_returns_zero():
     assert out == {"changed": 0}
 
 
+def test_gate_step13_silent_downgrade_triggers_live_guard_unset_fallback():
+    """Codex P1 regression: when the gate silently downgrades a live user
+    to paper because the global activation guards are off, the user's
+    user_settings.trading_mode must NOT remain 'live' — otherwise
+    re-enabling the global flags later resumes live routing without
+    forcing /live_checklist + CONFIRM.
+
+    This test exercises the step-13 ``live_requested_but_guards_failed``
+    branch in :func:`projects.polymarket.crusaderbot.domain.risk.gate.evaluate`
+    and verifies it now invokes ``fallback.trigger_for_live_guard_unset``.
+    """
+    import asyncio as _asyncio
+    from datetime import datetime, timezone
+    from decimal import Decimal as D
+    from uuid import uuid4 as _uuid4
+
+    from projects.polymarket.crusaderbot.domain.risk import gate
+    from projects.polymarket.crusaderbot.domain.risk import constants as K
+
+    user_id = _uuid4()
+
+    class _RiskLogConn:
+        async def execute(self, q, *a):
+            return "OK"
+        async def fetchrow(self, q, *a):
+            return None
+        async def fetchval(self, q, *a):
+            return 0
+
+    class _Acquire:
+        def __init__(self, c): self.c = c
+        async def __aenter__(self): return self.c
+        async def __aexit__(self, *_): return False
+
+    class _Pool:
+        def acquire(self): return _Acquire(_RiskLogConn())
+
+    ctx = gate.GateContext(
+        user_id=user_id,
+        telegram_user_id=42,
+        access_tier=4,
+        auto_trade_on=True,
+        paused=False,
+        market_id="m1",
+        side="yes",
+        proposed_size_usdc=D("10"),
+        proposed_price=0.5,
+        market_liquidity=1_000_000,
+        market_status="active",
+        edge_bps=1000,
+        signal_ts=datetime.now(timezone.utc),
+        idempotency_key="idem-1",
+        strategy_type=next(iter(K.STRATEGY_AVAILABILITY)),
+        risk_profile=K.STRATEGY_AVAILABILITY[
+            next(iter(K.STRATEGY_AVAILABILITY))
+        ][0],
+        daily_loss_override=None,
+        trading_mode="live",
+    )
+
+    class _Settings:
+        # Global activation guards are OFF — the user's configured live
+        # mode must therefore be silently downgraded by step 13.
+        ENABLE_LIVE_TRADING = False
+        EXECUTION_PATH_VALIDATED = False
+        CAPITAL_MODE_CONFIRMED = False
+
+    trigger_calls: list = []
+
+    async def fake_trigger(uid):
+        trigger_calls.append(uid)
+        return {"changed": True, "previous_mode": "live"}
+
+    with patch.object(gate, "get_pool", return_value=_Pool()), \
+         patch.object(gate, "kill_switch_is_active",
+                      AsyncMock(return_value=False)), \
+         patch.object(gate, "daily_pnl",
+                      AsyncMock(return_value=D("0"))), \
+         patch.object(gate, "_max_drawdown_breached",
+                      AsyncMock(return_value=False)), \
+         patch.object(gate, "_open_position_count",
+                      AsyncMock(return_value=0)), \
+         patch.object(gate, "get_balance",
+                      AsyncMock(return_value=D("100"))), \
+         patch.object(gate, "_open_exposure",
+                      AsyncMock(return_value=D("0"))), \
+         patch.object(gate, "_idempotent_already_seen",
+                      AsyncMock(return_value=False)), \
+         patch.object(gate, "_recent_dup_market_trade",
+                      AsyncMock(return_value=False)), \
+         patch.object(gate, "_record_idempotency",
+                      AsyncMock(return_value=None)), \
+         patch("projects.polymarket.crusaderbot.config.get_settings",
+               return_value=_Settings()), \
+         patch.object(gate.live_fallback, "trigger_for_live_guard_unset",
+                      side_effect=fake_trigger):
+        result = _asyncio.run(gate.evaluate(ctx))
+
+    # Gate still approves (downgraded to paper), but the fallback MUST
+    # have fired so the user's persisted trading_mode flips off live.
+    assert result.approved is True
+    assert result.chosen_mode == "paper"
+    assert trigger_calls == [user_id], (
+        "step-13 silent downgrade must trigger live_guard_unset fallback"
+    )
+
+
 def test_trigger_all_live_users_writes_audit_per_user():
     affected = [
         {"user_id": uuid4(), "telegram_user_id": 1001},
