@@ -236,6 +236,14 @@ async def set_active(
                     "  WHERE auto_trade_on=TRUE RETURNING 1"
                     ") SELECT COUNT(*) FROM affected"
                 ) or 0)
+                # R12 live-to-paper cascade: defense-in-depth so that the
+                # operator releasing the kill switch later does NOT silently
+                # leave any user in live mode. Live-mode users must re-run
+                # /live_checklist after a system lock event.
+                await conn.execute(
+                    "UPDATE user_settings SET trading_mode='paper', updated_at=NOW() "
+                    "WHERE trading_mode='live'",
+                )
                 if deactivate_users and users_disabled == 0:
                     # Optional explicit-zero hint kept for symmetry with
                     # callers that want to log a no-op lock action.

@@ -21,6 +21,7 @@ from .domain.ops import job_tracker
 from .domain.risk.gate import GateContext, evaluate
 from .domain.signal.copy_trade import CopyTradeStrategy
 from .integrations import polygon, polymarket
+from .jobs import daily_pnl_summary
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
 from .users import set_tier
@@ -462,6 +463,15 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(check_resolutions, "interval", seconds=s.RESOLUTION_CHECK_INTERVAL,
                   id="resolution", max_instances=1, coalesce=True)
     sched.add_job(sweep_deposits, "cron", hour=3, id="sweep", max_instances=1)
+    # Daily P&L summary fires once per day at 23:00 Asia/Jakarta. The
+    # ``timezone`` argument on the scheduler resolves the local cron tick,
+    # so passing ``hour=23`` here is automatically anchored to Jakarta time
+    # via ``s.TIMEZONE`` regardless of the host's wallclock zone.
+    sched.add_job(
+        daily_pnl_summary.run_job, "cron",
+        hour=23, minute=0,
+        id=daily_pnl_summary.JOB_ID, max_instances=1, coalesce=True,
+    )
     sched.add_listener(
         _job_tracker_listener,
         EVENT_JOB_SUBMITTED | EVENT_JOB_EXECUTED | EVENT_JOB_ERROR,

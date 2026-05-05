@@ -10,6 +10,7 @@ from uuid import UUID
 
 from ...database import get_pool
 from ...wallet.ledger import daily_pnl, get_balance
+from ..execution import fallback as live_fallback
 from ..ops.kill_switch import is_active as kill_switch_is_active
 from . import constants as K
 
@@ -151,6 +152,14 @@ async def evaluate(ctx: GateContext) -> GateResult:
     # 30s in-process cache instead of the DB on every signal evaluation.
     if await kill_switch_is_active():
         await _log(ctx.user_id, ctx.market_id, 1, False, "kill_switch_active")
+        # If the user was in live mode when the kill switch tripped, drop
+        # them to paper so the next signal does not retry live the moment
+        # the operator releases the switch. R12 live-to-paper fallback.
+        if ctx.trading_mode == "live":
+            try:
+                await live_fallback.trigger_for_kill_switch_halt(ctx.user_id)
+            except Exception as fb_exc:  # noqa: BLE001
+                logger.error("kill_switch fallback trigger failed: %s", fb_exc)
         return GateResult(False, "kill_switch_active", 1)
     await _log(ctx.user_id, ctx.market_id, 1, True, "ok")
 
@@ -188,6 +197,11 @@ async def evaluate(ctx: GateContext) -> GateResult:
     # 6. Max drawdown
     if await _max_drawdown_breached(ctx.user_id):
         await _log(ctx.user_id, ctx.market_id, 6, False, "max_drawdown_halt")
+        if ctx.trading_mode == "live":
+            try:
+                await live_fallback.trigger_for_drawdown_halt(ctx.user_id)
+            except Exception as fb_exc:  # noqa: BLE001
+                logger.error("drawdown fallback trigger failed: %s", fb_exc)
         return GateResult(False, "max_drawdown_halt", 6)
     await _log(ctx.user_id, ctx.market_id, 6, True, "ok")
 
@@ -267,6 +281,21 @@ async def evaluate(ctx: GateContext) -> GateResult:
     if ctx.trading_mode == "live" and chosen_mode == "paper":
         await _log(ctx.user_id, ctx.market_id, 13, True,
                    "live_requested_but_guards_failed_falling_back_to_paper")
+        # R12 live-to-paper: when the user is configured for live but the
+        # global activation guards (ENABLE_LIVE_TRADING / EXECUTION_PATH_VALIDATED
+        # / CAPITAL_MODE_CONFIRMED) or Tier 4 are not satisfied, the gate
+        # silently downgrades the chosen mode to paper. Without this
+        # trigger the user's ``user_settings.trading_mode`` would remain
+        # 'live' and re-enabling the global flags later would silently
+        # resume live routing without forcing /live_checklist + CONFIRM.
+        # The fallback is idempotent so firing every signal scan during a
+        # guard-down window is safe (first call flips, rest are no-ops).
+        try:
+            await live_fallback.trigger_for_live_guard_unset(ctx.user_id)
+        except Exception as fb_exc:  # noqa: BLE001
+            logger.error(
+                "live_guard_unset gate fallback trigger failed: %s", fb_exc,
+            )
     await _log(ctx.user_id, ctx.market_id, 13, True, f"approved_{chosen_mode}")
     await _record_idempotency(ctx.user_id, ctx.idempotency_key)
     return GateResult(True, "approved", None, final_size, chosen_mode)

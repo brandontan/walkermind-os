@@ -183,22 +183,19 @@ async def set_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if choice not in ("paper", "live"):
         return
     if choice == "live":
-        from ...config import get_settings as _gs
-        cfg = _gs()
-        blockers = []
-        if user["access_tier"] < 4:
-            blockers.append("Tier 4 not granted")
-        if not cfg.ENABLE_LIVE_TRADING:
-            blockers.append("ENABLE_LIVE_TRADING=false")
-        if not cfg.EXECUTION_PATH_VALIDATED:
-            blockers.append("EXECUTION_PATH_VALIDATED=false")
-        if not cfg.CAPITAL_MODE_CONFIRMED:
-            blockers.append("CAPITAL_MODE_CONFIRMED=false")
-        if blockers:
-            await q.answer(
-                "Live mode locked: " + " · ".join(blockers),
-                show_alert=True,
-            )
+        # Switching trading_mode to 'live' is itself a live-activation
+        # event — for any user with auto_trade_on=true (the common case
+        # after a paper run), the very next signal routes real CLOB
+        # orders. The checklist + CONFIRM dialog must therefore gate
+        # this picker as strictly as the dashboard auto-trade toggle.
+        # ``activation.trading_mode_live_pending_confirm`` runs the full
+        # 8-gate checklist, refuses the switch with a fix list when any
+        # gate fails, and otherwise arms a typed-CONFIRM flow that
+        # writes ``trading_mode='live'`` only after the user replies
+        # CONFIRM. We do NOT call ``update_settings`` here when the
+        # confirmation path is engaged.
+        from .activation import trading_mode_live_pending_confirm
+        if await trading_mode_live_pending_confirm(update, ctx):
             return
     await update_settings(user["id"], trading_mode=choice)
     await q.message.edit_reply_markup(reply_markup=mode_picker(choice))
@@ -266,7 +263,10 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
         elif awaiting == "copy_target":
             await _handle_copy_target_input(update, user, text)
         else:
-            ctx.user_data.pop("awaiting", None)
+            # Unknown awaiting value — could belong to another consumer
+            # (e.g. activation's CONFIRM flow). Do NOT pop it, otherwise
+            # the next consumer in the dispatcher chain would see no
+            # pending state and miss a real reply. Just decline.
             return False
     except Exception as exc:
         logger.warning("setup text input rejected: %s", exc)
