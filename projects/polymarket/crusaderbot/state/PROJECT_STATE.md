@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 19:15 UTC
-Status       : R12e auto-redeem SENTINEL audit complete: APPROVED 94/100, 0 critical, OBS-01 resolved PASS. PR #869 cleared for WARP🔹CMD final merge decision. R12d Telegram position UX PR still open: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX. R12c exit watcher PR still open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required. R12a CI/CD pipeline PR still open. Paper-default.
+Last Updated : 2026-05-05 07:49 UTC
+Status       : R12e auto-redeem MERGED ✔ (PR #869, SHA 7f8af0b90993). SENTINEL APPROVED 92/100, 0 critical. R12c exit watcher (PR #865) CLEAN, awaiting CMD merge. R12a CI/CD PR open. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -17,7 +17,7 @@ Status       : R12e auto-redeem SENTINEL audit complete: APPROVED 94/100, 0 crit
 - R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
 - R12c — Auto-Close / Take-Profit — PR open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required before merge
 - R12d — Telegram Position UX (live position monitor + per-position force close) — PR #868 MERGED (4f5e12201964) — STANDARD tier
-- R12e — Auto-Redeem System (instant + hourly workers + redeem_queue + Settings UI) — PR open: WARP/CRUSADERBOT-R12E-AUTO-REDEEM — MAJOR tier, SENTINEL audit required before merge
+- R12e — Auto-Redeem System (instant + hourly workers + redeem_queue + Settings UI) — PR #869 MERGED (7f8af0b90993) — MAJOR tier, SENTINEL APPROVED 92/100
 
 [NOT STARTED]
 - R12d — Live Opt-In Checklist (MAJOR — hard gate before EXE)
@@ -26,7 +26,7 @@ Status       : R12e auto-redeem SENTINEL audit complete: APPROVED 94/100, 0 crit
 - R12 — Deployment (Fly.io) — final (MAJOR)
 
 [NEXT PRIORITY]
-- WARP🔹CMD final merge decision required for R12e auto-redeem. SENTINEL APPROVED 94/100, 0 critical. Source: projects/polymarket/crusaderbot/reports/sentinel/r12e-auto-redeem.md. Tier: MAJOR. Branch: WARP/CRUSADERBOT-R12E-AUTO-REDEEM.
+- R12c exit watcher (PR #865) CLEAN — WARP🔹CMD merge decision pending. Tier: MAJOR, SENTINEL required. Branch: WARP/CRUSADERBOT-R12C-EXIT-WATCHER.
 - WARP•SENTINEL validation required for R12c exit watcher before merge. Source: projects/polymarket/crusaderbot/reports/forge/r12c-exit-watcher.md. Tier: MAJOR. Branch: WARP/CRUSADERBOT-R12C-EXIT-WATCHER.
 - WARP🔹CMD review required for R12d Telegram position UX. Source: projects/polymarket/crusaderbot/reports/forge/r12d-telegram-position-ux.md. Tier: STANDARD. Branch: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX.
 
