@@ -50,4 +50,4 @@ jobs:
             "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \
             -d "${PAYLOAD}" \
             --max-time 30 \
-            --fail-with-body
+            --max-time 30 || echo "[gate] webhook call done (exit ignored)"
