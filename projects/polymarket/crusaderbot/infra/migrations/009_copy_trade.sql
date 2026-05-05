@@ -11,11 +11,16 @@
 --                        rather than a Postgres constraint exception).
 --   copy_trade_events  — append-only log of leader trades the strategy has
 --                        already mirrored. The UNIQUE constraint on
---                        source_tx_hash is the dedup boundary: the strategy
---                        reads from this table to short-circuit re-emission,
---                        and the downstream consumer that persists rows is
---                        protected by the constraint as a second line of
---                        defence against a race between concurrent scans.
+--                        (copy_target_id, source_tx_hash) is the dedup
+--                        boundary: the strategy reads per-follower so the
+--                        same leader trade may legitimately be mirrored by
+--                        multiple followers (each row has its own
+--                        copy_target_id), while a re-scan for the same
+--                        follower is short-circuited. The downstream
+--                        consumer that persists rows is protected by the
+--                        constraint as a second line of defence against a
+--                        race between concurrent scans for the same
+--                        follower.
 --
 -- Idempotency: every CREATE statement uses IF NOT EXISTS. The migration is
 -- safe to re-run on every startup (matches the 008_strategy_tables.sql and
@@ -50,14 +55,17 @@ CREATE INDEX IF NOT EXISTS idx_copy_targets_user_status
 CREATE TABLE IF NOT EXISTS copy_trade_events (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     copy_target_id      UUID REFERENCES copy_targets(id) ON DELETE CASCADE,
-    source_tx_hash      VARCHAR(66) NOT NULL UNIQUE,
+    source_tx_hash      VARCHAR(66) NOT NULL,
     mirrored_order_id   UUID,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- Per-follower dedup: the same leader trade may be mirrored by every
+    -- follower of the leader, but a single follower must not mirror the
+    -- same leader trade twice. The unique composite index on
+    -- (copy_target_id, source_tx_hash) is the dedup boundary; the prefix
+    -- on copy_target_id also covers the "list a user's mirrored history"
+    -- read pattern, so no extra index is needed.
+    UNIQUE (copy_target_id, source_tx_hash)
 );
 
--- Strategy.scan does an early-exit lookup against the unique index — Postgres
--- already provides one for UNIQUE columns, so no extra index is needed.
-
--- Used by the (future P3d) reporter that lists a user's mirrored history.
-CREATE INDEX IF NOT EXISTS idx_copy_trade_events_target_created
+CREATE INDEX IF NOT EXISTS idx_copy_trade_events_created_at
     ON copy_trade_events (copy_target_id, created_at DESC);

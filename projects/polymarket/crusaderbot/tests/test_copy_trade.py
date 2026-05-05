@@ -425,6 +425,58 @@ def test_scan_emits_signal_for_fresh_buy():
     assert sig.metadata["leader_wallet"] == target_row["target_wallet_address"]
 
 
+def test_already_mirrored_scopes_query_per_follower():
+    """The dedup query must filter on (copy_target_id, source_tx_hash) so the
+    same leader transaction can be mirrored independently by every follower."""
+    from projects.polymarket.crusaderbot.domain.strategy.strategies import (
+        copy_trade as ct_mod,
+    )
+
+    captured: dict = {}
+
+    class _CapturingConn:
+        async def fetchrow(self, sql, *args):
+            captured["sql"] = sql
+            captured["args"] = args
+            return None  # not yet mirrored
+
+    class _CapturingPool:
+        def acquire(self):
+            conn = _CapturingConn()
+
+            class _Ctx:
+                async def __aenter__(self_inner):
+                    return conn
+
+                async def __aexit__(self_inner, *_):
+                    return False
+
+            return _Ctx()
+
+    with patch.object(ct_mod, "get_pool", return_value=_CapturingPool()):
+        out = asyncio.run(
+            ct_mod._already_mirrored(_TARGET_UUID, "0x" + "a" * 64),
+        )
+    assert out is False
+    assert "copy_target_id = $1" in captured["sql"]
+    assert "source_tx_hash = $2" in captured["sql"]
+    # asyncpg coerces the UUID at the protocol layer; the strategy passes the
+    # parsed UUID, not the raw string, so the queries can use the index.
+    assert captured["args"][0] == _TARGET_UUID
+    assert captured["args"][1] == "0x" + "a" * 64
+
+
+def test_already_mirrored_returns_false_on_blank_inputs():
+    from projects.polymarket.crusaderbot.domain.strategy.strategies import (
+        copy_trade as ct_mod,
+    )
+
+    out = asyncio.run(ct_mod._already_mirrored(None, "0xabc"))
+    assert out is False
+    out = asyncio.run(ct_mod._already_mirrored(_TARGET_UUID, ""))
+    assert out is False
+
+
 def test_scan_dedupes_already_mirrored_trades():
     target_row = {
         "id": _TARGET_UUID,

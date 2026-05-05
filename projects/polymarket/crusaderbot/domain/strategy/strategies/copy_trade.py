@@ -105,7 +105,7 @@ class CopyTradeStrategy(BaseStrategy):
                 if ts is None or ts < cutoff:
                     continue
                 tx_hash = trade.get("transactionHash") or trade.get("tx_hash")
-                if not tx_hash or await _already_mirrored(tx_hash):
+                if not tx_hash or await _already_mirrored(target["id"], tx_hash):
                     continue
 
                 side = _normalise_side(trade)
@@ -225,18 +225,26 @@ async def _load_active_copy_targets(user_id: str) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-async def _already_mirrored(source_tx_hash: str) -> bool:
-    """Return True iff the unique source_tx_hash row already exists.
+async def _already_mirrored(copy_target_id: Any, source_tx_hash: str) -> bool:
+    """Return True iff this follower has already mirrored this leader trade.
 
-    Dedup is owned by the `copy_trade_events.source_tx_hash` UNIQUE constraint.
-    The strategy reads here for early-exit; the downstream consumer that
-    persists the row catches the constraint as the second line of defence.
+    Dedup is per-follower: the unique boundary is the composite
+    `(copy_target_id, source_tx_hash)` index on `copy_trade_events`. The same
+    leader transaction may legitimately be mirrored by every follower of the
+    leader (each owns a distinct `copy_target_id`), but a single follower
+    must not double-mirror after a re-scan. The strategy reads here for
+    early-exit; the downstream consumer that persists the row catches the
+    constraint as the second line of defence against a concurrent re-scan.
     """
+    target_uuid = _coerce_uuid(copy_target_id)
+    if target_uuid is None or not source_tx_hash:
+        return False
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT 1 FROM copy_trade_events WHERE source_tx_hash = $1",
-            source_tx_hash,
+            "SELECT 1 FROM copy_trade_events "
+            "WHERE copy_target_id = $1 AND source_tx_hash = $2",
+            target_uuid, source_tx_hash,
         )
     return row is not None
 

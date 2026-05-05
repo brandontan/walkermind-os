@@ -17,7 +17,7 @@ The first concrete `BaseStrategy` consumer of the P3a foundation. Five new modul
 - `services/copy_trade/scaler.py` — pure-arithmetic `scale_size(...)`. Proportional rule + `max_position_pct` cap + `MIN_TRADE_SIZE_USDC=1.0` floor; degenerate inputs return `0.0` (the strategy's "skip" sentinel).
 - `services/copy_trade/wallet_watcher.py` — `fetch_recent_wallet_trades` (5 s `asyncio.wait_for`, process-wide 1 req/s rate limit via `asyncio.Lock` + monotonic stamp, swallow-and-empty on timeout / HTTP / parse error) and `fetch_leader_open_condition_ids` (newest-first walk over Data API trade rows, BUY = still open, SELL = exited).
 - `domain/strategy/registry.py` — extended with `bootstrap_default_strategies(registry=None)` (idempotent, lazy-import to dodge the registry↔strategies cycle).
-- `infra/migrations/009_copy_trade.sql` — `copy_targets` (UNIQUE per `(user_id, target_wallet_address)`) + `copy_trade_events` (UNIQUE on `source_tx_hash` — the dedup boundary).
+- `infra/migrations/009_copy_trade.sql` — `copy_targets` (UNIQUE per `(user_id, target_wallet_address)`) + `copy_trade_events` (UNIQUE composite on `(copy_target_id, source_tx_hash)` — per-follower dedup boundary so the same leader trade may legitimately be mirrored by every follower of the leader).
 - `bot/handlers/copy_trade.py` + `bot/keyboards/copy_trade.py` — `/copytrade add|remove|list` with Tier 2 gate, hard cap of 3 active rows enforced at the handler boundary, `0x[a-fA-F0-9]{40}` validator + case-fold to keep the UNIQUE index honest, callback-driven `🗑 Stop` button.
 - `tests/test_copy_trade.py` — 49 hermetic tests (no DB, no broker, no Telegram network).
 
@@ -101,12 +101,17 @@ copy_targets
   ├─ UNIQUE (user_id, target_wallet_address)
   └─ INDEX (user_id, status)
 
-copy_trade_events                          -- dedup boundary
+copy_trade_events                          -- per-follower dedup boundary
   ├─ id UUID PK
   ├─ copy_target_id UUID FK copy_targets(id) ON DELETE CASCADE
-  ├─ source_tx_hash VARCHAR(66) UNIQUE     -- dedup against re-scan
+  ├─ source_tx_hash VARCHAR(66)
   ├─ mirrored_order_id UUID                -- written by P3d execution path
   ├─ created_at TIMESTAMPTZ
+  ├─ UNIQUE (copy_target_id, source_tx_hash) -- per-follower; same leader
+  │                                          -- tx may be mirrored by every
+  │                                          -- follower of the leader, but
+  │                                          -- a single follower must not
+  │                                          -- double-mirror after re-scan
   └─ INDEX (copy_target_id, created_at DESC)
 ```
 
