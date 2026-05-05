@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05 18:30 UTC
-Status       : R12e auto-redeem PR open: WARP/CRUSADERBOT-R12E-AUTO-REDEEM — services/redeem/ module (instant + hourly workers), redeem_queue table, AUTO_REDEEM_ENABLED short-circuit, gas-spike defer, retry-once + operator alert at >=2 failures, Settings menu auto-redeem mode toggle. MAJOR tier — SENTINEL audit required before merge. R12d Telegram position UX PR still open: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX. R12c exit watcher PR still open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required. R12a CI/CD pipeline PR still open. Paper-default.
+Last Updated : 2026-05-05 19:15 UTC
+Status       : R12e auto-redeem SENTINEL audit complete: APPROVED 94/100, 0 critical, OBS-01 resolved PASS. PR #869 cleared for WARP🔹CMD final merge decision. R12d Telegram position UX PR still open: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX. R12c exit watcher PR still open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required. R12a CI/CD pipeline PR still open. Paper-default.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -26,7 +26,7 @@ Status       : R12e auto-redeem PR open: WARP/CRUSADERBOT-R12E-AUTO-REDEEM — s
 - R12 — Deployment (Fly.io) — final (MAJOR)
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for R12e auto-redeem before merge. Source: projects/polymarket/crusaderbot/reports/forge/r12e-auto-redeem.md. Tier: MAJOR. Branch: WARP/CRUSADERBOT-R12E-AUTO-REDEEM.
+- WARP🔹CMD final merge decision required for R12e auto-redeem. SENTINEL APPROVED 94/100, 0 critical. Source: projects/polymarket/crusaderbot/reports/sentinel/r12e-auto-redeem.md. Tier: MAJOR. Branch: WARP/CRUSADERBOT-R12E-AUTO-REDEEM.
 - WARP•SENTINEL validation required for R12c exit watcher before merge. Source: projects/polymarket/crusaderbot/reports/forge/r12c-exit-watcher.md. Tier: MAJOR. Branch: WARP/CRUSADERBOT-R12C-EXIT-WATCHER.
 - WARP🔹CMD review required for R12d Telegram position UX. Source: projects/polymarket/crusaderbot/reports/forge/r12d-telegram-position-ux.md. Tier: STANDARD. Branch: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX.
 
