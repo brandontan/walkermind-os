@@ -3,23 +3,28 @@ name: WARP Gate — PR Review Pipeline
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to notify
+        required: true
 
 jobs:
   gate-webhook:
     name: Trigger WARP🔹CMD Gate
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'WARP/')
+    if: startsWith(github.head_ref, 'WARP/') || github.event_name == 'workflow_dispatch'
     steps:
       - name: Send PR event to WARP gate_webhook
         env:
           WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BRANCH: ${{ github.head_ref }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+          PR_TITLE: ${{ github.event.pull_request.title || 'manual trigger' }}
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
+          PR_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BRANCH: ${{ github.head_ref || github.ref_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
+          PR_ACTION: ${{ github.event.action || 'manual' }}
           PR_REPO: ${{ github.repository }}
         run: |
           PAYLOAD=$(python3 -c "
@@ -27,7 +32,7 @@ jobs:
           payload = {
             'action': os.environ['PR_ACTION'],
             'pull_request': {
-              'number': int(os.environ['PR_NUMBER']),
+              'number': int(os.environ['PR_NUMBER'] or 0),
               'title': os.environ['PR_TITLE'],
               'body': os.environ.get('PR_BODY', ''),
               'head': {
@@ -44,9 +49,16 @@ jobs:
           }
           print(json.dumps(payload))
           ")
-          curl -s -X POST \
+          RESPONSE=$(curl -s -X POST \
             -H "Content-Type: application/json" \
             -H "x-warp-secret: ${WARP_SECRET}" \
             "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \
             -d "${PAYLOAD}" \
-            --fail-with-body
+            --max-time 30 \
+            -w "\nHTTP_STATUS:%{http_code}")
+          echo "$RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          if [ -z "$HTTP_CODE" ] || [ "$HTTP_CODE" -ge 400 ]; then
+            echo "Webhook returned error: $HTTP_CODE"
+            exit 1
+          fi
