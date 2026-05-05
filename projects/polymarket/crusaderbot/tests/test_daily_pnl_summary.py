@@ -175,7 +175,10 @@ class _SummaryConn:
         self.positions = positions
 
     async def fetchval(self, query: str, *args: Any):
-        if "type IN ('trade_close', 'redeem')" in query:
+        # Realized P&L now sums positions.pnl_usdc (closed today) — NOT
+        # the ledger — because trade_close ledger entries credit full
+        # proceeds (size + pnl) rather than P&L itself.
+        if "SUM(pnl_usdc)" in query and "FROM positions" in query:
             return Decimal(str(self.realized))
         if "type = 'fee'" in query:
             return Decimal(str(self.fees))
@@ -186,7 +189,11 @@ class _SummaryConn:
         return 0
 
     async def fetch(self, query: str, *args: Any):
-        if "FROM positions" in query:
+        # The OPEN-positions read pulls side / entry / current for the
+        # unrealized P&L computation. Distinguish from the closed-today
+        # realized read (a SUM(pnl_usdc), not a row fetch) by the
+        # column projection.
+        if "FROM positions" in query and "side, size_usdc" in query:
             return self.positions
         return []
 
@@ -199,6 +206,9 @@ class _SummaryConn:
 
 def test_build_summary_for_user_assembles_lines():
     conn = _SummaryConn(
+        # Realized is now the SUM of positions.pnl_usdc closed today —
+        # i.e. profit, not proceeds. A $100 position closed for $110
+        # contributes +10 here, NOT +110.
         realized=10.0,
         fees=-0.50,  # ledger stores fees as negative debits
         balance=100.0,
@@ -224,6 +234,45 @@ def test_build_summary_for_user_assembles_lines():
     assert "PAPER" in out
     # Unrealized = $4.00 + $1.67 ≈ $5.67 (Decimal precision dependent)
     assert "+$5." in out
+
+
+def test_realized_pnl_query_targets_positions_pnl_usdc_not_ledger():
+    """Codex P2 regression: realized P&L must come from positions.pnl_usdc,
+    not from summing ledger trade_close (which credits full proceeds).
+    """
+    captured: list[str] = []
+
+    class _CaptureConn:
+        async def fetchval(self, query: str, *args: Any):
+            captured.append(query)
+            if "SUM(pnl_usdc)" in query:
+                return Decimal("0")
+            return Decimal("0")
+
+        async def fetch(self, query: str, *args: Any):
+            return []
+
+        async def fetchrow(self, query: str, *args: Any):
+            return None
+
+        async def execute(self, query: str, *args: Any):
+            return "OK"
+
+    with patch.object(dp, "get_pool", return_value=_Pool(_CaptureConn())):
+        asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
+    realized_queries = [q for q in captured
+                        if "SUM(pnl_usdc)" in q and "FROM positions" in q]
+    assert realized_queries, (
+        "realized P&L must read from positions.pnl_usdc — saw queries: "
+        + repr(captured)
+    )
+    # No ledger-based realized query should remain.
+    bad = [q for q in captured
+           if "SUM(amount_usdc)" in q and "trade_close" in q]
+    assert not bad, (
+        "realized P&L must NOT sum ledger trade_close (proceeds, not "
+        f"P&L). Found: {bad!r}"
+    )
 
 
 def test_build_summary_handles_missing_balance_zero_exposure():

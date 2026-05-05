@@ -82,20 +82,31 @@ async def _fetch_user_summary_row(user_id: UUID) -> dict:
     schema rename in one source doesn't break the others.
     """
     pool = get_pool()
-    today_filter = (
+    ledger_today_filter = (
         "created_at >= date_trunc('day', NOW() AT TIME ZONE $2) "
+        "AT TIME ZONE $2"
+    )
+    # Realized P&L is read from positions.pnl_usdc rather than the ledger
+    # because both paper.close_position and live.close_position credit the
+    # ledger with the FULL proceeds (size + pnl) under T_TRADE_CLOSE.
+    # Summing the ledger would report cash returned, not realized profit.
+    # ``positions.pnl_usdc`` carries the actual P&L for both exit closes
+    # (status='closed', closed_at set) and resolution-redemption closes
+    # (same path), so a single closed_at-bounded sum is correct for both.
+    closed_today_filter = (
+        "closed_at >= date_trunc('day', NOW() AT TIME ZONE $2) "
         "AT TIME ZONE $2"
     )
     async with pool.acquire() as conn:
         realized = await conn.fetchval(
-            f"SELECT COALESCE(SUM(amount_usdc), 0) FROM ledger "
-            f"WHERE user_id=$1 AND type IN ('trade_close', 'redeem') "
-            f"AND {today_filter}",
+            f"SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions "
+            f"WHERE user_id=$1 AND status='closed' "
+            f"AND closed_at IS NOT NULL AND {closed_today_filter}",
             user_id, TIMEZONE_NAME,
         )
         fees = await conn.fetchval(
             f"SELECT COALESCE(SUM(amount_usdc), 0) FROM ledger "
-            f"WHERE user_id=$1 AND type = 'fee' AND {today_filter}",
+            f"WHERE user_id=$1 AND type = 'fee' AND {ledger_today_filter}",
             user_id, TIMEZONE_NAME,
         )
         positions = await conn.fetch(

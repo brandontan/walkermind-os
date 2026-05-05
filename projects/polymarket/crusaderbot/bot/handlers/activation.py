@@ -88,16 +88,27 @@ async def summary_off_command(
 # ---------------- LIVE auto-trade confirmation ------------------------------
 
 
+async def _reply(update: Update, text: str) -> None:
+    """Send a Markdown reply onto whichever surface the update came in on."""
+    if update.callback_query is not None and update.callback_query.message:
+        await update.callback_query.message.reply_text(
+            text, parse_mode=ParseMode.MARKDOWN,
+        )
+    elif update.message is not None:
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+
+
 async def autotrade_toggle_pending_confirm(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 ) -> bool:
     """Arm a CONFIRM flow if the toggle would enable LIVE auto-trade.
 
-    Returns True when the toggle has been deferred and the caller MUST
-    NOT flip ``auto_trade_on`` itself — the actual flip happens after
-    the user types CONFIRM. Returns False to indicate the caller should
-    proceed with its normal toggle path (turning OFF, or turning ON in
-    paper mode where typed confirmation is not required).
+    Returns True when this handler has fully consumed the toggle (either
+    because CONFIRM was armed or because the checklist refused the flip
+    and we surfaced the fix list). The caller MUST NOT flip
+    ``auto_trade_on`` itself in that case. Returns False only when this
+    is a paper-mode toggle or an OFF toggle, in which case the caller
+    should run its normal flip path.
     """
     if update.effective_user is None:
         return False
@@ -113,20 +124,27 @@ async def autotrade_toggle_pending_confirm(
         return False
     if (settings_row.get("trading_mode") or "paper") != "live":
         return False
+    # Re-run the full activation checklist BEFORE arming CONFIRM. The
+    # /setup live-mode picker only blocks on Tier + global flags, and
+    # the risk gate's live selection only checks globals + tier +
+    # trading_mode — neither enforces 2FA or the active-subaccount /
+    # configured-strategy gates. Without this re-evaluation a user
+    # whose checklist is failing could still type CONFIRM and route a
+    # real CLOB order. Surface the fix list and refuse the flip when
+    # any gate fails so the checklist is a hard pre-activation gate.
+    result = await live_checklist.evaluate(user["id"])
+    if not result.ready_for_live:
+        await _reply(update, live_checklist.render_telegram(result))
+        return True
     if ctx.user_data is not None:
         ctx.user_data[AWAITING_KEY] = AWAITING_LIVE_CONFIRM
-    text = (
+    await _reply(
+        update,
         "⚠️ *You are enabling LIVE trading with real capital.*\n"
         "All activation gates have passed.\n\n"
         "Type *CONFIRM* (in capitals) to proceed, or anything else to "
-        "cancel."
+        "cancel.",
     )
-    if update.callback_query is not None:
-        await update.callback_query.message.reply_text(
-            text, parse_mode=ParseMode.MARKDOWN,
-        )
-    elif update.message is not None:
-        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
     return True
 
 
@@ -159,6 +177,18 @@ async def text_input(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username,
     )
+    # Defense-in-depth re-check: the operator could have flipped
+    # ENABLE_LIVE_TRADING off, the user's deposit could have been
+    # reverted, or 2FA could have been revoked between the prompt and
+    # this reply. Re-run the checklist and refuse the flip if any gate
+    # has degraded since CONFIRM was armed.
+    result = await live_checklist.evaluate(user["id"])
+    if not result.ready_for_live:
+        await update.message.reply_text(
+            live_checklist.render_telegram(result),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return True
     await set_auto_trade(user["id"], True)
     await update.message.reply_text(
         "🟢 Auto-trade is now *ON* in *LIVE* mode. Existing risk gates "

@@ -282,7 +282,12 @@ def render_telegram(result: ChecklistResult) -> str:
             continue
         n += 1
         hint = GATE_FIX_HINTS.get(outcome.name, "")
-        lines.append(f"{n}. *{outcome.name}* — {hint}")
+        # Wrap the gate identifier in backticks (code style) rather than
+        # asterisks (bold). Gate names contain underscores, and legacy
+        # Telegram Markdown reads `*name_with_underscore*` as a botched
+        # italic span and rejects the whole message. Code spans treat
+        # the content as a literal so the underscores survive intact.
+        lines.append(f"{n}. `{outcome.name}` — {hint}")
     lines.append("")
     lines.append("Run /live_checklist again after fixing each item.")
     return "\n".join(lines)

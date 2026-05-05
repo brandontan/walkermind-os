@@ -110,13 +110,16 @@ def test_summary_off_command_persists_disabled():
 # ---------- autotrade_toggle_pending_confirm --------------------------------
 
 
-def test_pending_confirm_arms_when_toggle_on_in_live_mode():
+def test_pending_confirm_arms_when_toggle_on_in_live_mode_and_gates_pass():
     update, msg = _make_update(callback=True)
     ctx = _make_ctx()
+    passing = SimpleNamespace(ready_for_live=True)
     with patch.object(activation, "upsert_user",
                       AsyncMock(return_value=USER_ROW_OFF)), \
          patch.object(activation, "get_settings_for",
-                      AsyncMock(return_value={"trading_mode": "live"})):
+                      AsyncMock(return_value={"trading_mode": "live"})), \
+         patch.object(activation.live_checklist, "evaluate",
+                      AsyncMock(return_value=passing)):
         result = asyncio.run(
             activation.autotrade_toggle_pending_confirm(update, ctx),
         )
@@ -127,6 +130,38 @@ def test_pending_confirm_arms_when_toggle_on_in_live_mode():
     msg.reply_text.assert_awaited_once()
     sent_text = msg.reply_text.call_args[0][0]
     assert "CONFIRM" in sent_text
+
+
+def test_pending_confirm_refuses_to_arm_when_checklist_fails():
+    """Codex P1 regression: a failing checklist must NEVER reach CONFIRM.
+
+    Without this fix a Tier 4 user with a failing 2FA / deposit / etc
+    gate could still type CONFIRM and route a real CLOB order, because
+    /setup only checks Tier+global flags and the risk gate's live
+    selection only checks globals + tier + trading_mode.
+    """
+    update, msg = _make_update(callback=True)
+    ctx = _make_ctx()
+    failing = SimpleNamespace(ready_for_live=False)
+    with patch.object(activation, "upsert_user",
+                      AsyncMock(return_value=USER_ROW_OFF)), \
+         patch.object(activation, "get_settings_for",
+                      AsyncMock(return_value={"trading_mode": "live"})), \
+         patch.object(activation.live_checklist, "evaluate",
+                      AsyncMock(return_value=failing)), \
+         patch.object(activation.live_checklist, "render_telegram",
+                      return_value="🔒 fix list"):
+        result = asyncio.run(
+            activation.autotrade_toggle_pending_confirm(update, ctx),
+        )
+    # Toggle is fully consumed by this handler — caller must NOT flip
+    # auto_trade_on on its own path.
+    assert result is True
+    # CONFIRM must NOT have been armed.
+    assert activation.AWAITING_KEY not in ctx.user_data
+    # The fix list is shown to the user.
+    msg.reply_text.assert_awaited_once()
+    assert msg.reply_text.call_args[0][0] == "🔒 fix list"
 
 
 def test_pending_confirm_passes_through_when_paper_mode():
@@ -165,8 +200,11 @@ def test_text_input_confirm_flips_auto_trade_on():
     update, msg = _make_update(text="CONFIRM")
     ctx = _make_ctx()
     ctx.user_data[activation.AWAITING_KEY] = activation.AWAITING_LIVE_CONFIRM
+    passing = SimpleNamespace(ready_for_live=True)
     with patch.object(activation, "upsert_user",
                       AsyncMock(return_value=USER_ROW_OFF)), \
+         patch.object(activation.live_checklist, "evaluate",
+                      AsyncMock(return_value=passing)), \
          patch.object(activation, "set_auto_trade",
                       AsyncMock()) as flip:
         consumed = asyncio.run(activation.text_input(update, ctx))
@@ -174,6 +212,31 @@ def test_text_input_confirm_flips_auto_trade_on():
     flip.assert_awaited_once_with(USER_ROW_OFF["id"], True)
     # awaiting flag cleared.
     assert activation.AWAITING_KEY not in ctx.user_data
+
+
+def test_text_input_confirm_rejects_when_checklist_degraded_between_prompt_and_reply():
+    """Codex P1 defense-in-depth: even after CONFIRM is armed, the gate
+    state can change before the reply arrives (operator flips
+    ENABLE_LIVE_TRADING off, deposit reverted, 2FA revoked). The
+    CONFIRM reply must re-run the checklist and refuse the flip.
+    """
+    update, msg = _make_update(text="CONFIRM")
+    ctx = _make_ctx()
+    ctx.user_data[activation.AWAITING_KEY] = activation.AWAITING_LIVE_CONFIRM
+    failing = SimpleNamespace(ready_for_live=False)
+    with patch.object(activation, "upsert_user",
+                      AsyncMock(return_value=USER_ROW_OFF)), \
+         patch.object(activation.live_checklist, "evaluate",
+                      AsyncMock(return_value=failing)), \
+         patch.object(activation.live_checklist, "render_telegram",
+                      return_value="🔒 fix list"), \
+         patch.object(activation, "set_auto_trade",
+                      AsyncMock()) as flip:
+        consumed = asyncio.run(activation.text_input(update, ctx))
+    assert consumed is True
+    flip.assert_not_awaited()
+    msg.reply_text.assert_awaited_once()
+    assert msg.reply_text.call_args[0][0] == "🔒 fix list"
 
 
 def test_text_input_wrong_reply_cancels_and_clears():
