@@ -282,6 +282,38 @@ def test_rate_limit_serialises_back_to_back_calls():
     assert elapsed >= 0.04
 
 
+def test_fetch_leader_open_condition_ids_raises_on_api_failure():
+    """Critical: API failure on the exit path must NOT be conflated with
+    'leader closed everything'. The strict path raises so evaluate_exit
+    can fall through to its 'hold' branch."""
+    async def fake_get_user_activity(wallet, limit=20):
+        raise RuntimeError("polymarket data api 500")
+
+    with patch.object(ww.pm, "get_user_activity", fake_get_user_activity):
+        with pytest.raises(ww.WalletWatcherUnavailable):
+            asyncio.run(ww.fetch_leader_open_condition_ids("0xabc"))
+
+
+def test_fetch_leader_open_condition_ids_raises_on_timeout():
+    async def fake_get_user_activity(wallet, limit=20):
+        await asyncio.sleep(10)
+        return []
+
+    with patch.object(ww.pm, "get_user_activity", fake_get_user_activity):
+        with patch.object(ww, "POLYMARKET_FETCH_TIMEOUT_SEC", 0.05):
+            with pytest.raises(ww.WalletWatcherUnavailable):
+                asyncio.run(ww.fetch_leader_open_condition_ids("0xabc"))
+
+
+def test_fetch_leader_open_condition_ids_raises_on_non_list_payload():
+    async def fake_get_user_activity(wallet, limit=20):
+        return {"data": []}
+
+    with patch.object(ww.pm, "get_user_activity", fake_get_user_activity):
+        with pytest.raises(ww.WalletWatcherUnavailable):
+            asyncio.run(ww.fetch_leader_open_condition_ids("0xabc"))
+
+
 def test_fetch_leader_open_condition_ids_filters_buys_only():
     # Newest-first walk: cond_a's first action is BUY (still open), cond_b's
     # first action is SELL (already exited).
@@ -292,10 +324,10 @@ def test_fetch_leader_open_condition_ids_filters_buys_only():
         {"conditionId": "cond_b", "side": "BUY"},
     ]
 
-    async def fake_fetch(wallet, limit=50):
+    async def fake_get_user_activity(wallet, limit=20):
         return trades
 
-    with patch.object(ww, "fetch_recent_wallet_trades", fake_fetch):
+    with patch.object(ww.pm, "get_user_activity", fake_get_user_activity):
         out = asyncio.run(ww.fetch_leader_open_condition_ids("0xabc"))
     assert out == {"cond_a"}
 
@@ -305,11 +337,15 @@ def test_fetch_leader_open_condition_ids_empty_when_no_wallet():
     assert out == set()
 
 
-def test_fetch_leader_open_condition_ids_handles_no_trades():
-    async def fake_fetch(wallet, limit=50):
+def test_fetch_leader_open_condition_ids_returns_empty_when_leader_has_no_trades():
+    """Genuinely-empty trade list (API responded successfully with []) is
+    NOT a failure — leader has no recent activity, so no open conditions
+    can be inferred. evaluate_exit will treat this conservatively but
+    correctly given the activity-log approximation."""
+    async def fake_get_user_activity(wallet, limit=20):
         return []
 
-    with patch.object(ww, "fetch_recent_wallet_trades", fake_fetch):
+    with patch.object(ww.pm, "get_user_activity", fake_get_user_activity):
         out = asyncio.run(ww.fetch_leader_open_condition_ids("0xabc"))
     assert out == set()
 
@@ -706,6 +742,28 @@ def test_evaluate_exit_signals_strategy_exit_when_leader_left():
 def test_evaluate_exit_holds_when_fetch_fails():
     async def fake_open(wallet):
         raise RuntimeError("api down")
+
+    strat = CopyTradeStrategy()
+    with patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.fetch_leader_open_condition_ids",
+        side_effect=fake_open,
+    ):
+        out = asyncio.run(strat.evaluate_exit({
+            "metadata": {
+                "leader_wallet": "0xabc",
+                "condition_id": "cond_x",
+            },
+        }))
+    assert out.should_exit is False and out.reason == "hold"
+
+
+def test_evaluate_exit_holds_on_wallet_watcher_unavailable():
+    """During a Polymarket Data API outage the strict fetch raises
+    WalletWatcherUnavailable; evaluate_exit must catch it and return hold
+    rather than treating the outage as a leader exit."""
+    async def fake_open(wallet):
+        raise ww.WalletWatcherUnavailable("data api 500")
 
     strat = CopyTradeStrategy()
     with patch(

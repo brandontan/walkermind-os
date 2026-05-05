@@ -1,18 +1,28 @@
 """Polymarket leader-wallet trade poller for the copy-trade strategy.
 
-Two public coroutines:
+Two public coroutines + one custom exception:
 
     fetch_recent_wallet_trades(wallet, limit)
         → list[dict] of recent trades for the wallet, freshest first.
         Bounded by a 5 s per-call timeout and a process-wide 1 req/s rate
         limit shared across every concurrent watcher. Failures are swallowed
         — the function returns `[]` rather than propagating, so a single
-        flaky leader cannot crash the per-user scan loop.
+        flaky leader cannot crash the per-user scan loop. Empty list and
+        API failure are intentionally indistinguishable on the scan path:
+        either way "emit no signals" is correct.
 
     fetch_leader_open_condition_ids(wallet)
         → set[str] of condition_ids the leader currently holds an open
         position in. Used by `CopyTradeStrategy.evaluate_exit` to detect
-        a leader exit (mirror_condition_id ∉ leader_open_set ⇒ leader_exit).
+        a leader exit. Raises `WalletWatcherUnavailable` on API failure
+        rather than returning an empty set, because on the exit path
+        "API down" must NOT be conflated with "leader closed everything"
+        — the strategy would otherwise force-close mirrored positions
+        during a Polymarket Data API outage.
+
+    WalletWatcherUnavailable
+        Raised by `fetch_leader_open_condition_ids` when the underlying
+        Data API call times out, fails, or returns a malformed payload.
 
 Foundation contract: this module is pure I/O. It never places orders, never
 writes to the execution path, never bypasses risk gates.
@@ -40,6 +50,15 @@ _rate_lock = asyncio.Lock()
 _last_request_at: float = 0.0
 
 
+class WalletWatcherUnavailable(Exception):
+    """Raised when the Polymarket Data API cannot answer a wallet query.
+
+    Distinct from "wallet has nothing to report" — the scan path tolerates
+    both as `[]`, but the exit path MUST treat unavailability as `hold`
+    rather than as an explicit leader-exit signal.
+    """
+
+
 async def _await_rate_limit_slot() -> None:
     """Hold the module-global slot until the 1 req/s budget allows the call.
 
@@ -56,18 +75,16 @@ async def _await_rate_limit_slot() -> None:
         _last_request_at = time.monotonic()
 
 
-async def fetch_recent_wallet_trades(
+async def _fetch_activity_strict(
     wallet_address: str,
-    limit: int = 20,
+    limit: int,
 ) -> list[dict[str, Any]]:
-    """Fetch up to ``limit`` recent trades for the leader wallet.
+    """Internal: rate-limited, timeout-bounded fetch that propagates failures.
 
-    Returns:
-        A list of trade dicts (Polymarket Data API shape). Empty list on:
-            * blank wallet address
-            * 5 s timeout
-            * any HTTP / parse error
-            * Data API responds with anything other than a list
+    Empty wallet address is NOT a failure — it is "nothing to fetch", and
+    we return an empty list. Every other error path raises
+    `WalletWatcherUnavailable` so the caller can tell apart "wallet has
+    no recent activity" from "the data source is unreachable".
     """
     if not wallet_address:
         return []
@@ -77,21 +94,42 @@ async def fetch_recent_wallet_trades(
             pm.get_user_activity(wallet_address, limit=limit),
             timeout=POLYMARKET_FETCH_TIMEOUT_SEC,
         )
-    except asyncio.TimeoutError:
-        logger.warning(
-            "wallet_watcher fetch timed out wallet=%s timeout=%ss",
-            wallet_address, POLYMARKET_FETCH_TIMEOUT_SEC,
-        )
-        return []
+    except asyncio.TimeoutError as exc:
+        raise WalletWatcherUnavailable(
+            f"polymarket data api timeout for wallet={wallet_address}"
+            f" after {POLYMARKET_FETCH_TIMEOUT_SEC}s"
+        ) from exc
     except Exception as exc:
-        logger.warning(
-            "wallet_watcher fetch failed wallet=%s err=%s",
-            wallet_address, exc,
-        )
-        return []
+        raise WalletWatcherUnavailable(
+            f"polymarket data api error for wallet={wallet_address}: {exc}"
+        ) from exc
     if not isinstance(trades, list):
-        return []
+        raise WalletWatcherUnavailable(
+            f"polymarket data api returned non-list payload for "
+            f"wallet={wallet_address}"
+        )
     return trades
+
+
+async def fetch_recent_wallet_trades(
+    wallet_address: str,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Fetch up to ``limit`` recent trades for the leader wallet.
+
+    Tolerant by design: returns ``[]`` for blank input, timeout, HTTP error,
+    or malformed payload. The scan path uses this — emitting no signals on
+    a flaky leader is the correct behaviour.
+
+    Callers that need to distinguish "no activity" from "API failure" must
+    use ``_fetch_activity_strict`` (or call ``fetch_leader_open_condition_ids``
+    which already does so).
+    """
+    try:
+        return await _fetch_activity_strict(wallet_address, limit)
+    except WalletWatcherUnavailable as exc:
+        logger.warning("wallet_watcher fetch failed (swallowed): %s", exc)
+        return []
 
 
 async def fetch_leader_open_condition_ids(wallet_address: str) -> set[str]:
@@ -104,10 +142,16 @@ async def fetch_leader_open_condition_ids(wallet_address: str) -> set[str]:
     watcher consumes this. Until then, the conservative behaviour is to
     report the leader as STILL holding any condition_id where their last
     trade was a BUY — that prevents premature leader_exit fires.
+
+    Raises:
+        WalletWatcherUnavailable: the Polymarket Data API timed out, errored,
+            or returned a malformed payload. The caller MUST treat this as
+            "do not exit" — conflating it with "no open positions" would
+            force-close every mirrored position during a Polymarket outage.
     """
     if not wallet_address:
         return set()
-    trades = await fetch_recent_wallet_trades(wallet_address, limit=50)
+    trades = await _fetch_activity_strict(wallet_address, limit=50)
     if not trades:
         return set()
 
@@ -130,6 +174,7 @@ async def fetch_leader_open_condition_ids(wallet_address: str) -> set[str]:
 __all__ = [
     "fetch_recent_wallet_trades",
     "fetch_leader_open_condition_ids",
+    "WalletWatcherUnavailable",
     "POLYMARKET_FETCH_TIMEOUT_SEC",
     "GLOBAL_RATE_LIMIT_INTERVAL_SEC",
 ]

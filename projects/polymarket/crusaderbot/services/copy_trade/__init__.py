@@ -14,6 +14,7 @@ from .scaler import MIN_TRADE_SIZE_USDC, mirror_size_direct, scale_size
 from .wallet_watcher import (
     GLOBAL_RATE_LIMIT_INTERVAL_SEC,
     POLYMARKET_FETCH_TIMEOUT_SEC,
+    WalletWatcherUnavailable,
     fetch_leader_open_condition_ids,
     fetch_recent_wallet_trades,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "MIN_TRADE_SIZE_USDC",
     "fetch_recent_wallet_trades",
     "fetch_leader_open_condition_ids",
+    "WalletWatcherUnavailable",
     "GLOBAL_RATE_LIMIT_INTERVAL_SEC",
     "POLYMARKET_FETCH_TIMEOUT_SEC",
 ]
