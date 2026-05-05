@@ -9,7 +9,7 @@ from telegram.ext import (
 )
 
 from .handlers import (
-    admin, dashboard, emergency, onboarding, positions,
+    admin, copy_trade, dashboard, emergency, onboarding, positions,
     settings as settings_handler, setup, wallet,
 )
 from .menus.main import get_menu_route
@@ -49,6 +49,8 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("killswitch", admin.killswitch_command))
     app.add_handler(CommandHandler("jobs", admin.jobs_command))
     app.add_handler(CommandHandler("auditlog", admin.auditlog_command))
+    # P3b copy-trade strategy command surface.
+    app.add_handler(CommandHandler("copytrade", copy_trade.copy_trade_command))
 
     # Callback queries
     app.add_handler(CallbackQueryHandler(wallet.wallet_callback, pattern=r"^wallet:"))
@@ -73,6 +75,8 @@ def register(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(admin.admin_callback,  pattern=r"^admin:"))
     app.add_handler(CallbackQueryHandler(admin.ops_dashboard_callback,
                                          pattern=r"^ops:"))
+    app.add_handler(CallbackQueryHandler(copy_trade.copy_trade_callback,
+                                         pattern=r"^copytrade:"))
 
     # Free text — must be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))

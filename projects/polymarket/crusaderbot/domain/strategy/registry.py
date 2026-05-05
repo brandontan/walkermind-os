@@ -150,4 +150,28 @@ class StrategyRegistry:
         ]
 
 
-__all__ = ["StrategyRegistry"]
+def bootstrap_default_strategies(
+    registry: "StrategyRegistry | None" = None,
+) -> "StrategyRegistry":
+    """Register every built-in strategy onto ``registry`` (singleton by default).
+
+    Idempotent: a name that is already registered is silently skipped so the
+    function is safe to call from `main.py` lifespan on every boot, and from
+    tests after `_reset_for_tests()`. The duplicate detection goes through
+    the public `get(name)` API rather than reaching into `_strategies` so
+    the bootstrap respects the registry boundary. Imports happen inside the
+    function to avoid an import-time cycle between `registry` and
+    `strategies/`.
+    """
+    reg = registry if registry is not None else StrategyRegistry.instance()
+    from .strategies import CopyTradeStrategy
+
+    for cls in (CopyTradeStrategy,):
+        try:
+            reg.get(cls.name)
+        except KeyError:
+            reg.register(cls())
+    return reg
+
+
+__all__ = ["StrategyRegistry", "bootstrap_default_strategies"]

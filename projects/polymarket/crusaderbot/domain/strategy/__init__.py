@@ -10,7 +10,7 @@ Public surface (foundation-only):
 """
 
 from .base import BaseStrategy
-from .registry import StrategyRegistry
+from .registry import StrategyRegistry, bootstrap_default_strategies
 from .types import (
     ExitDecision,
     MarketFilters,
@@ -21,6 +21,7 @@ from .types import (
 __all__ = [
     "BaseStrategy",
     "StrategyRegistry",
+    "bootstrap_default_strategies",
     "SignalCandidate",
     "ExitDecision",
     "MarketFilters",

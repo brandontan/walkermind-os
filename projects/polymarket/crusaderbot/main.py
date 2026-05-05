@@ -16,6 +16,7 @@ from .bot.dispatcher import register as register_handlers
 from .cache import close_cache, init_cache
 from .config import get_settings, validate_required_env
 from .database import close_pool, init_pool, run_migrations
+from .domain.strategy import bootstrap_default_strategies
 from .monitoring import alerts as monitoring_alerts
 from .monitoring.health import run_health_checks
 from .monitoring.logging import RequestLogMiddleware, configure_json_logging
@@ -54,6 +55,7 @@ async def lifespan(_: FastAPI):
     await init_pool()
     await run_migrations()
     await init_cache()
+    bootstrap_default_strategies()
 
     use_webhook = bool(settings.TELEGRAM_WEBHOOK_URL)
 
