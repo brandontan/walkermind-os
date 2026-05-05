@@ -1,0 +1,52 @@
+name: WARP Gate — PR Review Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  gate-webhook:
+    name: Trigger WARP🔹CMD Gate
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'WARP/')
+    steps:
+      - name: Send PR event to WARP gate_webhook
+        env:
+          WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_ACTION: ${{ github.event.action }}
+          PR_REPO: ${{ github.repository }}
+        run: |
+          PAYLOAD=$(python3 -c "
+          import json, os
+          payload = {
+            'action': os.environ['PR_ACTION'],
+            'pull_request': {
+              'number': int(os.environ['PR_NUMBER']),
+              'title': os.environ['PR_TITLE'],
+              'body': os.environ.get('PR_BODY', ''),
+              'head': {
+                'ref': os.environ['PR_BRANCH'],
+                'sha': os.environ['PR_SHA']
+              },
+              'user': {
+                'login': os.environ['PR_AUTHOR']
+              }
+            },
+            'repository': {
+              'full_name': os.environ['PR_REPO']
+            }
+          }
+          print(json.dumps(payload))
+          ")
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-warp-secret: ${WARP_SECRET}" \
+            "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \
+            -d "${PAYLOAD}" \
+            --fail-with-body
