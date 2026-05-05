@@ -17,7 +17,7 @@ Status       : P3a strategy registry foundation built — PR open: WARP/CRUSADER
 - R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
 - R12c — Auto-Close / Take-Profit — PR open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required before merge
 - R12d — Telegram Position UX (live position monitor + per-position force close) — PR #868 MERGED (4f5e12201964) — STANDARD tier
-- R12e — Auto-Redeem System (instant + hourly workers + redeem_queue + Settings UI) — PR #869 MERGED (7f8af0b90993) — MAJOR tier, SENTINEL APPROVED 92/100
+- R12e — Auto-Redeem System (instant + hourly workers + redeem_queue + Settings UI) — PR #869 MERGED (7f8af0b90993) — MAJOR tier, SENTINEL CONDITIONAL 64/100 (official — PR #879)
 - R12f — Operator Dashboard + Kill Switch + Job Monitor + Audit Log — PR open: WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD — STANDARD tier, awaiting WARP🔹CMD review
 - P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + types + migration 008) — PR open: WARP/CRUSADERBOT-P3A-STRATEGY-REGISTRY — STANDARD tier, FOUNDATION ONLY, awaiting WARP🔹CMD review
 
