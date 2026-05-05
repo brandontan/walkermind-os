@@ -4,6 +4,36 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+## 2026-05-05 08:35 Asia/Jakarta — gate: R12a CI/CD pipeline ratified (PR #855) [warp-gate[bot]]
+
+WARP•GATE retrospective review — PR already merged 2026-05-04T19:57:21Z.
+
+CHECK-01 PASS — Branch WARP/CRUSADERBOT-R12A-CICD-PIPELINE ✅ valid format
+CHECK-02 PASS — Tier: STANDARD, Claim: NARROW INTEGRATION, source: r12a-cicd-pipeline.md ✅
+CHECK-03 PASS — No hardcoded secrets/API keys. FLY_API_TOKEN via secrets.* only. No full Kelly. No threading. No silent except. Activation guards all "false" in fly.toml ✅
+CHECK-04 PASS — Forge report at reports/forge/r12a-cicd-pipeline.md ✅. Branch ref correct ✅
+CHECK-05 PASS — Task scope: CI lint/test + CD deploy scaffold. Actual files: 2 workflows, Dockerfile, fly.toml, pyproject.toml ruff block, tests stub. Fully aligned ✅
+CHECK-06 PASS — Claim NARROW INTEGRATION matches evidence (path-scoped CI/CD only, no runtime Python modified) ✅
+CHECK-07 PASS — No circular imports. Workflows use pinned actions (checkout@v4, setup-python@v5) ✅
+CHECK-08 PASS — test_smoke.py is a CI stub (assert True, sys.version check) — appropriate for R12a scope ✅
+CHECK-09 PASS — No dead code. No stubs in production paths ✅
+
+VERDICT: ALL 9 CHECKS PASS. STANDARD tier. Already merged — ratified ✅
+GATE ACTION: Post-ratification record only (PR merged pre-gate-pipeline activation).
+
+---
+
+## 2026-05-05 08:35 Asia/Jakarta — gate: removed deprecated WARP Issue Dispatch workflow [warp-gate[bot]]
+
+Deleted: .github/workflows/warp-issue-dispatch.yml (8342 bytes)
+Commit: 370137561b1f — author: warp-gate[bot]
+Reason: References deprecated "Ona" agent (Gitpod environment, 14 references).
+        Ona/Gitpod dispatch is no longer part of WalkerMind OS agent roster.
+        Deprecated names per AGENTS.md: NEXUS, FORGE-X, BRIEFER, Ona — NEVER USE.
+warp-codx: No dispatch workflow found — clean ✅
+
+---
+
 ## 2026-05-05 08:23 Asia/Jakarta — [GATE NOTE] Pre-bot-setup commits attributed to bayuewalker
 
 ### Context
