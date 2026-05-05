@@ -6,6 +6,8 @@
 
 ---
 ## 2026-05-05 05:04 UTC — gate: post-merge sync PR #868 [warp-gate[bot]]
+- `2026-05-05T11:57:54Z` — feat(crusaderbot): P3a strategy registry foundation (#876) — `4efcbe51`
+
 
 feat(crusaderbot): R12d telegram position UX merged (#868) — commit 4f5e12201964. Live position monitor (Positions menu): CLOB midpoint mark price (3s cap), unrealized P&L, applied TP/SL. Per-position Force Close: Tier 3 gate, confirmation dialog, ownership-checked DB marker. 20 new tests. Delegates to R12c exit watcher. STANDARD | NARROW INTEGRATION.
 
