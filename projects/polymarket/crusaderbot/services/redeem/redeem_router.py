@@ -116,15 +116,23 @@ async def _process_market_resolution(market_id: str) -> None:
     winning = "yes" if yes_price > 0.5 else "no"
     outcome_index = 0 if winning == "yes" else 1
 
+    # LEFT JOIN user_settings: services.user_service.get_or_create_user
+    # inserts into users without creating a user_settings row, so an
+    # INNER JOIN here would silently drop those positions and leave them
+    # unreconciled forever once the market is later flipped resolved.
+    # COALESCE the auto_redeem_mode to the spec default ('hourly') so
+    # a missing settings row routes the position through the hourly
+    # batch path instead.
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT p.*, u.telegram_user_id, us.auto_redeem_mode,
+            SELECT p.*, u.telegram_user_id,
+                   COALESCE(us.auto_redeem_mode, 'hourly') AS auto_redeem_mode,
                    mk.condition_id
               FROM positions p
               JOIN users u ON u.id = p.user_id
-              JOIN user_settings us ON us.user_id = p.user_id
+              LEFT JOIN user_settings us ON us.user_id = p.user_id
               JOIN markets mk ON mk.id = p.market_id
              WHERE p.market_id = $1
                AND p.redeemed = FALSE
@@ -404,15 +412,20 @@ async def claim_queue_row(queue_id: UUID) -> dict[str, Any] | None:
             )
             if claimed_id is None:
                 return None
+            # LEFT JOIN user_settings — see _process_market_resolution
+            # for the rationale. A missing settings row here would make
+            # claim_queue_row return None for a row that was successfully
+            # claimed (status='processing'), stranding the queue entry.
             row = await conn.fetchrow(
                 """
                 SELECT q.id AS queue_id, q.failure_count,
                        q.market_condition_id, q.outcome_index,
-                       p.*, u.telegram_user_id, us.auto_redeem_mode
+                       p.*, u.telegram_user_id,
+                       COALESCE(us.auto_redeem_mode, 'hourly') AS auto_redeem_mode
                   FROM redeem_queue q
                   JOIN positions p ON p.id = q.position_id
                   JOIN users u ON u.id = q.user_id
-                  JOIN user_settings us ON us.user_id = q.user_id
+                  LEFT JOIN user_settings us ON us.user_id = q.user_id
                  WHERE q.id = $1
                 """,
                 queue_id,
