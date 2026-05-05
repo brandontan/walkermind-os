@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- code path inherits the paused state instead of silently re-opening
 -- trading. The latest row in ``kill_switch`` (ORDER BY id DESC LIMIT 1)
 -- is the authoritative legacy state.
+-- Two-instance rolling deploys can race on this seed. Both transactions
+-- pass the IF NOT EXISTS check, then the second INSERT raises a unique-
+-- key error and aborts startup. ``ON CONFLICT (key) DO NOTHING`` makes
+-- the seed idempotent under concurrency. The IF NOT EXISTS guard is
+-- still useful — it skips the (cheap) backfill SELECT against the
+-- legacy ``kill_switch`` table on every redeploy after the first.
 DO $$
 DECLARE
     legacy_active BOOLEAN := FALSE;
@@ -50,15 +56,13 @@ BEGIN
         INSERT INTO system_settings (key, value) VALUES (
             'kill_switch_active',
             CASE WHEN legacy_active THEN 'true' ELSE 'false' END
-        );
+        )
+        ON CONFLICT (key) DO NOTHING;
     END IF;
 
-    IF NOT EXISTS (
-        SELECT 1 FROM system_settings WHERE key = 'kill_switch_lock_mode'
-    ) THEN
-        INSERT INTO system_settings (key, value)
-        VALUES ('kill_switch_lock_mode', 'false');
-    END IF;
+    INSERT INTO system_settings (key, value)
+    VALUES ('kill_switch_lock_mode', 'false')
+    ON CONFLICT (key) DO NOTHING;
 END $$;
 
 CREATE TABLE IF NOT EXISTS kill_switch_history (

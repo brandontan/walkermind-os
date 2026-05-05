@@ -133,7 +133,8 @@ def test_render_dashboard_kill_switch_inactive():
     assert "🟢 inactive" in out
     assert "1m" in out  # uptime
     assert "$1,234.50" in out
-    assert "market_sync" in out
+    # Job name underscores are escaped for Telegram MARKDOWN safety.
+    assert "market\\_sync" in out
     assert "(LOCK)" not in out
 
 
@@ -208,9 +209,46 @@ def test_render_auditlog_truncates_user_id():
     }]
     out = admin._render_auditlog(rows)
     assert "operator" in out
-    assert "kill_switch_pause" in out
+    # Action contains underscores — must be escaped so Telegram MARKDOWN
+    # parses cleanly (Codex P2 fix).
+    assert "kill\\_switch\\_pause" in out
+    assert "kill_switch_pause" not in out
     # user_id truncated to 8 chars + ellipsis = 8 chars
     assert "abcdefg…" in out
+
+
+# ---------- Markdown escape ------------------------------------------------
+
+
+def test_md_escape_escapes_metacharacters():
+    out = admin._md_escape("a_b*c`d[e")
+    assert out == "a\\_b\\*c\\`d\\[e"
+
+
+def test_md_escape_handles_none_and_empty():
+    assert admin._md_escape(None) == ""
+    assert admin._md_escape("") == ""
+
+
+def test_md_escape_doubles_backslashes_first():
+    # The order matters: backslash must be doubled BEFORE escaping the
+    # other metacharacters, otherwise an _md_escape("_") produces ``\\_``
+    # which then becomes ``\\\\_`` on a re-escape pass.
+    out = admin._md_escape("\\_")
+    assert out == "\\\\\\_"
+
+
+def test_render_jobs_escapes_error_metacharacters():
+    # Failed job error contains underscores, backticks, and brackets —
+    # raw injection would break Telegram MARKDOWN parsing.
+    err = "ValueError: bad_value `xyz` at [step 2]"
+    rows = [_job_row("redeem", "failed", error=err)]
+    out = admin._render_jobs(rows, only_failed=True)
+    assert "bad\\_value" in out
+    assert "\\`xyz\\`" in out
+    assert "\\[step 2]" in out
+    # The unescaped form must NOT appear inside the rendered italic span.
+    assert "_bad_value_" not in out
 
 
 # ---------- Operator gate ---------------------------------------------------
@@ -399,4 +437,5 @@ def test_auditlog_default_limit():
         asyncio.run(admin.auditlog_command(update, ctx))
     fetch.assert_awaited_once_with(admin.DEFAULT_AUDIT_LIMIT)
     args, _ = update.message.reply_text.call_args
-    assert "kill_switch_pause" in args[0]
+    # Action underscores escaped for Telegram MARKDOWN safety.
+    assert "kill\\_switch\\_pause" in args[0]

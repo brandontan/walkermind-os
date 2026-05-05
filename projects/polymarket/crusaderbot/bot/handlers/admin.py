@@ -200,6 +200,22 @@ def _truncate(value: str | None, limit: int) -> str:
     return value if len(value) <= limit else value[: max(0, limit - 1)] + "…"
 
 
+# Telegram's legacy Markdown parser treats ``_ * ` [`` as formatting
+# metacharacters. Failed job errors and audit actions routinely contain
+# at least underscores (``kill_switch_pause``) and backticks (Python
+# repr fragments), which would cause Telegram to reject the whole
+# message with a "can't parse entities" error and leave the operator
+# blind exactly when something is broken. Escape every dynamic field
+# that lands in a MARKDOWN-mode reply.
+def _md_escape(text: str | None) -> str:
+    if not text:
+        return ""
+    out = text.replace("\\", "\\\\")
+    for ch in ("_", "*", "`", "["):
+        out = out.replace(ch, "\\" + ch)
+    return out
+
+
 async def _collect_dashboard_snapshot() -> dict[str, Any]:
     """Pull every datum the operator dashboard needs.
 
@@ -272,7 +288,7 @@ def _render_dashboard(snapshot: dict[str, Any]) -> str:
         "*⚙️ Operator Dashboard*",
         "",
         f"Uptime: {_format_uptime(snapshot['uptime_seconds'])}",
-        f"Host:   `{snapshot['hostname']}`",
+        f"Host:   `{_md_escape(snapshot['hostname'])}`",
         f"DB:     {db}",
         "",
         f"Active users (Tier 2+): {_val('active_users')}",
@@ -293,7 +309,7 @@ def _render_dashboard(snapshot: dict[str, Any]) -> str:
             duration = _format_duration_ms(j.get("started_at"),
                                            j.get("finished_at"))
             lines.append(
-                f"  {status} `{j['job_name']}` · {duration}"
+                f"  {status} `{_md_escape(j['job_name'])}` · {duration}"
             )
     else:
         lines.append("")
@@ -303,7 +319,7 @@ def _render_dashboard(snapshot: dict[str, Any]) -> str:
         lines.append("")
         lines.append(
             "_Some fields unavailable: "
-            + "; ".join(snapshot["errors"][:3]) + "_"
+            + _md_escape("; ".join(snapshot["errors"][:3])) + "_"
         )
     return "\n".join(lines)
 
@@ -532,9 +548,10 @@ def _render_jobs(rows: list[dict], only_failed: bool) -> str:
         duration = _format_duration_ms(r.get("started_at"),
                                        r.get("finished_at"))
         err = _truncate(r.get("error"), 80)
-        line = f"{status} `{r['job_name']}` · {ts} · {duration}"
+        line = (f"{status} `{_md_escape(r['job_name'])}` · "
+                f"{ts} · {duration}")
         if err:
-            line += f"\n    └ _{err}_"
+            line += f"\n    └ _{_md_escape(err)}_"
         lines.append(line)
     return "\n".join(lines)
 
@@ -584,7 +601,10 @@ def _render_auditlog(rows: list[dict]) -> str:
         user = _truncate(str(r.get("user_id") or ""), 8)
         actor = r.get("actor_role") or "?"
         action = _truncate(r.get("action"), 40)
-        lines.append(f"`{ts}` · {actor} · {action} · {user or '—'}")
+        lines.append(
+            f"`{ts}` · {_md_escape(actor)} · {_md_escape(action)} · "
+            f"{_md_escape(user) or '—'}"
+        )
     return "\n".join(lines)
 
 
