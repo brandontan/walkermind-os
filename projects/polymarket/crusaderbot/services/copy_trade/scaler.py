@@ -35,6 +35,13 @@ def scale_size(
         * `max_position_pct` is outside (0, 1] — the caller's UserContext
           contract enforces this, but we treat anything outside the open
           interval as "skip" for defence in depth
+
+    For the case where `leader_bankroll` is unknown (the column has not
+    been backfilled yet), callers MUST use `mirror_size_direct(...)`
+    instead — passing a synthesised bankroll equal to the trade size
+    causes the proportional rule to collapse to `user_available` and the
+    final size to round to the user's position cap regardless of the
+    leader trade notional.
     """
     if leader_size <= 0.0:
         return 0.0
@@ -54,4 +61,32 @@ def scale_size(
     return capped
 
 
-__all__ = ["scale_size", "MIN_TRADE_SIZE_USDC"]
+def mirror_size_direct(
+    leader_size: float,
+    user_available: float,
+    max_position_pct: float,
+) -> float:
+    """1:1 mirror of the leader's USDC notional, capped at the user position cap.
+
+    Used when `leader_bankroll` is unknown. Preserves proportionality across
+    leader trade sizes — a $5 leader buy mirrors at $5, a $500 leader buy
+    mirrors at the user's position cap — without the proportional rule
+    collapsing every signal to `user_available × max_position_pct`.
+
+    Skip (return 0.0) under the same degenerate-input rules as `scale_size`,
+    plus when the floor is not met after the cap is applied.
+    """
+    if leader_size <= 0.0:
+        return 0.0
+    if user_available <= 0.0:
+        return 0.0
+    if max_position_pct <= 0.0 or max_position_pct > 1.0:
+        return 0.0
+
+    capped = min(leader_size, user_available * max_position_pct)
+    if capped < MIN_TRADE_SIZE_USDC:
+        return 0.0
+    return capped
+
+
+__all__ = ["scale_size", "mirror_size_direct", "MIN_TRADE_SIZE_USDC"]

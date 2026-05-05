@@ -10,7 +10,7 @@ Foundation contract: these helpers never place orders, never touch the risk
 gate, never write to the execution path. They are pure I/O + arithmetic.
 """
 
-from .scaler import MIN_TRADE_SIZE_USDC, scale_size
+from .scaler import MIN_TRADE_SIZE_USDC, mirror_size_direct, scale_size
 from .wallet_watcher import (
     GLOBAL_RATE_LIMIT_INTERVAL_SEC,
     POLYMARKET_FETCH_TIMEOUT_SEC,
@@ -20,6 +20,7 @@ from .wallet_watcher import (
 
 __all__ = [
     "scale_size",
+    "mirror_size_direct",
     "MIN_TRADE_SIZE_USDC",
     "fetch_recent_wallet_trades",
     "fetch_leader_open_condition_ids",

@@ -43,6 +43,7 @@ from projects.polymarket.crusaderbot.services.copy_trade import (
     GLOBAL_RATE_LIMIT_INTERVAL_SEC,
     MIN_TRADE_SIZE_USDC,
     POLYMARKET_FETCH_TIMEOUT_SEC,
+    mirror_size_direct,
     scale_size,
 )
 from projects.polymarket.crusaderbot.services.copy_trade import (
@@ -149,6 +150,61 @@ def test_scale_size_at_exactly_one_dollar_passes_floor():
 )
 def test_scale_size_degenerate_inputs_return_zero(leader, bankroll, avail, pct):
     assert scale_size(leader, bankroll, avail, pct) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# scaler.mirror_size_direct
+# ---------------------------------------------------------------------------
+
+
+def test_mirror_size_direct_returns_leader_size_when_under_cap():
+    # leader $5, user $1000 × 10% cap = $100. Direct mirror returns $5.
+    out = mirror_size_direct(
+        leader_size=5.0, user_available=1000.0, max_position_pct=0.10,
+    )
+    assert out == pytest.approx(5.0)
+
+
+def test_mirror_size_direct_caps_when_leader_exceeds_user_room():
+    # leader $500, user $1000 × 10% cap = $100. Mirror caps at $100.
+    out = mirror_size_direct(
+        leader_size=500.0, user_available=1000.0, max_position_pct=0.10,
+    )
+    assert out == pytest.approx(100.0)
+
+
+def test_mirror_size_direct_preserves_proportionality_across_trade_sizes():
+    """The whole point of mirror_size_direct: $5 and $500 leader trades
+    must NOT collapse to the same mirror size. $5 mirrors at $5, $500
+    caps at the user's $100 position cap."""
+    small = mirror_size_direct(5.0, 1000.0, 0.10)
+    large = mirror_size_direct(500.0, 1000.0, 0.10)
+    assert small == pytest.approx(5.0)
+    assert large == pytest.approx(100.0)
+    assert small != large
+
+
+def test_mirror_size_direct_floor_skip():
+    # $0.50 leader trade is below the $1 floor → skip.
+    out = mirror_size_direct(
+        leader_size=0.5, user_available=1000.0, max_position_pct=0.10,
+    )
+    assert out == 0.0
+
+
+@pytest.mark.parametrize(
+    "leader, avail, pct",
+    [
+        (0.0, 100.0, 0.5),     # zero leader
+        (-1.0, 100.0, 0.5),    # negative leader
+        (10.0, 0.0, 0.5),      # zero balance
+        (10.0, -1.0, 0.5),     # negative balance
+        (10.0, 100.0, 0.0),    # zero pct
+        (10.0, 100.0, 1.5),    # pct out of range
+    ],
+)
+def test_mirror_size_direct_degenerate_inputs_return_zero(leader, avail, pct):
+    assert mirror_size_direct(leader, avail, pct) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -697,6 +753,243 @@ def test_coerce_float_safe():
     assert _coerce_float(None) == 0.0
     assert _coerce_float("3.14") == pytest.approx(3.14)
     assert _coerce_float("nope") == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Scan size scaling — proportionality preserved when bankroll unknown
+# ---------------------------------------------------------------------------
+
+
+def _build_target_row():
+    return {
+        "id": _TARGET_UUID,
+        "user_id": _USER_UUID,
+        "target_wallet_address": "0x" + "a" * 40,
+        "scale_factor": 1.0,
+        "trades_mirrored": 0,
+        "created_at": datetime.now(timezone.utc),
+        # leader_bankroll_estimate is intentionally absent — column not yet
+        # backfilled. The strategy must fall back to mirror_size_direct.
+    }
+
+
+def _build_buy_trade(usdc_size: float, tx_hash: str):
+    return {
+        "transactionHash": tx_hash,
+        "conditionId": "cond_x",
+        "market": "mkt_x",
+        "side": "BUY",
+        "outcome": "Yes",
+        "usdcSize": usdc_size,
+        "price": 0.50,
+        "timestamp": int(datetime.now(timezone.utc).timestamp()),
+    }
+
+
+def test_scan_does_not_collapse_small_and_large_leader_trades_to_same_size():
+    """Regression test: when leader_bankroll_estimate is unknown (column
+    not backfilled), a $5 leader trade must mirror at $5 and a $500
+    leader trade must cap at the user's position cap. Previous behaviour
+    synthesised leader_bankroll = leader_size which collapsed every
+    signal to the user's cap regardless of trade size."""
+    strat = CopyTradeStrategy()
+
+    def _run_scan(usdc_size: float):
+        target = _build_target_row()
+        trade = _build_buy_trade(usdc_size, "0x" + format(int(usdc_size), "064x"))
+        conn = _FakeConn(
+            fetch_results=[[target]],
+            fetchrow_results=[None],  # not yet mirrored
+        )
+
+        async def fake_fetch(wallet, limit=20):
+            return [trade]
+
+        with _patch_pool(conn)[0], patch(
+            "projects.polymarket.crusaderbot.domain.strategy.strategies."
+            "copy_trade.fetch_recent_wallet_trades",
+            side_effect=fake_fetch,
+        ):
+            return asyncio.run(
+                strat.scan(_market_filters(), _user_ctx(available=1000.0,
+                                                        capital_pct=0.10))
+            )
+
+    small = _run_scan(5.0)
+    large = _run_scan(500.0)
+    assert len(small) == 1 and len(large) == 1
+    # $5 trade mirrors at $5 (leader_size < user cap of $100).
+    assert small[0].suggested_size_usdc == pytest.approx(5.0)
+    # $500 trade caps at the user's $100 position cap.
+    assert large[0].suggested_size_usdc == pytest.approx(100.0)
+    # Must be different — the bug was that they were equal.
+    assert small[0].suggested_size_usdc != large[0].suggested_size_usdc
+
+
+# ---------------------------------------------------------------------------
+# Atomic /copytrade add — cap enforcement under concurrency
+# ---------------------------------------------------------------------------
+
+
+class _AtomicConn:
+    """asyncpg.Connection stand-in that records every SQL it sees and
+    supports `transaction()` as an async context manager."""
+
+    def __init__(self, *,
+                 existing_row=None,
+                 active_count: int = 0) -> None:
+        self.sql_log: list[tuple[str, str, tuple]] = []
+        self._existing = existing_row
+        self._active_count = active_count
+        self.in_transaction = False
+
+    def transaction(self):
+        conn = self
+
+        class _T:
+            async def __aenter__(self_inner):
+                conn.in_transaction = True
+                conn.sql_log.append(("BEGIN", "", ()))
+                return self_inner
+
+            async def __aexit__(self_inner, exc_type, exc, tb):
+                conn.in_transaction = False
+                conn.sql_log.append(("COMMIT" if exc is None else "ROLLBACK",
+                                      "", ()))
+                return False
+
+        return _T()
+
+    async def execute(self, sql, *args):
+        self.sql_log.append(("execute", sql, args))
+        return None
+
+    async def fetchrow(self, sql, *args):
+        self.sql_log.append(("fetchrow", sql, args))
+        if "FROM copy_targets" in sql and "WHERE user_id" in sql \
+                and "target_wallet_address" in sql:
+            return self._existing
+        return None
+
+    async def fetchval(self, sql, *args):
+        self.sql_log.append(("fetchval", sql, args))
+        if "COUNT(*)" in sql and "FROM copy_targets" in sql:
+            return self._active_count
+        return 0
+
+    async def fetch(self, sql, *args):
+        self.sql_log.append(("fetch", sql, args))
+        return []
+
+
+class _AtomicPool:
+    def __init__(self, conn: _AtomicConn) -> None:
+        self._conn = conn
+
+    def acquire(self):
+        conn = self._conn
+
+        class _Ctx:
+            async def __aenter__(self_inner):
+                return conn
+
+            async def __aexit__(self_inner, exc_type, exc, tb):
+                return False
+
+        return _Ctx()
+
+
+def test_insert_active_target_acquires_advisory_lock_inside_transaction():
+    """Cap check + insert/reactivate must run inside a single transaction
+    that holds an advisory lock keyed on user_id. Otherwise concurrent
+    /copytrade add calls can race past the cap."""
+    from projects.polymarket.crusaderbot.bot.handlers import (
+        copy_trade as ct_handler,
+    )
+
+    conn = _AtomicConn(existing_row=None, active_count=0)
+    with patch.object(ct_handler, "get_pool",
+                       return_value=_AtomicPool(conn)):
+        result = asyncio.run(ct_handler._insert_active_target(
+            _USER_UUID, "0x" + "a" * 40,
+        ))
+    assert result == "added"
+
+    # Must see BEGIN, advisory lock, then read/insert, then COMMIT.
+    kinds = [entry[0] for entry in conn.sql_log]
+    assert kinds[0] == "BEGIN"
+    assert kinds[-1] == "COMMIT"
+    # The advisory lock SQL is the first execute after BEGIN.
+    advisory_calls = [
+        e for e in conn.sql_log
+        if e[0] == "execute" and "pg_advisory_xact_lock" in e[1]
+    ]
+    assert len(advisory_calls) == 1
+    # Lock arg is hashtext(user_id::text) — the helper passes str(user_id).
+    assert advisory_calls[0][2] == (str(_USER_UUID),)
+
+
+def test_insert_active_target_returns_cap_exceeded_at_or_above_cap():
+    from projects.polymarket.crusaderbot.bot.handlers import (
+        copy_trade as ct_handler,
+    )
+
+    conn = _AtomicConn(existing_row=None, active_count=3)
+    with patch.object(ct_handler, "get_pool",
+                       return_value=_AtomicPool(conn)):
+        result = asyncio.run(ct_handler._insert_active_target(
+            _USER_UUID, "0x" + "b" * 40,
+        ))
+    assert result == "cap_exceeded"
+    # Must NOT have issued an INSERT/UPDATE — only the lock + read paths.
+    write_calls = [
+        e for e in conn.sql_log
+        if e[0] == "execute"
+        and ("INSERT INTO copy_targets" in e[1]
+             or "UPDATE copy_targets" in e[1])
+    ]
+    assert write_calls == []
+
+
+def test_insert_active_target_returns_exists_when_already_active():
+    """Already-active rows short-circuit before the count check, so the
+    "/copytrade add same-wallet twice" path stays cheap and the response
+    is informative rather than 'cap_exceeded'."""
+    from projects.polymarket.crusaderbot.bot.handlers import (
+        copy_trade as ct_handler,
+    )
+
+    existing = {"id": uuid4(), "status": "active"}
+    conn = _AtomicConn(existing_row=existing, active_count=3)
+    with patch.object(ct_handler, "get_pool",
+                       return_value=_AtomicPool(conn)):
+        result = asyncio.run(ct_handler._insert_active_target(
+            _USER_UUID, "0x" + "c" * 40,
+        ))
+    assert result == "exists"
+
+
+def test_insert_active_target_reactivates_inactive_row_under_lock():
+    """An inactive row may be reactivated as long as the active count is
+    still under the cap (count of `active`-status rows excludes this
+    inactive one, so the cap check still passes)."""
+    from projects.polymarket.crusaderbot.bot.handlers import (
+        copy_trade as ct_handler,
+    )
+
+    existing = {"id": uuid4(), "status": "inactive"}
+    conn = _AtomicConn(existing_row=existing, active_count=2)
+    with patch.object(ct_handler, "get_pool",
+                       return_value=_AtomicPool(conn)):
+        result = asyncio.run(ct_handler._insert_active_target(
+            _USER_UUID, "0x" + "d" * 40,
+        ))
+    assert result == "added"
+    update_calls = [
+        e for e in conn.sql_log
+        if e[0] == "execute" and "UPDATE copy_targets" in e[1]
+    ]
+    assert len(update_calls) == 1
 
 
 # ---------------------------------------------------------------------------

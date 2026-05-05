@@ -84,16 +84,6 @@ async def _ensure_tier(update: Update, min_tier: int) -> tuple[dict | None, bool
     return user, True
 
 
-async def _count_active_targets(user_id) -> int:
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        return int(await conn.fetchval(
-            "SELECT COUNT(*) FROM copy_targets "
-            "WHERE user_id = $1 AND status = 'active'",
-            user_id,
-        ))
-
-
 async def _list_active_targets(user_id) -> list[dict]:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -110,35 +100,57 @@ async def _list_active_targets(user_id) -> list[dict]:
 
 
 async def _insert_active_target(user_id, wallet: str) -> str:
-    """Insert (or reactivate) a copy target row.
+    """Insert (or reactivate) a copy target row, atomically respecting the cap.
+
+    Concurrency: a `pg_advisory_xact_lock` keyed on the user_id serialises
+    every concurrent `/copytrade add` call for the same user, so the
+    count check and the insert / reactivate land in one atomic critical
+    section. Without the lock, two concurrent adds could both observe
+    `active_count = N < cap` and produce `N + 2 > cap` rows after both
+    commit. Read-committed isolation is not enough on its own here.
 
     Returns one of:
         "added"        — a new row was created or a previously inactive
                          row flipped back to 'active'
         "exists"       — the row was already active for this user
+        "cap_exceeded" — the user already holds MAX_COPY_TARGETS_PER_USER
+                         active rows and this call did not change anything
     """
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtext($1))",
+                str(user_id),
+            )
             existing = await conn.fetchrow(
                 "SELECT id, status FROM copy_targets "
                 "WHERE user_id = $1 AND target_wallet_address = $2",
                 user_id, wallet,
             )
+            if existing is not None and existing["status"] == "active":
+                return "exists"
+
+            active_count = int(await conn.fetchval(
+                "SELECT COUNT(*) FROM copy_targets "
+                "WHERE user_id = $1 AND status = 'active'",
+                user_id,
+            ))
+            if active_count >= MAX_COPY_TARGETS_PER_USER:
+                return "cap_exceeded"
+
             if existing is None:
                 await conn.execute(
                     "INSERT INTO copy_targets (user_id, target_wallet_address) "
                     "VALUES ($1, $2)",
                     user_id, wallet,
                 )
-                return "added"
-            if existing["status"] == "active":
-                return "exists"
-            await conn.execute(
-                "UPDATE copy_targets SET status = 'active' "
-                "WHERE id = $1",
-                existing["id"],
-            )
+            else:
+                await conn.execute(
+                    "UPDATE copy_targets SET status = 'active' "
+                    "WHERE id = $1",
+                    existing["id"],
+                )
             return "added"
 
 
@@ -222,15 +234,13 @@ async def _handle_add(update: Update, user_id, args: list[str]) -> None:
         )
         return
 
-    active_count = await _count_active_targets(user_id)
-    if active_count >= MAX_COPY_TARGETS_PER_USER:
+    result = await _insert_active_target(user_id, wallet)
+    if result == "cap_exceeded":
         await update.message.reply_text(
             f"❌ You already have {MAX_COPY_TARGETS_PER_USER} active copy "
             "targets. Remove one before adding another.",
         )
         return
-
-    result = await _insert_active_target(user_id, wallet)
     if result == "exists":
         await update.message.reply_text(
             f"Already copying `{_truncate_wallet(wallet)}`.",

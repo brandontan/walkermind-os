@@ -26,7 +26,7 @@ from typing import Any
 from uuid import UUID
 
 from ....database import get_pool
-from ....services.copy_trade.scaler import scale_size
+from ....services.copy_trade.scaler import mirror_size_direct, scale_size
 from ....services.copy_trade.wallet_watcher import (
     fetch_leader_open_condition_ids,
     fetch_recent_wallet_trades,
@@ -121,15 +121,24 @@ class CopyTradeStrategy(BaseStrategy):
                     continue
 
                 leader_bankroll = _coerce_float(target.get("leader_bankroll_estimate"))
-                if leader_bankroll <= 0:
-                    leader_bankroll = max(leader_size_usdc, 1.0)
-
-                sized = scale_size(
-                    leader_size=leader_size_usdc,
-                    leader_bankroll=leader_bankroll,
-                    user_available=user_context.available_balance_usdc,
-                    max_position_pct=user_context.capital_allocation_pct,
-                )
+                if leader_bankroll > 0:
+                    sized = scale_size(
+                        leader_size=leader_size_usdc,
+                        leader_bankroll=leader_bankroll,
+                        user_available=user_context.available_balance_usdc,
+                        max_position_pct=user_context.capital_allocation_pct,
+                    )
+                else:
+                    # Bankroll unknown — proportional rule would synthesise a
+                    # bankroll equal to leader_size and collapse every signal
+                    # to the user's position cap regardless of the leader
+                    # trade notional. Fall back to a 1:1 mirror that is still
+                    # capped at user_available × max_position_pct.
+                    sized = mirror_size_direct(
+                        leader_size=leader_size_usdc,
+                        user_available=user_context.available_balance_usdc,
+                        max_position_pct=user_context.capital_allocation_pct,
+                    )
                 if sized <= 0.0:
                     # scale_size returns 0.0 to signal "skip" (below $1 floor
                     # or any degenerate input). Honour the skip — never emit
