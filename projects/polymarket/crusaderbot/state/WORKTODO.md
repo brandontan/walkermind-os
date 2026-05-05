@@ -1,62 +1,58 @@
-# CrusaderBot — WORKTODO
+# CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-05 21:22 Asia/Jakarta
+**Last Updated:** 2026-05-06 01:22 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-Active lane: WARP/CRUSADERBOT-P3B-COPY-TRADE — MAJOR tier, PR open, SENTINEL audit required before merge.
-Next: WARP•SENTINEL validation of P3b copy-trade. WARP🔹CMD review of P3a foundation + R12f operator dashboard. Merge decisions on R12c exit watcher (PR #865) and R12a CI/CD.
+Active lane: P3b copy-trade strategy -- PR #877 open, MAJOR tier, SENTINEL pending (Issue #878, label: agent:sentinel).
+Blocker: migration runner path decision needed before P3b merge -- 008_strategy_tables.sql at infra/migrations/ but runner reads migrations/ only.
 
 ---
 
-## Phase 3 — Strategy Plane
+## Phase 3 -- Strategy Plane
 
-- [x] P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + types + migration 008) — IN PROGRESS: WARP/CRUSADERBOT-P3A-STRATEGY-REGISTRY open, STANDARD tier, awaiting WARP🔹CMD review
-- [x] P3b — Copy Trade strategy implementation — IN PROGRESS: WARP/CRUSADERBOT-P3B-COPY-TRADE open, MAJOR tier (STRATEGY SIGNAL GENERATION), SENTINEL audit required before merge
-- [ ] P3c — Signal Following strategy implementation — NOT STARTED (MAJOR)
-- [ ] P3d — Per-user signal scan loop + execution queue wiring — NOT STARTED (MAJOR — wires registry into risk gate)
+- [x] P3a -- Strategy Registry Foundation -- MERGED PR #876 (2026-05-05), STANDARD, FOUNDATION
+- [ ] P3b -- Copy Trade strategy -- IN PROGRESS: PR #877 open, MAJOR, SENTINEL pending Issue #878
+  - WARNING BLOCKER: migration runner path -- 008+009 not applied at startup. Decision needed: move 008 to migrations/ or update runner
+- [ ] P3c -- Signal Following strategy -- NOT STARTED (MAJOR)
+- [ ] P3d -- Per-user signal scan loop + execution queue wiring -- NOT STARTED (MAJOR -- wires registry into risk gate)
 
-Done condition: P3a–P3d merged, registry catalog populated at boot, scan loop wired through risk gate, SENTINEL APPROVED before live activation.
-
----
-
-## R12 — Production Readiness
-
-- [x] R12b — Fly.io Health Alerts — Done (PR #856 merged)
-- [ ] R12a — CI/CD Pipeline (GitHub Actions) — IN PROGRESS: WARP/CRUSADERBOT-R12A-CICD-PIPELINE open, awaiting WARP🔹CMD review
-- [ ] R12c — Auto-Close / Take-Profit — IN PROGRESS: WARP/CRUSADERBOT-R12C-EXIT-WATCHER open, MAJOR — SENTINEL audit required
-- [x] R12d — Telegram Position UX — DONE (PR #868 merged 4f5e12201964) (live position monitor + per-position force close) — IN PROGRESS: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX open, STANDARD — awaiting WARP🔹CMD review
-- [ ] R12d — Live Opt-In Checklist — NOT STARTED (MAJOR — hard gate before EXE)
-- [x] R12e — Auto-Redeem System — MERGED PR #869 (7f8af0b90993), SENTINEL APPROVED 92/100
-- [ ] R12e — Live → Paper Auto-Fallback — NOT STARTED (MAJOR)
-- [ ] R12f — Daily P&L Summary — NOT STARTED (STANDARD)
-- [ ] R12f — Operator Dashboard + Kill Switch + Job Monitor + Audit Log — IN PROGRESS: WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD open, STANDARD — awaiting WARP🔹CMD review
-- [ ] R12 — Deployment (Fly.io) final — NOT STARTED (MAJOR — blocked on R12a-R12f all merged)
-
-Done condition: All R12a-R12f merged + activation guards reviewed by WARP🔹CMD before final R12 deployment.
+Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wired through risk gate, SENTINEL APPROVED before live activation.
 
 ---
 
-## Activation Guards
+## R12 -- Production Readiness
 
-- [ ] EXECUTION_PATH_VALIDATED — NOT SET (Engineering gate — R12c-R12e required first)
-- [ ] CAPITAL_MODE_CONFIRMED — NOT SET (Operator gate)
-- [ ] ENABLE_LIVE_TRADING — NOT SET (Owner gate — final activation)
-- [ ] RISK_CONTROLS_VALIDATED — NOT SET (SENTINEL gate — R7/R8/R9 live re-audit)
-- [ ] SECURITY_HARDENING_VALIDATED — NOT SET (SENTINEL gate)
-- [ ] FEE_COLLECTION_ENABLED — NOT SET (Owner gate — R11 reviewed)
-- [ ] AUTO_REDEEM_ENABLED — NOT SET (Engineering gate — R10 reviewed)
+- [x] R12a -- CI/CD Pipeline (GitHub Actions) -- DONE (PR #855 merged 2026-05-04, STANDARD)
+- [x] R12b -- Fly.io Health Alerts -- DONE (PR #856 merged)
+- [x] R12c -- Auto-Close / Take-Profit -- DONE (PR #865 merged 2026-05-05, MAJOR, SENTINEL APPROVED 95/100)
+- [x] R12d -- Telegram Position UX (live monitor + per-position force close) -- DONE (PR #868 merged)
+- [x] R12e -- Auto-Redeem System -- DONE (PR #869 merged, MAJOR, SENTINEL CONDITIONAL 64/100 -- conditions resolved PR #879)
+- [x] R12f -- Operator Dashboard + Kill Switch + Job Monitor -- DONE (PR #874 merged 2026-05-05, STANDARD)
+- [ ] R12d -- Live Opt-In Checklist -- NOT STARTED (MAJOR -- hard gate before EXE)
+- [ ] R12e -- Live to Paper Auto-Fallback -- NOT STARTED (MAJOR)
+- [ ] R12f -- Daily P&L Summary -- NOT STARTED (STANDARD)
+- [ ] R12 -- Deployment (Fly.io) final -- NOT STARTED (MAJOR -- blocked on P3 complete + all R12 done + activation guards reviewed)
 
-Done condition: All guards SET only after WARP🔹CMD + SENTINEL + Owner approval per ROADMAP.md.
+Done condition: All R12 lanes merged + activation guards reviewed by WARP🔸CMD before final deployment.
 
 ---
 
-## Known Issues (deferred)
+## Activation Guards (DO NOT TOUCH until explicit owner decision)
 
+- EXECUTION_PATH_VALIDATED -- NOT SET
+- CAPITAL_MODE_CONFIRMED -- NOT SET
+- ENABLE_LIVE_TRADING -- NOT SET
+
+---
+
+## Known Issues / Tech Debt
+
+- [ ] Migration runner path: 008_strategy_tables.sql at infra/migrations/ -- runner reads migrations/ only (BLOCKER for P3b merge)
+- [ ] F401 unused imports: bot/dispatcher.py, bot/handlers/dashboard.py, cache.py, config.py, domain/risk/gate.py, scheduler.py (ruff cleanup, LOW)
+- [ ] check_alchemy_ws TCP-only, no full WS handshake (follow-up lane, LOW)
+- [ ] services/* dead code (post-R12 cleanup, LOW)
 - [ ] /deposit no tier gate (intentional, non-blocking)
-- [ ] services/* dead code (LOW — post-R12 cleanup)
-- [ ] check_alchemy_ws is TCP-only, not full WS handshake (follow-up lane)
-- [ ] F401 unused imports in bot/dispatcher.py, bot/handlers/dashboard.py, cache.py, config.py, domain/risk/gate.py, scheduler.py (ruff baseline E9/F63/F7/F82 only — dedicated cleanup lane needed)
