@@ -15,7 +15,6 @@ jobs:
           WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BRANCH: ${{ github.head_ref }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
@@ -29,7 +28,6 @@ jobs:
             'pull_request': {
               'number': int(os.environ['PR_NUMBER']),
               'title': os.environ['PR_TITLE'],
-              'body': os.environ.get('PR_BODY', ''),
               'head': {
                 'ref': os.environ['PR_BRANCH'],
                 'sha': os.environ['PR_SHA']
@@ -44,14 +42,17 @@ jobs:
           }
           print(json.dumps(payload))
           ")
-          HTTP=$(curl -s -o /tmp/gate_resp.json -w "%{http_code}" \
-            -X POST \
+          HTTP_STATUS=$(curl -s -X POST \
             -H "Content-Type: application/json" \
             -H "x-warp-secret: ${WARP_SECRET}" \
+            -H "User-Agent: warp-gate-ci/1.0" \
             "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook" \
             -d "${PAYLOAD}" \
-            --max-time 20) || HTTP=000
-          echo "Gate webhook response: HTTP ${HTTP}"
-          cat /tmp/gate_resp.json 2>/dev/null || true
-          # Always exit 0 — gate is fire-and-forget. CI must not fail on webhook errors.
-          exit 0
+            -o /tmp/gate_response.txt \
+            --max-time 30 \
+            -w "%{http_code}")
+          echo "Gate webhook response: HTTP $HTTP_STATUS"
+          cat /tmp/gate_response.txt || true
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Warning: Gate webhook returned HTTP $HTTP_STATUS — check gate manually"
+          fi
