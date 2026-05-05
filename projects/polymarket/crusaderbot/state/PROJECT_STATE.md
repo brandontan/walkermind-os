@@ -1,5 +1,5 @@
-Last Updated : 2026-05-05T11:57:54Z
-Status       : P3a strategy registry foundation built — PR open: WARP/CRUSADERBOT-P3A-STRATEGY-REGISTRY, STANDARD tier, awaiting WARP🔹CMD review. R12f operator dashboard PR open. R12e auto-redeem MERGED ✔ (PR #869). R12c exit watcher (PR #865) CLEAN, awaiting CMD merge. R12a CI/CD PR open. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
+Last Updated : 2026-05-05 21:22 Asia/Jakarta
+Status       : P3b copy-trade strategy built — PR open: WARP/CRUSADERBOT-P3B-COPY-TRADE, MAJOR tier, SENTINEL audit required before merge. P3a strategy registry foundation PR still open (STANDARD). R12f operator dashboard PR open. R12e auto-redeem MERGED ✔ (PR #869). R12c exit watcher (PR #865) CLEAN, awaiting CMD merge. R12a CI/CD PR open. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -20,6 +20,7 @@ Status       : P3a strategy registry foundation built — PR open: WARP/CRUSADER
 - R12e — Auto-Redeem System (instant + hourly workers + redeem_queue + Settings UI) — PR #869 MERGED (7f8af0b90993) — MAJOR tier, SENTINEL APPROVED 92/100
 - R12f — Operator Dashboard + Kill Switch + Job Monitor + Audit Log — PR open: WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD — STANDARD tier, awaiting WARP🔹CMD review
 - P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + types + migration 008) — PR open: WARP/CRUSADERBOT-P3A-STRATEGY-REGISTRY — STANDARD tier, FOUNDATION ONLY, awaiting WARP🔹CMD review
+- P3b — Copy-Trade Strategy (CopyTradeStrategy + scaler + wallet_watcher + /copytrade Telegram surface + migration 009) — PR open: WARP/CRUSADERBOT-P3B-COPY-TRADE — MAJOR tier, STRATEGY SIGNAL GENERATION, SENTINEL audit required before merge
 
 [NOT STARTED]
 - R12d — Live Opt-In Checklist (MAJOR — hard gate before EXE)
@@ -28,6 +29,7 @@ Status       : P3a strategy registry foundation built — PR open: WARP/CRUSADER
 - R12 — Deployment (Fly.io) — final (MAJOR)
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for P3b copy-trade strategy before merge. Source: projects/polymarket/crusaderbot/reports/forge/p3b-copy-trade.md. Tier: MAJOR. Branch: WARP/CRUSADERBOT-P3B-COPY-TRADE.
 - WARP🔹CMD review required for P3a strategy registry foundation. Source: projects/polymarket/crusaderbot/reports/forge/p3a-strategy-registry.md. Tier: STANDARD. Branch: WARP/CRUSADERBOT-P3A-STRATEGY-REGISTRY.
 - WARP🔹CMD review required for R12f operator dashboard + kill switch. Source: projects/polymarket/crusaderbot/reports/forge/r12f-operator-dashboard.md. Tier: STANDARD. Branch: WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD.
 - R12c exit watcher (PR #865) CLEAN — WARP🔹CMD merge decision pending. Tier: MAJOR, SENTINEL required. Branch: WARP/CRUSADERBOT-R12C-EXIT-WATCHER.
@@ -38,3 +40,5 @@ Status       : P3a strategy registry foundation built — PR open: WARP/CRUSADER
 - services/* dead code (LOW, post-merge cleanup)
 - check_alchemy_ws is TCP-only (no full WS handshake) to avoid pulling a websockets dep — surfaces DNS/SSL/firewall outages; full handshake is a follow-up
 - P3a migration 008 placed at infra/migrations/ per WARP🔹CMD task spec; existing runner reads from migrations/ — WARP🔹CMD decision needed before P3b consumes the tables
+- P3b migration 009 placed at infra/migrations/ per WARP🔹CMD task spec — same runner-path divergence as P3a; copy_targets / copy_trade_events not auto-applied at startup until decision lands
+- P3b ExitDecision encoding: leader-driven exit uses reason='strategy_exit' + metadata.reason='leader_exit' to honour the P3a foundation invariant (VALID_EXIT_REASONS = {strategy_exit, hold}); WARP🔹CMD may extend the enum in P3c if richer reason taxonomy is needed

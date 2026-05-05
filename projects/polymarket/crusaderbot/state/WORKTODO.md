@@ -1,21 +1,21 @@
 # CrusaderBot — WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-05 23:30 Asia/Jakarta
+**Last Updated:** 2026-05-05 21:22 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-Active lane: WARP/CRUSADERBOT-P3A-STRATEGY-REGISTRY — STANDARD tier, PR open, awaiting WARP🔹CMD review.
-Next: WARP🔹CMD review of P3a foundation + R12f operator dashboard, then merge decisions on R12c exit watcher (PR #865) and R12a CI/CD.
+Active lane: WARP/CRUSADERBOT-P3B-COPY-TRADE — MAJOR tier, PR open, SENTINEL audit required before merge.
+Next: WARP•SENTINEL validation of P3b copy-trade. WARP🔹CMD review of P3a foundation + R12f operator dashboard. Merge decisions on R12c exit watcher (PR #865) and R12a CI/CD.
 
 ---
 
 ## Phase 3 — Strategy Plane
 
 - [x] P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + types + migration 008) — IN PROGRESS: WARP/CRUSADERBOT-P3A-STRATEGY-REGISTRY open, STANDARD tier, awaiting WARP🔹CMD review
-- [ ] P3b — Copy Trade strategy implementation — NOT STARTED (MAJOR — first concrete BaseStrategy consumer)
+- [x] P3b — Copy Trade strategy implementation — IN PROGRESS: WARP/CRUSADERBOT-P3B-COPY-TRADE open, MAJOR tier (STRATEGY SIGNAL GENERATION), SENTINEL audit required before merge
 - [ ] P3c — Signal Following strategy implementation — NOT STARTED (MAJOR)
 - [ ] P3d — Per-user signal scan loop + execution queue wiring — NOT STARTED (MAJOR — wires registry into risk gate)
 
