@@ -1,23 +1,21 @@
-Last Updated : 2026-05-05T11:57:54Z
-Status       : P3a strategy registry foundation built — PR open: WARP/CRUSADERBOT-P3A-STRATEGY-REGISTRY, STANDARD tier, awaiting WARP🔹CMD review. R12f operator dashboard PR open. R12e auto-redeem MERGED ✔ (PR #869). R12c exit watcher (PR #865) CLEAN, awaiting CMD merge. R12a CI/CD PR open. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
+Last Updated : 2026-05-06 01:18
+Status       : R12e SENTINEL audit closed — PR #879 merged, CONDITIONAL 64/100, conditions resolved. P3a strategy registry PR open. R12f operator dashboard PR open. R12c exit watcher (PR #865) awaiting SENTINEL + CMD merge. R12a CI/CD PR open. Paper-default. EXECUTION_PATH_VALIDATED NOT SET.
 
 [COMPLETED]
-- PR #852 — feat(crusaderbot): import full Replit build R1-R11
-- PR #853 — sentinel: crusaderbot-replit-import PASS (post-fix)
 - C1 resolved: KELLY_FRACTION applied, capital_alloc_pct capped <1.0
 - C2 resolved: migrations/004 idempotent DO $$ blocks
 - C3 resolved: Tier 3 promotion gated on MIN_DEPOSIT_USDC
 - R12b — Fly.io health probes + operator alerts + JSON logging (PR #856 merged)
-- PR #857 — chore(crusaderbot): state sync — PR #856 post-merge (WARP•ECHO routine)
-- PR #858 — chore(crusaderbot): state sync — PR #857 post-merge (WARP•ECHO routine)
-- PR #860 — chore(crusaderbot): state sync — PR #858 post-merge (WARP•ECHO routine)
 - PR #861 — chore(crusaderbot): ROADMAP R12b drift fix + WORKTODO init (STANDARD, merged)
+- R12d — Telegram Position UX — PR #868 merged (4f5e12201964) — STANDARD
+- R12e — Auto-Redeem System — PR #869 merged (7f8af0b90993) — MAJOR — NARROW INTEGRATION
+- PR #879 — SENTINEL r12e-auto-redeem CONDITIONAL 64/100, conditions resolved (merged)
 
 [IN PROGRESS]
 - R12a — CI/CD Pipeline (GitHub Actions) — PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — STANDARD tier, awaiting WARP🔹CMD review
 - R12c — Auto-Close / Take-Profit — PR open: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required before merge
 - R12d — Telegram Position UX (live position monitor + per-position force close) — PR #868 MERGED (4f5e12201964) — STANDARD tier
-- R12e — Auto-Redeem System (instant + hourly workers + redeem_queue + Settings UI) — PR #869 MERGED (7f8af0b90993) — MAJOR tier, SENTINEL CONDITIONAL 64/100 (official — PR #879)
+- R12e — Auto-Redeem System — PR #869 + PR #879 MERGED — MAJOR tier, SENTINEL CONDITIONAL 64/100, conditions resolved — WARP🔹CMD final merge decision on GO-LIVE gate pending
 - R12f — Operator Dashboard + Kill Switch + Job Monitor + Audit Log — PR open: WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD — STANDARD tier, awaiting WARP🔹CMD review
 - P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + types + migration 008) — PR open: WARP/CRUSADERBOT-P3A-STRATEGY-REGISTRY — STANDARD tier, FOUNDATION ONLY, awaiting WARP🔹CMD review
 

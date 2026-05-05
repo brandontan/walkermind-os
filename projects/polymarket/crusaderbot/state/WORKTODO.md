@@ -1,7 +1,7 @@
 # CrusaderBot — WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-05 23:30 Asia/Jakarta
+**Last Updated:** 2026-05-06 01:18 Asia/Jakarta
 
 ---
 
@@ -30,7 +30,7 @@ Done condition: P3a–P3d merged, registry catalog populated at boot, scan loop 
 - [ ] R12c — Auto-Close / Take-Profit — IN PROGRESS: WARP/CRUSADERBOT-R12C-EXIT-WATCHER open, MAJOR — SENTINEL audit required
 - [x] R12d — Telegram Position UX — DONE (PR #868 merged 4f5e12201964) (live position monitor + per-position force close) — IN PROGRESS: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX open, STANDARD — awaiting WARP🔹CMD review
 - [ ] R12d — Live Opt-In Checklist — NOT STARTED (MAJOR — hard gate before EXE)
-- [x] R12e — Auto-Redeem System — MERGED PR #869 (7f8af0b90993), SENTINEL APPROVED 92/100
+- [x] R12e — Auto-Redeem System — MERGED PR #869 (7f8af0b90993), SENTINEL CONDITIONAL 64/100 (PR #879, conditions resolved — MAJ-01/MAJ-02/MAJ-03 addressed)
 - [ ] R12e — Live → Paper Auto-Fallback — NOT STARTED (MAJOR)
 - [ ] R12f — Daily P&L Summary — NOT STARTED (STANDARD)
 - [ ] R12f — Operator Dashboard + Kill Switch + Job Monitor + Audit Log — IN PROGRESS: WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD open, STANDARD — awaiting WARP🔹CMD review
