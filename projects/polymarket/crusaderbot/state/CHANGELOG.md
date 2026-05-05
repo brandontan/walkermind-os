@@ -4,6 +4,24 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+## 2026-05-05 08:15 Asia/Jakarta — ROADMAP R12b drift fix + WORKTODO init
+
+### Merged
+- PR #861: chore(crusaderbot): state sync — ROADMAP R12b drift fix + WORKTODO init
+  STANDARD | FOUNDATION. Resolved two carry-forward gaps from PR #857/#858 syncs.
+  Closes #859.
+
+### Changes
+- projects/polymarket/crusaderbot/state/ROADMAP.md — R12b row: Not Started → Done (Merged via PR #856)
+- projects/polymarket/crusaderbot/state/WORKTODO.md — created (was missing)
+- projects/polymarket/crusaderbot/state/CHANGELOG.md — lane closure entry appended
+- projects/polymarket/crusaderbot/state/PROJECT_STATE.md — Last Updated + NEXT PRIORITY updated
+- projects/polymarket/crusaderbot/reports/forge/crusaderbot-state-fix.md — forge report added
+
+### State
+- R12b complete. WORKTODO.md initialized. R12a CI/CD pipeline PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — awaiting WARP🔹CMD review.
+- Paper mode only. All activation guards OFF.
+
 ## 2026-05-05 06:06 Asia/Jakarta — State Sync (PR #857 post-merge)
 
 ### Merged
