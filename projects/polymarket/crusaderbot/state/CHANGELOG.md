@@ -4,6 +4,10 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+2026-05-05 11:36 | WARP/GATE-SYNC-SAFETY | PR #867 merged: GATE post-merge sync safety rules added to COMMANDER.md — pre-commit content guard, safe /tmp write pattern, Unicode escape rule. MINOR. Incident ref: 4eda17c5.
+
+2026-05-05 11:36 | WARP/CRUSADERBOT-R12C-EXIT-WATCHER | PR #866 merged: SENTINEL APPROVED 95/100, 0 critical — r12c-exit-watcher audit passed. Lane closed.
+
 2026-05-05 19:45 | WARP/CRUSADERBOT-R12C-EXIT-WATCHER | R12c exit watcher: per-position async worker with priority chain (force_close_intent > tp_hit > sl_hit > strategy_exit > hold), applied_tp_pct/applied_sl_pct snapshot fields with DB-trigger immutability + frozen registry dataclass, close-with-retry helper (1 retry, 5s backoff), close_failure_count tracking + persistent-failure operator alert, five user-side alerts (TP/SL/force-close/strategy-exit/close-failed), migration 005 idempotent (ADD COLUMN IF NOT EXISTS + DO $$ pg_trigger guards + backfill from legacy tp_pct/sl_pct/force_close), emergency.pause_close migrated to position registry, scheduler.check_exits delegates to exit_watcher.run_once. 22 new tests pass, 49/49 total, ruff clean. Tier: MAJOR. Claim: FULL RUNTIME INTEGRATION.
 
 ## 2026-05-05 08:35 Asia/Jakarta — gate: R12a CI/CD pipeline ratified (PR #855) [warp-gate[bot]]
