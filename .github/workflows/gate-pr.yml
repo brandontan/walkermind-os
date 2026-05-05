@@ -11,6 +11,7 @@ jobs:
     if: startsWith(github.head_ref, 'WARP/')
     steps:
       - name: Send PR event to WARP gate_webhook
+        continue-on-error: true
         env:
           WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
