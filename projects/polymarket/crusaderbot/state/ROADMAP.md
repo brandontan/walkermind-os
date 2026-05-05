@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-05 02:00 Asia/Jakarta
+**Last Updated:** 2026-05-05 06:18 Asia/Jakarta
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -20,7 +20,7 @@
 | R10 | Auto-redeem (instant/hourly modes) | ✅ Done | STANDARD | Merged via PR #852, SENTINEL PASS |
 | R11 | Fee + referral accounting (default OFF) | ✅ Done | STANDARD | Merged via PR #852, SENTINEL PASS |
 | R12a | CI/CD Pipeline (GitHub Actions) | ❌ Not Started | STANDARD | PR open: WARP/CRUSADERBOT-R12A-CICD-PIPELINE — awaiting WARP🔹CMD review |
-| R12b | Fly.io Health Alerts | ❌ Not Started | STANDARD | — |
+| R12b | Fly.io Health Alerts | ✅ Done | STANDARD | Merged via PR #856 |
 | R12c | Auto-Close / Take-Profit | ❌ Not Started | MAJOR | Order-path / execution — SENTINEL required |
 | R12d | Live Opt-In Checklist | ❌ Not Started | MAJOR | Hard gate before EXE |
 | R12e | Live → Paper Auto-Fallback | ❌ Not Started | MAJOR | — |
