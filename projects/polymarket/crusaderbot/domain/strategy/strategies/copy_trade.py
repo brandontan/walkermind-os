@@ -26,6 +26,7 @@ from typing import Any
 from uuid import UUID
 
 from ....database import get_pool
+from ....integrations import polymarket as pm
 from ....services.copy_trade.scaler import mirror_size_direct, scale_size
 from ....services.copy_trade.wallet_watcher import (
     fetch_leader_open_condition_ids,
@@ -42,6 +43,10 @@ DEFAULT_SL_PCT = 0.10
 RECENT_TRADE_WINDOW = timedelta(minutes=5)
 MAX_TRADES_PER_WALLET = 20
 MAX_TARGETS_PER_USER = 3
+# Sentinel: a max_time_to_resolution_days at or above this value is treated
+# as "no resolution-distance constraint" — the strategy skips the metadata
+# fetch and the corresponding check. Anything below it triggers the fetch.
+RESOLUTION_DISTANCE_DISABLED_DAYS = 365
 
 
 class CopyTradeStrategy(BaseStrategy):
@@ -118,6 +123,10 @@ class CopyTradeStrategy(BaseStrategy):
                     or trade.get("usdc_size")
                 )
                 if not market_id or not condition_id or leader_size_usdc <= 0:
+                    continue
+                if not await _passes_market_filters(
+                    str(market_id), market_filters,
+                ):
                     continue
 
                 leader_bankroll = _coerce_float(target.get("leader_bankroll_estimate"))
@@ -232,6 +241,131 @@ async def _load_active_copy_targets(user_id: str) -> list[dict[str, Any]]:
             user_uuid, MAX_TARGETS_PER_USER,
         )
     return [dict(r) for r in rows]
+
+
+async def _passes_market_filters(
+    market_id: str,
+    market_filters: MarketFilters,
+) -> bool:
+    """Return True iff the market clears every active filter.
+
+    Two cost classes:
+      * blacklist + "all-permissive" check — synchronous, no I/O. Honoured
+        always so a non-default `blacklisted_market_ids` is enforced even
+        if every other filter is at its default.
+      * categories / min_liquidity / max_time_to_resolution_days — require
+        Gamma market metadata (`pm.get_market`, cached 120 s). The fetch
+        happens only when at least one of those filter fields is set to
+        a non-default value, so default-permissive scans pay no extra I/O.
+
+    Conservative on metadata failure: if a filter that needs metadata is
+    active and the Gamma fetch returns None, the candidate is skipped
+    rather than emitted unverified — emitting a signal we cannot prove
+    satisfies the user's filter envelope is the wrong default.
+    """
+    if market_id in market_filters.blacklisted_market_ids:
+        return False
+
+    needs_metadata = (
+        bool(market_filters.categories)
+        or market_filters.min_liquidity > 0.0
+        or (
+            market_filters.max_time_to_resolution_days
+            < RESOLUTION_DISTANCE_DISABLED_DAYS
+        )
+    )
+    if not needs_metadata:
+        return True
+
+    market_meta: dict | None = None
+    try:
+        market_meta = await pm.get_market(market_id)
+    except Exception as exc:
+        # pm.get_market already swallows HTTP failures and returns None,
+        # but we keep this defensive belt-and-braces in case the
+        # underlying client is replaced.
+        logger.warning(
+            "copy_trade filter: get_market failed market=%s err=%s",
+            market_id, exc,
+        )
+        return False
+    if not market_meta:
+        return False
+
+    if market_filters.categories:
+        market_categories = _extract_market_categories(market_meta)
+        if not market_categories.intersection(market_filters.categories):
+            return False
+
+    if market_filters.min_liquidity > 0.0:
+        liquidity = _coerce_float(
+            market_meta.get("liquidity")
+            or market_meta.get("liquidityNum")
+        )
+        if liquidity < market_filters.min_liquidity:
+            return False
+
+    if (
+        market_filters.max_time_to_resolution_days
+        < RESOLUTION_DISTANCE_DISABLED_DAYS
+    ):
+        days_to_resolution = _days_to_resolution(market_meta)
+        if days_to_resolution is None:
+            return False
+        if days_to_resolution > market_filters.max_time_to_resolution_days:
+            return False
+
+    return True
+
+
+def _extract_market_categories(market_meta: dict) -> set[str]:
+    """Best-effort category extraction from a Gamma market dict.
+
+    Polymarket returns categories under both `category` (single string) and
+    `tags` (list of strings) depending on the endpoint; we coalesce both.
+    """
+    out: set[str] = set()
+    cat = market_meta.get("category")
+    if isinstance(cat, str) and cat:
+        out.add(cat)
+    tags = market_meta.get("tags")
+    if isinstance(tags, list):
+        for t in tags:
+            if isinstance(t, str) and t:
+                out.add(t)
+    return out
+
+
+def _days_to_resolution(market_meta: dict) -> int | None:
+    """Days from now until market resolution, or None if unknown.
+
+    Tries the documented Gamma fields in order. Negative results (already
+    resolved) are returned as 0 so a `max_time_to_resolution_days = 30`
+    filter still excludes already-resolved markets via the `>` test.
+    """
+    raw = (
+        market_meta.get("endDate")
+        or market_meta.get("endDateIso")
+        or market_meta.get("end_date")
+        or market_meta.get("resolutionDate")
+    )
+    if not raw:
+        return None
+    try:
+        if isinstance(raw, (int, float)):
+            end_dt = datetime.fromtimestamp(int(raw), tz=timezone.utc)
+        else:
+            stripped = str(raw).strip()
+            if stripped.endswith("Z"):
+                stripped = stripped[:-1] + "+00:00"
+            end_dt = datetime.fromisoformat(stripped)
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+    delta = end_dt - datetime.now(timezone.utc)
+    days = int(delta.total_seconds() // 86400)
+    return max(days, 0)
 
 
 async def _already_mirrored(copy_target_id: Any, source_tx_hash: str) -> bool:

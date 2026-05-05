@@ -56,9 +56,14 @@ Foundation contract preserved: zero changes to `domain/strategy/base.py` and `do
 │        - 1 req/s global rate limit                               │
 │        - swallow HTTP / parse errors                             │
 │   3. drop trades older than 5 minutes                            │
-│   4. _already_mirrored(source_tx_hash) -> drop                   │
-│   5. scaler.scale_size(...) -> 0.0 means skip                    │
-│   6. SignalCandidate(confidence=0.75, suggested_size=…,          │
+│   4. _already_mirrored(target_id, source_tx_hash) -> drop        │
+│   5. _passes_market_filters(market_id, filters):                 │
+│        - blacklisted_market_ids: instant reject                  │
+│        - categories / liquidity / resolution-distance:           │
+│          fetch Gamma metadata (cached 120s); reject on           │
+│          metadata-unavailable                                    │
+│   6. scaler.scale_size(...) or mirror_size_direct(...) -> 0=skip │
+│   7. SignalCandidate(confidence=0.75, suggested_size=…,          │
 │                      metadata={ source_tx_hash, leader_wallet,   │
 │                                 copy_target_id, … })             │
 └────────────────────────┬─────────────────────────────────────────┘

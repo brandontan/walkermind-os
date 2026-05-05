@@ -32,8 +32,11 @@ from projects.polymarket.crusaderbot.domain.strategy import (
 from projects.polymarket.crusaderbot.domain.strategy.strategies.copy_trade import (
     CopyTradeStrategy,
     _coerce_float,
+    _days_to_resolution,
+    _extract_market_categories,
     _normalise_side,
     _parse_trade_timestamp,
+    _passes_market_filters,
 )
 from projects.polymarket.crusaderbot.domain.strategy.types import (
     MarketFilters,
@@ -397,10 +400,14 @@ def _user_ctx(available: float = 1000.0,
 
 
 def _market_filters() -> MarketFilters:
+    """Default permissive envelope — neither category nor liquidity nor
+    resolution-distance is constrained, so scan tests that aren't about
+    filter enforcement do not need to mock `pm.get_market`. Filter-
+    specific tests construct their own MarketFilters."""
     return MarketFilters(
-        categories=["politics"],
+        categories=[],
         min_liquidity=0.0,
-        max_time_to_resolution_days=30,
+        max_time_to_resolution_days=365,
         blacklisted_market_ids=[],
     )
 
@@ -882,6 +889,257 @@ def test_scan_does_not_collapse_small_and_large_leader_trades_to_same_size():
     assert large[0].suggested_size_usdc == pytest.approx(100.0)
     # Must be different — the bug was that they were equal.
     assert small[0].suggested_size_usdc != large[0].suggested_size_usdc
+
+
+# ---------------------------------------------------------------------------
+# MarketFilters enforcement
+# ---------------------------------------------------------------------------
+
+
+def _permissive_filters() -> MarketFilters:
+    return MarketFilters(
+        categories=[],
+        min_liquidity=0.0,
+        max_time_to_resolution_days=365,
+        blacklisted_market_ids=[],
+    )
+
+
+def test_passes_market_filters_blacklist_blocks_match():
+    f = MarketFilters(
+        categories=[], min_liquidity=0.0,
+        max_time_to_resolution_days=365,
+        blacklisted_market_ids=["mkt_blocked"],
+    )
+    out = asyncio.run(_passes_market_filters("mkt_blocked", f))
+    assert out is False
+
+
+def test_passes_market_filters_default_permissive_skips_metadata_fetch():
+    """All-default filters must NOT trigger a Gamma metadata fetch — that
+    would add latency to every signal even when the user has no filter
+    constraint to enforce."""
+    fetch_count = {"n": 0}
+
+    async def fake_get_market(market_id):
+        fetch_count["n"] += 1
+        return {}
+
+    with patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.pm.get_market",
+        side_effect=fake_get_market,
+    ):
+        out = asyncio.run(_passes_market_filters("mkt_x", _permissive_filters()))
+    assert out is True
+    assert fetch_count["n"] == 0
+
+
+def test_passes_market_filters_blacklist_skips_metadata_fetch():
+    """Blacklist hit must short-circuit before any Gamma call."""
+    fetch_count = {"n": 0}
+
+    async def fake_get_market(market_id):
+        fetch_count["n"] += 1
+        return {"liquidity": 1_000_000}
+
+    f = MarketFilters(
+        categories=["politics"], min_liquidity=10_000.0,
+        max_time_to_resolution_days=30,
+        blacklisted_market_ids=["mkt_blocked"],
+    )
+    with patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.pm.get_market",
+        side_effect=fake_get_market,
+    ):
+        out = asyncio.run(_passes_market_filters("mkt_blocked", f))
+    assert out is False
+    assert fetch_count["n"] == 0
+
+
+def test_passes_market_filters_metadata_unavailable_skips_candidate():
+    """When a filter needs metadata but Gamma is unreachable, the
+    conservative path is to skip the candidate — emitting a signal we
+    cannot prove clears the user's filter envelope is wrong."""
+    async def fake_get_market(market_id):
+        return None
+
+    f = MarketFilters(
+        categories=[], min_liquidity=10_000.0,
+        max_time_to_resolution_days=365,
+        blacklisted_market_ids=[],
+    )
+    with patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.pm.get_market",
+        side_effect=fake_get_market,
+    ):
+        out = asyncio.run(_passes_market_filters("mkt_x", f))
+    assert out is False
+
+
+def test_passes_market_filters_min_liquidity_enforced():
+    async def fake_get_market(market_id):
+        return {"liquidity": 5_000.0}
+
+    f = MarketFilters(
+        categories=[], min_liquidity=10_000.0,
+        max_time_to_resolution_days=365,
+        blacklisted_market_ids=[],
+    )
+    with patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.pm.get_market",
+        side_effect=fake_get_market,
+    ):
+        below = asyncio.run(_passes_market_filters("mkt_x", f))
+    assert below is False
+
+    async def fake_get_market_ok(market_id):
+        return {"liquidity": 20_000.0}
+
+    with patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.pm.get_market",
+        side_effect=fake_get_market_ok,
+    ):
+        ok = asyncio.run(_passes_market_filters("mkt_x", f))
+    assert ok is True
+
+
+def test_passes_market_filters_categories_intersect():
+    async def fake_get_market_ok(market_id):
+        return {"category": "politics", "tags": ["us-election", "2026"]}
+
+    f_match = MarketFilters(
+        categories=["politics"], min_liquidity=0.0,
+        max_time_to_resolution_days=365,
+        blacklisted_market_ids=[],
+    )
+    f_miss = MarketFilters(
+        categories=["sports"], min_liquidity=0.0,
+        max_time_to_resolution_days=365,
+        blacklisted_market_ids=[],
+    )
+    f_tag_match = MarketFilters(
+        categories=["us-election"], min_liquidity=0.0,
+        max_time_to_resolution_days=365,
+        blacklisted_market_ids=[],
+    )
+
+    with patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.pm.get_market",
+        side_effect=fake_get_market_ok,
+    ):
+        assert asyncio.run(_passes_market_filters("mkt_x", f_match)) is True
+        assert asyncio.run(_passes_market_filters("mkt_x", f_miss)) is False
+        assert asyncio.run(_passes_market_filters("mkt_x", f_tag_match)) is True
+
+
+def test_passes_market_filters_resolution_distance_enforced():
+    near_iso = (datetime.now(timezone.utc) + timedelta(days=10)).isoformat()
+    far_iso = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
+
+    async def fake_near(market_id):
+        return {"endDate": near_iso, "liquidity": 0}
+
+    async def fake_far(market_id):
+        return {"endDate": far_iso, "liquidity": 0}
+
+    f = MarketFilters(
+        categories=[], min_liquidity=0.0,
+        max_time_to_resolution_days=30,
+        blacklisted_market_ids=[],
+    )
+    with patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.pm.get_market",
+        side_effect=fake_near,
+    ):
+        assert asyncio.run(_passes_market_filters("mkt_x", f)) is True
+    with patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.pm.get_market",
+        side_effect=fake_far,
+    ):
+        assert asyncio.run(_passes_market_filters("mkt_x", f)) is False
+
+
+def test_extract_market_categories_combines_category_and_tags():
+    out = _extract_market_categories({
+        "category": "politics",
+        "tags": ["us-election", "2026"],
+    })
+    assert out == {"politics", "us-election", "2026"}
+
+
+def test_extract_market_categories_handles_missing_fields():
+    assert _extract_market_categories({}) == set()
+    assert _extract_market_categories({"tags": [1, "x", None]}) == {"x"}
+
+
+def test_days_to_resolution_handles_iso_and_unix():
+    future = datetime.now(timezone.utc) + timedelta(days=42)
+    assert _days_to_resolution({"endDate": future.isoformat()}) in (41, 42)
+    assert _days_to_resolution({"endDate": int(future.timestamp())}) in (41, 42)
+
+
+def test_days_to_resolution_already_past_returns_zero():
+    past = datetime.now(timezone.utc) - timedelta(days=10)
+    assert _days_to_resolution({"endDate": past.isoformat()}) == 0
+
+
+def test_days_to_resolution_garbage_returns_none():
+    assert _days_to_resolution({}) is None
+    assert _days_to_resolution({"endDate": "not-a-date"}) is None
+
+
+def test_scan_blacklisted_market_id_yields_no_signal():
+    """Integration: a leader trade on a market the user has blacklisted
+    must not produce a SignalCandidate, even with otherwise-default
+    filters."""
+    target_row = {
+        "id": _TARGET_UUID,
+        "user_id": _USER_UUID,
+        "target_wallet_address": "0x" + "a" * 40,
+        "scale_factor": 1.0,
+        "trades_mirrored": 0,
+        "created_at": datetime.now(timezone.utc),
+    }
+    fresh_trade = {
+        "transactionHash": "0x" + "9" * 64,
+        "conditionId": "cond_blocked",
+        "market": "mkt_blocked",
+        "side": "BUY",
+        "outcome": "Yes",
+        "usdcSize": 100.0,
+        "price": 0.50,
+        "timestamp": int(datetime.now(timezone.utc).timestamp()),
+    }
+    conn = _FakeConn(
+        fetch_results=[[target_row]],
+        fetchrow_results=[None],
+    )
+
+    async def fake_fetch(wallet, limit=20):
+        return [fresh_trade]
+
+    blocking = MarketFilters(
+        categories=[], min_liquidity=0.0,
+        max_time_to_resolution_days=365,
+        blacklisted_market_ids=["mkt_blocked"],
+    )
+
+    strat = CopyTradeStrategy()
+    with _patch_pool(conn)[0], patch(
+        "projects.polymarket.crusaderbot.domain.strategy.strategies."
+        "copy_trade.fetch_recent_wallet_trades",
+        side_effect=fake_fetch,
+    ):
+        out = asyncio.run(strat.scan(blocking, _user_ctx()))
+    assert out == []
 
 
 # ---------------------------------------------------------------------------
