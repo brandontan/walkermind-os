@@ -196,7 +196,8 @@ def test_close_with_retry_success_first_attempt():
         return None
 
     result = _run(order_module.submit_close_with_retry(
-        position={"id": uuid4()}, exit_price=0.5, exit_reason="tp_hit",
+        position={"id": uuid4(), "mode": "paper"},
+        exit_price=0.5, exit_reason="tp_hit",
         submitter=_ok, sleep=_no_sleep,
     ))
     assert result.ok is True
@@ -205,13 +206,14 @@ def test_close_with_retry_success_first_attempt():
     assert len(calls) == 1
 
 
-def test_close_with_retry_fails_then_succeeds():
+def test_close_with_retry_fails_then_succeeds_paper_mode():
+    """Paper mode retries: errors are DB-only and safe to repeat."""
     attempts = [0]
 
     async def _flaky(*, position, exit_price, exit_reason):
         attempts[0] += 1
         if attempts[0] == 1:
-            raise RuntimeError("clob 503")
+            raise RuntimeError("asyncpg transient")
         return {"pnl_usdc": 0.0}
 
     sleeps: list[float] = []
@@ -220,7 +222,8 @@ def test_close_with_retry_fails_then_succeeds():
         sleeps.append(seconds)
 
     result = _run(order_module.submit_close_with_retry(
-        position={"id": uuid4()}, exit_price=0.5, exit_reason="tp_hit",
+        position={"id": uuid4(), "mode": "paper"},
+        exit_price=0.5, exit_reason="tp_hit",
         submitter=_flaky, sleep=_record_sleep,
     ))
     assert result.ok is True
@@ -228,7 +231,7 @@ def test_close_with_retry_fails_then_succeeds():
     assert sleeps == [order_module.CLOSE_RETRY_DELAY_SECONDS]
 
 
-def test_close_with_retry_exhausts_then_fails():
+def test_close_with_retry_paper_exhausts_then_fails():
     attempts = [0]
 
     async def _always_fail(*, position, exit_price, exit_reason):
@@ -239,12 +242,74 @@ def test_close_with_retry_exhausts_then_fails():
         return None
 
     result = _run(order_module.submit_close_with_retry(
-        position={"id": uuid4()}, exit_price=0.5, exit_reason="tp_hit",
+        position={"id": uuid4(), "mode": "paper"},
+        exit_price=0.5, exit_reason="tp_hit",
         submitter=_always_fail, sleep=_no_sleep,
     ))
     assert result.ok is False
-    assert attempts[0] == order_module.CLOSE_MAX_ATTEMPTS
+    assert attempts[0] == order_module.PAPER_CLOSE_MAX_ATTEMPTS
     assert "clob down" in (result.error or "")
+
+
+def test_close_with_retry_live_mode_does_not_retry_on_failure():
+    """Capital safety: live mode submit failures are post-submit ambiguous —
+    a retry could place a duplicate on-chain SELL. The helper must make
+    a single attempt only and surface the failure to the caller.
+    """
+    attempts = [0]
+
+    async def _ambiguous_fail(*, position, exit_price, exit_reason):
+        attempts[0] += 1
+        # Mimics a network timeout AFTER the broker queued the SELL —
+        # cannot be safely retried without risking double-close.
+        raise RuntimeError("clob ack timeout")
+
+    sleeps: list[float] = []
+
+    async def _record_sleep(seconds):
+        sleeps.append(seconds)
+
+    result = _run(order_module.submit_close_with_retry(
+        position={"id": uuid4(), "mode": "live"},
+        exit_price=0.5, exit_reason="tp_hit",
+        submitter=_ambiguous_fail, sleep=_record_sleep,
+    ))
+    assert result.ok is False
+    assert attempts[0] == 1, (
+        "live mode must NOT retry — duplicate on-chain SELL risk"
+    )
+    assert sleeps == [], "no inter-attempt sleep when retry is disallowed"
+    assert "clob ack timeout" in (result.error or "")
+    assert order_module.LIVE_CLOSE_MAX_ATTEMPTS == 1
+
+
+def test_close_with_retry_live_mode_success_first_attempt_unchanged():
+    """Live mode is no-retry on FAILURE, but a successful first attempt
+    behaves identically to paper.
+    """
+    attempts = [0]
+
+    async def _ok(*, position, exit_price, exit_reason):
+        attempts[0] += 1
+        return {"pnl_usdc": 5.0, "exit_price": exit_price}
+
+    async def _no_sleep(_seconds):
+        return None
+
+    result = _run(order_module.submit_close_with_retry(
+        position={"id": uuid4(), "mode": "live"},
+        exit_price=0.5, exit_reason="tp_hit",
+        submitter=_ok, sleep=_no_sleep,
+    ))
+    assert result.ok is True
+    assert attempts[0] == 1
+
+
+def test_close_max_attempts_alias_matches_paper_budget():
+    """Backwards-compat alias must continue to mean the paper budget so
+    callers that imported the original constant keep working.
+    """
+    assert order_module.CLOSE_MAX_ATTEMPTS == order_module.PAPER_CLOSE_MAX_ATTEMPTS
 
 
 # ---------------------------------------------------------------------------
@@ -462,6 +527,54 @@ def test_run_once_close_failure_increments_counter_and_alerts():
     assert "CLOB 503" in captured.close_failed_op[0]["last_error"]
     # Position stays open: no reset, no terminal-state finalize on close failure.
     reset_failure.assert_not_awaited()
+
+
+def test_run_once_live_close_failure_records_without_retry():
+    """End-to-end watcher run: a live close that fails must NOT retry, but
+    must still increment failure_count, alert the user, and alert the
+    operator at threshold — proving the no-retry-on-live policy does not
+    silence the failure path.
+    """
+    captured = _Captured()
+    pos = _make_position(yes_price=0.99, applied_tp_pct=0.10,
+                         mode="live", close_failure_count=1)
+    submit_calls = [0]
+
+    async def _live_fail(*, position, exit_price, exit_reason):
+        submit_calls[0] += 1
+        raise RuntimeError("clob 504 gateway timeout")
+
+    (record_failure, reset_failure, update_price, list_open,
+     reg_patches) = _patch_registry(positions=[pos],
+                                    record_failure_returns=2)
+
+    async def _no_sleep(_):
+        return None
+
+    patches = (
+        reg_patches
+        + _patch_alerts(captured)
+        + [
+            _patch_audit_noop(),
+            patch.object(order_module, "asyncio",
+                         new=type("S", (), {"sleep": _no_sleep})()),
+        ]
+    )
+    for p_ in patches:
+        p_.start()
+    try:
+        _run(exit_watcher.run_once(close_submitter=_live_fail))
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert submit_calls[0] == 1, (
+        "live mode submit must be attempted exactly once — no retry"
+    )
+    record_failure.assert_awaited_once_with(pos.id)
+    assert len(captured.close_failed_user) == 1
+    assert len(captured.close_failed_op) == 1
+    assert captured.close_failed_op[0]["mode"] == "live"
 
 
 def test_run_once_hold_updates_current_price_only():

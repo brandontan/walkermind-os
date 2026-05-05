@@ -28,7 +28,8 @@ Snapshot contract (`applied_tp_pct` / `applied_sl_pct`):
   3. **Read-only dataclass** — `OpenPositionForExit` is frozen, and `to_router_dict()` strips applied_* before crossing into the close engine.
 
 Failure handling:
-- CLOB error → wait 5 s → one retry → on persistent failure: increment `close_failure_count`, alert user, alert operator at `CLOSE_FAILURE_OPERATOR_THRESHOLD` (=2), keep position `'open'` for next-tick retry.
+- **paper** mode: CLOB error → wait 5 s → one retry → on persistent failure: increment `close_failure_count`, alert user, alert operator at `CLOSE_FAILURE_OPERATOR_THRESHOLD` (=2), keep position `'open'` for next-tick retry.
+- **live** mode: single attempt only. A submit-time exception out of `live.close_position` is post-submit ambiguous (the SELL may have already reached the CLOB before the timeout/error surfaced); retrying would risk a duplicate on-chain SELL and an over-close. Failure feeds the same record/alert path as paper without a retry. A future lane can re-enable live retry once `live.close_position` adopts the prepare/submit split that already exists for entries (`LivePreSubmitError` vs `LivePostSubmitError`).
 - No `except: pass` anywhere in the worker. Every catch logs at WARN/ERROR with `exc_info=True` for the infra-net catch.
 
 User-side alerts: TP hit, SL hit, force-close executed, strategy-exit executed, close-failed (with retry promise).
@@ -153,6 +154,7 @@ Lint:
 
 ## 5. Known issues
 
+- **Live close retry is intentionally disabled** (Codex P1 finding, addressed in this PR). `live.close_position` does not classify pre-vs-post-submit errors today, so any submit-time exception is treated as ambiguous and the helper makes a single attempt. A follow-up lane should split `live.close_position` into prepare/submit (mirroring `live.execute`) and re-enable retry on a typed `LivePreSubmitError` only. Until then, transient broker hiccups during a live close will land directly in the operator-reconciliation path instead of self-healing on a retry. Trade-off chosen explicitly: capital safety > self-healing.
 - Legacy `positions.force_close` column is still present and read by no one. Migration 005 backfills `force_close_intent` from it but does NOT drop the column. A follow-up MINOR lane should remove `force_close` after one release window; doing it in this PR would conflict with any operator-deployed `emergency.py` that has not yet picked up the new code path.
 - `domain/execution/exit_watcher.run_forever()` is provided but not wired into `main.py`. APScheduler still drives the tick via `scheduler.check_exits → exit_watcher.run_once`. Standalone worker activation is left for the deployment lane (R12 final).
 - `finalize_close_failed()` exists in the registry but the watcher does NOT auto-call it — by design. A transient broker outage must not poison live exposure into a permanent `'close_failed'` state. The operator finalises manually after reconciliation; the persistent-failure alert pages them with the position id needed.
@@ -180,7 +182,7 @@ Done criteria (mapped to task header):
 | TP hit → closed, exit_reason=tp_hit, user alerted | PASS | `test_run_once_tp_hit_closes_and_alerts` |
 | SL hit → closed, exit_reason=sl_hit, user alerted | PASS | `test_run_once_sl_hit_alerts_user` |
 | force_close_intent=true → immediate close, exit_reason=force_close | PASS | `test_run_once_force_close_intent_executes_immediately`, `test_evaluate_force_close_intent_overrides_tp` |
-| CLOB error → retry once, exit_reason=close_failed, operator alerted | PASS | `test_close_with_retry_fails_then_succeeds`, `test_close_with_retry_exhausts_then_fails`, `test_run_once_close_failure_increments_counter_and_alerts` |
+| CLOB error → retry once (paper) / single attempt (live), failure tracked + operator alerted | PASS | `test_close_with_retry_fails_then_succeeds_paper_mode`, `test_close_with_retry_paper_exhausts_then_fails`, `test_close_with_retry_live_mode_does_not_retry_on_failure`, `test_run_once_close_failure_increments_counter_and_alerts`, `test_run_once_live_close_failure_records_without_retry` |
 | applied_tp_pct/applied_sl_pct immutable after creation | PASS | DB trigger `trg_positions_immutable_applied`; registry API has no setter; dataclass frozen; `test_registry_exposes_no_applied_setter` |
 | User Trade Setting update → does NOT affect open positions | PASS | watcher reads `applied_*` only; `test_evaluate_ignores_tp_pct_when_applied_is_none` |
 | Migration 005 idempotent | PASS | `ADD COLUMN IF NOT EXISTS` + `pg_trigger` existence guards |
