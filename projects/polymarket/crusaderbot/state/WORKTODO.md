@@ -7,8 +7,7 @@
 
 ## Right Now
 
-Active lane: P3b copy-trade strategy -- PR #877 open, MAJOR tier, SENTINEL pending (Issue #878, label: agent:sentinel).
-Blocker: migration runner path decision needed before P3b merge -- 008_strategy_tables.sql at infra/migrations/ but runner reads migrations/ only.
+Completed: P3b copy-trade strategy — PR #877 MERGED a369129d 2026-05-06
 
 ---
 
