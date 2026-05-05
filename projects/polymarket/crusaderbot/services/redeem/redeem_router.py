@@ -94,9 +94,18 @@ async def detect_resolutions() -> None:
 async def _process_market_resolution(market_id: str) -> None:
     """Detect + classify positions for a single market.
 
-    Idempotent: the markets-row UPDATE uses ``WHERE resolved=FALSE`` so a
-    concurrent caller that already flipped the row gets a NULL RETURNING
-    and exits without re-classifying.
+    The markets-row flip is deferred until classification finishes
+    cleanly. If the position-scan, enqueue, or loser-settle step raises,
+    the market row stays ``resolved=FALSE`` so the next ``detect_resolutions``
+    tick re-runs and no positions are stranded. Each classification step
+    is independently idempotent — winner enqueue uses ``ON CONFLICT
+    (position_id) DO NOTHING`` and loser settle uses
+    ``WHERE status='open' AND redeemed=FALSE`` — so a re-run on the same
+    market is a safe no-op for already-handled rows.
+
+    The flip itself stays guarded with ``WHERE resolved=FALSE`` so two
+    concurrent detection ticks each finishing classification cleanly
+    cannot double-flip; only one UPDATE sticks.
     """
     m = await polymarket.get_market(market_id)
     if not m or not m.get("closed"):
@@ -106,16 +115,6 @@ async def _process_market_resolution(market_id: str) -> None:
     yes_price = float(outcomes[0])
     winning = "yes" if yes_price > 0.5 else "no"
     outcome_index = 0 if winning == "yes" else 1
-
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        flipped = await conn.fetchval(
-            "UPDATE markets SET status='resolved', resolved=TRUE, "
-            "winning_side=$2 WHERE id=$1 AND resolved=FALSE RETURNING id",
-            market_id, winning,
-        )
-    if not flipped:
-        return  # another worker already classified this market
 
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -134,6 +133,7 @@ async def _process_market_resolution(market_id: str) -> None:
         )
 
     instant_queue_ids: list[UUID] = []
+    classification_complete = True
     for raw in rows:
         p = dict(raw)
         try:
@@ -149,6 +149,20 @@ async def _process_market_resolution(market_id: str) -> None:
         except Exception as exc:
             logger.error("position classification failed for %s: %s",
                          p["id"], exc)
+            classification_complete = False
+
+    if classification_complete:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE markets SET status='resolved', resolved=TRUE, "
+                "winning_side=$2 WHERE id=$1 AND resolved=FALSE",
+                market_id, winning,
+            )
+    else:
+        logger.warning(
+            "market %s left resolved=FALSE due to classification "
+            "failure(s); next detection tick will retry", market_id,
+        )
 
     if instant_queue_ids:
         from . import instant_worker  # local import — break cycle
