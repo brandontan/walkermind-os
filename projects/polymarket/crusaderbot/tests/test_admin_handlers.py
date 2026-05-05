@@ -176,6 +176,9 @@ def test_render_dashboard_handles_missing_fields():
     assert "❌" in out  # DB down
     assert "N/A" in out
     assert "Some fields unavailable" in out
+    # The "Some fields unavailable" line must NOT be wrapped in ``_..._``
+    # — legacy MARKDOWN rejects escapes inside entity spans.
+    assert "_Some fields unavailable:" not in out
 
 
 def test_render_jobs_empty_default():
@@ -247,8 +250,11 @@ def test_render_jobs_escapes_error_metacharacters():
     assert "bad\\_value" in out
     assert "\\`xyz\\`" in out
     assert "\\[step 2]" in out
-    # The unescaped form must NOT appear inside the rendered italic span.
-    assert "_bad_value_" not in out
+    # The error must be rendered as plain (escaped) text, NOT wrapped
+    # in an italic span — legacy MARKDOWN rejects escapes inside
+    # entities, so a `_..._` wrap would still fail on common errors.
+    assert "└ ValueError" in out
+    assert "_ValueError" not in out
 
 
 # ---------- Operator gate ---------------------------------------------------

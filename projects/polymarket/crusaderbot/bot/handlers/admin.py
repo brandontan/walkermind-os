@@ -317,9 +317,11 @@ def _render_dashboard(snapshot: dict[str, Any]) -> str:
 
     if snapshot.get("errors"):
         lines.append("")
+        # Plain (escaped) text — same legacy-MARKDOWN entity caveat as
+        # the /jobs error line above.
         lines.append(
-            "_Some fields unavailable: "
-            + _md_escape("; ".join(snapshot["errors"][:3])) + "_"
+            "Some fields unavailable: "
+            + _md_escape("; ".join(snapshot["errors"][:3]))
         )
     return "\n".join(lines)
 
@@ -551,7 +553,12 @@ def _render_jobs(rows: list[dict], only_failed: bool) -> str:
         line = (f"{status} `{_md_escape(r['job_name'])}` · "
                 f"{ts} · {duration}")
         if err:
-            line += f"\n    └ _{_md_escape(err)}_"
+            # Render the error as plain (escaped) text — legacy
+            # ParseMode.MARKDOWN does NOT honour backslash escapes
+            # inside an entity span, so wrapping the escaped err in
+            # ``_..._`` could still fail to parse on common error
+            # strings (Codex follow-up review on PR #874).
+            line += f"\n    └ {_md_escape(err)}"
         lines.append(line)
     return "\n".join(lines)
 
