@@ -1038,6 +1038,62 @@ After a merge/close/hold decision, the action executes immediately in the same t
 
 ---
 
+## GATE POST-MERGE SYNC SAFETY
+
+GATE post-merge sync operations commit state file updates directly to GitHub via the API.
+Shell pipelines can swallow subprocess errors silently and commit empty or near-empty content,
+causing silent data destruction.
+
+### Pre-commit content guard (MANDATORY)
+
+Before any GitHub PUT that updates a state or report file:
+
+1. Verify non-empty: `len(new_content) > 0` — abort if empty
+2. Verify minimum size: new content must be at least 100 bytes for any state file
+3. Verify size ratio: `len(new_content) >= original_content_size * 0.5`
+   — content shrinking more than 50% in one commit = abort
+4. If any guard fails: abort the PUT, post PR comment with error, escalate to WARP🔹CMD — never commit
+
+### Safe write pattern for GATE sync scripts
+
+Use Python file I/O — not inline heredoc piping:
+
+```python
+with open('/tmp/state_update.md', 'w', encoding='utf-8') as f:
+    f.write(content)
+
+with open('/tmp/state_update.md', 'r', encoding='utf-8') as f:
+    verified = f.read()
+
+assert len(verified) > 100, "Content guard failed — abort PUT"
+encoded = base64.b64encode(verified.encode('utf-8')).decode('ascii')
+assert len(encoded) > 0, "Encoded guard failed — abort PUT"
+```
+
+Never chain Python output through bash heredoc pipelines (`python3 << ... <<< "$VAR"`).
+These pipelines swallow subprocess errors silently and can produce 0-byte output.
+
+### Unicode in Python f-strings with emoji
+
+Use escape form `\U000XXXXX` (8 hex digits), never `\u{XXXXX}` (brace form):
+
+| Correct | Wrong |
+|---|---|
+| `\U0001F4CB` | `\u{1F4CB}` |
+| `\U00002705` | `\u{2705}` |
+
+The `\u{...}` form is not valid Python syntax. A SyntaxError in an f-string used
+inside a bash heredoc pipeline silently produces 0-byte output — committing a blank file.
+
+### Incident reference
+
+Commit `4eda17c5e7fa` — 2026-05-05T01:13:23Z
+Impact: `projects/polymarket/crusaderbot/state/PROJECT_STATE.md` overwritten with 1 blank line (1927 bytes erased).
+Root cause: Python f-string SyntaxError in bash heredoc pipeline produced 0-byte output, committed as blank.
+Recovery: `c1bf7cf7d1a5`.
+
+---
+
 ## NO MANUAL FIX RULE (ABSOLUTE)
 
 Mr. Walker never fixes anything manually.
