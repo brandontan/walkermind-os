@@ -4,6 +4,23 @@
 # Format: YYYY-MM-DD HH:MM | branch | summary
 ---
 
+## 2026-05-05 08:13 Asia/Jakarta — State Sync (PR #861 post-merge)
+
+### Merged
+- PR #861: chore(crusaderbot): state sync — ROADMAP R12b drift fix + WORKTODO init
+  WARP•ECHO routine. ROADMAP R12b row corrected to Done (PR #856), WORKTODO.md initialized, PROJECT_STATE.md updated, CHANGELOG.md entry appended.
+
+### Changes
+- projects/polymarket/crusaderbot/state/ROADMAP.md — R12b row corrected to ✅ Done (PR #856)
+- projects/polymarket/crusaderbot/state/WORKTODO.md — initialized for CrusaderBot
+- projects/polymarket/crusaderbot/state/CHANGELOG.md — lane closure entry appended
+- projects/polymarket/crusaderbot/state/PROJECT_STATE.md — Last Updated, Status, [NEXT PRIORITY] updated; stale R12b drift item removed
+- projects/polymarket/crusaderbot/reports/forge/crusaderbot-state-fix.md — forge report added
+
+### State
+- WARP/CRUSADERBOT-STATE-FIX merged. R12a CI/CD pipeline PR open (WARP/CRUSADERBOT-R12A-CICD-PIPELINE), awaiting WARP🔹CMD review.
+- Paper mode only. All activation guards OFF.
+
 ## 2026-05-05 06:06 Asia/Jakarta — State Sync (PR #857 post-merge)
 
 ### Merged
