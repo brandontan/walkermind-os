@@ -87,10 +87,14 @@ async def record_job_event(
     except Exception as exc:
         # Don't crash the scheduler loop because the ops table is down.
         logger.error("job_runs write failed for %s: %s", job_id, exc)
-    finally:
-        # Pop is defensive — already removed via ``or _started_at.pop``,
-        # but a no-record-found path would leave a dangling key.
-        _started_at.pop(job_id, None)
+    # NOTE: no finally cleanup of ``_started_at[job_id]``. The scheduler
+    # listener already pops via ``pop_job_start`` on EXECUTED/ERROR
+    # delivery, and the test-direct fallback above pops as part of the
+    # ``or`` chain. A late cleanup here was racy — a fresh SUBMITTED for
+    # the same job_id could arrive before this async DB write finishes,
+    # writing the new run's timestamp into the slot, and the cleanup
+    # would then erase the next run's start time (Codex P1 follow-up
+    # on PR #874).
 
 
 async def fetch_recent(limit: int = 10, *, only_failed: bool = False) -> list[dict[str, Any]]:

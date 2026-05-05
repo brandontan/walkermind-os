@@ -87,6 +87,45 @@ def test_record_job_event_uses_explicit_started_at():
     assert args[4] is None  # error
 
 
+def test_record_job_event_does_not_clobber_next_runs_start():
+    """Regression for Codex P1 follow-up on PR #874.
+
+    After the listener pops and forwards started_at, a fresh
+    SUBMITTED for the same job_id arrives before record_job_event's
+    DB write finishes. The old code popped ``_started_at[job_id]`` in
+    a ``finally`` block, erasing the new run's slot. This test
+    pre-loads the slot with a "next-run" timestamp and asserts that
+    record_job_event leaves it intact.
+    """
+    job_tracker._started_at.clear()
+    next_run_started = datetime(2026, 5, 5, 12, 0, 0, tzinfo=timezone.utc)
+    job_tracker._started_at["redeem"] = next_run_started
+
+    class FakeConn:
+        async def execute(self, *_):
+            return None
+
+    class FakeAcquire:
+        async def __aenter__(self):
+            return FakeConn()
+
+        async def __aexit__(self, *_):
+            return False
+
+    class FakePool:
+        def acquire(self):
+            return FakeAcquire()
+
+    with patch.object(job_tracker, "get_pool", return_value=FakePool()):
+        asyncio.run(job_tracker.record_job_event(
+            job_id="redeem", success=True,
+            started_at=datetime(2026, 5, 5, 11, 59, 0, tzinfo=timezone.utc),
+            finished_at=datetime(2026, 5, 5, 11, 59, 30, tzinfo=timezone.utc),
+        ))
+    # The next run's slot must still be intact.
+    assert job_tracker._started_at.get("redeem") == next_run_started
+
+
 def test_record_job_event_swallows_db_errors():
     class BoomPool:
         def acquire(self):

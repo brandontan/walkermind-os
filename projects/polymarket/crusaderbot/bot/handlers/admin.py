@@ -233,8 +233,13 @@ async def _collect_dashboard_snapshot() -> dict[str, Any]:
         "open_positions": None,
         "total_usdc": None,
         "auto_trade_users": None,
-        "kill_switch_active": False,
-        "lock_mode": False,
+        # ``None`` = state could not be read. The renderer surfaces this
+        # as "❓ unknown" so the operator never sees a misleading
+        # "🟢 inactive" during a DB outage (Codex P2 follow-up on
+        # PR #874). The risk gate itself fails SAFE on the same error
+        # — see ``domain.ops.kill_switch.is_active``.
+        "kill_switch_active": None,
+        "lock_mode": None,
         "recent_jobs": [],
         "errors": [],
     }
@@ -271,7 +276,15 @@ async def _collect_dashboard_snapshot() -> dict[str, Any]:
 
 
 def _render_dashboard(snapshot: dict[str, Any]) -> str:
-    kill_state = "🔴 ACTIVE" if snapshot["kill_switch_active"] else "🟢 inactive"
+    ks = snapshot.get("kill_switch_active")
+    if ks is None:
+        # Snapshot fetch failed before the kill-switch read — never lie
+        # to the operator with "🟢 inactive" in this state.
+        kill_state = "❓ unknown (DB unreachable)"
+    elif ks:
+        kill_state = "🔴 ACTIVE"
+    else:
+        kill_state = "🟢 inactive"
     lock = " (LOCK)" if snapshot.get("lock_mode") else ""
     db = "✅" if snapshot["db_ok"] else "❌"
 

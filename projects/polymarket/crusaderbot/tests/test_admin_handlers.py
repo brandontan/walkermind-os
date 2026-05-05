@@ -167,8 +167,10 @@ def test_render_dashboard_handles_missing_fields():
         "open_positions": None,
         "total_usdc": None,
         "auto_trade_users": None,
-        "kill_switch_active": False,
-        "lock_mode": False,
+        # DB read failed — kill switch state is genuinely unknown.
+        # The renderer must surface that, not lie with "🟢 inactive".
+        "kill_switch_active": None,
+        "lock_mode": None,
         "recent_jobs": [],
         "errors": ["db: down"],
     }
@@ -179,6 +181,9 @@ def test_render_dashboard_handles_missing_fields():
     # The "Some fields unavailable" line must NOT be wrapped in ``_..._``
     # — legacy MARKDOWN rejects escapes inside entity spans.
     assert "_Some fields unavailable:" not in out
+    # Kill switch state must be reported as unknown, never inactive.
+    assert "❓ unknown" in out
+    assert "🟢 inactive" not in out
 
 
 def test_render_jobs_empty_default():
