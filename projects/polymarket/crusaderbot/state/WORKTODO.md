@@ -7,8 +7,8 @@
 
 ## Right Now
 
-Active lane: WARP/CRUSADERBOT-R12E-AUTO-REDEEM — MAJOR tier, SENTINEL audit pending.
-Next: WARP•SENTINEL MAJOR audit of R12e auto-redeem + R12c exit watcher (PR #865). R12a CI/CD PR awaiting WARP🔹CMD review.
+Active lane: WARP/CRUSADERBOT-R12C-EXIT-WATCHER — MAJOR tier, SENTINEL audit required before merge.
+Next: WARP•SENTINEL MAJOR audit of R12c exit watcher. R12a CI/CD PR awaiting WARP🔹CMD review.
 
 ---
 
@@ -19,7 +19,7 @@ Next: WARP•SENTINEL MAJOR audit of R12e auto-redeem + R12c exit watcher (PR #8
 - [ ] R12c — Auto-Close / Take-Profit — IN PROGRESS: WARP/CRUSADERBOT-R12C-EXIT-WATCHER open, MAJOR — SENTINEL audit required
 - [x] R12d — Telegram Position UX — DONE (PR #868 merged 4f5e12201964) (live position monitor + per-position force close) — IN PROGRESS: WARP/CRUSADERBOT-R12D-TELEGRAM-POSITION-UX open, STANDARD — awaiting WARP🔹CMD review
 - [ ] R12d — Live Opt-In Checklist — NOT STARTED (MAJOR — hard gate before EXE)
-- [ ] R12e — Auto-Redeem System — IN PROGRESS: WARP/CRUSADERBOT-R12E-AUTO-REDEEM open, MAJOR — SENTINEL audit required (services/redeem instant+hourly workers + redeem_queue + Settings UI)
+- [x] R12e — Auto-Redeem System — DONE (PR #869 merged, SENTINEL APPROVED 94/100) (services/redeem instant+hourly workers + redeem_queue + Settings UI)
 - [ ] R12e — Live → Paper Auto-Fallback — NOT STARTED (MAJOR)
 - [ ] R12f — Daily P&L Summary — NOT STARTED (STANDARD)
 - [ ] R12 — Deployment (Fly.io) final — NOT STARTED (MAJOR — blocked on R12a-R12f all merged)

@@ -1,3 +1,5 @@
+2026-05-05 14:54 | WARP/CRUSADERBOT-R12E-AUTO-REDEEM | R12e auto-redeem merged (PR #869) — services/redeem instant+hourly workers + redeem_queue migration 006 + Settings UI; SENTINEL APPROVED 94/100, 0 critical; AUTO_REDEEM_ENABLED guard active; 87/87 tests pass
+
 ---
 ## 2026-05-05 05:04 UTC — gate: post-merge sync PR #868 [warp-gate[bot]]
 
