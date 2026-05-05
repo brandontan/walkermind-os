@@ -11,7 +11,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from . import audit, notifications
 from .config import get_settings
 from .database import get_pool
-from .domain.execution.router import close as router_close, execute as router_execute
+from .domain.execution import exit_watcher
+from .domain.execution.router import execute as router_execute
 from .domain.risk.gate import GateContext, evaluate
 from .domain.signal.copy_trade import CopyTradeStrategy
 from .integrations import polygon, polymarket
@@ -342,93 +343,15 @@ async def _process_candidate(user: dict, cand) -> None:
 # ---------------- Exit watcher ----------------
 
 async def check_exits() -> None:
-    """Evaluate every open position against the priority exit chain:
+    """Drive the exit-watcher worker for one tick.
 
-        force_close > tp_hit > sl_hit > strategy_exit > hold
-
-    Resolved markets are NOT closed here — they are settled via the
-    redemption pipeline (check_resolutions → _redeem_position) so the
-    payout uses the on-chain terminal value (1 / 0 USDC per share),
-    not a re-quoted CLOB exit price.
+    Priority chain (force_close_intent > tp_hit > sl_hit > strategy_exit >
+    hold), TP/SL snapshot enforcement, retry-once-on-CLOB-error, and the
+    per-position close_failure_count tracking all live in
+    ``domain.execution.exit_watcher``. This wrapper exists so APScheduler's
+    job table keeps its long-standing ``check_exits`` entry point.
     """
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        positions = await conn.fetch(
-            """
-            SELECT p.*, m.yes_price, m.no_price, m.status AS m_status,
-                   m.resolved AS m_resolved, m.winning_side AS m_winning,
-                   u.paused AS u_paused
-              FROM positions p
-              JOIN markets m ON m.id = p.market_id
-              JOIN users u ON u.id = p.user_id
-             WHERE p.status='open'
-            """
-        )
-    for r in positions:
-        try:
-            await _evaluate_exit(dict(r))
-        except Exception as exc:
-            logger.error("exit eval failed for position %s: %s", r["id"], exc)
-
-
-async def _strategy_should_exit(position: dict) -> bool:
-    """Per-strategy exit hook (priority slot below sl_hit, above hold).
-
-    No current strategy emits exit signals on its own — copy_trade enters and
-    relies on tp/sl. This hook exists as the explicit branch demanded by the
-    spec so future signal-driven exits drop in without disturbing priority.
-    """
-    return False
-
-
-async def _evaluate_exit(p: dict) -> None:
-    if p["m_resolved"]:
-        # Resolved markets settle through the redemption pipeline.
-        return
-
-    side = p["side"]
-    cur_price = float(p["yes_price"] if side == "yes" else p["no_price"]) \
-        if (p["yes_price"] is not None and p["no_price"] is not None) \
-        else float(p["entry_price"])
-    entry = float(p["entry_price"])
-    ret = (cur_price - entry) / max(entry, 1e-6) if side == "yes" \
-        else ((1 - cur_price) - (1 - entry)) / max(1 - entry, 1e-6)
-
-    # PRIORITY: force_close > tp_hit > sl_hit > strategy_exit > hold
-    # NOTE: `u_paused` is NOT a force-close trigger. Per R11, Pause only
-    # prevents NEW trade entries (enforced upstream in the risk gate); open
-    # positions stay open. Force-close requires the explicit marker
-    # set by the Pause+Close-All flow in emergency.pause_close.
-    reason: str | None = None
-    if bool(p.get("force_close")):
-        reason = "force_close"
-    elif p["tp_pct"] is not None and ret >= float(p["tp_pct"]):
-        reason = "tp_hit"
-    elif p["sl_pct"] is not None and ret <= -float(p["sl_pct"]):
-        reason = "sl_hit"
-    elif await _strategy_should_exit(p):
-        reason = "strategy_exit"
-
-    if reason is None:
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE positions SET current_price=$1 WHERE id=$2",
-                cur_price, p["id"],
-            )
-        return
-    res = await router_close(position=p, exit_price=cur_price, exit_reason=reason)
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        u = await conn.fetchrow(
-            "SELECT telegram_user_id FROM users WHERE id=$1", p["user_id"],
-        )
-    if u:
-        await notifications.send(
-            u["telegram_user_id"],
-            f"📉 *Closed [{p['mode']}]* — {reason}\n"
-            f"P&L: *${float(res['pnl_usdc']):+.2f}*",
-        )
+    await exit_watcher.run_once()
 
 
 # ---------------- Resolution + redeem ----------------

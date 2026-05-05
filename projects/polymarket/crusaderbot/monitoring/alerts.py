@@ -4,6 +4,10 @@ Triggers:
 - /health returns "down" or "degraded" for ``CONSECUTIVE_FAIL_THRESHOLD`` checks.
 - Fly.io machine restart detected (lifespan startup event).
 - Any required dependency unreachable at startup.
+- Exit watcher: TP / SL / force-close executed (per-user notification),
+  close-attempt persistent failure (operator notification at
+  ``CLOSE_FAILURE_OPERATOR_THRESHOLD`` consecutive failures on the same
+  position).
 
 Anti-spam:
 - ``COOLDOWN_SECONDS`` between alerts of the same type.
@@ -22,6 +26,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Optional
+from uuid import UUID
 
 from .. import notifications
 from ..config import get_settings
@@ -31,6 +36,11 @@ logger = logging.getLogger(__name__)
 # --- tuning constants -------------------------------------------------------
 COOLDOWN_SECONDS: float = 5 * 60.0
 CONSECUTIVE_FAIL_THRESHOLD: int = 2
+# Consecutive close-attempt failures on the same position before paging the
+# operator. Per R12c spec: "alert operator when close_failed persists > 2
+# consecutive ticks". We page exactly at the threshold and rely on the
+# per-position cooldown key to suppress repeats.
+CLOSE_FAILURE_OPERATOR_THRESHOLD: int = 2
 
 # --- module state -----------------------------------------------------------
 # Last walltime an alert of a given (type, key) was dispatched.
@@ -261,3 +271,157 @@ def reset_state() -> None:
     """Clear cooldown + counter state. Test-only entrypoint."""
     _last_alert_at.clear()
     _consecutive_failures.clear()
+
+
+# --- exit-watcher alerts ----------------------------------------------------
+# These bypass the operator cooldown channel: each user-side alert is keyed
+# by position_id so two distinct closes never collide on a shared cooldown
+# key. The user is paged DIRECTLY (not via OPERATOR_CHAT_ID) so multi-user
+# deployments isolate notifications correctly.
+
+def _format_exit_label(market_question: Optional[str], market_id: str) -> str:
+    """Human-friendly market label for user-facing alerts."""
+    return market_question or market_id
+
+
+async def alert_user_tp_hit(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Notify the position owner that TP was hit and the close was submitted."""
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"🎯 *[{mode.upper()}] TP hit*\n"
+        f"{label}\n"
+        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
+        f"P&L: *${pnl_usdc:+.2f}*"
+    )
+    await notifications.send(telegram_user_id, text)
+
+
+async def alert_user_sl_hit(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Notify the position owner that SL was hit and the close was submitted."""
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"🛑 *[{mode.upper()}] SL hit*\n"
+        f"{label}\n"
+        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
+        f"P&L: *${pnl_usdc:+.2f}*"
+    )
+    await notifications.send(telegram_user_id, text)
+
+
+async def alert_user_force_close(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Notify the position owner that an emergency force-close completed."""
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"🚨 *[{mode.upper()}] Force-close executed*\n"
+        f"{label}\n"
+        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
+        f"P&L: *${pnl_usdc:+.2f}*"
+    )
+    await notifications.send(telegram_user_id, text)
+
+
+async def alert_user_strategy_exit(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Notify the position owner of a strategy-driven exit close."""
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"📉 *[{mode.upper()}] Strategy exit*\n"
+        f"{label}\n"
+        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
+        f"P&L: *${pnl_usdc:+.2f}*"
+    )
+    await notifications.send(telegram_user_id, text)
+
+
+async def alert_user_close_failed(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    error: str,
+) -> None:
+    """Notify the position owner that the close attempt failed (and will retry).
+
+    The user-facing message intentionally avoids broker-level error detail
+    that leaks internal infra; the operator alert (below) carries the full
+    context for reconciliation.
+    """
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        "⚠️ *Close attempt failed*\n"
+        f"{label}\n"
+        f"Side: *{side.upper()}*\n"
+        "We will retry on the next exit-watcher tick. If failures persist, "
+        "the operator has been notified."
+    )
+    await notifications.send(telegram_user_id, text)
+    logger.warning("close_failed user-alert delivered tg=%s market=%s err=%s",
+                   telegram_user_id, market_id, error[:200])
+
+
+async def alert_operator_close_failed_persistent(
+    *,
+    position_id: UUID,
+    user_id: UUID,
+    market_id: str,
+    side: str,
+    mode: str,
+    failure_count: int,
+    last_error: str,
+) -> None:
+    """Page the operator when consecutive close failures cross the threshold.
+
+    Fires at ``CLOSE_FAILURE_OPERATOR_THRESHOLD`` and re-fires only after
+    ``COOLDOWN_SECONDS`` for the same position. Different positions never
+    share a cooldown key — each one gets its own alert channel.
+    """
+    if failure_count < CLOSE_FAILURE_OPERATOR_THRESHOLD:
+        return
+    body = (
+        f"[CrusaderBot] persistent close failure\n"
+        f"time: {_now_iso()}\n"
+        f"position: {position_id}\n"
+        f"user: {user_id}\n"
+        f"market: {market_id}\n"
+        f"side: {side}\n"
+        f"mode: {mode}\n"
+        f"failures: {failure_count}\n"
+        f"last_error: {last_error[:300]}"
+    )
+    await _dispatch("close_failed_persistent", str(position_id), body)

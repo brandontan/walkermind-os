@@ -1,9 +1,10 @@
 """Emergency menu — pause / pause+close-all (per-user).
 
 Per spec: emergency close uses the FORCE-CLOSE MARKER FLOW rather than
-liquidating directly. We set `force_close=true` on each open position and
-then trigger the exit watcher inline so the priority chain
-(force_close > tp_hit > sl_hit > strategy_exit > hold) drives the close.
+liquidating directly. We set `force_close_intent=true` on each open position
+via the position registry and then trigger the exit watcher inline so the
+priority chain (force_close_intent > tp_hit > sl_hit > strategy_exit > hold)
+drives the close.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from ... import audit
-from ...database import get_pool
+from ...domain.positions import registry as position_registry
 from ...users import set_paused, upsert_user
 from ..keyboards import emergency_menu
 
@@ -50,19 +51,12 @@ async def emergency_callback(update: Update,
         await q.message.reply_text("▶️ Resumed.")
     elif sub == "pause_close":
         await set_paused(user["id"], True)
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            marked = await conn.fetchval(
-                "WITH upd AS ( "
-                "  UPDATE positions SET force_close=TRUE "
-                "   WHERE user_id=$1 AND status='open' AND force_close=FALSE "
-                "   RETURNING 1 "
-                ") SELECT COUNT(*) FROM upd",
-                user["id"],
-            )
+        marked = await position_registry.mark_force_close_intent_for_user(
+            user["id"],
+        )
         await audit.write(actor_role="user", action="self_pause_close",
                           user_id=user["id"],
-                          payload={"marked_force_close": int(marked or 0)})
+                          payload={"marked_force_close_intent": marked})
         # Drain the priority chain immediately so the user sees results now
         # instead of waiting for the next EXIT_WATCH_INTERVAL tick.
         try:
@@ -71,7 +65,7 @@ async def emergency_callback(update: Update,
         except Exception as exc:
             logger.error("emergency inline check_exits failed: %s", exc)
         await q.message.reply_text(
-            f"🛑 Paused + flagged {int(marked or 0)} position(s) for force-close.\n"
+            f"🛑 Paused + flagged {marked} position(s) for force-close.\n"
             "Exit watcher just ran — see your dashboard for results.",
             parse_mode=ParseMode.MARKDOWN,
         )
