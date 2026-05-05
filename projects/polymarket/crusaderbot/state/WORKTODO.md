@@ -1,14 +1,14 @@
 # CrusaderBot — WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-05 19:10 UTC
+**Last Updated:** 2026-05-05 18:24
 
 ---
 
 ## Right Now
 
-Active lane: WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD — STANDARD tier, PR open, awaiting WARP🔹CMD review.
-Next: WARP🔹CMD review of R12f, then merge decisions on R12c exit watcher (PR #865) and R12a CI/CD.
+Active lanes: R12c exit watcher (PR #865) — MAJOR, SENTINEL required. R12a CI/CD pipeline — STANDARD, awaiting WARP🔹CMD review.
+Next: WARP🔹CMD merge decisions on R12c (SENTINEL gate) and R12a. R12f MERGED PR #874.
 
 ---
 
@@ -22,7 +22,7 @@ Next: WARP🔹CMD review of R12f, then merge decisions on R12c exit watcher (PR 
 - [x] R12e — Auto-Redeem System — MERGED PR #869 (7f8af0b90993), SENTINEL APPROVED 92/100
 - [ ] R12e — Live → Paper Auto-Fallback — NOT STARTED (MAJOR)
 - [ ] R12f — Daily P&L Summary — NOT STARTED (STANDARD)
-- [ ] R12f — Operator Dashboard + Kill Switch + Job Monitor + Audit Log — IN PROGRESS: WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD open, STANDARD — awaiting WARP🔹CMD review
+- [x] R12f — Operator Dashboard + Kill Switch + Job Monitor + Audit Log — MERGED PR #874 (WARP/CRUSADERBOT-R12F-OPERATOR-DASHBOARD) — STANDARD
 - [ ] R12 — Deployment (Fly.io) final — NOT STARTED (MAJOR — blocked on R12a-R12f all merged)
 
 Done condition: All R12a-R12f merged + activation guards reviewed by WARP🔹CMD before final R12 deployment.
