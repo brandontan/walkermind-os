@@ -1,4 +1,4 @@
-Last Updated : 2026-05-06 07:02 Asia/Jakarta
+Last Updated : 2026-05-06 07:12 Asia/Jakarta
 Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist (8-gate) + Live-to-Paper Fallback + Daily P&L Summary. 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
 
 [COMPLETED]
@@ -42,3 +42,4 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist
 - MIN-01 P3b: user_id type annotations missing in 3 copy_trade handler helpers (deferred follow-up)
 - MIN-02 P3b: phase comment in dispatcher.py (deferred follow-up)
 - MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred follow-up)
+- ROADMAP R12d/R12e/R12f lane IDs use original planned names (Live Opt-In Checklist / Live→Paper Fallback / Daily P&L); PROJECT_STATE + WORKTODO use actual executed names (Telegram Position UX / Auto-Redeem / Operator Dashboard) — deferred ROADMAP restructure, WARP🔹CMD decision required
