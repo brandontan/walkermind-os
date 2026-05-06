@@ -1,4 +1,4 @@
-Last Updated : 2026-05-06 07:12 Asia/Jakarta
+Last Updated : 2026-05-06 07:20 Asia/Jakarta
 Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist (8-gate) + Live-to-Paper Fallback + Daily P&L Summary. 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
 
 [COMPLETED]
