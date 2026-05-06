@@ -1,8 +1,8 @@
 # WARP•FORGE Report — r12-post-merge-sync
 
 **Branch:** WARP/CRUSADERBOT-R12-POST-MERGE-SYNC
-**Date:** 2026-05-06 07:02 Asia/Jakarta
-**Closes:** Issue #884
+**Date:** 2026-05-06 07:04 Asia/Jakarta
+**Closes:** Issue #884, Issue #885
 
 ---
 
