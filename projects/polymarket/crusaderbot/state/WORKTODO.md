@@ -1,14 +1,14 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-06 05:01 Asia/Jakarta
+**Last Updated:** 2026-05-06 07:02 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- R12 Live Readiness batch (live opt-in checklist + live-to-paper fallback + daily P&L summary) submitted on WARP/CRUSADERBOT-R12-LIVE-READINESS. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
-- After merge: P3c -- Signal Following strategy.
+- P3c -- Signal Following strategy -- next lane (MAJOR). WARP🔹CMD to assign branch and scope.
+- R12 final deployment -- blocked on P3c + P3d complete + activation guards reviewed by WARP🔹CMD.
 
 ---
 
