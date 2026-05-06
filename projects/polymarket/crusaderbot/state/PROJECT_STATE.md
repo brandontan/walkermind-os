@@ -1,4 +1,4 @@
-Last Updated : 2026-05-06 05:01 Asia/Jakarta
+Last Updated : 2026-05-06 07:02 Asia/Jakarta
 Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist (8-gate) + Live-to-Paper Fallback + Daily P&L Summary. 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
 
 [COMPLETED]
@@ -30,10 +30,9 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist
 - P3d — Per-user signal scan loop + execution queue wiring (MAJOR)
 
 [NEXT PRIORITY]
-- WARP🔹CMD review of R12 Live Readiness batch PR (STANDARD — no SENTINEL).
-  Source: projects/polymarket/crusaderbot/reports/forge/r12-live-readiness.md
-- After merge: P3c — Signal Following strategy (second BaseStrategy consumer). Branch: WARP/CRUSADERBOT-P3C-*
+- P3c — Signal Following strategy (MAJOR). Next lane. Branch: WARP/CRUSADERBOT-P3C-*
 - After P3c + P3d: live activation sequence gated on EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED + ENABLE_LIVE_TRADING
+- After P3c + P3d: R12 final Fly.io deployment (MAJOR — last R12 lane, blocked on P3c/P3d + activation guards)
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)

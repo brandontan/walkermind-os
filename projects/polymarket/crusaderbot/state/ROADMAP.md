@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-06 01:22 Asia/Jakarta
+**Last Updated:** 2026-05-06 07:02 Asia/Jakarta
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -22,9 +22,9 @@
 | R12a | CI/CD Pipeline (GitHub Actions) | ✅ Done | STANDARD | Merged PR #855 (2026-05-04) |
 | R12b | Fly.io Health Alerts | ✅ Done | STANDARD | Merged via PR #856 |
 | R12c | Auto-Close / Take-Profit | ✅ Done | MAJOR | Merged PR #865 (2026-05-05), SENTINEL APPROVED 95/100 |
-| R12d | Live Opt-In Checklist | ❌ Not Started | MAJOR | Hard gate before EXE |
-| R12e | Live → Paper Auto-Fallback | ❌ Not Started | MAJOR | — |
-| R12f | Daily P&L Summary | ❌ Not Started | STANDARD | — |
+| R12d | Live Opt-In Checklist | ✅ Done | STANDARD | Merged PR #883 (2026-05-06), NARROW INTEGRATION |
+| R12e | Live → Paper Auto-Fallback | ✅ Done | STANDARD | Merged PR #883 (2026-05-06), NARROW INTEGRATION |
+| R12f | Daily P&L Summary | ✅ Done | STANDARD | Merged PR #883 (2026-05-06), NARROW INTEGRATION |
 | R12 | Deployment (Fly.io) — final | ❌ Not Started | MAJOR | After R12a-R12f |
 
 ## R12 — Detailed Lane Plan
@@ -117,7 +117,7 @@ Reference: `docs/blueprint/crusaderbot.md` §6 (Risk System), §12 (Activation G
 | Lane | Name | Status | Tier | Notes |
 |---|---|---|---|---|
 | P3a | Strategy Registry Foundation | ✅ Done | STANDARD | Merged PR #876 (2026-05-05), FOUNDATION |
-| P3b | Copy Trade strategy | ⏸ Pending | MAJOR | PR #877 open, SENTINEL pending (Issue #878) |
+| P3b | Copy Trade strategy | ✅ Done | MAJOR | Merged PR #877 (2026-05-06) a369129d, SENTINEL CONDITIONAL 71/100 resolved |
 | P3c | Signal Following strategy | ❌ Not Started | MAJOR | — |
 | P3d | Signal scan loop + execution queue wiring | ❌ Not Started | MAJOR | Wires registry into risk gate |
 
