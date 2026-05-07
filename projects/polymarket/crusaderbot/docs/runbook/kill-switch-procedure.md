@@ -42,9 +42,18 @@ the same audited `domain.ops.kill_switch.set_active(...)` path.
 | Telegram (canonical) | `/killswitch pause`, `/killswitch resume`, `/killswitch lock` | Same gate, exposes `lock` (force every user `auto_trade_on=false` + live→paper cascade). |
 | REST | `POST /admin/kill?active=true` | Bearer-protected by `ADMIN_API_TOKEN`. Use only when Telegram is unavailable. |
 
-Operator allowlist for the Telegram surface lives in `ADMIN_USER_IDS`
-(comma-separated). The bot rejects the command silently for non-operators
-to avoid confirming the surface to unauthorised users.
+Operator allowlist for the Telegram surface is the
+`OPERATOR_CHAT_ID` Fly secret. `bot/handlers/admin._is_operator` accepts
+**only** the Telegram user whose `effective_user.id` matches
+`OPERATOR_CHAT_ID` (verified at `bot/handlers/admin.py:34-37`). The bot
+rejects the command silently for non-operators to avoid confirming the
+surface to unauthorised users. To grant operator access, set
+`OPERATOR_CHAT_ID` to the operator's Telegram user id (in a 1:1 chat
+with the bot, the user id and chat id are identical, which is why the
+same value is reused for both alert delivery and command authorisation).
+The brief's `ADMIN_USER_IDS` Fly secret is not consumed by the runtime
+today — it is reserved for a future multi-operator allowlist lane and
+has no effect on `/kill` / `/resume` access in this build.
 
 ---
 
