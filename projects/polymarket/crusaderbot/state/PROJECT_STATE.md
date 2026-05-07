@@ -1,17 +1,7 @@
-Last Updated : 2026-05-07 20:22 Asia/Jakarta
-Status       : P3c Signal Following strategy MERGED PR #892 (5ee8487e), SENTINEL APPROVED 100/100, 428/428 tests green. P3d — Per-user signal scan loop + execution queue wiring — is the next active MAJOR lane. R12 final Fly.io deployment blocked on P3d + activation guard review. Activation guards NOT SET.
+Last Updated : 2026-05-07 20:58 Asia/Jakarta
+Status       : P3c Signal Following strategy MERGED PR #892 (5ee8487e), SENTINEL APPROVED 100/100, 428/428 tests green. PR #895 fix(risk gate): signal_following allow-listed in STRATEGY_AVAILABILITY (MINOR, FOUNDATION, d25f4fda). P3d — Per-user signal scan loop + execution queue wiring — is the next active MAJOR lane. R12 final Fly.io deployment blocked on P3d + activation guard review. Activation guards NOT SET.
 
 [COMPLETED]
-- PR #852 — feat(crusaderbot): import full Replit build R1-R11
-- PR #853 — sentinel: crusaderbot-replit-import PASS (post-fix)
-- C1 resolved: KELLY_FRACTION applied, capital_alloc_pct capped <1.0
-- C2 resolved: migrations/004 idempotent DO $$ blocks
-- C3 resolved: Tier 3 promotion gated on MIN_DEPOSIT_USDC
-- R12b — Fly.io health probes + operator alerts + JSON logging (PR #856 merged)
-- PR #857 — chore: state sync post-PR #856
-- PR #858 — chore: state sync post-PR #857
-- PR #860 — chore: ROADMAP R12b drift fix + WORKTODO init (STANDARD, merged)
-- R12a — CI/CD Pipeline GitHub Actions + Fly.io — PR #855 MERGED 2026-05-04 (STANDARD)
 - R12c — Auto-Close / Take-Profit exit watcher — PR #865 MERGED 2026-05-05 (MAJOR, SENTINEL APPROVED 95/100)
 - R12d — Telegram Position UX (live monitor + force close) — PR #868 MERGED 4f5e12201964 (STANDARD)
 - R12e — Auto-Redeem System — PR #869 MERGED 7f8af0b90993 (MAJOR, SENTINEL CONDITIONAL 64/100 — conditions resolved PR #879)
@@ -21,6 +11,7 @@ Status       : P3c Signal Following strategy MERGED PR #892 (5ee8487e), SENTINEL
 - R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR #883 MERGED 5a9cb22a (STANDARD, NARROW INTEGRATION)
 - Cleanup legacy polyquantbot directory — PR #891 MERGED (MINOR, Issue #890 closed)
 - P3c — Signal Following strategy — PR #892 MERGED (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
+- PR #895 — fix(risk gate): signal_following allow-listed in STRATEGY_AVAILABILITY — MERGED d25f4fda (MINOR, FOUNDATION)
 
 [IN PROGRESS]
 - P3d — Per-user signal scan loop + execution queue wiring (MAJOR — not started, dispatching next)
@@ -43,4 +34,4 @@ Status       : P3c Signal Following strategy MERGED PR #892 (5ee8487e), SENTINEL
 - MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred follow-up)
 - ROADMAP R12d/R12e/R12f lane IDs use original planned names (Live Opt-In Checklist / Live→Paper Fallback / Daily P&L); PROJECT_STATE + WORKTODO use actual executed names (Telegram Position UX / Auto-Redeem / Operator Dashboard) — deferred ROADMAP restructure, WARP🔹CMD decision required
 
-<!-- CD verify: 2026-05-07 20:22 -->
+<!-- CD verify: 2026-05-07 20:58 -->
