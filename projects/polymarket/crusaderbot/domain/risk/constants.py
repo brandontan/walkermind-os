@@ -33,6 +33,7 @@ PROFILES: dict[str, dict] = {
 STRATEGY_AVAILABILITY: dict[str, list[str]] = {
     "copy_trade": ["conservative", "balanced", "aggressive"],
     "signal":     ["conservative", "balanced", "aggressive"],
+    "signal_following": ["conservative", "balanced", "aggressive"],
     "value":      ["balanced", "aggressive"],   # Phase R6b+
     "momentum":   ["aggressive"],               # Phase R9+
 }
