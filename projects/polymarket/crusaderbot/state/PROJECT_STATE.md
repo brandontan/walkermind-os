@@ -1,5 +1,5 @@
-Last Updated : 2026-05-07 23:45 Asia/Jakarta
-Status       : P3d SENTINEL APPROVED 94/100. Zero critical issues. 463/463 tests green. Activation guards NOT SET. Awaiting WARP🔹CMD merge decision.
+Last Updated : 2026-05-08 00:30 Asia/Jakarta
+Status       : P3d MERGED (PR #897, bb08092). 464/464 tests green. Strategy plane complete. Awaiting R12 final Fly.io deployment.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -21,17 +21,16 @@ Status       : P3d SENTINEL APPROVED 94/100. Zero critical issues. 463/463 tests
 - R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR #883 MERGED 5a9cb22a (STANDARD, NARROW INTEGRATION)
 - Cleanup legacy polyquantbot directory — PR #891 MERGED (MINOR, Issue #890 closed)
 - P3c — Signal Following strategy — PR #892 MERGED (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
+- P3d — Per-user signal scan loop + execution queue wiring — PR #897 MERGED (bb08092), MAJOR, SENTINEL APPROVED 94/100. Crash-recovery resume path, subscribe/unsubscribe enrollment, dual-layer dedup, migration 011+012. 464/464 tests green.
 
 [IN PROGRESS]
-- P3d — Per-user signal scan loop + execution queue wiring (MAJOR — SENTINEL APPROVED 94/100, awaiting WARP🔹CMD merge decision)
+- None
 
 [NOT STARTED]
-- R12 — Deployment (Fly.io) final (MAJOR — blocked on P3d merge + activation guards reviewed)
+- R12 — Deployment (Fly.io) final (MAJOR — P3d unblock complete, activation guards review required before live)
 
 [NEXT PRIORITY]
-- WARP🔹CMD merge decision for P3d (PR #897). Report: projects/polymarket/crusaderbot/reports/sentinel/p3d-signal-scan-execution-queue.md. Verdict: APPROVED 94/100.
-- After P3d merge: live activation sequence gated on EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED + ENABLE_LIVE_TRADING
-- After P3d merge: R12 final Fly.io deployment (MAJOR — last R12 lane, blocked on P3d + activation guards)
+- R12 final Fly.io deployment (MAJOR — last R12 lane). Activation sequence gated on EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED + ENABLE_LIVE_TRADING — review required before any flag is set.
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)
@@ -43,4 +42,4 @@ Status       : P3d SENTINEL APPROVED 94/100. Zero critical issues. 463/463 tests
 - MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred follow-up)
 - ROADMAP R12d/R12e/R12f lane IDs use original planned names (Live Opt-In Checklist / Live→Paper Fallback / Daily P&L); PROJECT_STATE + WORKTODO use actual executed names (Telegram Position UX / Auto-Redeem / Operator Dashboard) — deferred ROADMAP restructure, WARP🔹CMD decision required
 
-<!-- CD verify: 2026-05-07 23:45 -->
+<!-- CD verify: 2026-05-08 00:30 -->
