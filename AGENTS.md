@@ -7,7 +7,7 @@
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walkermind-os
 Version: 2.6
-Last Updated: 2026-05-03 18:30 Asia/Jakarta
+Last Updated: 2026-05-07 12:00 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
            workflow, and operational boundaries. All other files are
            supporting documents. When conflict exists, AGENTS.md wins.
@@ -323,7 +323,7 @@ walkermind-os/
 ├── lib/                                   <- shared libraries across projects
 └── projects/
     ├── polymarket/
-    │   └── polyquantbot/                  <- PROJECT_ROOT (active)
+    │   └── crusaderbot/                   <- PROJECT_ROOT (active)
     │       ├── state/
     │       │   ├── PROJECT_STATE.md
     │       │   ├── ROADMAP.md
@@ -388,7 +388,7 @@ lib/
 
 Reports, state, and instructions use repo-root relative paths — always.
 
-- Correct: `projects/polymarket/polyquantbot/reports/forge/wallet-state.md`
+- Correct: `projects/polymarket/crusaderbot/reports/forge/wallet-state.md`
 - Wrong: `/workspace/walkermind-os/projects/...` (absolute)
 - Wrong: `reports/forge/wallet-state.md` (short form, missing project prefix)
 
@@ -542,7 +542,7 @@ Important:
 
 ### Active project variable
 ```text
-PROJECT_ROOT = projects/polymarket/polyquantbot
+PROJECT_ROOT = projects/polymarket/crusaderbot
 ```
 All report and state paths use `{PROJECT_ROOT}` as prefix. When switching to a new project, update `PROJECT_ROOT` only.
 
@@ -903,7 +903,7 @@ Within the active `PROJECT_ROOT`, runtime / trading system code must live only w
 `core/`, `data/`, `strategy/`, `intelligence/`, `risk/`, `execution/`, `monitoring/`, `api/`, `infra/`, `backtest/`, `reports/`.
 
 - These directories are relative to the active `PROJECT_ROOT`, not the repository root
-- For CrusaderBot, this enforced runtime / domain structure applies under: `projects/polymarket/polyquantbot/`
+- For CrusaderBot, this enforced runtime / domain structure applies under: `projects/polymarket/crusaderbot/`
 - `docs/blueprint/crusaderbot.md` is the supporting architecture reference for CrusaderBot pathing and boundaries inside this project
 - Project-external folders elsewhere in the repo may follow their own established structure unless WARP🔹CMD explicitly normalizes them
 
@@ -1109,8 +1109,8 @@ Naming: `{feature}` is a short hyphen-separated slug matching the branch feature
 The folder provides the role context — no prefix or phase token needed in the filename.
 
 Correct examples:
-- `projects/polymarket/polyquantbot/reports/forge/wallet-state-read-boundary.md`
-- `projects/polymarket/polyquantbot/reports/forge/execution-kill-switch.md`
+- `projects/polymarket/crusaderbot/reports/forge/wallet-state-read-boundary.md`
+- `projects/polymarket/crusaderbot/reports/forge/execution-kill-switch.md`
 
 Wrong:
 - `phase_6.5.3_02_wallet.md` (old format — dots, underscores, phase prefix)

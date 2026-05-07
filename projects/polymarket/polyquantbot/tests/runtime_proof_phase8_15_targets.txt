@@ -1,4 +1,0 @@
-# Phase 8.15 dependency-complete runtime proof targets (paper-beta control surfaces)
-projects/polymarket/polyquantbot/tests/test_crusader_runtime_surface.py
-projects/polymarket/polyquantbot/tests/test_phase8_7_public_paper_beta_completion_20260420.py
-projects/polymarket/polyquantbot/tests/test_phase8_8_public_paper_beta_exit_criteria_20260420.py
