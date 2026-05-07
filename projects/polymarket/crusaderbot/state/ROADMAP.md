@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-06 07:02 Asia/Jakarta
+**Last Updated:** 2026-05-07 20:22 Asia/Jakarta
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -118,6 +118,6 @@ Reference: `docs/blueprint/crusaderbot.md` §6 (Risk System), §12 (Activation G
 |---|---|---|---|---|
 | P3a | Strategy Registry Foundation | ✅ Done | STANDARD | Merged PR #876 (2026-05-05), FOUNDATION |
 | P3b | Copy Trade strategy | ✅ Done | MAJOR | Merged PR #877 (2026-05-06) a369129d, SENTINEL CONDITIONAL 71/100 resolved |
-| P3c | Signal Following strategy | ❌ Not Started | MAJOR | — |
+| P3c | Signal Following strategy | ✅ Done | MAJOR | Merged PR #892 (5ee8487e), SENTINEL APPROVED 100/100 |
 | P3d | Signal scan loop + execution queue wiring | ❌ Not Started | MAJOR | Wires registry into risk gate |
 
