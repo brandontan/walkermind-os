@@ -186,7 +186,24 @@ async def _load_active_publications(
     feed_id: UUID,
     subscribed_at: datetime,
 ) -> list[dict[str, Any]]:
-    """Entry publications since user subscribed that haven't expired/exited."""
+    """Entry publications since user subscribed that haven't expired/exited.
+
+    Three suppression rules apply, mirroring the exit-symmetry that
+    ``SignalFollowingStrategy.evaluate_exit`` enforces:
+
+        (1) the row is itself an entry (``exit_signal = FALSE``),
+        (2) the entry has not been retired in place
+            (``exit_published_at IS NULL``),
+        (3) no LATER ``exit_signal = TRUE`` row exists on the same feed +
+            market (the ``publish_exit`` separate-row pattern).
+
+    Without (3), a user subscribed mid-cycle could pull an entry whose
+    separate-exit-row peer has already been published, and a fresh
+    position would be opened on a signal the operator has already closed.
+    The downstream scan loop (P3d) is the next line of defence with
+    per-publication-per-user dedup, but the SQL boundary is the cheaper
+    place to keep the surface clean.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -194,12 +211,20 @@ async def _load_active_publications(
             SELECT id, feed_id, market_id, side, target_price, signal_type,
                    payload, exit_signal, published_at, expires_at,
                    exit_published_at
-              FROM signal_publications
+              FROM signal_publications p
              WHERE feed_id = $1
                AND exit_signal = FALSE
                AND exit_published_at IS NULL
                AND published_at > $2
                AND (expires_at IS NULL OR expires_at > NOW())
+               AND NOT EXISTS (
+                 SELECT 1
+                   FROM signal_publications x
+                  WHERE x.feed_id = p.feed_id
+                    AND x.market_id = p.market_id
+                    AND x.exit_signal = TRUE
+                    AND x.published_at > p.published_at
+               )
              ORDER BY published_at ASC
             """,
             feed_id, subscribed_at,

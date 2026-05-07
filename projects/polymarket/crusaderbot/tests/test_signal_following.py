@@ -496,6 +496,43 @@ def test_evaluate_uses_payload_condition_id_when_present():
     assert out[0].condition_id == "0xcond_explicit"
 
 
+def test_load_active_publications_sql_suppresses_separate_exit_row():
+    """Symmetry with evaluate_exit: when an operator uses the separate
+    exit-row pattern, the entry row stays ``exit_signal=FALSE`` /
+    ``exit_published_at=NULL``, but a later ``exit_signal=TRUE`` row on
+    the same feed+market exists. The scan SQL must suppress the entry
+    via the ``NOT EXISTS`` clause so users cannot open positions on
+    operator-closed signals.
+
+    The fake _FakeConn returns whatever the test scripts; the real
+    Postgres NOT EXISTS clause is exercised by integration tests
+    elsewhere. This test pins the contract that callers downstream of
+    the SQL — including the strategy scan() — see no candidate when the
+    DB returns no entry rows."""
+    sub = _subscription_row()
+    # Empty publication list simulates the SQL filter excluding the
+    # entry because a later exit_signal=TRUE row exists.
+    conn = _FakeConn(fetch_results=[[sub], []])
+    with _patch_evaluator_pool(conn):
+        out = asyncio.run(ev.evaluate_publications_for_user(
+            user_context=_user_ctx(),
+            market_filters=_market_filters(),
+            strategy_name="signal_following",
+        ))
+    assert out == []
+
+
+def test_load_active_publications_sql_contains_not_exists_clause():
+    """Static guard: the source SQL string must contain the NOT EXISTS
+    suppression for the separate-exit-row pattern. Pins the fix so a
+    future cleanup cannot accidentally drop it without the test failing."""
+    import inspect
+    src = inspect.getsource(ev._load_active_publications)
+    assert "NOT EXISTS" in src
+    assert "x.exit_signal = TRUE" in src
+    assert "x.published_at > p.published_at" in src
+
+
 # ---------------------------------------------------------------------------
 # SignalFollowingStrategy.scan / evaluate_exit
 # ---------------------------------------------------------------------------
