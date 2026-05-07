@@ -891,13 +891,59 @@ def test_admin_sentry_test_returns_event_id_when_initialised(monkeypatch):
 def test_init_sentry_noop_when_dsn_unset(monkeypatch):
     """``init_sentry`` must be a quiet no-op when ``SENTRY_DSN`` is unset
     so local / CI runs never ship synthetic events to the prod project.
+
+    Reads from ``os.environ`` directly (not via ``Settings``) so a
+    partially-configured environment cannot raise a pydantic
+    ``ValidationError`` and break the no-op contract.
     """
     from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
 
     monitoring_sentry.reset_for_tests()
-    monkeypatch.setattr(
-        "projects.polymarket.crusaderbot.monitoring.sentry.get_settings",
-        lambda: MagicMock(SENTRY_DSN=None),
-    )
+    monkeypatch.delenv("SENTRY_DSN", raising=False)
     assert monitoring_sentry.init_sentry() is False
     assert monitoring_sentry.is_initialised() is False
+
+
+def test_init_sentry_noop_does_not_depend_on_required_app_env(monkeypatch):
+    """Codex P2: ``init_sentry`` must NOT construct the full ``Settings``
+    model — doing so would validate required app secrets like
+    ``TELEGRAM_BOT_TOKEN`` / ``DATABASE_URL`` and raise
+    ``pydantic.ValidationError`` in a partially-configured env, breaking
+    the documented quiet-no-op contract. Sentry init must be entirely
+    independent of the rest of app config so it can run *first* in the
+    lifespan hook and capture any subsequent settings-validation
+    failures.
+
+    Strip every required app secret from the env, leave SENTRY_DSN
+    unset, and assert that init_sentry returns False without raising.
+    """
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monitoring_sentry.reset_for_tests()
+    for required in (
+        "SENTRY_DSN", "TELEGRAM_BOT_TOKEN", "OPERATOR_CHAT_ID", "DATABASE_URL",
+        "POLYGON_RPC_URL", "ALCHEMY_POLYGON_RPC_URL", "ALCHEMY_POLYGON_WS_URL",
+        "WALLET_HD_SEED", "WALLET_ENCRYPTION_KEY",
+    ):
+        monkeypatch.delenv(required, raising=False)
+    # Must NOT raise — and must be a quiet no-op return.
+    assert monitoring_sentry.init_sentry() is False
+    assert monitoring_sentry.is_initialised() is False
+
+
+def test_init_sentry_traces_sample_rate_malformed_falls_back(monkeypatch):
+    """A malformed ``SENTRY_TRACES_SAMPLE_RATE`` env value (non-numeric)
+    must fall back to 0.0 rather than raising — env-reads cannot block
+    boot. The call returns False because no DSN is set, but it must
+    return without an exception even with the malformed value present.
+    """
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monitoring_sentry.reset_for_tests()
+    monkeypatch.delenv("SENTRY_DSN", raising=False)
+    monkeypatch.setenv("SENTRY_TRACES_SAMPLE_RATE", "not-a-float")
+    # _read_traces_sample_rate is only called when DSN is set, so this
+    # asserts the no-op path doesn't reach into env parsing prematurely.
+    # Direct unit check on the helper too:
+    assert monitoring_sentry._read_traces_sample_rate() == 0.0
+    assert monitoring_sentry.init_sentry() is False
