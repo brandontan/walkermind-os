@@ -1120,7 +1120,29 @@ def test_subscribe_upserts_user_strategies_on_success():
     ]
     assert len(strategy_inserts) == 1
     assert "signal_following" in strategy_inserts[0][1]
-    assert "ON CONFLICT" in strategy_inserts[0][1]
+    # First/fresh subscribe (active_count==0) must re-enable via DO UPDATE.
+    assert "DO UPDATE SET enabled = TRUE" in strategy_inserts[0][1]
+
+
+def test_subscribe_does_not_reenable_strategy_when_other_subs_active():
+    # User already has one active subscription (adding a second feed).
+    # user_strategies row may be operator-disabled — must not be re-enabled.
+    conn = _AtomicConn(
+        feed_row={"status": "active"},
+        existing_sub_row=None,
+        active_count=1,
+    )
+    with _patch_svc_pool(conn):
+        result = asyncio.run(svc.subscribe(
+            user_id=_USER_UUID, feed_id=_FEED_UUID,
+        ))
+    assert result == "subscribed"
+    strategy_inserts = [
+        e for e in conn.sql_log
+        if e[0] == "execute" and "INSERT INTO user_strategies" in e[1]
+    ]
+    assert len(strategy_inserts) == 1
+    assert "DO NOTHING" in strategy_inserts[0][1]
 
 
 def test_unsubscribe_disables_strategy_when_last_subscription():

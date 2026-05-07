@@ -302,14 +302,22 @@ async def subscribe(
                 " WHERE id = $1",
                 uuid_feed,
             )
-            # Enroll user in strategy plane so the signal_following scan loop
-            # picks them up. ON CONFLICT re-enables if they previously unsub'd.
-            await conn.execute(
+            # Enroll user in strategy plane.  Re-enable only when this is the
+            # user's first/fresh subscription (active_count==0 means any prior
+            # user_strategies row was disabled by the unsubscribe flow, not by
+            # an operator).  If they already have other active subscriptions the
+            # strategy row must already be enabled — DO NOTHING preserves any
+            # operator-level disables.
+            _enroll_sql = (
                 "INSERT INTO user_strategies (user_id, strategy_name, weight, enabled) "
                 "VALUES ($1, 'signal_following', 1.0, TRUE) "
-                "ON CONFLICT (user_id, strategy_name) DO UPDATE SET enabled = TRUE",
-                uuid_user,
+                + (
+                    "ON CONFLICT (user_id, strategy_name) DO UPDATE SET enabled = TRUE"
+                    if active_count == 0
+                    else "ON CONFLICT (user_id, strategy_name) DO NOTHING"
+                )
             )
+            await conn.execute(_enroll_sql, uuid_user)
             return "subscribed"
 
 
