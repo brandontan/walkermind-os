@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import re
+from uuid import UUID
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -216,7 +217,7 @@ async def copy_trade_command(update: Update,
 # ---------------------------------------------------------------------------
 
 
-async def _handle_add(update: Update, user_id, args: list[str]) -> None:
+async def _handle_add(update: Update, user_id: UUID, args: list[str]) -> None:
     if update.message is None:
         return
     if len(args) != 1:
@@ -253,7 +254,7 @@ async def _handle_add(update: Update, user_id, args: list[str]) -> None:
     )
 
 
-async def _handle_remove(update: Update, user_id, args: list[str]) -> None:
+async def _handle_remove(update: Update, user_id: UUID, args: list[str]) -> None:
     if update.message is None:
         return
     if len(args) != 1:
@@ -284,7 +285,7 @@ async def _handle_remove(update: Update, user_id, args: list[str]) -> None:
     )
 
 
-async def _handle_list(update: Update, user_id) -> None:
+async def _handle_list(update: Update, user_id: UUID) -> None:
     if update.message is None:
         return
     targets = await _list_active_targets(user_id)

@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
-from typing import Any
 
 import asyncio
 from apscheduler.events import (
@@ -25,9 +24,7 @@ from .jobs import daily_pnl_summary
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
-from .users import set_tier
 from .wallet import ledger
-from .wallet.vault import get_wallet
 
 logger = logging.getLogger(__name__)
 

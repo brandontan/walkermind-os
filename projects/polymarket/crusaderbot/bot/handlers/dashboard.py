@@ -1,8 +1,6 @@
 """Dashboard / Positions / Activity views."""
 from __future__ import annotations
 
-from decimal import Decimal
-
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -123,7 +121,6 @@ async def positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def close_position_cb(update: Update,
                             ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    from ...integrations.polymarket import get_market
     from ...domain.execution.router import close
     q = update.callback_query
     if q is None:

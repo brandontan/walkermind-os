@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-07 20:22 Asia/Jakarta
+**Last Updated:** 2026-05-08 03:39 Asia/Jakarta
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -22,10 +22,11 @@
 | R12a | CI/CD Pipeline (GitHub Actions) | ✅ Done | STANDARD | Merged PR #855 (2026-05-04) |
 | R12b | Fly.io Health Alerts | ✅ Done | STANDARD | Merged via PR #856 |
 | R12c | Auto-Close / Take-Profit | ✅ Done | MAJOR | Merged PR #865 (2026-05-05), SENTINEL APPROVED 95/100 |
-| R12d | Live Opt-In Checklist | ✅ Done | STANDARD | Merged PR #883 (2026-05-06), NARROW INTEGRATION |
-| R12e | Live → Paper Auto-Fallback | ✅ Done | STANDARD | Merged PR #883 (2026-05-06), NARROW INTEGRATION |
-| R12f | Daily P&L Summary | ✅ Done | STANDARD | Merged PR #883 (2026-05-06), NARROW INTEGRATION |
-| R12 | Deployment (Fly.io) — final | ❌ Not Started | MAJOR | After R12a-R12f |
+| R12d | Telegram Position UX (live monitor + force close) | ✅ Done | STANDARD | Merged PR #868 (2026-05-05) |
+| R12e | Auto-Redeem System | ✅ Done | MAJOR | Merged PR #869 (2026-05-05), SENTINEL CONDITIONAL 64/100 — conditions resolved PR #879 |
+| R12f | Operator Dashboard + Kill Switch + Job Monitor | ✅ Done | STANDARD | Merged PR #874 (2026-05-05) |
+| R12 Live Readiness batch | Live Opt-In Checklist + Live → Paper Auto-Fallback + Daily P&L Summary | ✅ Done | STANDARD | Merged PR #883 (2026-05-06), NARROW INTEGRATION |
+| R12 | Deployment (Fly.io) — final | ❌ Not Started | MAJOR | After R12a-R12f + Live Readiness batch |
 
 ## R12 — Detailed Lane Plan
 
@@ -38,14 +39,17 @@ Cron ping `/health` every 1 min. Telegram alert to `OPERATOR_CHAT_ID` if down. E
 ### R12c — Auto-Close / Take-Profit
 Scheduler polls open positions. Auto-submit close order at target price. Optional trailing stop (close if price drops X% from peak).
 
-### R12d — Live Opt-In Checklist
-Interactive Telegram flow before `EXECUTION_PATH_VALIDATED`. Steps: risk confirm → wallet balance verify → daily loss limit set → operator approval. Hard gate — cannot skip.
+### R12d — Telegram Position UX (live monitor + force close)
+Live position view + per-position force-close confirmation flow on Telegram. Delivered via PR #868.
 
-### R12e — Live to Paper Auto-Fallback
-Monitor: RPC error rate, consecutive failed submissions, drawdown above threshold. Auto-switch to paper mode + notify operator. Manual re-activation required (safety by design).
+### R12e — Auto-Redeem System
+Instant + hourly auto-redeem worker for resolved markets. Delivered via PR #869 (SENTINEL CONDITIONAL 64/100; conditions resolved in PR #879).
 
-### R12f — Daily P&L Summary
-Scheduler job at 23:55 Asia/Jakarta daily. Per-user: trades today, win rate, realized P&L, open positions. Operator: total volume, active users, system health.
+### R12f — Operator Dashboard + Kill Switch + Job Monitor
+`/ops_dashboard`, `/killswitch`, `/jobs`, `/auditlog` operator surfaces. Delivered via PR #874.
+
+### R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary
+Originally planned as separate R12d/R12e/R12f lanes; bundled and delivered together via PR #883 (NARROW INTEGRATION). Live opt-in checklist gates `EXECUTION_PATH_VALIDATED`; Live→Paper auto-fallback monitors RPC/submission/drawdown thresholds and falls back to paper with operator notification (manual re-activation required); daily P&L summary runs at 23:55 Asia/Jakarta.
 
 ## R13 — Growth Backlog (post-MVP)
 
