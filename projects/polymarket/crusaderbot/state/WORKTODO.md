@@ -1,7 +1,7 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-08 01:38 Asia/Jakarta
+**Last Updated:** 2026-05-08 03:39 Asia/Jakarta
 
 ---
 
@@ -50,10 +50,10 @@ Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD
 
 ## Known Issues / Tech Debt
 
-- [ ] F401 unused imports: bot/dispatcher.py, bot/handlers/dashboard.py, cache.py, config.py, domain/risk/gate.py, scheduler.py (ruff cleanup, LOW)
+- [x] F401 unused imports: bot/dispatcher.py, bot/handlers/dashboard.py, cache.py, config.py, domain/risk/gate.py, scheduler.py, services/signal_scan/signal_scan_job.py — DONE on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP
 - [ ] check_alchemy_ws TCP-only, no full WS handshake (follow-up lane, LOW)
 - [ ] services/* dead code (post-R12 cleanup, LOW)
 - [ ] /deposit no tier gate (intentional, non-blocking)
-- [ ] MIN-01 P3b: user_id type annotations missing in 3 copy_trade handler helpers (deferred)
-- [ ] MIN-02 P3b: phase comment in dispatcher.py (deferred)
-- [ ] MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred)
+- [x] MIN-01 P3b: user_id type annotations on 3 copy_trade handler helpers — DONE on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP
+- [x] MIN-02 P3b: phase comment in dispatcher.py — DONE on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP
+- [x] MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (migration 013, ON DELETE SET NULL) — DONE on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP

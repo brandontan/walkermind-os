@@ -1,5 +1,5 @@
-Last Updated : 2026-05-08 01:33 Asia/Jakarta
-Status       : P3d MERGED (PR #897, bb08092). 464/464 tests green. Strategy plane complete. Awaiting R12 final Fly.io deployment.
+Last Updated : 2026-05-08 03:39 Asia/Jakarta
+Status       : Pre-flight cleanup lane open on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (F401 + MIN-01/02/03 + ROADMAP naming). P3d MERGED (PR #897). 464/464 tests green. Awaiting R12 final Fly.io deployment.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -24,7 +24,7 @@ Status       : P3d MERGED (PR #897, bb08092). 464/464 tests green. Strategy plan
 - P3d — Per-user signal scan loop + execution queue wiring — PR #897 MERGED (bb08092), MAJOR, SENTINEL APPROVED 94/100. Crash-recovery resume path, subscribe/unsubscribe enrollment, dual-layer dedup, migration 011+012. 464/464 tests green.
 
 [IN PROGRESS]
-- None
+- Pre-flight cleanup lane on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (MINOR): 15 F401 cleared across 7 files, MIN-01 user_id annotations on 3 copy_trade handler helpers, MIN-02 dispatcher phase comment, MIN-03 migration 013 (copy_trade_events.copy_target_id ON DELETE SET NULL), ROADMAP R12d/R12e/R12f naming aligned to actual executed lanes.
 
 [NOT STARTED]
 - R12 — Deployment (Fly.io) final (MAJOR — P3d unblock complete, activation guards review required before live)
@@ -36,10 +36,5 @@ Status       : P3d MERGED (PR #897, bb08092). 464/464 tests green. Strategy plan
 - /deposit no tier gate (intentional, non-blocking)
 - services/* dead code (LOW, post-R12 cleanup)
 - check_alchemy_ws is TCP-only (no full WS handshake) — follow-up
-- F401 unused imports: bot/dispatcher.py, bot/handlers/dashboard.py, cache.py, config.py, domain/risk/gate.py, scheduler.py, services/signal_scan/signal_scan_job.py (ruff cleanup lane, LOW)
-- MIN-01 P3b: user_id type annotations missing in 3 copy_trade handler helpers (deferred follow-up)
-- MIN-02 P3b: phase comment in dispatcher.py (deferred follow-up)
-- MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred follow-up)
-- ROADMAP R12d/R12e/R12f lane IDs use original planned names (Live Opt-In Checklist / Live→Paper Fallback / Daily P&L); PROJECT_STATE + WORKTODO use actual executed names (Telegram Position UX / Auto-Redeem / Operator Dashboard) — deferred ROADMAP restructure, WARP🔹CMD decision required
 
 <!-- CD verify: 2026-05-08 00:30 -->
