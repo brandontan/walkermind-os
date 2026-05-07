@@ -31,6 +31,7 @@ Exit reason encoding:
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -103,8 +104,16 @@ class SignalFollowingStrategy(BaseStrategy):
         Two trigger forms are honoured:
             (a) the originating publication row has exit_published_at set
                 (operator retired the entry signal in place), OR
-            (b) any later publication on the same feed + market_id has
-                exit_signal = TRUE (operator announced a separate exit).
+            (b) a publication on the same feed + market_id has
+                exit_signal = TRUE AND published_at strictly later than the
+                anchor (origin publication's published_at, or position
+                opened_at as fallback).
+
+        Re-entry safety: bounding (b) by ``published_at > anchor`` prevents
+        a stale exit_signal row from a previous trade cycle from retiring a
+        fresh re-entry on the same market. If neither origin publication
+        nor a position timestamp is available, the evaluator holds — it
+        cannot distinguish stale from fresh exits without an anchor.
         """
         meta = position.get("metadata") or {}
         feed_uuid = _coerce_uuid(meta.get("feed_id"))
@@ -116,18 +125,40 @@ class SignalFollowingStrategy(BaseStrategy):
         try:
             pool = get_pool()
             async with pool.acquire() as conn:
+                anchor: datetime | None = None
+                if publication_uuid is not None:
+                    origin = await conn.fetchrow(
+                        """
+                        SELECT published_at, exit_published_at
+                          FROM signal_publications
+                         WHERE id = $1 AND feed_id = $2
+                        """,
+                        publication_uuid, feed_uuid,
+                    )
+                    if origin is not None:
+                        if origin["exit_published_at"] is not None:
+                            return _exit_decision(feed_uuid)
+                        anchor = origin["published_at"]
+
+                if anchor is None:
+                    anchor = _coerce_dt(
+                        position.get("opened_at")
+                        or position.get("created_at"),
+                    )
+                if anchor is None:
+                    return ExitDecision(should_exit=False, reason="hold")
+
                 row = await conn.fetchrow(
                     """
                     SELECT 1
                       FROM signal_publications
                      WHERE feed_id = $1
-                       AND (
-                         (id = $2 AND exit_published_at IS NOT NULL)
-                         OR (market_id = $3 AND exit_signal = TRUE)
-                       )
+                       AND market_id = $2
+                       AND exit_signal = TRUE
+                       AND published_at > $3
                      LIMIT 1
                     """,
-                    feed_uuid, publication_uuid, str(market_id),
+                    feed_uuid, str(market_id), anchor,
                 )
         except Exception as exc:
             # DB hiccup must not flip a position to exit. Hold and let the
@@ -140,14 +171,24 @@ class SignalFollowingStrategy(BaseStrategy):
 
         if row is None:
             return ExitDecision(should_exit=False, reason="hold")
-        return ExitDecision(
-            should_exit=True,
-            reason="strategy_exit",
-            metadata={
-                "reason": "signal_exit_published",
-                "feed_id": str(feed_uuid),
-            },
-        )
+        return _exit_decision(feed_uuid)
+
+
+def _exit_decision(feed_uuid: UUID) -> ExitDecision:
+    return ExitDecision(
+        should_exit=True,
+        reason="strategy_exit",
+        metadata={
+            "reason": "signal_exit_published",
+            "feed_id": str(feed_uuid),
+        },
+    )
+
+
+def _coerce_dt(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return None
 
 
 def _coerce_uuid(value: Any) -> UUID | None:

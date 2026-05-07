@@ -46,7 +46,11 @@ from ..tier import Tier, has_tier, tier_block_message
 
 logger = logging.getLogger(__name__)
 
-_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,59}$")
+# Max slug length is capped at 50 chars so the inline-keyboard
+# callback_data ("signals:off:<slug>" — 12-byte prefix) stays within
+# Telegram's 64-byte ceiling. Service-side create_feed enforces the same
+# bound so the contract holds end-to-end.
+_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,49}$")
 
 
 # ---------------------------------------------------------------------------

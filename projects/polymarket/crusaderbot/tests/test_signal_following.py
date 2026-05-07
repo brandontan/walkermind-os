@@ -569,9 +569,18 @@ def test_evaluate_exit_holds_when_no_market_id():
 
 
 def test_evaluate_exit_emits_strategy_exit_when_publication_retired():
-    """Trigger (a): the originating publication has exit_published_at set."""
+    """Trigger (a): the originating publication has exit_published_at set.
+
+    First fetchrow is the origin lookup — when exit_published_at is set on
+    the origin row, the function short-circuits before the later
+    exit_signal lookup.
+    """
     strat = SignalFollowingStrategy()
-    conn = _FakeConn(fetchrow_results=[{"?column?": 1}])
+    now = datetime.now(timezone.utc)
+    conn = _FakeConn(fetchrow_results=[
+        {"published_at": now - timedelta(hours=1),
+         "exit_published_at": now},
+    ])
     pos = {
         "metadata": {
             "feed_id": str(_FEED_UUID),
@@ -588,15 +597,21 @@ def test_evaluate_exit_emits_strategy_exit_when_publication_retired():
 
 
 def test_evaluate_exit_emits_strategy_exit_when_separate_exit_signal():
-    """Trigger (b): a later publication on same feed+market has exit_signal=TRUE."""
+    """Trigger (b): a later publication on same feed+market has exit_signal=TRUE.
+
+    Path: no publication_id in metadata, so anchor falls back to
+    position.opened_at; the later-exit-signal lookup returns a row.
+    """
     strat = SignalFollowingStrategy()
+    now = datetime.now(timezone.utc)
     conn = _FakeConn(fetchrow_results=[{"?column?": 1}])
     pos = {
         "metadata": {
             "feed_id": str(_FEED_UUID),
-            # no publication_id — only the market-level exit_signal trigger
+            # no publication_id — anchor must come from position timestamps
             "market_id": "mkt_1",
         },
+        "opened_at": now - timedelta(hours=1),
     }
     with _patch_strategy_pool(conn):
         out = asyncio.run(strat.evaluate_exit(pos))
@@ -604,9 +619,63 @@ def test_evaluate_exit_emits_strategy_exit_when_separate_exit_signal():
     assert out.reason == "strategy_exit"
 
 
-def test_evaluate_exit_holds_when_no_exit_row_found():
+def test_evaluate_exit_ignores_stale_exit_signal_published_before_origin():
+    """Re-entry safety: an exit_signal row published BEFORE the originating
+    entry must NOT retire the new position. The query bounds the lookup
+    by `published_at > anchor`, so a stale exit row from a previous trade
+    cycle is filtered out at the SQL boundary; the test asserts the hold
+    path when that filtered query returns no rows."""
     strat = SignalFollowingStrategy()
-    conn = _FakeConn(fetchrow_results=[None])
+    now = datetime.now(timezone.utc)
+    conn = _FakeConn(fetchrow_results=[
+        # origin: published 1h ago, no exit_published_at
+        {"published_at": now - timedelta(hours=1),
+         "exit_published_at": None},
+        # exit_signal lookup returns None — any stale rows from before
+        # the origin's published_at are filtered out by `published_at > $3`.
+        None,
+    ])
+    pos = {
+        "metadata": {
+            "feed_id": str(_FEED_UUID),
+            "publication_id": str(_PUB_UUID),
+            "market_id": "mkt_1",
+        },
+    }
+    with _patch_strategy_pool(conn):
+        out = asyncio.run(strat.evaluate_exit(pos))
+    assert out.should_exit is False
+    assert out.reason == "hold"
+
+
+def test_evaluate_exit_holds_when_no_anchor_available():
+    """Without publication_id and without position timestamps, the
+    evaluator cannot distinguish stale from fresh exits — hold."""
+    strat = SignalFollowingStrategy()
+    conn = _FakeConn()  # no fetchrow expected; hold short-circuits.
+    pos = {
+        "metadata": {
+            "feed_id": str(_FEED_UUID),
+            "market_id": "mkt_1",
+        },
+        # no opened_at, no created_at
+    }
+    with _patch_strategy_pool(conn):
+        out = asyncio.run(strat.evaluate_exit(pos))
+    assert out.should_exit is False
+    assert out.reason == "hold"
+
+
+def test_evaluate_exit_holds_when_no_exit_row_found():
+    """Origin lookup returns row without exit_published_at, and the
+    exit_signal lookup returns None."""
+    strat = SignalFollowingStrategy()
+    now = datetime.now(timezone.utc)
+    conn = _FakeConn(fetchrow_results=[
+        {"published_at": now - timedelta(hours=1),
+         "exit_published_at": None},
+        None,
+    ])
     pos = {
         "metadata": {
             "feed_id": str(_FEED_UUID),
@@ -952,6 +1021,34 @@ def test_normalise_slug_accepts_lowercase_alnum_dash_underscore():
     assert sf_handler._normalise_slug("Bad Slug") is None
     assert sf_handler._normalise_slug("") is None
     assert sf_handler._normalise_slug("a") is None  # min len 2
+
+
+def test_normalise_slug_accepts_max_length_50():
+    s = "a" + "b" * 49  # 50 chars total
+    assert sf_handler._normalise_slug(s) == s
+
+
+def test_normalise_slug_rejects_above_max_length():
+    s = "a" + "b" * 50  # 51 chars total
+    assert sf_handler._normalise_slug(s) is None
+
+
+def test_signal_callback_data_under_telegram_64byte_limit():
+    """Telegram caps inline-keyboard callback_data at 64 bytes. With the
+    "signals:off:" prefix at 12 bytes, slugs must be <= 50 chars to keep
+    the round-trip under the ceiling."""
+    max_slug = "a" + "b" * 49  # 50 chars
+    kb = signal_subs_list_kb([(max_slug, "Alpha")])
+    cb = kb.inline_keyboard[0][0].callback_data
+    assert len(cb.encode("utf-8")) <= 64
+
+
+def test_create_feed_rejects_slug_above_max_length():
+    too_long = "a" + "b" * 50  # 51 chars
+    with pytest.raises(ValueError):
+        asyncio.run(svc.create_feed(
+            name="x", slug=too_long, operator_id=uuid4(),
+        ))
 
 
 def test_signals_command_blocked_for_tier_below_2():

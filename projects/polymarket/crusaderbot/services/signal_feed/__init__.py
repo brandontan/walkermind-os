@@ -13,6 +13,7 @@ from .signal_evaluator import (
     evaluate_publications_for_user,
 )
 from .signal_feed_service import (
+    MAX_SLUG_LEN,
     MAX_SUBSCRIPTIONS_PER_USER,
     VALID_FEED_STATUSES,
     VALID_PUBLICATION_SIDES,
@@ -28,6 +29,7 @@ from .signal_feed_service import (
 
 __all__ = [
     "MAX_SUBSCRIPTIONS_PER_USER",
+    "MAX_SLUG_LEN",
     "VALID_FEED_STATUSES",
     "VALID_PUBLICATION_SIDES",
     "DEFAULT_CONFIDENCE",

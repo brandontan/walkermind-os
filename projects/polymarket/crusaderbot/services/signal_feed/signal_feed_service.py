@@ -20,6 +20,11 @@ from ...database import get_pool
 logger = logging.getLogger(__name__)
 
 MAX_SUBSCRIPTIONS_PER_USER = 5
+# Slugs are capped so the inline-keyboard callback_data
+# ("signals:off:<slug>" — 12-byte prefix) stays under Telegram's 64-byte
+# limit. Migration column is VARCHAR(60); the app contract is the tighter
+# 50-char cap enforced here.
+MAX_SLUG_LEN = 50
 VALID_FEED_STATUSES: tuple[str, ...] = ("active", "paused", "archived")
 VALID_PUBLICATION_SIDES: tuple[str, ...] = ("YES", "NO")
 
@@ -60,6 +65,11 @@ async def create_feed(
     """
     if not name or not slug:
         raise ValueError("create_feed requires non-empty name and slug")
+    if len(slug) > MAX_SLUG_LEN:
+        raise ValueError(
+            f"create_feed slug must be at most {MAX_SLUG_LEN} chars, "
+            f"got {len(slug)}",
+        )
     op_uuid = _coerce_uuid(operator_id)
     if op_uuid is None:
         raise ValueError(
@@ -343,6 +353,7 @@ async def list_active_feeds() -> list[dict[str, Any]]:
 
 __all__ = [
     "MAX_SUBSCRIPTIONS_PER_USER",
+    "MAX_SLUG_LEN",
     "VALID_FEED_STATUSES",
     "VALID_PUBLICATION_SIDES",
     "create_feed",
