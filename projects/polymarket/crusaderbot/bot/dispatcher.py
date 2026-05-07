@@ -10,7 +10,7 @@ from telegram.ext import (
 
 from .handlers import (
     activation, admin, copy_trade, dashboard, emergency, onboarding, positions,
-    settings as settings_handler, setup, wallet,
+    settings as settings_handler, setup, signal_following, wallet,
 )
 from .menus.main import get_menu_route
 
@@ -64,6 +64,8 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("auditlog", admin.auditlog_command))
     # P3b copy-trade strategy command surface.
     app.add_handler(CommandHandler("copytrade", copy_trade.copy_trade_command))
+    # P3c signal-following strategy command surface.
+    app.add_handler(CommandHandler("signals", signal_following.signals_command))
     # R12 live-activation + daily-summary opt-in.
     app.add_handler(CommandHandler(
         "live_checklist", activation.live_checklist_command,
@@ -96,6 +98,8 @@ def register(app: Application) -> None:
                                          pattern=r"^ops:"))
     app.add_handler(CallbackQueryHandler(copy_trade.copy_trade_callback,
                                          pattern=r"^copytrade:"))
+    app.add_handler(CallbackQueryHandler(signal_following.signals_callback,
+                                         pattern=r"^signals:"))
 
     # Free text — must be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))

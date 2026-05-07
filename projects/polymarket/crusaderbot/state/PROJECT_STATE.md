@@ -1,5 +1,5 @@
-Last Updated : 2026-05-07 13:00 Asia/Jakarta
-Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot cleanup MERGED PR #891 (MINOR, Issue #890). 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
+Last Updated : 2026-05-07 18:15 Asia/Jakarta
+Status       : P3c Signal Following strategy SENTINEL APPROVED 100/100 on WARP/CRUSADERBOT-P3C-SIGNAL-FOLLOWING (PR #892) — zero critical issues, 428/428 tests green, ruff clean, zero diff to risk/execution/activation surface. Ready for WARP🔹CMD merge decision. R12 final Fly.io deployment remains blocked on P3c merge + P3d. Activation guards NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -22,15 +22,15 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot c
 - Cleanup legacy polyquantbot directory — PR #891 MERGED (MINOR, Issue #890 closed)
 
 [IN PROGRESS]
-- None
+- P3c — Signal Following strategy SENTINEL APPROVED 100/100 on WARP/CRUSADERBOT-P3C-SIGNAL-FOLLOWING (PR #892) — MAJOR — awaiting WARP🔹CMD merge decision
 
 [NOT STARTED]
-- R12 — Deployment (Fly.io) final (MAJOR — blocked on P3c/P3d complete)
-- P3c — Signal Following strategy (MAJOR)
+- R12 — Deployment (Fly.io) final (MAJOR — blocked on P3c sentinel approval + P3d complete)
 - P3d — Per-user signal scan loop + execution queue wiring (MAJOR)
 
 [NEXT PRIORITY]
-- P3c — Signal Following strategy (MAJOR). Next lane. Branch: WARP/CRUSADERBOT-P3C-*
+- WARP🔹CMD merge decision on PR #892 (P3c). Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/p3c-signal-following.md. Verdict: APPROVED 100/100, zero critical issues.
+- After P3c merge: P3d — Per-user signal scan loop + execution queue wiring (MAJOR)
 - After P3c + P3d: live activation sequence gated on EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED + ENABLE_LIVE_TRADING
 - After P3c + P3d: R12 final Fly.io deployment (MAJOR — last R12 lane, blocked on P3c/P3d + activation guards)
 

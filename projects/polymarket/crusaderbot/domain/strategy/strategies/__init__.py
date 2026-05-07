@@ -6,5 +6,6 @@ imports them here and registers a fresh instance per process.
 """
 
 from .copy_trade import CopyTradeStrategy
+from .signal_following import SignalFollowingStrategy
 
-__all__ = ["CopyTradeStrategy"]
+__all__ = ["CopyTradeStrategy", "SignalFollowingStrategy"]
