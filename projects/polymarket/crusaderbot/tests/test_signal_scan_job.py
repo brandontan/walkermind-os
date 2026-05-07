@@ -614,6 +614,7 @@ def test_process_candidate_resumes_stale_queued_row():
         marked["called"] = True
 
     with patch.object(job, "_load_stale_queued_row", return_value=stale), \
+            patch.object(job, "kill_switch_is_active", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
             patch.object(job, "router_execute", side_effect=_fake_router), \
             patch.object(job, "_mark_executed", side_effect=_fake_mark_executed), \
@@ -624,3 +625,31 @@ def test_process_candidate_resumes_stale_queued_row():
     assert marked["called"]
     # Gate must NOT be called — crash recovery bypasses the risk gate entirely.
     mock_gate.assert_not_called()
+
+
+def test_process_candidate_skips_resume_when_kill_switch_active():
+    """Crash-recovery resume is skipped (row stays 'queued') when kill switch is on."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    cand = _candidate()
+
+    stale = {
+        "market_id": _MARKET_ID,
+        "side": "yes",
+        "final_size_usdc": Decimal("10"),
+        "suggested_size_usdc": Decimal("10"),
+        "idempotency_key": "sf:abc123",
+        "chosen_mode": "paper",
+    }
+    executed = {"called": False}
+
+    async def _fake_router(**kwargs):
+        executed["called"] = True
+
+    with patch.object(job, "_load_stale_queued_row", return_value=stale), \
+            patch.object(job, "kill_switch_is_active", return_value=True), \
+            patch.object(job, "router_execute", side_effect=_fake_router):
+        asyncio.run(job._process_candidate(row, cand))
+
+    # Kill switch active — router must not be called, row remains 'queued' for retry.
+    assert not executed["called"]

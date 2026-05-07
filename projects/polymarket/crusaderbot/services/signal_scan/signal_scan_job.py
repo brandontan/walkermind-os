@@ -39,6 +39,7 @@ import structlog
 
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
+from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ...domain.risk.gate import GateContext, GateResult, evaluate as risk_evaluate
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
@@ -334,6 +335,9 @@ async def _process_candidate(
             log.warning("stale_queue_check_failed", error=str(exc))
             stale = None
         if stale is not None:
+            if await kill_switch_is_active():
+                log.info("scan_outcome", outcome="skipped_kill_switch")
+                return  # leave row as 'queued' — retry when switch is off
             stale_market = await _load_market(stale["market_id"])
             if stale_market is None:
                 log.info("scan_outcome", outcome="skipped_market_not_synced")
