@@ -68,15 +68,16 @@ class Settings(BaseSettings):
     # --- Admin REST API (disabled when unset) ---
     ADMIN_API_TOKEN: Optional[str] = None
 
-    # --- Sentry (error tracking) — disabled when DSN unset ---
-    # Production deployment sets SENTRY_DSN as a Fly.io secret. Local /
-    # CI environments leave it unset, in which case Sentry init is a no-op.
-    SENTRY_DSN: Optional[str] = None
-    # Sample rate for performance traces. Defaults to 0 (errors only) so the
-    # production project is not flooded with low-signal spans.
-    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
-    # Optional release identifier (typically the git short SHA). Surfaced on
-    # /health and tagged on every Sentry event so triage can pin to a build.
+    # --- Sentry-related app metadata ---
+    # SENTRY_DSN and SENTRY_TRACES_SAMPLE_RATE are intentionally NOT declared
+    # on Settings: monitoring.sentry reads them directly from os.environ to
+    # keep Sentry init independent of the rest of the app config (a
+    # malformed sample-rate env value would otherwise break every later
+    # get_settings() call and turn an optional observability knob into a
+    # boot blocker — see Codex P2 on PR #901).
+    #
+    # APP_VERSION is kept here because /health surfaces it; Optional[str]
+    # cannot fail validation, so this stays safe.
     APP_VERSION: Optional[str] = None
 
     # --- Polymarket (only required for LIVE trading) ---

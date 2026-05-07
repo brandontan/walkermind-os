@@ -931,6 +931,39 @@ def test_init_sentry_noop_does_not_depend_on_required_app_env(monkeypatch):
     assert monitoring_sentry.is_initialised() is False
 
 
+def test_settings_does_not_validate_sentry_traces_sample_rate(monkeypatch):
+    """Codex P2 (round 2): a malformed ``SENTRY_TRACES_SAMPLE_RATE`` Fly env
+    value (operator typo) must NOT break ``Settings()`` construction —
+    otherwise an optional observability knob becomes a boot blocker that
+    impacts every later ``get_settings()`` call (admin/health requests,
+    health probes, scheduler jobs).
+
+    Fix: ``SENTRY_TRACES_SAMPLE_RATE`` is removed from the ``Settings``
+    model entirely; ``monitoring.sentry`` reads it directly from
+    ``os.environ`` with tolerant float-parsing. This test asserts the
+    decoupling holds.
+    """
+    crusaderbot_config.get_settings.cache_clear()
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
+    monkeypatch.setenv("OPERATOR_CHAT_ID", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://x")
+    monkeypatch.setenv("WALLET_HD_SEED", "seed")
+    monkeypatch.setenv("WALLET_ENCRYPTION_KEY", "k")
+    monkeypatch.setenv("POLYGON_RPC_URL", "https://rpc")
+    monkeypatch.setenv("ALCHEMY_POLYGON_WS_URL", "wss://ws")
+    # Garbage value the operator might typo into Fly secrets:
+    monkeypatch.setenv("SENTRY_TRACES_SAMPLE_RATE", "not-a-float")
+
+    # Must NOT raise pydantic.ValidationError.
+    settings = crusaderbot_config.Settings()  # type: ignore[call-arg]
+    # Field is intentionally absent from the model now.
+    assert not hasattr(settings, "SENTRY_TRACES_SAMPLE_RATE")
+    # Settings still functions normally for the rest of the surface.
+    assert settings.TELEGRAM_BOT_TOKEN == "tok"
+
+    crusaderbot_config.get_settings.cache_clear()
+
+
 def test_init_sentry_traces_sample_rate_malformed_falls_back(monkeypatch):
     """A malformed ``SENTRY_TRACES_SAMPLE_RATE`` env value (non-numeric)
     must fall back to 0.0 rather than raising — env-reads cannot block
