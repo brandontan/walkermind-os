@@ -1,14 +1,15 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-07 13:00 Asia/Jakarta
+**Last Updated:** 2026-05-07 16:30 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- P3c -- Signal Following strategy -- next lane (MAJOR). WARP🔹CMD to assign branch and scope.
-- R12 final deployment -- blocked on P3c + P3d complete + activation guards reviewed by WARP🔹CMD.
+- P3c -- Signal Following strategy -- FORGE COMPLETE on WARP/CRUSADERBOT-P3C-SIGNAL-FOLLOWING (PR pending). Awaiting WARP•SENTINEL MAJOR audit before merge.
+- After P3c sentinel APPROVED: P3d -- per-user scan loop + execution queue wiring (MAJOR).
+- R12 final deployment -- blocked on P3c sentinel approval + P3d complete + activation guards reviewed by WARP🔹CMD.
 
 ---
 
@@ -17,7 +18,7 @@
 - [x] P3a -- Strategy Registry Foundation -- MERGED PR #876 (2026-05-05), STANDARD, FOUNDATION
 - [x] P3b -- Copy Trade strategy -- MERGED PR #877 (2026-05-06) a369129d, MAJOR, SENTINEL CONDITIONAL 71/100 resolved
   - Migration runner path fix: PR #881 MERGED (2026-05-06) 538fd999 — 008+009 now in migrations/
-- [ ] P3c -- Signal Following strategy -- NOT STARTED (MAJOR)
+- [ ] P3c -- Signal Following strategy -- FORGE COMPLETE on WARP/CRUSADERBOT-P3C-SIGNAL-FOLLOWING, MAJOR — SENTINEL audit required before merge
 - [ ] P3d -- Per-user signal scan loop + execution queue wiring -- NOT STARTED (MAJOR -- wires registry into risk gate)
 
 Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wired through risk gate, SENTINEL APPROVED before live activation.

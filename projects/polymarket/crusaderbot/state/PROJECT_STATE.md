@@ -1,5 +1,5 @@
-Last Updated : 2026-05-07 13:00 Asia/Jakarta
-Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot cleanup MERGED PR #891 (MINOR, Issue #890). 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
+Last Updated : 2026-05-07 16:30 Asia/Jakarta
+Status       : P3c Signal Following strategy FORGE COMPLETE on WARP/CRUSADERBOT-P3C-SIGNAL-FOLLOWING (PR pending) — SignalFollowingStrategy + signal_feed service + signal_evaluator + /signals Tier 2 surface + migration 010 (3 tables). 67 new tests green. WARP•SENTINEL MAJOR audit required before merge. R12 final Fly.io deployment remains blocked on P3c sentinel approval + P3d. Activation guards NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -22,15 +22,15 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot c
 - Cleanup legacy polyquantbot directory — PR #891 MERGED (MINOR, Issue #890 closed)
 
 [IN PROGRESS]
-- None
+- P3c — Signal Following strategy FORGE COMPLETE on WARP/CRUSADERBOT-P3C-SIGNAL-FOLLOWING (PR pending) — MAJOR — awaiting WARP•SENTINEL audit
 
 [NOT STARTED]
-- R12 — Deployment (Fly.io) final (MAJOR — blocked on P3c/P3d complete)
-- P3c — Signal Following strategy (MAJOR)
+- R12 — Deployment (Fly.io) final (MAJOR — blocked on P3c sentinel approval + P3d complete)
 - P3d — Per-user signal scan loop + execution queue wiring (MAJOR)
 
 [NEXT PRIORITY]
-- P3c — Signal Following strategy (MAJOR). Next lane. Branch: WARP/CRUSADERBOT-P3C-*
+- WARP•SENTINEL validation required for P3c — Signal Following strategy before merge. Source: projects/polymarket/crusaderbot/reports/forge/p3c-signal-following.md. Tier: MAJOR.
+- After P3c sentinel APPROVED + merge: P3d — Per-user signal scan loop + execution queue wiring (MAJOR)
 - After P3c + P3d: live activation sequence gated on EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED + ENABLE_LIVE_TRADING
 - After P3c + P3d: R12 final Fly.io deployment (MAJOR — last R12 lane, blocked on P3c/P3d + activation guards)
 
