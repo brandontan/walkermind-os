@@ -6,7 +6,7 @@
 **Tier:** STANDARD (reclassified from MINOR — see header note below)
 **Claim Level:** NARROW INTEGRATION (reclassified from NONE)
 **Validation Target:** ruff F401 clean across the 7 listed files; copy_trade handler helpers carry user_id type annotations; dispatcher.py phase-prefixed comment dropped; migration 013 converts copy_trade_events.copy_target_id FK referential action from ON DELETE CASCADE to ON DELETE SET NULL (real persistence-behaviour change — see section 2 + migration notes); ROADMAP.md R12d/R12e/R12f rows + detail entries match actual executed lane names.
-**Not in Scope:** anything in domain/risk/, anything touching execution path, activation guards (EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING / etc), demo polish, R12 final Fly.io deployment.
+**Not in Scope:** no risk-logic changes (`domain/risk/gate.py` was touched only to remove unused F401 imports — no behavioural change), anything touching execution path, activation guards (EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING / etc), demo polish, R12 final Fly.io deployment.
 **Suggested Next:** WARP🔹CMD review and merge. No SENTINEL — STANDARD does not require SENTINEL.
 
 > **Tier reclassification note (2026-05-08 04:00 Asia/Jakarta).** Original task block declared this lane MINOR / Claim NONE. Codex auto-review on PR #899 correctly flagged that migration 013 is a real persistence-behaviour change and "no behavioural change" wording was internally inconsistent. WARP🔹CMD ratified reclassification to **STANDARD / NARROW INTEGRATION** per AGENTS.md severity classification authority. No scope change — same six work items in this PR. SENTINEL is NOT required for STANDARD; CMD review path remains the gate.
@@ -176,7 +176,7 @@ Report (this file):
   - `state/ROADMAP.md` R12d/R12e/R12f rows + detail entries match `state/PROJECT_STATE.md` lane truth
   - `state/PROJECT_STATE.md` and `state/WORKTODO.md` both reflect the cleared MIN-01/02/03 + F401 items
 - **Not in Scope:**
-  - Anything in `domain/risk/` (gate.py touched only to remove unused imports — no logic change)
+  - No risk-logic changes — `domain/risk/gate.py` was touched only to remove unused F401 imports (`timedelta`, `Optional`); the 13-step risk gate behaviour, the `GateContext`/`GateResult` dataclasses, the SQL writes to `risk_log`, and all numeric thresholds are unchanged
   - Anything touching execution path, order placement, fill handling, or async-core orchestration
   - Activation guards (`EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, `ENABLE_LIVE_TRADING`, `RISK_CONTROLS_VALIDATED`, `SECURITY_HARDENING_VALIDATED`, `FEE_COLLECTION_ENABLED`, `AUTO_REDEEM_ENABLED`)
   - Other phase-prefixed comments in `bot/dispatcher.py` (P3c, R12f, R12) — only the closed-P3b comment was the deferred MIN-02 finding
