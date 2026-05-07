@@ -34,6 +34,7 @@ from telegram.ext import ContextTypes
 
 from ...services.signal_feed import (
     MAX_SUBSCRIPTIONS_PER_USER,
+    SLUG_PATTERN,
     get_feed_by_slug,
     list_active_feeds,
     list_user_subscriptions,
@@ -46,11 +47,11 @@ from ..tier import Tier, has_tier, tier_block_message
 
 logger = logging.getLogger(__name__)
 
-# Max slug length is capped at 50 chars so the inline-keyboard
-# callback_data ("signals:off:<slug>" — 12-byte prefix) stays within
-# Telegram's 64-byte ceiling. Service-side create_feed enforces the same
-# bound so the contract holds end-to-end.
-_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,49}$")
+# Reuse the service-layer slug contract so the handler accepts exactly
+# what create_feed admits — single source of truth. The 50-char ASCII cap
+# also keeps the inline-keyboard callback_data ("signals:off:<slug>" —
+# 12-byte prefix) under Telegram's 64-byte ceiling.
+_SLUG_RE = re.compile(SLUG_PATTERN)
 
 
 # ---------------------------------------------------------------------------

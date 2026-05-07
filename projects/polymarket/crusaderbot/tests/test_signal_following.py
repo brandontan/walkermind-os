@@ -1051,6 +1051,61 @@ def test_create_feed_rejects_slug_above_max_length():
         ))
 
 
+def test_create_feed_rejects_uppercase_slug():
+    """Operators must provide canonical lowercase slugs — the handler
+    never queries by uppercase, so admitting `Alpha` would persist a feed
+    that users cannot subscribe to."""
+    with pytest.raises(ValueError):
+        asyncio.run(svc.create_feed(
+            name="X", slug="Alpha", operator_id=uuid4(),
+        ))
+
+
+def test_create_feed_rejects_single_char_slug():
+    """Slug regex requires 2-50 chars; single char fails the {1,49} tail."""
+    with pytest.raises(ValueError):
+        asyncio.run(svc.create_feed(
+            name="X", slug="x", operator_id=uuid4(),
+        ))
+
+
+def test_create_feed_rejects_dot_slug():
+    """`.` is outside the allowed character class — bot lookups would
+    reject the slug at validation time."""
+    with pytest.raises(ValueError):
+        asyncio.run(svc.create_feed(
+            name="X", slug="alpha.feed", operator_id=uuid4(),
+        ))
+
+
+def test_create_feed_rejects_non_ascii_slug():
+    """Non-ASCII slugs violate both the character class AND the
+    char-count == byte-count assumption that keeps callback_data under
+    Telegram's 64-byte ceiling."""
+    with pytest.raises(ValueError):
+        asyncio.run(svc.create_feed(
+            name="X", slug="café", operator_id=uuid4(),
+        ))
+
+
+def test_create_feed_rejects_slug_starting_with_dash():
+    """Regex requires the first character to be alphanumeric."""
+    with pytest.raises(ValueError):
+        asyncio.run(svc.create_feed(
+            name="X", slug="-alpha", operator_id=uuid4(),
+        ))
+
+
+def test_handler_and_service_share_slug_pattern():
+    """Single-source-of-truth check: the handler regex compiles from the
+    service's SLUG_PATTERN, so any future widening at the service layer
+    is automatically picked up by the bot."""
+    from projects.polymarket.crusaderbot.services.signal_feed import (
+        SLUG_PATTERN as service_pattern,
+    )
+    assert sf_handler._SLUG_RE.pattern == service_pattern
+
+
 def test_escape_md_escapes_legacy_v1_metachars():
     assert sf_handler._escape_md("Alpha_Beta") == r"Alpha\_Beta"
     assert sf_handler._escape_md("X*Y") == r"X\*Y"
