@@ -109,14 +109,14 @@ make the demo-flow command surface investor-friendly. Registered in
 
 ### (6) Three runbook documents
 
-- `docs/runbook/alerts.md` — Telegram + Fly.io + Sentry alert surfaces,
+- `docs/runbooks/alerts.md` — Telegram + Fly.io + Sentry alert surfaces,
   cooldown semantics, expected message bodies, verification commands
   with operator-fillable timing logs.
-- `docs/runbook/kill-switch-procedure.md` — pre-flight, demo / drill
+- `docs/runbooks/kill-switch-procedure.md` — pre-flight, demo / drill
   procedure (`/kill` → verify → `/resume`), lock-variant guidance,
   failure modes table, operator-fillable timing logs (target
   `< 3 seconds` ack on `/kill`).
-- `docs/runbook/rollback-procedure.md` — when to roll back vs.
+- `docs/runbooks/rollback-procedure.md` — when to roll back vs.
   kill-switch, three rollback paths in increasing blast radius (image
   re-deploy / git rebuild / hot-fix), DB migration rollback caveats
   (forward-only migrations), dry-run procedure that re-deploys the
@@ -187,9 +187,9 @@ the demo-readiness fields on top of the existing payload, and
 
 Created:
 - `projects/polymarket/crusaderbot/monitoring/sentry.py`
-- `projects/polymarket/crusaderbot/docs/runbook/alerts.md`
-- `projects/polymarket/crusaderbot/docs/runbook/kill-switch-procedure.md`
-- `projects/polymarket/crusaderbot/docs/runbook/rollback-procedure.md`
+- `projects/polymarket/crusaderbot/docs/runbooks/alerts.md`
+- `projects/polymarket/crusaderbot/docs/runbooks/kill-switch-procedure.md`
+- `projects/polymarket/crusaderbot/docs/runbooks/rollback-procedure.md`
 - `projects/polymarket/crusaderbot/reports/forge/r12-prod-paper-deploy.md`
 
 Modified:
@@ -280,7 +280,7 @@ Modified:
 - `check_alchemy_ws()` remains a TCP-level reachability probe, not a
   full WS handshake — pre-existing known issue from R12b. Out of scope
   for this lane; tracked in `state/PROJECT_STATE.md` `[KNOWN ISSUES]`.
-- The brief uses `docs/runbook/` (singular) while issue #900 body uses
+- The brief uses `docs/runbooks/` (singular) while issue #900 body uses
   `docs/runbooks/` (plural). The brief is the more recent / detailed
   spec source and was followed. A symlink or rename can be added in a
   trivial follow-up if the plural form is preferred.
@@ -294,6 +294,35 @@ Modified:
 - `DEPLOY.md` (repo) was not updated in this lane — out of scope; any
   doc drift between `DEPLOY.md` and the new runbooks should be addressed
   in a follow-up MINOR docs lane.
+
+---
+
+## 5b. Deferred Done-Criteria (operator-executed, NOT CLAIMED CLOSED)
+
+The following Done-Criteria from issue #900 require live infrastructure
+access (Fly.io credentials, Sentry production project, real Telegram
+bot session, prod database) and are **explicitly deferred** to the
+operator. They are NOT closed by this PR and remain open against
+issue #900 until the operator attaches the listed artefacts.
+
+| # | Done criterion | Deferred to | Artefact required to close |
+| --- | --- | --- | --- |
+| 1 | `/health` returns 200 with correct JSON shape **in production** | Operator | `curl -fsS https://crusaderbot.fly.dev/health` output pasted into the PR / issue. Code path verified by 9 unit tests in this PR. |
+| 2 | Sentry test event captured in **production project** | Operator | Sentry event id from `POST /admin/sentry-test` per `docs/runbooks/alerts.md` §4.2; screenshot of the event in the Sentry UI. |
+| 3 | Health alert fires on simulated failure | Operator | Cold-start Telegram alert observed Δt + screenshot of `OPERATOR_CHAT_ID` chat per `docs/runbooks/alerts.md` §3.2. |
+| 4 | `/kill` ack < 3 seconds | Operator | Δt observed in the operator log section of `docs/runbooks/kill-switch-procedure.md` §3.2. |
+| 5 | `/resume` reopens the gate | Operator | Δt observed in `docs/runbooks/kill-switch-procedure.md` §3.4. |
+| 6 | Operator dashboard reachable | Operator | Screenshot of `/ops_dashboard` rendered in Telegram against prod. |
+| 7 | Rollback dry-run successful | Operator | Δt + outcome line recorded in `docs/runbooks/rollback-procedure.md` §5.2. |
+
+This split is the substantive justification for the **NARROW INTEGRATION**
+Claim Level: every code path is wired and tested in-PR; every prod
+verification is documented as an operator step with operator-fillable
+fields in the runbook; nothing in this PR claims a runtime check that
+was not actually executed.
+
+`state/PROJECT_STATE.md` `[KNOWN ISSUES]` carries the same deferral note
+so post-merge state truth aligns with the report.
 
 ---
 

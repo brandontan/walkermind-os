@@ -10,7 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.head_ref, 'WARP/')
     steps:
+      # Best-effort webhook to the WARP CMD orchestrator. The gate is an
+      # informational notification surface — gate-bot policy enforcement
+      # happens off the back of these events, not inside the workflow
+      # itself. A webhook delivery failure (endpoint down, secret stale)
+      # must NOT block PR mergeability: gate-bot can still be re-driven
+      # manually, and the failure surfaces in the step logs for diagnosis.
       - name: Send PR event to WARP gate_webhook
+        continue-on-error: true
         env:
           WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
