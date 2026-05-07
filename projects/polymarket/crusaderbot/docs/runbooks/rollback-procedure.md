@@ -76,7 +76,17 @@ flyctl releases list -a crusaderbot | head -3
 
 # 4. Health check:
 curl -fsS https://crusaderbot.fly.dev/health | jq '.status, .version'
-# Expected: "ok", <previous git SHA>
+# Expected: "ok", <build identifier>
+#   - When the rolled-back release was deployed via the CD workflow,
+#     `version` is the 12-char git short SHA (e.g. "abc1234deadbe").
+#     CD stamps APP_VERSION at deploy time per crusaderbot-cd.yml.
+#   - When the rolled-back release was deployed via manual flyctl
+#     (typical for the §3.1 image re-deploy path, which does NOT
+#     re-run the CD workflow), `version` falls back to `fly-v<N>`
+#     where <N> is FLY_RELEASE_VERSION. The new release entry
+#     created by the rollback gets a fresh N, so the value will
+#     differ from the bad release even when they share a Docker
+#     image. Use the fresh N to confirm the rollback machine boot.
 ```
 
 **Operator log:**

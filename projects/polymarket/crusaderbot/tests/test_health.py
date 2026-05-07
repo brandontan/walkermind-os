@@ -779,9 +779,9 @@ def test_health_mode_paper_when_any_guard_off(monkeypatch):
 
 
 def test_health_version_falls_back_to_unknown(monkeypatch):
-    """When ``APP_VERSION`` is unset the version field reads ``"unknown"``
-    rather than the literal ``None`` so JSON consumers do not have to
-    branch on type.
+    """When neither ``APP_VERSION`` nor ``FLY_RELEASE_VERSION`` is set the
+    version field reads ``"unknown"`` rather than the literal ``None`` so
+    JSON consumers do not have to branch on type.
     """
     from fastapi.testclient import TestClient
 
@@ -799,9 +799,69 @@ def test_health_version_falls_back_to_unknown(monkeypatch):
         "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
         lambda result: None,
     )
+    monkeypatch.delenv("FLY_RELEASE_VERSION", raising=False)
     client = TestClient(_build_test_app())
     r = client.get("/health")
     assert r.json()["version"] == "unknown"
+
+
+def test_health_version_falls_back_to_fly_release_version(monkeypatch):
+    """Codex P2: when ``APP_VERSION`` is unset (e.g. a manual ``flyctl
+    deploy`` that bypassed the CD workflow's git-SHA stamping, or a
+    rollback to a previous image), the route must surface Fly's built-in
+    ``FLY_RELEASE_VERSION`` so the rollback runbook's "/health .version
+    matches expected" check still produces a meaningful, distinct value.
+    The fallback is prefixed with ``fly-v`` so consumers can distinguish
+    it from a git SHA at a glance.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.get_settings",
+        lambda: MagicMock(
+            ENABLE_LIVE_TRADING=False,
+            EXECUTION_PATH_VALIDATED=False,
+            CAPITAL_MODE_CONFIRMED=False,
+            APP_VERSION=None,
+        ),
+    )
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+    monkeypatch.setenv("FLY_RELEASE_VERSION", "62")
+    client = TestClient(_build_test_app())
+    r = client.get("/health")
+    assert r.json()["version"] == "fly-v62"
+
+
+def test_health_version_app_version_takes_precedence_over_fly(monkeypatch):
+    """When both env vars are set, ``APP_VERSION`` (the CD-stamped git
+    short SHA) wins over ``FLY_RELEASE_VERSION``. Ordering matters
+    because the rollback runbook expects a SHA when the CD path is
+    healthy and the fly fallback only when it isn't.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.get_settings",
+        lambda: MagicMock(
+            ENABLE_LIVE_TRADING=False,
+            EXECUTION_PATH_VALIDATED=False,
+            CAPITAL_MODE_CONFIRMED=False,
+            APP_VERSION="abc1234",
+        ),
+    )
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+    monkeypatch.setenv("FLY_RELEASE_VERSION", "62")
+    client = TestClient(_build_test_app())
+    r = client.get("/health")
+    assert r.json()["version"] == "abc1234"
 
 
 # ---------------------------------------------------------------------------

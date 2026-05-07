@@ -37,7 +37,16 @@ jobs:
         # Run flyctl from the crusaderbot directory so the Docker build context
         # matches the Dockerfile assumptions (`COPY pyproject.toml /app/`,
         # `COPY . /app/crusaderbot/`). flyctl picks up fly.toml from the CWD.
+        #
+        # APP_VERSION is stamped with the deployed git short SHA so /health
+        # surfaces a stable build identifier the rollback runbook can
+        # reference. See `projects/polymarket/crusaderbot/api/health.py`
+        # `_resolve_version` for the resolution order
+        # (APP_VERSION -> FLY_RELEASE_VERSION -> "unknown").
         working-directory: projects/polymarket/crusaderbot
-        run: flyctl deploy --remote-only
+        run: |
+          APP_VERSION=$(git rev-parse --short=12 HEAD)
+          echo "Deploying APP_VERSION=${APP_VERSION}"
+          flyctl deploy --remote-only --env "APP_VERSION=${APP_VERSION}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

@@ -25,6 +25,7 @@ the same aggregated check.
 """
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime, timezone
 
@@ -61,11 +62,31 @@ def _resolve_mode() -> str:
 def _resolve_version() -> str:
     """Return the deployed build identifier, or ``"unknown"``.
 
-    Production sets ``APP_VERSION`` (typically a git short SHA) at deploy
-    time. Falls back to the literal ``"unknown"`` so /health is still
-    parseable in environments where the build pipeline did not stamp it.
+    Resolution order:
+
+    1. ``APP_VERSION`` — preferred. Stamped by the CD workflow at deploy
+       time with the git short SHA (see
+       ``.github/workflows/crusaderbot-cd.yml``).
+    2. ``FLY_RELEASE_VERSION`` — Fly's built-in release counter
+       (e.g. ``62``). Provides a stable identifier when ``APP_VERSION``
+       is missing because the deploy went through manual ``flyctl deploy``
+       rather than the CD workflow. Returned as ``"fly-v<N>"`` so
+       consumers can distinguish it from a git SHA at a glance.
+    3. ``"unknown"`` — neither variable is set (local dev, broken deploy).
+
+    Defense-in-depth: the rollback runbook step ``flyctl deploy --image
+    <previous-image>`` does NOT inherit the CD workflow's git-SHA
+    stamping, so the ``FLY_RELEASE_VERSION`` fallback ensures the
+    runbook's "/health .version matches expected" check still produces
+    a meaningful, distinct value across rollbacks.
     """
-    return (get_settings().APP_VERSION or "unknown").strip() or "unknown"
+    app_version = (get_settings().APP_VERSION or "").strip()
+    if app_version:
+        return app_version
+    fly_release = (os.environ.get("FLY_RELEASE_VERSION") or "").strip()
+    if fly_release:
+        return f"fly-v{fly_release}"
+    return "unknown"
 
 
 def _now_iso() -> str:
