@@ -1,9 +1,0 @@
-aiohttp
-fastapi
-numpy
-pandas
-python-telegram-bot
-requests
-sentry-sdk[fastapi]
-structlog
-uvicorn[standard]

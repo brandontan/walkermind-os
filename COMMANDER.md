@@ -316,7 +316,7 @@ When auto-closing, WARP🔹CMD must post a clear reason.
 Post-decision action after merge:
 1. Verify merge outcome
 2. Perform post-merge sync review
-3. Identify required updates to state/PROJECT_STATE.md, state/ROADMAP.md, projects/polymarket/polyquantbot/state/WORKTODO.md, and related reports/traceability references if needed
+3. Identify required updates to state/PROJECT_STATE.md, state/ROADMAP.md, projects/polymarket/crusaderbot/state/WORKTODO.md, and related reports/traceability references if needed
 4. Recommend or execute required sync lane
 5. Identify next execution lane
 
@@ -633,7 +633,7 @@ lib/                            <- shared libraries and utilities
 {PROJECT_ROOT}/reports/archive/     <- archived reports older than 7 days
 ```
 
-Current `PROJECT_ROOT = projects/polymarket/polyquantbot`
+Current `PROJECT_ROOT = projects/polymarket/crusaderbot`
 
 Project registry and PROJECT_ROOT handling → see `AGENTS.md`.
 

@@ -85,7 +85,7 @@ lib/                                         <- shared libraries and utilities
 {PROJECT_ROOT}/reports/briefer/              <- WARP•ECHO HTML reports
 {PROJECT_ROOT}/reports/archive/              <- reports older than 7 days
 
-Current PROJECT_ROOT = projects/polymarket/polyquantbot
+Current PROJECT_ROOT = projects/polymarket/crusaderbot
 
 Blueprint format: docs/blueprint/{project_name}.md
 ```
@@ -426,8 +426,8 @@ Naming: `{feature}.md` — short hyphen-separated slug matching the branch featu
 The folder provides role context — no prefix, no phase token, no date in filename.
 
 Correct:
-- `projects/polymarket/polyquantbot/reports/forge/wallet-state-read-boundary.md`
-- `projects/polymarket/polyquantbot/reports/forge/execution-kill-switch.md`
+- `projects/polymarket/crusaderbot/reports/forge/wallet-state-read-boundary.md`
+- `projects/polymarket/crusaderbot/reports/forge/execution-kill-switch.md`
 
 Wrong:
 - `phase24_01_validation-engine-core.md` (old format — phase prefix)

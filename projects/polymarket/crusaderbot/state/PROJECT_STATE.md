@@ -1,5 +1,5 @@
-Last Updated : 2026-05-06 07:20 Asia/Jakarta
-Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist (8-gate) + Live-to-Paper Fallback + Daily P&L Summary. 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
+Last Updated : 2026-05-07 12:52 Asia/Jakarta
+Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot directory cleanup in PR (MINOR, Issue #890). 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -21,7 +21,7 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist
 - R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR #883 MERGED 5a9cb22a (STANDARD, NARROW INTEGRATION)
 
 [IN PROGRESS]
-- None
+- Cleanup legacy polyquantbot directory — PR open WARP/CRUSADERBOT-CLEANUP-POLYQUANTBOT (MINOR, Issue #890)
 
 [NOT STARTED]
 - R12 — Deployment (Fly.io) final (MAJOR — blocked on P3c/P3d complete)

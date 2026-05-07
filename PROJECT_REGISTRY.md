@@ -7,7 +7,6 @@
 | Project | Path | Status |
 |---|---|---|
 | CrusaderBot | projects/polymarket/crusaderbot | ✅ ACTIVE |
-| polyquantbot (legacy) | projects/polymarket/polyquantbot | 💤 DORMANT (legacy paper-beta — Priority 9 COMPLETE, archived) |
 | TV Indicators | projects/tradingview/indicators | 💤 DORMANT |
 | TV Strategies | projects/tradingview/strategies | 💤 DORMANT |
 | MT5 EA | projects/mt5/ea | 💤 DORMANT |

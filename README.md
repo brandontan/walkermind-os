@@ -24,7 +24,7 @@
 
 The system operates under a strict authority chain. WARP🔹CMD orchestrates. WARP🔸CORE executes. Repo-truth governance and safety gates are enforced at every tier.
 
-**Active project:** `projects/polymarket/polyquantbot` — CrusaderBot on Polymarket.
+**Active project:** `projects/polymarket/crusaderbot` — CrusaderBot on Polymarket.
 
 *Polymarket · Kalshi · TradingView · MT4/MT5*
 
@@ -76,7 +76,7 @@ walkermind-os/
 ├── lib/                                ← shared libraries across projects
 └── projects/
     ├── polymarket/
-    │   └── polyquantbot/               ← PROJECT_ROOT (active)
+    │   └── crusaderbot/               ← PROJECT_ROOT (active)
     │       ├── state/
     │       │   ├── PROJECT_STATE.md    ← operational truth
     │       │   ├── ROADMAP.md          ← milestone truth
