@@ -1051,6 +1051,64 @@ def test_create_feed_rejects_slug_above_max_length():
         ))
 
 
+def test_escape_md_escapes_legacy_v1_metachars():
+    assert sf_handler._escape_md("Alpha_Beta") == r"Alpha\_Beta"
+    assert sf_handler._escape_md("X*Y") == r"X\*Y"
+    assert sf_handler._escape_md("[link](u)") == r"\[link](u)"
+    assert sf_handler._escape_md("a`b") == "a\\`b"
+
+
+def test_escape_md_escapes_backslash_first():
+    """Backslash must be doubled before the metacharacter loop runs,
+    otherwise an escape sequence inserted by the loop would itself be
+    re-escaped on a later pass."""
+    assert sf_handler._escape_md(r"a\b") == r"a\\b"
+
+
+def test_escape_md_handles_none_and_empty():
+    assert sf_handler._escape_md(None) == ""
+    assert sf_handler._escape_md("") == ""
+
+
+def test_signals_catalog_escapes_feed_name_and_description():
+    """Operator-supplied feed_name + description must not break the
+    Markdown reply with stray metacharacters."""
+    update, reply = _fake_update_message()
+    ctx = _fake_ctx(["catalog"])
+    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    feeds = [{
+        "id": _FEED_UUID, "name": "Alpha_Beta", "slug": "alpha",
+        "operator_id": uuid4(), "status": "active",
+        "description": "Has [brackets] and *stars*",
+        "subscriber_count": 3,
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }]
+    with patch.object(sf_handler, "upsert_user", return_value=user_ok), \
+         patch.object(sf_handler, "list_active_feeds", return_value=feeds):
+        asyncio.run(sf_handler.signals_command(update, ctx))
+    text = reply.call_args[0][0]
+    assert r"Alpha\_Beta" in text
+    assert r"\[brackets]" in text
+    assert r"\*stars\*" in text
+
+
+def test_signals_list_escapes_feed_name():
+    update, reply = _fake_update_message()
+    ctx = _fake_ctx(["list"])
+    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    subs = [{
+        "feed_slug": "alpha", "feed_name": "Alpha_Beta",
+        "subscribed_at": datetime.now(timezone.utc),
+    }]
+    with patch.object(sf_handler, "upsert_user", return_value=user_ok), \
+         patch.object(sf_handler, "list_user_subscriptions",
+                       return_value=subs):
+        asyncio.run(sf_handler.signals_command(update, ctx))
+    text = reply.call_args[0][0]
+    assert r"Alpha\_Beta" in text
+
+
 def test_signals_command_blocked_for_tier_below_2():
     update, reply = _fake_update_message()
     ctx = _fake_ctx()

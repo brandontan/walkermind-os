@@ -66,6 +66,28 @@ def _normalise_slug(raw: str) -> str | None:
     return candidate
 
 
+_MARKDOWN_METACHARS = ("_", "*", "`", "[")
+
+
+def _escape_md(text: str | None) -> str:
+    """Escape Telegram Markdown V1 metacharacters in operator-supplied text.
+
+    Operator-controlled fields (feed name, description) flow through
+    `ParseMode.MARKDOWN` replies. An unbalanced underscore or stray
+    backtick causes Telegram to reject the entire message, so escape the
+    legacy V1 metacharacter set (``_ * ` [``) before interpolation. Slugs
+    are NOT routed through this helper because the slug validator already
+    forbids every Markdown metacharacter.
+    """
+    if not text:
+        return ""
+    # Backslash first so the metacharacter loop does not double-escape.
+    out = text.replace("\\", "\\\\")
+    for ch in _MARKDOWN_METACHARS:
+        out = out.replace(ch, "\\" + ch)
+    return out
+
+
 async def _ensure_tier(update: Update, min_tier: int) -> tuple[dict | None, bool]:
     """Resolve the Telegram user, enforce ``min_tier``, route the rejection
     onto whichever surface the update arrived on (message vs. callback).
@@ -155,7 +177,7 @@ async def _handle_list(update: Update, user_id) -> None:
     lines = ["*Active signal subscriptions*\n"]
     for s in subs:
         slug = s["feed_slug"]
-        name = s["feed_name"]
+        name = _escape_md(s["feed_name"])
         added = s["subscribed_at"].strftime("%Y-%m-%d")
         lines.append(f"`{slug}` · {name} · added {added}")
 
@@ -179,10 +201,10 @@ async def _handle_catalog(update: Update) -> None:
         return
     lines = ["*Available signal feeds*\n"]
     for f in feeds:
-        desc = f.get("description") or ""
+        desc = _escape_md(f.get("description") or "")
         suffix = f" — {desc}" if desc else ""
         lines.append(
-            f"`{f['slug']}` · {f['name']} · "
+            f"`{f['slug']}` · {_escape_md(f['name'])} · "
             f"{f['subscriber_count']} subs{suffix}"
         )
     lines.append("\nSubscribe with `/signals on <feed_slug>`.")
