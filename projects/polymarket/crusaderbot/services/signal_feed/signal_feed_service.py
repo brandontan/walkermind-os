@@ -52,6 +52,28 @@ def _payload_json(payload: dict[str, Any] | None) -> str:
     return json.dumps(payload or {})
 
 
+async def _assert_feed_active(conn, feed_id: UUID) -> None:
+    """Raise ValueError unless ``signal_feeds.status = 'active'``.
+
+    Honours the migration contract: feed status gates both new
+    publications AND new subscriptions. Without this guard, a paused or
+    archived feed could accumulate publications that would be emitted
+    once the feed is reactivated to subscribers whose ``subscribed_at``
+    predates the pause window.
+    """
+    row = await conn.fetchrow(
+        "SELECT status FROM signal_feeds WHERE id = $1",
+        feed_id,
+    )
+    if row is None:
+        raise ValueError(f"feed_id {feed_id} is not registered")
+    if row["status"] != "active":
+        raise ValueError(
+            f"feed_id {feed_id} is not active "
+            f"(status={row['status']!r}); cannot publish",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Feed operator surface — idempotent.
 # ---------------------------------------------------------------------------
@@ -141,6 +163,7 @@ async def publish_signal(
 
     pool = get_pool()
     async with pool.acquire() as conn:
+        await _assert_feed_active(conn, fuid)
         row = await conn.fetchrow(
             """
             INSERT INTO signal_publications
@@ -179,6 +202,7 @@ async def publish_exit(
 
     pool = get_pool()
     async with pool.acquire() as conn:
+        await _assert_feed_active(conn, fuid)
         row = await conn.fetchrow(
             """
             INSERT INTO signal_publications

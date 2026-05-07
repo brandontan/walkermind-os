@@ -920,6 +920,63 @@ def test_publish_exit_validates_market_id():
         asyncio.run(svc.publish_exit(feed_id=_FEED_UUID, market_id=""))
 
 
+def test_publish_signal_rejects_paused_feed():
+    """Migration contract: status='paused' must reject new publications
+    so a future reactivation cannot retroactively surface them."""
+    conn = _AtomicConn(feed_row={"status": "paused"})
+    with _patch_svc_pool(conn):
+        with pytest.raises(ValueError):
+            asyncio.run(svc.publish_signal(
+                feed_id=_FEED_UUID, market_id="mkt_1", side="YES",
+            ))
+
+
+def test_publish_signal_rejects_archived_feed():
+    conn = _AtomicConn(feed_row={"status": "archived"})
+    with _patch_svc_pool(conn):
+        with pytest.raises(ValueError):
+            asyncio.run(svc.publish_signal(
+                feed_id=_FEED_UUID, market_id="mkt_1", side="YES",
+            ))
+
+
+def test_publish_signal_rejects_unknown_feed_at_db_level():
+    """Caller passes a UUID-shaped value but no row exists — the active
+    check raises before the INSERT."""
+    conn = _AtomicConn(feed_row=None)
+    with _patch_svc_pool(conn):
+        with pytest.raises(ValueError):
+            asyncio.run(svc.publish_signal(
+                feed_id=_FEED_UUID, market_id="mkt_1", side="YES",
+            ))
+
+
+def test_publish_exit_rejects_paused_feed():
+    conn = _AtomicConn(feed_row={"status": "paused"})
+    with _patch_svc_pool(conn):
+        with pytest.raises(ValueError):
+            asyncio.run(svc.publish_exit(
+                feed_id=_FEED_UUID, market_id="mkt_1",
+            ))
+
+
+def test_publish_signal_succeeds_for_active_feed():
+    """Active feed -> active check passes -> INSERT runs."""
+    conn = _AtomicConn(feed_row={"status": "active"})
+    with _patch_svc_pool(conn):
+        out = asyncio.run(svc.publish_signal(
+            feed_id=_FEED_UUID, market_id="mkt_1", side="YES",
+        ))
+    assert out["market_id"] == "mkt_1"
+    # Active-check fetchrow + INSERT fetchrow must both have run.
+    assert sum(
+        1 for e in conn.sql_log
+        if e[0] == "fetchrow"
+        and ("FROM signal_feeds WHERE id" in e[1]
+             or "INSERT INTO signal_publications" in e[1])
+    ) == 2
+
+
 def test_subscribe_returns_unknown_feed():
     conn = _AtomicConn(feed_row=None)
     with _patch_svc_pool(conn):
