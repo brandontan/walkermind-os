@@ -7,7 +7,7 @@
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walkermind-os
 Version: 2.6
-Last Updated: 2026-05-03 18:30 Asia/Jakarta
+Last Updated: 2026-05-07 12:00 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
            workflow, and operational boundaries. All other files are
            supporting documents. When conflict exists, AGENTS.md wins.

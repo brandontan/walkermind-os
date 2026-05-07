@@ -6,7 +6,7 @@ For all system rules (tiers, claims, branch format, report/state/roadmap rules, 
 Rule priority: `AGENTS.md` > `PROJECT_REGISTRY.md` > `{PROJECT_ROOT}/state/PROJECT_STATE.md` > `{PROJECT_ROOT}/state/ROADMAP.md` > latest relevant forge report > this file.
 
 Version: 2.6
-Last Updated: 2026-05-03 18:30 Asia/Jakarta
+Last Updated: 2026-05-07 12:00 Asia/Jakarta
 
 ---
 
