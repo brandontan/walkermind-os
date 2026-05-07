@@ -1,5 +1,5 @@
-Last Updated : 2026-05-07 12:52 Asia/Jakarta
-Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot directory cleanup in PR (MINOR, Issue #890). 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
+Last Updated : 2026-05-07 13:00 Asia/Jakarta
+Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot cleanup MERGED PR #891 (MINOR, Issue #890). 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -19,9 +19,10 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot d
 - P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + migration 008) — PR #876 MERGED 2026-05-05 (STANDARD, FOUNDATION)
 - P3b — Copy Trade strategy (CopyTradeStrategy + scaler + wallet_watcher + migration 009 + /copytrade Telegram + registry bootstrap) — PR #877 MERGED 2026-05-06 a369129d (MAJOR, SENTINEL CONDITIONAL 71/100 resolved)
 - R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR #883 MERGED 5a9cb22a (STANDARD, NARROW INTEGRATION)
+- Cleanup legacy polyquantbot directory — PR #891 MERGED (MINOR, Issue #890 closed)
 
 [IN PROGRESS]
-- Cleanup legacy polyquantbot directory — PR open WARP/CRUSADERBOT-CLEANUP-POLYQUANTBOT (MINOR, Issue #890)
+- None
 
 [NOT STARTED]
 - R12 — Deployment (Fly.io) final (MAJOR — blocked on P3c/P3d complete)
@@ -43,4 +44,4 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot d
 - MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred follow-up)
 - ROADMAP R12d/R12e/R12f lane IDs use original planned names (Live Opt-In Checklist / Live→Paper Fallback / Daily P&L); PROJECT_STATE + WORKTODO use actual executed names (Telegram Position UX / Auto-Redeem / Operator Dashboard) — deferred ROADMAP restructure, WARP🔹CMD decision required
 
-<!-- CD verify: 2026-05-06 -->
+<!-- CD verify: 2026-05-07 -->
