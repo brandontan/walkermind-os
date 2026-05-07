@@ -1,7 +1,7 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-08 03:39 Asia/Jakarta
+**Last Updated:** 2026-05-08 04:57 Asia/Jakarta
 
 ---
 
@@ -56,4 +56,4 @@ Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD
 - [ ] /deposit no tier gate (intentional, non-blocking)
 - [x] MIN-01 P3b: user_id type annotations on 3 copy_trade handler helpers — DONE on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP
 - [x] MIN-02 P3b: phase comment in dispatcher.py — DONE on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP
-- [x] MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (migration 013, ON DELETE SET NULL) — DONE on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP
+- [x] MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (migration 013, ON DELETE CASCADE → ON DELETE SET NULL — persistence behaviour change; lane reclassified STANDARD/NARROW INTEGRATION) — DONE on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (PR #899)

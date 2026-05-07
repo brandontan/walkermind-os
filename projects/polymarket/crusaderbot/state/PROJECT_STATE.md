@@ -1,5 +1,5 @@
-Last Updated : 2026-05-08 03:39 Asia/Jakarta
-Status       : Pre-flight cleanup lane open on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (F401 + MIN-01/02/03 + ROADMAP naming). P3d MERGED (PR #897). 464/464 tests green. Awaiting R12 final Fly.io deployment.
+Last Updated : 2026-05-08 04:57 Asia/Jakarta
+Status       : Pre-flight cleanup lane open on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (STANDARD, reclassified from MINOR — migration 013 changes copy_trade_events FK referential action). PR #899 awaiting WARP🔹CMD review. P3d MERGED (PR #897). 464/464 tests green at last green CI. Awaiting R12 final Fly.io deployment.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -24,7 +24,7 @@ Status       : Pre-flight cleanup lane open on WARP/CRUSADERBOT-PREFLIGHT-CLEANU
 - P3d — Per-user signal scan loop + execution queue wiring — PR #897 MERGED (bb08092), MAJOR, SENTINEL APPROVED 94/100. Crash-recovery resume path, subscribe/unsubscribe enrollment, dual-layer dedup, migration 011+012. 464/464 tests green.
 
 [IN PROGRESS]
-- Pre-flight cleanup lane on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (MINOR): 15 F401 cleared across 7 files, MIN-01 user_id annotations on 3 copy_trade handler helpers, MIN-02 dispatcher phase comment, MIN-03 migration 013 (copy_trade_events.copy_target_id ON DELETE SET NULL), ROADMAP R12d/R12e/R12f naming aligned to actual executed lanes.
+- Pre-flight cleanup lane on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (STANDARD, NARROW INTEGRATION — reclassified from MINOR per Codex P2 finding; CMD-ratified): 15 F401 cleared across 7 files, MIN-01 user_id annotations on 3 copy_trade handler helpers, MIN-02 dispatcher phase comment, MIN-03 migration 013 (copy_trade_events.copy_target_id FK referential action ON DELETE CASCADE → ON DELETE SET NULL — audit rows survive parent delete), ROADMAP R12d/R12e/R12f naming aligned to actual executed lanes. PR #899.
 
 [NOT STARTED]
 - R12 — Deployment (Fly.io) final (MAJOR — P3d unblock complete, activation guards review required before live)

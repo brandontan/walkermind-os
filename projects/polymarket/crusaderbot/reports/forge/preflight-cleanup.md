@@ -1,18 +1,23 @@
 # WARP•FORGE Report — preflight-cleanup
 
 **Branch:** WARP/CRUSADERBOT-PREFLIGHT-CLEANUP
-**Date:** 2026-05-08 03:39 Asia/Jakarta
-**Tier:** MINOR
-**Claim Level:** NONE — pure cleanup, no behavioural change
-**Validation Target:** ruff F401 clean across the 7 listed files; copy_trade handler helpers carry user_id type annotations; dispatcher.py phase-prefixed comment dropped; migration 013 converts copy_trade_events.copy_target_id FK to ON DELETE SET NULL; ROADMAP.md R12d/R12e/R12f rows + detail entries match actual executed lane names.
+**PR:** #899
+**Date:** 2026-05-08 03:39 Asia/Jakarta (reclassified 2026-05-08 04:00 Asia/Jakarta)
+**Tier:** STANDARD (reclassified from MINOR — see header note below)
+**Claim Level:** NARROW INTEGRATION (reclassified from NONE)
+**Validation Target:** ruff F401 clean across the 7 listed files; copy_trade handler helpers carry user_id type annotations; dispatcher.py phase-prefixed comment dropped; migration 013 converts copy_trade_events.copy_target_id FK referential action from ON DELETE CASCADE to ON DELETE SET NULL (real persistence-behaviour change — see section 2 + migration notes); ROADMAP.md R12d/R12e/R12f rows + detail entries match actual executed lane names.
 **Not in Scope:** anything in domain/risk/, anything touching execution path, activation guards (EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING / etc), demo polish, R12 final Fly.io deployment.
-**Suggested Next:** WARP🔹CMD review and merge.
+**Suggested Next:** WARP🔹CMD review and merge. No SENTINEL — STANDARD does not require SENTINEL.
+
+> **Tier reclassification note (2026-05-08 04:00 Asia/Jakarta).** Original task block declared this lane MINOR / Claim NONE. Codex auto-review on PR #899 correctly flagged that migration 013 is a real persistence-behaviour change and "no behavioural change" wording was internally inconsistent. WARP🔹CMD ratified reclassification to **STANDARD / NARROW INTEGRATION** per AGENTS.md severity classification authority. No scope change — same six work items in this PR. SENTINEL is NOT required for STANDARD; CMD review path remains the gate.
 
 ---
 
-## 1. What was changed
+## 1. What was built
 
-**F401 unused-import cleanup (15 imports across 7 files).** All 15 ruff F401 findings on the lane scope removed; full-repo `ruff check .` now clean.
+The lane bundles six items pre-flight-of-demo: an F401 unused-import sweep (15 imports across 7 files), three deferred P3b minor follow-ups (MIN-01 / MIN-02 / MIN-03), a ROADMAP naming-drift fix that closes a long-deferred KNOWN ISSUES entry, and a state-file sync. The single behaviour-affecting change is **migration 013**, which converts the `copy_trade_events.copy_target_id` foreign-key referential action from `ON DELETE CASCADE` to `ON DELETE SET NULL`. All other items are non-runtime cleanup.
+
+**F401 unused-import cleanup (15 imports across 7 files).** All 15 ruff F401 findings on the lane scope removed; full-repo `ruff check .` is clean.
 
 | File | Removed |
 |---|---|
@@ -34,7 +39,7 @@
 
 **MIN-02 — dispatcher phase comment.** `bot/dispatcher.py:64` `# P3b copy-trade strategy command surface.` → `# Copy-trade strategy command surface.` (phase-id prefix dropped; comment now describes the surface, not the lane that introduced it). Other phase-prefixed comments in the same file (R12f / P3c / R12) were left untouched per scope gate — only the deferred MIN-02 finding tied to the closed P3b lane was in scope.
 
-**MIN-03 — copy_trade_events.copy_target_id nullable FK.** New migration `migrations/013_copy_trade_events_nullable_fk.sql` converts the FK from `ON DELETE CASCADE` to `ON DELETE SET NULL`. The column itself was already nullable in `migrations/009_copy_trade.sql` (no `NOT NULL` on the definition), so the meaningful "nullable FK" semantic change is the referential action: append-only `copy_trade_events` rows now survive parent `copy_targets` deletion as orphan rows with `NULL copy_target_id`, instead of being cascade-deleted alongside the target. Per-follower dedup is unaffected — `UNIQUE (copy_target_id, source_tx_hash)` remains intact for active targets. Migration is idempotent (guarded by a `pg_constraint.confdeltype = 'c'` check) and runs on startup via the existing `migrations/` runner path.
+**MIN-03 — copy_trade_events.copy_target_id nullable FK.** New migration `migrations/013_copy_trade_events_nullable_fk.sql` converts the FK referential action from `ON DELETE CASCADE` to `ON DELETE SET NULL`. See section 2 + the migration notes block below for full behavioural impact.
 
 **ROADMAP R12d/R12e/R12f naming alignment.** Both the `Build Path` table rows and the `R12 — Detailed Lane Plan` entries in `state/ROADMAP.md` now match the actual executed lane names recorded in `PROJECT_STATE.md` and `WORKTODO.md`:
 
@@ -45,14 +50,43 @@
 
 **State file sync.**
 
-- `state/PROJECT_STATE.md`: `Last Updated` bumped to `2026-05-08 03:39 Asia/Jakarta`; `Status` line notes the open cleanup lane; `[IN PROGRESS]` carries the cleanup lane summary; `[KNOWN ISSUES]` pruned of the four resolved-by-this-task entries (F401, MIN-01, MIN-02, MIN-03, ROADMAP R12d/e/f drift).
+- `state/PROJECT_STATE.md`: `Last Updated` bumped to `2026-05-08 04:00 Asia/Jakarta`; `Status` line notes the open cleanup lane and tier reclassification; `[IN PROGRESS]` carries the cleanup lane summary at STANDARD; `[KNOWN ISSUES]` pruned of the four resolved-by-this-task entries (F401, MIN-01, MIN-02, MIN-03, ROADMAP R12d/e/f drift).
 - `state/WORKTODO.md`: `Last Updated` bumped; the four `Known Issues / Tech Debt` items resolved by this lane checked off with explicit `DONE on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP` markers; remaining items (check_alchemy_ws, services/* dead code, /deposit tier gate) preserved verbatim.
-- `state/CHANGELOG.md`: cleanup entry prepended at top of file matching the existing newest-at-top order.
+- `state/CHANGELOG.md`: cleanup entry prepended at top of file matching the existing newest-at-top order; reclassification reflected (Tier: STANDARD / Claim: NARROW INTEGRATION).
 - `state/ROADMAP.md`: `Last Updated` bumped; rows + detail entries replaced as described above. No phase/milestone sequencing change — R12 final Fly.io deployment remains the next NOT STARTED lane.
 
 ---
 
-## 2. Files modified (full repo-root paths)
+## 2. Current system architecture (relevant slice)
+
+The lane touches one persistence boundary and a handful of import / annotation / comment surfaces. The relevant slice is the copy-trade strategy persistence schema introduced in `migrations/009_copy_trade.sql`:
+
+```
+┌──────────────────────┐        ┌─────────────────────────────────┐
+│ copy_targets         │        │ copy_trade_events (audit log)   │
+│ id UUID PK           │ 1   N  │ id UUID PK                      │
+│ user_id UUID FK      │◄───────┤ copy_target_id UUID FK (NULL OK)│
+│ target_wallet_addr   │        │ source_tx_hash VARCHAR(66)      │
+│ status               │        │ mirrored_order_id UUID          │
+│ ...                  │        │ created_at TIMESTAMPTZ          │
+│                      │        │ UNIQUE(copy_target_id, hash)    │
+└──────────────────────┘        └─────────────────────────────────┘
+   parent (operator-              child (append-only audit row,
+   removable copy target)         per-follower dedup boundary)
+```
+
+**FK referential action — before vs after migration 013:**
+
+- **Before (009 baseline):** `copy_target_id UUID REFERENCES copy_targets(id) ON DELETE CASCADE` — when an operator deletes a `copy_targets` row (or the user removes a target), every linked `copy_trade_events` audit row is also deleted. Audit history is lost on parent removal.
+- **After (013 applied):** `copy_target_id UUID REFERENCES copy_targets(id) ON DELETE SET NULL` — parent deletion sets the child's `copy_target_id` to NULL but preserves the row. Audit history survives target removal as orphan rows.
+
+The column itself was already nullable in 009 (no `NOT NULL`); 013 only changes the referential action. The `UNIQUE (copy_target_id, source_tx_hash)` composite remains intact for active targets — Postgres treats multiple NULLs as distinct, so orphan rows with `NULL copy_target_id` do not collide.
+
+**Migration runner path:** `migrations/` (not `infra/migrations/`) — same path the existing 001–012 sequence uses. Loaded at startup via the existing migration runner.
+
+---
+
+## 3. Files created / modified (full repo-root paths)
 
 Code:
 
@@ -76,28 +110,69 @@ State / planning:
 - `projects/polymarket/crusaderbot/state/WORKTODO.md`
 - `projects/polymarket/crusaderbot/state/CHANGELOG.md`
 
-Report (new):
+Report (this file):
 
-- `projects/polymarket/crusaderbot/reports/forge/preflight-cleanup.md` (this file)
+- `projects/polymarket/crusaderbot/reports/forge/preflight-cleanup.md`
+
+### Migration notes — 013_copy_trade_events_nullable_fk.sql
+
+| Aspect | Detail |
+|---|---|
+| Before | `copy_trade_events.copy_target_id` FK with `ON DELETE CASCADE` |
+| After | `copy_trade_events.copy_target_id` FK with `ON DELETE SET NULL` |
+| Column nullability | already NULL-allowed in 009; unchanged by 013 |
+| Behavioural impact | `copy_trade_events` rows preserved on parent `copy_targets` deletion; `copy_target_id` becomes NULL; audit trail is no longer lost when an operator removes / a user disables a copy target |
+| Read-side impact | downstream readers that filter by `copy_target_id` must handle NULL (no current reader joins through NULL — see `_already_mirrored` in `domain/strategy/strategies/copy_trade.py:371` which always supplies a concrete UUID); orphan rows are invisible to active-target queries |
+| UNIQUE constraint | `UNIQUE (copy_target_id, source_tx_hash)` still active; Postgres treats multiple NULLs as distinct, so orphan rows do not collide |
+| Backfill needed | NO — only the constraint changes; existing rows untouched |
+| Idempotency | guarded by `pg_constraint.confdeltype = 'c'` existence check (re-runs on a SET-NULL DB are no-ops) |
+| Rollback | drop constraint + re-add with `ON DELETE CASCADE` in a future migration 014; no data backfill required since orphan rows from any production application of 013 would still satisfy the CASCADE constraint (they would be deleted on the next parent-delete event) |
+| Runner path | `projects/polymarket/crusaderbot/migrations/` — same loader as 001–012 |
 
 ---
 
-## 3. Validation Tier / Claim Level / Validation Target / Not in Scope / Suggested Next
+## 4. What is working
 
-- **Validation Tier:** MINOR
-- **Claim Level:** NONE — pure cleanup, no behavioural change. No risk-gate, execution, capital, async-core, or live-activation path touched. Migration 013 only changes the referential action on a single FK; it neither adds nor relaxes any uniqueness, nullability, or write path.
+- `ruff check .` — "All checks passed!" (verified locally — full repo, not just the 7 targets)
+- `python3 -m py_compile` — clean on all 8 touched code files (verified locally)
+- `git rev-parse --abbrev-ref HEAD` — `WARP/CRUSADERBOT-PREFLIGHT-CLEANUP` (matches declared branch)
+- PR #899 — `Lint + Test` run #1 reports green (run #2 + `Trigger WARP CMD Gate` were in progress at last check; webhook subscription will surface CI updates)
+- Migration 013 syntax — guarded `DO $$` block, `ALTER TABLE ... DROP CONSTRAINT` + `ADD CONSTRAINT ... ON DELETE SET NULL` pattern matches the idempotent style used in 009's reconciliation block
+- Codex auto-review — one P2 finding raised (tier classification), addressed by reclassification to STANDARD / NARROW INTEGRATION; no other findings
+
+---
+
+## 5. Known issues
+
+- **Migration forward + rollback verification deferred to CI / staging.** The local build sandbox could not exercise the migration end-to-end (no Postgres reachable; `_cffi_backend`/`cryptography` binary mismatch on `import telegram` blocks app-side smoke tests). CMD's "verify forward + rollback both work in local test before pushing" gate cannot be satisfied from this sandbox; the static idempotency guard + the symmetric `pg_constraint.confdeltype` check is the strongest static guarantee available, but a Postgres run on staging is the right next gate.
+- **`pytest -q` 464/464 not re-run from this sandbox.** Same dependency reason as above — pytest collection fails at import time on `_cffi_backend`. No test files were modified by this lane; the only runtime-touching changes are unused-import removal, parameter annotations on three handler helpers, a phase-comment edit, and a guarded migration. None of those have a plausible path to regress an existing test that was green at PR #897. CI is the gate.
+- **Stage A (Fly.io live state verification) not executed.** The parent task included a Stage A live audit of `crusaderbot.fly.dev`. This sandbox has no `flyctl` and the outbound HTTP allowlist returns `403 host_not_allowed` for the Fly host, so Stage A is unrunnable here. WARP🔹CMD authorised "skip Stage A, proceed directly to Stage B cleanup" — Stage A remains an open input for Lane 1B production-hardening scoping.
+
+---
+
+## 6. What is next
+
+- WARP🔹CMD review of PR #899 at the new STANDARD tier
+- Optional: smoke-run migration 013 forward + rollback against a staging Postgres before merge to satisfy CMD's verification gate
+- After merge: post-merge sync (PROJECT_STATE.md / ROADMAP.md / WORKTODO.md / CHANGELOG.md already reflect the lane closure; verify CI run on `main` is green)
+- Lane 1B pre-demo production hardening — the next lane CMD has flagged. Inputs needed from Stage A (Fly.io live state) before Lane 1B can be scoped.
+
+### Validation declaration
+
+- **Validation Tier:** STANDARD
+- **Claim Level:** NARROW INTEGRATION — migration 013 narrows its claim to the `copy_trade_events.copy_target_id` FK referential action; no execution path, no risk-gate behaviour, no async-core orchestration, no live-activation flag touched. The remaining work items (F401 / MIN-01 / MIN-02 / ROADMAP / state sync) carry no runtime claim.
 - **Validation Target:**
-  - `ruff check .` clean (verified — "All checks passed!")
-  - `python3 -m py_compile` clean on all 7 touched code files (verified)
-  - `pytest -q` 464/464 green expected; CI will verify. The build sandbox this lane was authored in could not collect the suite (missing runtime deps and a `_cffi_backend`/`cryptography` binary mismatch on `import telegram`). No test files were modified by this lane and the only runtime-touching changes are unused-import removal + parameter annotations on three handler helpers + a guarded migration; none of those have a plausible path to regress an existing test that was green at PR #897 (464/464). If CI red-flags anything, escalate.
+  - `ruff check .` clean (verified locally — "All checks passed!")
+  - `python3 -m py_compile` clean on all 8 touched code files (verified locally)
+  - `pytest -q` 464/464 — CI verifies (sandbox cannot collect; see Known Issues)
+  - Migration 013 idempotent on re-run; behavioural impact bounded to `copy_trade_events` audit-row retention semantics; UNIQUE composite remains intact
   - `state/ROADMAP.md` R12d/R12e/R12f rows + detail entries match `state/PROJECT_STATE.md` lane truth
   - `state/PROJECT_STATE.md` and `state/WORKTODO.md` both reflect the cleared MIN-01/02/03 + F401 items
-  - Migration 013 is idempotent (guarded `pg_constraint` existence check) and reuses the existing `migrations/` runner path
 - **Not in Scope:**
   - Anything in `domain/risk/` (gate.py touched only to remove unused imports — no logic change)
   - Anything touching execution path, order placement, fill handling, or async-core orchestration
   - Activation guards (`EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, `ENABLE_LIVE_TRADING`, `RISK_CONTROLS_VALIDATED`, `SECURITY_HARDENING_VALIDATED`, `FEE_COLLECTION_ENABLED`, `AUTO_REDEEM_ENABLED`)
   - Other phase-prefixed comments in `bot/dispatcher.py` (P3c, R12f, R12) — only the closed-P3b comment was the deferred MIN-02 finding
   - Deeper copy_trade DB helpers (`_list_active_targets`, `_insert_active_target`, `_deactivate_target`) — task scoped MIN-01 to the 3 handler helpers
-  - R12 final Fly.io deployment, demo polish, fly secret/runtime audit (Stage A of the parent task is unrunnable from this sandbox — flyctl unavailable, outbound HTTPS to crusaderbot.fly.dev blocked — Stage A was deferred per WARP🔹CMD direction)
-- **Suggested Next:** WARP🔹CMD review and merge. No SENTINEL — Tier MINOR, SENTINEL not allowed per AGENTS.md.
+  - R12 final Fly.io deployment, demo polish, fly secret/runtime audit (Stage A deferred per WARP🔹CMD direction)
+- **Suggested Next:** WARP🔹CMD review and merge. SENTINEL not required at STANDARD per AGENTS.md.
