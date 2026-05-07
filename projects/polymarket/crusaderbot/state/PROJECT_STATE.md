@@ -1,5 +1,5 @@
-Last Updated : 2026-05-07 18:15 Asia/Jakarta
-Status       : P3c Signal Following strategy SENTINEL APPROVED 100/100 on WARP/CRUSADERBOT-P3C-SIGNAL-FOLLOWING (PR #892) — zero critical issues, 428/428 tests green, ruff clean, zero diff to risk/execution/activation surface. Ready for WARP🔹CMD merge decision. R12 final Fly.io deployment remains blocked on P3c merge + P3d. Activation guards NOT SET.
+Last Updated : 2026-05-07 20:22 Asia/Jakarta
+Status       : P3c Signal Following strategy MERGED PR #892 (5ee8487e), SENTINEL APPROVED 100/100, 428/428 tests green. P3d — Per-user signal scan loop + execution queue wiring — is the next active MAJOR lane. R12 final Fly.io deployment blocked on P3d + activation guard review. Activation guards NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -20,19 +20,18 @@ Status       : P3c Signal Following strategy SENTINEL APPROVED 100/100 on WARP/C
 - P3b — Copy Trade strategy (CopyTradeStrategy + scaler + wallet_watcher + migration 009 + /copytrade Telegram + registry bootstrap) — PR #877 MERGED 2026-05-06 a369129d (MAJOR, SENTINEL CONDITIONAL 71/100 resolved)
 - R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR #883 MERGED 5a9cb22a (STANDARD, NARROW INTEGRATION)
 - Cleanup legacy polyquantbot directory — PR #891 MERGED (MINOR, Issue #890 closed)
+- P3c — Signal Following strategy — PR #892 MERGED (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
 
 [IN PROGRESS]
-- P3c — Signal Following strategy SENTINEL APPROVED 100/100 on WARP/CRUSADERBOT-P3C-SIGNAL-FOLLOWING (PR #892) — MAJOR — awaiting WARP🔹CMD merge decision
+- P3d — Per-user signal scan loop + execution queue wiring (MAJOR — not started, dispatching next)
 
 [NOT STARTED]
-- R12 — Deployment (Fly.io) final (MAJOR — blocked on P3c sentinel approval + P3d complete)
-- P3d — Per-user signal scan loop + execution queue wiring (MAJOR)
+- R12 — Deployment (Fly.io) final (MAJOR — blocked on P3d complete + activation guards reviewed)
 
 [NEXT PRIORITY]
-- WARP🔹CMD merge decision on PR #892 (P3c). Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/p3c-signal-following.md. Verdict: APPROVED 100/100, zero critical issues.
-- After P3c merge: P3d — Per-user signal scan loop + execution queue wiring (MAJOR)
-- After P3c + P3d: live activation sequence gated on EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED + ENABLE_LIVE_TRADING
-- After P3c + P3d: R12 final Fly.io deployment (MAJOR — last R12 lane, blocked on P3c/P3d + activation guards)
+- Dispatch P3d — Per-user signal scan loop + execution queue wiring (MAJOR — wires registry into risk gate)
+- After P3d: live activation sequence gated on EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED + ENABLE_LIVE_TRADING
+- After P3d: R12 final Fly.io deployment (MAJOR — last R12 lane, blocked on P3d + activation guards)
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)
@@ -44,4 +43,4 @@ Status       : P3c Signal Following strategy SENTINEL APPROVED 100/100 on WARP/C
 - MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred follow-up)
 - ROADMAP R12d/R12e/R12f lane IDs use original planned names (Live Opt-In Checklist / Live→Paper Fallback / Daily P&L); PROJECT_STATE + WORKTODO use actual executed names (Telegram Position UX / Auto-Redeem / Operator Dashboard) — deferred ROADMAP restructure, WARP🔹CMD decision required
 
-<!-- CD verify: 2026-05-07 -->
+<!-- CD verify: 2026-05-07 20:22 -->
