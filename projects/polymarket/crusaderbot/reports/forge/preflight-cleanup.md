@@ -17,7 +17,7 @@
 
 The lane bundles six items pre-flight-of-demo: an F401 unused-import sweep (15 imports across 7 files), three deferred P3b minor follow-ups (MIN-01 / MIN-02 / MIN-03), a ROADMAP naming-drift fix that closes a long-deferred KNOWN ISSUES entry, and a state-file sync. The single behaviour-affecting change is **migration 013**, which converts the `copy_trade_events.copy_target_id` foreign-key referential action from `ON DELETE CASCADE` to `ON DELETE SET NULL`. All other items are non-runtime cleanup.
 
-**F401 unused-import cleanup (15 imports across 7 files).** All 15 ruff F401 findings on the lane scope removed; full-repo `ruff check .` is clean.
+**F401 unused-import cleanup (15 imports across 7 files).** All 15 ruff F401 findings on the lane scope removed; project-scoped `ruff check projects/polymarket/crusaderbot/` is clean. Pre-existing F401 leakage in `lib/` (shared-library code, 5 occurrences across 4 files — see `[KNOWN ISSUES]` in PROJECT_STATE.md and the deferred `WARP/LIB-F401-CLEANUP` lane in WORKTODO.md) is not in scope for this PR per WARP🔹CMD scope-boundary hold; that cleanup will be opened post-demo as a separate MINOR lane to preserve project-boundary discipline.
 
 | File | Removed |
 |---|---|
@@ -133,7 +133,7 @@ Report (this file):
 
 ## 4. What is working
 
-- `ruff check .` — "All checks passed!" (verified locally — full repo, not just the 7 targets)
+- `ruff check projects/polymarket/crusaderbot/` — "All checks passed!" (verified locally; project-scoped). Repo-root `ruff check .` is **NOT** clean — pre-existing F401 leakage in `lib/` (5 occurrences across `lib/strategies/logic_arb.py`, `lib/strategies/value_investor.py`, `lib/strategies/weather_arb.py`, `lib/strategy_base.py`) is tracked separately under `[KNOWN ISSUES]` and deferred to `WARP/LIB-F401-CLEANUP` per WARP🔹CMD scope-boundary hold (lib/ is shared-library code that may affect other projects; cross-project audit required before cleanup).
 - `python3 -m py_compile` — clean on all 8 touched code files (verified locally)
 - `git rev-parse --abbrev-ref HEAD` — `WARP/CRUSADERBOT-PREFLIGHT-CLEANUP` (matches declared branch)
 - PR #899 — `Lint + Test` run #1 reports green (run #2 + `Trigger WARP CMD Gate` were in progress at last check; webhook subscription will surface CI updates)
@@ -145,6 +145,13 @@ Report (this file):
 ## 5. Known issues
 
 - **Migration forward + rollback verification deferred to CI / staging.** The local build sandbox could not exercise the migration end-to-end (no Postgres reachable; `_cffi_backend`/`cryptography` binary mismatch on `import telegram` blocks app-side smoke tests). CMD's "verify forward + rollback both work in local test before pushing" gate cannot be satisfied from this sandbox; the static idempotency guard + the symmetric `pg_constraint.confdeltype` check is the strongest static guarantee available, but a Postgres run on staging is the right next gate.
+- **Pre-existing lib/ F401 leakage — deferred to `WARP/LIB-F401-CLEANUP` (post-demo MINOR).** Codex follow-up review on PR #899 surfaced 5 F401 occurrences in shared-library code that pre-date this branch and only fail under repo-root ruff (no per-project `pyproject.toml` in `lib/`):
+  - `lib/strategies/logic_arb.py:42` — `get_no_price` from `..strategy_base`
+  - `lib/strategies/value_investor.py:30` — `get_no_price` from `..strategy_base`
+  - `lib/strategies/weather_arb.py:25` — `import json`
+  - `lib/strategies/weather_arb.py:29` — `import urllib.request`
+  - `lib/strategy_base.py:34` — `field` from `dataclasses`
+  WARP🔹CMD held the scope boundary for #899 (CrusaderBot pre-flight) and routed lib/ to a separate follow-up lane to preserve project-boundary discipline. lib/ is shared-library code that may affect other projects (WARP-CodX, future tenants) and a cross-project audit is required before cleanup.
 - **`pytest -q` 464/464 not re-run from this sandbox.** Same dependency reason as above — pytest collection fails at import time on `_cffi_backend`. No test files were modified by this lane; the only runtime-touching changes are unused-import removal, parameter annotations on three handler helpers, a phase-comment edit, and a guarded migration. None of those have a plausible path to regress an existing test that was green at PR #897. CI is the gate.
 - **Stage A (Fly.io live state verification) not executed.** The parent task included a Stage A live audit of `crusaderbot.fly.dev`. This sandbox has no `flyctl` and the outbound HTTP allowlist returns `403 host_not_allowed` for the Fly host, so Stage A is unrunnable here. WARP🔹CMD authorised "skip Stage A, proceed directly to Stage B cleanup" — Stage A remains an open input for Lane 1B production-hardening scoping.
 
@@ -162,7 +169,7 @@ Report (this file):
 - **Validation Tier:** STANDARD
 - **Claim Level:** NARROW INTEGRATION — migration 013 narrows its claim to the `copy_trade_events.copy_target_id` FK referential action; no execution path, no risk-gate behaviour, no async-core orchestration, no live-activation flag touched. The remaining work items (F401 / MIN-01 / MIN-02 / ROADMAP / state sync) carry no runtime claim.
 - **Validation Target:**
-  - `ruff check .` clean (verified locally — "All checks passed!")
+  - `ruff check projects/polymarket/crusaderbot/` clean (verified locally — "All checks passed!"); repo-root `ruff check .` not clean due to pre-existing lib/ F401s tracked under deferred `WARP/LIB-F401-CLEANUP` lane (see Known Issues)
   - `python3 -m py_compile` clean on all 8 touched code files (verified locally)
   - `pytest -q` 464/464 — CI verifies (sandbox cannot collect; see Known Issues)
   - Migration 013 idempotent on re-run; behavioural impact bounded to `copy_trade_events` audit-row retention semantics; UNIQUE composite remains intact

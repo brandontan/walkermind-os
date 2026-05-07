@@ -1,4 +1,4 @@
-Last Updated : 2026-05-08 04:57 Asia/Jakarta
+Last Updated : 2026-05-08 05:30 Asia/Jakarta
 Status       : Pre-flight cleanup lane open on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (STANDARD, reclassified from MINOR — migration 013 changes copy_trade_events FK referential action). PR #899 awaiting WARP🔹CMD review. P3d MERGED (PR #897). 464/464 tests green at last green CI. Awaiting R12 final Fly.io deployment.
 
 [COMPLETED]
@@ -36,5 +36,6 @@ Status       : Pre-flight cleanup lane open on WARP/CRUSADERBOT-PREFLIGHT-CLEANU
 - /deposit no tier gate (intentional, non-blocking)
 - services/* dead code (LOW, post-R12 cleanup)
 - check_alchemy_ws is TCP-only (no full WS handshake) — follow-up
+- lib/ F401 leakage (LOW, 5 occurrences across lib/strategies/logic_arb.py, lib/strategies/value_investor.py, lib/strategies/weather_arb.py, lib/strategy_base.py) — pre-existing repo-root ruff failure surfaced by Codex on PR #899; deferred to WARP/LIB-F401-CLEANUP (post-demo MINOR) per WARP🔹CMD scope-boundary hold; cross-project impact requires audit before cleanup
 
 <!-- CD verify: 2026-05-08 00:30 -->
