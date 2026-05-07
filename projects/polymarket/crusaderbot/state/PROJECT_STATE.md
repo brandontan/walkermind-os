@@ -1,5 +1,5 @@
-Last Updated : 2026-05-07 20:22 Asia/Jakarta
-Status       : P3c Signal Following strategy MERGED PR #892 (5ee8487e), SENTINEL APPROVED 100/100, 428/428 tests green. P3d — Per-user signal scan loop + execution queue wiring — is the next active MAJOR lane. R12 final Fly.io deployment blocked on P3d + activation guard review. Activation guards NOT SET.
+Last Updated : 2026-05-07 20:43 Asia/Jakarta
+Status       : P3c Signal Following strategy MERGED PR #892 (5ee8487e), SENTINEL APPROVED 100/100, 428/428 tests green. PR #894 post-merge state sync closed. P3d — Per-user signal scan loop + execution queue wiring — is the next active MAJOR lane. R12 final Fly.io deployment blocked on P3d + activation guard review. Activation guards NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -43,4 +43,4 @@ Status       : P3c Signal Following strategy MERGED PR #892 (5ee8487e), SENTINEL
 - MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred follow-up)
 - ROADMAP R12d/R12e/R12f lane IDs use original planned names (Live Opt-In Checklist / Live→Paper Fallback / Daily P&L); PROJECT_STATE + WORKTODO use actual executed names (Telegram Position UX / Auto-Redeem / Operator Dashboard) — deferred ROADMAP restructure, WARP🔹CMD decision required
 
-<!-- CD verify: 2026-05-07 20:22 -->
+<!-- CD verify: 2026-05-07 20:43 -->

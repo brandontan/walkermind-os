@@ -1,14 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-07 20:22 Asia/Jakarta
+**Last Updated:** 2026-05-07 20:43 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- P3c -- Signal Following strategy -- MERGED PR #892 (5ee8487e), SENTINEL APPROVED 100/100. Lane closed.
-- P3d -- Per-user signal scan loop + execution queue wiring (MAJOR) -- next active lane. Not started. Dispatch after this sync merges.
+- P3d -- Per-user signal scan loop + execution queue wiring (MAJOR) -- active lane. Ready to dispatch. PR #894 state sync merged.
 - R12 final deployment -- blocked on P3d complete + activation guards reviewed by WARP🔹CMD.
 
 ---
