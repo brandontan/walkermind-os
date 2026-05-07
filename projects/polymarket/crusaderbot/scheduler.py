@@ -22,6 +22,7 @@ from .domain.risk.gate import GateContext, evaluate
 from .domain.signal.copy_trade import CopyTradeStrategy
 from .integrations import polygon, polymarket
 from .jobs import daily_pnl_summary
+from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
 from .users import set_tier
@@ -456,6 +457,8 @@ def setup_scheduler() -> AsyncIOScheduler:
                   id="deposit_watch", max_instances=1, coalesce=True)
     sched.add_job(run_signal_scan, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
                   id="signal_scan", max_instances=1, coalesce=True)
+    sched.add_job(sf_scan_job.run_once, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
+                  id="signal_following_scan", max_instances=1, coalesce=True)
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,
                   id="exit_watch", max_instances=1, coalesce=True)
     sched.add_job(redeem_hourly, "interval", seconds=s.REDEEM_INTERVAL,

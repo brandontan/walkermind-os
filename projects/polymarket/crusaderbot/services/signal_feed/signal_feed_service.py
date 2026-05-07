@@ -270,6 +270,16 @@ async def subscribe(
                 uuid_user, uuid_feed,
             )
             if existing is not None:
+                # Backfill enrollment for pre-existing subscribers who have no
+                # user_strategies row yet.  DO NOTHING preserves intentional
+                # operator disables — this path must not re-enable them.
+                await conn.execute(
+                    "INSERT INTO user_strategies "
+                    "    (user_id, strategy_name, weight, enabled) "
+                    "VALUES ($1, 'signal_following', 1.0, TRUE) "
+                    "ON CONFLICT (user_id, strategy_name) DO NOTHING",
+                    uuid_user,
+                )
                 return "exists"
 
             active_count = int(await conn.fetchval(
@@ -291,6 +301,14 @@ async def subscribe(
                 "       updated_at = NOW() "
                 " WHERE id = $1",
                 uuid_feed,
+            )
+            # Enroll user in strategy plane so the signal_following scan loop
+            # picks them up. ON CONFLICT re-enables if they previously unsub'd.
+            await conn.execute(
+                "INSERT INTO user_strategies (user_id, strategy_name, weight, enabled) "
+                "VALUES ($1, 'signal_following', 1.0, TRUE) "
+                "ON CONFLICT (user_id, strategy_name) DO UPDATE SET enabled = TRUE",
+                uuid_user,
             )
             return "subscribed"
 
@@ -333,6 +351,19 @@ async def unsubscribe(
                 " WHERE id = $1",
                 uuid_feed,
             )
+            # Disable strategy enrollment when no active subscriptions remain.
+            remaining = int(await conn.fetchval(
+                "SELECT COUNT(*) FROM user_signal_subscriptions "
+                " WHERE user_id = $1 AND unsubscribed_at IS NULL",
+                uuid_user,
+            ))
+            if remaining == 0:
+                await conn.execute(
+                    "UPDATE user_strategies "
+                    "   SET enabled = FALSE "
+                    " WHERE user_id = $1 AND strategy_name = 'signal_following'",
+                    uuid_user,
+                )
             return True
 
 

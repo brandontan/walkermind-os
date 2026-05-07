@@ -1082,6 +1082,79 @@ def test_unsubscribe_returns_true_and_decrements_count():
     assert len(decs) == 1
 
 
+def test_subscribe_upserts_user_strategies_when_already_subscribed():
+    # User already has an active subscription (existing is not None path).
+    # The upsert must still run so pre-existing subscribers get enrolled.
+    conn = _AtomicConn(
+        feed_row={"status": "active"},
+        existing_sub_row={"id": uuid4()},  # already subscribed
+        active_count=1,
+    )
+    with _patch_svc_pool(conn):
+        result = asyncio.run(svc.subscribe(
+            user_id=_USER_UUID, feed_id=_FEED_UUID,
+        ))
+    assert result == "exists"
+    strategy_inserts = [
+        e for e in conn.sql_log
+        if e[0] == "execute" and "INSERT INTO user_strategies" in e[1]
+    ]
+    assert len(strategy_inserts) == 1
+    assert "signal_following" in strategy_inserts[0][1]
+
+
+def test_subscribe_upserts_user_strategies_on_success():
+    conn = _AtomicConn(
+        feed_row={"status": "active"},
+        existing_sub_row=None,
+        active_count=0,
+    )
+    with _patch_svc_pool(conn):
+        result = asyncio.run(svc.subscribe(
+            user_id=_USER_UUID, feed_id=_FEED_UUID,
+        ))
+    assert result == "subscribed"
+    strategy_inserts = [
+        e for e in conn.sql_log
+        if e[0] == "execute" and "INSERT INTO user_strategies" in e[1]
+    ]
+    assert len(strategy_inserts) == 1
+    assert "signal_following" in strategy_inserts[0][1]
+    assert "ON CONFLICT" in strategy_inserts[0][1]
+
+
+def test_unsubscribe_disables_strategy_when_last_subscription():
+    conn = _AtomicConn(unsub_returning={"id": uuid4()}, active_count=0)
+    with _patch_svc_pool(conn):
+        flipped = asyncio.run(svc.unsubscribe(
+            user_id=_USER_UUID, feed_id=_FEED_UUID,
+        ))
+    assert flipped is True
+    disables = [
+        e for e in conn.sql_log
+        if e[0] == "execute"
+        and "UPDATE user_strategies" in e[1]
+        and "enabled = FALSE" in e[1]
+    ]
+    assert len(disables) == 1
+
+
+def test_unsubscribe_keeps_strategy_enabled_when_other_subs_remain():
+    conn = _AtomicConn(unsub_returning={"id": uuid4()}, active_count=1)
+    with _patch_svc_pool(conn):
+        flipped = asyncio.run(svc.unsubscribe(
+            user_id=_USER_UUID, feed_id=_FEED_UUID,
+        ))
+    assert flipped is True
+    disables = [
+        e for e in conn.sql_log
+        if e[0] == "execute"
+        and "UPDATE user_strategies" in e[1]
+        and "enabled = FALSE" in e[1]
+    ]
+    assert len(disables) == 0
+
+
 # ---------------------------------------------------------------------------
 # /signals Telegram handler — Tier gate + slug validation + cap surfacing
 # ---------------------------------------------------------------------------
