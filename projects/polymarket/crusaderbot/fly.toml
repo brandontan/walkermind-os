@@ -6,7 +6,7 @@
 # Set them via `fly secrets set KEY=VALUE -a crusaderbot` before deploying.
 
 app = "crusaderbot"
-primary_region = "sin"       # Singapore — closest to Asia/Jakarta
+primary_region = "iad"       # Ashburn — matches deployed machine region (CMD ratified 2026-05-08)
 kill_signal = "SIGTERM"
 kill_timeout = "30s"
 

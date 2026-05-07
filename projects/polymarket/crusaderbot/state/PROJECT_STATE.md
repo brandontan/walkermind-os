@@ -1,5 +1,5 @@
-Last Updated : 2026-05-08 05:30 Asia/Jakarta
-Status       : Pre-flight cleanup lane open on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (STANDARD, reclassified from MINOR — migration 013 changes copy_trade_events FK referential action). PR #899 awaiting WARP🔹CMD review. P3d MERGED (PR #897). 464/464 tests green at last green CI. Awaiting R12 final Fly.io deployment.
+Last Updated : 2026-05-08 14:00 Asia/Jakarta
+Status       : R12 final Fly.io deployment Lane 1B PR OPEN on WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY (MAJOR, NARROW INTEGRATION — downgraded from issue-stated FULL RUNTIME because operator-executed prod verification cannot be run from the WARP•FORGE sandbox). Sentry SDK wiring (DSN-gated no-op when unset), POST /admin/sentry-test verification endpoint, /health demo-readiness contract (status / uptime_seconds / version / mode / timestamp + R12b deep-deps), fly.toml primary_region sin → iad, /kill and /resume Telegram aliases, 3 runbooks (alerts.md, kill-switch-procedure.md, rollback-procedure.md). 473/473 tests green (was 464). Pre-flight cleanup PR #899 still awaiting CMD review (separate lane). CHECKPOINT 1 — HARD PAUSE: awaiting WARP🔹CMD review + WARP•SENTINEL audit + operator-executed prod verification per runbooks before Lane 1C dispatch.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -25,17 +25,21 @@ Status       : Pre-flight cleanup lane open on WARP/CRUSADERBOT-PREFLIGHT-CLEANU
 
 [IN PROGRESS]
 - Pre-flight cleanup lane on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (STANDARD, NARROW INTEGRATION — reclassified from MINOR per Codex P2 finding; CMD-ratified): 15 F401 cleared across 7 files, MIN-01 user_id annotations on 3 copy_trade handler helpers, MIN-02 dispatcher phase comment, MIN-03 migration 013 (copy_trade_events.copy_target_id FK referential action ON DELETE CASCADE → ON DELETE SET NULL — audit rows survive parent delete), ROADMAP R12d/R12e/R12f naming aligned to actual executed lanes. PR #899.
+- R12 final Fly.io deployment Lane 1B on WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY (MAJOR, NARROW INTEGRATION — issue #900). Sentry SDK + /admin/sentry-test + /health demo-readiness + fly.toml sin→iad + /kill /resume aliases + 3 runbooks. PR open. CHECKPOINT 1 — HARD PAUSE awaiting CMD review, SENTINEL audit, operator-executed prod verification per runbooks. 473/473 tests green.
 
 [NOT STARTED]
-- R12 — Deployment (Fly.io) final (MAJOR — P3d unblock complete, activation guards review required before live)
+- R12 final Fly.io deployment Lane 1C — demo data seeding (MINOR, idempotent, gated on Lane 1B merge per batch checkpoint protocol)
+- R12 final Fly.io deployment Lane 2C — Telegram demo polish (MINOR, gated on Lane 1C merge)
 
 [NEXT PRIORITY]
-- R12 final Fly.io deployment (MAJOR — last R12 lane). Activation sequence gated on EXECUTION_PATH_VALIDATED + CAPITAL_MODE_CONFIRMED + ENABLE_LIVE_TRADING — review required before any flag is set.
+- WARP🔹CMD review + WARP•SENTINEL audit on R12 Lane 1B PR. Then operator executes the prod verification checklist per the three new runbooks (Sentry test event, Fly.io alert simulation, /kill ack < 3s, /resume, rollback dry-run) and confirms timings. Activation guards (EXECUTION_PATH_VALIDATED, CAPITAL_MODE_CONFIRMED, ENABLE_LIVE_TRADING) remain NOT SET throughout.
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)
 - services/* dead code (LOW, post-R12 cleanup)
 - check_alchemy_ws is TCP-only (no full WS handshake) — follow-up
 - lib/ F401 leakage (LOW, 5 occurrences across lib/strategies/logic_arb.py, lib/strategies/value_investor.py, lib/strategies/weather_arb.py, lib/strategy_base.py) — pre-existing repo-root ruff failure surfaced by Codex on PR #899; deferred to WARP/LIB-F401-CLEANUP (post-demo MINOR) per WARP🔹CMD scope-boundary hold; cross-project impact requires audit before cleanup
+- ENABLE_LIVE_TRADING code default in config.py:88 is True (legacy); fly.toml [env] block overrides to "false" so prod posture is correct. Code default disagrees with intent of "all guards default OFF" — flag for SENTINEL, deferred to a post-demo MINOR alignment lane.
+- R12 Lane 1B prod verification artefacts (Sentry test event in prod project, Fly.io alert simulation timings, kill-switch end-to-end timings, rollback dry-run outcome) are runbook-documented but operator-executed; not produced by WARP•FORGE — see reports/forge/r12-prod-paper-deploy.md §5.
 
 <!-- CD verify: 2026-05-08 00:30 -->

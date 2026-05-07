@@ -521,6 +521,39 @@ async def killswitch_command(update: Update,
     )
 
 
+async def kill_command(update: Update,
+                       ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """``/kill`` — operator alias for ``/killswitch pause`` (demo-readiness).
+
+    Kept as a thin wrapper so the demo flow ("/kill" → /resume) shown to
+    investors maps onto the existing audited kill_switch path. Same
+    operator-only gate applies.
+    """
+    if not _is_operator(update) or update.message is None:
+        await _reject_silently(update)
+        return
+    await _apply_killswitch_action(
+        "pause",
+        actor_id=update.effective_user.id if update.effective_user else None,
+        reply=update.message.reply_text,
+        broadcast_via_ctx=ctx,
+    )
+
+
+async def resume_command(update: Update,
+                         ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """``/resume`` — operator alias for ``/killswitch resume``."""
+    if not _is_operator(update) or update.message is None:
+        await _reject_silently(update)
+        return
+    await _apply_killswitch_action(
+        "resume",
+        actor_id=update.effective_user.id if update.effective_user else None,
+        reply=update.message.reply_text,
+        broadcast_via_ctx=ctx,
+    )
+
+
 # --------------------------------------------------------------------------
 # /jobs
 # --------------------------------------------------------------------------

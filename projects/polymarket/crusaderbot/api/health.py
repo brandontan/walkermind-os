@@ -6,18 +6,70 @@ Alchemy WS) and returns the aggregated verdict. The endpoint is wired
 into the operator-alert dispatcher: a failure observed for two
 consecutive checks pages the operator (subject to a 5-minute cooldown).
 
+The response payload includes both:
+  - the R12b deep-dependency keys (``service``, ``checks``, ``ready``)
+    used by the alert dispatcher and existing probes; and
+  - the demo-readiness keys (``status``, ``uptime_seconds``, ``version``,
+    ``mode``, ``timestamp``) consumed by Fly.io HTTP health checks and
+    the operator dashboard.
+
+``mode`` reads the three operator activation guards
+(``ENABLE_LIVE_TRADING``, ``EXECUTION_PATH_VALIDATED``,
+``CAPITAL_MODE_CONFIRMED``) and reports ``"paper"`` whenever any of them
+is unset — i.e. the runtime is locked to paper unless ALL three are
+explicitly opened. This is the same contract the risk gate enforces.
+
 ``GET /ready`` is preserved for backwards compatibility with prior
 Fly.io / load-balancer probes; it now mirrors the ``ready`` boolean from
 the same aggregated check.
 """
 from __future__ import annotations
 
+import time
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Response
 
+from ..config import get_settings
 from ..monitoring import alerts as monitoring_alerts
 from ..monitoring.health import run_health_checks
 
 router = APIRouter()
+
+# Captured once at module import so /health reports time since process boot.
+_PROCESS_START_MONOTONIC: float = time.monotonic()
+
+
+def _uptime_seconds() -> int:
+    return int(time.monotonic() - _PROCESS_START_MONOTONIC)
+
+
+def _resolve_mode() -> str:
+    """Return ``"paper"`` unless every operator activation guard is open.
+
+    Mirrors the contract documented in the issue brief: the runtime
+    advertises ``paper`` whenever any of the three operator guards
+    (ENABLE_LIVE_TRADING, EXECUTION_PATH_VALIDATED, CAPITAL_MODE_CONFIRMED)
+    is unset. Live mode requires ALL three explicitly True.
+    """
+    s = get_settings()
+    if s.ENABLE_LIVE_TRADING and s.EXECUTION_PATH_VALIDATED and s.CAPITAL_MODE_CONFIRMED:
+        return "live"
+    return "paper"
+
+
+def _resolve_version() -> str:
+    """Return the deployed build identifier, or ``"unknown"``.
+
+    Production sets ``APP_VERSION`` (typically a git short SHA) at deploy
+    time. Falls back to the literal ``"unknown"`` so /health is still
+    parseable in environments where the build pipeline did not stamp it.
+    """
+    return (get_settings().APP_VERSION or "unknown").strip() or "unknown"
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 @router.get("/health")
@@ -31,7 +83,19 @@ async def health(response: Response):
     # extend /health latency. Cooldown + threshold gating live inside the
     # alerts module; the background task swallows + logs any failure.
     monitoring_alerts.schedule_health_record(result)
-    return result
+    # Demo-readiness fields layered on top of the R12b deep-deps result.
+    # Order is preserved so manual JSON inspection sees the operational
+    # summary first.
+    return {
+        "status": result["status"],
+        "uptime_seconds": _uptime_seconds(),
+        "version": _resolve_version(),
+        "mode": _resolve_mode(),
+        "timestamp": _now_iso(),
+        "service": result["service"],
+        "checks": result["checks"],
+        "ready": result["ready"],
+    }
 
 
 @router.get("/ready")

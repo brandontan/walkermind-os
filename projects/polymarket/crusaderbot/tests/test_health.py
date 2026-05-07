@@ -133,6 +133,10 @@ def test_health_response_shape_keys_are_stable():
     finally:
         for p in patches:
             p.stop()
+    # ``run_health_checks`` returns the dependency-layer payload; the demo
+    # readiness fields (``uptime_seconds``, ``version``, ``mode``,
+    # ``timestamp``) are layered on at the route level — see
+    # ``test_health_route_demo_readiness_fields`` for that contract.
     assert set(result.keys()) == {"status", "service", "checks", "ready"}
 
 
@@ -657,3 +661,243 @@ def test_record_health_result_resets_on_recovery():
         # After recovery the next single failure should NOT alert again.
         _run(monitoring_alerts.record_health_result(bad))
     assert sent == []
+
+
+# ---------------------------------------------------------------------------
+# R12 demo-readiness — /health route shape + activation-guard mode resolution
+# ---------------------------------------------------------------------------
+
+
+def _build_test_app():
+    """Mount only the health and admin routers on a fresh FastAPI app.
+
+    Avoids triggering the production lifespan (DB pool, Telegram bot,
+    scheduler) which would require live infra credentials. The route
+    handlers themselves are pure I/O against ``run_health_checks`` and the
+    admin token, so a minimal app is sufficient for shape testing.
+    """
+    from fastapi import FastAPI
+    from projects.polymarket.crusaderbot.api import admin as api_admin
+    from projects.polymarket.crusaderbot.api import health as api_health
+
+    app = FastAPI()
+    app.include_router(api_health.router)
+    app.include_router(api_admin.router)
+    return app
+
+
+def _stub_run_health_checks_ok(monkeypatch):
+    """Patch ``run_health_checks`` to return an all-ok result."""
+    async def _fake():
+        return {
+            "status": "ok",
+            "service": "CrusaderBot",
+            "checks": {"database": "ok", "telegram": "ok",
+                       "alchemy_rpc": "ok", "alchemy_ws": "ok"},
+            "ready": True,
+        }
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.run_health_checks",
+        _fake,
+    )
+
+
+def test_health_route_demo_readiness_fields(monkeypatch):
+    """``GET /health`` must return the brief-required keys alongside the
+    deep-deps R12b shape: status, uptime_seconds, version, mode, timestamp.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.get_settings",
+        lambda: MagicMock(
+            ENABLE_LIVE_TRADING=False,
+            EXECUTION_PATH_VALIDATED=False,
+            CAPITAL_MODE_CONFIRMED=False,
+            APP_VERSION="abc1234",
+        ),
+    )
+    # Avoid triggering Telegram alerts during the test.
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+
+    client = TestClient(_build_test_app())
+    r = client.get("/health")
+    assert r.status_code == 200
+    body = r.json()
+    for key in ("status", "uptime_seconds", "version", "mode", "timestamp",
+                "service", "checks", "ready"):
+        assert key in body, f"missing top-level key: {key}"
+    assert body["status"] == "ok"
+    assert body["mode"] == "paper"
+    assert body["version"] == "abc1234"
+    assert isinstance(body["uptime_seconds"], int) and body["uptime_seconds"] >= 0
+    # Timestamp must be an ISO-8601 UTC string (Z suffix per the helper).
+    assert body["timestamp"].endswith("Z")
+
+
+def test_health_mode_paper_when_any_guard_off(monkeypatch):
+    """``mode`` reads activation guards: ``paper`` if any of
+    EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING
+    is unset. Live mode requires ALL three explicitly True.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+    client = TestClient(_build_test_app())
+
+    cases = [
+        # (ENABLE_LIVE, EXEC_VALIDATED, CAPITAL_CONFIRMED, expected mode)
+        (False, False, False, "paper"),
+        (True,  False, False, "paper"),
+        (True,  True,  False, "paper"),
+        (False, True,  True,  "paper"),
+        (True,  True,  True,  "live"),
+    ]
+    for enable_live, exec_v, cap_v, expected in cases:
+        monkeypatch.setattr(
+            "projects.polymarket.crusaderbot.api.health.get_settings",
+            lambda e=enable_live, x=exec_v, c=cap_v: MagicMock(
+                ENABLE_LIVE_TRADING=e,
+                EXECUTION_PATH_VALIDATED=x,
+                CAPITAL_MODE_CONFIRMED=c,
+                APP_VERSION="t",
+            ),
+        )
+        r = client.get("/health")
+        assert r.json()["mode"] == expected, (
+            f"guards=({enable_live}, {exec_v}, {cap_v}) "
+            f"expected mode={expected} got={r.json()['mode']}"
+        )
+
+
+def test_health_version_falls_back_to_unknown(monkeypatch):
+    """When ``APP_VERSION`` is unset the version field reads ``"unknown"``
+    rather than the literal ``None`` so JSON consumers do not have to
+    branch on type.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.get_settings",
+        lambda: MagicMock(
+            ENABLE_LIVE_TRADING=False,
+            EXECUTION_PATH_VALIDATED=False,
+            CAPITAL_MODE_CONFIRMED=False,
+            APP_VERSION=None,
+        ),
+    )
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+    client = TestClient(_build_test_app())
+    r = client.get("/health")
+    assert r.json()["version"] == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# R12 demo-readiness — /admin/sentry-test admin gate + DSN-unset behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_admin_sentry_test_requires_admin_token(monkeypatch):
+    """Without ``ADMIN_API_TOKEN`` the endpoint is disabled (503); with the
+    token set, requests missing or mis-supplying the bearer are rejected.
+    """
+    from fastapi.testclient import TestClient
+
+    # Disabled when ADMIN_API_TOKEN unset.
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.admin.get_settings",
+        lambda: MagicMock(ADMIN_API_TOKEN=None),
+    )
+    client = TestClient(_build_test_app())
+    r = client.post("/admin/sentry-test")
+    assert r.status_code == 503
+
+    # Enabled — wrong token rejected, missing token rejected.
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.admin.get_settings",
+        lambda: MagicMock(ADMIN_API_TOKEN="t-secret"),
+    )
+    r = client.post("/admin/sentry-test")
+    assert r.status_code == 403
+    r = client.post("/admin/sentry-test", headers={"Authorization": "Bearer wrong"})
+    assert r.status_code == 403
+
+
+def test_admin_sentry_test_reports_dsn_unset_when_not_initialised(monkeypatch):
+    """When the SDK was never initialised the endpoint returns ``ok=False``
+    with a runbook-actionable reason rather than 500ing.
+    """
+    from fastapi.testclient import TestClient
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monitoring_sentry.reset_for_tests()
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.admin.get_settings",
+        lambda: MagicMock(ADMIN_API_TOKEN="t"),
+    )
+    client = TestClient(_build_test_app())
+    r = client.post(
+        "/admin/sentry-test",
+        headers={"Authorization": "Bearer t"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body == {
+        "ok": False,
+        "reason": "sentry_not_initialised",
+        "hint": "set SENTRY_DSN as a Fly.io secret and redeploy",
+    }
+
+
+def test_admin_sentry_test_returns_event_id_when_initialised(monkeypatch):
+    """When Sentry is active the endpoint returns the captured event id."""
+    from fastapi.testclient import TestClient
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.admin.get_settings",
+        lambda: MagicMock(ADMIN_API_TOKEN="t"),
+    )
+    monkeypatch.setattr(monitoring_sentry, "_initialised", True, raising=False)
+    monkeypatch.setattr(
+        monitoring_sentry,
+        "capture_test_event",
+        lambda message: "evt-fake-id-123",
+    )
+    try:
+        client = TestClient(_build_test_app())
+        r = client.post(
+            "/admin/sentry-test",
+            headers={"Authorization": "Bearer t"},
+        )
+        assert r.status_code == 200
+        assert r.json() == {"ok": True, "event_id": "evt-fake-id-123"}
+    finally:
+        monitoring_sentry.reset_for_tests()
+
+
+def test_init_sentry_noop_when_dsn_unset(monkeypatch):
+    """``init_sentry`` must be a quiet no-op when ``SENTRY_DSN`` is unset
+    so local / CI runs never ship synthetic events to the prod project.
+    """
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monitoring_sentry.reset_for_tests()
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.monitoring.sentry.get_settings",
+        lambda: MagicMock(SENTRY_DSN=None),
+    )
+    assert monitoring_sentry.init_sentry() is False
+    assert monitoring_sentry.is_initialised() is False

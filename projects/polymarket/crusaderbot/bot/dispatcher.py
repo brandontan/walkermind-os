@@ -59,6 +59,11 @@ def register(app: Application) -> None:
     # R12f operator dashboard / ops plane.
     app.add_handler(CommandHandler("ops_dashboard", admin.ops_dashboard_command))
     app.add_handler(CommandHandler("killswitch", admin.killswitch_command))
+    # Demo-readiness operator aliases — map to /killswitch pause / resume
+    # so the investor-facing flow ("/kill" → "/resume") goes through the
+    # same audited path.
+    app.add_handler(CommandHandler("kill", admin.kill_command))
+    app.add_handler(CommandHandler("resume", admin.resume_command))
     app.add_handler(CommandHandler("jobs", admin.jobs_command))
     app.add_handler(CommandHandler("auditlog", admin.auditlog_command))
     # Copy-trade strategy command surface.

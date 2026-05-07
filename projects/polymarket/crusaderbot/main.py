@@ -18,6 +18,7 @@ from .config import get_settings, validate_required_env
 from .database import close_pool, init_pool, run_migrations
 from .domain.strategy import bootstrap_default_strategies
 from .monitoring import alerts as monitoring_alerts
+from .monitoring import sentry as monitoring_sentry
 from .monitoring.health import run_health_checks
 from .monitoring.logging import RequestLogMiddleware, configure_json_logging
 from .scheduler import setup_scheduler
@@ -38,6 +39,11 @@ _webhook_mode_active: bool = False
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global bot_app, scheduler_app, _webhook_secret, _webhook_mode_active
+    # Initialise Sentry first so any subsequent boot-time exception is
+    # captured. No-op when SENTRY_DSN is unset (local / CI). Failure to
+    # init must not block FastAPI startup — handled inside the helper.
+    monitoring_sentry.init_sentry()
+
     # Log missing REQUIRED env vars (key names only — values never logged) so
     # that the operator can correlate /health "down" / "degraded" states with
     # configuration drift. Boot continues; surfacing happens via /health.
