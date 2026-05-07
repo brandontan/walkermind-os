@@ -1,14 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-07 20:51 Asia/Jakarta
+**Last Updated:** 2026-05-08 01:34 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- P3d -- Per-user signal scan loop + execution queue wiring (MAJOR) -- FORGE COMPLETE. WARP•SENTINEL validation pending before merge.
-- R12 final deployment -- blocked on P3d SENTINEL approved + activation guards reviewed by WARP🔹CMD.
+- R12 final Fly.io deployment -- next lane (MAJOR). Activation guards review required before any live flag is set.
 
 ---
 
@@ -18,7 +17,7 @@
 - [x] P3b -- Copy Trade strategy -- MERGED PR #877 (2026-05-06) a369129d, MAJOR, SENTINEL CONDITIONAL 71/100 resolved
   - Migration runner path fix: PR #881 MERGED (2026-05-06) 538fd999 — 008+009 now in migrations/
 - [x] P3c -- Signal Following strategy -- MERGED PR #892 (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
-- [ ] P3d -- Per-user signal scan loop + execution queue wiring -- NOT STARTED (MAJOR -- wires registry into risk gate)
+- [x] P3d -- Per-user signal scan loop + execution queue wiring -- MERGED PR #897 (bb08092), MAJOR, SENTINEL APPROVED 94/100
 
 Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wired through risk gate, SENTINEL APPROVED before live activation.
 
@@ -35,7 +34,7 @@ Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wi
 - [x] R12 Live Readiness -- Live Opt-In Checklist (8 gates + audit + /live_checklist + CONFIRM dialog) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Live to Paper Auto-Fallback (router + risk gate + kill switch lock cascade) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Daily P&L Summary (cron 23:00 Jakarta + /summary_on /summary_off) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
-- [ ] R12 -- Deployment (Fly.io) final -- NOT STARTED (MAJOR -- blocked on P3d + activation guards reviewed)
+- [ ] R12 -- Deployment (Fly.io) final -- NOT STARTED (MAJOR -- P3d unblock complete, activation guards review required before live)
 
 Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD before final deployment.
 

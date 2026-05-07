@@ -1,4 +1,4 @@
-Last Updated : 2026-05-08 00:30 Asia/Jakarta
+Last Updated : 2026-05-08 01:34 Asia/Jakarta
 Status       : P3d MERGED (PR #897, bb08092). 464/464 tests green. Strategy plane complete. Awaiting R12 final Fly.io deployment.
 
 [COMPLETED]
@@ -42,4 +42,4 @@ Status       : P3d MERGED (PR #897, bb08092). 464/464 tests green. Strategy plan
 - MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred follow-up)
 - ROADMAP R12d/R12e/R12f lane IDs use original planned names (Live Opt-In Checklist / Live→Paper Fallback / Daily P&L); PROJECT_STATE + WORKTODO use actual executed names (Telegram Position UX / Auto-Redeem / Operator Dashboard) — deferred ROADMAP restructure, WARP🔹CMD decision required
 
-<!-- CD verify: 2026-05-08 00:30 -->
+<!-- CD verify: 2026-05-08 01:34 -->
