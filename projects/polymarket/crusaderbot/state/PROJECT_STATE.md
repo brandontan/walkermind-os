@@ -10,8 +10,7 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist
 - R12b — Fly.io health probes + operator alerts + JSON logging (PR #856 merged)
 - PR #857 — chore: state sync post-PR #856
 - PR #858 — chore: state sync post-PR #857
-- PR #860 — chore: state sync post-PR #858
-- PR #861 — chore: ROADMAP R12b drift fix + WORKTODO init (STANDARD, merged)
+- PR #860 — chore: ROADMAP R12b drift fix + WORKTODO init (STANDARD, merged)
 - R12a — CI/CD Pipeline GitHub Actions + Fly.io — PR #855 MERGED 2026-05-04 (STANDARD)
 - R12c — Auto-Close / Take-Profit exit watcher — PR #865 MERGED 2026-05-05 (MAJOR, SENTINEL APPROVED 95/100)
 - R12d — Telegram Position UX (live monitor + force close) — PR #868 MERGED 4f5e12201964 (STANDARD)
@@ -43,3 +42,5 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Live Opt-In Checklist
 - MIN-02 P3b: phase comment in dispatcher.py (deferred follow-up)
 - MIN-03 P3b: copy_trade_events.copy_target_id nullable FK (deferred follow-up)
 - ROADMAP R12d/R12e/R12f lane IDs use original planned names (Live Opt-In Checklist / Live→Paper Fallback / Daily P&L); PROJECT_STATE + WORKTODO use actual executed names (Telegram Position UX / Auto-Redeem / Operator Dashboard) — deferred ROADMAP restructure, WARP🔹CMD decision required
+
+<!-- CD verify: 2026-05-06 -->
