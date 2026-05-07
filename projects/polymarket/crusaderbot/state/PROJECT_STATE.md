@@ -1,5 +1,5 @@
-Last Updated : 2026-05-07 12:52 Asia/Jakarta
-Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot directory cleanup in PR (MINOR, Issue #890). 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). Activation guards NOT SET.
+Last Updated : 2026-05-07 13:30 Asia/Jakarta
+Status       : Legacy polyquantbot directory REMOVED PR #891 (MINOR). 331/331 tests green. R12 remaining: final Fly.io deployment (MAJOR, blocked on P3c/P3d). P3c is next lane. Activation guards NOT SET.
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -19,9 +19,10 @@ Status       : R12 live readiness MERGED PR #883 5a9cb22a. Legacy polyquantbot d
 - P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + migration 008) — PR #876 MERGED 2026-05-05 (STANDARD, FOUNDATION)
 - P3b — Copy Trade strategy (CopyTradeStrategy + scaler + wallet_watcher + migration 009 + /copytrade Telegram + registry bootstrap) — PR #877 MERGED 2026-05-06 a369129d (MAJOR, SENTINEL CONDITIONAL 71/100 resolved)
 - R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR #883 MERGED 5a9cb22a (STANDARD, NARROW INTEGRATION)
+- Cleanup legacy polyquantbot directory + refs — PR #891 MERGED WARP/CRUSADERBOT-CLEANUP-POLYQUANTBOT (MINOR, Issue #890)
 
 [IN PROGRESS]
-- Cleanup legacy polyquantbot directory — PR open WARP/CRUSADERBOT-CLEANUP-POLYQUANTBOT (MINOR, Issue #890)
+- None
 
 [NOT STARTED]
 - R12 — Deployment (Fly.io) final (MAJOR — blocked on P3c/P3d complete)

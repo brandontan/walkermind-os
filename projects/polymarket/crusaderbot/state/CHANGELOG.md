@@ -1,3 +1,4 @@
+2026-05-07 13:30 Asia/Jakarta | WARP/project-state-synchronization | post-merge state sync PR #891: polyquantbot cleanup lane closed — [IN PROGRESS] → [COMPLETED], WORKTODO Right Now updated, P3c is next lane.
 2026-05-07 12:52 Asia/Jakarta | WARP/CRUSADERBOT-CLEANUP-POLYQUANTBOT | chore: remove legacy polyquantbot directory, delete phase9_1_runtime_proof.yml and .ona/automations.yaml, update 5 doc files (polyquantbot refs → crusaderbot). Issue #890. Tier: MINOR.
 2026-05-06 07:27 Asia/Jakarta | WARP/CRUSADERBOT-R12-POST-MERGE-SYNC | [CORRECTION] "All drift resolved" in run-3 entry was premature — ROADMAP R12d/e/f lane naming drift vs PROJECT_STATE+WORKTODO is deferred in KNOWN ISSUES, not resolved. Status-field sync (❌→✅) is complete. Naming restructure requires WARP🔹CMD decision.
 2026-05-06 07:20 Asia/Jakarta | WARP/CRUSADERBOT-R12-POST-MERGE-SYNC | state sync run 3 — forge report updated to close Issue #888. All drift resolved. Tier: MINOR.

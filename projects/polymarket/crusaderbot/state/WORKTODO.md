@@ -1,14 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-07 12:52 Asia/Jakarta
+**Last Updated:** 2026-05-07 13:30 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- Cleanup legacy polyquantbot directory -- PR open WARP/CRUSADERBOT-CLEANUP-POLYQUANTBOT (MINOR, Issue #890). Awaiting WARP🔹CMD review.
-- P3c -- Signal Following strategy -- next lane after cleanup merged (MAJOR). WARP🔹CMD to assign branch and scope.
+- P3c -- Signal Following strategy -- next lane (MAJOR). WARP🔹CMD to assign branch and scope.
 - R12 final deployment -- blocked on P3c + P3d complete + activation guards reviewed by WARP🔹CMD.
 
 ---
