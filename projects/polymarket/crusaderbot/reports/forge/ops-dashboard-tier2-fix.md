@@ -36,17 +36,30 @@ Behaviour:
 - All work runs in one DB transaction so a partial failure rolls the
   batch back. Audit writes are best-effort and never break the seed.
 
-Exit codes:
+Internal status codes (returned by `_run()` for tests + programmatic
+callers; the CLI entrypoint `main()` ALWAYS exits 0 so Fly's
+release_command never aborts the deploy on a recoverable seeder
+failure):
 - `0` — seed applied or already in place (no-op).
 - `2` — `ADMIN_USER_IDS` unset / empty / unparseable. Logged at WARNING.
-  Fly deploy must NOT fail when the operator forgets the secret.
 - `3` — `DATABASE_URL` missing.
-- `4` — DB error (network blip, schema not migrated yet).
+- `4` — DB error (network blip, schema not migrated yet — notably the
+  very first deploy where `run_migrations()` runs in the app lifespan
+  AFTER the release_command).
 
 Wiring: added `[deploy] release_command = "python -m
-projects.polymarket.crusaderbot.scripts.seed_operator_tier"` to
-`fly.toml`. The release_command runs after build, before the new
-release becomes primary, on every deploy.
+crusaderbot.scripts.seed_operator_tier"` to `fly.toml`. The release
+hook runs after build, before the new release becomes primary, on
+every deploy. The dotted path here is the *installed* package path —
+the Fly Dockerfile installs the project as top-level `crusaderbot`
+(`include = ["crusaderbot*"]` in `pyproject.toml`), NOT as
+`projects.polymarket.crusaderbot` which only exists in the dev repo
+layout. The CLI entrypoint `main()` always exits 0 even on the
+documented warn / error paths so Fly's release_command (which aborts
+the deploy on any non-zero exit) never blocks a release on a missing
+operator secret, missing `DATABASE_URL`, or a transient DB blip
+(notably first-deploy where `run_migrations()` has not yet run — that
+happens later in the app lifespan).
 
 ### `/ops` HTML dashboard (`api/ops.py`)
 Single-page operator console served as inline HTML — no JS bundle, no

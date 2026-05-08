@@ -14,19 +14,42 @@ are inserted with sensible defaults (auto_trade_on=FALSE, paused=FALSE,
 no wallet — the operator must run /start once to provision a wallet).
 
 The seeder is wired into the Fly release_command so it runs on every
-deploy. It is also safe to invoke manually::
+deploy. In the Fly image the package installs as top-level
+``crusaderbot``, so the production invocation is::
+
+    python -m crusaderbot.scripts.seed_operator_tier
+
+In the development repo the package lives under
+``projects/polymarket/crusaderbot/`` and pytest's ``conftest.py`` adds
+the repo root to ``sys.path``, so the equivalent local invocation is::
 
     ADMIN_USER_IDS=123456,789012 \
     python -m projects.polymarket.crusaderbot.scripts.seed_operator_tier
 
-Exit codes
-----------
+Process exit code
+-----------------
+The CLI entry point (``main``) ALWAYS exits 0 so Fly's release_command
+never aborts the deploy. Fly fails any release whose hook returns a
+non-zero code, but every failure mode of this seeder is recoverable
+without rolling the release back:
+
+* Missing ``ADMIN_USER_IDS`` — the operator simply hasn't supplied the
+  secret yet; the bot still runs, /kill / /resume still work, and the
+  next deploy after the secret is set will pick the operators up.
+* Missing ``DATABASE_URL`` — the app itself cannot start without it
+  and will surface the failure through /health, not the seeder.
+* DB error — transient connectivity, OR (on the very first deploy)
+  the schema does not exist yet because ``run_migrations()`` runs in
+  the app lifespan AFTER the release_command. The seeder logs the
+  error and the operator can re-run it after the bot is up. A future
+  enhancement is to gate the seed on a "migrations applied" probe.
+
+Internal status codes (returned by ``_run`` for tests + programmatic
+callers, but always wrapped to exit 0 by ``main``):
     0  seed applied (or already in place — no-op)
-    2  ADMIN_USER_IDS unset / empty / unparseable (warn-only — Fly deploy
-       must NOT fail because the operator forgot to set the secret)
-    3  DATABASE_URL missing (deploy must NOT block on a misconfigured DB
-       string — log + exit 3 so the platform can surface it via /health)
-    4  database error (network blip, schema not migrated yet)
+    2  ADMIN_USER_IDS unset / empty / unparseable
+    3  DATABASE_URL missing
+    4  database error
 
 Audit
 -----
@@ -201,11 +224,21 @@ async def _run() -> int:
 
 
 def main() -> int:
+    """CLI entry point — always exits 0 so Fly's release_command does not
+    abort the deploy. The inner status code is logged for diagnostics.
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    return asyncio.run(_run())
+    inner_rc = asyncio.run(_run())
+    if inner_rc != 0:
+        logger.warning(
+            "seed_operator_tier finished with internal status %d but "
+            "exiting 0 so Fly release_command does not abort the deploy",
+            inner_rc,
+        )
+    return 0
 
 
 if __name__ == "__main__":

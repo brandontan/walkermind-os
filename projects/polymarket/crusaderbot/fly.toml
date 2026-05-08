@@ -14,12 +14,17 @@ kill_timeout = "30s"
   dockerfile = "Dockerfile"
 
 # Release-time hook. Runs after build, before the new release becomes the
-# primary. Tier 2 operator seeder is idempotent and exits 0 / 2 / 3 / 4 —
-# only 4 is a hard DB error. Exit codes 2/3 (env unset) log a warning but
-# do NOT fail the deploy: the bot is still useful without operator seeding,
-# and the platform will surface the missing secret via /health.
+# primary. The Fly image installs the project as the top-level package
+# ``crusaderbot`` (see Dockerfile + pyproject.toml ``packages.find`` glob
+# ``crusaderbot*``), so the dotted module path here is the installed
+# ``crusaderbot.scripts.seed_operator_tier`` — NOT the repo-root
+# ``projects.polymarket.crusaderbot.scripts.seed_operator_tier`` path used
+# in dev. The seeder always exits 0 even on warn / error paths so Fly
+# never aborts a release on a missing ADMIN_USER_IDS / DATABASE_URL or a
+# transient DB blip (schema may not exist yet on the very first deploy —
+# run_migrations() runs in the app lifespan, AFTER release_command).
 [deploy]
-  release_command = "python -m projects.polymarket.crusaderbot.scripts.seed_operator_tier"
+  release_command = "python -m crusaderbot.scripts.seed_operator_tier"
 
 # Non-secret env only. Activation guards default to OFF — flip via
 # `fly secrets set` after WARP🔹CMD owner gate + SENTINEL approval.

@@ -280,6 +280,45 @@ def test_run_returns_4_on_db_error(monkeypatch):
     assert rc == 4
 
 
+# ---------------------------------------------------------------------------
+# main() — Fly release_command exit-code wrapper
+# ---------------------------------------------------------------------------
+
+
+def test_main_returns_zero_when_inner_run_returns_zero(monkeypatch):
+    """Happy path: inner _run returned 0, main returns 0."""
+
+    async def _ok():
+        return 0
+
+    monkeypatch.setattr(seed, "_run", _ok)
+    assert seed.main() == 0
+
+
+@pytest.mark.parametrize("inner_rc", [2, 3, 4])
+def test_main_swallows_nonzero_inner_run_for_fly_deploy(monkeypatch, caplog, inner_rc):
+    """Fly's release_command aborts the deploy on any non-zero exit. The
+    seeder's internal failure modes (missing env, missing DSN, DB blip on
+    first deploy before migrations) are ALL recoverable without rolling
+    back the release, so main() must wrap them to exit 0 and only log
+    the inner status code for diagnostics.
+    """
+
+    async def _failing():
+        return inner_rc
+
+    monkeypatch.setattr(seed, "_run", _failing)
+    with caplog.at_level("WARNING"):
+        rc = seed.main()
+    assert rc == 0, (
+        f"main() returned {rc} for inner_rc={inner_rc}; Fly release_command "
+        "would have aborted the deploy"
+    )
+    assert any(
+        "exiting 0" in rec.getMessage() for rec in caplog.records
+    ), "main() should log the swallowed inner status code at WARNING"
+
+
 def test_run_returns_0_on_success(monkeypatch, fake_conn_factory):
     monkeypatch.setenv("ADMIN_USER_IDS", "123,456")
     monkeypatch.setenv("DATABASE_URL", "postgresql://x")
