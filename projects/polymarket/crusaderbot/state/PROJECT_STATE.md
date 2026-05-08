@@ -1,5 +1,5 @@
-Last Updated : 2026-05-08 09:35 Asia/Jakarta
-Status       : Lane 1C (CRU-5, demo data seeding) PR OPENED on WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION. Adds migration 014_add_is_demo_flag.sql (additive is_demo BOOLEAN on 10 tables, 4 partial indexes, in-file rollback block), seed_demo_data.py (DEMO_SEED_ALLOW=1 gated, idempotent), cleanup_demo_data.py (DEMO_CLEANUP_CONFIRM=1 gated, demo-only deletes, post-commit verify), docs/runbook/demo-data.md. 514/514 tests green (was 501). No runtime path touched. Activation guards remain NOT SET. Lane 2C MERGED via PR #907 (Telegram demo polish, MINOR). R12 Lane 1B MERGED PR #901. Operator prod verification per runbooks pending — 7 deferred artefacts (Issue #900). SENTINEL REQUIRED before merge per CRU-5 directive.
+Last Updated : 2026-05-08 16:45 Asia/Jakarta
+Status       : Lane 1C (CRU-5, demo data seeding) PR #908 SENTINEL APPROVED 98/100, zero P0/P1, 4 P2 (3 doc-row 32→34 drifts, 1 docstring `--allow-empty` flag stub, 1 migration comment about table rewrite — all post-merge OK). 514/514 tests green. Ruff clean on project scope. All BLOCK criteria explicitly evaluated and not triggered. Cleared for WARP🔹CMD merge decision. Activation guards remain NOT SET. Lane 2C MERGED via PR #907. R12 Lane 1B MERGED PR #901. Operator prod verification per runbooks pending — 7 deferred artefacts (Issue #900).
 
 [COMPLETED]
 - R12e — Auto-Redeem System — PR #869 MERGED 7f8af0b90993 (MAJOR, SENTINEL CONDITIONAL 64/100 — conditions resolved PR #879)
@@ -15,16 +15,15 @@ Status       : Lane 1C (CRU-5, demo data seeding) PR OPENED on WARP/CRUSADERBOT-
 - Lane 2C — Telegram demo polish (CRU-6) — PR #907 MERGED (MINOR, Claim NONE, WARP/CRUSADERBOT-DEMO-POLISH). /about + /status + /demo + refreshed /start + /help. 60s per-user rate limit on /demo. 22 new tests, 501/501 green at merge.
 
 [IN PROGRESS]
-- Lane 1C — Demo Data Seeding (CRU-5) PR OPEN on WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION / SENTINEL REQUIRED. Migration 014 (is_demo flag on 10 tables + rollback block), seed_demo_data.py (DEMO_SEED_ALLOW=1), cleanup_demo_data.py (DEMO_CLEANUP_CONFIRM=1, post-commit verify), docs/runbook/demo-data.md. Forward + idempotent re-run + rollback + re-apply all clean against fresh DB. Seed produces 12 demo markets, 2 feeds, 2 demo users, 10 pubs, 32 paper trades over 7 days; /signals catalog shows 2 active feeds; /pnl ledger sums non-trivial today. Cleanup deletes 135 demo rows leaving 4 non-demo records intact. 514/514 tests green. Awaiting WARP•SENTINEL audit.
+- Lane 1C — Demo Data Seeding (CRU-5) PR #908 SENTINEL APPROVED 98/100, awaiting WARP🔹CMD merge. WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION. Migration 014 (is_demo flag on 10 tables + rollback block), seed_demo_data.py (DEMO_SEED_ALLOW=1), cleanup_demo_data.py (DEMO_CLEANUP_CONFIRM=1, post-commit verify), docs/runbook/demo-data.md. Forward + idempotent re-run + rollback + re-apply all clean against fresh DB. Seed produces 12 demo markets, 2 feeds, 2 demo users, 10 pubs, 34 paper trades over 7 days; /signals catalog shows 2 active feeds; /pnl ledger sums non-trivial today. Cleanup deletes 135 demo rows leaving non-demo records intact (every DELETE WHERE is_demo=TRUE or FK-chain-to-is_demo=TRUE; single transaction; post-commit verify). 514/514 tests green. Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/demo-seed-data.md.
 
 [NOT STARTED]
-- WARP•SENTINEL Lane 1C audit and verdict.
-- R12 final Fly.io deployment closure (after Lane 1C SENTINEL APPROVED + operator prod verification artefacts attached to Issue #900).
+- R12 final Fly.io deployment closure (after Lane 1C MERGED + operator prod verification artefacts attached to Issue #900).
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for Lane 1C — Demo Data Seeding before merge. Source: projects/polymarket/crusaderbot/reports/forge/demo-seed-data.md. Tier STANDARD with explicit SENTINEL gate per CRU-5 task header.
+- WARP🔹CMD merge decision on PR #908 (Lane 1C SENTINEL APPROVED 98/100). Optional pre-merge fix-forward on three doc-row 32→34 drifts (forge §1, CHANGELOG entry, runbook table) — non-blocking.
 - Operator executes 7 prod verification artefacts per runbooks (Issue #900): /health 200 in prod, Sentry test event in prod project, Fly.io alert simulation, /kill ack < 3s, /resume, /ops_dashboard screenshot, rollback dry-run.
-- WARP🔹CMD merge decision on Lane 1C after SENTINEL verdict. Activation guards remain NOT SET throughout.
+- Activation guards remain NOT SET throughout.
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)
