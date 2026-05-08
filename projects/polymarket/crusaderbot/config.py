@@ -68,6 +68,18 @@ class Settings(BaseSettings):
     # --- Admin REST API (disabled when unset) ---
     ADMIN_API_TOKEN: Optional[str] = None
 
+    # --- Sentry-related app metadata ---
+    # SENTRY_DSN and SENTRY_TRACES_SAMPLE_RATE are intentionally NOT declared
+    # on Settings: monitoring.sentry reads them directly from os.environ to
+    # keep Sentry init independent of the rest of the app config (a
+    # malformed sample-rate env value would otherwise break every later
+    # get_settings() call and turn an optional observability knob into a
+    # boot blocker — see Codex P2 on PR #901).
+    #
+    # APP_VERSION is kept here because /health surfaces it; Optional[str]
+    # cannot fail validation, so this stays safe.
+    APP_VERSION: Optional[str] = None
+
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None

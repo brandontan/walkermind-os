@@ -13,6 +13,7 @@ from fastapi import APIRouter, Header, HTTPException
 
 from ..config import get_settings
 from ..database import get_pool, is_kill_switch_active, set_kill_switch
+from ..monitoring import sentry as monitoring_sentry
 from .. import scheduler
 
 router = APIRouter(prefix="/admin")
@@ -150,3 +151,28 @@ async def force_redeem(authorization: str | None = Header(default=None)):
     _check(token)
     await scheduler.redeem_hourly()
     return {"ok": True}
+
+
+@router.post("/sentry-test")
+async def sentry_test(authorization: str | None = Header(default=None)):
+    """Fire a synthetic Sentry event to verify production wiring.
+
+    Returns ``{"ok": True, "event_id": "<id>"}`` when the SDK is initialised
+    and capture succeeded; ``{"ok": False, ...}`` (200) otherwise so the
+    operator runbook can distinguish "DSN not set" from "endpoint forbidden".
+    Bearer-protected: same gate as the other ``/admin`` routes.
+    """
+    token = authorization.removeprefix("Bearer ").strip() if authorization else None
+    _check(token)
+    if not monitoring_sentry.is_initialised():
+        return {
+            "ok": False,
+            "reason": "sentry_not_initialised",
+            "hint": "set SENTRY_DSN as a Fly.io secret and redeploy",
+        }
+    event_id = monitoring_sentry.capture_test_event(
+        "CrusaderBot /admin/sentry-test verification event"
+    )
+    if not event_id:
+        return {"ok": False, "reason": "capture_returned_none"}
+    return {"ok": True, "event_id": event_id}

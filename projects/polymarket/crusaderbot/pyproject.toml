@@ -19,6 +19,7 @@ dependencies = [
     "py-clob-client",
     "tenacity>=8.2",
     "eth-account>=0.10",
+    "sentry-sdk[fastapi]>=2.0",
 ]
 
 [build-system]

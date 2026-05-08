@@ -133,6 +133,10 @@ def test_health_response_shape_keys_are_stable():
     finally:
         for p in patches:
             p.stop()
+    # ``run_health_checks`` returns the dependency-layer payload; the demo
+    # readiness fields (``uptime_seconds``, ``version``, ``mode``,
+    # ``timestamp``) are layered on at the route level — see
+    # ``test_health_route_demo_readiness_fields`` for that contract.
     assert set(result.keys()) == {"status", "service", "checks", "ready"}
 
 
@@ -657,3 +661,411 @@ def test_record_health_result_resets_on_recovery():
         # After recovery the next single failure should NOT alert again.
         _run(monitoring_alerts.record_health_result(bad))
     assert sent == []
+
+
+# ---------------------------------------------------------------------------
+# R12 demo-readiness — /health route shape + activation-guard mode resolution
+# ---------------------------------------------------------------------------
+
+
+def _build_test_app():
+    """Mount only the health and admin routers on a fresh FastAPI app.
+
+    Avoids triggering the production lifespan (DB pool, Telegram bot,
+    scheduler) which would require live infra credentials. The route
+    handlers themselves are pure I/O against ``run_health_checks`` and the
+    admin token, so a minimal app is sufficient for shape testing.
+    """
+    from fastapi import FastAPI
+    from projects.polymarket.crusaderbot.api import admin as api_admin
+    from projects.polymarket.crusaderbot.api import health as api_health
+
+    app = FastAPI()
+    app.include_router(api_health.router)
+    app.include_router(api_admin.router)
+    return app
+
+
+def _stub_run_health_checks_ok(monkeypatch):
+    """Patch ``run_health_checks`` to return an all-ok result."""
+    async def _fake():
+        return {
+            "status": "ok",
+            "service": "CrusaderBot",
+            "checks": {"database": "ok", "telegram": "ok",
+                       "alchemy_rpc": "ok", "alchemy_ws": "ok"},
+            "ready": True,
+        }
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.run_health_checks",
+        _fake,
+    )
+
+
+def test_health_route_demo_readiness_fields(monkeypatch):
+    """``GET /health`` must return the brief-required keys alongside the
+    deep-deps R12b shape: status, uptime_seconds, version, mode, timestamp.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.get_settings",
+        lambda: MagicMock(
+            ENABLE_LIVE_TRADING=False,
+            EXECUTION_PATH_VALIDATED=False,
+            CAPITAL_MODE_CONFIRMED=False,
+            APP_VERSION="abc1234",
+        ),
+    )
+    # Avoid triggering Telegram alerts during the test.
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+
+    client = TestClient(_build_test_app())
+    r = client.get("/health")
+    assert r.status_code == 200
+    body = r.json()
+    for key in ("status", "uptime_seconds", "version", "mode", "timestamp",
+                "service", "checks", "ready"):
+        assert key in body, f"missing top-level key: {key}"
+    assert body["status"] == "ok"
+    assert body["mode"] == "paper"
+    assert body["version"] == "abc1234"
+    assert isinstance(body["uptime_seconds"], int) and body["uptime_seconds"] >= 0
+    # Timestamp must be an ISO-8601 UTC string (Z suffix per the helper).
+    assert body["timestamp"].endswith("Z")
+
+
+def test_health_mode_paper_when_any_guard_off(monkeypatch):
+    """``mode`` reads activation guards: ``paper`` if any of
+    EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED / ENABLE_LIVE_TRADING
+    is unset. Live mode requires ALL three explicitly True.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+    client = TestClient(_build_test_app())
+
+    cases = [
+        # (ENABLE_LIVE, EXEC_VALIDATED, CAPITAL_CONFIRMED, expected mode)
+        (False, False, False, "paper"),
+        (True,  False, False, "paper"),
+        (True,  True,  False, "paper"),
+        (False, True,  True,  "paper"),
+        (True,  True,  True,  "live"),
+    ]
+    for enable_live, exec_v, cap_v, expected in cases:
+        monkeypatch.setattr(
+            "projects.polymarket.crusaderbot.api.health.get_settings",
+            lambda e=enable_live, x=exec_v, c=cap_v: MagicMock(
+                ENABLE_LIVE_TRADING=e,
+                EXECUTION_PATH_VALIDATED=x,
+                CAPITAL_MODE_CONFIRMED=c,
+                APP_VERSION="t",
+            ),
+        )
+        r = client.get("/health")
+        assert r.json()["mode"] == expected, (
+            f"guards=({enable_live}, {exec_v}, {cap_v}) "
+            f"expected mode={expected} got={r.json()['mode']}"
+        )
+
+
+def test_health_version_falls_back_to_unknown(monkeypatch):
+    """When neither ``APP_VERSION`` nor ``FLY_IMAGE_REF`` is set the
+    version field reads ``"unknown"`` rather than the literal ``None`` so
+    JSON consumers do not have to branch on type.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.get_settings",
+        lambda: MagicMock(
+            ENABLE_LIVE_TRADING=False,
+            EXECUTION_PATH_VALIDATED=False,
+            CAPITAL_MODE_CONFIRMED=False,
+            APP_VERSION=None,
+        ),
+    )
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+    monkeypatch.delenv("FLY_IMAGE_REF", raising=False)
+    client = TestClient(_build_test_app())
+    r = client.get("/health")
+    assert r.json()["version"] == "unknown"
+
+
+def test_health_version_falls_back_to_fly_image_ref(monkeypatch):
+    """Codex P2: when ``APP_VERSION`` is unset (manual ``flyctl deploy``
+    that bypassed the CD workflow's git-SHA stamping, or a rollback to a
+    previous image), the route must surface a stable identifier from
+    Fly's documented machine runtime env ``FLY_IMAGE_REF`` so the
+    rollback runbook's "/health .version differs per release" check
+    still passes. The deployment ULID is extracted and prefixed with
+    ``fly-`` so consumers can distinguish it from a git SHA at a glance.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.get_settings",
+        lambda: MagicMock(
+            ENABLE_LIVE_TRADING=False,
+            EXECUTION_PATH_VALIDATED=False,
+            CAPITAL_MODE_CONFIRMED=False,
+            APP_VERSION=None,
+        ),
+    )
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+    monkeypatch.setenv(
+        "FLY_IMAGE_REF",
+        "registry.fly.io/crusaderbot:deployment-01H4D7M0J3K2P5N1Q8R6S9T2X4",
+    )
+    client = TestClient(_build_test_app())
+    r = client.get("/health")
+    assert r.json()["version"] == "fly-01H4D7M0J3K2P5N1Q8R6S9T2X4"
+
+
+def test_health_version_app_version_takes_precedence_over_fly(monkeypatch):
+    """When both env vars are set, ``APP_VERSION`` (the CD-stamped git
+    short SHA) wins over ``FLY_IMAGE_REF``. Ordering matters because the
+    rollback runbook expects a SHA when the CD path is healthy and the
+    fly fallback only when it isn't.
+    """
+    from fastapi.testclient import TestClient
+
+    _stub_run_health_checks_ok(monkeypatch)
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.get_settings",
+        lambda: MagicMock(
+            ENABLE_LIVE_TRADING=False,
+            EXECUTION_PATH_VALIDATED=False,
+            CAPITAL_MODE_CONFIRMED=False,
+            APP_VERSION="abc1234",
+        ),
+    )
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
+        lambda result: None,
+    )
+    monkeypatch.setenv(
+        "FLY_IMAGE_REF",
+        "registry.fly.io/crusaderbot:deployment-01H4D7M0J3K2P5N1Q8R6S9T2X4",
+    )
+    client = TestClient(_build_test_app())
+    r = client.get("/health")
+    assert r.json()["version"] == "abc1234"
+
+
+def test_extract_fly_image_id_handles_known_forms():
+    """Edge cases for ``_extract_fly_image_id``: tag form, deployment-
+    prefix stripping, bare tag, sha form, and empty input.
+    """
+    from projects.polymarket.crusaderbot.api.health import _extract_fly_image_id
+
+    # Standard Fly tag with deployment- prefix → bare ULID.
+    assert _extract_fly_image_id(
+        "registry.fly.io/crusaderbot:deployment-01H4D7M0J3K2P5N1"
+    ) == "01H4D7M0J3K2P5N1"
+    # Plain tag without deployment- prefix → tag verbatim.
+    assert _extract_fly_image_id(
+        "registry.fly.io/crusaderbot:v1.2.3"
+    ) == "v1.2.3"
+    # Bare image id (no colon) → returned as-is.
+    assert _extract_fly_image_id("01H4D7M0J3K2P5N1") == "01H4D7M0J3K2P5N1"
+    # Empty / whitespace → None.
+    assert _extract_fly_image_id("") is None
+    assert _extract_fly_image_id("   ") is None
+    # None-safe.
+    assert _extract_fly_image_id(None) is None  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# R12 demo-readiness — /admin/sentry-test admin gate + DSN-unset behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_admin_sentry_test_requires_admin_token(monkeypatch):
+    """Without ``ADMIN_API_TOKEN`` the endpoint is disabled (503); with the
+    token set, requests missing or mis-supplying the bearer are rejected.
+    """
+    from fastapi.testclient import TestClient
+
+    # Disabled when ADMIN_API_TOKEN unset.
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.admin.get_settings",
+        lambda: MagicMock(ADMIN_API_TOKEN=None),
+    )
+    client = TestClient(_build_test_app())
+    r = client.post("/admin/sentry-test")
+    assert r.status_code == 503
+
+    # Enabled — wrong token rejected, missing token rejected.
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.admin.get_settings",
+        lambda: MagicMock(ADMIN_API_TOKEN="t-secret"),
+    )
+    r = client.post("/admin/sentry-test")
+    assert r.status_code == 403
+    r = client.post("/admin/sentry-test", headers={"Authorization": "Bearer wrong"})
+    assert r.status_code == 403
+
+
+def test_admin_sentry_test_reports_dsn_unset_when_not_initialised(monkeypatch):
+    """When the SDK was never initialised the endpoint returns ``ok=False``
+    with a runbook-actionable reason rather than 500ing.
+    """
+    from fastapi.testclient import TestClient
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monitoring_sentry.reset_for_tests()
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.admin.get_settings",
+        lambda: MagicMock(ADMIN_API_TOKEN="t"),
+    )
+    client = TestClient(_build_test_app())
+    r = client.post(
+        "/admin/sentry-test",
+        headers={"Authorization": "Bearer t"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body == {
+        "ok": False,
+        "reason": "sentry_not_initialised",
+        "hint": "set SENTRY_DSN as a Fly.io secret and redeploy",
+    }
+
+
+def test_admin_sentry_test_returns_event_id_when_initialised(monkeypatch):
+    """When Sentry is active the endpoint returns the captured event id."""
+    from fastapi.testclient import TestClient
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monkeypatch.setattr(
+        "projects.polymarket.crusaderbot.api.admin.get_settings",
+        lambda: MagicMock(ADMIN_API_TOKEN="t"),
+    )
+    monkeypatch.setattr(monitoring_sentry, "_initialised", True, raising=False)
+    monkeypatch.setattr(
+        monitoring_sentry,
+        "capture_test_event",
+        lambda message: "evt-fake-id-123",
+    )
+    try:
+        client = TestClient(_build_test_app())
+        r = client.post(
+            "/admin/sentry-test",
+            headers={"Authorization": "Bearer t"},
+        )
+        assert r.status_code == 200
+        assert r.json() == {"ok": True, "event_id": "evt-fake-id-123"}
+    finally:
+        monitoring_sentry.reset_for_tests()
+
+
+def test_init_sentry_noop_when_dsn_unset(monkeypatch):
+    """``init_sentry`` must be a quiet no-op when ``SENTRY_DSN`` is unset
+    so local / CI runs never ship synthetic events to the prod project.
+
+    Reads from ``os.environ`` directly (not via ``Settings``) so a
+    partially-configured environment cannot raise a pydantic
+    ``ValidationError`` and break the no-op contract.
+    """
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monitoring_sentry.reset_for_tests()
+    monkeypatch.delenv("SENTRY_DSN", raising=False)
+    assert monitoring_sentry.init_sentry() is False
+    assert monitoring_sentry.is_initialised() is False
+
+
+def test_init_sentry_noop_does_not_depend_on_required_app_env(monkeypatch):
+    """Codex P2: ``init_sentry`` must NOT construct the full ``Settings``
+    model — doing so would validate required app secrets like
+    ``TELEGRAM_BOT_TOKEN`` / ``DATABASE_URL`` and raise
+    ``pydantic.ValidationError`` in a partially-configured env, breaking
+    the documented quiet-no-op contract. Sentry init must be entirely
+    independent of the rest of app config so it can run *first* in the
+    lifespan hook and capture any subsequent settings-validation
+    failures.
+
+    Strip every required app secret from the env, leave SENTRY_DSN
+    unset, and assert that init_sentry returns False without raising.
+    """
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monitoring_sentry.reset_for_tests()
+    for required in (
+        "SENTRY_DSN", "TELEGRAM_BOT_TOKEN", "OPERATOR_CHAT_ID", "DATABASE_URL",
+        "POLYGON_RPC_URL", "ALCHEMY_POLYGON_RPC_URL", "ALCHEMY_POLYGON_WS_URL",
+        "WALLET_HD_SEED", "WALLET_ENCRYPTION_KEY",
+    ):
+        monkeypatch.delenv(required, raising=False)
+    # Must NOT raise — and must be a quiet no-op return.
+    assert monitoring_sentry.init_sentry() is False
+    assert monitoring_sentry.is_initialised() is False
+
+
+def test_settings_does_not_validate_sentry_traces_sample_rate(monkeypatch):
+    """Codex P2 (round 2): a malformed ``SENTRY_TRACES_SAMPLE_RATE`` Fly env
+    value (operator typo) must NOT break ``Settings()`` construction —
+    otherwise an optional observability knob becomes a boot blocker that
+    impacts every later ``get_settings()`` call (admin/health requests,
+    health probes, scheduler jobs).
+
+    Fix: ``SENTRY_TRACES_SAMPLE_RATE`` is removed from the ``Settings``
+    model entirely; ``monitoring.sentry`` reads it directly from
+    ``os.environ`` with tolerant float-parsing. This test asserts the
+    decoupling holds.
+    """
+    crusaderbot_config.get_settings.cache_clear()
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
+    monkeypatch.setenv("OPERATOR_CHAT_ID", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://x")
+    monkeypatch.setenv("WALLET_HD_SEED", "seed")
+    monkeypatch.setenv("WALLET_ENCRYPTION_KEY", "k")
+    monkeypatch.setenv("POLYGON_RPC_URL", "https://rpc")
+    monkeypatch.setenv("ALCHEMY_POLYGON_WS_URL", "wss://ws")
+    # Garbage value the operator might typo into Fly secrets:
+    monkeypatch.setenv("SENTRY_TRACES_SAMPLE_RATE", "not-a-float")
+
+    # Must NOT raise pydantic.ValidationError.
+    settings = crusaderbot_config.Settings()  # type: ignore[call-arg]
+    # Field is intentionally absent from the model now.
+    assert not hasattr(settings, "SENTRY_TRACES_SAMPLE_RATE")
+    # Settings still functions normally for the rest of the surface.
+    assert settings.TELEGRAM_BOT_TOKEN == "tok"
+
+    crusaderbot_config.get_settings.cache_clear()
+
+
+def test_init_sentry_traces_sample_rate_malformed_falls_back(monkeypatch):
+    """A malformed ``SENTRY_TRACES_SAMPLE_RATE`` env value (non-numeric)
+    must fall back to 0.0 rather than raising — env-reads cannot block
+    boot. The call returns False because no DSN is set, but it must
+    return without an exception even with the malformed value present.
+    """
+    from projects.polymarket.crusaderbot.monitoring import sentry as monitoring_sentry
+
+    monitoring_sentry.reset_for_tests()
+    monkeypatch.delenv("SENTRY_DSN", raising=False)
+    monkeypatch.setenv("SENTRY_TRACES_SAMPLE_RATE", "not-a-float")
+    # _read_traces_sample_rate is only called when DSN is set, so this
+    # asserts the no-op path doesn't reach into env parsing prematurely.
+    # Direct unit check on the helper too:
+    assert monitoring_sentry._read_traces_sample_rate() == 0.0
+    assert monitoring_sentry.init_sentry() is False
