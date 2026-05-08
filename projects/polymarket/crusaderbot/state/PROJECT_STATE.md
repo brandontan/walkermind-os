@@ -23,7 +23,7 @@ Status       : Ops dashboard + Tier 2 operator seed (WARP/CRUSADERBOT-OPS-DASHBO
 
 [NEXT PRIORITY]
 - WARP🔹CMD review + merge decision on WARP/CRUSADERBOT-OPS-DASHBOARD-TIER2-FIX (STANDARD / NARROW INTEGRATION, SENTINEL not required).
-- Operator sets `ADMIN_USER_IDS` Fly secret (comma-separated Telegram user ids) so the release_command has work to do on next deploy.
+- Operator sets `ADMIN_USER_IDS` Fly secret (comma-separated Telegram user ids) so the release_command has work to do on next deploy. Also set `OPS_SECRET` Fly secret — without it `POST /ops/kill` and `POST /ops/resume` return 503 and the dashboard buttons stay disabled (`X-Ops-Token` header or `?token=` param required).
 - WARP🔹CMD merge decision on PR #908 (Lane 1C SENTINEL APPROVED 98/100). Optional pre-merge fix-forward on three doc-row 32→34 drifts (forge §1, CHANGELOG entry, runbook table) — non-blocking.
 - Operator executes 7 prod verification artefacts per runbooks (Issue #900): /health 200 in prod, Sentry test event in prod project, Fly.io alert simulation, /kill ack < 3s, /resume, /ops_dashboard screenshot, rollback dry-run.
 - Activation guards remain NOT SET throughout.
