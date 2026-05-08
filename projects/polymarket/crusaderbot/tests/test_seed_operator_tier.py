@@ -118,9 +118,29 @@ def test_seed_one_noop_does_not_demote_higher_tier():
 # ---------------------------------------------------------------------------
 
 
-def test_write_audit_inserts_into_audit_log():
+class _NoopTx:
+    """Async context manager mock that simulates asyncpg's nested
+    transaction (a SAVEPOINT). ``__aexit__`` returns False so any
+    exception raised inside the context propagates outward — exactly
+    what real asyncpg does with ``Transaction.__aexit__``.
+    """
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+def _conn_with_tx(execute_side_effect=None):
     conn = MagicMock()
-    conn.execute = AsyncMock()
+    conn.execute = AsyncMock(side_effect=execute_side_effect)
+    conn.transaction = MagicMock(return_value=_NoopTx())
+    return conn
+
+
+def test_write_audit_inserts_into_audit_log():
+    conn = _conn_with_tx()
 
     _run(seed._write_audit(
         conn,
@@ -135,10 +155,31 @@ def test_write_audit_inserts_into_audit_log():
     assert "INSERT INTO audit.log" in sql
 
 
+def test_write_audit_uses_nested_transaction_for_savepoint_isolation():
+    """The INSERT must run inside ``async with conn.transaction()`` so a
+    failed audit row does NOT poison the outer seed transaction.
+    PostgreSQL aborts the surrounding transaction after any failed
+    statement, so without a savepoint the seeder would fail on every
+    subsequent id in the batch with ``current transaction is aborted``.
+    """
+    conn = _conn_with_tx()
+
+    _run(seed._write_audit(
+        conn,
+        telegram_user_id=42,
+        action="inserted",
+        prev_tier=None,
+        new_tier=2,
+    ))
+    assert conn.transaction.call_count == 1, (
+        "audit write must enter a nested conn.transaction() so an audit "
+        "INSERT failure rolls back to a savepoint"
+    )
+
+
 def test_write_audit_swallows_exceptions(caplog):
     """Audit failure must never propagate out of the seeder."""
-    conn = MagicMock()
-    conn.execute = AsyncMock(side_effect=RuntimeError("audit table missing"))
+    conn = _conn_with_tx(execute_side_effect=RuntimeError("audit table missing"))
 
     with caplog.at_level("WARNING"):
         _run(seed._write_audit(
@@ -222,9 +263,12 @@ def test_seed_counts_actions_correctly(fake_conn_factory):
     conn.close.assert_awaited()
 
 
-def test_seed_runs_each_id_in_single_transaction(fake_conn_factory):
+def test_seed_runs_each_id_in_single_outer_transaction(fake_conn_factory):
     """A partial DB outage mid-loop must roll the whole batch back so the
-    operator sees a clean retry rather than half-applied state.
+    operator sees a clean retry rather than half-applied state. The
+    audit writes use nested savepoints on top so an audit failure does
+    NOT poison the outer transaction; total ``conn.transaction()``
+    calls = 1 outer + N audit savepoints (one per non-noop id).
     """
     conn = fake_conn_factory({100: None, 200: None})
 
@@ -234,8 +278,46 @@ def test_seed_runs_each_id_in_single_transaction(fake_conn_factory):
     with patch("asyncpg.connect", new=_connect):
         _run(seed.seed("postgresql://x", [100, 200]))
 
-    # ``conn.transaction()`` must have been entered exactly once.
-    assert conn.transaction.call_count == 1
+    # 1 outer batch transaction + 2 audit savepoints (both ids inserted).
+    assert conn.transaction.call_count == 3
+
+
+def test_seed_outer_transaction_survives_audit_failure(fake_conn_factory):
+    """When an audit INSERT raises, the outer seed transaction MUST
+    survive (savepoint rolls back, outer continues) and the next id in
+    the batch must still be processed. This is the regression Codex
+    flagged: without nested transactions PostgreSQL aborts the whole
+    txn after the first failed audit row.
+    """
+    conn = fake_conn_factory({100: None, 200: None})
+
+    # Stash the seeder's normal execute side effect, then wrap it so
+    # the audit INSERT for id=100 raises while every other statement
+    # behaves normally. The outer txn must keep going; id=200 must
+    # still be inserted at Tier 2.
+    state = {"audit_calls": 0}
+    real_execute = conn.execute.side_effect
+
+    async def _execute_with_audit_failure(sql, *args):
+        if "INSERT INTO audit.log" in sql:
+            state["audit_calls"] += 1
+            if state["audit_calls"] == 1:
+                raise RuntimeError("audit table missing — first row only")
+            return None
+        return await real_execute(sql, *args)
+
+    conn.execute = AsyncMock(side_effect=_execute_with_audit_failure)
+
+    async def _connect(dsn):
+        return conn
+
+    with patch("asyncpg.connect", new=_connect):
+        counts = _run(seed.seed("postgresql://x", [100, 200]))
+
+    # Both ids were inserted at Tier 2 — the audit failure on id=100
+    # did NOT prevent id=200 from being processed.
+    assert counts == {"inserted": 2, "raised": 0, "noop": 0}
+    assert state["audit_calls"] == 2  # both audit writes were attempted
 
 
 # ---------------------------------------------------------------------------

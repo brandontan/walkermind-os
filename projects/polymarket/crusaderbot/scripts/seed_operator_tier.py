@@ -144,20 +144,32 @@ async def _write_audit(
     prev_tier: int | None,
     new_tier: int,
 ) -> None:
-    """Best-effort audit write — never blocks the seeder."""
+    """Best-effort audit write — never blocks the seeder.
+
+    The INSERT runs inside a NESTED ``conn.transaction()`` so an audit
+    failure (missing ``audit`` schema on first deploy, permissions
+    drift, etc.) rolls back ONLY the savepoint and leaves the outer
+    seed transaction healthy. asyncpg implements nested transactions
+    as savepoints — without this, a failed INSERT would put the
+    surrounding transaction into an aborted state and PostgreSQL would
+    reject every subsequent statement with ``current transaction is
+    aborted``, undoing the operator-tier seed for every later id in
+    the batch.
+    """
+    payload = {
+        "telegram_user_id": telegram_user_id,
+        "action": action,
+        "prev_tier": prev_tier,
+        "new_tier": new_tier,
+        "source": "scripts.seed_operator_tier",
+    }
     try:
-        payload = {
-            "telegram_user_id": telegram_user_id,
-            "action": action,
-            "prev_tier": prev_tier,
-            "new_tier": new_tier,
-            "source": "scripts.seed_operator_tier",
-        }
-        await conn.execute(
-            "INSERT INTO audit.log (actor_role, action, payload) "
-            "VALUES ($1, $2, $3::jsonb)",
-            AUDIT_ACTOR_ROLE, AUDIT_ACTION, json.dumps(payload),
-        )
+        async with conn.transaction():
+            await conn.execute(
+                "INSERT INTO audit.log (actor_role, action, payload) "
+                "VALUES ($1, $2, $3::jsonb)",
+                AUDIT_ACTOR_ROLE, AUDIT_ACTION, json.dumps(payload),
+            )
     except Exception as exc:  # noqa: BLE001 — audit must never break seeding
         logger.warning("audit write failed for tg=%s: %s", telegram_user_id, exc)
 
