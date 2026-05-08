@@ -92,7 +92,32 @@ class Settings(BaseSettings):
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None
+    # Legacy name (still consumed by integrations.polymarket._build_clob_client
+    # which wraps py-clob-client). New ClobAdapter (Phase 4A) reads
+    # POLYMARKET_API_PASSPHRASE first, falling back to POLYMARKET_PASSPHRASE.
     POLYMARKET_PASSPHRASE: Optional[str] = None
+    POLYMARKET_API_PASSPHRASE: Optional[str] = None
+    # L1 (EIP-712) signing key used by ClobAdapter to derive API credentials
+    # and prove wallet ownership. Distinct from MASTER_WALLET_PRIVATE_KEY so
+    # the trading signer can be rotated independently from the hot pool.
+    POLYMARKET_PRIVATE_KEY: Optional[str] = None
+    # Funder address (Gnosis Safe / proxy wallet that holds USDC + CTF) used
+    # in L2 signature_type=GNOSIS_SAFE flow. None = funder defaults to signer.
+    POLYMARKET_FUNDER_ADDRESS: Optional[str] = None
+    # Signature type for L2 order signing: 0=EOA, 1=POLY_PROXY, 2=GNOSIS_SAFE.
+    # Default 2 matches the most common Polymarket account shape.
+    POLYMARKET_SIGNATURE_TYPE: int = 2
+
+    # --- Polymarket builder program (optional, order attribution) ---
+    POLYMARKET_BUILDER_API_KEY: Optional[str] = None
+    POLYMARKET_BUILDER_API_SECRET: Optional[str] = None
+    POLYMARKET_BUILDER_PASSPHRASE: Optional[str] = None
+
+    # --- ClobAdapter toggle (Phase 4A) ---
+    # Default False keeps every caller on MockClobClient (paper-safe). Real
+    # network calls are unreachable until an operator flips this AND every
+    # other activation guard. See docs/runbooks/clob-adapter.md (TBD).
+    USE_REAL_CLOB: bool = False
 
     # --- Polygon ---
     USDC_POLYGON: str = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"

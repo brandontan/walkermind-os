@@ -1,14 +1,15 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-08 18:30 Asia/Jakarta
+**Last Updated:** 2026-05-08 22:30 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- Ops dashboard + Tier 2 operator seed — WARP/CRUSADERBOT-OPS-DASHBOARD-TIER2-FIX. Tier STANDARD / Claim NARROW INTEGRATION / SENTINEL NOT REQUIRED. New api/ops.py (GET /ops HTML + POST /ops/kill + POST /ops/resume), scripts/seed_operator_tier.py wired to fly.toml [deploy] release_command, kill-switch runbook refreshed for ADMIN_USER_IDS consumption. 42 new tests (17 seed + 25 ops). 556/556 tests green. Ruff clean on changed files. Auth on /ops* deferred post-demo (in-code TODO). Awaiting WARP🔹CMD review + merge.
-- Lane 1C (CRU-5) — Demo Data Seeding — PR #908 SENTINEL APPROVED 98/100. WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION. Zero P0/P1, 4 P2 (3 doc-row 32→34 drifts, 1 docstring stub, 1 migration comment — all post-merge OK). All BLOCK criteria explicitly evaluated and not triggered. 514/514 tests green. Ruff clean. Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/demo-seed-data.md. Awaiting WARP🔹CMD merge decision. R12 Lane 1B MERGED PR #901. Lane 2C MERGED PR #907. Activation guards remain NOT SET.
+- Phase 4A CLOB Adapter — WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER. Tier MAJOR / Claim NARROW INTEGRATION / SENTINEL REQUIRED. New integrations/clob/ package: ClobAdapter (EIP-712 L1 + HMAC-SHA256 L2 + optional builder headers; 4xx surfaces typed errors without retry, 5xx tenacity backoff), MarketDataClient (unauth reads), MockClobClient (deterministic, network-free), get_clob_client() factory toggled by USE_REAL_CLOB env (default False = paper-safe; True with missing creds raises ClobConfigError). Six new optional Polymarket Settings fields + USE_REAL_CLOB. 45 new unit tests + 1 integration smoke (env-gated). 624/624 green. Ruff clean. py-clob-client.OrderBuilder still owns on-chain order schema (Phase 4C). Live callers NOT rewired (Phase 4B). Activation guards remain NOT SET. Forge: projects/polymarket/crusaderbot/reports/forge/clob-adapter.md. Awaiting WARP•SENTINEL audit.
+- Ops dashboard + Tier 2 operator seed — WARP/CRUSADERBOT-OPS-DASHBOARD-TIER2-FIX. Tier STANDARD / Claim NARROW INTEGRATION / SENTINEL NOT REQUIRED. New api/ops.py (GET /ops HTML + POST /ops/kill + POST /ops/resume), scripts/seed_operator_tier.py wired to fly.toml [deploy] release_command, kill-switch runbook refreshed for ADMIN_USER_IDS consumption. 42 new tests (17 seed + 25 ops). Ruff clean on changed files. Auth on /ops* deferred post-demo (in-code TODO). Awaiting WARP🔹CMD review + merge.
+- Lane 1C (CRU-5) — Demo Data Seeding — PR #908 SENTINEL APPROVED 98/100. WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION. Zero P0/P1, 4 P2 (3 doc-row 32→34 drifts, 1 docstring stub, 1 migration comment — all post-merge OK). All BLOCK criteria explicitly evaluated and not triggered. Ruff clean. Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/demo-seed-data.md. Awaiting WARP🔹CMD merge decision. R12 Lane 1B MERGED PR #901. Lane 2C MERGED PR #907. Activation guards remain NOT SET.
 
 ---
 
