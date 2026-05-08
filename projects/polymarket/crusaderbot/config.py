@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     # --- Admin REST API (disabled when unset) ---
     ADMIN_API_TOKEN: Optional[str] = None
 
+    # --- /ops dashboard write controls (disabled when unset) ---
+    # GET /ops stays open (read-only operator console). POST /ops/kill +
+    # POST /ops/resume require this shared secret via the ``X-Ops-Token``
+    # header OR ``?token=<value>`` query param. Disabled (503) when this
+    # value is unset. The full auth hardening lane (per-operator login,
+    # rotation, audit) is deferred post-demo — see the in-code TODO in
+    # ``api/ops.py``.
+    OPS_SECRET: Optional[str] = None
+
     # --- Sentry-related app metadata ---
     # SENTRY_DSN and SENTRY_TRACES_SAMPLE_RATE are intentionally NOT declared
     # on Settings: monitoring.sentry reads them directly from os.environ to
