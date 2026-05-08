@@ -57,19 +57,74 @@ def test_parse_ids_handles_negative_ids():
 
 def test_seed_one_inserts_when_user_missing():
     conn = MagicMock()
-    conn.fetchrow = AsyncMock(return_value=None)
-    conn.execute = AsyncMock()
+    # First fetchrow is the SELECT — returns None (no existing row).
+    # Second fetchrow is the upsert RETURNING. ``xmax = 0`` means our
+    # INSERT actually created the row (no concurrent insert happened).
+    conn.fetchrow = AsyncMock(side_effect=[
+        None,
+        {"access_tier": seed.OPERATOR_TIER, "was_inserted": True},
+    ])
 
     action, prev, new = _run(seed._seed_one(conn, 123))
 
     assert action == "inserted"
     assert prev is None
     assert new == seed.OPERATOR_TIER
-    # One INSERT was issued (user_settings is provisioned lazily on first read).
-    assert conn.execute.await_count == 1
-    sql = conn.execute.await_args.args[0]
-    assert "INSERT INTO users" in sql
-    assert "ON CONFLICT" in sql
+    # The upsert SQL is the second fetchrow call.
+    upsert_sql = conn.fetchrow.await_args_list[1].args[0]
+    assert "INSERT INTO users" in upsert_sql
+    assert "ON CONFLICT (telegram_user_id) DO UPDATE" in upsert_sql, (
+        "missing-user path must be an atomic upsert (DO UPDATE), not "
+        "DO NOTHING — see test_seed_one_atomic_upsert_handles_concurrent_insert"
+    )
+    assert "GREATEST(users.access_tier, EXCLUDED.access_tier)" in upsert_sql
+    assert "(xmax = 0) AS was_inserted" in upsert_sql
+
+
+def test_seed_one_atomic_upsert_handles_concurrent_insert_below_target():
+    """Race: ``users.upsert_user()`` from the previous app version
+    inserts the same telegram_user_id at default Tier 1 between our
+    SELECT (returned None) and our INSERT. The atomic upsert's
+    ``DO UPDATE SET access_tier=GREATEST(...)`` lifts the row to
+    Tier 2; ``xmax != 0`` flags that the conflict path fired so the
+    audit label is "raised", not "inserted".
+    """
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(side_effect=[
+        None,  # SELECT: no row yet (we read before the concurrent INSERT)
+        # Upsert RETURNING: was_inserted=False (conflict fired) +
+        # access_tier=2 (GREATEST(1, 2) = 2 — concurrent row at Tier 1
+        # was lifted to our target).
+        {"access_tier": 2, "was_inserted": False},
+    ])
+
+    action, prev, new = _run(seed._seed_one(conn, 123))
+
+    assert action == "raised", (
+        "concurrent INSERT below target must be lifted and labelled "
+        "'raised' — not silently mislabelled 'inserted'"
+    )
+    assert prev is None
+    assert new == 2
+
+
+def test_seed_one_atomic_upsert_handles_concurrent_insert_above_target():
+    """Race: a concurrent process inserted the row at Tier 4
+    between our SELECT and our upsert. ``GREATEST(4, 2) = 4`` so
+    our DO UPDATE was a no-op — the script did not change anything
+    and must label it "noop".
+    """
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(side_effect=[
+        None,
+        {"access_tier": 4, "was_inserted": False},
+    ])
+
+    action, prev, new = _run(seed._seed_one(conn, 123))
+
+    assert action == "noop"
+    assert prev is None
+    assert new == 4
 
 
 def test_seed_one_raises_tier_when_below_threshold():
@@ -258,15 +313,29 @@ def fake_conn_factory():
         state = dict(initial_rows)
 
         async def _fetchrow(sql, *args):
-            tg_id = args[0]
-            tier = state.get(tg_id)
-            if tier is None:
-                return None
-            return {"id": f"uuid-{tg_id}", "access_tier": tier}
+            # SELECT lookup before deciding insert vs update.
+            if sql.startswith("SELECT id, access_tier FROM users"):
+                tg_id = args[0]
+                tier = state.get(tg_id)
+                if tier is None:
+                    return None
+                return {"id": f"uuid-{tg_id}", "access_tier": tier}
+            # Atomic upsert RETURNING. ``xmax = 0`` is True only when
+            # this is a fresh insert; in our fake we determine that by
+            # whether the id was absent from state at call time.
+            if "INSERT INTO users" in sql and "DO UPDATE" in sql:
+                tg_id = args[0]
+                target = args[1]
+                pre = state.get(tg_id)
+                if pre is None:
+                    state[tg_id] = target
+                    return {"access_tier": target, "was_inserted": True}
+                new = max(pre, target)
+                state[tg_id] = new
+                return {"access_tier": new, "was_inserted": False}
+            return None
 
         async def _execute(sql, *args):
-            if "INSERT INTO users" in sql:
-                state[args[0]] = seed.OPERATOR_TIER
             return None
 
         async def _fetchval(sql, *args):

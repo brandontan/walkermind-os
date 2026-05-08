@@ -115,15 +115,45 @@ async def _seed_one(
         telegram_user_id,
     )
     if row is None:
-        await conn.execute(
+        # Atomic upsert that closes the same release-time concurrency
+        # window we already handle for UPDATE: if a sibling process
+        # (e.g., the previous app version still serving the same DB
+        # during a Fly release) runs ``users.upsert_user()`` between
+        # our SELECT and our INSERT, the row appears at Tier 1 — a
+        # plain ``ON CONFLICT DO NOTHING`` would skip the upgrade and
+        # falsely report "inserted" while the actual tier stayed at 1.
+        # ``ON CONFLICT DO UPDATE SET access_tier=GREATEST(...)`` is
+        # monotonic and guarantees ``access_tier >= OPERATOR_TIER``
+        # post-statement. ``xmax = 0`` on RETURNING distinguishes a
+        # true insert (xmax=0) from a conflict-path upgrade (xmax!=0)
+        # so the audit row records the correct action.
+        result = await conn.fetchrow(
             "INSERT INTO users (telegram_user_id, access_tier, "
             "auto_trade_on, paused) VALUES ($1, $2, FALSE, FALSE) "
-            "ON CONFLICT (telegram_user_id) DO NOTHING",
+            "ON CONFLICT (telegram_user_id) DO UPDATE "
+            "SET access_tier=GREATEST(users.access_tier, EXCLUDED.access_tier) "
+            "RETURNING access_tier, (xmax = 0) AS was_inserted",
             telegram_user_id, OPERATOR_TIER,
         )
+        # The DO UPDATE branch is unconditional, so RETURNING always
+        # yields one row — but stay defensive in case a fixture or
+        # future schema change ever returns None.
+        if result is None:
+            return ("noop", None, OPERATOR_TIER)
+        new_actual = int(result["access_tier"])
+        was_inserted = bool(result["was_inserted"])
         # user_settings row is created lazily on first /dashboard read
         # via users.get_settings_for(); we keep this script narrow.
-        return ("inserted", None, OPERATOR_TIER)
+        if was_inserted:
+            return ("inserted", None, new_actual)
+        if new_actual > OPERATOR_TIER:
+            # Concurrent process inserted the row at a higher tier
+            # than our target — script did not lift it.
+            return ("noop", None, new_actual)
+        # Concurrent INSERT landed at a tier below ours; our DO UPDATE
+        # path lifted it up to OPERATOR_TIER. We didn't see the row in
+        # our SELECT, so prev_tier stays None for the audit.
+        return ("raised", None, new_actual)
 
     prev = int(row["access_tier"])
     if prev >= OPERATOR_TIER:
