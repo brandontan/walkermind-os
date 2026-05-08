@@ -1,13 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-08 14:00 Asia/Jakarta
+**Last Updated:** 2026-05-08 09:30 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- R12 Lane 1B MERGED PR #901 (WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY). CHECKPOINT 1 passed. Operator executes 7 prod verification artefacts per runbooks (Issue #900). Awaiting WARP🔹CMD dispatch signal for Lane 1C. Activation guards remain NOT SET.
+- Lane 2C (CRU-6) — Telegram demo polish — PR OPEN on WARP/CRUSADERBOT-DEMO-POLISH. Tier MINOR / Claim NONE. /about + /status + /demo + refreshed /start + /help. 60s per-user rate limit on /demo. 501/501 tests green. Awaiting WARP🔹CMD review + merge. R12 Lane 1B MERGED PR #901. Lane 1C BLOCKED on operator Fly.io recovery + CMD "Lane 1C gate clear" signal. Activation guards remain NOT SET.
 
 ---
 
@@ -34,7 +34,7 @@ Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wi
 - [x] R12 Live Readiness -- Live Opt-In Checklist (8 gates + audit + /live_checklist + CONFIRM dialog) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Live to Paper Auto-Fallback (router + risk gate + kill switch lock cascade) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Daily P&L Summary (cron 23:00 Jakarta + /summary_on /summary_off) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
-- [ ] R12 -- Deployment (Fly.io) final -- Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Lane 1C (demo data seeding) and Lane 2C (Telegram polish) gated on WARP🔹CMD dispatch signal. Operator prod verification pending per runbooks (Issue #900). Activation guards remain NOT SET.
+- [ ] R12 -- Deployment (Fly.io) final -- Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Lane 2C (Telegram demo polish, CRU-6) PR OPEN on WARP/CRUSADERBOT-DEMO-POLISH (MINOR, Claim NONE). Lane 1C (demo data seeding, CRU-5) BLOCKED on operator Fly.io recovery + CMD "Lane 1C gate clear" signal. Operator prod verification pending per runbooks (Issue #900). Activation guards remain NOT SET.
 
 Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD before final deployment.
 

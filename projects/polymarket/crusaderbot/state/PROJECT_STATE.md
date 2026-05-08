@@ -1,5 +1,5 @@
-Last Updated : 2026-05-08 07:30 Asia/Jakarta
-Status       : R12 Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Pre-flight cleanup MERGED PR #899 (STANDARD, NARROW INTEGRATION). Activation guards remain NOT SET. Lane 1C (demo data seeding) and Lane 2C (Telegram polish) gated on WARP🔹CMD dispatch signal. Operator prod verification per runbooks pending — 7 deferred artefacts (Issue #900). CHECKPOINT 1 passed.
+Last Updated : 2026-05-08 09:30 Asia/Jakarta
+Status       : Lane 2C (Telegram demo polish) PR OPENED on WARP/CRUSADERBOT-DEMO-POLISH (MINOR, Claim NONE, no SENTINEL required). Adds /about, /status, /demo plus refreshed /start and /help. Read-only, no schema, no activation-guard touches. 501/501 tests green. R12 Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Activation guards remain NOT SET. Lane 1C BLOCKED on (a) operator Fly.io recovery confirmation and (b) WARP🔹CMD "Lane 1C gate clear" signal. Operator prod verification per runbooks pending — 7 deferred artefacts (Issue #900).
 
 [COMPLETED]
 - R12e — Auto-Redeem System — PR #869 MERGED 7f8af0b90993 (MAJOR, SENTINEL CONDITIONAL 64/100 — conditions resolved PR #879)
@@ -14,15 +14,16 @@ Status       : R12 Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL A
 - R12 Lane 1B — Sentry SDK wiring, /health demo-readiness, /kill /resume aliases, 3 runbooks — PR #901 MERGED (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100, WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY)
 
 [IN PROGRESS]
-- None
+- Lane 2C — Telegram demo polish (CRU-6) PR OPEN on WARP/CRUSADERBOT-DEMO-POLISH. Tier MINOR / Claim NONE. /about + /status + /demo + refreshed /start + /help. 60s per-user rate limit on /demo. 22 new tests, 501/501 green. Awaiting WARP🔹CMD review + merge decision.
 
 [NOT STARTED]
-- R12 final Fly.io deployment Lane 1C — demo data seeding (MINOR, idempotent, gated on Lane 1B merge per batch checkpoint protocol)
-- R12 final Fly.io deployment Lane 2C — Telegram demo polish (MINOR, gated on Lane 1C merge)
+- R12 final Fly.io deployment Lane 1C — demo data seeding (STANDARD, NARROW INTEGRATION, SENTINEL REQUIRED per CMD decision block). BLOCKED on (a) operator Fly.io recovery confirmation and (b) WARP🔹CMD "Lane 1C gate clear" signal.
 
 [NEXT PRIORITY]
+- WARP🔹CMD to review Lane 2C PR and decide merge.
+- Operator executes Fly.io recovery on crusaderbot.fly.dev (out of CC scope per CMD decision block).
 - Operator executes 7 prod verification artefacts per runbooks (Issue #900): /health 200 in prod, Sentry test event in prod project, Fly.io alert simulation, /kill ack < 3s, /resume, /ops_dashboard screenshot, rollback dry-run.
-- WARP🔹CMD to signal Lane 1C dispatch after prod verification complete. Activation guards remain NOT SET throughout.
+- WARP🔹CMD to signal Lane 1C dispatch after Fly.io recovery + prod verification complete. Activation guards remain NOT SET throughout.
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)
