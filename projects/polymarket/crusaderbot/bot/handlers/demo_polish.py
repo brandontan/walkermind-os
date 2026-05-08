@@ -129,8 +129,14 @@ def _format_status(health: dict[str, Any], mode: str, version: str,
     overall = (health.get("status") or "unknown").upper()
     ready = "✅ ready" if health.get("ready") else "⚠️ not ready"
     checks = health.get("checks") or {}
+    # ``state`` may be a free-form ``error: ...`` string from
+    # ``monitoring.health._with_timeout`` (e.g. ``error: TimeoutError:
+    # alchemy_ws_unreachable``). Underscores in that text would break the
+    # surrounding ``ParseMode.MARKDOWN`` reply if interpolated raw, so
+    # escape before joining. Check ``name`` is a bounded vocab from
+    # ``monitoring.health`` and stays inside its backtick code wrapper.
     checks_block = "\n".join(
-        f"  {_check_emoji(state)} `{name}` — {state}"
+        f"  {_check_emoji(state)} `{name}` — {_escape_md(state)}"
         for name, state in sorted(checks.items())
     ) or "  _(no dependency checks reported)_"
     # Demo phase line: derived from mode + ready, not invented.

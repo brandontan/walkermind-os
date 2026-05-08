@@ -183,6 +183,45 @@ def test_status_degraded_status_renders_yellow():
     assert "alchemy_rpc" in body
 
 
+def test_status_escapes_markdown_metacharacters_in_check_state():
+    """``state`` may be a free-form ``error: ...`` string from
+    ``monitoring.health._with_timeout`` containing underscores or other
+    Markdown V1 metacharacters. Without escaping, an unbalanced ``_`` in
+    a degraded state would make Telegram reject the entire /status
+    message, leaving operators blind during the very incident the
+    command is meant to surface.
+    """
+    update = _make_update(message_text="/status")
+    payload = {
+        "status": "down",
+        "service": "CrusaderBot",
+        "ready": False,
+        "checks": {
+            "alchemy_ws": "error: TimeoutError: ws_handshake_failed_*hot*",
+            "database": "ok",
+        },
+    }
+    with patch(
+        "projects.polymarket.crusaderbot.bot.handlers.demo_polish.run_health_checks",
+        new=AsyncMock(return_value=payload),
+    ), patch(
+        "projects.polymarket.crusaderbot.bot.handlers.demo_polish._resolve_mode",
+        return_value="paper",
+    ), patch(
+        "projects.polymarket.crusaderbot.bot.handlers.demo_polish._resolve_version",
+        return_value="abc1234",
+    ), patch(
+        "projects.polymarket.crusaderbot.bot.handlers.demo_polish._uptime_seconds",
+        return_value=42,
+    ):
+        _run(demo_polish.status_command(update, _ctx()))
+    body = update.message.reply_text.call_args.args[0]
+    # State string with underscores + asterisks must arrive escaped.
+    assert "ws\\_handshake\\_failed\\_\\*hot\\*" in body
+    # Check name stays inside its backtick code wrapper (literal underscore).
+    assert "`alchemy_ws`" in body
+
+
 def test_status_health_check_failure_is_handled_gracefully():
     update = _make_update(message_text="/status")
     with patch(
