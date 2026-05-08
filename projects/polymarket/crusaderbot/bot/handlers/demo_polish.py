@@ -177,8 +177,16 @@ async def status_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 # ---------------------------------------------------------------------------
 
 # Read top-3 most-recent active entry signals across active feeds. Joins
-# markets so the question text is investor-readable. Filters out exit
-# signals and expired publications.
+# markets so the question text is investor-readable. Three suppression
+# rules (mirroring ``services.signal_feed.signal_evaluator`` so /demo
+# does not advertise signals the operator has already closed):
+#     (1) the row is itself an entry (``exit_signal = FALSE``),
+#     (2) the entry has not been retired in place
+#         (``exit_published_at IS NULL``),
+#     (3) no LATER ``exit_signal = TRUE`` row exists on the same feed +
+#         market — the supported ``publish_exit`` separate-row pattern.
+# Without (3), a separate-row exit would leave the original entry
+# advertised as "live" until natural expiry.
 _RECENT_SIGNALS_SQL = """
     SELECT
         sf.name              AS feed_name,
@@ -195,6 +203,14 @@ _RECENT_SIGNALS_SQL = """
       AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
       AND sp.exit_published_at IS NULL
       AND sf.status = 'active'
+      AND NOT EXISTS (
+          SELECT 1
+            FROM signal_publications x
+           WHERE x.feed_id = sp.feed_id
+             AND x.market_id = sp.market_id
+             AND x.exit_signal = TRUE
+             AND x.published_at > sp.published_at
+      )
     ORDER BY sp.published_at DESC
     LIMIT 3
 """

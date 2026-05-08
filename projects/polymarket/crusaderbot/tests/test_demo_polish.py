@@ -475,6 +475,29 @@ def test_demo_renders_real_jsonb_string_payload_with_confidence():
     assert "—" not in body.split("Confidence: *")[1].split("*")[0]
 
 
+def test_demo_sql_excludes_signals_with_separate_exit_rows():
+    """The /demo SQL must apply the three suppression rules that the
+    evaluator's scan SQL applies, including the NOT EXISTS anti-join that
+    drops entries already closed via the ``publish_exit`` separate-row
+    pattern. Validates the SQL string shape rather than running it (the
+    runtime contract is exercised by the integration tests against a
+    real Postgres in CI).
+    """
+    sql = demo_polish._RECENT_SIGNALS_SQL
+    # Rule (1): only entry rows surface.
+    assert "exit_signal = FALSE" in sql
+    # Rule (2): in-place retire suppression.
+    assert "exit_published_at IS NULL" in sql
+    # Rule (3): later separate-row exit anti-join.
+    assert "NOT EXISTS" in sql
+    assert "x.exit_signal = TRUE" in sql
+    assert "x.feed_id = sp.feed_id" in sql
+    assert "x.market_id = sp.market_id" in sql
+    assert "x.published_at > sp.published_at" in sql
+    # Active feeds only.
+    assert "sf.status = 'active'" in sql
+
+
 def test_demo_escapes_markdown_metacharacters_in_db_strings():
     """Operator-supplied feed names + market questions must be escaped
     before flowing into a ``ParseMode.MARKDOWN`` reply, otherwise Telegram
