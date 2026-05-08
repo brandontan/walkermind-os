@@ -389,6 +389,123 @@ def test_extract_confidence_rejects_out_of_range_values():
     assert demo_polish._extract_confidence({"confidence": -0.1}) == "—"
 
 
+def test_extract_confidence_parses_jsonb_string_payload():
+    """asyncpg returns JSONB as str when no JSON codec is registered.
+
+    The /demo handler must parse the string before key lookup, otherwise
+    every real signal renders confidence as ``—``. Mirrors the
+    ``signal_evaluator._payload_dict`` compatibility path.
+    """
+    assert demo_polish._extract_confidence('{"confidence": 0.42}') == "42%"
+    assert demo_polish._extract_confidence('{"edge": 0.7}') == "70%"
+    assert demo_polish._extract_confidence('{"score": 0.05}') == "5%"
+
+
+def test_extract_confidence_handles_malformed_json_string():
+    """Garbled JSON falls back to em-dash, not a parse exception."""
+    assert demo_polish._extract_confidence("not-json") == "—"
+    assert demo_polish._extract_confidence("{") == "—"
+    assert demo_polish._extract_confidence("") == "—"
+
+
+def test_payload_dict_passes_dict_through():
+    assert demo_polish._payload_dict({"a": 1}) == {"a": 1}
+
+
+def test_payload_dict_parses_json_string():
+    assert demo_polish._payload_dict('{"confidence": 0.5}') == {"confidence": 0.5}
+
+
+def test_payload_dict_returns_empty_for_non_dict_json():
+    """JSON arrays / scalars must not leak through as a dict."""
+    assert demo_polish._payload_dict("[1,2,3]") == {}
+    assert demo_polish._payload_dict("123") == {}
+    assert demo_polish._payload_dict("null") == {}
+
+
+def test_payload_dict_returns_empty_for_garbage():
+    assert demo_polish._payload_dict("not json") == {}
+    assert demo_polish._payload_dict(None) == {}
+    assert demo_polish._payload_dict(42) == {}
+
+
+def test_escape_md_passes_safe_text_through():
+    assert demo_polish._escape_md("plain text") == "plain text"
+    assert demo_polish._escape_md("") == ""
+    assert demo_polish._escape_md(None) == ""
+
+
+def test_escape_md_escapes_v1_metacharacters():
+    r"""``_ * \` [`` must be backslash-escaped before Markdown V1 interp."""
+    assert demo_polish._escape_md("under_score") == "under\\_score"
+    assert demo_polish._escape_md("a*b") == "a\\*b"
+    assert demo_polish._escape_md("`code`") == "\\`code\\`"
+    assert demo_polish._escape_md("[link]") == "\\[link]"
+
+
+def test_escape_md_escapes_backslash_first():
+    """Backslashes must be escaped first so the metachar loop does not
+    double-escape what it just inserted.
+    """
+    assert demo_polish._escape_md("a\\b") == "a\\\\b"
+
+
+def test_demo_renders_real_jsonb_string_payload_with_confidence():
+    """End-to-end: asyncpg-style JSONB-as-string must render correctly."""
+    update = _make_update(user_id=77, message_text="/demo")
+    rows = [
+        {
+            "feed_name": "Alpha",
+            "market_id": "m1",
+            "side": "yes",
+            "target_price": 0.62,
+            "payload": '{"confidence": 0.81}',  # asyncpg without codec
+            "published_at": datetime(2026, 5, 8, 11, 0, tzinfo=timezone.utc),
+            "market_question": "Will it rain tomorrow?",
+        },
+    ]
+    pool = _make_pool_with_rows(rows)
+    with patch(
+        "projects.polymarket.crusaderbot.bot.handlers.demo_polish.get_pool",
+        return_value=pool,
+    ):
+        _run(demo_polish.demo_command(update, _ctx()))
+    body = update.message.reply_text.call_args.args[0]
+    assert "81%" in body, "confidence must be parsed from JSON-string payload"
+    assert "—" not in body.split("Confidence: *")[1].split("*")[0]
+
+
+def test_demo_escapes_markdown_metacharacters_in_db_strings():
+    """Operator-supplied feed names + market questions must be escaped
+    before flowing into a ``ParseMode.MARKDOWN`` reply, otherwise Telegram
+    can reject the message or alter formatting.
+    """
+    update = _make_update(user_id=88, message_text="/demo")
+    rows = [
+        {
+            "feed_name": "alpha_feed*v1",
+            "market_id": "m1",
+            "side": "yes",
+            "target_price": 0.62,
+            "payload": {"confidence": 0.5},
+            "published_at": datetime(2026, 5, 8, 11, 0, tzinfo=timezone.utc),
+            "market_question": "Will BTC > $100k by `Q4`? [poll]",
+        },
+    ]
+    pool = _make_pool_with_rows(rows)
+    with patch(
+        "projects.polymarket.crusaderbot.bot.handlers.demo_polish.get_pool",
+        return_value=pool,
+    ):
+        _run(demo_polish.demo_command(update, _ctx()))
+    body = update.message.reply_text.call_args.args[0]
+    # Underscores, asterisks, backticks, opening brackets in DB-supplied
+    # text must arrive escaped — otherwise Telegram parsing breaks.
+    assert "alpha\\_feed\\*v1" in body
+    assert "\\`Q4\\`" in body
+    assert "\\[poll]" in body
+
+
 def test_truncate_short_string_passthrough():
     assert demo_polish._truncate("hello", 80) == "hello"
 

@@ -22,6 +22,7 @@ Rate limit:
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any
@@ -199,20 +200,63 @@ _RECENT_SIGNALS_SQL = """
 """
 
 
+def _payload_dict(raw: Any) -> dict[str, Any]:
+    """Coerce a publication ``payload`` column value into a plain dict.
+
+    asyncpg returns JSONB as a Python ``str`` by default unless a JSON codec
+    is registered on the connection. Both the str path and the (already
+    decoded) dict path are handled so this module is decoupled from the
+    pool setup. Mirrors ``services.signal_feed.signal_evaluator._payload_dict``
+    so the two surfaces agree on what an unparseable payload looks like
+    (``{}``).
+    """
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw:
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
 def _extract_confidence(payload: Any) -> str:
     """Pull a 0..1 confidence from the publication payload, format as %.
 
     The publication ``payload`` JSONB is operator-defined. Three common keys
     are accepted (``confidence`` / ``edge`` / ``score``); anything else is
-    rendered as an em-dash so the demo never invents data.
+    rendered as an em-dash so the demo never invents data. JSON strings
+    (asyncpg without a JSON codec) are parsed via ``_payload_dict`` first.
     """
-    if not isinstance(payload, dict):
-        return "—"
+    payload_d = _payload_dict(payload)
     for key in ("confidence", "edge", "score"):
-        v = payload.get(key)
+        v = payload_d.get(key)
         if isinstance(v, (int, float)) and 0.0 <= float(v) <= 1.0:
             return f"{float(v) * 100:.0f}%"
     return "—"
+
+
+# Telegram Markdown (V1) metacharacters. Operator / DB-supplied strings flow
+# through ``ParseMode.MARKDOWN``, so an unbalanced ``_`` or stray backtick
+# causes Telegram to reject the entire message — escape before interpolation.
+_MARKDOWN_METACHARS = ("_", "*", "`", "[")
+
+
+def _escape_md(text: str | None) -> str:
+    """Escape Telegram Markdown V1 metacharacters in DB-supplied text.
+
+    Same shape as ``bot.handlers.signal_following._escape_md`` so both
+    investor surfaces handle operator-supplied feed names + market
+    questions identically. Backslash is escaped first so the metachar
+    loop does not double-escape.
+    """
+    if not text:
+        return ""
+    out = text.replace("\\", "\\\\")
+    for ch in _MARKDOWN_METACHARS:
+        out = out.replace(ch, "\\" + ch)
+    return out
 
 
 def _truncate(s: str, limit: int = 80) -> str:
@@ -232,9 +276,16 @@ def _format_demo(rows: list[dict[str, Any]]) -> str:
         )
     lines = ["*🔍 Demo signal scan — top 3 live signals*\n"]
     for i, row in enumerate(rows, start=1):
-        question = _truncate(str(row.get("market_question") or row.get("market_id") or "—"))
+        # DB-derived strings (market_question, feed_name) flow into a
+        # ParseMode.MARKDOWN reply — escape after truncate so the ellipsis
+        # math operates on visible characters, not escape sequences.
+        question = _escape_md(
+            _truncate(str(row.get("market_question") or row.get("market_id") or "—"))
+        )
         side = (row.get("side") or "—").upper()
-        feed = _truncate(str(row.get("feed_name") or "—"), limit=24)
+        feed = _escape_md(
+            _truncate(str(row.get("feed_name") or "—"), limit=24)
+        )
         confidence = _extract_confidence(row.get("payload"))
         target = row.get("target_price")
         target_str = f"{float(target):.2f}" if isinstance(target, (int, float)) else "—"
