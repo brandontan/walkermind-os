@@ -1,19 +1,7 @@
-Last Updated : 2026-05-08 16:00 Asia/Jakarta
-Status       : R12 final Fly.io deployment Lane 1B SENTINEL APPROVED 95/100 on WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY (MAJOR, NARROW INTEGRATION). WARP🔹CMD merge decision required. Sentry SDK wiring (DSN-gated no-op when unset), POST /admin/sentry-test verification endpoint, /health demo-readiness contract (status / uptime_seconds / version / mode / timestamp + R12b deep-deps), fly.toml primary_region sin → iad, /kill and /resume Telegram aliases, 3 runbooks (alerts.md, kill-switch-procedure.md, rollback-procedure.md). 473/473 tests green. Pre-flight cleanup PR #899 still awaiting CMD review (separate lane). CHECKPOINT 1 — HARD PAUSE: awaiting WARP🔹CMD merge decision + operator-executed prod verification per runbooks before Lane 1C dispatch.
+Last Updated : 2026-05-08 07:30 Asia/Jakarta
+Status       : R12 Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Pre-flight cleanup MERGED PR #899 (STANDARD, NARROW INTEGRATION). Activation guards remain NOT SET. Lane 1C (demo data seeding) and Lane 2C (Telegram polish) gated on WARP🔹CMD dispatch signal. Operator prod verification per runbooks pending — 7 deferred artefacts (Issue #900). CHECKPOINT 1 passed.
 
 [COMPLETED]
-- PR #852 — feat(crusaderbot): import full Replit build R1-R11
-- PR #853 — sentinel: crusaderbot-replit-import PASS (post-fix)
-- C1 resolved: KELLY_FRACTION applied, capital_alloc_pct capped <1.0
-- C2 resolved: migrations/004 idempotent DO $$ blocks
-- C3 resolved: Tier 3 promotion gated on MIN_DEPOSIT_USDC
-- R12b — Fly.io health probes + operator alerts + JSON logging (PR #856 merged)
-- PR #857 — chore: state sync post-PR #856
-- PR #858 — chore: state sync post-PR #857
-- PR #860 — chore: ROADMAP R12b drift fix + WORKTODO init (STANDARD, merged)
-- R12a — CI/CD Pipeline GitHub Actions + Fly.io — PR #855 MERGED 2026-05-04 (STANDARD)
-- R12c — Auto-Close / Take-Profit exit watcher — PR #865 MERGED 2026-05-05 (MAJOR, SENTINEL APPROVED 95/100)
-- R12d — Telegram Position UX (live monitor + force close) — PR #868 MERGED 4f5e12201964 (STANDARD)
 - R12e — Auto-Redeem System — PR #869 MERGED 7f8af0b90993 (MAJOR, SENTINEL CONDITIONAL 64/100 — conditions resolved PR #879)
 - R12f — Operator Dashboard + Kill Switch + Job Monitor — PR #874 MERGED 2026-05-05 (STANDARD)
 - P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + migration 008) — PR #876 MERGED 2026-05-05 (STANDARD, FOUNDATION)
@@ -21,18 +9,20 @@ Status       : R12 final Fly.io deployment Lane 1B SENTINEL APPROVED 95/100 on W
 - R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR #883 MERGED 5a9cb22a (STANDARD, NARROW INTEGRATION)
 - Cleanup legacy polyquantbot directory — PR #891 MERGED (MINOR, Issue #890 closed)
 - P3c — Signal Following strategy — PR #892 MERGED (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
-- P3d — Per-user signal scan loop + execution queue wiring — PR #897 MERGED (bb08092), MAJOR, SENTINEL APPROVED 94/100. Crash-recovery resume path, subscribe/unsubscribe enrollment, dual-layer dedup, migration 011+012. 464/464 tests green.
+- P3d — Per-user signal scan loop + execution queue wiring — PR #897 MERGED (bb08092), MAJOR, SENTINEL APPROVED 94/100. 464/464 tests green.
+- Pre-flight cleanup — F401/MIN-01/02/03/ROADMAP naming drift — PR #899 MERGED (STANDARD, NARROW INTEGRATION, WARP/CRUSADERBOT-PREFLIGHT-CLEANUP)
+- R12 Lane 1B — Sentry SDK wiring, /health demo-readiness, /kill /resume aliases, 3 runbooks — PR #901 MERGED (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100, WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY)
 
 [IN PROGRESS]
-- Pre-flight cleanup lane on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (STANDARD, NARROW INTEGRATION — reclassified from MINOR per Codex P2 finding; CMD-ratified): 15 F401 cleared across 7 files, MIN-01 user_id annotations on 3 copy_trade handler helpers, MIN-02 dispatcher phase comment, MIN-03 migration 013 (copy_trade_events.copy_target_id FK referential action ON DELETE CASCADE → ON DELETE SET NULL — audit rows survive parent delete), ROADMAP R12d/R12e/R12f naming aligned to actual executed lanes. PR #899.
-- R12 final Fly.io deployment Lane 1B on WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY (MAJOR, NARROW INTEGRATION — issue #900). SENTINEL APPROVED 95/100, zero P0/P1 issues. PR open, cleared for merge. CHECKPOINT 1 — HARD PAUSE awaiting WARP🔹CMD merge decision + operator-executed prod verification per runbooks. 473/473 tests green.
+- None
 
 [NOT STARTED]
 - R12 final Fly.io deployment Lane 1C — demo data seeding (MINOR, idempotent, gated on Lane 1B merge per batch checkpoint protocol)
 - R12 final Fly.io deployment Lane 2C — Telegram demo polish (MINOR, gated on Lane 1C merge)
 
 [NEXT PRIORITY]
-- WARP🔹CMD merge decision on R12 Lane 1B PR #901 (SENTINEL APPROVED 95/100, zero P0/P1). Then operator executes prod verification checklist per runbooks (Sentry test event, Fly.io alert simulation, /kill ack < 3s, /resume, rollback dry-run). Activation guards remain NOT SET throughout.
+- Operator executes 7 prod verification artefacts per runbooks (Issue #900): /health 200 in prod, Sentry test event in prod project, Fly.io alert simulation, /kill ack < 3s, /resume, /ops_dashboard screenshot, rollback dry-run.
+- WARP🔹CMD to signal Lane 1C dispatch after prod verification complete. Activation guards remain NOT SET throughout.
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)

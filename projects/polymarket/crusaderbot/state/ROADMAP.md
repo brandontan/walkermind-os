@@ -26,7 +26,7 @@
 | R12e | Auto-Redeem System | ✅ Done | MAJOR | Merged PR #869 (2026-05-05), SENTINEL CONDITIONAL 64/100 — conditions resolved PR #879 |
 | R12f | Operator Dashboard + Kill Switch + Job Monitor | ✅ Done | STANDARD | Merged PR #874 (2026-05-05) |
 | R12 Live Readiness batch | Live Opt-In Checklist + Live → Paper Auto-Fallback + Daily P&L Summary | ✅ Done | STANDARD | Merged PR #883 (2026-05-06), NARROW INTEGRATION |
-| R12 | Deployment (Fly.io) — final | ❌ Not Started | MAJOR | After R12a-R12f + Live Readiness batch |
+| R12 | Deployment (Fly.io) — final | 🔄 In Progress | MAJOR | Lane 1B MERGED PR #901. Lane 1C/2C gated on WARP🔹CMD dispatch signal. |
 
 ## R12 — Detailed Lane Plan
 
@@ -123,5 +123,5 @@ Reference: `docs/blueprint/crusaderbot.md` §6 (Risk System), §12 (Activation G
 | P3a | Strategy Registry Foundation | ✅ Done | STANDARD | Merged PR #876 (2026-05-05), FOUNDATION |
 | P3b | Copy Trade strategy | ✅ Done | MAJOR | Merged PR #877 (2026-05-06) a369129d, SENTINEL CONDITIONAL 71/100 resolved |
 | P3c | Signal Following strategy | ✅ Done | MAJOR | Merged PR #892 (5ee8487e), SENTINEL APPROVED 100/100 |
-| P3d | Signal scan loop + execution queue wiring | ❌ Not Started | MAJOR | Wires registry into risk gate |
+| P3d | Signal scan loop + execution queue wiring | ✅ Done | MAJOR | Merged PR #897 (bb08092), SENTINEL APPROVED 94/100 |
 
