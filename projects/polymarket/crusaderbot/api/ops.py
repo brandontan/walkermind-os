@@ -20,20 +20,31 @@ queryable.
 
 Auth
 ----
-TODO: add auth hardening post-demo. The demo build ships these routes
-unauthenticated so the operator can flip the kill switch from any
-device without juggling bearer tokens during the live presentation.
-The existing bearer-protected ``/admin/kill`` is preserved as the
-hardened path; this module adds the human-friendly equivalent.
+``GET /ops`` is open by design — the read-only dashboard is reachable
+from any phone browser during the demo. The POST mutators
+(``/ops/kill`` and ``/ops/resume``) are gated by a shared secret read
+from ``OPS_SECRET`` via either the ``X-Ops-Token`` header OR the
+``?token=<value>`` query / form param so the operator can bookmark
+``https://crusaderbot.fly.dev/ops?token=<OPS_SECRET>`` and trigger
+kill / resume with one tap on a phone. ``OPS_SECRET`` unset disables
+the mutators (503); missing / wrong token returns 403.
+
+TODO: add full auth hardening post-demo (per-operator login, token
+rotation, audit of resolved actor identity). The current scheme is
+demo-grade — it closes the unauthenticated-resume hole but the token
+still appears in URL access logs and browser history. The bearer-
+protected ``/admin/kill`` REST endpoint remains the hardened path for
+scripts and CI.
 """
 from __future__ import annotations
 
 import html
 import logging
+import secrets
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import audit
@@ -186,6 +197,7 @@ def _render_page(
     kill_state: str,
     audit_rows: list[dict] | None,
     flash: str | None = None,
+    token: str | None = None,
 ) -> str:
     """Compose the HTML page. All variables are escape-controlled at source."""
     user_count_str = "N/A" if user_count is None else str(user_count)
@@ -194,6 +206,16 @@ def _render_page(
     flash_html = (
         f'<div class="flash">{html.escape(flash)}</div>' if flash else ""
     )
+    # The operator opens ``/ops?token=<OPS_SECRET>`` from a bookmark;
+    # we forward that token into each form's action URL so the POST
+    # carries it without a separate input the user has to remember.
+    # Without a token in the GET, the buttons render but POST returns
+    # 403 — the dashboard is open, the mutators are not.
+    if token:
+        from urllib.parse import quote
+        token_qs = "?token=" + quote(token, safe="")
+    else:
+        token_qs = ""
 
     # The two action forms POST to /ops/kill and /ops/resume; both redirect
     # back to /ops with a flash query param so the operator sees a confirm
@@ -303,10 +325,10 @@ def _render_page(
   <div class="card">
     <h2>Controls</h2>
     <div class="actions">
-      <form method="post" action="/ops/kill">
+      <form method="post" action="/ops/kill{token_qs}">
         <button class="kill" type="submit">Kill bot</button>
       </form>
-      <form method="post" action="/ops/resume">
+      <form method="post" action="/ops/resume{token_qs}">
         <button class="resume" type="submit">Resume bot</button>
       </form>
     </div>
@@ -332,13 +354,40 @@ def _render_page(
 """
 
 
+def _check_ops_token(provided: str | None) -> None:
+    """Gate the POST mutators behind ``OPS_SECRET``.
+
+    Resolution: the env-derived ``OPS_SECRET`` setting is the only
+    accepted token. Unset → 503 (mutators disabled). Provided value
+    missing or wrong → 403. Compared with ``secrets.compare_digest``
+    to avoid timing oracles. Demo-grade — full per-operator auth is
+    deferred (see module docstring TODO).
+    """
+    expected = (get_settings().OPS_SECRET or "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="ops controls disabled (OPS_SECRET unset)",
+        )
+    if not provided or not secrets.compare_digest(provided, expected):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+
 @router.get("/ops", response_class=HTMLResponse)
-async def ops_dashboard(flash: str | None = None) -> HTMLResponse:
+async def ops_dashboard(
+    flash: str | None = None, token: str | None = None,
+) -> HTMLResponse:
     """Render the operator HTML dashboard.
 
     Each I/O probe is independent: a DB outage degrades that card to N/A
     but the page still renders so the operator can see the kill switch
     state (cached) and the health badge that explains the failure.
+
+    A ``?token=<value>`` query param is accepted but NOT validated here
+    (GET is intentionally open). The value is forwarded into the
+    kill / resume form action URLs so an operator who bookmarked the
+    URL with the token can submit either button without re-entering
+    it. The bookmark IS the auth.
     """
     try:
         health = await run_health_checks()
@@ -358,20 +407,31 @@ async def ops_dashboard(flash: str | None = None) -> HTMLResponse:
         kill_state=kill_state,
         audit_rows=audit_rows,
         flash=flash,
+        token=token,
     )
     return HTMLResponse(content=body)
 
 
 @router.post("/ops/kill")
-async def ops_kill() -> RedirectResponse:
+async def ops_kill(
+    token: str | None = None,
+    x_ops_token: str | None = Header(default=None),
+) -> RedirectResponse:
     """Engage the kill switch and redirect back to the dashboard.
+
+    Auth: requires ``OPS_SECRET`` via the ``X-Ops-Token`` header
+    (preferred, kept out of access logs) or the ``?token=<value>``
+    query param (used by the dashboard's HTML form action URL so the
+    operator can flip from a phone with a single tap on a bookmarked
+    URL). ``OPS_SECRET`` unset → 503; missing / wrong token → 403.
 
     Delegates to the shared ``domain.ops.kill_switch.set_active`` so this
     flip writes ``kill_switch_history`` AND emits a ``kill_switch_pause``
-    audit row. ``actor_id=None`` because the demo build is unauthenticated;
-    the action label still distinguishes the operator path from a Telegram
-    flip via the ``source`` payload field.
+    audit row. ``actor_id=None`` because the demo token is shared, not
+    per-operator; the action label still distinguishes the ops surface
+    from a Telegram flip via the ``source`` payload field.
     """
+    _check_ops_token(x_ops_token or token)
     flash = "Kill switch engaged — new trades blocked."
     try:
         await kill_switch.set_active(
@@ -387,12 +447,22 @@ async def ops_kill() -> RedirectResponse:
     except Exception as exc:  # noqa: BLE001 — boundary
         logger.error("ops dashboard: kill failed: %s", exc)
         flash = f"Kill failed: {type(exc).__name__}"
-    return RedirectResponse(url=f"/ops?flash={flash}", status_code=303)
+    return RedirectResponse(
+        url=_redirect_url(flash, token), status_code=303,
+    )
 
 
 @router.post("/ops/resume")
-async def ops_resume() -> RedirectResponse:
-    """Release the kill switch and redirect back to the dashboard."""
+async def ops_resume(
+    token: str | None = None,
+    x_ops_token: str | None = Header(default=None),
+) -> RedirectResponse:
+    """Release the kill switch and redirect back to the dashboard.
+
+    Auth contract identical to ``POST /ops/kill`` — see that handler's
+    docstring.
+    """
+    _check_ops_token(x_ops_token or token)
     flash = "Kill switch released — bot resumed."
     try:
         await kill_switch.set_active(
@@ -408,4 +478,18 @@ async def ops_resume() -> RedirectResponse:
     except Exception as exc:  # noqa: BLE001 — boundary
         logger.error("ops dashboard: resume failed: %s", exc)
         flash = f"Resume failed: {type(exc).__name__}"
-    return RedirectResponse(url=f"/ops?flash={flash}", status_code=303)
+    return RedirectResponse(
+        url=_redirect_url(flash, token), status_code=303,
+    )
+
+
+def _redirect_url(flash: str, token: str | None) -> str:
+    """Build the post-action redirect URL, preserving the operator's
+    token query param so the next dashboard render still has it
+    available for the form actions.
+    """
+    from urllib.parse import quote
+    parts = [f"flash={quote(flash, safe='')}"]
+    if token:
+        parts.append(f"token={quote(token, safe='')}")
+    return "/ops?" + "&".join(parts)
