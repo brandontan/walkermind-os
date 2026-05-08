@@ -51,9 +51,15 @@ surface to unauthorised users. To grant operator access, set
 `OPERATOR_CHAT_ID` to the operator's Telegram user id (in a 1:1 chat
 with the bot, the user id and chat id are identical, which is why the
 same value is reused for both alert delivery and command authorisation).
-The brief's `ADMIN_USER_IDS` Fly secret is not consumed by the runtime
-today — it is reserved for a future multi-operator allowlist lane and
-has no effect on `/kill` / `/resume` access in this build.
+The `ADMIN_USER_IDS` Fly secret (comma-separated Telegram user ids) is
+consumed by the Tier 2 operator seeder
+(`projects/polymarket/crusaderbot/scripts/seed_operator_tier.py`),
+which runs on every Fly deploy via `[deploy] release_command` and
+upserts each id into `users` with `access_tier >= 2`. It does NOT
+gate `/kill` / `/resume` — that path remains the single
+`OPERATOR_CHAT_ID` allowlist verified at
+`bot/handlers/admin.py:_is_operator`. Multi-operator command access
+is a separate, unimplemented lane.
 
 ---
 

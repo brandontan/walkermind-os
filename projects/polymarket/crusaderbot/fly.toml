@@ -13,6 +13,14 @@ kill_timeout = "30s"
 [build]
   dockerfile = "Dockerfile"
 
+# Release-time hook. Runs after build, before the new release becomes the
+# primary. Tier 2 operator seeder is idempotent and exits 0 / 2 / 3 / 4 —
+# only 4 is a hard DB error. Exit codes 2/3 (env unset) log a warning but
+# do NOT fail the deploy: the bot is still useful without operator seeding,
+# and the platform will surface the missing secret via /health.
+[deploy]
+  release_command = "python -m projects.polymarket.crusaderbot.scripts.seed_operator_tier"
+
 # Non-secret env only. Activation guards default to OFF — flip via
 # `fly secrets set` after WARP🔹CMD owner gate + SENTINEL approval.
 [env]

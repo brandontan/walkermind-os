@@ -11,7 +11,7 @@ from telegram import Update
 from telegram.ext import Application
 
 from . import notifications
-from .api import admin as api_admin, health as api_health
+from .api import admin as api_admin, health as api_health, ops as api_ops
 from .bot.dispatcher import register as register_handlers
 from .cache import close_cache, init_cache
 from .config import get_settings, validate_required_env
@@ -211,6 +211,7 @@ app = FastAPI(title="CrusaderBot", version="0.1.0", lifespan=lifespan)
 app.add_middleware(RequestLogMiddleware)
 app.include_router(api_health.router)
 app.include_router(api_admin.router)
+app.include_router(api_ops.router)
 
 
 @app.get("/")
