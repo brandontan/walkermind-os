@@ -779,7 +779,7 @@ def test_health_mode_paper_when_any_guard_off(monkeypatch):
 
 
 def test_health_version_falls_back_to_unknown(monkeypatch):
-    """When neither ``APP_VERSION`` nor ``FLY_RELEASE_VERSION`` is set the
+    """When neither ``APP_VERSION`` nor ``FLY_IMAGE_REF`` is set the
     version field reads ``"unknown"`` rather than the literal ``None`` so
     JSON consumers do not have to branch on type.
     """
@@ -799,20 +799,20 @@ def test_health_version_falls_back_to_unknown(monkeypatch):
         "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
         lambda result: None,
     )
-    monkeypatch.delenv("FLY_RELEASE_VERSION", raising=False)
+    monkeypatch.delenv("FLY_IMAGE_REF", raising=False)
     client = TestClient(_build_test_app())
     r = client.get("/health")
     assert r.json()["version"] == "unknown"
 
 
-def test_health_version_falls_back_to_fly_release_version(monkeypatch):
-    """Codex P2: when ``APP_VERSION`` is unset (e.g. a manual ``flyctl
-    deploy`` that bypassed the CD workflow's git-SHA stamping, or a
-    rollback to a previous image), the route must surface Fly's built-in
-    ``FLY_RELEASE_VERSION`` so the rollback runbook's "/health .version
-    matches expected" check still produces a meaningful, distinct value.
-    The fallback is prefixed with ``fly-v`` so consumers can distinguish
-    it from a git SHA at a glance.
+def test_health_version_falls_back_to_fly_image_ref(monkeypatch):
+    """Codex P2: when ``APP_VERSION`` is unset (manual ``flyctl deploy``
+    that bypassed the CD workflow's git-SHA stamping, or a rollback to a
+    previous image), the route must surface a stable identifier from
+    Fly's documented machine runtime env ``FLY_IMAGE_REF`` so the
+    rollback runbook's "/health .version differs per release" check
+    still passes. The deployment ULID is extracted and prefixed with
+    ``fly-`` so consumers can distinguish it from a git SHA at a glance.
     """
     from fastapi.testclient import TestClient
 
@@ -830,17 +830,20 @@ def test_health_version_falls_back_to_fly_release_version(monkeypatch):
         "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
         lambda result: None,
     )
-    monkeypatch.setenv("FLY_RELEASE_VERSION", "62")
+    monkeypatch.setenv(
+        "FLY_IMAGE_REF",
+        "registry.fly.io/crusaderbot:deployment-01H4D7M0J3K2P5N1Q8R6S9T2X4",
+    )
     client = TestClient(_build_test_app())
     r = client.get("/health")
-    assert r.json()["version"] == "fly-v62"
+    assert r.json()["version"] == "fly-01H4D7M0J3K2P5N1Q8R6S9T2X4"
 
 
 def test_health_version_app_version_takes_precedence_over_fly(monkeypatch):
     """When both env vars are set, ``APP_VERSION`` (the CD-stamped git
-    short SHA) wins over ``FLY_RELEASE_VERSION``. Ordering matters
-    because the rollback runbook expects a SHA when the CD path is
-    healthy and the fly fallback only when it isn't.
+    short SHA) wins over ``FLY_IMAGE_REF``. Ordering matters because the
+    rollback runbook expects a SHA when the CD path is healthy and the
+    fly fallback only when it isn't.
     """
     from fastapi.testclient import TestClient
 
@@ -858,10 +861,36 @@ def test_health_version_app_version_takes_precedence_over_fly(monkeypatch):
         "projects.polymarket.crusaderbot.api.health.monitoring_alerts.schedule_health_record",
         lambda result: None,
     )
-    monkeypatch.setenv("FLY_RELEASE_VERSION", "62")
+    monkeypatch.setenv(
+        "FLY_IMAGE_REF",
+        "registry.fly.io/crusaderbot:deployment-01H4D7M0J3K2P5N1Q8R6S9T2X4",
+    )
     client = TestClient(_build_test_app())
     r = client.get("/health")
     assert r.json()["version"] == "abc1234"
+
+
+def test_extract_fly_image_id_handles_known_forms():
+    """Edge cases for ``_extract_fly_image_id``: tag form, deployment-
+    prefix stripping, bare tag, sha form, and empty input.
+    """
+    from projects.polymarket.crusaderbot.api.health import _extract_fly_image_id
+
+    # Standard Fly tag with deployment- prefix → bare ULID.
+    assert _extract_fly_image_id(
+        "registry.fly.io/crusaderbot:deployment-01H4D7M0J3K2P5N1"
+    ) == "01H4D7M0J3K2P5N1"
+    # Plain tag without deployment- prefix → tag verbatim.
+    assert _extract_fly_image_id(
+        "registry.fly.io/crusaderbot:v1.2.3"
+    ) == "v1.2.3"
+    # Bare image id (no colon) → returned as-is.
+    assert _extract_fly_image_id("01H4D7M0J3K2P5N1") == "01H4D7M0J3K2P5N1"
+    # Empty / whitespace → None.
+    assert _extract_fly_image_id("") is None
+    assert _extract_fly_image_id("   ") is None
+    # None-safe.
+    assert _extract_fly_image_id(None) is None  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

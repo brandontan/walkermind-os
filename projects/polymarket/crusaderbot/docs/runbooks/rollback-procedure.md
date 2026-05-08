@@ -82,11 +82,13 @@ curl -fsS https://crusaderbot.fly.dev/health | jq '.status, .version'
 #     CD stamps APP_VERSION at deploy time per crusaderbot-cd.yml.
 #   - When the rolled-back release was deployed via manual flyctl
 #     (typical for the §3.1 image re-deploy path, which does NOT
-#     re-run the CD workflow), `version` falls back to `fly-v<N>`
-#     where <N> is FLY_RELEASE_VERSION. The new release entry
-#     created by the rollback gets a fresh N, so the value will
-#     differ from the bad release even when they share a Docker
-#     image. Use the fresh N to confirm the rollback machine boot.
+#     re-run the CD workflow), `version` falls back to `fly-<ULID>`
+#     extracted from Fly's documented FLY_IMAGE_REF machine runtime env
+#     (https://fly.io/docs/machines/runtime-environment/). The new
+#     release entry created by the rollback gets a fresh deployment
+#     ULID, so the value will differ from the bad release even when
+#     they share an underlying Docker image. Use the fresh ULID to
+#     confirm the rollback machine boot.
 ```
 
 **Operator log:**

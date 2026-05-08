@@ -59,6 +59,28 @@ def _resolve_mode() -> str:
     return "paper"
 
 
+def _extract_fly_image_id(image_ref: str) -> str | None:
+    """Pull a stable, deploy-distinct identifier out of ``FLY_IMAGE_REF``.
+
+    Fly populates ``FLY_IMAGE_REF`` on every machine with the full image
+    reference, typically::
+
+        registry.fly.io/<app>:deployment-01H4D7M0J3K2P5N1Q8R6S9T2X4
+
+    The deployment ULID portion is unique per release, so it satisfies
+    the "version differs across releases" check the rollback runbook
+    relies on. ``deployment-`` prefix is stripped so the surfaced id is
+    the bare ULID. Returns ``None`` for empty / unset input.
+    """
+    s = (image_ref or "").strip()
+    if not s:
+        return None
+    tag = s.rsplit(":", 1)[-1] if ":" in s else s
+    if tag.startswith("deployment-"):
+        tag = tag[len("deployment-"):]
+    return tag or None
+
+
 def _resolve_version() -> str:
     """Return the deployed build identifier, or ``"unknown"``.
 
@@ -67,25 +89,28 @@ def _resolve_version() -> str:
     1. ``APP_VERSION`` — preferred. Stamped by the CD workflow at deploy
        time with the git short SHA (see
        ``.github/workflows/crusaderbot-cd.yml``).
-    2. ``FLY_RELEASE_VERSION`` — Fly's built-in release counter
-       (e.g. ``62``). Provides a stable identifier when ``APP_VERSION``
-       is missing because the deploy went through manual ``flyctl deploy``
-       rather than the CD workflow. Returned as ``"fly-v<N>"`` so
-       consumers can distinguish it from a git SHA at a glance.
+    2. ``FLY_IMAGE_REF`` — Fly's documented machine runtime variable
+       (``https://fly.io/docs/machines/runtime-environment/``). The
+       deployment ULID portion is extracted and surfaced as
+       ``fly-<ulid>`` so consumers can distinguish it from a git SHA at
+       a glance. Provides a stable identifier when ``APP_VERSION`` is
+       missing because the deploy went through manual ``flyctl deploy``
+       rather than the CD workflow.
     3. ``"unknown"`` — neither variable is set (local dev, broken deploy).
 
     Defense-in-depth: the rollback runbook step ``flyctl deploy --image
     <previous-image>`` does NOT inherit the CD workflow's git-SHA
-    stamping, so the ``FLY_RELEASE_VERSION`` fallback ensures the
-    runbook's "/health .version matches expected" check still produces
-    a meaningful, distinct value across rollbacks.
+    stamping, so the ``FLY_IMAGE_REF`` fallback ensures the runbook's
+    ``/health .version`` differs across releases even when the rolled-back
+    Docker image is bit-identical to the prior known-good — the new Fly
+    release entry gets a fresh deployment ULID.
     """
     app_version = (get_settings().APP_VERSION or "").strip()
     if app_version:
         return app_version
-    fly_release = (os.environ.get("FLY_RELEASE_VERSION") or "").strip()
-    if fly_release:
-        return f"fly-v{fly_release}"
+    fly_image_id = _extract_fly_image_id(os.environ.get("FLY_IMAGE_REF", ""))
+    if fly_image_id:
+        return f"fly-{fly_image_id}"
     return "unknown"
 
 
