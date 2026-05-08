@@ -1,5 +1,5 @@
-Last Updated : 2026-05-08 09:30 Asia/Jakarta
-Status       : Lane 2C (Telegram demo polish) PR OPENED on WARP/CRUSADERBOT-DEMO-POLISH (MINOR, Claim NONE, no SENTINEL required). Adds /about, /status, /demo plus refreshed /start and /help. Read-only, no schema, no activation-guard touches. 501/501 tests green. R12 Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Activation guards remain NOT SET. Lane 1C BLOCKED on (a) operator Fly.io recovery confirmation and (b) WARP🔹CMD "Lane 1C gate clear" signal. Operator prod verification per runbooks pending — 7 deferred artefacts (Issue #900).
+Last Updated : 2026-05-08 09:35 Asia/Jakarta
+Status       : Lane 1C (CRU-5, demo data seeding) PR OPENED on WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION. Adds migration 014_add_is_demo_flag.sql (additive is_demo BOOLEAN on 10 tables, 4 partial indexes, in-file rollback block), seed_demo_data.py (DEMO_SEED_ALLOW=1 gated, idempotent), cleanup_demo_data.py (DEMO_CLEANUP_CONFIRM=1 gated, demo-only deletes, post-commit verify), docs/runbook/demo-data.md. 514/514 tests green (was 501). No runtime path touched. Activation guards remain NOT SET. Lane 2C MERGED via PR #907 (Telegram demo polish, MINOR). R12 Lane 1B MERGED PR #901. Operator prod verification per runbooks pending — 7 deferred artefacts (Issue #900). SENTINEL REQUIRED before merge per CRU-5 directive.
 
 [COMPLETED]
 - R12e — Auto-Redeem System — PR #869 MERGED 7f8af0b90993 (MAJOR, SENTINEL CONDITIONAL 64/100 — conditions resolved PR #879)
@@ -12,18 +12,19 @@ Status       : Lane 2C (Telegram demo polish) PR OPENED on WARP/CRUSADERBOT-DEMO
 - P3d — Per-user signal scan loop + execution queue wiring — PR #897 MERGED (bb08092), MAJOR, SENTINEL APPROVED 94/100. 464/464 tests green.
 - Pre-flight cleanup — F401/MIN-01/02/03/ROADMAP naming drift — PR #899 MERGED (STANDARD, NARROW INTEGRATION, WARP/CRUSADERBOT-PREFLIGHT-CLEANUP)
 - R12 Lane 1B — Sentry SDK wiring, /health demo-readiness, /kill /resume aliases, 3 runbooks — PR #901 MERGED (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100, WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY)
+- Lane 2C — Telegram demo polish (CRU-6) — PR #907 MERGED (MINOR, Claim NONE, WARP/CRUSADERBOT-DEMO-POLISH). /about + /status + /demo + refreshed /start + /help. 60s per-user rate limit on /demo. 22 new tests, 501/501 green at merge.
 
 [IN PROGRESS]
-- Lane 2C — Telegram demo polish (CRU-6) PR OPEN on WARP/CRUSADERBOT-DEMO-POLISH. Tier MINOR / Claim NONE. /about + /status + /demo + refreshed /start + /help. 60s per-user rate limit on /demo. 22 new tests, 501/501 green. Awaiting WARP🔹CMD review + merge decision.
+- Lane 1C — Demo Data Seeding (CRU-5) PR OPEN on WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION / SENTINEL REQUIRED. Migration 014 (is_demo flag on 10 tables + rollback block), seed_demo_data.py (DEMO_SEED_ALLOW=1), cleanup_demo_data.py (DEMO_CLEANUP_CONFIRM=1, post-commit verify), docs/runbook/demo-data.md. Forward + idempotent re-run + rollback + re-apply all clean against fresh DB. Seed produces 12 demo markets, 2 feeds, 2 demo users, 10 pubs, 32 paper trades over 7 days; /signals catalog shows 2 active feeds; /pnl ledger sums non-trivial today. Cleanup deletes 135 demo rows leaving 4 non-demo records intact. 514/514 tests green. Awaiting WARP•SENTINEL audit.
 
 [NOT STARTED]
-- R12 final Fly.io deployment Lane 1C — demo data seeding (STANDARD, NARROW INTEGRATION, SENTINEL REQUIRED per CMD decision block). BLOCKED on (a) operator Fly.io recovery confirmation and (b) WARP🔹CMD "Lane 1C gate clear" signal.
+- WARP•SENTINEL Lane 1C audit and verdict.
+- R12 final Fly.io deployment closure (after Lane 1C SENTINEL APPROVED + operator prod verification artefacts attached to Issue #900).
 
 [NEXT PRIORITY]
-- WARP🔹CMD to review Lane 2C PR and decide merge.
-- Operator executes Fly.io recovery on crusaderbot.fly.dev (out of CC scope per CMD decision block).
+- WARP•SENTINEL validation required for Lane 1C — Demo Data Seeding before merge. Source: projects/polymarket/crusaderbot/reports/forge/demo-seed-data.md. Tier STANDARD with explicit SENTINEL gate per CRU-5 task header.
 - Operator executes 7 prod verification artefacts per runbooks (Issue #900): /health 200 in prod, Sentry test event in prod project, Fly.io alert simulation, /kill ack < 3s, /resume, /ops_dashboard screenshot, rollback dry-run.
-- WARP🔹CMD to signal Lane 1C dispatch after Fly.io recovery + prod verification complete. Activation guards remain NOT SET throughout.
+- WARP🔹CMD merge decision on Lane 1C after SENTINEL verdict. Activation guards remain NOT SET throughout.
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)

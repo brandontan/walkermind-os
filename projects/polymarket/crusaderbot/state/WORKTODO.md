@@ -1,13 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-08 09:30 Asia/Jakarta
+**Last Updated:** 2026-05-08 09:35 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- Lane 2C (CRU-6) — Telegram demo polish — PR OPEN on WARP/CRUSADERBOT-DEMO-POLISH. Tier MINOR / Claim NONE. /about + /status + /demo + refreshed /start + /help. 60s per-user rate limit on /demo. 501/501 tests green. Awaiting WARP🔹CMD review + merge. R12 Lane 1B MERGED PR #901. Lane 1C BLOCKED on operator Fly.io recovery + CMD "Lane 1C gate clear" signal. Activation guards remain NOT SET.
+- Lane 1C (CRU-5) — Demo Data Seeding — PR OPEN on WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION / SENTINEL REQUIRED before merge. Migration 014 (is_demo flag, 10 tables, rollback block), seed_demo_data.py (DEMO_SEED_ALLOW=1, idempotent), cleanup_demo_data.py (DEMO_CLEANUP_CONFIRM=1, demo-only, post-commit verify), docs/runbook/demo-data.md. 514/514 tests green (was 501). Forward + rollback + re-apply all clean. Awaiting WARP•SENTINEL audit. R12 Lane 1B MERGED PR #901. Lane 2C MERGED PR #907. Activation guards remain NOT SET.
 
 ---
 
@@ -34,7 +34,7 @@ Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wi
 - [x] R12 Live Readiness -- Live Opt-In Checklist (8 gates + audit + /live_checklist + CONFIRM dialog) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Live to Paper Auto-Fallback (router + risk gate + kill switch lock cascade) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Daily P&L Summary (cron 23:00 Jakarta + /summary_on /summary_off) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
-- [ ] R12 -- Deployment (Fly.io) final -- Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Lane 2C (Telegram demo polish, CRU-6) PR OPEN on WARP/CRUSADERBOT-DEMO-POLISH (MINOR, Claim NONE). Lane 1C (demo data seeding, CRU-5) BLOCKED on operator Fly.io recovery + CMD "Lane 1C gate clear" signal. Operator prod verification pending per runbooks (Issue #900). Activation guards remain NOT SET.
+- [ ] R12 -- Deployment (Fly.io) final -- Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Lane 2C MERGED PR #907 (Telegram demo polish, CRU-6, MINOR, Claim NONE). Lane 1C (demo data seeding, CRU-5) PR OPEN on WARP/CRUSADERBOT-DEMO-SEED-DATA (STANDARD, NARROW INTEGRATION, SENTINEL REQUIRED) — migration 014 + seed/cleanup scripts + runbook, 514/514 tests green, awaiting SENTINEL audit. Operator prod verification pending per runbooks (Issue #900). Activation guards remain NOT SET.
 
 Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD before final deployment.
 
