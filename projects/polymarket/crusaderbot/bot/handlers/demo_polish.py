@@ -210,12 +210,18 @@ _RECENT_SIGNALS_SQL = """
       AND sp.exit_published_at IS NULL
       AND sf.status = 'active'
       AND NOT EXISTS (
+          -- Suppress entries closed via the supported publish_exit
+          -- separate-row pattern: a later exit_signal=TRUE row on the
+          -- same (feed_id, market_id) means the entry is effectively
+          -- closed even though sp.exit_published_at is still NULL.
+          -- Schema column is published_at (signal_publications has no
+          -- created_at). Mirrors signal_evaluator's anti-join exactly.
           SELECT 1
-            FROM signal_publications x
-           WHERE x.feed_id = sp.feed_id
-             AND x.market_id = sp.market_id
-             AND x.exit_signal = TRUE
-             AND x.published_at > sp.published_at
+            FROM signal_publications exit_pub
+           WHERE exit_pub.feed_id = sp.feed_id
+             AND exit_pub.market_id = sp.market_id
+             AND exit_pub.exit_signal = TRUE
+             AND exit_pub.published_at > sp.published_at
       )
     ORDER BY sp.published_at DESC
     LIMIT 3
@@ -299,22 +305,22 @@ def _format_demo(rows: list[dict[str, Any]]) -> str:
     lines = ["*🔍 Demo signal scan — top 3 live signals*\n"]
     for i, row in enumerate(rows, start=1):
         # DB-derived strings (market_question, feed_name) flow into a
-        # ParseMode.MARKDOWN reply — escape after truncate so the ellipsis
-        # math operates on visible characters, not escape sequences.
-        question = _escape_md(
-            _truncate(str(row.get("market_question") or row.get("market_id") or "—"))
+        # ParseMode.MARKDOWN reply — escape AT the interpolation site so
+        # the f-string template makes the escape obviously co-located with
+        # the Markdown wrapper. _truncate runs first so the ellipsis math
+        # operates on visible characters, not escape sequences.
+        question_raw = _truncate(
+            str(row.get("market_question") or row.get("market_id") or "—")
         )
         side = (row.get("side") or "—").upper()
-        feed = _escape_md(
-            _truncate(str(row.get("feed_name") or "—"), limit=24)
-        )
+        feed_raw = _truncate(str(row.get("feed_name") or "—"), limit=24)
         confidence = _extract_confidence(row.get("payload"))
         target = row.get("target_price")
         target_str = f"{float(target):.2f}" if isinstance(target, (int, float)) else "—"
         lines.append(
-            f"*{i}.* {question}\n"
+            f"*{i}.* {_escape_md(question_raw)}\n"
             f"   • Side: *{side}*  • Confidence: *{confidence}*  • Target: *{target_str}*\n"
-            f"   • Feed: _{feed}_"
+            f"   • Feed: _{_escape_md(feed_raw)}_"
         )
     lines.append(
         "\n_📄 Paper mode — these signals are observed only; no orders are placed._"

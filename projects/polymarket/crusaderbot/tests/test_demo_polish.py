@@ -529,10 +529,10 @@ def test_demo_sql_excludes_signals_with_separate_exit_rows():
     assert "exit_published_at IS NULL" in sql
     # Rule (3): later separate-row exit anti-join.
     assert "NOT EXISTS" in sql
-    assert "x.exit_signal = TRUE" in sql
-    assert "x.feed_id = sp.feed_id" in sql
-    assert "x.market_id = sp.market_id" in sql
-    assert "x.published_at > sp.published_at" in sql
+    assert "exit_pub.exit_signal = TRUE" in sql
+    assert "exit_pub.feed_id = sp.feed_id" in sql
+    assert "exit_pub.market_id = sp.market_id" in sql
+    assert "exit_pub.published_at > sp.published_at" in sql
     # Active feeds only.
     assert "sf.status = 'active'" in sql
 
