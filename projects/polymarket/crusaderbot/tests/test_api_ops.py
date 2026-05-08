@@ -38,17 +38,12 @@ def _ok_health():
     }
 
 
-OPS_TOKEN = "demo-secret-token"
-
-
-def _settings(*, paper: bool = True, version: str | None = "abc1234",
-              ops_secret: str | None = OPS_TOKEN):
+def _settings(*, paper: bool = True, version: str | None = "abc1234"):
     return MagicMock(
         ENABLE_LIVE_TRADING=not paper,
         EXECUTION_PATH_VALIDATED=not paper,
         CAPITAL_MODE_CONFIRMED=not paper,
         APP_VERSION=version,
-        OPS_SECRET=ops_secret,
     )
 
 
@@ -270,11 +265,7 @@ def test_ops_kill_calls_set_active_pause_and_redirects(monkeypatch):
     monkeypatch.setattr(api_ops.audit, "write", audit_write)
 
     client = TestClient(_build_app())
-    r = client.post(
-        "/ops/kill",
-        headers={"X-Ops-Token": OPS_TOKEN},
-        follow_redirects=False,
-    )
+    r = client.post("/ops/kill", follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"].startswith("/ops?flash=")
     set_active.assert_awaited_once()
@@ -297,11 +288,7 @@ def test_ops_kill_redirects_with_failure_flash_when_set_active_raises(monkeypatc
     monkeypatch.setattr(api_ops.audit, "write", AsyncMock())
 
     client = TestClient(_build_app())
-    r = client.post(
-        "/ops/kill",
-        headers={"X-Ops-Token": OPS_TOKEN},
-        follow_redirects=False,
-    )
+    r = client.post("/ops/kill", follow_redirects=False)
     assert r.status_code == 303
     assert "Kill+failed" in r.headers["location"] or "Kill%20failed" in r.headers["location"]
 
@@ -319,11 +306,7 @@ def test_ops_resume_calls_set_active_resume_and_redirects(monkeypatch):
     monkeypatch.setattr(api_ops.audit, "write", audit_write)
 
     client = TestClient(_build_app())
-    r = client.post(
-        "/ops/resume",
-        headers={"X-Ops-Token": OPS_TOKEN},
-        follow_redirects=False,
-    )
+    r = client.post("/ops/resume", follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"].startswith("/ops?flash=")
     kwargs = set_active.await_args.kwargs
@@ -342,145 +325,9 @@ def test_ops_resume_redirects_with_failure_flash_when_set_active_raises(monkeypa
     monkeypatch.setattr(api_ops.audit, "write", AsyncMock())
 
     client = TestClient(_build_app())
-    r = client.post(
-        "/ops/resume",
-        headers={"X-Ops-Token": OPS_TOKEN},
-        follow_redirects=False,
-    )
+    r = client.post("/ops/resume", follow_redirects=False)
     assert r.status_code == 303
     assert "Resume+failed" in r.headers["location"] or "Resume%20failed" in r.headers["location"]
-
-
-# ---------------------------------------------------------------------------
-# Auth gate on POST /ops/kill + /ops/resume
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def _stub_ops_mutators(monkeypatch):
-    """Patch kill_switch.set_active and audit.write so successful auth
-    paths don't actually call into the real DB layer.
-    """
-    monkeypatch.setattr(
-        api_ops.kill_switch, "set_active",
-        AsyncMock(return_value={"active": True, "lock_mode": False, "users_disabled": 0}),
-    )
-    monkeypatch.setattr(api_ops.audit, "write", AsyncMock())
-
-
-@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
-def test_ops_post_returns_503_when_ops_secret_unset(
-    monkeypatch, _stub_ops_mutators, path,
-):
-    """When the operator hasn't configured ``OPS_SECRET``, the mutators
-    must respond 503 (not 200, not 403) so the operator can distinguish
-    "not configured" from "wrong token". Mirrors the /admin/sentry-test
-    contract for ADMIN_API_TOKEN.
-    """
-    _patch_route_io(monkeypatch)
-    monkeypatch.setattr(
-        api_ops, "get_settings", lambda: _settings(ops_secret=None),
-    )
-    client = TestClient(_build_app())
-    r = client.post(path, follow_redirects=False)
-    assert r.status_code == 503
-    api_ops.kill_switch.set_active.assert_not_awaited()
-
-
-@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
-def test_ops_post_returns_403_when_token_missing(
-    monkeypatch, _stub_ops_mutators, path,
-):
-    """No ``X-Ops-Token`` header and no ``?token=`` query param → 403.
-    The kill switch must NOT be flipped.
-    """
-    _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
-    r = client.post(path, follow_redirects=False)
-    assert r.status_code == 403
-    api_ops.kill_switch.set_active.assert_not_awaited()
-
-
-@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
-def test_ops_post_returns_403_when_token_wrong(
-    monkeypatch, _stub_ops_mutators, path,
-):
-    _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
-    r = client.post(
-        path,
-        headers={"X-Ops-Token": "wrong-token"},
-        follow_redirects=False,
-    )
-    assert r.status_code == 403
-    api_ops.kill_switch.set_active.assert_not_awaited()
-
-
-@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
-def test_ops_post_accepts_token_via_query_param(
-    monkeypatch, _stub_ops_mutators, path,
-):
-    """The dashboard's HTML form action embeds the token as ``?token=``
-    so a phone bookmark works without needing to inject a header. The
-    handler must accept that path too.
-    """
-    _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
-    r = client.post(f"{path}?token={OPS_TOKEN}", follow_redirects=False)
-    assert r.status_code == 303
-    api_ops.kill_switch.set_active.assert_awaited_once()
-
-
-@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
-def test_ops_post_redirect_preserves_token_query_param(
-    monkeypatch, _stub_ops_mutators, path,
-):
-    """Post-action redirect must include the token query param so the
-    next dashboard render still has a working pair of buttons.
-    """
-    _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
-    r = client.post(f"{path}?token={OPS_TOKEN}", follow_redirects=False)
-    assert r.status_code == 303
-    location = r.headers["location"]
-    assert "token=" + OPS_TOKEN in location, (
-        f"redirect lost the token: {location!r}"
-    )
-
-
-def test_ops_get_does_not_require_token(monkeypatch):
-    """GET /ops is intentionally open so the dashboard renders for
-    anyone who lands on the URL — only the mutators are gated.
-    """
-    _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
-    r = client.get("/ops")
-    assert r.status_code == 200
-
-
-def test_ops_get_with_token_embeds_into_form_actions(monkeypatch):
-    """When the operator opens ``/ops?token=...``, the rendered form
-    actions must point at ``/ops/kill?token=...`` so the POST carries
-    the token without an extra hidden input the operator has to set.
-    """
-    _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
-    r = client.get(f"/ops?token={OPS_TOKEN}")
-    assert r.status_code == 200
-    body = r.text
-    assert f'action="/ops/kill?token={OPS_TOKEN}"' in body
-    assert f'action="/ops/resume?token={OPS_TOKEN}"' in body
-
-
-def test_ops_get_without_token_renders_unsigned_form_actions(monkeypatch):
-    """A bare ``/ops`` GET (no token) must still render — the buttons
-    appear but POST will 403. This keeps the dashboard discoverable.
-    """
-    _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
-    body = client.get("/ops").text
-    assert 'action="/ops/kill"' in body
-    assert 'action="/ops/resume"' in body
 
 
 # ---------------------------------------------------------------------------

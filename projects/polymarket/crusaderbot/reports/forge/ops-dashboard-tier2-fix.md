@@ -112,29 +112,12 @@ Failure mode: if `set_active` raises, the route still redirects to
 `/ops?flash=Kill failed: <ExceptionClass>` — the operator never sees a
 500 page.
 
-### Auth gate (demo-grade, hardening lane deferred)
-`GET /ops` is intentionally open — the read-only dashboard is
-reachable from any phone browser during the demo. The mutators
-(`POST /ops/kill` and `POST /ops/resume`) are gated by a shared
-secret read from `OPS_SECRET` (Fly secret) via either the
-`X-Ops-Token` header OR the `?token=<value>` query / form param. The
-operator bookmarks `https://crusaderbot.fly.dev/ops?token=<OPS_SECRET>`
-on their phone and taps the button — the dashboard's form actions
-embed the token from the GET's query param so the round trip works
-without an extra input field.
-
-* `OPS_SECRET` unset → mutators return **503** (not configured).
-* Missing or wrong token → **403** (constant-time `secrets.compare_digest`).
-* Token via header is preferred (kept out of HTTP access logs);
-  query-param path exists for the phone-bookmark UX.
-
-This closes the unauthenticated-resume hole Codex P1 flagged
-([#910 review thread](https://github.com/bayuewalker/walkermind-os/pull/910)).
-Full hardening (per-operator login, token rotation, audit of
-resolved actor identity) is deferred — see `# TODO: add full auth
-hardening post-demo` in `api/ops.py` module docstring. The bearer-
-protected `/admin/kill` REST endpoint remains the hardened path for
-scripts and CI.
+### Auth note (post-demo TODO)
+The `/ops*` surface ships unauthenticated for the demo. Both the
+module docstring and the source comment record this explicitly:
+`# TODO: add auth hardening post-demo`. The bearer-protected
+`/admin/kill` endpoint is preserved as the hardened path — operators
+who need auth today use that.
 
 ### Runbook update (`docs/runbooks/kill-switch-procedure.md`)
 The kill-switch runbook previously said `ADMIN_USER_IDS` was reserved
