@@ -129,11 +129,37 @@ async def _seed_one(
     if prev >= OPERATOR_TIER:
         return ("noop", prev, prev)
 
-    await conn.execute(
-        "UPDATE users SET access_tier=$2 WHERE id=$1",
+    # Use GREATEST so a concurrent promotion that lands between our
+    # SELECT and our UPDATE is preserved — the previous app version
+    # may still be serving the same database during a Fly release and
+    # an operator could be promoted to Tier 3/4 in that window. A
+    # plain ``SET access_tier=$2`` would silently demote them back to
+    # Tier 2; ``GREATEST`` is monotonic and matches the convention in
+    # ``users.set_tier()``. ``RETURNING`` gives us the actual post-
+    # update tier so the audit row reflects reality.
+    new_actual = await conn.fetchval(
+        "UPDATE users SET access_tier=GREATEST(access_tier, $2) "
+        "WHERE id=$1 RETURNING access_tier",
         row["id"], OPERATOR_TIER,
     )
-    return ("raised", prev, OPERATOR_TIER)
+    if new_actual is None:
+        # The row was deleted between our SELECT and UPDATE; nothing
+        # for us to claim credit for. Audit row stays at prev so a
+        # reviewer can correlate the disappearance with whatever
+        # concurrent process removed it.
+        return ("noop", prev, prev)
+    new_actual = int(new_actual)
+    if new_actual > OPERATOR_TIER:
+        # A concurrent process already lifted the user above our
+        # target. ``GREATEST`` kept the higher value so our UPDATE was
+        # a no-op write — the script did NOT raise this tier and the
+        # audit log must not attribute the change to us.
+        return ("noop", prev, new_actual)
+    # ``new_actual == OPERATOR_TIER`` — we (or a sibling release also
+    # seeding the same tier) brought the row to the target. Either
+    # way the audit row showing ``prev_tier`` lets a reader verify
+    # the promotion came from below.
+    return ("raised", prev, new_actual)
 
 
 async def _write_audit(

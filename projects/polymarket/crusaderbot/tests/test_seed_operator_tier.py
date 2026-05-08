@@ -76,14 +76,62 @@ def test_seed_one_raises_tier_when_below_threshold():
     conn = MagicMock()
     conn.fetchrow = AsyncMock(return_value={"id": "uuid-1", "access_tier": 1})
     conn.execute = AsyncMock()
+    conn.fetchval = AsyncMock(return_value=seed.OPERATOR_TIER)
 
     action, prev, new = _run(seed._seed_one(conn, 123))
 
     assert action == "raised"
     assert prev == 1
     assert new == seed.OPERATOR_TIER
-    sql = conn.execute.await_args.args[0]
-    assert "UPDATE users SET access_tier" in sql
+    sql = conn.fetchval.await_args.args[0]
+    assert "UPDATE users SET access_tier=GREATEST" in sql, (
+        "UPDATE must be GREATEST(access_tier, target) — see "
+        "test_seed_one_does_not_demote_concurrent_promotion for the "
+        "race-condition rationale"
+    )
+    assert "RETURNING access_tier" in sql
+
+
+def test_seed_one_does_not_demote_concurrent_promotion():
+    """Race: the previous app version is still serving the DB during a
+    Fly release. Our SELECT sees ``access_tier=1`` but a concurrent
+    process promotes the operator to Tier 4 before our UPDATE lands.
+    The GREATEST clause must keep the higher tier and our action
+    label must report "noop" (the script did not lower the value).
+    """
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(
+        return_value={"id": "uuid-1", "access_tier": 1},
+    )
+    # GREATEST(4, 2) = 4 — the concurrent promotion wins.
+    conn.fetchval = AsyncMock(return_value=4)
+
+    action, prev, new = _run(seed._seed_one(conn, 123))
+
+    assert action == "noop", (
+        "concurrent promote must produce a noop label so the audit "
+        "log does not falsely attribute the change to this script"
+    )
+    assert prev == 1
+    assert new == 4
+
+
+def test_seed_one_handles_returning_none_after_concurrent_delete():
+    """If the row is DELETEd between our SELECT and UPDATE, RETURNING
+    yields no row and ``fetchval`` returns ``None``. The seeder must
+    fall back to the pre-update tier so the audit row stays consistent.
+    """
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(
+        return_value={"id": "uuid-1", "access_tier": 1},
+    )
+    conn.fetchval = AsyncMock(return_value=None)
+
+    action, prev, new = _run(seed._seed_one(conn, 123))
+
+    assert action == "noop"
+    assert prev == 1
+    assert new == 1
 
 
 def test_seed_one_noop_when_already_at_or_above_tier():
@@ -219,17 +267,28 @@ def fake_conn_factory():
         async def _execute(sql, *args):
             if "INSERT INTO users" in sql:
                 state[args[0]] = seed.OPERATOR_TIER
-            elif "UPDATE users SET access_tier" in sql:
-                # args[0] is uuid string in production; we keyed the state on
-                # telegram_id so derive it back from the uuid prefix.
+            return None
+
+        async def _fetchval(sql, *args):
+            # The raise path issues an ``UPDATE ... GREATEST RETURNING``
+            # so the seeder picks up the actual post-update tier even
+            # under a concurrent promotion. Replicate the GREATEST
+            # semantics here so tests exercise the same branching the
+            # production query would.
+            if "UPDATE users SET access_tier=GREATEST" in sql:
                 uuid_str = args[0]
+                target = args[1]
                 if isinstance(uuid_str, str) and uuid_str.startswith("uuid-"):
                     tg = int(uuid_str.removeprefix("uuid-"))
-                    state[tg] = args[1]
+                    current = state.get(tg, 0)
+                    new = max(current, target)
+                    state[tg] = new
+                    return new
             return None
 
         conn.fetchrow = AsyncMock(side_effect=_fetchrow)
         conn.execute = AsyncMock(side_effect=_execute)
+        conn.fetchval = AsyncMock(side_effect=_fetchval)
 
         # ``conn.transaction()`` must be an async context manager.
         class _Tx:
