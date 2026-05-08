@@ -28,16 +28,25 @@ async def start_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                           user_id=user["id"],
                           payload={"hd_index": idx, "address": addr})
 
+    tier_label = (
+        "Browse" if user["access_tier"] == 1
+        else "Allowlisted" if user["access_tier"] == 2
+        else "Funded" if user["access_tier"] == 3
+        else "Live"
+    )
     text = (
         f"⚔️ *Welcome to CrusaderBot, {tg_user.first_name or 'user'}!*\n\n"
-        "Autonomous Polymarket trading. Telegram-controlled. Safety-first.\n\n"
+        "An autonomous Polymarket trading service, controlled via Telegram. "
+        "📄 *Currently in paper-trading mode — no real capital is deployed.*\n\n"
+        "*Next steps:*\n"
+        "• /about — what CrusaderBot does, in plain English\n"
+        "• /demo — see live signals the bot is watching right now\n"
+        "• /status — health check, version, current mode\n\n"
         "*Your USDC deposit address (Polygon):*\n"
         f"`{wallet['deposit_address']}`\n"
-        "_(tap to copy)_\n\n"
-        f"*Tier:* {user['access_tier']} — "
-        f"{'Browse' if user['access_tier'] == 1 else 'Allowlisted' if user['access_tier'] == 2 else 'Funded' if user['access_tier'] == 3 else 'Live'}\n\n"
-        "Send USDC on Polygon to the address above to unlock paper trading. "
-        "Use the menu below to configure your strategy."
+        "_(tap to copy — funding unlocks paper trading once allowlisted)_\n\n"
+        f"*Tier:* {user['access_tier']} — {tier_label}\n\n"
+        "Use the menu below to explore the bot."
     )
     await update.message.reply_text(
         text, parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu(),
@@ -50,14 +59,27 @@ async def help_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
         return
     await update.message.reply_text(
-        "*CrusaderBot commands*\n\n"
+        "*CrusaderBot — command reference*\n\n"
+        "*🔍 Demo*\n"
+        "/about — what CrusaderBot is, in plain English\n"
+        "/demo — preview live signals (rate-limited)\n"
+        "/status — health, version, paper-mode indicator\n\n"
+        "*🎯 Strategy*\n"
+        "/copytrade — copy-trade strategy controls\n"
+        "/signals — operator signal feeds\n"
+        "/live\\_checklist — pre-flight before live mode\n\n"
+        "*👤 Account*\n"
         "/start — onboarding / main menu\n"
         "/menu — show main menu\n"
-        "/dashboard — current status & PnL\n"
+        "/dashboard — balance, PnL, exposure\n"
         "/positions — open positions\n"
         "/activity — recent trades\n"
-        "/emergency — pause / close all\n"
-        "/admin — operator controls (operator only)\n",
+        "/summary\\_on, /summary\\_off — daily P&L digest\n"
+        "/emergency — pause or close all\n\n"
+        "*🛠️ Operator*\n"
+        "/admin, /allowlist — operator controls\n"
+        "/ops\\_dashboard, /jobs, /auditlog — ops plane\n"
+        "/killswitch, /kill, /resume — pause / resume trading\n",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=main_menu(),
     )

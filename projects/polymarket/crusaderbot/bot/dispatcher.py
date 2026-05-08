@@ -8,8 +8,8 @@ from telegram.ext import (
 )
 
 from .handlers import (
-    activation, admin, copy_trade, dashboard, emergency, onboarding, positions,
-    settings as settings_handler, setup, signal_following, wallet,
+    activation, admin, copy_trade, dashboard, demo_polish, emergency, onboarding,
+    positions, settings as settings_handler, setup, signal_following, wallet,
 )
 from .menus.main import get_menu_route
 
@@ -50,6 +50,10 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("start", onboarding.start_handler))
     app.add_handler(CommandHandler("help", onboarding.help_handler))
     app.add_handler(CommandHandler("menu", onboarding.menu_handler))
+    # Demo-polish surface — investor-facing, read-only, no guard mutations.
+    app.add_handler(CommandHandler("about", demo_polish.about_command))
+    app.add_handler(CommandHandler("status", demo_polish.status_command))
+    app.add_handler(CommandHandler("demo", demo_polish.demo_command))
     app.add_handler(CommandHandler("dashboard", dashboard.dashboard))
     app.add_handler(CommandHandler("positions", positions.show_positions))
     app.add_handler(CommandHandler("activity", dashboard.activity))
