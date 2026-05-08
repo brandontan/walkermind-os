@@ -1,5 +1,5 @@
-Last Updated : 2026-05-08 16:00 Asia/Jakarta
-Status       : R12 final Fly.io deployment Lane 1B SENTINEL APPROVED 95/100 on WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY (MAJOR, NARROW INTEGRATION). WARP🔹CMD merge decision required. Sentry SDK wiring (DSN-gated no-op when unset), POST /admin/sentry-test verification endpoint, /health demo-readiness contract (status / uptime_seconds / version / mode / timestamp + R12b deep-deps), fly.toml primary_region sin → iad, /kill and /resume Telegram aliases, 3 runbooks (alerts.md, kill-switch-procedure.md, rollback-procedure.md). 473/473 tests green. Pre-flight cleanup PR #899 still awaiting CMD review (separate lane). CHECKPOINT 1 — HARD PAUSE: awaiting WARP🔹CMD merge decision + operator-executed prod verification per runbooks before Lane 1C dispatch.
+Last Updated : 2026-05-08 07:11 Asia/Jakarta
+Status       : CHECKPOINT 1 CLEARED. R12 Lane 1B prod-paper-deploy hardening MERGED PR #901 9f87726 (MAJOR, SENTINEL APPROVED 95/100, NARROW INTEGRATION). Pre-flight cleanup MERGED PR #899 8f0f408 (STANDARD, NARROW INTEGRATION). Operator-executed prod verification (7 artefacts — issue #900) outstanding per runbooks. Activation guards remain NOT SET. Awaiting WARP🔹CMD dispatch for Lane 1C (demo data seeding, MINOR).
 
 [COMPLETED]
 - PR #852 — feat(crusaderbot): import full Replit build R1-R11
@@ -22,17 +22,18 @@ Status       : R12 final Fly.io deployment Lane 1B SENTINEL APPROVED 95/100 on W
 - Cleanup legacy polyquantbot directory — PR #891 MERGED (MINOR, Issue #890 closed)
 - P3c — Signal Following strategy — PR #892 MERGED (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
 - P3d — Per-user signal scan loop + execution queue wiring — PR #897 MERGED (bb08092), MAJOR, SENTINEL APPROVED 94/100. Crash-recovery resume path, subscribe/unsubscribe enrollment, dual-layer dedup, migration 011+012. 464/464 tests green.
+- Pre-flight cleanup lane — PR #899 MERGED 8f0f408 (STANDARD, NARROW INTEGRATION). 15 F401 cleared, MIN-01/02/03 resolved, migration 013 copy_trade_events ON DELETE CASCADE → SET NULL, ROADMAP R12d/R12e/R12f aligned.
+- R12 final Fly.io deployment Lane 1B — PR #901 MERGED 9f87726 (MAJOR, SENTINEL APPROVED 95/100, NARROW INTEGRATION). Sentry SDK DSN-gated, /admin/sentry-test bearer endpoint, /health demo-readiness contract (mode guard), /kill+/resume aliases, fly.toml sin→iad, 3 runbooks. 473/473 tests. CHECKPOINT 1 cleared.
 
 [IN PROGRESS]
-- Pre-flight cleanup lane on WARP/CRUSADERBOT-PREFLIGHT-CLEANUP (STANDARD, NARROW INTEGRATION — reclassified from MINOR per Codex P2 finding; CMD-ratified): 15 F401 cleared across 7 files, MIN-01 user_id annotations on 3 copy_trade handler helpers, MIN-02 dispatcher phase comment, MIN-03 migration 013 (copy_trade_events.copy_target_id FK referential action ON DELETE CASCADE → ON DELETE SET NULL — audit rows survive parent delete), ROADMAP R12d/R12e/R12f naming aligned to actual executed lanes. PR #899.
-- R12 final Fly.io deployment Lane 1B on WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY (MAJOR, NARROW INTEGRATION — issue #900). SENTINEL APPROVED 95/100, zero P0/P1 issues. PR open, cleared for merge. CHECKPOINT 1 — HARD PAUSE awaiting WARP🔹CMD merge decision + operator-executed prod verification per runbooks. 473/473 tests green.
+- None.
 
 [NOT STARTED]
 - R12 final Fly.io deployment Lane 1C — demo data seeding (MINOR, idempotent, gated on Lane 1B merge per batch checkpoint protocol)
 - R12 final Fly.io deployment Lane 2C — Telegram demo polish (MINOR, gated on Lane 1C merge)
 
 [NEXT PRIORITY]
-- WARP🔹CMD merge decision on R12 Lane 1B PR #901 (SENTINEL APPROVED 95/100, zero P0/P1). Then operator executes prod verification checklist per runbooks (Sentry test event, Fly.io alert simulation, /kill ack < 3s, /resume, rollback dry-run). Activation guards remain NOT SET throughout.
+- Operator executes prod verification checklist per runbooks (7 artefacts, issue #900): /health 200 in prod, Sentry test event in prod project, Fly.io alert simulation, /kill ack < 3s, /resume gate reopen, /ops_dashboard screenshot, rollback dry-run. Activation guards remain NOT SET. Then WARP🔹CMD dispatch Lane 1C (demo data seeding, MINOR, gated on checkpoint).
 
 [KNOWN ISSUES]
 - /deposit no tier gate (intentional, non-blocking)

@@ -1,13 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-08 14:00 Asia/Jakarta
+**Last Updated:** 2026-05-08 07:11 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- R12 final Fly.io deployment Lane 1B (MAJOR) -- IN PROGRESS on WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY. PR open with Sentry SDK wiring, /admin/sentry-test endpoint, /health demo-readiness contract (status/uptime_seconds/version/mode/timestamp), fly.toml region sin->iad, /kill /resume aliases, 3 runbooks. CHECKPOINT 1 -- HARD PAUSE: awaiting WARP🔹CMD review + WARP•SENTINEL audit + operator-executed prod verification per runbooks before Lane 1C dispatch. 473/473 tests green. Activation guards remain NOT SET.
+- CHECKPOINT 1 CLEARED. PR #901 (Lane 1B) + PR #899 (pre-flight cleanup) both MERGED. Awaiting operator prod verification (7 artefacts, issue #900) + WARP🔹CMD dispatch for Lane 1C. Activation guards remain NOT SET.
 
 ---
 
@@ -34,7 +34,7 @@ Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wi
 - [x] R12 Live Readiness -- Live Opt-In Checklist (8 gates + audit + /live_checklist + CONFIRM dialog) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Live to Paper Auto-Fallback (router + risk gate + kill switch lock cascade) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Daily P&L Summary (cron 23:00 Jakarta + /summary_on /summary_off) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
-- [ ] R12 -- Deployment (Fly.io) final -- Lane 1B PR open on WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY (MAJOR/NARROW INTEGRATION). Sentry SDK + /admin/sentry-test + /health demo-readiness + fly.toml sin->iad + /kill /resume aliases + 3 runbooks shipped. Operator-executed prod verification (Sentry test event, Fly.io alert simulation, kill-switch end-to-end, rollback dry-run) pending per runbooks. Activation guards remain NOT SET.
+- [x] R12 -- Deployment (Fly.io) final -- Lane 1B MERGED PR #901 9f87726 (MAJOR, SENTINEL APPROVED 95/100, NARROW INTEGRATION). Operator-executed prod verification (7 artefacts, issue #900) outstanding. Activation guards remain NOT SET.
 
 Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD before final deployment.
 
