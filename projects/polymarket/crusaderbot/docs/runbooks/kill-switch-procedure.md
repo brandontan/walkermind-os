@@ -40,6 +40,7 @@ the same audited `domain.ops.kill_switch.set_active(...)` path.
 | --- | --- | --- |
 | Telegram (alias) | `/kill` and `/resume` | Demo-readiness alias. Operator-only; non-operators silently ignored. |
 | Telegram (canonical) | `/killswitch pause`, `/killswitch resume`, `/killswitch lock` | Same gate, exposes `lock` (force every user `auto_trade_on=false` + live→paper cascade). |
+| Web dashboard | `POST /ops/kill`, `POST /ops/resume` (via the buttons on `GET /ops`) | Demo-grade auth: requires the `OPS_SECRET` Fly secret via the `X-Ops-Token` header OR `?token=<value>` query param. Operator opens `https://crusaderbot.fly.dev/ops?token=<OPS_SECRET>` from a phone bookmark and taps the button. `OPS_SECRET` unset → 503. Wrong / missing token → 403. Full per-operator auth deferred post-demo (TODO in `api/ops.py`). |
 | REST | `POST /admin/kill?active=true` | Bearer-protected by `ADMIN_API_TOKEN`. Use only when Telegram is unavailable. |
 
 Operator allowlist for the Telegram surface is the
