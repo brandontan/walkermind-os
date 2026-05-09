@@ -1,12 +1,13 @@
 """Polymarket CLOB WebSocket client (Phase 4D).
 
 Push-based fill streaming. The client opens a single connection to
-``wss://ws-subscriptions-clob.polymarket.com/ws``, subscribes to the
-``user`` channel with L2 HMAC auth, and dispatches normalised fill +
-order-update events into ``OrderLifecycleManager``. Polling stays
-registered as a fallback; the lifecycle manager's
-``ON CONFLICT (fill_id) DO NOTHING`` constraint makes the dual-source
-model naturally idempotent.
+``wss://ws-subscriptions-clob.polymarket.com/ws/user`` and subscribes
+to the user channel with the documented API-key payload
+(``{auth:{apiKey,secret,passphrase}, type:"user", markets:[]}``), then
+dispatches normalised fill + order-update events into
+``OrderLifecycleManager``. Polling stays registered as a fallback; the
+lifecycle manager's ``ON CONFLICT (fill_id) DO NOTHING`` constraint
+makes the dual-source model naturally idempotent.
 
 Hard rules respected:
 
@@ -16,9 +17,11 @@ Hard rules respected:
   the broker.
 * Reconnect with exponential backoff + jitter, capped at
   ``WS_RECONNECT_MAX_DELAY_SECONDS``.
-* Application-level heartbeat: send a ping every
-  ``WS_HEARTBEAT_INTERVAL_SECONDS``; if no pong within
-  ``WS_HEARTBEAT_TIMEOUT_SECONDS`` the socket is recycled.
+* Application-level heartbeat: send the literal text ``PING`` every
+  ``WS_HEARTBEAT_INTERVAL_SECONDS`` (default 10s, matching Polymarket's
+  documented disconnect-after-silence behaviour); if no ``PONG``
+  arrives within ``WS_HEARTBEAT_TIMEOUT_SECONDS`` the socket is
+  recycled.
 * Graceful shutdown: ``stop()`` cancels the run loop and closes the
   socket; safe to await even if the client never connected.
 * Per-message error containment: a malformed frame is logged but the
@@ -35,7 +38,6 @@ import time
 from typing import Any, Awaitable, Callable, Optional
 
 from ...config import Settings, get_settings
-from .auth import ClobAuthSigner, build_l2_headers
 from . import ws_handler
 
 logger = logging.getLogger(__name__)
@@ -252,31 +254,26 @@ class ClobWebSocketClient:
         )
 
     async def _send_subscribe(self, ws: Any, s: Settings) -> None:
-        """Send the ``user`` channel subscribe frame with L2 auth headers."""
-        signer = ClobAuthSigner(private_key=s.POLYMARKET_PRIVATE_KEY or "")
+        """Send the documented user-channel subscribe frame.
+
+        Polymarket's WebSocket auth is API-key based at the connection
+        level — `apiKey`, `secret` (raw urlsafe-base64 string from the
+        derive-api-key flow), `passphrase` go straight into the
+        subscribe payload. The L2 HMAC signed-header model is for the
+        REST endpoints; the WS broker does not accept it. ``markets``
+        is intentionally an empty list so the user channel streams
+        every fill / order update for the configured api key without
+        having to enumerate active markets up-front.
+        """
         passphrase = s.POLYMARKET_API_PASSPHRASE or s.POLYMARKET_PASSPHRASE or ""
-        auth_headers = build_l2_headers(
-            api_key=s.POLYMARKET_API_KEY or "",
-            api_secret=s.POLYMARKET_API_SECRET or "",
-            passphrase=passphrase,
-            address=signer.address,
-            method="GET",
-            path="/ws",
-        )
-        # Polymarket WS expects the auth payload inside the subscribe
-        # message itself. Header-based auth is a HTTP-only convention.
-        # We pass through every L2 header value into ``auth`` so the
-        # broker can verify the signature against the same fields.
         frame = {
-            "type": "subscribe",
-            "channel": "user",
             "auth": {
-                "apiKey": auth_headers["POLY_API_KEY"],
-                "passphrase": auth_headers["POLY_PASSPHRASE"],
-                "signature": auth_headers["POLY_SIGNATURE"],
-                "timestamp": auth_headers["POLY_TIMESTAMP"],
-                "address": auth_headers["POLY_ADDRESS"],
+                "apiKey": s.POLYMARKET_API_KEY or "",
+                "secret": s.POLYMARKET_API_SECRET or "",
+                "passphrase": passphrase,
             },
+            "type": "user",
+            "markets": [],
         }
         await ws.send(json.dumps(frame))
 
@@ -294,15 +291,23 @@ class ClobWebSocketClient:
         bring down the read loop and stop subsequent fills from being
         recorded.
         """
+        # Polymarket's heartbeat reply is the literal text "PONG" (no
+        # JSON envelope). Detect that BEFORE attempting json.loads so a
+        # bare PONG does not look like a parse failure. Tolerate the
+        # JSON ``{"type":"pong"}`` shape too in case the broker ever
+        # frames it that way.
+        if isinstance(raw, (str, bytes)):
+            text = raw.decode() if isinstance(raw, bytes) else raw
+            if text.strip().upper() == "PONG":
+                self._last_pong_at = self._clock()
+                return
+
         try:
             payload = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
         except (TypeError, ValueError) as exc:
             logger.warning("ws: dropping non-JSON frame: %s", exc)
             return
 
-        # Heartbeat reply: peer echoes ``pong`` either as a top-level
-        # event or by setting ``type=pong`` on a subscribe ack. Both
-        # advance the watchdog deadline.
         if isinstance(payload, dict) and (
             payload.get("type") == "pong"
             or payload.get("event_type") == "pong"
@@ -332,8 +337,11 @@ class ClobWebSocketClient:
             await self._on_order_update(event)
 
     async def _heartbeat_loop(self, ws: Any, s: Settings) -> None:
-        """Periodic ping with deadline enforcement.
+        """Periodic heartbeat with deadline enforcement.
 
+        Polymarket WS clients are expected to send the literal text
+        ``PING`` on a roughly-10s cadence; the peer echoes ``PONG`` and
+        the connection is recycled by the broker after ~10s of silence.
         The deadline is computed from ``_last_pong_at`` so a pong that
         arrives during the sleep correctly resets the clock without
         racing this task.
@@ -346,7 +354,11 @@ class ClobWebSocketClient:
                 if self._stop_event.is_set():
                     return
                 try:
-                    await ws.send(json.dumps({"type": "ping"}))
+                    # Plain text "PING" — Polymarket's documented
+                    # WebSocket heartbeat shape. JSON envelopes are
+                    # ignored by the broker and would let the
+                    # connection idle out.
+                    await ws.send("PING")
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("ws: heartbeat send failed: %s", exc)
                     with contextlib.suppress(Exception):
