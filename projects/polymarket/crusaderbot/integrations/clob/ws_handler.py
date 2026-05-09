@@ -81,38 +81,128 @@ def _coerce_float(value: Any) -> Optional[float]:
         return None
 
 
-def _normalise_fill(payload: dict) -> Optional[dict]:
-    """Pull (broker_order_id, fill_id, price, size, side) from a user_fill
-    frame. Returns ``None`` when any required field is missing — the
-    lifecycle cannot route a fill without an order id and a fill id.
+def _normalise_fill(payload: dict) -> list[dict]:
+    """Translate a user-channel ``trade`` / ``user_fill`` frame into one
+    or more normalised fill events.
+
+    Polymarket's user-channel trade frames carry separate ids for the
+    taker order and each maker order:
+      * ``taker_order_id`` — the incoming taker order (top-level)
+      * ``maker_orders[].order_id`` — one entry per maker that
+        participated, each with its own matched size (`matched_amount`
+        or `size`)
+
+    When OUR order is the maker side (e.g. a resting GTC limit), the
+    bot's order id appears INSIDE ``maker_orders[]``, NOT at the top
+    level — so a fallback that only reads ``taker_order_id`` would
+    drop every maker fill until the polling loop reconciled it. This
+    function emits one event per candidate broker order id (both maker
+    side and taker side), with synthetic per-event ``fill_id`` values
+    so the lifecycle's ``ON CONFLICT (fill_id) DO NOTHING`` constraint
+    treats each side independently. The ``adapter.py``
+    ``_trade_matches_order`` helper already follows the same maker-
+    orders-vs-taker discipline for the REST trades endpoint; this
+    keeps the two paths in sync.
+
+    Returns ``[]`` when no usable order id can be extracted.
     """
-    broker_order_id = (
-        payload.get("order_id")
-        or payload.get("orderID")
-        or payload.get("taker_order_id")
-        or payload.get("maker_order_id")
-    )
-    fill_id = (
+    trade_id = (
         payload.get("id")
         or payload.get("fill_id")
         or payload.get("trade_id")
         or payload.get("tradeID")
     )
-    if not broker_order_id or not fill_id:
-        return None
-    price = _coerce_float(payload.get("price"))
-    size = _coerce_float(payload.get("size"))
-    if price is None or size is None or size <= 0:
-        return None
+    if not trade_id:
+        return []
+    trade_id = str(trade_id)
+    trade_price = _coerce_float(payload.get("price"))
+    trade_size = _coerce_float(payload.get("size"))
     side = str(payload.get("side") or "").lower() or None
-    return {
-        "broker_order_id": str(broker_order_id),
-        "fill_id": str(fill_id),
-        "price": price,
-        "size": size,
-        "side": side,
-        "raw": payload,
-    }
+
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    maker_orders = payload.get("maker_orders") or payload.get("makerOrders")
+    if isinstance(maker_orders, list):
+        for idx, mo in enumerate(maker_orders):
+            if not isinstance(mo, dict):
+                continue
+            mo_id = (
+                mo.get("order_id")
+                or mo.get("orderID")
+                or mo.get("id")
+            )
+            if not mo_id:
+                continue
+            mo_id = str(mo_id)
+            mo_size = _coerce_float(
+                mo.get("matched_amount")
+                or mo.get("size")
+                or mo.get("matched_size")
+                or mo.get("filled_size")
+            )
+            mo_price = _coerce_float(mo.get("price")) or trade_price
+            if mo_price is None or mo_size is None or mo_size <= 0:
+                continue
+            seen.add(mo_id)
+            out.append({
+                "broker_order_id": mo_id,
+                "fill_id": f"{trade_id}-m-{idx}",
+                "price": mo_price,
+                "size": mo_size,
+                "side": str(mo.get("side") or "").lower() or None,
+                "raw": payload,
+            })
+
+    taker_id = (
+        payload.get("taker_order_id")
+        or payload.get("takerOrderID")
+        or payload.get("taker_orderID")
+    )
+    if taker_id:
+        taker_id = str(taker_id)
+        if (
+            taker_id not in seen
+            and trade_price is not None
+            and trade_size is not None
+            and trade_size > 0
+        ):
+            out.append({
+                "broker_order_id": taker_id,
+                "fill_id": f"{trade_id}-t",
+                "price": trade_price,
+                "size": trade_size,
+                "side": side,
+                "raw": payload,
+            })
+            seen.add(taker_id)
+
+    if out:
+        return out
+
+    # Fallback: legacy single-order shape (used by some integration
+    # tests and broker variants where the order id sits at the top
+    # level without maker/taker splits).
+    legacy_id = (
+        payload.get("order_id")
+        or payload.get("orderID")
+        or payload.get("maker_order_id")
+    )
+    if (
+        legacy_id
+        and trade_price is not None
+        and trade_size is not None
+        and trade_size > 0
+    ):
+        out.append({
+            "broker_order_id": str(legacy_id),
+            "fill_id": trade_id,
+            "price": trade_price,
+            "size": trade_size,
+            "side": side,
+            "raw": payload,
+        })
+    return out
 
 
 def _normalise_order_update(payload: dict) -> Optional[dict]:
@@ -170,10 +260,10 @@ def parse_message(message: Any) -> list[dict]:
 
     if event_type == "user_fill" or event_type == "trade":
         normalised = _normalise_fill(message)
-        if normalised is None:
+        if not normalised:
             logger.warning("ws_handler: dropping malformed user_fill: %s", message)
             return []
-        return [{"kind": EVENT_FILL, **normalised}]
+        return [{"kind": EVENT_FILL, **fill} for fill in normalised]
 
     if event_type == "user_order" or event_type == "order":
         normalised = _normalise_order_update(message)

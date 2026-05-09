@@ -67,16 +67,69 @@ def test_user_fill_minimal_dispatches_fill_event():
     assert ev["side"] == "buy"
 
 
-def test_user_fill_accepts_alternate_id_keys():
+def test_user_fill_taker_only_uses_synthetic_taker_fill_id():
     out = parse_message({
         "event_type": "user_fill",
         "trade_id": "fill-99",
         "taker_order_id": "broker-99",
         "price": 0.42, "size": 5,
     })
+    # Per-side synthetic fill_ids keep maker + taker fills from the
+    # same trade frame distinct in the lifecycle's `fills` table.
     assert len(out) == 1
     assert out[0]["broker_order_id"] == "broker-99"
-    assert out[0]["fill_id"] == "fill-99"
+    assert out[0]["fill_id"] == "fill-99-t"
+
+
+def test_user_fill_maker_orders_emits_one_event_per_maker():
+    """Codex P1: when OUR order is the maker, the broker order id sits
+    inside ``maker_orders[]``; reading only ``taker_order_id`` would
+    drop the fill until the polling loop reconciled it. This case is
+    the documented user-channel ``trade`` shape from
+    docs.polymarket.com/market-data/websocket/user-channel.
+    """
+    out = parse_message({
+        "event_type": "trade",
+        "id": "trade-7",
+        "price": "0.55",
+        "size": "10",  # taker total, not used for maker rows
+        "taker_order_id": "taker-tk",
+        "maker_orders": [
+            {"order_id": "mk-A", "matched_amount": "4", "price": "0.55"},
+            {"order_id": "mk-B", "matched_amount": "6", "price": "0.55"},
+        ],
+    })
+    # Two maker-side events + one taker-side event = three events.
+    assert len(out) == 3
+    ids = [(ev["broker_order_id"], ev["fill_id"]) for ev in out]
+    assert ("mk-A", "trade-7-m-0") in ids
+    assert ("mk-B", "trade-7-m-1") in ids
+    assert ("taker-tk", "trade-7-t") in ids
+    # Per-maker size honours matched_amount, not the trade-level total.
+    by_id = {ev["broker_order_id"]: ev for ev in out}
+    assert by_id["mk-A"]["size"] == pytest.approx(4.0)
+    assert by_id["mk-B"]["size"] == pytest.approx(6.0)
+    assert by_id["taker-tk"]["size"] == pytest.approx(10.0)
+
+
+def test_user_fill_taker_dedup_against_maker_id():
+    """If the same id appears in both maker_orders[] and taker_order_id
+    (Polymarket has surfaced this for self-trades), do NOT emit two
+    events for the same broker order.
+    """
+    out = parse_message({
+        "event_type": "trade",
+        "id": "trade-8",
+        "price": "0.6",
+        "size": "5",
+        "taker_order_id": "same-id",
+        "maker_orders": [
+            {"order_id": "same-id", "matched_amount": "5"},
+        ],
+    })
+    assert len(out) == 1
+    assert out[0]["broker_order_id"] == "same-id"
+    assert out[0]["fill_id"] == "trade-8-m-0"
 
 
 def test_user_fill_drops_when_order_id_missing():
@@ -88,7 +141,10 @@ def test_user_fill_drops_when_order_id_missing():
     assert out == []
 
 
-def test_user_fill_drops_when_fill_id_missing():
+def test_user_fill_drops_when_trade_id_missing():
+    """Without a trade id we cannot synthesise a unique fills-table key.
+    Drops every candidate fill rather than risking a collision.
+    """
     out = parse_message({
         "event_type": "user_fill",
         "order_id": "broker-3",

@@ -339,19 +339,37 @@ class ClobWebSocketClient:
     async def _heartbeat_loop(self, ws: Any, s: Settings) -> None:
         """Periodic heartbeat with deadline enforcement.
 
-        Polymarket WS clients are expected to send the literal text
-        ``PING`` on a roughly-10s cadence; the peer echoes ``PONG`` and
-        the connection is recycled by the broker after ~10s of silence.
-        The deadline is computed from ``_last_pong_at`` so a pong that
-        arrives during the sleep correctly resets the clock without
-        racing this task.
+        Polymarket WS clients must send the literal text ``PING`` on a
+        strict ``interval`` cadence (default 10s) — connections that go
+        ~10s without a heartbeat are recycled by the broker. The peer
+        echoes ``PONG`` and ``_dispatch_raw`` stamps ``_last_pong_at``.
+
+        Cadence contract: PING goes out exactly every ``interval``
+        seconds. The pong deadline is checked AT each interval boundary
+        (before sending) by comparing ``clock - _last_pong_at`` against
+        ``interval + timeout``. We do NOT add a separate timeout sleep
+        between sends — that would push effective cadence to
+        ``interval + timeout`` and let the broker close the socket
+        before the next PING goes out (Codex P1 review on PR #915).
         """
         interval = float(s.WS_HEARTBEAT_INTERVAL_SECONDS)
         timeout = float(s.WS_HEARTBEAT_TIMEOUT_SECONDS)
+        deadline = interval + timeout
         try:
             while not self._stop_event.is_set():
                 await asyncio.sleep(interval)
                 if self._stop_event.is_set():
+                    return
+                # Pong deadline check happens before the next PING
+                # goes out so a silent socket is detected within one
+                # interval window, not after we have already sent
+                # another doomed PING.
+                if self._clock() - self._last_pong_at > deadline:
+                    logger.warning(
+                        "ws: heartbeat timeout, recycling socket"
+                    )
+                    with contextlib.suppress(Exception):
+                        await ws.close()
                     return
                 try:
                     # Plain text "PING" — Polymarket's documented
@@ -361,19 +379,6 @@ class ClobWebSocketClient:
                     await ws.send("PING")
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("ws: heartbeat send failed: %s", exc)
-                    with contextlib.suppress(Exception):
-                        await ws.close()
-                    return
-                # Wait one full timeout window before declaring death;
-                # a pong arriving inside this window updates
-                # ``_last_pong_at`` via ``_dispatch_raw``.
-                await asyncio.sleep(timeout)
-                if self._stop_event.is_set():
-                    return
-                if self._clock() - self._last_pong_at > interval + timeout:
-                    logger.warning(
-                        "ws: heartbeat timeout, recycling socket"
-                    )
                     with contextlib.suppress(Exception):
                         await ws.close()
                     return
