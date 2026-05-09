@@ -205,6 +205,72 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 
+async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Combined My Trades view: open positions summary + recent activity (Tier 2+).
+
+    Shows up to 10 open positions (no mark-price fetch, fast) and the last
+    5 closed/filled orders. Users who need live P&L or force-close can reach
+    the full view via /positions.
+    """
+    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    if not ok or update.message is None:
+        return
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        pos_rows = await conn.fetch(
+            """
+            SELECT p.id, p.market_id, p.side, p.size_usdc, p.entry_price,
+                   p.mode, p.opened_at, m.question
+              FROM positions p
+              LEFT JOIN markets m ON m.id = p.market_id
+             WHERE p.user_id = $1 AND p.status = 'open'
+             ORDER BY p.opened_at DESC
+             LIMIT 10
+            """,
+            user["id"],
+        )
+        ord_rows = await conn.fetch(
+            """
+            SELECT o.market_id, o.side, o.size_usdc, o.price, o.mode,
+                   o.status, o.created_at, m.question
+              FROM orders o
+              LEFT JOIN markets m ON m.id = o.market_id
+             WHERE o.user_id = $1
+             ORDER BY o.created_at DESC
+             LIMIT 5
+            """,
+            user["id"],
+        )
+    lines: list[str] = []
+    if pos_rows:
+        lines.append(f"*📈 Open Positions ({len(pos_rows)}):*\n")
+        for r in pos_rows:
+            title = _truncate(r["question"] or r["market_id"], MARKET_TITLE_MAX)
+            lines.append(
+                f"`{str(r['id'])[:8]}` *{r['side'].upper()}* @ "
+                f"{float(r['entry_price']):.3f} · ${float(r['size_usdc']):.2f} "
+                f"[{r['mode']}]\n_{title}_"
+            )
+        lines.append("\n_/positions for live P\\&L + force\\-close._")
+    else:
+        lines.append("*📈 Positions:* No open positions.")
+    lines.append("")
+    if ord_rows:
+        lines.append("*📋 Recent Activity:*\n")
+        for r in ord_rows:
+            title = _truncate(r["question"] or r["market_id"], 40)
+            lines.append(
+                f"{r['created_at'].strftime('%m-%d %H:%M')} · "
+                f"*{r['side'].upper()}* @ {float(r['price']):.3f} · "
+                f"${float(r['size_usdc']):.2f} [{r['mode']}/{r['status']}]\n_{title}_"
+            )
+    else:
+        lines.append("*📋 Recent Activity:* No activity yet.")
+    await update.message.reply_text(
+        "\n\n".join(lines), parse_mode=ParseMode.MARKDOWN,
+    )
+
+
 async def _verify_user_owns_open_position(user_id, position_id: str) -> Optional[dict]:
     """Single source of truth for the ownership check used by both the
     confirm prompt and the confirm action — guards against a stale callback

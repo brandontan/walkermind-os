@@ -19,6 +19,12 @@ logger = logging.getLogger(__name__)
 async def _text_router(update, ctx):
     """Route plain text consumers in priority order.
 
+    Main menu buttons are checked FIRST so that tapping a button while
+    mid-flow (e.g. during a capital-% or CONFIRM prompt) always routes
+    correctly instead of producing "Couldn't parse that". Matching a menu
+    button clears any pending ``awaiting`` key so the cancelled flow does
+    not bleed into the new surface.
+
     Activation is checked BEFORE setup because both share the same
     ``ctx.user_data['awaiting']`` slot but recognise different values.
     ``setup.text_input`` pops unknown ``awaiting`` values when it
@@ -29,16 +35,19 @@ async def _text_router(update, ctx):
     here so setup only sees the setup-prompt values it was designed
     for.
     """
+    if update.message is None:
+        return
+    text = (update.message.text or "").strip()
+    menu_handler = get_menu_route(text)
+    if menu_handler:
+        if ctx.user_data:
+            ctx.user_data.pop("awaiting", None)
+        await menu_handler(update, ctx)
+        return
     if await activation.text_input(update, ctx):
         return
     if await setup.text_input(update, ctx):
         return
-    if update.message is None:
-        return
-    text = (update.message.text or "").strip()
-    handler = get_menu_route(text)
-    if handler:
-        await handler(update, ctx)
 
 
 async def _global_error_handler(update: object, ctx) -> None:
@@ -57,6 +66,7 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("dashboard", dashboard.dashboard))
     app.add_handler(CommandHandler("positions", positions.show_positions))
     app.add_handler(CommandHandler("activity", dashboard.activity))
+    app.add_handler(CommandHandler("settings", settings_handler.settings_root))
     app.add_handler(CommandHandler("emergency", emergency.emergency_root))
     app.add_handler(CommandHandler("admin", admin.admin_root))
     app.add_handler(CommandHandler("allowlist", admin.allowlist_command))
