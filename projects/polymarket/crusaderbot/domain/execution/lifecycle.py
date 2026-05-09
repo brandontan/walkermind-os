@@ -538,7 +538,37 @@ class OrderLifecycleManager:
         side: str,
         fills: list[dict],
     ) -> None:
-        """Write per-fill rows; safe to re-run via ON CONFLICT (fill_id)."""
+        """Write per-fill rows; safe to re-run via ON CONFLICT (fill_id).
+
+        When the supplied fills are all synthetic ``agg-`` aggregates
+        produced by ``_broker_fills`` (the order_update / polling
+        terminal paths), skip the insert if any per-trade WS fill row
+        already exists for the order. Without this guard a WS fill
+        records ``trade-7-m-0`` and a follow-on order_update inserts
+        an extra ``agg-broker-7`` row covering the same shares, so
+        any fills-based reconciliation/report would double-count.
+        Codex P2 review on PR #915.
+        """
+        if (
+            fills
+            and all(
+                str(f.get("fill_id", "") or "").startswith("agg-")
+                for f in fills
+            )
+        ):
+            has_per_trade = await conn.fetchval(
+                "SELECT 1 FROM fills WHERE order_id = $1 "
+                "AND fill_id NOT LIKE 'agg-%' LIMIT 1",
+                order_id,
+            )
+            if has_per_trade:
+                logger.debug(
+                    "lifecycle: skipping aggregate fills insert; "
+                    "per-trade rows already exist for order %s",
+                    order_id,
+                )
+                return
+
         for fill in fills:
             fill_id = str(
                 fill.get("fill_id")
