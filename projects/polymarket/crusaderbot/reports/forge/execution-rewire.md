@@ -17,17 +17,22 @@ introduced in WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER.
 
 Changes:
 - `from ...integrations import polymarket` removed — legacy path gone
-- `get_clob_client`, `ClobClientProtocol`, `ClobAuthError`, `MockClobClient`
-  imported from `...integrations.clob`
+- `get_clob_client`, `ClobClientProtocol`, `ClobAuthError`, `ClobConfigError`,
+  `MockClobClient` imported from `...integrations.clob`
 - `execute()` gains `order_type: str = "GTC"` and `clob_client: ClobClientProtocol | None = None`
 - Dry-run intercept: `USE_REAL_CLOB=True` + `ENABLE_LIVE_TRADING=False` →
   logs order intent, returns `{"status": "dry_run", "_mock": True}` without DB write or broker call
 - Pre/post submit classification: `ClobAuthError` → `LivePreSubmitError` (safe fallback);
   all other exceptions from `post_order()` → `LivePostSubmitError` (ambiguous, no fallback)
+- `ClobConfigError` from `get_clob_client()` → `LivePreSubmitError` in execute()
+  (Codex P2); claim rollback + `RuntimeError` in close_position()
+- `assert_live_guards()` gains USE_REAL_CLOB check: blocks MockClobClient phantom
+  live exposure when all three env guards are set (Codex P1 round 1)
+- `close_position()` gains USE_REAL_CLOB=False guard at function entry, before
+  pool.acquire or atomic claim: blocks MockClobClient phantom close (Codex P1 round 2)
 - `close_position()` gains `clob_client: ClobClientProtocol | None = None`;
   `polymarket.submit_live_order()` replaced with `client.post_order(side="SELL", order_type="GTC")`
-- 19 new unit tests covering guard routing, dry-run, idempotency, GTC/FOK dispatch,
-  exception classification, close_position paths
+- 27 unit tests covering all above paths (hermetic — no DB, no network, no Telegram)
 
 ---
 
@@ -74,10 +79,10 @@ Modified:
 
 Created:
 - `projects/polymarket/crusaderbot/tests/test_live_execution_rewire.py`
-  19 hermetic unit tests (no DB, no network, no Telegram).
-  Tests: TestAssertLiveGuards (6), TestDryRunMode (3), TestGuardRouting (2),
-  TestOrderTypeDispatch (3), TestIdempotencyKey (2), TestExceptionClassification (2),
-  TestClosePosition (5).
+  27 hermetic unit tests (no DB, no network, no Telegram).
+  Tests: TestAssertLiveGuards (7), TestDryRunMode (3), TestGuardRouting (2),
+  TestOrderTypeDispatch (3), TestIdempotencyKey (2), TestExceptionClassification (3),
+  TestClosePosition (7).
 
 Created:
 - `projects/polymarket/crusaderbot/reports/forge/execution-rewire.md` (this file)
@@ -96,17 +101,23 @@ Not modified (preserved):
 - `execute()` uses `get_clob_client(s)` factory (no direct py-clob-client instantiation)
 - All 3 activation guards (ENABLE_LIVE_TRADING, EXECUTION_PATH_VALIDATED,
   CAPITAL_MODE_CONFIRMED) still block real submissions in `assert_live_guards()`
+- USE_REAL_CLOB guard in `assert_live_guards()`: prevents MockClobClient from
+  inserting mode='live' DB rows + debiting ledger without a real Polymarket order
+  (Codex P1 round 1, fixed)
 - Dry-run: `USE_REAL_CLOB=True` + `ENABLE_LIVE_TRADING=False` → logs intent,
   returns mock fill, zero DB writes, zero broker calls
 - Idempotency: `ON CONFLICT (idempotency_key) DO NOTHING` prevents duplicate submits on retry
 - GTC and FOK: `order_type` param passes through to `client.post_order(order_type=...)`
 - `ClobAuthError` → `LivePreSubmitError` (signing failure before network → router may fallback)
 - Non-auth exceptions → `LivePostSubmitError` (post-submit ambiguous → NO fallback)
+- `ClobConfigError` from `get_clob_client()` → `LivePreSubmitError` in execute(),
+  `RuntimeError` (with claim rollback) in close_position() (Codex P2, fixed)
+- `close_position()` USE_REAL_CLOB=False guard fires BEFORE atomic DB claim:
+  prevents MockClobClient from phantom-closing a live position (Codex P1 round 2, fixed)
 - `close_position()` uses `client.post_order(side="SELL", order_type="GTC")`
 - Rollback on close failure: positions reverted to `status='open'` on broker error
 - `clob_client` injection on both `execute()` and `close_position()` enables hermetic testing
-- Ruff passes on all changed files
-- Syntax valid; structural checks verified via AST parse
+- Ruff passes on all changed files; 27 hermetic unit tests total
 
 ---
 
@@ -118,7 +129,7 @@ Not modified (preserved):
   WARP/CRUSADERBOT-POLYMARKET-LEGACY-CLEANUP can remove it post-Phase-4B merge.
 - `router.py` does not forward `order_type` — callers always get GTC. Exposing
   `order_type` through the full signal→router→execute chain is Phase 4C scope.
-- Full CI test count: 624+19 = 643 expected (environment in this session lacked
+- Full CI test count: 624+27 = 651 expected (environment in this session lacked
   system-level cryptography deps; CI environment has all deps installed).
 
 ---
