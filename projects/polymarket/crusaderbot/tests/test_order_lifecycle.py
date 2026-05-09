@@ -338,6 +338,7 @@ async def test_live_cancelled_rolls_position_back():
 
     client = AsyncMock()
     client.get_order = AsyncMock(return_value={"status": "cancelled"})
+    client.get_fills = AsyncMock(return_value=[])
     client.aclose = AsyncMock(return_value=None)
 
     mgr, notify_user, _no, audit_write = _build_manager(
@@ -353,6 +354,8 @@ async def test_live_cancelled_rolls_position_back():
         "UPDATE positions" in q and "status = 'cancelled'" in q
         for q, _ in conn.position_updates
     )
+    # get_fills was consulted before refund math.
+    client.get_fills.assert_awaited()
     notify_user.assert_awaited()
 
 
@@ -362,12 +365,13 @@ async def test_live_cancelled_credits_full_refund_when_no_fills():
     debits the full size at position-insert time; without this refund
     the user's balance silently locks the cancelled notional.
     """
-    order = _make_order(size_usdc=100.0, fill_size=None, fill_price=None)
+    order = _make_order(size_usdc=100.0)
     conn = FakeConn(orders=[order])
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
     client.get_order = AsyncMock(return_value={"status": "cancelled"})
+    client.get_fills = AsyncMock(return_value=[])
     client.aclose = AsyncMock(return_value=None)
 
     mgr, *_ = _build_manager(
@@ -384,19 +388,24 @@ async def test_live_cancelled_credits_full_refund_when_no_fills():
     assert len(conn.wallet_updates) == 1
 
 
-async def test_live_cancelled_credits_partial_refund_with_partial_fill():
-    """Partial-fill-then-cancel: only the unfilled notional is credited
-    back. fill_size=50 shares at fill_price=0.40 → $20 filled; size_usdc=100
-    → $80 unfilled refund.
+async def test_live_cancelled_partial_fill_resizes_position_and_refunds_remainder():
+    """Codex P1 follow-up: GTC partial-fill-then-cancel must reconcile
+    broker fills before refunding. Without it the user keeps matched
+    shares AND receives a full USDC refund — duplicate exposure.
+
+    50 shares filled at 0.40 -> $20 matched; size_usdc=100 -> $80 refund.
+    The position resizes to size_usdc=20 and stays 'open' so the user
+    retains the matched share position; fills row is recorded.
     """
-    order = _make_order(
-        size_usdc=100.0, fill_size=50.0, fill_price=0.40,
-    )
+    order = _make_order(size_usdc=100.0)
     conn = FakeConn(orders=[order])
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
     client.get_order = AsyncMock(return_value={"status": "cancelled"})
+    client.get_fills = AsyncMock(return_value=[
+        {"fill_id": "f-partial-1", "price": 0.40, "size": 50.0, "side": "yes"},
+    ])
     client.aclose = AsyncMock(return_value=None)
 
     mgr, *_ = _build_manager(
@@ -404,11 +413,26 @@ async def test_live_cancelled_credits_partial_refund_with_partial_fill():
     )
     await mgr.poll_once()
 
+    # Refund credit = $80 unfilled.
+    from decimal import Decimal as _D
     assert len(conn.ledger_inserts) == 1
     _user, type_, amount, *_ = conn.ledger_inserts[0]
-    from decimal import Decimal as _D
     assert type_ == "adjustment"
-    assert _D(str(amount)) == _D("80.00")
+    assert _D(str(amount)) == _D("80.0000")
+    # Position UPDATE went through the RESIZE branch (no
+    # status='cancelled', has SET size_usdc + entry_price).
+    resize_qs = [
+        q for q, _a in conn.position_updates
+        if "SET size_usdc" in q and "entry_price" in q
+    ]
+    assert resize_qs, conn.position_updates
+    cancel_qs = [
+        q for q, _a in conn.position_updates
+        if "status = 'cancelled'" in q
+    ]
+    assert not cancel_qs, "partial fill should NOT roll position to cancelled"
+    # Per-fill row written for the matched portion.
+    assert len(conn.fills_inserted) == 1
 
 
 async def test_live_cancelled_skips_credit_when_no_position_rolled_back():
@@ -422,6 +446,7 @@ async def test_live_cancelled_skips_credit_when_no_position_rolled_back():
 
     client = AsyncMock()
     client.get_order = AsyncMock(return_value={"status": "cancelled"})
+    client.get_fills = AsyncMock(return_value=[])
     client.aclose = AsyncMock(return_value=None)
 
     mgr, *_ = _build_manager(
@@ -440,6 +465,7 @@ async def test_live_expired_credits_refund_same_as_cancel():
 
     client = AsyncMock()
     client.get_order = AsyncMock(return_value={"status": "expired"})
+    client.get_fills = AsyncMock(return_value=[])
     client.aclose = AsyncMock(return_value=None)
 
     mgr, *_ = _build_manager(
@@ -461,6 +487,7 @@ async def test_live_expired_uses_expiry_path():
 
     client = AsyncMock()
     client.get_order = AsyncMock(return_value={"status": "expired"})
+    client.get_fills = AsyncMock(return_value=[])
     client.aclose = AsyncMock(return_value=None)
 
     mgr, _nu, _no, audit_write = _build_manager(
