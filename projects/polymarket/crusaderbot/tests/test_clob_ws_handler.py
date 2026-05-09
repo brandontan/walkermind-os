@@ -281,6 +281,58 @@ def test_user_order_drops_when_order_id_missing():
     }) == []
 
 
+def test_order_update_fully_matched_routes_to_filled():
+    """Codex P2 round 9: Polymarket sends `type: "UPDATE"` with
+    ``original_size`` + ``size_matched`` instead of an explicit
+    status when a resting order is fully matched. The WS path must
+    derive ``filled`` from the sizes; otherwise normalise_status
+    returns ``open`` for "UPDATE" and the order stays open until the
+    polling fallback closes it.
+    """
+    out = parse_message({
+        "event_type": "order",
+        "order_id": "broker-u1",
+        "type": "UPDATE",
+        "original_size": 100,
+        "size_matched": 100,
+    })
+    assert len(out) == 1
+    assert out[0]["status"] == "filled"
+    assert out[0]["size_matched"] == pytest.approx(100.0)
+
+
+def test_order_update_partial_match_stays_open():
+    """Sister test: a partial UPDATE (size_matched < original_size)
+    must keep status='open' so handle_ws_order_update only records
+    the fill without terminalising. The eventual fully-matched UPDATE
+    or explicit terminal frame will drive the close.
+    """
+    out = parse_message({
+        "event_type": "order",
+        "order_id": "broker-u2",
+        "type": "UPDATE",
+        "original_size": 100,
+        "size_matched": 50,
+    })
+    assert len(out) == 1
+    assert out[0]["status"] == "open"
+
+
+def test_order_update_zero_size_matched_stays_open():
+    """Edge: size_matched=0 (e.g. fresh PLACEMENT-like UPDATE) must
+    not be treated as filled even though both fields are present.
+    """
+    out = parse_message({
+        "event_type": "order",
+        "order_id": "broker-u3",
+        "type": "UPDATE",
+        "original_size": 100,
+        "size_matched": 0,
+    })
+    assert len(out) == 1
+    assert out[0]["status"] == "open"
+
+
 # ---------------------------------------------------------------------------
 # Ignore + unknown
 # ---------------------------------------------------------------------------
