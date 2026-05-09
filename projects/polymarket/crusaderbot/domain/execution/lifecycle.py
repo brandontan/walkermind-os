@@ -53,11 +53,6 @@ STATUS_STALE = "stale"
 class OrderLifecycleManager:
     """Polls live orders and dispatches terminal-state side effects."""
 
-    # Paper-mode shortcut: after this many polls, the manager pretends
-    # the broker responded with FILLED and runs the on-fill side effects
-    # so paper-runs of the lifecycle path stay reachable in CI.
-    PAPER_FILL_AFTER_ATTEMPTS = 1
-
     def __init__(
         self,
         *,
@@ -164,25 +159,16 @@ class OrderLifecycleManager:
         """
         new_attempts = int(order["poll_attempts"]) + 1
 
-        # --- paper-mode mock fill -------------------------------------
-        # USE_REAL_CLOB=False: synthesise a fill so dry-run orders don't
-        # accumulate. Real DB write paths still run so tests of
-        # _on_fill / _record_fills exercise the same code as live.
+        # --- paper-mode safety bail ------------------------------------
+        # If USE_REAL_CLOB is False, we MUST NOT synthesise a fill.
+        # mode='live' rows are only created by live.execute() when
+        # USE_REAL_CLOB was True at order-creation time; if an operator
+        # has since disabled the toggle while orders remain open at the
+        # broker, falsely "filling" them in DB would update positions /
+        # fills / wallets without any real broker confirmation.
+        # Operator-driven reconciliation handles this state — we just
+        # touch the row so observability stays current. Codex P1 review.
         if not settings.USE_REAL_CLOB:
-            if new_attempts >= self.PAPER_FILL_AFTER_ATTEMPTS:
-                fill_price = float(order["price"])
-                fill_size = float(order["size_usdc"]) / max(fill_price, 0.0001)
-                synthetic_fill = {
-                    "fill_id": f"paper-{order['id']}",
-                    "price": fill_price,
-                    "size": fill_size,
-                    "side": order["side"],
-                }
-                await self._on_fill(
-                    order=order, fill_price=fill_price, fill_size=fill_size,
-                    fills=[synthetic_fill], attempts=new_attempts,
-                )
-                return "filled"
             await self._touch(order["id"], new_attempts)
             return "open"
 
@@ -204,9 +190,16 @@ class OrderLifecycleManager:
 
         broker = await client.get_order(broker_id)
         status = _broker_status(broker)
+        # Derive fills aggregate from the broker order detail itself.
+        # /data/order/{id} returns ``size_matched`` (filled shares) +
+        # ``price`` (limit). For GTC limit orders all matches happen
+        # at the limit price, so a single aggregate row is enough for
+        # refund math and position resize without an extra
+        # /data/trades round trip on the (Codex-flagged) unsupported
+        # ``taker_order_id`` filter.
+        fills = _broker_fills(broker, order)
 
         if status == "filled":
-            fills = await client.get_fills(broker_id)
             fill_price, fill_size = _aggregate_fills(fills, fallback=order)
             await self._on_fill(
                 order=order, fill_price=fill_price, fill_size=fill_size,
@@ -214,12 +207,11 @@ class OrderLifecycleManager:
             )
             return "filled"
         # Cancel + expiry MUST reconcile broker fills before refunding.
-        # A GTC partial-fill that the broker later cancels reaches us via
-        # status='cancelled'; without fetching get_fills here the refund
-        # math falls back to NULL fill columns and credits the full
-        # size_usdc while the user keeps the matched shares. Codex P1.
+        # A GTC partial-fill that the broker later cancels reaches us
+        # via status='cancelled' with size_matched > 0; without that
+        # reconciliation the refund math credits the full size_usdc
+        # while the user keeps the matched shares. Codex P1 (twice).
         if status in {"cancelled", "expired"}:
-            fills = await client.get_fills(broker_id)
             handler = self._on_cancel if status == "cancelled" else self._on_expiry
             await handler(order=order, attempts=new_attempts, fills=fills)
             return status
@@ -668,6 +660,56 @@ def _aggregate_fills(
     if total_size <= 0:
         return float(fills[0].get("price", 0) or 0), 0.0
     return weighted_price / total_size, total_size
+
+
+def _broker_fills(broker_payload: dict, order: dict) -> list[dict]:
+    """Build a fills aggregate from the broker order detail.
+
+    Polymarket's ``/data/order/{id}`` returns ``size_matched`` (filled
+    shares) and ``price`` (limit price). For GTC limit orders all
+    matches land at the limit price, so a single synthetic aggregate
+    row is functionally equivalent to enumerating per-trade fills for
+    the refund / resize math the lifecycle needs — and avoids the
+    ``/data/trades`` endpoint whose ``taker_order_id`` filter is not
+    supported by the CLOB (Codex P1 review).
+
+    Returns an empty list when ``size_matched`` is zero or missing.
+    """
+    raw_size = (
+        broker_payload.get("size_matched")
+        or broker_payload.get("sizeMatched")
+        or broker_payload.get("filled_size")
+        or 0
+    )
+    try:
+        matched_size = float(raw_size or 0)
+    except (TypeError, ValueError):
+        matched_size = 0.0
+    if matched_size <= 0:
+        return []
+    raw_price = (
+        broker_payload.get("price")
+        or broker_payload.get("match_price")
+        or order.get("price")
+        or 0
+    )
+    try:
+        matched_price = float(raw_price or 0)
+    except (TypeError, ValueError):
+        matched_price = float(order.get("price", 0) or 0)
+    broker_id = (
+        broker_payload.get("id")
+        or broker_payload.get("orderID")
+        or broker_payload.get("order_id")
+        or order.get("polymarket_order_id")
+        or ""
+    )
+    return [{
+        "fill_id": f"agg-{broker_id}",
+        "price": matched_price,
+        "size": matched_size,
+        "side": order["side"],
+    }]
 
 
 def _safe_fills(fills: list[dict]) -> list[dict]:
