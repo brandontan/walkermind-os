@@ -744,14 +744,46 @@ class OrderLifecycleManager:
                 fills=fills, attempts=attempts,
             )
             return
-        if status == "cancelled":
-            await self._on_cancel(order=order, attempts=attempts, fills=fills)
-            return
-        if status == "expired":
-            await self._on_expiry(order=order, attempts=attempts, fills=fills)
+        if status in {"cancelled", "expired"}:
+            # Cancel/expiry refund math depends on the matched-shares
+            # aggregate. The broker's user_order frame may omit
+            # size_matched (the operator-cancel path commonly does),
+            # in which case _broker_fills returned []. Hydrating from
+            # the per-trade rows handle_ws_fill already wrote ensures
+            # _terminal_close refunds only the UNFILLED remainder
+            # rather than the full notional. Without this, a WS-fill
+            # for $40 followed by a WS-cancel-with-no-size_matched on
+            # a $100 order would refund the full $100 even though the
+            # user already owns the $40 of matched shares. Codex P1
+            # review on PR #915.
+            if not fills:
+                fills = await self._load_existing_fills(order["id"])
+            handler = (
+                self._on_cancel if status == "cancelled"
+                else self._on_expiry
+            )
+            await handler(order=order, attempts=attempts, fills=fills)
             return
         # ``open`` updates from the WS path are informational; the poll
         # loop already advances last_polled_at on its cadence.
+
+    async def _load_existing_fills(self, order_id: UUID) -> list[dict]:
+        """Pull per-trade ``fills`` rows for a given order.
+
+        Used by ``handle_ws_order_update`` to reconstruct the matched-
+        shares aggregate when the cancel/expiry frame omits
+        ``size_matched``. ``agg-`` synthetic rows are excluded so we
+        do not double-count if a previous reconciliation has already
+        landed an aggregate alongside per-trade rows. Codex P1 review.
+        """
+        pool = self._pool_override or get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT fill_id, price, size, side FROM fills "
+                "WHERE order_id = $1 AND fill_id NOT LIKE 'agg-%'",
+                order_id,
+            )
+        return [dict(r) for r in rows]
 
     async def _lookup_order_by_broker_id(
         self, broker_order_id: str,
