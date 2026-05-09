@@ -603,11 +603,20 @@ class OrderLifecycleManager:
                     fill,
                 )
                 continue
+            # ON CONFLICT DO UPDATE so synthetic ``agg-*`` rows
+            # tracking a growing broker aggregate (open UPDATE frames
+            # with size_matched climbing toward original_size) reflect
+            # the LATEST matched amount rather than the first one we
+            # observed. Per-trade fill_ids are unique per match so the
+            # UPSERT is a no-op for duplicate trade frames; agg rows
+            # benefit from the size/price refresh. Codex P1 round 10.
             await conn.execute(
                 """
                 INSERT INTO fills (order_id, fill_id, price, size, side, raw)
                 VALUES ($1,$2,$3,$4,$5,$6)
-                ON CONFLICT (fill_id) DO NOTHING
+                ON CONFLICT (fill_id) DO UPDATE SET
+                    size = EXCLUDED.size,
+                    price = EXCLUDED.price
                 """,
                 order_id, fill_id, price, size,
                 str(fill.get("side") or side).lower(),
@@ -780,26 +789,52 @@ class OrderLifecycleManager:
             )
             await handler(order=order, attempts=attempts, fills=fills)
             return
-        # ``open`` updates from the WS path are informational; the poll
-        # loop already advances last_polled_at on its cadence.
+        # status == "open" (partial UPDATE or informational frame).
+        # When the broker UPDATE carries size_matched > 0 (a partial
+        # match), persist the aggregate now so a later cancellation
+        # that omits size_matched can hydrate the matched shares from
+        # the DB via _load_existing_fills. Without this, the cancel
+        # path would refund the full order notional even though shares
+        # were already matched. Subsequent UPDATEs with grown
+        # size_matched UPSERT the agg row to the latest amount via
+        # _record_fills_in_conn's ON CONFLICT DO UPDATE clause.
+        # Codex P1 round 10 on PR #915.
+        if fills:
+            pool = self._pool_override or get_pool()
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    await self._record_fills_in_conn(
+                        conn=conn, order_id=order["id"],
+                        side=order["side"], fills=fills,
+                    )
 
     async def _load_existing_fills(self, order_id: UUID) -> list[dict]:
-        """Pull per-trade ``fills`` rows for a given order.
+        """Pull existing ``fills`` rows used for hydration on cancel/expiry.
 
-        Used by ``handle_ws_order_update`` to reconstruct the matched-
-        shares aggregate when the cancel/expiry frame omits
-        ``size_matched``. ``agg-`` synthetic rows are excluded so we
-        do not double-count if a previous reconciliation has already
-        landed an aggregate alongside per-trade rows. Codex P1 review.
+        Prefer per-trade rows (one row per matched trade — the most
+        granular record). When no per-trade rows exist, fall back to
+        the synthetic ``agg-*`` aggregate that ``handle_ws_order_update``
+        may have persisted from a partial UPDATE frame (Codex P1
+        round 10). Returning both kinds at once would double-count
+        when the dedup guard's contract is satisfied (agg sums to
+        per-trade SUM), which is why per-trade takes precedence over
+        agg rather than being unioned.
         """
         pool = self._pool_override or get_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch(
+            per_trade = await conn.fetch(
                 "SELECT fill_id, price, size, side FROM fills "
                 "WHERE order_id = $1 AND fill_id NOT LIKE 'agg-%'",
                 order_id,
             )
-        return [dict(r) for r in rows]
+            if per_trade:
+                return [dict(r) for r in per_trade]
+            agg = await conn.fetch(
+                "SELECT fill_id, price, size, side FROM fills "
+                "WHERE order_id = $1 AND fill_id LIKE 'agg-%'",
+                order_id,
+            )
+            return [dict(r) for r in agg]
 
     async def _lookup_order_by_broker_id(
         self, broker_order_id: str,
