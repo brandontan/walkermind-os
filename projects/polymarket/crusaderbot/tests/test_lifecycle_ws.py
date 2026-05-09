@@ -165,7 +165,14 @@ async def test_ws_fill_missing_required_fields_drops_event():
     assert conn.fills_inserted == []
 
 
-async def test_ws_fill_writes_terminal_update_and_fills_row():
+async def test_ws_fill_records_partial_only_no_terminal_update():
+    """Codex P1 / WARP🔹CMD: the WS fill path is records-only. Each
+    CONFIRMED ``user_fill`` writes one fills row + bumps the position
+    mark price; it MUST NOT mark the order as filled. Terminal status
+    arrives via ``handle_ws_order_update(status=filled)`` or the
+    polling fallback so a multi-trade GTC partial fill keeps every
+    subsequent fills row instead of race-losing the second writer.
+    """
     conn = FakeConn(orders=[_make_order(broker_id="broker-1")])
     mgr, notify_user = _build(conn)
     await mgr.handle_ws_fill({
@@ -173,12 +180,13 @@ async def test_ws_fill_writes_terminal_update_and_fills_row():
         "fill_id": "fill-abc",
         "price": 0.55, "size": 100.0, "side": "yes",
     })
-    assert len(conn.terminal_updates) == 1
+    # Records-only contract: fills row written, NO terminal UPDATE
+    # against the orders table, NO Telegram notification (terminal
+    # path owns the user-facing message).
     assert len(conn.fills_inserted) == 1
-    # Per-fill row carries the WS-supplied fill_id.
-    args = conn.fills_inserted[0]
-    assert args[1] == "fill-abc"
-    notify_user.assert_awaited_once()
+    assert conn.fills_inserted[0][1] == "fill-abc"
+    assert conn.terminal_updates == []
+    notify_user.assert_not_awaited()
 
 
 async def test_ws_fill_skipped_if_already_terminal():
@@ -197,33 +205,44 @@ async def test_ws_fill_skipped_if_already_terminal():
 # ---------------------------------------------------------------------------
 
 
-async def test_ws_then_poll_dedups_via_returning_id_race_loss():
-    """First handler claims the order; the second sees ``RETURNING id``
-    return None and bails. Polling and WS land on the exact same code
-    path so this protects against double-credit regardless of which
-    channel arrives first.
+async def test_ws_partial_fills_accumulate_without_terminating():
+    """Multi-trade GTC partial fill: three WS frames arrive for the
+    same order, each carrying a different fill_id. Records-only path
+    must insert all three rows and never mark the order terminal.
+    Without this, the second writer's race-loss would silently drop
+    fills 2 + 3.
+    """
+    conn = FakeConn(orders=[_make_order(broker_id="b1")])
+    mgr, notify_user = _build(conn)
+    for fid, sz in (("f1", 25.0), ("f2", 25.0), ("f3", 50.0)):
+        await mgr.handle_ws_fill({
+            "broker_order_id": "b1", "fill_id": fid,
+            "price": 0.5, "size": sz,
+        })
+    assert len(conn.fills_inserted) == 3
+    assert {row[1] for row in conn.fills_inserted} == {"f1", "f2", "f3"}
+    assert conn.terminal_updates == []
+    notify_user.assert_not_awaited()
+
+
+async def test_ws_then_poll_dedup_via_fill_id_unique_constraint():
+    """Real schema dedup: the WS path inserts per-trade fill_ids; the
+    polling path's terminal `_on_fill` will INSERT INTO fills with its
+    own synthetic fill_id and then UPDATE orders to terminal. Both can
+    co-exist without double-counting because the unique fill_id
+    constraint drops any duplicate (FakeConn does not enforce, so this
+    test asserts the contract via call-site behaviour: the WS path
+    never issues a terminal RETURNING id).
     """
     conn = FakeConn(orders=[_make_order(broker_id="b1")])
     mgr, _ = _build(conn)
-    # First WS fill claims the row.
     await mgr.handle_ws_fill({
         "broker_order_id": "b1", "fill_id": "f1",
         "price": 0.5, "size": 1.0,
     })
-    assert len(conn.terminal_updates) == 1
-    # Second arrival (e.g. polling cycle after WS already won): RETURNING
-    # id returns None on the UPDATE, so no second terminal write or
-    # second fills row should be recorded.
-    conn.return_terminal_id = False
-    await mgr.handle_ws_fill({
-        "broker_order_id": "b1", "fill_id": "f1",  # same fill_id
-        "price": 0.5, "size": 1.0,
-    })
-    assert len(conn.terminal_updates) == 1  # still 1 — no duplicate
-    # Per-fill row dedup is also verified — under the real schema this is
-    # guaranteed by ON CONFLICT (fill_id) DO NOTHING; the FakeConn does
-    # not enforce constraints, so we only assert the count from the
-    # successful path here.
+    # No terminal write from the WS path — polling can still race-win.
+    assert conn.terminal_updates == []
+    assert len(conn.fills_inserted) == 1
 
 
 # ---------------------------------------------------------------------------
