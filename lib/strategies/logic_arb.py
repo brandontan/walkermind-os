@@ -39,7 +39,7 @@ sys.path.insert(0, os.environ.get(
 
 from ..strategy_base import (
     Strategy, Signal,
-    get_yes_price, get_no_price,
+    get_yes_price,
 )
 
 logger = logging.getLogger("bot.logic_arb")

@@ -27,7 +27,7 @@ from typing import List, Optional
 
 from ..strategy_base import (
     Strategy, Signal,
-    get_yes_price, get_no_price, get_liquidity, get_volume_24h, get_price_change,
+    get_yes_price, get_liquidity, get_volume_24h, get_price_change,
 )
 
 

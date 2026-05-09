@@ -22,11 +22,9 @@ Parameters (config.strategy_params):
 Ref: https://blog.devgenius.io/found-the-weather-trading-bots-quietly-making-24-000-on-polymarket
 """
 
-import json
 import logging
 import os
 import sys
-import urllib.request
 from typing import List, Optional
 
 sys.path.insert(0, os.environ.get(

@@ -1,16 +1,24 @@
-"""ClobAdapter — REST client wrapping Polymarket CLOB authenticated endpoints.
+"""ClobAdapter -- REST client wrapping Polymarket CLOB authenticated endpoints.
 
-This adapter is the Phase 4A replacement path for ``py-clob-client`` in
-the live execution lane. It is intentionally minimal: only the surface
-the live engine will need (post / cancel / get order, derive credentials)
-plus a thin escape hatch (``request``) for future endpoints.
+Phase 4A introduced the basic REST surface (post / cancel / get). Phase 4E
+adds production-grade resilience around it:
+
+  * Typed exception classification (auth / rate-limit / server / timeout
+    / network / max-retries) replacing string-matching on httpx errors.
+  * Token-bucket rate limiter applied before every outbound call so the
+    broker's per-account 429 ceiling is unreachable in steady state.
+  * Circuit breaker wrapping ``post_order``, ``cancel_order``, and
+    ``get_order``; OPEN raises ``ClobCircuitOpenError`` immediately with
+    no broker call. The ``on_open`` callback (wired in the package
+    factory) pages the operator on Telegram.
 
 Hard rules respected:
-  * No silent failures — every non-2xx HTTP response raises ``ClobAPIError``.
-  * Exponential backoff via tenacity on transient HTTP errors only;
-    auth-class errors (4xx) are NOT retried (re-signing wouldn't help and
-    a duplicate POST after broker accept is a capital-safety footgun).
-  * Async-only — no blocking I/O on the trading loop.
+  * No silent failures -- every non-2xx HTTP response or transport
+    exception raises a typed ``ClobError`` subclass.
+  * Auth-class errors (400/401/403) are NOT retried (re-signing wouldn't
+    help and a duplicate POST after broker accept is a capital-safety
+    footgun).
+  * Async-only -- no blocking I/O on the trading loop.
   * Builder headers attached when the corresponding credentials are
     configured; otherwise omitted (orders still post, just without
     attribution).
@@ -36,12 +44,32 @@ from .auth import (
     build_l1_headers,
     build_l2_headers,
 )
-from .exceptions import ClobAPIError, ClobAuthError
+from .circuit_breaker import CircuitBreaker
+from .exceptions import (
+    ClobAPIError,
+    ClobAuthError,
+    ClobMaxRetriesError,
+    ClobNetworkError,
+    ClobRateLimitError,
+    ClobServerError,
+    ClobTimeoutError,
+)
+from .rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_HOST = "https://clob.polymarket.com"
 DEFAULT_TIMEOUT = 10.0
+DEFAULT_MAX_RETRIES = 3
+
+# Retryable exception classes -- everything else (notably ClobAuthError
+# and ClobAPIError for non-auth 4xx) propagates on first occurrence.
+RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    ClobRateLimitError,
+    ClobServerError,
+    ClobTimeoutError,
+    ClobNetworkError,
+)
 
 
 def _trade_matches_order(trade: dict, order_id: str) -> bool:
@@ -49,7 +77,7 @@ def _trade_matches_order(trade: dict, order_id: str) -> bool:
 
     Checks both top-level fields (``taker_order_id`` / ``maker_order_id`` /
     ``order_id`` / ``orderID``) and the nested ``maker_orders[].order_id``
-    array — Polymarket's Trade Object stores maker-side order hashes
+    array -- Polymarket's Trade Object stores maker-side order hashes
     inside that array, not as a top-level field, so resting GTC/GTD
     fills would otherwise be dropped (Codex P2 review).
     """
@@ -76,12 +104,48 @@ def _trade_matches_order(trade: dict, order_id: str) -> bool:
     return False
 
 
+def _classify_http_error(
+    status_code: int, *, path: str, body: str
+) -> Exception:
+    """Map an HTTP status to the right typed exception.
+
+    Used by ``_signed_request`` so the caller receives a typed error
+    that downstream layers (router, breaker, ops dashboard) can route
+    on without re-parsing the status code.
+    """
+    if status_code in (400, 401, 403):
+        return ClobAuthError(
+            f"CLOB rejected auth on {path}: {status_code} {(body or '')[:200]}",
+            status_code=status_code,
+            path=path,
+            body=body,
+        )
+    if status_code == 429:
+        return ClobRateLimitError(
+            status_code=status_code, path=path, body=body,
+        )
+    if status_code in (500, 502, 503, 504):
+        return ClobServerError(
+            status_code=status_code, path=path, body=body,
+        )
+    return ClobAPIError(
+        status_code=status_code, path=path, body=body,
+    )
+
+
 class ClobAdapter:
     """REST client for Polymarket CLOB authenticated endpoints.
 
-    Attributes are kept private (single underscore) — the public surface
+    Attributes are kept private (single underscore) -- the public surface
     is the async methods. Tests construct with an injected ``transport``
     via ``httpx.MockTransport`` to avoid network I/O.
+
+    The optional ``circuit_breaker`` and ``rate_limiter`` are intended to
+    be passed in by the package factory so they survive across adapter
+    instances (per-call adapter construction is the live-execution
+    pattern). When omitted (e.g. unit tests), the adapter still behaves
+    correctly -- the limiter is a no-op and the breaker is a fresh
+    CLOSED instance.
     """
 
     def __init__(
@@ -100,6 +164,9 @@ class ClobAdapter:
         chain_id: int = DEFAULT_CHAIN_ID,
         timeout: float = DEFAULT_TIMEOUT,
         transport: Optional[httpx.AsyncBaseTransport] = None,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        circuit_breaker: Optional[CircuitBreaker] = None,
+        rate_limiter: Optional[RateLimiter] = None,
     ) -> None:
         self._api_key = api_key
         self._api_secret = api_secret
@@ -112,11 +179,14 @@ class ClobAdapter:
         self._builder_passphrase = builder_passphrase
         self._host = host.rstrip("/")
         self._chain_id = int(chain_id)
+        self._max_retries = max(1, int(max_retries))
         self._http = httpx.AsyncClient(
             base_url=self._host,
             timeout=timeout,
             transport=transport,
         )
+        self._breaker = circuit_breaker or CircuitBreaker(name="clob-default")
+        self._limiter = rate_limiter or RateLimiter(rps=0)
 
     # ----- public properties ----------------------------------------
 
@@ -142,6 +212,14 @@ class ClobAdapter:
             )
         )
 
+    @property
+    def circuit_breaker(self) -> CircuitBreaker:
+        return self._breaker
+
+    @property
+    def rate_limiter(self) -> RateLimiter:
+        return self._limiter
+
     # ----- lifecycle ------------------------------------------------
 
     async def aclose(self) -> None:
@@ -156,26 +234,49 @@ class ClobAdapter:
     # ----- L1: credential lifecycle ---------------------------------
 
     async def derive_api_credentials(self, *, nonce: int = 0) -> dict:
-        """``GET /auth/derive-api-key`` — returns existing creds for this
+        """``GET /auth/derive-api-key`` -- returns existing creds for this
         signer + nonce. The CLOB's idempotent recovery path; safe to call
         even when credentials already exist. Raises ``ClobAuthError`` on
         signature rejection.
+
+        Not wrapped by the breaker -- credential derivation runs at boot
+        and the operator wants the raw error if it fails.
         """
         headers = build_l1_headers(self._signer, nonce=nonce)
-        resp = await self._http.get(
-            "/auth/derive-api-key", headers=dict(headers)
-        )
+        await self._limiter.acquire()
+        try:
+            resp = await self._http.get(
+                "/auth/derive-api-key", headers=dict(headers)
+            )
+        except httpx.TimeoutException as exc:
+            raise ClobTimeoutError(
+                f"timeout on /auth/derive-api-key: {exc}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise ClobNetworkError(
+                f"network error on /auth/derive-api-key: {exc}"
+            ) from exc
         return self._parse(resp, path="/auth/derive-api-key")
 
     async def create_api_credentials(self, *, nonce: int = 0) -> dict:
-        """``POST /auth/api-key`` — generate fresh creds. Calling twice
+        """``POST /auth/api-key`` -- generate fresh creds. Calling twice
         with the same nonce is rejected by the broker (use ``derive`` if
         you only need to recover existing creds).
         """
         headers = build_l1_headers(self._signer, nonce=nonce)
-        resp = await self._http.post(
-            "/auth/api-key", headers=dict(headers)
-        )
+        await self._limiter.acquire()
+        try:
+            resp = await self._http.post(
+                "/auth/api-key", headers=dict(headers)
+            )
+        except httpx.TimeoutException as exc:
+            raise ClobTimeoutError(
+                f"timeout on /auth/api-key: {exc}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise ClobNetworkError(
+                f"network error on /auth/api-key: {exc}"
+            ) from exc
         return self._parse(resp, path="/auth/api-key")
 
     # ----- L2: order surface ----------------------------------------
@@ -193,20 +294,9 @@ class ClobAdapter:
     ) -> dict:
         """Post a signed order.
 
-        Construction of the on-chain ``signed_order`` blob (CTF Exchange
-        EIP-712) is delegated to ``py-clob-client.OrderBuilder`` to avoid
-        re-implementing the on-chain order schema in this adapter. We
-        wrap the network leg ourselves so the L2 + builder header path
-        is fully owned by Phase 4A.
-
-        ``tick_size`` and ``neg_risk`` are threaded into
-        ``OrderBuilder.create_order`` via ``CreateOrderOptions`` so
-        callers can submit on neg-risk markets / non-default tick sizes
-        without re-fetching market metadata on every submit.
-
-        The OrderBuilder import is local to keep the module importable
-        in environments where ``py-clob-client`` is not installed (CI
-        smoke tests on machines without on-chain deps).
+        Wrapped by the circuit breaker -- consecutive transport failures
+        trip the breaker so subsequent submissions short-circuit to
+        ``ClobCircuitOpenError`` until the broker recovers.
         """
         signed = self._build_signed_order(
             token_id=token_id, side=side, price=price, size=size,
@@ -216,16 +306,20 @@ class ClobAdapter:
             {"order": signed, "owner": self._api_key, "orderType": order_type},
             separators=(",", ":"),
         )
-        return await self._signed_request("POST", "/order", body=body)
+        return await self._breaker.call(
+            lambda: self._signed_request("POST", "/order", body=body)
+        )
 
     async def cancel_order(self, order_id: str) -> dict:
         body = json.dumps({"orderID": order_id}, separators=(",", ":"))
-        return await self._signed_request("DELETE", "/order", body=body)
+        return await self._breaker.call(
+            lambda: self._signed_request("DELETE", "/order", body=body)
+        )
 
     async def cancel_all_orders(self, market: Optional[str] = None) -> dict:
         """Cancel every open order, optionally scoped to a single market.
 
-        Implementation note: the broker exposes two distinct endpoints —
+        Implementation note: the broker exposes two distinct endpoints --
         ``/cancel-market-orders`` (scoped) and ``/cancel-all`` (global).
         We keep the parameter optional so callers can express either
         intent without holding a reference to two different methods.
@@ -242,7 +336,9 @@ class ClobAdapter:
         return await self.cancel_all_orders()
 
     async def get_order(self, order_id: str) -> dict:
-        return await self._signed_request("GET", f"/data/order/{order_id}")
+        return await self._breaker.call(
+            lambda: self._signed_request("GET", f"/data/order/{order_id}")
+        )
 
     async def get_fills(
         self, order_id: str, *, market: Optional[str] = None,
@@ -253,9 +349,9 @@ class ClobAdapter:
         ``maker_address``, ``market``, ``asset_id``, ``before``,
         ``after`` (per the official ``py-clob-client.TradeParams`` /
         ``add_query_trade_params`` surface). It does NOT accept a
-        ``taker_order_id`` filter — supplying one either returns the
+        ``taker_order_id`` filter -- supplying one either returns the
         full account history (which would corrupt downstream
-        aggregation) or a 4xx — so we query by ``maker_address``
+        aggregation) or a 4xx -- so we query by ``maker_address``
         (always the signer) plus an optional ``market`` filter, and
         select trades client-side whose taker / maker order id matches
         ``order_id``.
@@ -267,7 +363,7 @@ class ClobAdapter:
         P2 review).
 
         The wire shape can be either a bare list or a
-        ``{"data": [...]}`` envelope depending on broker version — we
+        ``{"data": [...]}`` envelope depending on broker version -- we
         normalise to a list so callers always iterate uniformly.
         """
         path = f"/data/trades?maker_address={self._signer.address}"
@@ -412,39 +508,65 @@ class ClobAdapter:
         if body:
             headers["Content-Type"] = "application/json"
 
-        async for attempt in AsyncRetrying(
-            reraise=True,
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=1, max=8),
-            retry=retry_if_exception_type(
-                (httpx.HTTPError, httpx.TimeoutException)
-            ),
-        ):
-            with attempt:
-                resp = await self._http.request(
-                    method, path, headers=headers, content=body or None,
-                )
-                # 4xx is auth/business-class — do NOT retry. Surface to
-                # caller so duplicate POSTs after a broker accept never
-                # happen on a stale signature.
-                if 400 <= resp.status_code < 500:
-                    return self._parse(resp, path=path)
-                resp.raise_for_status()
-                return self._parse(resp, path=path)
-        raise RuntimeError("ClobAdapter._signed_request: unreachable")  # pragma: no cover
+        try:
+            async for attempt in AsyncRetrying(
+                reraise=True,
+                stop=stop_after_attempt(self._max_retries),
+                wait=wait_exponential(multiplier=1, min=1, max=8),
+                retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+            ):
+                with attempt:
+                    return await self._do_request(method, path, headers, body)
+        except RETRYABLE_EXCEPTIONS as exc:
+            raise ClobMaxRetriesError(
+                f"max retries exceeded on {path}: {type(exc).__name__}: {exc}",
+                last_exception=exc,
+            ) from exc
+        raise RuntimeError(  # pragma: no cover - tenacity always exits
+            "ClobAdapter._signed_request: unreachable"
+        )
+
+    async def _do_request(
+        self,
+        method: str,
+        path: str,
+        headers: dict[str, str],
+        body: str,
+    ) -> dict:
+        await self._limiter.acquire()
+        try:
+            resp = await self._http.request(
+                method, path, headers=headers, content=body or None,
+            )
+        except httpx.TimeoutException as exc:
+            raise ClobTimeoutError(
+                f"timeout on {path}: {exc}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise ClobNetworkError(
+                f"network error on {path}: {exc}"
+            ) from exc
+
+        if 200 <= resp.status_code < 300:
+            return self._parse(resp, path=path)
+
+        # Non-2xx: classify into typed exception so the retry layer can
+        # decide. Auth-class (400/401/403) and other 4xx propagate
+        # immediately; 429 and 5xx-class are retried.
+        raise _classify_http_error(
+            resp.status_code, path=path, body=resp.text or "",
+        )
 
     def _parse(self, resp: httpx.Response, *, path: str) -> dict:
         text = resp.text or ""
         if resp.status_code >= 400:
-            if resp.status_code in (401, 403):
-                raise ClobAuthError(
-                    f"CLOB rejected auth on {path}: "
-                    f"{resp.status_code} {text[:200]}"
-                )
-            raise ClobAPIError(
-                status_code=resp.status_code,
-                path=path,
-                body=text,
+            # _do_request now classifies before reaching _parse, but the
+            # L1 paths (derive_api_credentials / create_api_credentials)
+            # call _parse directly to bypass the breaker -- keep the
+            # legacy classification here so credential bootstrap still
+            # raises typed errors.
+            raise _classify_http_error(
+                resp.status_code, path=path, body=text,
             )
         if not text:
             return {}

@@ -192,19 +192,28 @@ async def test_post_order_401_raises_auth_error(adapter_factory):
 
 
 async def test_post_order_5xx_retries_then_raises(adapter_factory):
+    # Phase 4E: 5xx is now classified as ClobServerError (retryable);
+    # exhausted retries surface as ClobMaxRetriesError carrying the
+    # last ClobServerError. Existing 3-attempt behavior is preserved.
+    from projects.polymarket.crusaderbot.integrations.clob.exceptions import (
+        ClobMaxRetriesError,
+        ClobServerError,
+    )
+
     calls = {"n": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls["n"] += 1
         return httpx.Response(503, text="upstream")
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(ClobMaxRetriesError) as info:
         async with adapter_factory(handler) as a:
             await a.post_order(
                 token_id="T", side="BUY", price=0.5, size=10,
             )
     # tenacity stop_after_attempt(3) -> 3 transport calls
     assert calls["n"] == 3
+    assert isinstance(info.value.last_exception, ClobServerError)
 
 
 # --- L1 / cancel paths ---------------------------------------------

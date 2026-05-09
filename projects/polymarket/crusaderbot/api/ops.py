@@ -51,6 +51,7 @@ from .. import audit
 from ..config import get_settings
 from ..database import get_pool
 from ..domain.ops import kill_switch
+from ..integrations.clob import get_clob_breaker
 from ..monitoring.health import run_health_checks
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,35 @@ async def _fetch_audit_tail(limit: int = AUDIT_TAIL_LIMIT) -> list[dict] | None:
         return None
 
 
+def _circuit_state_snapshot() -> dict[str, object]:
+    """Read-only snapshot of the CLOB circuit breaker.
+
+    Returned shape: ``{"state": str, "failures": int, "threshold": int,
+    "seconds_until_half_open": float}`` -- keys the dashboard renderer
+    consumes directly. A failure resolving the breaker (e.g. import
+    error in a degraded environment) degrades the card to N/A rather
+    than 5xx-ing the whole page.
+    """
+    try:
+        snap = get_clob_breaker().snapshot()
+    except Exception as exc:  # noqa: BLE001 -- UI degrades to N/A
+        logger.warning("ops dashboard: circuit snapshot failed: %s", exc)
+        return {
+            "state": "N/A",
+            "failures": 0,
+            "threshold": 0,
+            "seconds_until_half_open": 0.0,
+        }
+    return {
+        "state": str(snap.get("state", "N/A")),
+        "failures": int(snap.get("failures", 0) or 0),
+        "threshold": int(snap.get("threshold", 0) or 0),
+        "seconds_until_half_open": float(
+            snap.get("seconds_until_half_open", 0.0) or 0.0
+        ),
+    }
+
+
 async def _kill_switch_state() -> str:
     """Return ``"ACTIVE"`` (paused) / ``"PAUSED"`` (running) / ``"N/A"``.
 
@@ -195,6 +225,7 @@ def _render_page(
     health: dict,
     user_count: int | None,
     kill_state: str,
+    circuit: dict[str, object],
     audit_rows: list[dict] | None,
     flash: str | None = None,
     token: str | None = None,
@@ -203,6 +234,30 @@ def _render_page(
     user_count_str = "N/A" if user_count is None else str(user_count)
     kill_class = "fail" if kill_state == "ACTIVE" else "ok" if kill_state == "PAUSED" else "warn"
     kill_label = html.escape(kill_state)
+    circuit_state = str(circuit.get("state", "N/A"))
+    if circuit_state == "CLOSED":
+        circuit_class = "ok"
+    elif circuit_state in ("OPEN", "HALF_OPEN"):
+        circuit_class = "fail" if circuit_state == "OPEN" else "warn"
+    else:
+        circuit_class = "warn"
+    circuit_label = html.escape(circuit_state)
+    circuit_failures = int(circuit.get("failures", 0) or 0)
+    circuit_threshold = int(circuit.get("threshold", 0) or 0)
+    circuit_eta = float(circuit.get("seconds_until_half_open", 0.0) or 0.0)
+    if circuit_state == "OPEN":
+        circuit_detail = (
+            f"{circuit_failures}/{circuit_threshold} failures "
+            f"-- half-opens in {int(circuit_eta)}s"
+        )
+    elif circuit_state == "HALF_OPEN":
+        circuit_detail = "trial allowed -- next failure re-opens"
+    elif circuit_state == "CLOSED":
+        circuit_detail = (
+            f"{circuit_failures}/{circuit_threshold} consecutive failures"
+        )
+    else:
+        circuit_detail = "unavailable"
     flash_html = (
         f'<div class="flash">{html.escape(flash)}</div>' if flash else ""
     )
@@ -311,6 +366,11 @@ def _render_page(
     <div class="big"><span class="badge {kill_class}">{kill_label}</span></div>
     <div class="muted">ACTIVE = paused, PAUSED = running</div>
   </div>
+  <div class="card">
+    <h2>CLOB circuit</h2>
+    <div class="big"><span class="badge {circuit_class}">{circuit_label}</span></div>
+    <div class="muted">{html.escape(circuit_detail)}</div>
+  </div>
 </div>
 
 <div class="grid">
@@ -398,6 +458,7 @@ async def ops_dashboard(
     user_count = await _count_users()
     kill_state = await _kill_switch_state()
     audit_rows = await _fetch_audit_tail()
+    circuit = _circuit_state_snapshot()
     body = _render_page(
         version=_resolve_version(),
         mode=_resolve_mode(),
@@ -405,6 +466,7 @@ async def ops_dashboard(
         health=health,
         user_count=user_count,
         kill_state=kill_state,
+        circuit=circuit,
         audit_rows=audit_rows,
         flash=flash,
         token=token,

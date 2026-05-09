@@ -31,7 +31,7 @@ Example:
             return signals
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional
 from abc import ABC, abstractmethod
 
