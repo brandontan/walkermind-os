@@ -81,30 +81,41 @@ def _coerce_float(value: Any) -> Optional[float]:
         return None
 
 
-# Trade-frame statuses that indicate a non-settled state. The user
-# channel emits the same ``trade`` event when a match goes from
-# MATCHED -> RETRYING (the on-chain settle had to be replayed) or
-# RETRYING -> FAILED (settle gave up). Treating those as fills would
-# mark the local order as filled and credit a position for shares the
-# user does not own. Codex P1 review on PR #915.
-_TRADE_STATUS_NON_SETTLED = {
-    "retrying",
-    "failed",
-    "rejected",
-    "cancelled",
-    "canceled",
+# Per docs.polymarket.com/market-data/websocket/user-channel,
+# a ``trade`` frame's ``status`` field walks through several states:
+#
+#   MATCHED   -> matching engine paired the trades (NOT yet on-chain)
+#   MINED     -> settlement tx mined but not finalised
+#   CONFIRMED -> settlement finalised; this is the only successful
+#                terminal state
+#   RETRYING  -> settle tx had to be replayed
+#   FAILED    -> settle gave up; the trade did NOT settle
+#
+# Treating MATCHED/MINED as fills would credit positions for shares
+# that may never settle (a later RETRYING -> FAILED would leave us
+# with phantom fills). Use a strict allow-list keyed on the documented
+# successful terminal states only. Codex P1 round 4 on PR #915.
+_TRADE_STATUS_SETTLED = {
+    "confirmed",
+    "completed",
+    "complete",
+    "settled",
 }
 
 
 def _is_settled_trade_status(payload: dict) -> bool:
     """True iff a ``trade`` frame represents a settled fill.
 
-    Polymarket's user channel re-emits the same ``trade`` event as the
-    on-chain settlement progresses (MATCHED -> RETRYING -> CONFIRMED
-    or -> FAILED). We only want to record a fill on the first
-    successful state. Frames without a ``status`` field default to
-    settled — older user-channel emissions and our integration tests
-    do not always carry one.
+    Allow-list: only the documented success-terminal statuses
+    (CONFIRMED / SETTLED / COMPLETED) are treated as fills. Frames
+    without a ``status`` field default to settled — older user-channel
+    emissions and our integration tests do not always carry one, and
+    a hard reject would silently drop every existing test.
+
+    Anything else (MATCHED, MINED, RETRYING, FAILED, REJECTED,
+    CANCELLED, ...) is dropped: the ``CONFIRMED`` frame for the same
+    trade id, if any, will arrive separately and dispatch via the
+    same path. Codex P1 review.
     """
     raw = payload.get("status") or payload.get("trade_status")
     if not raw:
@@ -112,7 +123,7 @@ def _is_settled_trade_status(payload: dict) -> bool:
     s = str(raw).strip().lower()
     if s.startswith("trade_status_"):
         s = s[len("trade_status_"):]
-    return s not in _TRADE_STATUS_NON_SETTLED
+    return s in _TRADE_STATUS_SETTLED
 
 
 def _normalise_fill(payload: dict) -> list[dict]:

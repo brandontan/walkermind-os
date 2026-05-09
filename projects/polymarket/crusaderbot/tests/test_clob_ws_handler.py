@@ -174,14 +174,19 @@ def test_user_fill_drops_when_price_unparseable():
 
 
 @pytest.mark.parametrize("non_settled_status", [
+    # Failure / retry path
     "RETRYING", "FAILED", "TRADE_STATUS_FAILED", "rejected",
     "Cancelled", "TRADE_STATUS_RETRYING",
+    # Pre-confirm pipeline states — MATCHED + MINED are NON-terminal
+    # per Polymarket docs and can still flip to RETRYING/FAILED, so
+    # they must NOT be treated as fills. Codex P1 round 4 (PR #915).
+    "MATCHED", "MINED", "TRADE_STATUS_MATCHED", "TRADE_STATUS_MINED",
 ])
 def test_trade_frame_with_non_settled_status_emits_no_fill(non_settled_status):
-    """Codex P1: Polymarket's user channel re-emits the same trade frame
-    as the settlement progresses (MATCHED -> RETRYING -> CONFIRMED or
-    -> FAILED). Treating a non-settled state as a fill would mark the
-    local order filled and credit a position that never settled.
+    """Polymarket's user channel re-emits the same trade frame as the
+    on-chain settlement progresses through MATCHED -> MINED ->
+    CONFIRMED (success) or -> RETRYING -> FAILED. Only CONFIRMED is a
+    safe fill signal; everything else may still revert.
     """
     assert parse_message({
         "event_type": "trade",
@@ -193,7 +198,7 @@ def test_trade_frame_with_non_settled_status_emits_no_fill(non_settled_status):
 
 
 @pytest.mark.parametrize("settled_status", [
-    "MATCHED", "CONFIRMED", "TRADE_STATUS_MATCHED",
+    "CONFIRMED", "TRADE_STATUS_CONFIRMED", "completed", "SETTLED",
 ])
 def test_trade_frame_with_settled_status_emits_fill(settled_status):
     out = parse_message({
