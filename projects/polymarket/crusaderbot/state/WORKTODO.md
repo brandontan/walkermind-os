@@ -1,13 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-09 22:30 Asia/Jakarta
+**Last Updated:** 2026-05-09 22:00 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- None — awaiting WARP🔹CMD next-lane dispatch. Last sync (2026-05-09 22:30 Asia/Jakarta) closed Lane 1C (PR #908), Ops Dashboard Tier 2 fix (PR #910), Phase 4B Execution Rewire (PR #912), and Phase 4C Order Lifecycle (PR #913). No open PRs. Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
+- WARP/CRUSADERBOT-PHASE5C-PRESETS — FORGE complete (MAJOR / NARROW INTEGRATION). Strategy preset system with 5 named presets (Whale Mirror / Signal Sniper / Hybrid / Value Hunter / Full Auto), DB persistence via migration 016, Telegram picker → confirmation → activate → status flow. Live activation refused (paper-only). 814/814 tests green. Awaiting WARP•SENTINEL MAJOR audit before merge. Concurrent: WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX + Phase 5A global-handlers (both MINOR, awaiting WARP🔹CMD merge). Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
 
 ---
 
@@ -48,6 +48,18 @@ Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD
 - [x] Phase 4C -- Order Lifecycle (live polling + fills + paper touch+stale) -- MERGED PR #913 (2026-05-09) f326879d, MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 96/100 FINAL at HEAD a484012
 
 Done condition: Phase 4A-4C merged with USE_REAL_CLOB default False (paper-safe). Live activation gated on owner decision.
+
+---
+
+## Phase 5 -- Telegram Auto-Trade UX
+
+- [ ] Phase 5A -- Global menu handlers + 5-button main menu -- FORGE on WARP/CRUSADERBOT-PHASE5A-GLOBAL-HANDLERS (MINOR / NARROW INTEGRATION). Awaiting WARP🔹CMD review + merge decision.
+- [ ] Phase 5B -- Dashboard content enrichment -- NOT STARTED.
+- [ ] Phase 5C -- Strategy preset system -- FORGE on WARP/CRUSADERBOT-PHASE5C-PRESETS (MAJOR / NARROW INTEGRATION). 5 named presets, Confirmation + Status cards, DB persistence via migration 016. Live activation refused (paper-only). 814/814 tests green. Awaiting WARP•SENTINEL MAJOR audit before merge.
+- [ ] Phase 5D -- Customize wizard for inline preset value adjustment -- NOT STARTED.
+- [ ] Phase 5E -- Onboarding flow integration with Preset Picker -- NOT STARTED.
+
+Done condition: Phase 5A-5E merged with no activation guard or risk gate constant changes; preset surface is paper-only; live activation continues to require Dashboard 2FA-gated toggle.
 
 ---
 

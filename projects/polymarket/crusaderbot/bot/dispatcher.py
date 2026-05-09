@@ -9,7 +9,8 @@ from telegram.ext import (
 
 from .handlers import (
     activation, admin, copy_trade, dashboard, demo_polish, emergency, onboarding,
-    positions, settings as settings_handler, setup, signal_following, wallet,
+    positions, presets, settings as settings_handler, setup, signal_following,
+    wallet,
 )
 from .menus.main import get_menu_route
 
@@ -67,6 +68,10 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("positions", positions.show_positions))
     app.add_handler(CommandHandler("activity", dashboard.activity))
     app.add_handler(CommandHandler("settings", settings_handler.settings_root))
+    # Phase 5C preset surface — explicit command alias for the picker, plus a
+    # legacy /setup_advanced escape hatch into the raw-strategy menu.
+    app.add_handler(CommandHandler("preset", presets.show_preset_picker))
+    app.add_handler(CommandHandler("setup_advanced", setup.setup_legacy_root))
     app.add_handler(CommandHandler("emergency", emergency.emergency_root))
     app.add_handler(CommandHandler("admin", admin.admin_root))
     app.add_handler(CommandHandler("allowlist", admin.allowlist_command))
@@ -94,6 +99,8 @@ def register(app: Application) -> None:
     # Callback queries
     app.add_handler(CallbackQueryHandler(wallet.wallet_callback, pattern=r"^wallet:"))
     app.add_handler(CallbackQueryHandler(setup.setup_callback,  pattern=r"^setup:"))
+    app.add_handler(CallbackQueryHandler(presets.preset_callback,
+                                         pattern=r"^preset:"))
     app.add_handler(CallbackQueryHandler(setup.set_strategy,    pattern=r"^set_strategy:"))
     app.add_handler(CallbackQueryHandler(setup.set_risk,        pattern=r"^set_risk:"))
     app.add_handler(CallbackQueryHandler(setup.set_category,    pattern=r"^set_cat:"))

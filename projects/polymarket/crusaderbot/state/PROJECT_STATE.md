@@ -1,5 +1,5 @@
-Last Updated : 2026-05-09 18:00 Asia/Jakarta
-Status       : Phase 5A global menu handlers and 5-button main menu in flight (MINOR, no SENTINEL required). Two concurrent MINOR lanes active: WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX (asyncpg Supavisor fix, awaiting WARP🔹CMD merge decision) and Phase 5A global-handlers (menu routing fix + menu reduction from 8 to 5 buttons, awaiting WARP🔹CMD review). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-09 22:00 Asia/Jakarta
+Status       : Phase 5C strategy preset system FORGE complete on WARP/CRUSADERBOT-PHASE5C-PRESETS (MAJOR, NARROW INTEGRATION, SENTINEL REQUIRED before merge). 814/814 tests green. Migration 016 adds nullable user_settings.active_preset + max_position_pct columns; 5 named presets (Whale Mirror / Signal Sniper / Hybrid / Value Hunter / Full Auto) bundle strategy + capital + TP/SL + per-position cap into one tap. Picker → Confirmation → Activate / Status (Edit/Switch/Pause/Stop) flow. Live preset activation explicitly refused — paper-only guard keeps the Dashboard toggle's 2FA-gated activation path the only live activator. Two prior MINOR lanes still in flight (WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX, Phase 5A global-handlers) awaiting WARP🔹CMD merge decisions. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched, no risk gate constants modified.
 
 [COMPLETED]
 - Phase 4A CLOB Adapter -- PR #911 merged, MAJOR, SENTINEL APPROVED 89/100, branch WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER.
@@ -14,6 +14,7 @@ Status       : Phase 5A global menu handlers and 5-button main menu in flight (M
 - Operator dashboard and kill switch baseline -- PR #874 merged, STANDARD; /ops dashboard and operator controls are available.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-PHASE5C-PRESETS -- MAJOR / NARROW INTEGRATION FORGE. Strategy preset system: 5 named presets (whale_mirror / signal_sniper / hybrid / value_hunter / full_auto) replace the raw strategy picker on the 🤖 Auto-Trade entry. New domain/preset/ module, bot/handlers/presets.py, bot/keyboards/presets.py, migration 016_preset_system.sql (additive nullable user_settings.active_preset + max_position_pct + partial index), 30 hermetic tests. Live activation refused (paper-only guard). 814/814 tests green. Forge report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5c-presets.md. Awaiting WARP•SENTINEL MAJOR audit before merge.
 - WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX -- MINOR / NARROW INTEGRATION FORGE. Resolves Sentry DAWN-SNOWFLAKE-1729-G/J/P/Q. Forge report: projects/polymarket/crusaderbot/reports/forge/asyncpg-supabase-fix.md. Awaiting WARP🔹CMD review + merge decision. Supersedes PR #922.
 - Phase 5A global-handlers -- MINOR / NARROW INTEGRATION FORGE. _text_router priority fix (menu buttons clear awaiting state and route before activation/setup consumers). Main menu reduced from 8 to 5 buttons (Dashboard, Auto-Trade, Wallet, My Trades, Emergency). /settings command registered. my_trades combined view added. 784/784 tests green. Forge report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5a-global-handlers.md. Awaiting WARP🔹CMD review + merge decision.
 
@@ -28,6 +29,7 @@ Status       : Phase 5A global menu handlers and 5-button main menu in flight (M
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL MAJOR audit on WARP/CRUSADERBOT-PHASE5C-PRESETS. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5c-presets.md. Verification scope: risk gate constants untouched, activation guards neither read nor mutated, _on_activate paper-only guard enforced, preset values comply with MAX_POSITION_PCT and capital_pct < 1.0 hard rules, migration 016 idempotent and additive, all ^preset: callbacks gated by Tier 2.
 - WARP🔹CMD review + merge decision on Phase 5A global-handlers (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5a-global-handlers.md. No SENTINEL required.
 - WARP🔹CMD review + merge decision on WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/asyncpg-supabase-fix.md. Resolves recurring production /health DB flap. Close PR #922 as superseded once merged.
 - Dispatch WARP/CRUSADERBOT-MAINNET-ONCHAIN-PREFLIGHT as the next safety lane before any owner live-trading decision. Tier: MAJOR, SENTINEL REQUIRED. Scope: read-only wallet/chain/preflight only, no order submission, no guard flips.
