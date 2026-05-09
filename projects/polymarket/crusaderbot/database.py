@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 import asyncpg
 
@@ -12,6 +13,56 @@ from .config import get_settings
 logger = logging.getLogger(__name__)
 
 _pool: Optional[asyncpg.Pool] = None
+# Class name of the most recent ping() failure, or None when the last
+# probe succeeded. Surfaced via last_ping_error() so /health can include
+# the asyncpg exception class in the operator-facing reason string.
+_last_ping_error: Optional[str] = None
+
+# Supavisor (Supabase) transaction-pool DSNs route every transaction
+# through a multiplexed pgbouncer-style proxy. The default port for the
+# transaction pool is 6543; the session pool is 5432. asyncpg's
+# server-side prepared statement cache cannot survive multiplexed
+# connections (statement names are leased per-backend and do not follow
+# a transaction across backends), which surfaces as
+# `prepared statement "__asyncpg_stmt_*__" does not exist` /
+# DuplicatePreparedStatementError / ProtocolViolationError under load.
+# We always pass statement_cache_size=0 so the pool is safe under any
+# pooler topology; the host pattern + port check below is purely
+# diagnostic so operators can correlate this warning with /health flap
+# events on legacy deploys whose DSN still points at the transaction
+# pool. See https://github.com/MagicStack/asyncpg/issues/339 and
+# https://supabase.com/docs/guides/database/connecting-to-postgres.
+_SUPAVISOR_HOST_HINT = "pooler.supabase"
+_SUPAVISOR_TRANSACTION_PORT = 6543
+
+
+def _warn_if_supavisor_transaction_pool(dsn: str) -> None:
+    """Emit a diagnostic warning when DSN looks like a Supavisor txn pool.
+
+    The warning is purely informational — startup is never blocked. It
+    fires only when the host substring matches Supabase's documented
+    Supavisor pattern AND the port is the documented transaction-pool
+    port (6543). DSN parse failures are silently skipped so a malformed
+    or otherwise-shaped URL never crashes the pool init.
+    """
+    try:
+        parsed = urlparse(dsn)
+    except Exception:  # noqa: BLE001 — diagnostics must never crash boot
+        return
+    host = (parsed.hostname or "").lower()
+    if _SUPAVISOR_HOST_HINT not in host:
+        return
+    if parsed.port != _SUPAVISOR_TRANSACTION_PORT:
+        return
+    logger.warning(
+        "DATABASE_URL points at Supabase Supavisor transaction pool "
+        "(host=%s port=%s); applying statement_cache_size=0 to "
+        "neutralise asyncpg's server-side prepared statement cache. "
+        "If session-only features (LISTEN/NOTIFY, SET SESSION, "
+        "advisory locks) are needed, switch the DSN to the session "
+        "pooler (port 5432) or the direct connection.",
+        host, parsed.port,
+    )
 
 
 async def init_pool() -> asyncpg.Pool:
@@ -19,11 +70,30 @@ async def init_pool() -> asyncpg.Pool:
     if _pool is not None:
         return _pool
     settings = get_settings()
+    _warn_if_supavisor_transaction_pool(settings.DATABASE_URL)
+    # statement_cache_size=0 disables asyncpg's per-connection
+    # server-side prepared statement cache. Required when DATABASE_URL
+    # points at a transaction-pooled proxy (Supabase Supavisor, Fly
+    # PgBouncer, etc.): cached statement names are scoped to the backend
+    # the statement was prepared on and do not follow a transaction
+    # across multiplexed backends, surfacing as
+    # `prepared statement "__asyncpg_stmt_*__" does not exist` /
+    # DuplicatePreparedStatementError / ProtocolViolationError under
+    # load. See https://github.com/MagicStack/asyncpg/issues/339.
+    #
+    # server_settings.application_name labels every connection in
+    # pg_stat_activity so an operator running
+    # `SELECT * FROM pg_stat_activity WHERE application_name=$1` on the
+    # Supabase SQL editor (or Postgres directly) can immediately tell
+    # which sessions belong to this bot, distinct from psql / Studio /
+    # other workloads sharing the same project.
     _pool = await asyncpg.create_pool(
         dsn=settings.DATABASE_URL,
         min_size=1,
         max_size=settings.DB_POOL_MAX,
         command_timeout=30,
+        statement_cache_size=0,
+        server_settings={"application_name": "crusaderbot"},
     )
     logger.info("asyncpg pool initialised (max=%s)", settings.DB_POOL_MAX)
     return _pool
@@ -58,13 +128,38 @@ async def run_migrations() -> None:
 
 
 async def ping() -> bool:
+    """Probe the asyncpg pool with ``SELECT 1``.
+
+    On failure the exception class name is captured in
+    ``_last_ping_error`` so ``last_ping_error()`` callers (notably the
+    health endpoint) can surface it in the operator alert string. The
+    full exception is also forwarded to Sentry via ``exc_info=True``
+    so triage sees the structured exception rather than just the
+    formatted message.
+    """
+    global _last_ping_error
     try:
         pool = await init_pool()
         async with pool.acquire() as conn:
-            return await conn.fetchval("SELECT 1") == 1
+            ok = await conn.fetchval("SELECT 1") == 1
+        if ok:
+            _last_ping_error = None
+        return ok
     except Exception as exc:
-        logger.error("DB ping failed: %s", exc)
+        _last_ping_error = type(exc).__name__
+        logger.error("DB ping failed: %s", exc, exc_info=True)
         return False
+
+
+def last_ping_error() -> Optional[str]:
+    """Return the class name of the most recent ``ping()`` exception.
+
+    ``None`` whenever the last probe succeeded (or no probe has run
+    yet). The health endpoint reads this synchronously after a False
+    return so the asyncpg exception class lands in the Telegram alert
+    text without operators needing to grep Sentry.
+    """
+    return _last_ping_error
 
 
 async def is_kill_switch_active() -> bool:
