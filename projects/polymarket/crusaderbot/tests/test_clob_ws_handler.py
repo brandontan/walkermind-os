@@ -173,6 +173,55 @@ def test_user_fill_drops_when_price_unparseable():
     assert out == []
 
 
+@pytest.mark.parametrize("non_settled_status", [
+    "RETRYING", "FAILED", "TRADE_STATUS_FAILED", "rejected",
+    "Cancelled", "TRADE_STATUS_RETRYING",
+])
+def test_trade_frame_with_non_settled_status_emits_no_fill(non_settled_status):
+    """Codex P1: Polymarket's user channel re-emits the same trade frame
+    as the settlement progresses (MATCHED -> RETRYING -> CONFIRMED or
+    -> FAILED). Treating a non-settled state as a fill would mark the
+    local order filled and credit a position that never settled.
+    """
+    assert parse_message({
+        "event_type": "trade",
+        "id": "t-1",
+        "order_id": "broker-1",
+        "price": "0.5", "size": "1",
+        "status": non_settled_status,
+    }) == []
+
+
+@pytest.mark.parametrize("settled_status", [
+    "MATCHED", "CONFIRMED", "TRADE_STATUS_MATCHED",
+])
+def test_trade_frame_with_settled_status_emits_fill(settled_status):
+    out = parse_message({
+        "event_type": "trade",
+        "id": "t-2",
+        "order_id": "broker-2",
+        "price": "0.5", "size": "1",
+        "status": settled_status,
+    })
+    assert len(out) == 1
+    assert out[0]["kind"] == EVENT_FILL
+
+
+def test_trade_frame_without_status_field_still_emits_fill():
+    """Older user-channel emissions and our hermetic tests do not always
+    carry a ``status`` field; the absence must not silently drop the
+    fill or every existing integration test would break.
+    """
+    out = parse_message({
+        "event_type": "trade",
+        "id": "t-3",
+        "order_id": "broker-3",
+        "price": "0.5", "size": "1",
+    })
+    assert len(out) == 1
+    assert out[0]["kind"] == EVENT_FILL
+
+
 # ---------------------------------------------------------------------------
 # user_order routing
 # ---------------------------------------------------------------------------

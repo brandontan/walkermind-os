@@ -81,6 +81,40 @@ def _coerce_float(value: Any) -> Optional[float]:
         return None
 
 
+# Trade-frame statuses that indicate a non-settled state. The user
+# channel emits the same ``trade`` event when a match goes from
+# MATCHED -> RETRYING (the on-chain settle had to be replayed) or
+# RETRYING -> FAILED (settle gave up). Treating those as fills would
+# mark the local order as filled and credit a position for shares the
+# user does not own. Codex P1 review on PR #915.
+_TRADE_STATUS_NON_SETTLED = {
+    "retrying",
+    "failed",
+    "rejected",
+    "cancelled",
+    "canceled",
+}
+
+
+def _is_settled_trade_status(payload: dict) -> bool:
+    """True iff a ``trade`` frame represents a settled fill.
+
+    Polymarket's user channel re-emits the same ``trade`` event as the
+    on-chain settlement progresses (MATCHED -> RETRYING -> CONFIRMED
+    or -> FAILED). We only want to record a fill on the first
+    successful state. Frames without a ``status`` field default to
+    settled — older user-channel emissions and our integration tests
+    do not always carry one.
+    """
+    raw = payload.get("status") or payload.get("trade_status")
+    if not raw:
+        return True
+    s = str(raw).strip().lower()
+    if s.startswith("trade_status_"):
+        s = s[len("trade_status_"):]
+    return s not in _TRADE_STATUS_NON_SETTLED
+
+
 def _normalise_fill(payload: dict) -> list[dict]:
     """Translate a user-channel ``trade`` / ``user_fill`` frame into one
     or more normalised fill events.
@@ -259,6 +293,15 @@ def parse_message(message: Any) -> list[dict]:
     ).lower()
 
     if event_type == "user_fill" or event_type == "trade":
+        if not _is_settled_trade_status(message):
+            # Non-settled trade lifecycle update (e.g. RETRYING / FAILED).
+            # The matching CONFIRMED frame, if any, will arrive separately
+            # and that one will dispatch into the lifecycle. Codex P1.
+            logger.debug(
+                "ws_handler: ignoring non-settled trade status=%r",
+                message.get("status") or message.get("trade_status"),
+            )
+            return []
         normalised = _normalise_fill(message)
         if not normalised:
             logger.warning("ws_handler: dropping malformed user_fill: %s", message)
