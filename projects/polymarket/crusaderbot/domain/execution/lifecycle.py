@@ -811,14 +811,22 @@ class OrderLifecycleManager:
     async def _load_existing_fills(self, order_id: UUID) -> list[dict]:
         """Pull existing ``fills`` rows used for hydration on cancel/expiry.
 
-        Prefer per-trade rows (one row per matched trade — the most
-        granular record). When no per-trade rows exist, fall back to
-        the synthetic ``agg-*`` aggregate that ``handle_ws_order_update``
-        may have persisted from a partial UPDATE frame (Codex P1
-        round 10). Returning both kinds at once would double-count
-        when the dedup guard's contract is satisfied (agg sums to
-        per-trade SUM), which is why per-trade takes precedence over
-        agg rather than being unioned.
+        Returns whichever of the per-trade-row set or the synthetic
+        ``agg-*`` aggregate covers a LARGER matched-shares total.
+        Tie-breaks (per-trade SUM == agg size) go to per-trade for
+        granularity. The size comparison matters because:
+
+          * per-trade SUM == agg total — WS captured every settled
+            share. Per-trade rows are the most granular record so
+            prefer them.
+          * per-trade SUM <  agg total — WS missed some trade frames
+            (disconnect / parser drop / broker gap). The agg row's
+            size is the broker's authoritative aggregate; using the
+            per-trade SUM would refund the user for shares they
+            actually own. Codex P1 round 11 on PR #915.
+          * no per-trade rows — return agg if any (round 10 path).
+          * no rows at all — return ``[]`` so ``_terminal_close``
+            treats it as zero-fill and refunds the full notional.
         """
         pool = self._pool_override or get_pool()
         async with pool.acquire() as conn:
@@ -827,14 +835,19 @@ class OrderLifecycleManager:
                 "WHERE order_id = $1 AND fill_id NOT LIKE 'agg-%'",
                 order_id,
             )
-            if per_trade:
-                return [dict(r) for r in per_trade]
             agg = await conn.fetch(
                 "SELECT fill_id, price, size, side FROM fills "
                 "WHERE order_id = $1 AND fill_id LIKE 'agg-%'",
                 order_id,
             )
+        per_trade_total = sum(float(r["size"] or 0) for r in per_trade)
+        agg_total = sum(float(r["size"] or 0) for r in agg)
+        # 1e-6 epsilon absorbs NUMERIC roundtrip noise on equal sums.
+        if per_trade and per_trade_total + 1e-6 >= agg_total:
+            return [dict(r) for r in per_trade]
+        if agg:
             return [dict(r) for r in agg]
+        return [dict(r) for r in per_trade]
 
     async def _lookup_order_by_broker_id(
         self, broker_order_id: str,
