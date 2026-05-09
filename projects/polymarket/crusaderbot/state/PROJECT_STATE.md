@@ -1,46 +1,48 @@
-Last Updated : 2026-05-09 22:35 Asia/Jakarta
-Status       : Phase 4D WebSocket Order Fills audited at HEAD 8197373 — SENTINEL APPROVED 98/100, 0 critical. All 11 Codex P1/P2 review rounds resolved + 5 GATE-mandated regression tests landed. 111 WS-specific tests + 726/726 hermetic suite green; ruff clean. Activation posture preserved (USE_REAL_CLOB default False, ENABLE_LIVE_TRADING never read by WS surface, paper-mode hard guard verified by injected-asserting factory). Records-only handle_ws_fill, agg-* UPSERT for size growth, hydration prefers larger of per-trade SUM vs agg.size on cancel/expiry. Sentinel report at projects/polymarket/crusaderbot/reports/sentinel/ws-fills.md. Awaiting WARP🔹CMD final merge decision.
+Last Updated : 2026-05-09 23:07 Asia/Jakarta
+Status       : Phase 4D WebSocket Order Fills is merged on main via PR #915 (merge commit 675e74df0c8dd6ef0e036d408c2d9d9909903c6f). SENTINEL approved 98/100 with 0 critical issues; audited runtime head 8197373 and final merge head 5e287e7 preserved report/state-only delta after audit. WS fills path is now part of Phase 4 CLOB integration on main: records-only handle_ws_fill, agg-* UPSERT for size growth, hydration from existing fills/agg rows, paper-mode WS hard guard, L2-HMAC subscribe frame, heartbeat/reconnect/watchdog wiring, and 5 GATE-mandated regressions. No open PRS. No open GitHub issues. Activation posture remains paper-safe: USE_REAL_CLOB default False, ENABLE_LIVE_TRADING not used by WS activation surface, and live activation guards remain NOT SET.
 
 [COMPLETED]
-- R12e — Auto-Redeem System — PR #869 MERGED 7f8af0b90993 (MAJOR, SENTINEL CONDITIONAL 64/100 — conditions resolved PR #879)
-- R12f — Operator Dashboard + Kill Switch + Job Monitor — PR #874 MERGED 2026-05-05 (STANDARD)
-- P3a — Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + migration 008) — PR #876 MERGED 2026-05-05 (STANDARD, FOUNDATION)
-- P3b — Copy Trade strategy (CopyTradeStrategy + scaler + wallet_watcher + migration 009 + /copytrade Telegram + registry bootstrap) — PR #877 MERGED 2026-05-06 a369129d (MAJOR, SENTINEL CONDITIONAL 71/100 resolved)
-- R12 Live Readiness batch — Live Opt-In Checklist + Live→Paper Auto-Fallback + Daily P&L Summary — PR #883 MERGED 5a9cb22a (STANDARD, NARROW INTEGRATION)
-- Cleanup legacy polyquantbot directory — PR #891 MERGED (MINOR, Issue #890 closed)
-- P3c — Signal Following strategy — PR #892 MERGED (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
-- P3d — Per-user signal scan loop + execution queue wiring — PR #897 MERGED (bb08092), MAJOR, SENTINEL APPROVED 94/100. 464/464 tests green.
-- Pre-flight cleanup — F401/MIN-01/02/03/ROADMAP naming drift — PR #899 MERGED (STANDARD, NARROW INTEGRATION, WARP/CRUSADERBOT-PREFLIGHT-CLEANUP)
-- R12 Lane 1B — Sentry SDK wiring, /health demo-readiness, /kill /resume aliases, 3 runbooks — PR #901 MERGED (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100, WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY)
-- Lane 2C — Telegram demo polish (CRU-6) — PR #907 MERGED (MINOR, Claim NONE, WARP/CRUSADERBOT-DEMO-POLISH). /about + /status + /demo + refreshed /start + /help. 60s per-user rate limit on /demo. 22 new tests, 501/501 green at merge.
-- Phase 4A CLOB Adapter — PR #911 MERGED (MAJOR, SENTINEL APPROVED 89/100, WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER). New integrations/clob/ package: ClobAdapter (EIP-712 L1 + HMAC-SHA256 L2 + builder headers, tenacity 5xx-only retry, 4xx no-retry), MarketDataClient (unauth reads), MockClobClient (deterministic, network-free), get_clob_client() factory (USE_REAL_CLOB default False). 624/624 tests green. Ruff clean. Live callers NOT rewired (Phase 4B). OrderBuilder on-chain schema Phase 4C. Activation guards remain NOT SET.
-- Lane 1C — Demo Data Seeding (CRU-5) — PR #908 MERGED 2026-05-08 ca5f6f57 (STANDARD, NARROW INTEGRATION, SENTINEL APPROVED 98/100, WARP/CRUSADERBOT-DEMO-SEED-DATA). Migration 014 (is_demo flag on 10 tables + rollback block), seed_demo_data.py (DEMO_SEED_ALLOW=1), cleanup_demo_data.py (DEMO_CLEANUP_CONFIRM=1, post-commit verify), docs/runbook/demo-data.md. 514/514 tests green at merge. Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/demo-seed-data.md.
-- Ops Dashboard + Tier 2 Operator Seed — PR #910 MERGED 2026-05-08 cabdc42f (STANDARD, NARROW INTEGRATION, SENTINEL NOT REQUIRED, WARP/CRUSADERBOT-OPS-DASHBOARD-TIER2-FIX). New api/ops.py (GET /ops + POST /ops/kill + POST /ops/resume), scripts/seed_operator_tier.py wired into fly.toml [deploy] release_command (installed-package path `python -m crusaderbot.scripts.seed_operator_tier`), kill-switch runbook refresh, 42 new tests (17 seed + 25 ops), ruff clean. Auth on /ops* deferred post-demo. Forge report: projects/polymarket/crusaderbot/reports/forge/ops-dashboard-tier2-fix.md.
-- Phase 4B Execution Rewire — PR #912 MERGED 2026-05-09 cb920661 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 92/100, WARP/CRUSADERBOT-PHASE4B-EXECUTION-REWIRE). domain/execution/live.py migrated off py-clob-client SDK onto get_clob_client() / ClobClientProtocol. Dry-run mode, guard routing (incl. USE_REAL_CLOB-when-live), GTC/FOK, idempotency, ClobAuthError + ClobConfigError pre-submit classification, close_position USE_REAL_CLOB=False guard. 27 new hermetic unit tests. Forge report: projects/polymarket/crusaderbot/reports/forge/execution-rewire.md. Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/execution-rewire.md.
-- Phase 4C Order Lifecycle — PR #913 MERGED 2026-05-09 f326879d (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 96/100 FINAL at HEAD a484012, WARP/CRUSADERBOT-PHASE4C-ORDER-LIFECYCLE). ClobAdapter extended (tick_size + neg_risk on post_order; cancel_all_orders / get_fills [maker_address+client-side filter] / get_open_orders). domain/execution/lifecycle.py OrderLifecycleManager polls live orders; paper-mode bails to touch+stale (no synthesis); fills derived from client.get_order() payload via _broker_fills. Migration 015_order_lifecycle.sql idempotent (orders columns + new fills table). APScheduler job registered every ORDER_POLL_INTERVAL_SECONDS=30 with max_instances=1, coalesce=True. 29/29 lifecycle tests + 30/30 Phase 4A regression green at HEAD. Forge report: projects/polymarket/crusaderbot/reports/forge/order-lifecycle.md. Sentinel report (FINAL): projects/polymarket/crusaderbot/reports/sentinel/order-lifecycle.md.
-- Phase 4D WebSocket Order Fills — code + tests + forge report delivered on WARP/CRUSADERBOT-PHASE4D-WEBSOCKET-FILLS (MAJOR, NARROW INTEGRATION). New integrations/clob/ws.py ClobWebSocketClient (paper-mode hard guard verified by injected-asserting factory; L2-HMAC subscribe via build_l2_headers; exponential backoff with ±25% jitter capped at WS_RECONNECT_MAX_DELAY_SECONDS=60; app-level heartbeat 30s ping / 10s timeout; per-frame error containment). New integrations/clob/ws_handler.py pure-function parser (user_fill / user_order / ignored channels / unknown drop). domain/execution/lifecycle.py extended with handle_ws_fill / handle_ws_order_update / _lookup_order_by_broker_id / dispatch_ws_* shims; dedup vs polling provided by existing UPDATE…RETURNING id race-loss + INSERT INTO fills ON CONFLICT (fill_id) DO NOTHING. scheduler.py adds ws_connect (date trigger) + ws_watchdog (60s interval) + ws_shutdown; main.py lifespan hooks ws_shutdown after scheduler.shutdown. config.py adds CLOB_WS_URL + WS_RECONNECT_MAX_DELAY_SECONDS=60 + WS_HEARTBEAT_INTERVAL_SECONDS=30 + WS_HEARTBEAT_TIMEOUT_SECONDS=10 + WS_WATCHDOG_INTERVAL_SECONDS=60. pyproject.toml adds websockets>=12.0,<14.0. 47 new hermetic tests (16 client + 20 handler + 11 lifecycle/scheduler), all green. Phase 4C 30/30 regression preserved. Ruff clean. USE_REAL_CLOB default False — CI never opens a real socket. Forge report: projects/polymarket/crusaderbot/reports/forge/ws-fills.md. WARP•SENTINEL validation REQUIRED before merge.
+- R12e -- Auto-Redeem System -- PR #869 MERGED 7f8af0b90993 (MAJOR, SENTINEL CONDITIONAL 64/100 -- conditions resolved PR #879)
+- R12f -- Operator Dashboard + Kill Switch + Job Monitor -- PR #874 MERGED 2026-05-05 (STANDARD)
+- P3a -- Strategy Registry Foundation (BaseStrategy ABC + StrategyRegistry + migration 008) -- PR #876 MERGED 2026-05-05 (STANDARD, FOUNDATION)
+- P3b -- Copy Trade strategy (CopyTradeStrategy + scaler + wallet_watcher + migration 009 + /copytrade Telegram + registry bootstrap) -- PR #877 MERGED 2026-05-06 a369129d (MAJOR, SENTINEL CONDITIONAL 71/100 resolved)
+- P3c -- Signal Following strategy -- PR #892 MERGED (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
+- P3d -- Per-user signal scan loop + execution queue wiring -- PR #897 MERGED (bb08092), MAJOR, SENTINEL APPROVED 94/100. 464/464 tests green.
+- R12 Lane 1B -- Sentry SDK wiring, /health demo-readiness, /kill /resume aliases, 3 runbooks -- PR #901 MERGED (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100, WARP/CRUSADERBOT-R12-PROD-PAPER-DEPLOY)
+- Lane 1C -- Demo Data Seeding (CRU-5) -- PR #908 MERGED 2026-05-08 ca5f6f57 (STANDARD, NARROW INTEGRATION, SENTINEL APPROVED 98/100). Migration 014, seed/cleanup scripts, runbook, 514/514 tests green at merge.
+- Phase 4A CLOB Adapter -- PR #911 MERGED (MAJOR, SENTINEL APPROVED 89/100, WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER). CLOB adapter/auth/market data/mock/factory landed with USE_REAL_CLOB default False and activation guards NOT SET.
+- Phase 4B Execution Rewire -- PR #912 MERGED 2026-05-09 cb920661 (MAJOR, NARROW INTEGRATION, SENTINEL PPPROVED 92/100, WARP/CRUSADERBOT-PHASE4B-EXECUTION-REWIRE). domain/execution/live.py moved onto get_clob_client() / ClobClientProtocol with dry-run and guard routing preserved.
+- Phase 4C Order Lifecycle -- PR #913 MERGED 2026-05-09 f326879d (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 96/100 FINAL at HEAD a484012, WARP/CRUSADERBOT-PHASE4C-ORDER-LIFECYCLE). Live polling, fills table, scheduler job, and paper-mode touch+stale path landed.
+- Phase 4D WebSocket Order Fills -- PR #915 MERGED 2026-05-09 675e74df0c8dd6ef0e036d408c2d9d9909903c6f (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 98/100 FINAL at audited HEAD 8197373, merge head 5e287e7, WARP/CRUSADERBOT-PHASE4D-WEBSOCKET-FILLS). WS client/handler/lifecycle/scheduler/main/config wiring landed, 47 new hermetic WS tests + 5 GATE regressions, 111 WS-specific tests + 726/726 hermetic suite green, ruff clean.
+- Sentinel gate trail for Phase 4D -- Issue #916 closed completed after verdict/report/state-only trail; no open issues remain.
+- R12 final Fly.io production paper deploy -- Issue #900 is closed completed in GitHub; old pending Issue #900 wording is superseded by live issue state.
 
 [IN PROGRESS]
-- Phase 4D WebSocket Order Fills (WARP/CRUSADERBOT-PHASE4D-WEBSOCKET-FILLS) — SENTINEL APPROVED 98/100 at HEAD 8197373; awaiting WARP🔹CMD merge decision.
+- None -- no open PRs and no open GitHub issues after PR #915 merge and Issue #916 closure.
 
 [NOT STARTED]
-- R12 final Fly.io deployment closure (operator prod verification artefacts attached to Issue #900).
+- R13a Leaderboard -- paper P&l ranking, /leaderboard command, top 10, daily scheduler update.
+- R13b Backtesting Engine -- replay historical Polymarket data and output win rate, Sharpe ratio, max drawdown, EV.
+- R13c Multi-Signal Fusion -- add sentiment + on-chain volume to copy-trade signal with weighted combiner; MAJOR tier.
+- R13d Web Dashboard (Admin) -- React + FastAPI admin views for users, positions, P&l chart, scheduler status.
+- R13e Referral System -- referral code, referee discount, and referral accounting.
+- R13f Strategy Marketplace -- tier 4 named strategies, subscription model, 10% platform take.
 
 [NEXT PRIORITY]
-- WARP🔹CMD final merge decision on PR #915 (Phase 4D WebSocket Order Fills). SENTINEL APPROVED 98/100 at HEAD 8197373. Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/ws-fills.md.
-- Operator sets `ADMIN_USER_IDS` Fly secret (comma-separated Telegram user ids) so the release_command has work to do on next deploy. Also set `OPS_SECRET` Fly secret — without it `POST /ops/kill` and `POST /ops/resume` return 503 and the dashboard buttons stay disabled (`X-Ops-Token` header or `?token=` param required).
-- Operator executes 7 prod verification artefacts per runbooks (Issue #900): /health 200 in prod, Sentry test event in prod project, Fly.io alert simulation, /kill ack < 3s, /resume, /ops_dashboard screenshot, rollback dry-run.
-- Optional post-merge fix-forward on three Lane 1C doc-row 32→34 drifts (forge §1, CHANGELOG entry, runbook table) — non-blocking.
-- Activation guards remain NOT SET throughout.
+- Dispatch R13a Leaderboard as the next build lane if product direction is growth backlog. Tier: STANDARD. Claim: NARROW INTEGRATION. Branch: WARP/CRUSADERBOT-R13A-LEADERBOARD. Scope: paper P&L leaderboard command + scheduled refresh + tests + forge report + state update. SENTINEL not required unless runtime/risk surface expands.
+- Keep activation guards NOT SET. No live trading activation, no USE_REAL_CLOB owner flip, no capital mode change.
+- Optional MINOR follow-up: stale docs/report wording that still says Phase 4D is awaiting merge can be cleaned if surfaced outside these state files, but it is non-runtime and non-blocking.
 
 [KNOWN ISSUES]
-- /deposit no tier gate (intentional, non-blocking)
+- /deposit has no tier gate (intentional, non-blocking)
 - services/* dead code (LOW, post-R12 cleanup)
-- check_alchemy_ws is TCP-only (no full WS handshake) — follow-up
-- lib/ F401 leakage (LOW, 5 occurrences across lib/strategies/logic_arb.py, lib/strategies/value_investor.py, lib/strategies/weather_arb.py, lib/strategy_base.py) — pre-existing repo-root ruff failure surfaced by Codex on PR #899; deferred to WARP/LIB-F401-CLEANUP (post-demo MINOR) per WARP🔹CMD scope-boundary hold; cross-project impact requires audit before cleanup
-- ENABLE_LIVE_TRADING code default in config.py:153 is True (legacy); fly.toml [env] block overrides to "false" so prod posture is correct. Code default disagrees with intent of "all guards default OFF" — deferred to post-demo MINOR alignment lane WARP/config-guard-default-alignment.
-- R12 Lane 1B prod verification artefacts (7 deferred Done-Criteria items: /health 200 in prod, Sentry test event in prod project, Fly.io alert simulation timings, /kill ack timing, /resume timing, /ops_dashboard screenshot, rollback dry-run outcome) are runbook-documented but operator-executed; explicitly NOT CLAIMED CLOSED by PR #901. See reports/forge/r12-prod-paper-deploy.md §5b for the full deferred-criteria table. Issue #900 stays open until operator attaches the seven artefacts.
-- integrations/polymarket.py _build_clob_client() is dead code in live execution path (Phase 4B replaced it); still referenced by submit_live_redemption() indirectly. Cleanup deferred to WARP/CRUSADERBOT-POLYMARKET-LEGACY-CLEANUP (MINOR, post-Phase-4B merge).
-
+- check_alchemy_ws is TCP-only (no full WS handshake) -- follow-up
+- lib/ F401 leakage (LOW, 5 occurrences across shared lib strategy modules) -- deferred to WARP/LIB-F401-CLEANUP after cross-project audit
+- ENABLE_LIVE_TRADING code default in config.py is True (legacy); fly.toml [env] overrides to "false" so prod posture is correct. Code default alignment is deferred to WARP/config-guard-default-alignment.
+- integrations/polymarket.py _build_clob_client() is dead code in live execution path after Phase 4B; still indirectly referenced by submit_live_redemption(). Cleanup deferred to WARP/CRUSADERBOT-POLYMARKET-LEGACY-CLEANUP (MINOR, post-Phase-4B merge).
+- Activation guards remain NOT SET and must not be changed without owner decision.
+- R13 backlog is post-MVP growth work; none of it is required to keep current paper-safe runtime functional.
+- No open PRs as of 2026-05-09 23:07 Asia/Jakarta.
+- No open GitHub issues as of 2026-05-09 23:07 Asia/Jakarta.
 
 <!-- CD verify: 2026-05-09 16:00 -->
