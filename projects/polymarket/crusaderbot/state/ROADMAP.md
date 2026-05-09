@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-08 03:39 Asia/Jakarta
+**Last Updated:** 2026-05-09 22:30 Asia/Jakarta
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -26,7 +26,7 @@
 | R12e | Auto-Redeem System | ✅ Done | MAJOR | Merged PR #869 (2026-05-05), SENTINEL CONDITIONAL 64/100 — conditions resolved PR #879 |
 | R12f | Operator Dashboard + Kill Switch + Job Monitor | ✅ Done | STANDARD | Merged PR #874 (2026-05-05) |
 | R12 Live Readiness batch | Live Opt-In Checklist + Live → Paper Auto-Fallback + Daily P&L Summary | ✅ Done | STANDARD | Merged PR #883 (2026-05-06), NARROW INTEGRATION |
-| R12 | Deployment (Fly.io) — final | 🔄 In Progress | MAJOR | Lane 1B MERGED PR #901. Lane 1C/2C gated on WARP🔹CMD dispatch signal. |
+| R12 | Deployment (Fly.io) — final | 🔄 In Progress | MAJOR | Lane 1B MERGED PR #901. Lane 1C MERGED PR #908. Lane 2C MERGED PR #907. Operator prod verification pending (Issue #900). |
 
 ## R12 — Detailed Lane Plan
 
@@ -124,4 +124,14 @@ Reference: `docs/blueprint/crusaderbot.md` §6 (Risk System), §12 (Activation G
 | P3b | Copy Trade strategy | ✅ Done | MAJOR | Merged PR #877 (2026-05-06) a369129d, SENTINEL CONDITIONAL 71/100 resolved |
 | P3c | Signal Following strategy | ✅ Done | MAJOR | Merged PR #892 (5ee8487e), SENTINEL APPROVED 100/100 |
 | P3d | Signal scan loop + execution queue wiring | ✅ Done | MAJOR | Merged PR #897 (bb08092), SENTINEL APPROVED 94/100 |
+
+## Phase 4 — CLOB Integration
+
+| Lane | Name | Status | Tier | Notes |
+|---|---|---|---|---|
+| Phase 4A | CLOB Adapter (auth + adapter + market data + mock + factory) | ✅ Done | MAJOR | Merged PR #911 (2026-05-08), SENTINEL APPROVED 89/100, NARROW INTEGRATION |
+| Phase 4B | Live Execution Rewire onto get_clob_client() / ClobClientProtocol | ✅ Done | MAJOR | Merged PR #912 (2026-05-09) cb920661, SENTINEL APPROVED 92/100, NARROW INTEGRATION |
+| Phase 4C | Order Lifecycle (live polling + fills + paper touch+stale) | ✅ Done | MAJOR | Merged PR #913 (2026-05-09) f326879d, SENTINEL APPROVED 96/100 (FINAL at a484012), NARROW INTEGRATION |
+
+Done condition: Phase 4A–4C merged with USE_REAL_CLOB default False (paper-safe). Live activation remains gated on ENABLE_LIVE_TRADING / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED + USE_REAL_CLOB owner decision — all NOT SET at time of post-merge sync.
 

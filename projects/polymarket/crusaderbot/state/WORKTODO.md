@@ -1,15 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-09 18:30 Asia/Jakarta
+**Last Updated:** 2026-05-09 22:30 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- Phase 4C Order Lifecycle — WARP/CRUSADERBOT-PHASE4C-ORDER-LIFECYCLE. Tier MAJOR / Claim NARROW INTEGRATION / SENTINEL REQUIRED. ClobAdapter extended (tick_size + neg_risk on post_order; new cancel_all_orders / get_fills / get_open_orders). New domain/execution/lifecycle.py OrderLifecycleManager polls live orders and dispatches on_fill / on_cancel / on_expiry / stale; paper-mode mock fill after one cycle without ever calling the CLOB factory. APScheduler job 'order_lifecycle' registered every ORDER_POLL_INTERVAL_SECONDS=30. Migration 015_order_lifecycle.sql idempotent (orders columns + new fills table). 23 hermetic lifecycle tests + 30/30 4A regression. ClobClientProtocol + MockClobClient widened. Ruff clean. Activation guards remain NOT SET. Forge report: projects/polymarket/crusaderbot/reports/forge/order-lifecycle.md. Awaiting WARP•SENTINEL audit before merge.
-- Ops dashboard + Tier 2 operator seed — WARP/CRUSADERBOT-OPS-DASHBOARD-TIER2-FIX. Tier STANDARD / Claim NARROW INTEGRATION / SENTINEL NOT REQUIRED. New api/ops.py (GET /ops HTML + POST /ops/kill + POST /ops/resume), scripts/seed_operator_tier.py wired to fly.toml [deploy] release_command, kill-switch runbook refreshed for ADMIN_USER_IDS consumption. 42 new tests (17 seed + 25 ops). Ruff clean on changed files. Auth on /ops* deferred post-demo (in-code TODO). Awaiting WARP🔹CMD review + merge.
-- Lane 1C (CRU-5) — Demo Data Seeding — PR #908 SENTINEL APPROVED 98/100. WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION. Zero P0/P1, 4 P2 (3 doc-row 32→34 drifts, 1 docstring stub, 1 migration comment — all post-merge OK). All BLOCK criteria explicitly evaluated and not triggered. Ruff clean. Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/demo-seed-data.md. Awaiting WARP🔹CMD merge decision. R12 Lane 1B MERGED PR #901. Lane 2C MERGED PR #907. Activation guards remain NOT SET.
+- None — awaiting WARP🔹CMD next-lane dispatch. Last sync (2026-05-09 22:30 Asia/Jakarta) closed Lane 1C (PR #908), Ops Dashboard Tier 2 fix (PR #910), Phase 4B Execution Rewire (PR #912), and Phase 4C Order Lifecycle (PR #913). No open PRs. Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
 
 ---
 
@@ -36,9 +34,20 @@ Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wi
 - [x] R12 Live Readiness -- Live Opt-In Checklist (8 gates + audit + /live_checklist + CONFIRM dialog) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Live to Paper Auto-Fallback (router + risk gate + kill switch lock cascade) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [x] R12 Live Readiness -- Daily P&L Summary (cron 23:00 Jakarta + /summary_on /summary_off) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
-- [ ] R12 -- Deployment (Fly.io) final -- Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Lane 2C MERGED PR #907 (Telegram demo polish, CRU-6, MINOR, Claim NONE). Lane 1C (demo data seeding, CRU-5) PR #908 SENTINEL APPROVED 98/100 on WARP/CRUSADERBOT-DEMO-SEED-DATA (STANDARD, NARROW INTEGRATION) — migration 014 + seed/cleanup scripts + runbook, 514/514 tests green, ruff clean, zero P0/P1, 4 P2 (post-merge OK), awaiting WARP🔹CMD merge decision. Operator prod verification pending per runbooks (Issue #900). Activation guards remain NOT SET.
+- [ ] R12 -- Deployment (Fly.io) final -- Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Lane 2C MERGED PR #907 (Telegram demo polish, CRU-6, MINOR, Claim NONE). Lane 1C MERGED PR #908 (2026-05-08) ca5f6f57 (STANDARD, NARROW INTEGRATION, SENTINEL APPROVED 98/100) -- migration 014 + seed/cleanup scripts + runbook, 514/514 tests green at merge. Operator prod verification pending per runbooks (Issue #900). Activation guards remain NOT SET.
 
 Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD before final deployment.
+
+---
+
+## Phase 4 -- CLOB Integration
+
+- [x] Phase 4A -- CLOB Adapter (auth + adapter + market data + mock + factory) -- MERGED PR #911 (2026-05-08), MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 89/100
+- [x] Ops Dashboard + Tier 2 Operator Seed -- MERGED PR #910 (2026-05-08) cabdc42f, STANDARD, NARROW INTEGRATION, SENTINEL NOT REQUIRED
+- [x] Phase 4B -- Live Execution Rewire onto get_clob_client() / ClobClientProtocol -- MERGED PR #912 (2026-05-09) cb920661, MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 92/100
+- [x] Phase 4C -- Order Lifecycle (live polling + fills + paper touch+stale) -- MERGED PR #913 (2026-05-09) f326879d, MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 96/100 FINAL at HEAD a484012
+
+Done condition: Phase 4A-4C merged with USE_REAL_CLOB default False (paper-safe). Live activation gated on owner decision.
 
 ---
 
@@ -47,6 +56,7 @@ Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD
 - EXECUTION_PATH_VALIDATED -- NOT SET
 - CAPITAL_MODE_CONFIRMED -- NOT SET
 - ENABLE_LIVE_TRADING -- NOT SET
+- USE_REAL_CLOB -- NOT SET (default False, paper-safe)
 
 ---
 
