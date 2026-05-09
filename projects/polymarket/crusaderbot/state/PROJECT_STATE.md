@@ -1,4 +1,4 @@
-Last Updated : 2026-05-09 21:15 Asia/Jakarta
+Last Updated : 2026-05-09 22:35 Asia/Jakarta
 Status       : Phase 4D WebSocket Order Fills audited at HEAD 8197373 — SENTINEL APPROVED 98/100, 0 critical. All 11 Codex P1/P2 review rounds resolved + 5 GATE-mandated regression tests landed. 111 WS-specific tests + 726/726 hermetic suite green; ruff clean. Activation posture preserved (USE_REAL_CLOB default False, ENABLE_LIVE_TRADING never read by WS surface, paper-mode hard guard verified by injected-asserting factory). Records-only handle_ws_fill, agg-* UPSERT for size growth, hydration prefers larger of per-trade SUM vs agg.size on cancel/expiry. Sentinel report at projects/polymarket/crusaderbot/reports/sentinel/ws-fills.md. Awaiting WARP🔹CMD final merge decision.
 
 [COMPLETED]
