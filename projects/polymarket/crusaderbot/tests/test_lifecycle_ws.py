@@ -77,6 +77,15 @@ class FakeConn:
     async def fetchval(self, query: str, *args: Any) -> Any:
         if "FROM users WHERE id" in query:
             return self._telegram_id
+        if "FROM fills WHERE order_id" in query and "fill_id NOT LIKE" in query:
+            # Honour the per-trade-row check used by the aggregate-fill
+            # dedup guard in _record_fills_in_conn so the dedup logic
+            # is exercised in tests.
+            order_id = args[0]
+            for row in self.fills_inserted:
+                if row[0] == order_id and not str(row[1]).startswith("agg-"):
+                    return 1
+            return None
         if "RETURNING id" in query:
             if not self.return_terminal_id:
                 return None
@@ -290,6 +299,56 @@ async def test_ws_order_update_unknown_broker_id_no_writes():
         "broker_order_id": "unknown", "status": "filled",
     })
     assert conn.terminal_updates == []
+
+
+async def test_ws_fill_then_order_update_filled_skips_aggregate_row():
+    """Codex P2: when handle_ws_fill has already recorded a per-trade
+    fill row, a follow-on ``order_update(status=filled)`` (or polling
+    reconciliation) must NOT add an extra ``agg-{broker}`` aggregate
+    row, otherwise fills-based reconciliation/reporting double-counts
+    the same shares (per-trade row + aggregate row in the fills table).
+    """
+    conn = FakeConn(orders=[_make_order(broker_id="b1")])
+    mgr, _ = _build(conn)
+    # Step 1: WS fill records a per-trade row.
+    await mgr.handle_ws_fill({
+        "broker_order_id": "b1", "fill_id": "trade-real-1",
+        "price": 0.5, "size": 100.0,
+    })
+    assert len(conn.fills_inserted) == 1
+    assert conn.fills_inserted[0][1] == "trade-real-1"
+    # Step 2: order_update terminalises the order. _broker_fills would
+    # synthesise an "agg-b1" row; the dedup guard must drop it because
+    # a per-trade row already exists.
+    await mgr.handle_ws_order_update({
+        "broker_order_id": "b1",
+        "status": "filled",
+        "size_matched": 100.0,
+        "price": 0.5,
+    })
+    assert len(conn.terminal_updates) == 1  # order moved to filled
+    assert len(conn.fills_inserted) == 1  # NO duplicate aggregate row
+    assert conn.fills_inserted[0][1] == "trade-real-1"
+
+
+async def test_polling_only_aggregate_fill_still_inserted_when_no_per_trade():
+    """Sister test: when there are no per-trade rows yet (polling-only
+    path with no WS coverage), the aggregate row IS inserted so the
+    fills table still has at least one row per filled order.
+    """
+    conn = FakeConn(orders=[_make_order(broker_id="b2")])
+    mgr, _ = _build(conn)
+    await mgr.handle_ws_order_update({
+        "broker_order_id": "b2",
+        "status": "filled",
+        "size_matched": 50.0,
+        "price": 0.6,
+    })
+    assert len(conn.terminal_updates) == 1
+    # The synthetic "agg-b2" row is the ONLY fills record we have for
+    # this order, so the dedup guard must NOT skip it.
+    assert len(conn.fills_inserted) == 1
+    assert str(conn.fills_inserted[0][1]).startswith("agg-")
 
 
 # ---------------------------------------------------------------------------
