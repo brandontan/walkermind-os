@@ -33,7 +33,7 @@ pytestmark = pytest.mark.asyncio
 
 class FakeSettings:
     USE_REAL_CLOB = True
-    CLOB_WS_URL = "wss://test/ws"
+    CLOB_WS_URL = "wss://test/ws/user"
     POLYMARKET_API_KEY = "k"
     POLYMARKET_API_SECRET = "c2VjcmV0LWFiY2Q="  # urlsafe-b64 "secret-abcd"
     POLYMARKET_API_PASSPHRASE = "p"
@@ -164,13 +164,15 @@ async def test_start_opens_socket_and_sends_subscribe_with_auth():
     assert client.is_alive()
     assert len(fake.sent) >= 1
     sub = json.loads(fake.sent[0])
-    assert sub["type"] == "subscribe"
-    assert sub["channel"] == "user"
+    # Polymarket user-channel subscribe: {auth:{apiKey,secret,passphrase},
+    # type:"user", markets:[]}. No L2-HMAC signed headers — those are
+    # for the REST endpoints.
+    assert sub["type"] == "user"
+    assert sub["markets"] == []
     assert sub["auth"]["apiKey"] == "k"
+    assert sub["auth"]["secret"] == "c2VjcmV0LWFiY2Q="
     assert sub["auth"]["passphrase"] == "p"
-    assert "signature" in sub["auth"]
-    assert "timestamp" in sub["auth"]
-    assert "address" in sub["auth"]
+    assert "signature" not in sub["auth"]
 
     await fake.end()
     await client.stop()
@@ -308,15 +310,16 @@ async def test_heartbeat_pong_keeps_socket_alive():
     await client.start()
     await asyncio.sleep(0)
     # Simulate the broker echoing pongs: every time the client sends a
-    # ping, push a pong back and bump the clock.
+    # plain-text "PING" frame, push back a "PONG" frame and bump the
+    # clock to keep the deadline check happy.
     for _ in range(3):
         for _ in range(20):
-            if any('"ping"' in s for s in fake.sent):
+            if any(s == "PING" for s in fake.sent):
                 break
             await asyncio.sleep(0.05)
         fake.sent.clear()
         clock_value[0] += 0.5
-        await fake.feed(json.dumps({"type": "pong"}))
+        await fake.feed("PONG")
         await asyncio.sleep(0.05)
 
     assert not fake.closed

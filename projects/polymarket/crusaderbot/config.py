@@ -165,17 +165,22 @@ class Settings(BaseSettings):
     ORDER_POLL_MAX_ATTEMPTS: int = 48
 
     # --- CLOB WebSocket (Phase 4D) ---
-    # wss://ws-subscriptions-clob.polymarket.com/ws/<channel>. The client
-    # only opens the socket when USE_REAL_CLOB=True; paper mode never
-    # touches the network.
-    CLOB_WS_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws"
+    # Polymarket exposes two WS channels:
+    #   wss://ws-subscriptions-clob.polymarket.com/ws/user    -> user fills + orders
+    #   wss://ws-subscriptions-clob.polymarket.com/ws/market  -> market data
+    # Phase 4D consumes the user channel only. The client opens the
+    # socket only when USE_REAL_CLOB=True; paper mode never touches
+    # the network.
+    CLOB_WS_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
     # Reconnect backoff cap. Initial delay 1s, doubled per attempt with
     # +/-25% jitter, clipped at this value. Default 60s matches the
     # Polymarket guidance for keep-alive backoff.
     WS_RECONNECT_MAX_DELAY_SECONDS: int = 60
-    # Application-level ping interval. The peer is expected to echo
-    # within WS_HEARTBEAT_TIMEOUT_SECONDS or the socket is recycled.
-    WS_HEARTBEAT_INTERVAL_SECONDS: int = 30
+    # Polymarket recycles connections that go ~10s without a heartbeat,
+    # so the client sends literal "PING" text every 10s and the peer
+    # echoes "PONG"; the timeout window adds the same again before we
+    # treat the socket as dead.
+    WS_HEARTBEAT_INTERVAL_SECONDS: int = 10
     WS_HEARTBEAT_TIMEOUT_SECONDS: int = 10
     # APScheduler watchdog interval for the WebSocket client. Fires
     # every N seconds and reconnects when ``client.is_alive()`` is
