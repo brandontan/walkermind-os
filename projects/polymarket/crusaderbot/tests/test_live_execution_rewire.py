@@ -8,7 +8,7 @@ Covers:
   * FOK dispatch: post_order called with order_type="FOK"
   * Auth failure (ClobAuthError) → LivePreSubmitError (pre-submit, safe to fallback)
   * Network failure (non-ClobAuthError) → LivePostSubmitError (ambiguous, no fallback)
-  * assert_live_guards: each of the three env guards in isolation
+  * assert_live_guards: each of the three env guards in isolation + USE_REAL_CLOB=False
   * close_position: uses client.post_order(side="SELL")
   * close_position: already-closing position returns early without submit
 
@@ -131,7 +131,7 @@ def _settings(
     enable_live: bool = True,
     exec_validated: bool = True,
     capital_confirmed: bool = True,
-    use_real_clob: bool = False,
+    use_real_clob: bool = True,
 ) -> Any:
     class _S:
         ENABLE_LIVE_TRADING = enable_live
@@ -220,6 +220,22 @@ class TestAssertLiveGuards:
             patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
                   return_value=s),
             pytest.raises(LivePreSubmitError, match="CAPITAL_MODE_CONFIRMED"),
+        ):
+            assert_live_guards(access_tier=4, trading_mode="live")
+
+    def test_use_real_clob_false_raises(self) -> None:
+        """USE_REAL_CLOB=False with all other guards set → LivePreSubmitError.
+
+        Codex P1 finding: MockClobClient with all live guards enabled would
+        insert mode='live' rows and debit the ledger without sending any real
+        order to Polymarket — phantom live exposure. USE_REAL_CLOB is now a
+        required guard for live execution.
+        """
+        s = _settings(use_real_clob=False)
+        with (
+            patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
+                  return_value=s),
+            pytest.raises(LivePreSubmitError, match="USE_REAL_CLOB must be True"),
         ):
             assert_live_guards(access_tier=4, trading_mode="live")
 

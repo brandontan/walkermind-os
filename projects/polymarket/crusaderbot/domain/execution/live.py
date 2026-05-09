@@ -44,7 +44,14 @@ class LivePostSubmitError(RuntimeError):
 
 
 def assert_live_guards(access_tier: int, trading_mode: str) -> None:
-    """Raise unless ALL five activation guards pass."""
+    """Raise unless ALL activation guards pass.
+
+    USE_REAL_CLOB is included as a guard because MockClobClient records
+    mode='live' orders in the DB and debits the ledger without sending any
+    real order to Polymarket — phantom live exposure. Requiring the real
+    client here ensures the router also paper-falls-back when USE_REAL_CLOB
+    is not set, even if all three env guards are enabled.
+    """
     s = get_settings()
     if not s.ENABLE_LIVE_TRADING:
         raise LivePreSubmitError("ENABLE_LIVE_TRADING=false")
@@ -52,6 +59,10 @@ def assert_live_guards(access_tier: int, trading_mode: str) -> None:
         raise LivePreSubmitError("EXECUTION_PATH_VALIDATED=false")
     if not s.CAPITAL_MODE_CONFIRMED:
         raise LivePreSubmitError("CAPITAL_MODE_CONFIRMED=false")
+    if s.ENABLE_LIVE_TRADING and not s.USE_REAL_CLOB:
+        raise LivePreSubmitError(
+            "USE_REAL_CLOB must be True when ENABLE_LIVE_TRADING is set"
+        )
     if access_tier < 4:
         raise LivePreSubmitError(f"tier {access_tier}<4")
     if trading_mode != "live":
