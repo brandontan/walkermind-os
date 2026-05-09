@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 import httpx
 
 from ..config import get_settings
+from ..database import last_ping_error as db_last_ping_error
 from ..database import ping as db_ping
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,10 @@ def _scrub_url(text: str) -> str:
 
 
 async def _with_timeout(
-    name: str, coro_factory: Callable[[], Awaitable[bool]],
+    name: str,
+    coro_factory: Callable[[], Awaitable[bool]],
+    *,
+    reason_provider: Callable[[], str | None] | None = None,
 ) -> str:
     """Run a check coroutine, return ``'ok'`` or ``'error: <reason>'``.
 
@@ -55,10 +59,22 @@ async def _with_timeout(
     encodes the API key in that URL path. Only the exception class name is
     surfaced publicly; full details (including ``str(exc)``) go to internal
     logs at ERROR.
+
+    ``reason_provider`` is an optional zero-arg callable consulted only on
+    the ``ok=False`` branch — when present and non-empty, its return value
+    (an exception class name) is appended to the unhealthy string in
+    parentheses. This lets the database check surface the asyncpg
+    exception class to operators without making the inner ping coroutine
+    leak structured data through the bool contract.
     """
     try:
         ok = await asyncio.wait_for(coro_factory(), timeout=CHECK_TIMEOUT_SECONDS)
-        return "ok" if ok else f"error: {name} reported unhealthy"
+        if ok:
+            return "ok"
+        reason = reason_provider() if reason_provider is not None else None
+        if reason:
+            return f"error: {name} reported unhealthy ({reason})"
+        return f"error: {name} reported unhealthy"
     except asyncio.TimeoutError:
         return f"error: {name} timeout after {CHECK_TIMEOUT_SECONDS:.0f}s"
     except Exception as exc:  # noqa: BLE001 — surfaced as sanitised health string
@@ -145,7 +161,9 @@ async def run_health_checks() -> dict:
 
     Returns a dict matching the documented ``GET /health`` response shape.
     """
-    db_task = asyncio.create_task(_with_timeout("database", check_database))
+    db_task = asyncio.create_task(_with_timeout(
+        "database", check_database, reason_provider=db_last_ping_error,
+    ))
     tg_task = asyncio.create_task(_with_timeout("telegram", check_telegram))
     rpc_task = asyncio.create_task(_with_timeout("alchemy_rpc", check_alchemy_rpc))
     ws_task = asyncio.create_task(_with_timeout("alchemy_ws", check_alchemy_ws))

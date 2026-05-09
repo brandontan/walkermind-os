@@ -12,6 +12,10 @@ from .config import get_settings
 logger = logging.getLogger(__name__)
 
 _pool: Optional[asyncpg.Pool] = None
+# Class name of the most recent ping() failure, or None when the last
+# probe succeeded. Surfaced via last_ping_error() so /health can include
+# the asyncpg exception class in the operator-facing reason string.
+_last_ping_error: Optional[str] = None
 
 
 async def init_pool() -> asyncpg.Pool:
@@ -19,11 +23,19 @@ async def init_pool() -> asyncpg.Pool:
     if _pool is not None:
         return _pool
     settings = get_settings()
+    # statement_cache_size=0 disables asyncpg's server-side prepared
+    # statement cache. Required when DATABASE_URL points at a PgBouncer
+    # in transaction-pooling mode (Fly Postgres default): cached
+    # statement names do not survive connection multiplexing and surface
+    # as `prepared statement "__asyncpg_stmt_*__" does not exist` /
+    # DuplicatePreparedStatementError / ProtocolViolationError under
+    # load. See https://github.com/MagicStack/asyncpg/issues/339.
     _pool = await asyncpg.create_pool(
         dsn=settings.DATABASE_URL,
         min_size=1,
         max_size=settings.DB_POOL_MAX,
         command_timeout=30,
+        statement_cache_size=0,
     )
     logger.info("asyncpg pool initialised (max=%s)", settings.DB_POOL_MAX)
     return _pool
@@ -58,13 +70,36 @@ async def run_migrations() -> None:
 
 
 async def ping() -> bool:
+    """Probe the asyncpg pool with ``SELECT 1``.
+
+    On failure the exception class name is captured in
+    ``_last_ping_error`` so ``last_ping_error()`` callers (notably the
+    health endpoint) can surface it in the operator alert string. The
+    full exception is also forwarded to Sentry via ``exc_info=True``.
+    """
+    global _last_ping_error
     try:
         pool = await init_pool()
         async with pool.acquire() as conn:
-            return await conn.fetchval("SELECT 1") == 1
+            ok = await conn.fetchval("SELECT 1") == 1
+        if ok:
+            _last_ping_error = None
+        return ok
     except Exception as exc:
-        logger.error("DB ping failed: %s", exc)
+        _last_ping_error = type(exc).__name__
+        logger.error("DB ping failed: %s", exc, exc_info=True)
         return False
+
+
+def last_ping_error() -> Optional[str]:
+    """Return the class name of the most recent ``ping()`` exception.
+
+    ``None`` whenever the last probe succeeded (or no probe has run
+    yet). The health endpoint reads this synchronously after a False
+    return so the asyncpg exception class lands in the Telegram alert
+    text without operators needing to grep Sentry.
+    """
+    return _last_ping_error
 
 
 async def is_kill_switch_active() -> bool:
