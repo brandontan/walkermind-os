@@ -193,6 +193,16 @@ def test_broker_status_unknown_falls_back_to_open():
     assert _broker_status({"status": "resting"}) == "open"
 
 
+def test_broker_status_strips_order_status_prefix():
+    """Real CLOB responses use enum-style strings (ORDER_STATUS_MATCHED).
+    Without prefix-stripping these fall through to 'open' and live orders
+    silently stall — covered by Codex P1 review on PR #913.
+    """
+    assert _broker_status({"status": "ORDER_STATUS_MATCHED"}) == "filled"
+    assert _broker_status({"status": "order_status_canceled"}) == "cancelled"
+    assert _broker_status({"orderStatus": "ORDER_STATUS_EXPIRED"}) == "expired"
+
+
 def test_aggregate_fills_weighted_average():
     fills = [
         {"price": "0.50", "size": "10"},

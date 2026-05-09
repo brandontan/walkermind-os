@@ -526,7 +526,10 @@ def _broker_status(broker_payload: dict) -> str:
 
     Polymarket has surfaced ``status``, ``state``, and ``orderStatus``
     across versions; we accept all three to avoid silently stalling on
-    schema drift.
+    schema drift. The real CLOB also returns enum-style strings such
+    as ``ORDER_STATUS_MATCHED`` / ``ORDER_STATUS_CANCELED`` /
+    ``ORDER_STATUS_EXPIRED``; we strip the ``order_status_`` prefix
+    so those land in the same buckets as the lower-case short forms.
     """
     raw = (
         broker_payload.get("status")
@@ -535,6 +538,8 @@ def _broker_status(broker_payload: dict) -> str:
         or ""
     )
     raw = str(raw).strip().lower()
+    if raw.startswith("order_status_"):
+        raw = raw[len("order_status_"):]
     if raw in {"matched", "filled", "closed", "complete", "completed"}:
         return "filled"
     if raw in {"cancelled", "canceled"}:
