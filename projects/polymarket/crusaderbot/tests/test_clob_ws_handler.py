@@ -258,6 +258,23 @@ def test_user_order_cancelled_routes_to_order_update():
     assert out[0]["status"] == "cancelled"
 
 
+def test_order_event_with_cancellation_type_maps_to_cancelled():
+    """Codex P1 regression: Polymarket sends user-channel cancellations
+    as ``event_type: "order", type: "CANCELLATION"`` with no top-level
+    ``status``. The normalise_status fallback chain (status -> type ->
+    event_type) plus the s.startswith("cancel") branch must route this
+    to the cancelled bucket so handle_ws_order_update closes + refunds
+    the order via the WS path instead of waiting for polling.
+    """
+    out = parse_message({
+        "event_type": "order",
+        "order_id": "broker-cx",
+        "type": "CANCELLATION",
+    })
+    assert len(out) == 1
+    assert out[0]["status"] == "cancelled"
+
+
 def test_user_order_drops_when_order_id_missing():
     assert parse_message({
         "event_type": "user_order", "status": "matched",
