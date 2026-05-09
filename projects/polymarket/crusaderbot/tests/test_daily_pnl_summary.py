@@ -421,6 +421,7 @@ def test_scheduler_registers_daily_pnl_summary_job():
         EXIT_WATCH_INTERVAL = 60
         REDEEM_INTERVAL = 3600
         RESOLUTION_CHECK_INTERVAL = 300
+        ORDER_POLL_INTERVAL_SECONDS = 30
 
     with patch.object(scheduler, "get_settings", return_value=_SettingsStub()):
         sched = scheduler.setup_scheduler()

@@ -1,12 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-09 11:30 Asia/Jakarta
+**Last Updated:** 2026-05-09 18:30 Asia/Jakarta
 
 ---
 
 ## Right Now
 
+- Phase 4C Order Lifecycle — WARP/CRUSADERBOT-PHASE4C-ORDER-LIFECYCLE. Tier MAJOR / Claim NARROW INTEGRATION / SENTINEL REQUIRED. ClobAdapter extended (tick_size + neg_risk on post_order; new cancel_all_orders / get_fills / get_open_orders). New domain/execution/lifecycle.py OrderLifecycleManager polls live orders and dispatches on_fill / on_cancel / on_expiry / stale; paper-mode mock fill after one cycle without ever calling the CLOB factory. APScheduler job 'order_lifecycle' registered every ORDER_POLL_INTERVAL_SECONDS=30. Migration 015_order_lifecycle.sql idempotent (orders columns + new fills table). 23 hermetic lifecycle tests + 30/30 4A regression. ClobClientProtocol + MockClobClient widened. Ruff clean. Activation guards remain NOT SET. Forge report: projects/polymarket/crusaderbot/reports/forge/order-lifecycle.md. Awaiting WARP•SENTINEL audit before merge.
 - Ops dashboard + Tier 2 operator seed — WARP/CRUSADERBOT-OPS-DASHBOARD-TIER2-FIX. Tier STANDARD / Claim NARROW INTEGRATION / SENTINEL NOT REQUIRED. New api/ops.py (GET /ops HTML + POST /ops/kill + POST /ops/resume), scripts/seed_operator_tier.py wired to fly.toml [deploy] release_command, kill-switch runbook refreshed for ADMIN_USER_IDS consumption. 42 new tests (17 seed + 25 ops). Ruff clean on changed files. Auth on /ops* deferred post-demo (in-code TODO). Awaiting WARP🔹CMD review + merge.
 - Lane 1C (CRU-5) — Demo Data Seeding — PR #908 SENTINEL APPROVED 98/100. WARP/CRUSADERBOT-DEMO-SEED-DATA. Tier STANDARD / Claim NARROW INTEGRATION. Zero P0/P1, 4 P2 (3 doc-row 32→34 drifts, 1 docstring stub, 1 migration comment — all post-merge OK). All BLOCK criteria explicitly evaluated and not triggered. Ruff clean. Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/demo-seed-data.md. Awaiting WARP🔹CMD merge decision. R12 Lane 1B MERGED PR #901. Lane 2C MERGED PR #907. Activation guards remain NOT SET.
 

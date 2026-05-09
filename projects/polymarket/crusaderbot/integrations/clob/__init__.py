@@ -72,9 +72,9 @@ __all__ = [
 class ClobClientProtocol(Protocol):
     """Minimum surface every CLOB client (real or mock) implements.
 
-    Kept narrow on purpose: today only ``post_order`` and ``cancel_order``
-    are wired. Phase 4B will widen this once live callers migrate off
-    ``integrations.polymarket._build_clob_client``.
+    Phase 4C widens the surface so the order-lifecycle manager can poll
+    fills, cancel resting orders, and reconcile open-order books without
+    coupling to ``ClobAdapter``-specific internals.
     """
 
     async def post_order(
@@ -85,11 +85,23 @@ class ClobClientProtocol(Protocol):
         price: float,
         size: float,
         order_type: str = "GTC",
+        tick_size: Optional[str] = None,
+        neg_risk: Optional[bool] = None,
     ) -> dict: ...
 
     async def cancel_order(self, order_id: str) -> dict: ...
 
+    async def cancel_all_orders(
+        self, market: Optional[str] = None,
+    ) -> dict: ...
+
     async def get_order(self, order_id: str) -> dict: ...
+
+    async def get_fills(self, order_id: str) -> list[dict]: ...
+
+    async def get_open_orders(
+        self, market: Optional[str] = None,
+    ) -> list[dict]: ...
 
     async def aclose(self) -> None: ...
 

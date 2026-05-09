@@ -15,6 +15,7 @@ from . import audit, notifications
 from .config import get_settings
 from .database import get_pool
 from .domain.execution import exit_watcher
+from .domain.execution import lifecycle as order_lifecycle
 from .domain.execution.router import execute as router_execute
 from .domain.ops import job_tracker
 from .domain.risk.gate import GateContext, evaluate
@@ -360,6 +361,19 @@ async def check_exits() -> None:
     await exit_watcher.run_once()
 
 
+# ---------------- Order lifecycle ----------------
+
+async def poll_order_lifecycle() -> None:
+    """Drive one OrderLifecycleManager poll sweep.
+
+    The manager handles its own per-order error containment so a single
+    broker failure does not abort other orders in the same sweep. The
+    APScheduler job id ``order_lifecycle`` is reserved for this entry
+    point so job_runs traces stay stable.
+    """
+    await order_lifecycle.poll_once()
+
+
 # ---------------- Resolution + redeem ----------------
 # Detection, dispatch, and settlement live in services.redeem.
 # These wrappers preserve the long-standing scheduler entry points so the
@@ -458,6 +472,9 @@ def setup_scheduler() -> AsyncIOScheduler:
                   id="signal_following_scan", max_instances=1, coalesce=True)
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,
                   id="exit_watch", max_instances=1, coalesce=True)
+    sched.add_job(poll_order_lifecycle, "interval",
+                  seconds=s.ORDER_POLL_INTERVAL_SECONDS,
+                  id="order_lifecycle", max_instances=1, coalesce=True)
     sched.add_job(redeem_hourly, "interval", seconds=s.REDEEM_INTERVAL,
                   id="redeem", max_instances=1, coalesce=True)
     sched.add_job(check_resolutions, "interval", seconds=s.RESOLUTION_CHECK_INTERVAL,
