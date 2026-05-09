@@ -124,7 +124,7 @@ async def execute(
     shares = float(size_usdc) / max(price, 0.0001)
     try:
         client = clob_client or get_clob_client(s)
-    except ClobConfigError as exc:
+    except (ClobConfigError, ClobAuthError) as exc:
         raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
 
     pool = get_pool()
@@ -322,13 +322,13 @@ async def close_position(
     # re-attempt cleanly.
     try:
         client = clob_client or get_clob_client(s)
-    except ClobConfigError as exc:
+    except (ClobConfigError, ClobAuthError) as exc:
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE positions SET status='open' WHERE id=$1",
                 position["id"],
             )
-        raise RuntimeError(f"CLOB client config error during close: {exc}") from exc
+        raise RuntimeError(f"CLOB client error during close: {exc}") from exc
     try:
         await client.post_order(
             token_id=token_id,

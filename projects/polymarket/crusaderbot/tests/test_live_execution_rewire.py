@@ -428,6 +428,26 @@ class TestExceptionClassification:
         ):
             _run_execute(conn, s, client=None)
 
+    def test_clob_auth_error_during_construction_becomes_live_pre_submit_error(self) -> None:
+        """ClobAuthError raised by get_clob_client() (malformed key) → LivePreSubmitError.
+
+        Codex P1 finding: get_clob_client() can raise ClobAuthError during
+        adapter construction (e.g. invalid POLYMARKET_PRIVATE_KEY format) before
+        any SELL is submitted. Previously only ClobConfigError was caught here,
+        letting ClobAuthError escape as an untyped exception that the router
+        cannot paper-fallback on.
+        """
+        s = _settings()
+        conn = FakeConn()
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.domain.execution.live.get_clob_client",
+                side_effect=ClobAuthError("malformed private key"),
+            ),
+            pytest.raises(LivePreSubmitError, match="CLOB client config error"),
+        ):
+            _run_execute(conn, s, client=None)
+
 
 # ---------------------------------------------------------------------------
 # close_position
@@ -545,6 +565,29 @@ class TestClosePosition:
         # ret = (0.2 - 0.4) / 0.4 = -0.5 → loss
         result = _run_close(conn, s, client, position=no_position)
         assert result["pnl_usdc"] < Decimal("0")
+
+    def test_close_clob_auth_error_during_construction_rolls_back_claim(self) -> None:
+        """ClobAuthError from get_clob_client() during close → RuntimeError + rollback.
+
+        Codex P1 finding (line 325): get_clob_client() can raise ClobAuthError
+        during construction (malformed key) after the atomic claim has flipped
+        the position to 'closing'. Previously only ClobConfigError was caught,
+        so ClobAuthError escaped and left the position permanently stuck in
+        'closing'; subsequent close attempts saw no 'open' row and returned
+        'already_closed' without sending any broker SELL.
+        """
+        conn = FakeConn(close_claim=POSITION_ID, close_finalize=POSITION_ID)
+        s = _settings()
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.domain.execution.live.get_clob_client",
+                side_effect=ClobAuthError("malformed private key"),
+            ),
+            pytest.raises(RuntimeError, match="CLOB client error during close"),
+        ):
+            _run_close(conn, s, client=None)
+        # Claim must be rolled back to 'open' so a retry can re-attempt.
+        assert any("status='open'" in str(e[0]) for e in conn.executed)
 
     def test_close_raises_when_use_real_clob_false(self) -> None:
         """USE_REAL_CLOB=False → RuntimeError before atomic claim.
