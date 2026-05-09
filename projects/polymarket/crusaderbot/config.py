@@ -188,6 +188,21 @@ class Settings(BaseSettings):
     # heartbeat path missed.
     WS_WATCHDOG_INTERVAL_SECONDS: int = 60
 
+    # --- CLOB resilience (Phase 4E) ---
+    # Number of consecutive transport failures (rate limit / 5xx /
+    # timeout / network / max-retries) that trip the breaker from
+    # CLOSED to OPEN. Auth-class errors (400/401/403) do NOT count --
+    # those are operator-credential issues, not transport incidents.
+    CIRCUIT_BREAKER_THRESHOLD: int = 5
+    # Time the breaker stays OPEN before auto-transitioning to
+    # HALF_OPEN. A successful trial in HALF_OPEN closes the breaker;
+    # a failed trial re-opens it and restarts this window.
+    CIRCUIT_BREAKER_RESET_SECONDS: int = 60
+    # Token-bucket rate limiter applied to every outbound CLOB call.
+    # Set below Polymarket's per-account ceiling so we throttle
+    # locally before the broker's 429 path triggers.
+    CLOB_RATE_LIMIT_RPS: int = 10
+
     @model_validator(mode="before")
     @classmethod
     def _alias_polygon_rpc_url(cls, data):
