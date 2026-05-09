@@ -60,6 +60,18 @@ class FakeConn:
     async def fetch(self, query: str, *args: Any) -> list[dict]:
         if "FROM orders" in query and "status = ANY" in query:
             return [dict(o) for o in self._orders if o["status"] in ("submitted", "pending")]
+        if "FROM fills WHERE order_id" in query and "fill_id NOT LIKE" in query:
+            # Honour the per-trade-row hydration used by
+            # handle_ws_order_update on cancel/expiry frames so the
+            # partial-fill refund math runs against the rows
+            # handle_ws_fill already wrote.
+            order_id = args[0]
+            return [
+                {"fill_id": row[1], "price": float(row[2]),
+                 "size": float(row[3]), "side": str(row[4])}
+                for row in self.fills_inserted
+                if row[0] == order_id and not str(row[1]).startswith("agg-")
+            ]
         return []
 
     async def fetchrow(self, query: str, *args: Any) -> dict | None:
@@ -329,6 +341,57 @@ async def test_ws_fill_then_order_update_filled_skips_aggregate_row():
     assert len(conn.terminal_updates) == 1  # order moved to filled
     assert len(conn.fills_inserted) == 1  # NO duplicate aggregate row
     assert conn.fills_inserted[0][1] == "trade-real-1"
+
+
+async def test_ws_cancel_after_partial_ws_fill_hydrates_prior_fills(monkeypatch):
+    """Codex P1 round 7: a partial WS fill records per-trade rows; a
+    later WS cancellation frame may omit ``size_matched`` (the operator-
+    cancel path). Without hydrating prior fills, ``_terminal_close``
+    sees an empty fills list and refunds the FULL order notional even
+    though the user already owns the matched shares from the WS fill.
+
+    This test pins the fix: ``handle_ws_order_update`` loads existing
+    per-trade fills from the DB before routing cancel/expiry, so
+    ``_terminal_close`` correctly computes the partial-fill refund.
+    """
+    captured: list[dict] = []
+
+    class _CaptureMgr(OrderLifecycleManager):
+        async def _terminal_close(self, **kwargs: Any) -> None:
+            captured.append(kwargs)
+
+    notify_user = AsyncMock(return_value=True)
+    conn = FakeConn(orders=[_make_order(broker_id="b1")])
+    mgr = _CaptureMgr(
+        settings=FakeSettings(use_real_clob=True),
+        pool=FakePool(conn),
+        notify_user=notify_user,
+        notify_operator=AsyncMock(return_value=None),
+        audit_write=AsyncMock(return_value=None),
+    )
+    # Step 1: WS fill records a per-trade row (40 shares @ $0.5 = $20
+    # filled out of $100 notional).
+    await mgr.handle_ws_fill({
+        "broker_order_id": "b1", "fill_id": "trade-real-1",
+        "price": 0.5, "size": 40.0,
+    })
+    assert len(conn.fills_inserted) == 1
+
+    # Step 2: WS cancellation arrives WITHOUT size_matched. The fix
+    # must hydrate prior fills from the DB so _terminal_close sees a
+    # non-empty fills list and refunds only the unfilled remainder.
+    await mgr.handle_ws_order_update({
+        "broker_order_id": "b1",
+        "status": "cancelled",
+        "size_matched": None,
+        "price": None,
+    })
+    assert len(captured) == 1
+    fills_passed = captured[0]["fills"]
+    assert len(fills_passed) == 1
+    assert fills_passed[0]["fill_id"] == "trade-real-1"
+    assert fills_passed[0]["size"] == pytest.approx(40.0)
+    assert fills_passed[0]["price"] == pytest.approx(0.5)
 
 
 async def test_polling_only_aggregate_fill_still_inserted_when_no_per_trade():
