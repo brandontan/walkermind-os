@@ -583,12 +583,30 @@ class OrderLifecycleManager:
     # No new dedup table or in-memory set is needed.
 
     async def handle_ws_fill(self, event: dict) -> None:
-        """Apply one ``user_fill`` event from the CLOB WebSocket.
+        """Record one CONFIRMED ``user_fill`` event without terminalising.
 
         ``event`` is the normalised dict ``ws_handler.parse_message``
         produces: ``{kind, broker_order_id, fill_id, price, size,
-        side, raw}``. Returns silently when the order is not tracked
-        locally (could be a fill on an order placed outside this bot).
+        side, raw}``. The handler is intentionally records-only:
+
+          * INSERT INTO ``fills`` (idempotent via the unique fill_id
+            constraint).
+          * UPDATE ``positions.current_price`` so dashboards reflect
+            the latest mark.
+
+        It does NOT mark the order as filled. Polymarket's user channel
+        emits one ``trade`` frame per match — a multi-trade GTC fill
+        produces N events that each represent a partial settlement, so
+        terminalising on the first one would lose every subsequent
+        ``fills`` row (the second writer would race-lose against
+        ``UPDATE orders ... RETURNING id``). Order termination comes
+        from ``handle_ws_order_update(status=filled)`` or the polling
+        fallback once the broker reports the order fully matched.
+        Codex P1 round 1 / WARP🔹CMD ratification on PR #915.
+
+        User notifications + audit are also intentionally deferred to
+        the terminal path so a partial fill does not produce a
+        misleading "Order filled" Telegram message.
         """
         broker_id = event.get("broker_order_id")
         fill_id = event.get("fill_id")
@@ -606,31 +624,50 @@ class OrderLifecycleManager:
             )
             return
         if order_row["status"] not in STATUS_OPEN:
-            # Already terminal — the polling loop or an earlier WS frame
-            # closed it. ``_on_fill`` would no-op via RETURNING anyway,
-            # but exiting here saves a transaction round trip.
             logger.debug(
                 "lifecycle ws_fill: order %s already terminal (%s)",
                 order_row["id"], order_row["status"],
             )
             return
 
-        attempts = int(order_row.get("poll_attempts") or 0) + 1
-        side = event.get("side") or order_row["side"]
+        try:
+            price = float(event["price"])
+            size = float(event["size"])
+        except (TypeError, ValueError, KeyError) as exc:
+            logger.warning(
+                "lifecycle ws_fill: dropping non-numeric event %s: %s",
+                event, exc,
+            )
+            return
+        side = str(event.get("side") or order_row["side"]).lower()
         fills_payload = [{
             "fill_id": str(fill_id),
-            "price": float(event["price"]),
-            "size": float(event["size"]),
-            "side": str(side).lower(),
+            "price": price,
+            "size": size,
+            "side": side,
             "raw": event.get("raw"),
         }]
-        await self._on_fill(
-            order=dict(order_row),
-            fill_price=float(event["price"]),
-            fill_size=float(event["size"]),
-            fills=fills_payload,
-            attempts=attempts,
-        )
+
+        pool = self._pool_override or get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await self._record_fills_in_conn(
+                    conn=conn, order_id=order_row["id"],
+                    side=order_row["side"], fills=fills_payload,
+                )
+                # Refresh the open position's mark price so the
+                # dashboard moves with each WS fill even before
+                # terminal close. Harmless when no position row
+                # exists yet (UPDATE matches zero rows).
+                await conn.execute(
+                    """
+                    UPDATE positions
+                       SET current_price = $2
+                     WHERE order_id = $1
+                       AND status = 'open'
+                    """,
+                    order_row["id"], price,
+                )
 
     async def handle_ws_order_update(self, event: dict) -> None:
         """Apply one ``user_order`` status transition event.
