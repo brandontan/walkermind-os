@@ -10,10 +10,9 @@ from telegram import (
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("💰 Wallet"), KeyboardButton("🤖 Setup")],
-            [KeyboardButton("📊 Dashboard"), KeyboardButton("📈 Positions")],
-            [KeyboardButton("📋 Activity"), KeyboardButton("🛑 Emergency")],
-            [KeyboardButton("⚙️ Settings"), KeyboardButton("ℹ️ Help")],
+            [KeyboardButton("📊 Dashboard"), KeyboardButton("🤖 Auto-Trade")],
+            [KeyboardButton("💰 Wallet"),    KeyboardButton("📈 My Trades")],
+            [KeyboardButton("🚨 Emergency")],
         ],
         resize_keyboard=True,
     )

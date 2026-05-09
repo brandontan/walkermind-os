@@ -6,9 +6,13 @@ text router consumes. Centralising the mapping keeps button registration
 and handler wiring in one place: adding a new top-level menu surface is a
 one-line change here.
 
-R12d adds the 📈 Positions slot which routes to the rich live position
-monitor (``bot.handlers.positions.show_positions``) instead of the legacy
-``dashboard.positions`` view (no P&L, no force-close confirmation).
+Phase 5A reduces the main menu from 8 to 5 buttons:
+  📊 Dashboard   🤖 Auto-Trade
+  💰 Wallet      📈 My Trades
+  🚨 Emergency
+
+Settings and Help are now /settings and /help commands only.
+Positions + Activity are merged into My Trades (📈 My Trades).
 """
 from __future__ import annotations
 
@@ -18,24 +22,19 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    dashboard, emergency, onboarding, positions,
-    settings as settings_handler, setup, wallet,
+    dashboard, emergency, positions, setup, wallet,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 
 
-# Order is irrelevant for routing but mirrors keyboards.main_menu() rows
-# so the two stay easy to diff at review time.
+# Order mirrors keyboards.main_menu() rows for easy diffing.
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
-    "💰 Wallet": wallet.wallet_root,
-    "🤖 Setup": setup.setup_root,
-    "📊 Dashboard": dashboard.dashboard,
-    "📈 Positions": positions.show_positions,
-    "📋 Activity": dashboard.activity,
-    "🛑 Emergency": emergency.emergency_root,
-    "ℹ️ Help": onboarding.help_handler,
-    "⚙️ Settings": settings_handler.settings_root,
+    "📊 Dashboard":  dashboard.dashboard,
+    "🤖 Auto-Trade": setup.setup_root,
+    "💰 Wallet":     wallet.wallet_root,
+    "📈 My Trades":  positions.my_trades,
+    "🚨 Emergency":  emergency.emergency_root,
 }
 
 
