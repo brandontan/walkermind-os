@@ -538,7 +538,53 @@ class OrderLifecycleManager:
         side: str,
         fills: list[dict],
     ) -> None:
-        """Write per-fill rows; safe to re-run via ON CONFLICT (fill_id)."""
+        """Write per-fill rows; safe to re-run via ON CONFLICT (fill_id).
+
+        When the supplied fills are all synthetic ``agg-`` aggregates
+        produced by ``_broker_fills`` (the order_update / polling
+        terminal paths), compare the incoming aggregate size against
+        the sum of per-trade rows already on disk:
+
+          * per-trade total >= aggregate total — WS captured every
+            settled share already, the aggregate is redundant, skip
+            the insert (one-row-per-broker-fill contract; Codex P2).
+          * per-trade total <  aggregate total — WS missed some trade
+            frames (disconnect/parser drop/broker gap); insert the
+            aggregate so the fills table eventually agrees with
+            ``orders.fill_size``. Reporting must dedup the overlap;
+            without this branch the missed shares would be undercounted
+            (Codex P2 round 8 on PR #915).
+          * no per-trade rows — polling-only path; insert as before.
+        """
+        if (
+            fills
+            and all(
+                str(f.get("fill_id", "") or "").startswith("agg-")
+                for f in fills
+            )
+        ):
+            existing_total = await conn.fetchval(
+                "SELECT COALESCE(SUM(size), 0) FROM fills "
+                "WHERE order_id = $1 AND fill_id NOT LIKE 'agg-%'",
+                order_id,
+            )
+            existing_total = float(existing_total or 0)
+            incoming_total = sum(
+                float(f.get("size", 0) or 0) for f in fills
+            )
+            # Tiny epsilon absorbs float-roundtrip noise from
+            # NUMERIC(18,6) columns. Real reconciliation gaps are
+            # always whole-share discrepancies, well outside this band.
+            EPSILON = 1e-6
+            if existing_total + EPSILON >= incoming_total:
+                logger.debug(
+                    "lifecycle: skipping aggregate fills insert; "
+                    "per-trade sum %.6f already covers incoming "
+                    "aggregate %.6f for order %s",
+                    existing_total, incoming_total, order_id,
+                )
+                return
+
         for fill in fills:
             fill_id = str(
                 fill.get("fill_id")
@@ -557,11 +603,20 @@ class OrderLifecycleManager:
                     fill,
                 )
                 continue
+            # ON CONFLICT DO UPDATE so synthetic ``agg-*`` rows
+            # tracking a growing broker aggregate (open UPDATE frames
+            # with size_matched climbing toward original_size) reflect
+            # the LATEST matched amount rather than the first one we
+            # observed. Per-trade fill_ids are unique per match so the
+            # UPSERT is a no-op for duplicate trade frames; agg rows
+            # benefit from the size/price refresh. Codex P1 round 10.
             await conn.execute(
                 """
                 INSERT INTO fills (order_id, fill_id, price, size, side, raw)
                 VALUES ($1,$2,$3,$4,$5,$6)
-                ON CONFLICT (fill_id) DO NOTHING
+                ON CONFLICT (fill_id) DO UPDATE SET
+                    size = EXCLUDED.size,
+                    price = EXCLUDED.price
                 """,
                 order_id, fill_id, price, size,
                 str(fill.get("side") or side).lower(),
@@ -569,6 +624,255 @@ class OrderLifecycleManager:
             )
 
     # ----- safe wrappers ----------------------------------------------
+
+    # ----- WebSocket event handlers (Phase 4D) -------------------------
+    # These are the single points the ``ClobWebSocketClient`` calls into.
+    # They look up the in-flight order row by broker id, then reuse the
+    # exact same ``_on_fill`` / ``_on_cancel`` / ``_on_expiry`` /
+    # ``_touch`` paths the polling loop uses. Dedup with polling is
+    # provided by two existing constraints:
+    #   * ``UPDATE orders ... WHERE status = ANY(STATUS_OPEN) RETURNING id``
+    #     — the second writer (poll OR ws) sees ``None`` and bails.
+    #   * ``INSERT INTO fills ... ON CONFLICT (fill_id) DO NOTHING`` —
+    #     the second writer's per-fill row is silently dropped.
+    # No new dedup table or in-memory set is needed.
+
+    async def handle_ws_fill(self, event: dict) -> None:
+        """Record one CONFIRMED ``user_fill`` event without terminalising.
+
+        ``event`` is the normalised dict ``ws_handler.parse_message``
+        produces: ``{kind, broker_order_id, fill_id, price, size,
+        side, raw}``. The handler is intentionally records-only:
+
+          * INSERT INTO ``fills`` (idempotent via the unique fill_id
+            constraint).
+          * UPDATE ``positions.current_price`` so dashboards reflect
+            the latest mark.
+
+        It does NOT mark the order as filled. Polymarket's user channel
+        emits one ``trade`` frame per match — a multi-trade GTC fill
+        produces N events that each represent a partial settlement, so
+        terminalising on the first one would lose every subsequent
+        ``fills`` row (the second writer would race-lose against
+        ``UPDATE orders ... RETURNING id``). Order termination comes
+        from ``handle_ws_order_update(status=filled)`` or the polling
+        fallback once the broker reports the order fully matched.
+        Codex P1 round 1 / WARP🔹CMD ratification on PR #915.
+
+        User notifications + audit are also intentionally deferred to
+        the terminal path so a partial fill does not produce a
+        misleading "Order filled" Telegram message.
+        """
+        broker_id = event.get("broker_order_id")
+        fill_id = event.get("fill_id")
+        if not broker_id or not fill_id:
+            logger.debug(
+                "lifecycle ws_fill: dropping event missing ids: %s", event,
+            )
+            return
+
+        order_row = await self._lookup_order_by_broker_id(broker_id)
+        if order_row is None:
+            logger.info(
+                "lifecycle ws_fill: no local order matches broker_id=%s",
+                broker_id,
+            )
+            return
+        if order_row["status"] not in STATUS_OPEN:
+            logger.debug(
+                "lifecycle ws_fill: order %s already terminal (%s)",
+                order_row["id"], order_row["status"],
+            )
+            return
+
+        try:
+            price = float(event["price"])
+            size = float(event["size"])
+        except (TypeError, ValueError, KeyError) as exc:
+            logger.warning(
+                "lifecycle ws_fill: dropping non-numeric event %s: %s",
+                event, exc,
+            )
+            return
+        side = str(event.get("side") or order_row["side"]).lower()
+        fills_payload = [{
+            "fill_id": str(fill_id),
+            "price": price,
+            "size": size,
+            "side": side,
+            "raw": event.get("raw"),
+        }]
+
+        pool = self._pool_override or get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await self._record_fills_in_conn(
+                    conn=conn, order_id=order_row["id"],
+                    side=order_row["side"], fills=fills_payload,
+                )
+                # Refresh the open position's mark price so the
+                # dashboard moves with each WS fill even before
+                # terminal close. Harmless when no position row
+                # exists yet (UPDATE matches zero rows).
+                await conn.execute(
+                    """
+                    UPDATE positions
+                       SET current_price = $2
+                     WHERE order_id = $1
+                       AND status = 'open'
+                    """,
+                    order_row["id"], price,
+                )
+
+    async def handle_ws_order_update(self, event: dict) -> None:
+        """Apply one ``user_order`` status transition event.
+
+        Dispatches on the normalised status: ``filled`` reuses the
+        broker-payload fills aggregate via ``_broker_fills``;
+        ``cancelled`` / ``expired`` route through the existing
+        ``_terminal_close`` helper so partial-fill refund math stays
+        in one place.
+        """
+        broker_id = event.get("broker_order_id")
+        status = event.get("status")
+        if not broker_id or not status:
+            return
+
+        order_row = await self._lookup_order_by_broker_id(broker_id)
+        if order_row is None:
+            return
+        if order_row["status"] not in STATUS_OPEN:
+            return
+
+        order = dict(order_row)
+        attempts = int(order.get("poll_attempts") or 0) + 1
+        # Build a synthetic broker payload so ``_broker_fills`` can
+        # reuse its size_matched / price interpretation rules. For a
+        # status-only update with no size_matched the helper returns
+        # an empty list and the cancel/expiry refund path correctly
+        # treats it as zero-fill. For a filled status update we forward
+        # the size_matched + price from the WS frame.
+        size_matched = event.get("size_matched")
+        broker_payload = {
+            "status": status,
+            "size_matched": (
+                size_matched * 10 ** 6 if size_matched is not None else 0
+            ),
+            "price": event.get("price") or order.get("price"),
+        }
+        fills = _broker_fills(broker_payload, order)
+
+        if status == "filled":
+            fill_price, fill_size = _aggregate_fills(fills, fallback=order)
+            await self._on_fill(
+                order=order, fill_price=fill_price, fill_size=fill_size,
+                fills=fills, attempts=attempts,
+            )
+            return
+        if status in {"cancelled", "expired"}:
+            # Cancel/expiry refund math depends on the matched-shares
+            # aggregate. The broker's user_order frame may omit
+            # size_matched (the operator-cancel path commonly does),
+            # in which case _broker_fills returned []. Hydrating from
+            # the per-trade rows handle_ws_fill already wrote ensures
+            # _terminal_close refunds only the UNFILLED remainder
+            # rather than the full notional. Without this, a WS-fill
+            # for $40 followed by a WS-cancel-with-no-size_matched on
+            # a $100 order would refund the full $100 even though the
+            # user already owns the $40 of matched shares. Codex P1
+            # review on PR #915.
+            if not fills:
+                fills = await self._load_existing_fills(order["id"])
+            handler = (
+                self._on_cancel if status == "cancelled"
+                else self._on_expiry
+            )
+            await handler(order=order, attempts=attempts, fills=fills)
+            return
+        # status == "open" (partial UPDATE or informational frame).
+        # When the broker UPDATE carries size_matched > 0 (a partial
+        # match), persist the aggregate now so a later cancellation
+        # that omits size_matched can hydrate the matched shares from
+        # the DB via _load_existing_fills. Without this, the cancel
+        # path would refund the full order notional even though shares
+        # were already matched. Subsequent UPDATEs with grown
+        # size_matched UPSERT the agg row to the latest amount via
+        # _record_fills_in_conn's ON CONFLICT DO UPDATE clause.
+        # Codex P1 round 10 on PR #915.
+        if fills:
+            pool = self._pool_override or get_pool()
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    await self._record_fills_in_conn(
+                        conn=conn, order_id=order["id"],
+                        side=order["side"], fills=fills,
+                    )
+
+    async def _load_existing_fills(self, order_id: UUID) -> list[dict]:
+        """Pull existing ``fills`` rows used for hydration on cancel/expiry.
+
+        Returns whichever of the per-trade-row set or the synthetic
+        ``agg-*`` aggregate covers a LARGER matched-shares total.
+        Tie-breaks (per-trade SUM == agg size) go to per-trade for
+        granularity. The size comparison matters because:
+
+          * per-trade SUM == agg total — WS captured every settled
+            share. Per-trade rows are the most granular record so
+            prefer them.
+          * per-trade SUM <  agg total — WS missed some trade frames
+            (disconnect / parser drop / broker gap). The agg row's
+            size is the broker's authoritative aggregate; using the
+            per-trade SUM would refund the user for shares they
+            actually own. Codex P1 round 11 on PR #915.
+          * no per-trade rows — return agg if any (round 10 path).
+          * no rows at all — return ``[]`` so ``_terminal_close``
+            treats it as zero-fill and refunds the full notional.
+        """
+        pool = self._pool_override or get_pool()
+        async with pool.acquire() as conn:
+            per_trade = await conn.fetch(
+                "SELECT fill_id, price, size, side FROM fills "
+                "WHERE order_id = $1 AND fill_id NOT LIKE 'agg-%'",
+                order_id,
+            )
+            agg = await conn.fetch(
+                "SELECT fill_id, price, size, side FROM fills "
+                "WHERE order_id = $1 AND fill_id LIKE 'agg-%'",
+                order_id,
+            )
+        per_trade_total = sum(float(r["size"] or 0) for r in per_trade)
+        agg_total = sum(float(r["size"] or 0) for r in agg)
+        # 1e-6 epsilon absorbs NUMERIC roundtrip noise on equal sums.
+        if per_trade and per_trade_total + 1e-6 >= agg_total:
+            return [dict(r) for r in per_trade]
+        if agg:
+            return [dict(r) for r in agg]
+        return [dict(r) for r in per_trade]
+
+    async def _lookup_order_by_broker_id(
+        self, broker_order_id: str,
+    ) -> Optional[Any]:
+        """Resolve ``orders.polymarket_order_id`` -> the full order row.
+
+        Returns ``None`` for unknown broker ids (fills on orders placed
+        outside the bot) or rows already in a terminal state. The
+        SELECT mirrors ``poll_once`` so dispatchers consume the same
+        column shape.
+        """
+        pool = self._pool_override or get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, user_id, market_id, side, size_usdc, price,
+                       polymarket_order_id, status, poll_attempts, mode,
+                       fill_size, fill_price
+                  FROM orders
+                 WHERE polymarket_order_id = $1
+                   AND mode = 'live'
+                """,
+                broker_order_id,
+            )
+        return row
 
     async def _safe_audit(self, **kwargs: Any) -> None:
         try:
@@ -608,6 +912,16 @@ def get_default_manager() -> OrderLifecycleManager:
 async def poll_once() -> dict:
     """Module-level shim used as the APScheduler job target."""
     return await get_default_manager().poll_once()
+
+
+async def dispatch_ws_fill(event: dict) -> None:
+    """Module-level shim used as the WebSocket client's fill callback."""
+    await get_default_manager().handle_ws_fill(event)
+
+
+async def dispatch_ws_order_update(event: dict) -> None:
+    """Module-level shim used as the WebSocket client's order callback."""
+    await get_default_manager().handle_ws_order_update(event)
 
 
 def _broker_status(broker_payload: dict) -> str:

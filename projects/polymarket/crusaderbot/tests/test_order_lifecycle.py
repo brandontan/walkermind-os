@@ -920,6 +920,7 @@ def test_scheduler_registers_order_lifecycle_job(monkeypatch):
         REDEEM_INTERVAL = 3600
         RESOLUTION_CHECK_INTERVAL = 300
         ORDER_POLL_INTERVAL_SECONDS = 30
+        WS_WATCHDOG_INTERVAL_SECONDS = 60
 
     monkeypatch.setattr(scheduler_mod, "get_settings", lambda: _S())
 
