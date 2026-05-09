@@ -542,12 +542,19 @@ class OrderLifecycleManager:
 
         When the supplied fills are all synthetic ``agg-`` aggregates
         produced by ``_broker_fills`` (the order_update / polling
-        terminal paths), skip the insert if any per-trade WS fill row
-        already exists for the order. Without this guard a WS fill
-        records ``trade-7-m-0`` and a follow-on order_update inserts
-        an extra ``agg-broker-7`` row covering the same shares, so
-        any fills-based reconciliation/report would double-count.
-        Codex P2 review on PR #915.
+        terminal paths), compare the incoming aggregate size against
+        the sum of per-trade rows already on disk:
+
+          * per-trade total >= aggregate total — WS captured every
+            settled share already, the aggregate is redundant, skip
+            the insert (one-row-per-broker-fill contract; Codex P2).
+          * per-trade total <  aggregate total — WS missed some trade
+            frames (disconnect/parser drop/broker gap); insert the
+            aggregate so the fills table eventually agrees with
+            ``orders.fill_size``. Reporting must dedup the overlap;
+            without this branch the missed shares would be undercounted
+            (Codex P2 round 8 on PR #915).
+          * no per-trade rows — polling-only path; insert as before.
         """
         if (
             fills
@@ -556,16 +563,25 @@ class OrderLifecycleManager:
                 for f in fills
             )
         ):
-            has_per_trade = await conn.fetchval(
-                "SELECT 1 FROM fills WHERE order_id = $1 "
-                "AND fill_id NOT LIKE 'agg-%' LIMIT 1",
+            existing_total = await conn.fetchval(
+                "SELECT COALESCE(SUM(size), 0) FROM fills "
+                "WHERE order_id = $1 AND fill_id NOT LIKE 'agg-%'",
                 order_id,
             )
-            if has_per_trade:
+            existing_total = float(existing_total or 0)
+            incoming_total = sum(
+                float(f.get("size", 0) or 0) for f in fills
+            )
+            # Tiny epsilon absorbs float-roundtrip noise from
+            # NUMERIC(18,6) columns. Real reconciliation gaps are
+            # always whole-share discrepancies, well outside this band.
+            EPSILON = 1e-6
+            if existing_total + EPSILON >= incoming_total:
                 logger.debug(
                     "lifecycle: skipping aggregate fills insert; "
-                    "per-trade rows already exist for order %s",
-                    order_id,
+                    "per-trade sum %.6f already covers incoming "
+                    "aggregate %.6f for order %s",
+                    existing_total, incoming_total, order_id,
                 )
                 return
 
