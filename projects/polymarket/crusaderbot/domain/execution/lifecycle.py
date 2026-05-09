@@ -49,6 +49,14 @@ STATUS_CANCELLED = "cancelled"
 STATUS_EXPIRED = "expired"
 STATUS_STALE = "stale"
 
+# Polymarket's order detail returns ``size_matched`` (and other share
+# counts) as fixed-math with 6 decimals — i.e. 125 shares is reported
+# as the integer 125000000. Treating the raw value as a share count
+# would over-state filled notional by 10^6×; we divide here so the
+# refund / position-resize math gets actual shares. Codex P1 review.
+BROKER_SIZE_DECIMALS = 6
+BROKER_SIZE_FACTOR = 10 ** BROKER_SIZE_DECIMALS
+
 
 class OrderLifecycleManager:
     """Polls live orders and dispatches terminal-state side effects."""
@@ -624,9 +632,14 @@ def _broker_status(broker_payload: dict) -> str:
         raw = raw[len("order_status_"):]
     if raw in {"matched", "filled", "closed", "complete", "completed"}:
         return "filled"
-    if raw in {"cancelled", "canceled"}:
+    # Prefix-match so terminal-cancel variants such as
+    # ``ORDER_STATUS_CANCELED_MARKET_RESOLVED`` (a real Polymarket enum
+    # documented at /api-reference/trade/get-single-order-by-id) route
+    # to the cancel path instead of falling through to ``open`` and
+    # eventually being marked stale. Codex P1 review.
+    if raw.startswith("cancel"):
         return "cancelled"
-    if raw in {"expired"}:
+    if raw == "expired":
         return "expired"
     return "open"
 
@@ -682,7 +695,10 @@ def _broker_fills(broker_payload: dict, order: dict) -> list[dict]:
         or 0
     )
     try:
-        matched_size = float(raw_size or 0)
+        # Polymarket ``size_matched`` is fixed-math with 6 decimals
+        # (per docs.polymarket.com /api-reference/trade/get-single-
+        # order-by-id). Convert to actual shares before refund math.
+        matched_size = float(raw_size or 0) / BROKER_SIZE_FACTOR
     except (TypeError, ValueError):
         matched_size = 0.0
     if matched_size <= 0:

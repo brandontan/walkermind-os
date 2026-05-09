@@ -233,6 +233,17 @@ def test_broker_status_strips_order_status_prefix():
     assert _broker_status({"orderStatus": "ORDER_STATUS_EXPIRED"}) == "expired"
 
 
+def test_broker_status_market_resolved_cancel_routes_to_cancelled():
+    """Codex P1: ``ORDER_STATUS_CANCELED_MARKET_RESOLVED`` is a real
+    Polymarket terminal status. Without prefix-matching it would fall
+    through to 'open' and never close the position / refund USDC.
+    """
+    assert _broker_status({
+        "status": "ORDER_STATUS_CANCELED_MARKET_RESOLVED"
+    }) == "cancelled"
+    assert _broker_status({"status": "canceled_market_resolved"}) == "cancelled"
+
+
 def test_aggregate_fills_weighted_average():
     fills = [
         {"price": "0.50", "size": "10"},
@@ -315,8 +326,10 @@ async def test_live_filled_writes_fills_and_notifies():
     # The lifecycle now derives the fill aggregate from the broker
     # order detail's size_matched + price fields rather than a separate
     # /data/trades query (Codex P1 — taker_order_id filter is unsupported).
+    # ``size_matched`` is Polymarket fixed-math with 6 decimals, so 150
+    # shares is reported as 150_000_000 (Codex P1 follow-up).
     client.get_order = AsyncMock(return_value={
-        "status": "matched", "size_matched": 150.0, "price": 0.55,
+        "status": "matched", "size_matched": 150_000_000, "price": 0.55,
     })
     client.aclose = AsyncMock(return_value=None)
 
@@ -408,8 +421,9 @@ async def test_live_cancelled_partial_fill_resizes_position_and_refunds_remainde
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
+    # Fixed-math: 50 shares == 50_000_000 in the broker payload.
     client.get_order = AsyncMock(return_value={
-        "status": "cancelled", "size_matched": 50.0, "price": 0.40,
+        "status": "cancelled", "size_matched": 50_000_000, "price": 0.40,
     })
     client.aclose = AsyncMock(return_value=None)
 
@@ -583,7 +597,7 @@ async def test_terminal_race_skips_when_already_terminal():
 
     client = AsyncMock()
     client.get_order = AsyncMock(return_value={
-        "status": "matched", "size_matched": 100.0, "price": 0.55,
+        "status": "matched", "size_matched": 100_000_000, "price": 0.55,
     })
     client.aclose = AsyncMock(return_value=None)
 
@@ -598,6 +612,73 @@ async def test_terminal_race_skips_when_already_terminal():
     assert out["filled"] == 1
     assert conn.fills_inserted == []
     notify_user.assert_not_awaited()
+
+
+async def test_live_cancelled_market_resolved_routes_to_cancel_path():
+    """Codex P1: ``ORDER_STATUS_CANCELED_MARKET_RESOLVED`` (a real
+    Polymarket terminal status when the underlying market resolves
+    while the order is still resting) must be treated as a cancel —
+    refund unfilled USDC, mark order terminal, roll the position back.
+    Before the prefix-match fix, this fell through to 'open' and
+    eventually became stale.
+    """
+    order = _make_order(size_usdc=100.0)
+    conn = FakeConn(orders=[order])
+    settings = FakeSettings(use_real_clob=True)
+
+    client = AsyncMock()
+    client.get_order = AsyncMock(return_value={
+        "status": "ORDER_STATUS_CANCELED_MARKET_RESOLVED",
+        "size_matched": 0,
+    })
+    client.aclose = AsyncMock(return_value=None)
+
+    mgr, *_ = _build_manager(
+        conn=conn, settings=settings, clob_factory=lambda _s: client,
+    )
+    out = await mgr.poll_once()
+
+    assert out["cancelled"] == 1
+    # Full refund applied (no fills).
+    from decimal import Decimal as _D
+    assert len(conn.ledger_inserts) == 1
+    _user, type_, amount, *_ = conn.ledger_inserts[0]
+    assert type_ == "adjustment"
+    assert _D(str(amount)) == _D("100")
+
+
+async def test_broker_size_matched_fixed_math_conversion():
+    """Codex P1: Polymarket's size_matched is fixed-math 1e6. A 125-share
+    partial fill arrives as 125_000_000; without scaling the lifecycle
+    would clamp to size_usdc and refund $0 even on partial fills.
+
+    Order size_usdc=$100 at price=$0.40 => 250 shares would be a full fill.
+    Broker reports size_matched=125_000_000 (=125 shares) at price=0.40
+    => filled_notional=$50, refund=$50.
+    """
+    order = _make_order(size_usdc=100.0, price=0.40)
+    conn = FakeConn(orders=[order])
+    settings = FakeSettings(use_real_clob=True)
+
+    client = AsyncMock()
+    client.get_order = AsyncMock(return_value={
+        "status": "cancelled",
+        "size_matched": 125_000_000,
+        "price": 0.40,
+    })
+    client.aclose = AsyncMock(return_value=None)
+
+    mgr, *_ = _build_manager(
+        conn=conn, settings=settings, clob_factory=lambda _s: client,
+    )
+    await mgr.poll_once()
+
+    from decimal import Decimal as _D
+    assert len(conn.ledger_inserts) == 1
+    _user, type_, amount, *_ = conn.ledger_inserts[0]
+    assert type_ == "adjustment"
+    # $100 - (125 * 0.40) = $100 - $50 = $50 refund.
+    assert _D(str(amount)) == _D("50.0000")
 
 
 async def test_module_level_poll_once_uses_default_manager(monkeypatch):
