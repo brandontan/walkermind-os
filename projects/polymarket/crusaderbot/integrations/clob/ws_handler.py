@@ -267,12 +267,33 @@ def _normalise_order_update(payload: dict) -> Optional[dict]:
         or payload.get("type")
         or payload.get("event_type")
     )
+    size_matched = _coerce_float(
+        payload.get("size_matched") or payload.get("sizeMatched")
+    )
+    # Polymarket user-channel ``order`` events sometimes carry
+    # ``type: "UPDATE"`` with size fields (``original_size``,
+    # ``size_matched``) instead of an explicit terminal status.
+    # When the UPDATE represents a fully matched order, derive
+    # ``filled`` from the sizes so the WS path terminalises rather
+    # than leaving the order open until the polling fallback closes
+    # it. Partial UPDATEs (size_matched < original_size) keep the
+    # ``open`` status so we record the fill but don't terminalise.
+    # Codex P2 round 9 on PR #915.
+    if status == "open":
+        original_size = _coerce_float(
+            payload.get("original_size") or payload.get("originalSize")
+        )
+        if (
+            original_size is not None
+            and original_size > 0
+            and size_matched is not None
+            and size_matched + 1e-6 >= original_size
+        ):
+            status = "filled"
     return {
         "broker_order_id": str(broker_order_id),
         "status": status,
-        "size_matched": _coerce_float(
-            payload.get("size_matched") or payload.get("sizeMatched")
-        ),
+        "size_matched": size_matched,
         "price": _coerce_float(payload.get("price")),
         "raw": payload,
     }
