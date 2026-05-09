@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+from decimal import Decimal
 from typing import Any, Awaitable, Callable, Optional
 from uuid import UUID
 
@@ -35,6 +36,7 @@ from ...integrations.clob import (
     ClobConfigError,
     get_clob_client,
 )
+from ...wallet import ledger
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +97,8 @@ class OrderLifecycleManager:
             rows = await conn.fetch(
                 """
                 SELECT id, user_id, market_id, side, size_usdc, price,
-                       polymarket_order_id, status, poll_attempts, mode
+                       polymarket_order_id, status, poll_attempts, mode,
+                       fill_size, fill_price
                   FROM orders
                  WHERE mode = 'live'
                    AND status = ANY($1::text[])
@@ -365,20 +368,40 @@ class OrderLifecycleManager:
                     )
                     return
                 # Roll any open position created off this order back to
-                # 'cancelled'; capital is released by audit follow-up
-                # rather than a direct ledger credit because the live
-                # path debited at position-insert time and the operator
-                # may want to confirm exposure before crediting.
-                await conn.execute(
+                # 'cancelled' AND credit the unfilled portion back to the
+                # user's wallet. The live path debited the FULL size_usdc
+                # at position-insert time (T_TRADE_OPEN), so a cancel /
+                # expiry without a refund would silently lock that
+                # capital indefinitely.
+                #
+                # We only credit when a position row is actually rolled
+                # back from 'open' (i.e. the live insert reached
+                # positions). Orders stuck at 'pending' never debited
+                # the ledger in the first place — execute()'s atomic
+                # transaction means orders.status='submitted' implies
+                # position+ledger landed together.
+                pos = await conn.fetchrow(
                     """
                     UPDATE positions
                        SET status = 'cancelled', closed_at = NOW(),
                            exit_reason = $2
                      WHERE order_id = $1
                        AND status = 'open'
+                     RETURNING id, user_id, size_usdc
                     """,
                     order["id"], new_status,
                 )
+                if pos is not None:
+                    refund = _unfilled_refund_usdc(order, pos)
+                    if refund > 0:
+                        await ledger.credit_in_conn(
+                            conn, pos["user_id"], refund, ledger.T_ADJUSTMENT,
+                            ref_id=pos["id"],
+                            note=(
+                                f"{audit_action} refund "
+                                f"order={order['id']} unfilled=${refund}"
+                            ),
+                        )
 
         await self._safe_audit(
             actor_role="bot", action=audit_action,
@@ -578,6 +601,33 @@ def _aggregate_fills(
     if total_size <= 0:
         return float(fills[0].get("price", 0) or 0), 0.0
     return weighted_price / total_size, total_size
+
+
+def _unfilled_refund_usdc(order: dict, position: dict) -> Decimal:
+    """Compute the USDC refund owed when a live order is cancelled or expired.
+
+    The live path debits the full ``positions.size_usdc`` at position-insert
+    time. On terminal cancel / expiry we credit back only the *unfilled*
+    notional so a partial fill that was later cancelled does not get a
+    duplicate refund on top of the matched shares.
+
+    Returns ``Decimal('0')`` when the math underflows or the order has no
+    recoverable size; a non-positive refund is dropped silently rather
+    than emitting a $0 ledger row.
+    """
+    size = Decimal(str(position["size_usdc"]))
+    fill_size_raw = order.get("fill_size")
+    fill_price_raw = order.get("fill_price")
+    filled_notional = Decimal("0")
+    if fill_size_raw is not None and fill_price_raw is not None:
+        try:
+            filled_notional = (
+                Decimal(str(fill_size_raw)) * Decimal(str(fill_price_raw))
+            )
+        except Exception:  # noqa: BLE001 — defensive on broker-shaped input
+            filled_notional = Decimal("0")
+    refund = size - filled_notional
+    return refund if refund > 0 else Decimal("0")
 
 
 def _safe_fills(fills: list[dict]) -> list[dict]:

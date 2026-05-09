@@ -57,6 +57,8 @@ def _make_order(
     market_id: str = "mkt-1",
     price: float = 0.55,
     size_usdc: float = 100.0,
+    fill_size: float | None = None,
+    fill_price: float | None = None,
 ) -> dict:
     return {
         "id": order_id or uuid4(),
@@ -69,13 +71,19 @@ def _make_order(
         "status": status,
         "poll_attempts": poll_attempts,
         "mode": "live",
+        "fill_size": fill_size,
+        "fill_price": fill_price,
     }
 
 
 class FakeConn:
-    def __init__(self, *, orders: list[dict], telegram_id: int | None = 99):
+    def __init__(
+        self, *, orders: list[dict], telegram_id: int | None = 99,
+        position_rolled_back: bool = True,
+    ) -> None:
         self._orders = orders
         self._telegram_id = telegram_id
+        self._position_rolled_back = position_rolled_back
         self.executed: list[tuple] = []
         self.fetched: list[tuple] = []
         # state captured by the lifecycle manager via UPDATE ... RETURNING id
@@ -83,6 +91,8 @@ class FakeConn:
         self.position_updates: list[tuple] = []
         self.fills_inserted: list[tuple] = []
         self.touches: list[tuple] = []
+        self.ledger_inserts: list[tuple] = []
+        self.wallet_updates: list[tuple] = []
         self.return_terminal_id: bool = True
 
     async def fetch(self, query: str, *args: Any) -> list[dict]:
@@ -92,6 +102,22 @@ class FakeConn:
         return []
 
     async def fetchrow(self, query: str, *args: Any) -> dict | None:
+        if "UPDATE positions" in query and "RETURNING id, user_id, size_usdc" in query:
+            self.position_updates.append((query, args))
+            if not self._position_rolled_back:
+                return None
+            order_id = args[0]
+            order = next(
+                (o for o in self._orders if o["id"] == order_id),
+                self._orders[0] if self._orders else None,
+            )
+            if order is None:
+                return None
+            return {
+                "id": uuid4(),
+                "user_id": order["user_id"],
+                "size_usdc": order["size_usdc"],
+            }
         return None
 
     async def fetchval(self, query: str, *args: Any) -> Any:
@@ -108,6 +134,10 @@ class FakeConn:
         self.executed.append((query, args))
         if "INSERT INTO fills" in query:
             self.fills_inserted.append(args)
+        elif "INSERT INTO ledger" in query:
+            self.ledger_inserts.append(args)
+        elif "UPDATE wallets" in query:
+            self.wallet_updates.append(args)
         elif "UPDATE positions" in query:
             self.position_updates.append((query, args))
         elif "UPDATE orders\n                   SET poll_attempts" in query:
@@ -324,6 +354,104 @@ async def test_live_cancelled_rolls_position_back():
         for q, _ in conn.position_updates
     )
     notify_user.assert_awaited()
+
+
+async def test_live_cancelled_credits_full_refund_when_no_fills():
+    """Codex P1 review: a cancelled live order with no fills must credit
+    the full size_usdc back to the user's wallet. The execute() path
+    debits the full size at position-insert time; without this refund
+    the user's balance silently locks the cancelled notional.
+    """
+    order = _make_order(size_usdc=100.0, fill_size=None, fill_price=None)
+    conn = FakeConn(orders=[order])
+    settings = FakeSettings(use_real_clob=True)
+
+    client = AsyncMock()
+    client.get_order = AsyncMock(return_value={"status": "cancelled"})
+    client.aclose = AsyncMock(return_value=None)
+
+    mgr, *_ = _build_manager(
+        conn=conn, settings=settings, clob_factory=lambda _s: client,
+    )
+    await mgr.poll_once()
+
+    assert len(conn.ledger_inserts) == 1
+    user_id, type_, amount, _ref, _note = conn.ledger_inserts[0]
+    from decimal import Decimal as _D
+    assert type_ == "adjustment"
+    assert _D(str(amount)) == _D("100")
+    # Wallet UPDATE applied alongside the ledger insert.
+    assert len(conn.wallet_updates) == 1
+
+
+async def test_live_cancelled_credits_partial_refund_with_partial_fill():
+    """Partial-fill-then-cancel: only the unfilled notional is credited
+    back. fill_size=50 shares at fill_price=0.40 → $20 filled; size_usdc=100
+    → $80 unfilled refund.
+    """
+    order = _make_order(
+        size_usdc=100.0, fill_size=50.0, fill_price=0.40,
+    )
+    conn = FakeConn(orders=[order])
+    settings = FakeSettings(use_real_clob=True)
+
+    client = AsyncMock()
+    client.get_order = AsyncMock(return_value={"status": "cancelled"})
+    client.aclose = AsyncMock(return_value=None)
+
+    mgr, *_ = _build_manager(
+        conn=conn, settings=settings, clob_factory=lambda _s: client,
+    )
+    await mgr.poll_once()
+
+    assert len(conn.ledger_inserts) == 1
+    _user, type_, amount, *_ = conn.ledger_inserts[0]
+    from decimal import Decimal as _D
+    assert type_ == "adjustment"
+    assert _D(str(amount)) == _D("80.00")
+
+
+async def test_live_cancelled_skips_credit_when_no_position_rolled_back():
+    """If the position UPDATE returned no row (order was 'pending' and
+    never reached the position insert) no ledger debit ever happened —
+    so no refund is owed.
+    """
+    order = _make_order()
+    conn = FakeConn(orders=[order], position_rolled_back=False)
+    settings = FakeSettings(use_real_clob=True)
+
+    client = AsyncMock()
+    client.get_order = AsyncMock(return_value={"status": "cancelled"})
+    client.aclose = AsyncMock(return_value=None)
+
+    mgr, *_ = _build_manager(
+        conn=conn, settings=settings, clob_factory=lambda _s: client,
+    )
+    await mgr.poll_once()
+
+    assert conn.ledger_inserts == []
+    assert conn.wallet_updates == []
+
+
+async def test_live_expired_credits_refund_same_as_cancel():
+    order = _make_order(size_usdc=50.0)
+    conn = FakeConn(orders=[order])
+    settings = FakeSettings(use_real_clob=True)
+
+    client = AsyncMock()
+    client.get_order = AsyncMock(return_value={"status": "expired"})
+    client.aclose = AsyncMock(return_value=None)
+
+    mgr, *_ = _build_manager(
+        conn=conn, settings=settings, clob_factory=lambda _s: client,
+    )
+    await mgr.poll_once()
+
+    assert len(conn.ledger_inserts) == 1
+    from decimal import Decimal as _D
+    _, type_, amount, *_ = conn.ledger_inserts[0]
+    assert type_ == "adjustment"
+    assert _D(str(amount)) == _D("50")
 
 
 async def test_live_expired_uses_expiry_path():
