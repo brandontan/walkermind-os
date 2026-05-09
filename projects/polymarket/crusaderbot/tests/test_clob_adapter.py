@@ -30,7 +30,7 @@ DETERMINISTIC_SECRET = base64.urlsafe_b64encode(
 ).decode()
 
 
-def _stub_signed_order(self, *, token_id, side, price, size):  # noqa: D401
+def _stub_signed_order(self, *, token_id, side, price, size, **_kwargs):  # noqa: D401
     return {
         "orderType": "GTC",
         "tokenId": token_id,

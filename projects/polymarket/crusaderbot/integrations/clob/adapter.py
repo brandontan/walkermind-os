@@ -156,6 +156,8 @@ class ClobAdapter:
         price: float,
         size: float,
         order_type: str = "GTC",
+        tick_size: Optional[str] = None,
+        neg_risk: Optional[bool] = None,
     ) -> dict:
         """Post a signed order.
 
@@ -165,12 +167,18 @@ class ClobAdapter:
         wrap the network leg ourselves so the L2 + builder header path
         is fully owned by Phase 4A.
 
+        ``tick_size`` and ``neg_risk`` are threaded into
+        ``OrderBuilder.create_order`` via ``CreateOrderOptions`` so
+        callers can submit on neg-risk markets / non-default tick sizes
+        without re-fetching market metadata on every submit.
+
         The OrderBuilder import is local to keep the module importable
         in environments where ``py-clob-client`` is not installed (CI
         smoke tests on machines without on-chain deps).
         """
         signed = self._build_signed_order(
             token_id=token_id, side=side, price=price, size=size,
+            tick_size=tick_size, neg_risk=neg_risk,
         )
         body = json.dumps(
             {"order": signed, "owner": self._api_key, "orderType": order_type},
@@ -182,11 +190,57 @@ class ClobAdapter:
         body = json.dumps({"orderID": order_id}, separators=(",", ":"))
         return await self._signed_request("DELETE", "/order", body=body)
 
-    async def cancel_all(self) -> dict:
+    async def cancel_all_orders(self, market: Optional[str] = None) -> dict:
+        """Cancel every open order, optionally scoped to a single market.
+
+        Implementation note: the broker exposes two distinct endpoints —
+        ``/cancel-market-orders`` (scoped) and ``/cancel-all`` (global).
+        We keep the parameter optional so callers can express either
+        intent without holding a reference to two different methods.
+        """
+        if market:
+            body = json.dumps({"market": market}, separators=(",", ":"))
+            return await self._signed_request(
+                "DELETE", "/cancel-market-orders", body=body,
+            )
         return await self._signed_request("DELETE", "/cancel-all", body="")
+
+    async def cancel_all(self) -> dict:
+        """Backwards-compatible alias for the global cancel path."""
+        return await self.cancel_all_orders()
 
     async def get_order(self, order_id: str) -> dict:
         return await self._signed_request("GET", f"/data/order/{order_id}")
+
+    async def get_fills(self, order_id: str) -> list[dict]:
+        """Return broker-side fills for one order.
+
+        Polymarket exposes fills via the trades endpoint filtered by the
+        taker order id. The wire shape can be either a bare list or a
+        ``{"data": [...]}`` envelope depending on broker version — we
+        normalise to a list so callers always iterate uniformly.
+        """
+        path = f"/data/trades?taker_order_id={order_id}"
+        resp = await self._signed_request("GET", path)
+        if isinstance(resp, list):
+            return resp
+        data = resp.get("data") if isinstance(resp, dict) else None
+        return list(data) if isinstance(data, list) else []
+
+    async def get_open_orders(
+        self, market: Optional[str] = None,
+    ) -> list[dict]:
+        """Return open orders for the signed-in account, optionally
+        scoped to a single market.
+        """
+        path = "/data/orders"
+        if market:
+            path = f"{path}?market={market}"
+        resp = await self._signed_request("GET", path)
+        if isinstance(resp, list):
+            return resp
+        data = resp.get("data") if isinstance(resp, dict) else None
+        return list(data) if isinstance(data, list) else []
 
     async def request(
         self,
@@ -213,6 +267,8 @@ class ClobAdapter:
         side: str,
         price: float,
         size: float,
+        tick_size: Optional[str] = None,
+        neg_risk: Optional[bool] = None,
     ) -> dict:
         """Delegate on-chain order signing to py-clob-client.OrderBuilder.
 
@@ -221,6 +277,11 @@ class ClobAdapter:
         on the proven SDK path until Phase 4C explicitly reimplements it.
         Importing locally keeps this adapter usable in unit tests that
         only exercise the auth + transport layers.
+
+        ``tick_size`` and ``neg_risk`` are forwarded through
+        ``CreateOrderOptions`` only when at least one is set; this keeps
+        the default code-path identical to Phase 4A and avoids surfacing
+        SDK-internal option objects to every caller.
         """
         try:
             from py_clob_client.clob_types import OrderArgs  # noqa: WPS433
@@ -237,14 +298,28 @@ class ClobAdapter:
             key=self._signer.private_key, chain_id=self._chain_id,
         )
         builder = OrderBuilder(signer, sig_type=self._signature_type, funder=self._funder)
-        signed = builder.create_order(
-            OrderArgs(
-                token_id=token_id,
-                price=price,
-                size=size,
-                side=side.upper(),
-            )
+        order_args = OrderArgs(
+            token_id=token_id,
+            price=price,
+            size=size,
+            side=side.upper(),
         )
+        if tick_size is not None or neg_risk is not None:
+            try:
+                from py_clob_client.clob_types import (  # noqa: WPS433
+                    CreateOrderOptions,
+                )
+            except Exception as exc:  # pragma: no cover - dep is in requirements
+                raise ClobAuthError(
+                    f"py-clob-client CreateOrderOptions unavailable: {exc}"
+                ) from exc
+            opts = CreateOrderOptions(
+                tick_size=tick_size,
+                neg_risk=bool(neg_risk) if neg_risk is not None else False,
+            )
+            signed = builder.create_order(order_args, opts)
+        else:
+            signed = builder.create_order(order_args)
         return signed.dict()
 
     async def _signed_request(

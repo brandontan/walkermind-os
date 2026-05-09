@@ -155,6 +155,15 @@ class Settings(BaseSettings):
     # live position becomes redeemable, defer to the hourly queue. ---
     INSTANT_REDEEM_GAS_GWEI_MAX: float = 200.0
 
+    # --- Order lifecycle polling (Phase 4C) ---
+    # Interval between OrderLifecycleManager.poll_once ticks. Default 30s
+    # gives a snappy dashboard without hammering the broker API.
+    ORDER_POLL_INTERVAL_SECONDS: int = 30
+    # Max consecutive poll attempts before an order is marked 'stale'
+    # and the operator paged. Default 48 ticks * 30s = 24 minutes per
+    # order before manual reconciliation.
+    ORDER_POLL_MAX_ATTEMPTS: int = 48
+
     @model_validator(mode="before")
     @classmethod
     def _alias_polygon_rpc_url(cls, data):

@@ -69,6 +69,8 @@ class MockClobClient:
         price: float,
         size: float,
         order_type: str = "GTC",
+        tick_size: Optional[str] = None,
+        neg_risk: Optional[bool] = None,
     ) -> dict:
         self._counter += 1
         if self._deterministic:
@@ -85,6 +87,8 @@ class MockClobClient:
             "price": float(price),
             "size": float(size),
             "orderType": order_type,
+            "tickSize": tick_size,
+            "negRisk": bool(neg_risk) if neg_risk is not None else False,
             "transactionsHashes": [],
             "errorMsg": "",
             "_mock": True,
@@ -101,15 +105,62 @@ class MockClobClient:
             "_mock": True,
         }
 
-    async def cancel_all(self) -> dict:
+    async def cancel_all_orders(self, market: Optional[str] = None) -> dict:
+        if market is not None:
+            kept: dict[str, dict] = {}
+            cancelled: list[str] = []
+            for oid, rec in self._orders.items():
+                if rec.get("market") == market or rec.get("tokenID") == market:
+                    cancelled.append(oid)
+                else:
+                    kept[oid] = rec
+            self._orders = kept
+            return {
+                "canceled": cancelled, "not_canceled": {}, "_mock": True,
+                "market": market,
+            }
         ids = list(self._orders.keys())
         self._orders.clear()
         return {"canceled": ids, "not_canceled": {}, "_mock": True}
+
+    async def cancel_all(self) -> dict:
+        return await self.cancel_all_orders()
 
     async def get_order(self, order_id: str) -> dict:
         return self._orders.get(
             order_id, {"orderID": order_id, "status": "not_found", "_mock": True},
         )
+
+    async def get_fills(self, order_id: str) -> list[dict]:
+        """Return synthetic fills for tests.
+
+        The default mock returns an empty list — paper-mode lifecycle
+        uses ``poll_attempts`` to simulate a fill without consulting
+        this surface, so the absence of real fills here is correct.
+        Tests that need fill-shaped payloads call ``record_fill``.
+        """
+        order = self._orders.get(order_id)
+        if order is None:
+            return []
+        fills = order.get("_fills")
+        return list(fills) if isinstance(fills, list) else []
+
+    async def get_open_orders(
+        self, market: Optional[str] = None,
+    ) -> list[dict]:
+        if market is None:
+            return list(self._orders.values())
+        return [
+            rec for rec in self._orders.values()
+            if rec.get("market") == market or rec.get("tokenID") == market
+        ]
+
+    def record_fill(self, order_id: str, fill: dict) -> None:
+        """Test helper — attach a fill payload onto an existing order."""
+        order = self._orders.get(order_id)
+        if order is None:
+            return
+        order.setdefault("_fills", []).append(fill)
 
     async def request(
         self, method: str, path: str, *, body: str = "",
