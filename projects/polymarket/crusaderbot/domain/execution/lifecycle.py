@@ -213,12 +213,16 @@ class OrderLifecycleManager:
                 fills=fills, attempts=new_attempts,
             )
             return "filled"
-        if status == "cancelled":
-            await self._on_cancel(order=order, attempts=new_attempts)
-            return "cancelled"
-        if status == "expired":
-            await self._on_expiry(order=order, attempts=new_attempts)
-            return "expired"
+        # Cancel + expiry MUST reconcile broker fills before refunding.
+        # A GTC partial-fill that the broker later cancels reaches us via
+        # status='cancelled'; without fetching get_fills here the refund
+        # math falls back to NULL fill columns and credits the full
+        # size_usdc while the user keeps the matched shares. Codex P1.
+        if status in {"cancelled", "expired"}:
+            fills = await client.get_fills(broker_id)
+            handler = self._on_cancel if status == "cancelled" else self._on_expiry
+            await handler(order=order, attempts=new_attempts, fills=fills)
+            return status
 
         if new_attempts >= max_attempts:
             await self._mark_stale(
@@ -305,9 +309,12 @@ class OrderLifecycleManager:
             ),
         )
 
-    async def _on_cancel(self, *, order: dict, attempts: int) -> None:
+    async def _on_cancel(
+        self, *, order: dict, attempts: int,
+        fills: Optional[list[dict]] = None,
+    ) -> None:
         await self._terminal_close(
-            order=order, attempts=attempts,
+            order=order, attempts=attempts, fills=fills or [],
             new_status=STATUS_CANCELLED, ts_column="cancelled_at",
             audit_action="order_cancelled",
             user_text=(
@@ -317,9 +324,12 @@ class OrderLifecycleManager:
             ),
         )
 
-    async def _on_expiry(self, *, order: dict, attempts: int) -> None:
+    async def _on_expiry(
+        self, *, order: dict, attempts: int,
+        fills: Optional[list[dict]] = None,
+    ) -> None:
         await self._terminal_close(
-            order=order, attempts=attempts,
+            order=order, attempts=attempts, fills=fills or [],
             new_status=STATUS_EXPIRED, ts_column="expired_at",
             audit_action="order_expired",
             user_text=(
@@ -334,6 +344,7 @@ class OrderLifecycleManager:
         *,
         order: dict,
         attempts: int,
+        fills: list[dict],
         new_status: str,
         ts_column: str,
         audit_action: str,
@@ -346,20 +357,47 @@ class OrderLifecycleManager:
         # call sites in this file), never from user input.
         if ts_column not in ("cancelled_at", "expired_at"):
             raise ValueError(f"unsupported ts_column: {ts_column}")
+
+        # Reconcile broker fills BEFORE updating the position. A GTC
+        # partial-fill that the broker later cancels reaches us with
+        # status='cancelled' and a non-empty fills list; the user
+        # actually owns ``filled_notional`` worth of shares and is
+        # only owed a refund on the unfilled remainder. If we ignored
+        # the fills here we would either refund too much (full
+        # size_usdc → user keeps shares + USDC) or roll the position
+        # back to 'cancelled' (losing the share position entirely).
+        avg_price, total_size_shares = _aggregate_fills(fills, fallback={})
+        filled_notional = (
+            Decimal(str(avg_price)) * Decimal(str(total_size_shares))
+            if avg_price and total_size_shares else Decimal("0")
+        )
+        size_usdc = Decimal(str(order["size_usdc"]))
+        # Clamp so a broker-reported overfill never produces a negative
+        # refund or an inflated filled_notional.
+        if filled_notional > size_usdc:
+            filled_notional = size_usdc
+        refund = size_usdc - filled_notional
+
         sql = f"""
             UPDATE orders
                SET status = $2,
                    {ts_column} = NOW(),
                    poll_attempts = $3,
-                   last_polled_at = NOW()
+                   last_polled_at = NOW(),
+                   fill_price = COALESCE($5, fill_price),
+                   fill_size = COALESCE($6, fill_size)
              WHERE id = $1
                AND status = ANY($4::text[])
              RETURNING id
         """
+        partial_fill = filled_notional > 0
         async with pool.acquire() as conn:
             async with conn.transaction():
                 updated = await conn.fetchval(
-                    sql, order["id"], new_status, attempts, list(STATUS_OPEN),
+                    sql, order["id"], new_status, attempts,
+                    list(STATUS_OPEN),
+                    float(avg_price) if partial_fill else None,
+                    float(total_size_shares) if partial_fill else None,
                 )
                 if updated is None:
                     logger.info(
@@ -367,41 +405,56 @@ class OrderLifecycleManager:
                         audit_action, order["id"],
                     )
                     return
-                # Roll any open position created off this order back to
-                # 'cancelled' AND credit the unfilled portion back to the
-                # user's wallet. The live path debited the FULL size_usdc
-                # at position-insert time (T_TRADE_OPEN), so a cancel /
-                # expiry without a refund would silently lock that
-                # capital indefinitely.
-                #
-                # We only credit when a position row is actually rolled
-                # back from 'open' (i.e. the live insert reached
-                # positions). Orders stuck at 'pending' never debited
-                # the ledger in the first place — execute()'s atomic
-                # transaction means orders.status='submitted' implies
-                # position+ledger landed together.
-                pos = await conn.fetchrow(
-                    """
-                    UPDATE positions
-                       SET status = 'cancelled', closed_at = NOW(),
-                           exit_reason = $2
-                     WHERE order_id = $1
-                       AND status = 'open'
-                     RETURNING id, user_id, size_usdc
-                    """,
-                    order["id"], new_status,
-                )
-                if pos is not None:
-                    refund = _unfilled_refund_usdc(order, pos)
-                    if refund > 0:
-                        await ledger.credit_in_conn(
-                            conn, pos["user_id"], refund, ledger.T_ADJUSTMENT,
-                            ref_id=pos["id"],
-                            note=(
-                                f"{audit_action} refund "
-                                f"order={order['id']} unfilled=${refund}"
-                            ),
+
+                # Position handling diverges by fill state:
+                #   * partial fill -> resize position down to filled_notional
+                #     and keep status='open' so the user retains the
+                #     matched shares; refund the unfilled remainder.
+                #   * no fills    -> roll position back to 'cancelled';
+                #     refund full size_usdc.
+                if partial_fill:
+                    pos = await conn.fetchrow(
+                        """
+                        UPDATE positions
+                           SET size_usdc = $2,
+                               entry_price = $3,
+                               current_price = $3
+                         WHERE order_id = $1
+                           AND status = 'open'
+                         RETURNING id, user_id, size_usdc
+                        """,
+                        order["id"], filled_notional, float(avg_price),
+                    )
+                    if pos is not None:
+                        await self._record_fills_in_conn(
+                            conn=conn, order_id=order["id"],
+                            side=order["side"], fills=fills,
                         )
+                else:
+                    pos = await conn.fetchrow(
+                        """
+                        UPDATE positions
+                           SET status = 'cancelled', closed_at = NOW(),
+                               exit_reason = $2
+                         WHERE order_id = $1
+                           AND status = 'open'
+                         RETURNING id, user_id, size_usdc
+                        """,
+                        order["id"], new_status,
+                    )
+
+                # Refund unfilled USDC only when a position actually
+                # rolled back / resized. 'pending' orders never debited
+                # the ledger so they never get a spurious credit.
+                if pos is not None and refund > 0:
+                    await ledger.credit_in_conn(
+                        conn, pos["user_id"], refund, ledger.T_ADJUSTMENT,
+                        ref_id=pos["id"],
+                        note=(
+                            f"{audit_action} refund "
+                            f"order={order['id']} unfilled=${refund}"
+                        ),
+                    )
 
         await self._safe_audit(
             actor_role="bot", action=audit_action,
@@ -410,8 +463,22 @@ class OrderLifecycleManager:
                 "order_id": str(order["id"]),
                 "market_id": order["market_id"],
                 "attempts": attempts,
+                "filled_notional": float(filled_notional),
+                "refund": float(refund),
+                "fills": _safe_fills(fills),
             },
         )
+        # Surface partial-fill refunds in the user message so a user
+        # who sees a "cancelled" alert but holds matched shares is not
+        # confused by a smaller-than-expected USDC credit.
+        if partial_fill and refund > 0:
+            user_text = (
+                f"{user_text}\n"
+                f"Filled `${float(filled_notional):.2f}` / "
+                f"refunded `${float(refund):.2f}`"
+            )
+        elif partial_fill and refund == 0:
+            user_text = f"{user_text}\nFully matched before cancel; no refund."
         await self._safe_notify_user(user_id=order["user_id"], text=user_text)
 
     async def _mark_stale(
@@ -601,33 +668,6 @@ def _aggregate_fills(
     if total_size <= 0:
         return float(fills[0].get("price", 0) or 0), 0.0
     return weighted_price / total_size, total_size
-
-
-def _unfilled_refund_usdc(order: dict, position: dict) -> Decimal:
-    """Compute the USDC refund owed when a live order is cancelled or expired.
-
-    The live path debits the full ``positions.size_usdc`` at position-insert
-    time. On terminal cancel / expiry we credit back only the *unfilled*
-    notional so a partial fill that was later cancelled does not get a
-    duplicate refund on top of the matched shares.
-
-    Returns ``Decimal('0')`` when the math underflows or the order has no
-    recoverable size; a non-positive refund is dropped silently rather
-    than emitting a $0 ledger row.
-    """
-    size = Decimal(str(position["size_usdc"]))
-    fill_size_raw = order.get("fill_size")
-    fill_price_raw = order.get("fill_price")
-    filled_notional = Decimal("0")
-    if fill_size_raw is not None and fill_price_raw is not None:
-        try:
-            filled_notional = (
-                Decimal(str(fill_size_raw)) * Decimal(str(fill_price_raw))
-            )
-        except Exception:  # noqa: BLE001 — defensive on broker-shaped input
-            filled_notional = Decimal("0")
-    refund = size - filled_notional
-    return refund if refund > 0 else Decimal("0")
 
 
 def _safe_fills(fills: list[dict]) -> list[dict]:
