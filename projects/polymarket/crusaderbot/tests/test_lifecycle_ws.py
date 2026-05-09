@@ -89,15 +89,15 @@ class FakeConn:
     async def fetchval(self, query: str, *args: Any) -> Any:
         if "FROM users WHERE id" in query:
             return self._telegram_id
-        if "FROM fills WHERE order_id" in query and "fill_id NOT LIKE" in query:
-            # Honour the per-trade-row check used by the aggregate-fill
-            # dedup guard in _record_fills_in_conn so the dedup logic
-            # is exercised in tests.
+        if "SUM(size)" in query and "FROM fills" in query:
+            # Honour the per-trade-row size SUM used by the
+            # aggregate-fill dedup guard so the size-comparison logic
+            # branches as it would in prod (Codex P2 round 8).
             order_id = args[0]
-            for row in self.fills_inserted:
-                if row[0] == order_id and not str(row[1]).startswith("agg-"):
-                    return 1
-            return None
+            return sum(
+                float(row[3]) for row in self.fills_inserted
+                if row[0] == order_id and not str(row[1]).startswith("agg-")
+            )
         if "RETURNING id" in query:
             if not self.return_terminal_id:
                 return None
@@ -392,6 +392,40 @@ async def test_ws_cancel_after_partial_ws_fill_hydrates_prior_fills(monkeypatch)
     assert fills_passed[0]["fill_id"] == "trade-real-1"
     assert fills_passed[0]["size"] == pytest.approx(40.0)
     assert fills_passed[0]["price"] == pytest.approx(0.5)
+
+
+async def test_ws_gap_aggregate_fill_inserted_when_per_trade_undercovers():
+    """Codex P2 round 8: when the WS captured only one CONFIRMED partial
+    trade and then missed later frames (disconnect / parser drop /
+    broker gap), the polling/order_update aggregate represents the
+    FULL terminal quantity. The dedup guard must NOT skip the aggregate
+    in this case — otherwise the fills table holds only the earlier
+    partial while orders.fill_size + position math reflect the larger
+    aggregate, undercounting settled shares in any reconciliation.
+    """
+    conn = FakeConn(orders=[_make_order(broker_id="b1")])
+    mgr, _ = _build(conn)
+    # Step 1: WS records one partial fill (50 shares).
+    await mgr.handle_ws_fill({
+        "broker_order_id": "b1", "fill_id": "trade-real-1",
+        "price": 0.5, "size": 50.0,
+    })
+    assert len(conn.fills_inserted) == 1
+    # Step 2: order_update terminalises with size_matched=200 (the WS
+    # missed the additional 150 shares). The dedup guard sees per-trade
+    # sum 50 < incoming aggregate 200 and inserts the aggregate so
+    # downstream reconciliation captures the full settled quantity.
+    await mgr.handle_ws_order_update({
+        "broker_order_id": "b1",
+        "status": "filled",
+        "size_matched": 200.0,
+        "price": 0.5,
+    })
+    assert len(conn.terminal_updates) == 1
+    assert len(conn.fills_inserted) == 2
+    fill_ids = {row[1] for row in conn.fills_inserted}
+    assert "trade-real-1" in fill_ids
+    assert any(str(fid).startswith("agg-") for fid in fill_ids)
 
 
 async def test_polling_only_aggregate_fill_still_inserted_when_no_per_trade():
