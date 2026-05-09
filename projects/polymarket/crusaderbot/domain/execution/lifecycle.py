@@ -173,10 +173,21 @@ class OrderLifecycleManager:
         # USE_REAL_CLOB was True at order-creation time; if an operator
         # has since disabled the toggle while orders remain open at the
         # broker, falsely "filling" them in DB would update positions /
-        # fills / wallets without any real broker confirmation.
-        # Operator-driven reconciliation handles this state — we just
-        # touch the row so observability stays current. Codex P1 review.
+        # fills / wallets without any real broker confirmation
+        # (Codex P1 review).
+        #
+        # We still honour the stale budget so a permanently-disabled
+        # toggle doesn't leave broker-side exposure silent forever —
+        # after ORDER_POLL_MAX_ATTEMPTS ticks the row is marked
+        # 'stale' and the operator is paged for manual reconciliation
+        # (Codex P2 follow-up).
         if not settings.USE_REAL_CLOB:
+            if new_attempts >= max_attempts:
+                await self._mark_stale(
+                    order=order, attempts=new_attempts,
+                    reason="USE_REAL_CLOB=False; manual reconciliation required",
+                )
+                return "stale"
             await self._touch(order["id"], new_attempts)
             return "open"
 
@@ -198,14 +209,37 @@ class OrderLifecycleManager:
 
         broker = await client.get_order(broker_id)
         status = _broker_status(broker)
-        # Derive fills aggregate from the broker order detail itself.
-        # /data/order/{id} returns ``size_matched`` (filled shares) +
-        # ``price`` (limit). For GTC limit orders all matches happen
-        # at the limit price, so a single aggregate row is enough for
-        # refund math and position resize without an extra
-        # /data/trades round trip on the (Codex-flagged) unsupported
-        # ``taker_order_id`` filter.
-        fills = _broker_fills(broker, order)
+        # Fetch actual per-trade fills for accurate match-price
+        # aggregation. ``get_order``'s ``price`` is the SUBMITTED LIMIT,
+        # not the executed match price; for orders that filled at
+        # price improvement (BUY matched at less than the limit) the
+        # limit-priced aggregate over-states filled notional, leaves
+        # the user un-refunded for the price improvement, and
+        # short-refunds partial-fill-then-cancel cases (Codex P1).
+        # Per-trade fills carry the actual match prices.
+        fills: list[dict] = []
+        try:
+            raw_fills = await client.get_fills(broker_id)
+            fills = _scale_fixed_math_fills(raw_fills)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "lifecycle: get_fills failed for %s: %s; falling back to "
+                "order detail aggregate",
+                broker_id, exc,
+            )
+        # Fallback when the trades endpoint hasn't indexed yet but
+        # the order detail already shows matched activity. Uses the
+        # limit price as a best-effort approximation; logged so
+        # operators can spot any price-improvement under-refund.
+        if not fills:
+            fills = _broker_fills(broker, order)
+            if fills:
+                logger.info(
+                    "lifecycle: using order detail aggregate for %s "
+                    "(get_fills returned no rows; refund may underestimate "
+                    "price-improvement savings)",
+                    broker_id,
+                )
 
         if status == "filled":
             fill_price, fill_size = _aggregate_fills(fills, fallback=order)
@@ -726,6 +760,38 @@ def _broker_fills(broker_payload: dict, order: dict) -> list[dict]:
         "size": matched_size,
         "side": order["side"],
     }]
+
+
+def _scale_fixed_math_fills(raw_fills: Any) -> list[dict]:
+    """Scale Polymarket trade rows from fixed-math sizes to share counts.
+
+    ``/data/trades`` returns ``size`` as fixed-math with 6 decimals
+    (just like ``size_matched`` on the order detail) — and ``price``
+    as a decimal string. We scale only sizes; prices stay as the
+    actual matched value, which is what Codex P1 review flagged
+    over-stated when the lifecycle was reading the order's submitted
+    limit instead.
+
+    Returns an empty list on non-iterable input so the lifecycle's
+    try/except + fallback path keeps working with AsyncMock defaults.
+    """
+    out: list[dict] = []
+    if not isinstance(raw_fills, list):
+        return out
+    for fill in raw_fills:
+        if not isinstance(fill, dict):
+            continue
+        try:
+            raw_size = float(fill.get("size", 0) or 0)
+            scaled_size = raw_size / BROKER_SIZE_FACTOR
+        except (TypeError, ValueError):
+            continue
+        if scaled_size <= 0:
+            continue
+        scaled = dict(fill)
+        scaled["size"] = scaled_size
+        out.append(scaled)
+    return out
 
 
 def _safe_fills(fills: list[dict]) -> list[dict]:
