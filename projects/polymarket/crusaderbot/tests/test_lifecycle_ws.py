@@ -594,6 +594,60 @@ async def test_partial_update_then_confirmed_fill_does_not_double_credit():
     assert post == pre  # no new agg row from _on_fill
 
 
+async def test_cancel_uses_larger_agg_when_per_trade_undercovers():
+    """Codex P1 round 11: when both per-trade rows AND an agg row
+    exist for an order but per-trade SUM is smaller (WS captured a
+    partial UPDATE at 200, then only one trade frame at 50 before
+    disconnect), the cancel hydration must pick the LARGER agg
+    figure. Otherwise _terminal_close refunds based on the
+    undercovered per-trade total — over-refunding the user for
+    shares they actually own per the broker's aggregate.
+    """
+    captured: list[dict] = []
+
+    class _CaptureMgr(OrderLifecycleManager):
+        async def _terminal_close(self, **kwargs: Any) -> None:
+            captured.append(kwargs)
+
+    conn = FakeConn(orders=[_make_order(broker_id="b1")])
+    mgr = _CaptureMgr(
+        settings=FakeSettings(use_real_clob=True),
+        pool=FakePool(conn),
+        notify_user=AsyncMock(return_value=True),
+        notify_operator=AsyncMock(return_value=None),
+        audit_write=AsyncMock(return_value=None),
+    )
+    # Step 1: partial UPDATE persists agg row at 200 shares (broker's
+    # authoritative aggregate).
+    await mgr.handle_ws_order_update({
+        "broker_order_id": "b1",
+        "status": "open",
+        "size_matched": 200.0,
+        "price": 0.5,
+    })
+    # Step 2: WS records ONE per-trade fill (50 shares) before
+    # disconnect — the remaining 150 shares' worth of trade frames
+    # were missed.
+    await mgr.handle_ws_fill({
+        "broker_order_id": "b1",
+        "fill_id": "trade-real-1",
+        "price": 0.5,
+        "size": 50.0,
+    })
+    # Step 3: cancellation arrives without size_matched.
+    await mgr.handle_ws_order_update({
+        "broker_order_id": "b1",
+        "status": "cancelled",
+        "size_matched": None,
+    })
+    assert len(captured) == 1
+    fills_passed = captured[0]["fills"]
+    # Hydration picked the LARGER agg figure (200) not the
+    # undercovered per-trade SUM (50). Single agg row, size=200.
+    total = sum(float(f["size"]) for f in fills_passed)
+    assert total == pytest.approx(200.0)
+
+
 async def test_polling_dedups_against_ws_recorded_aggregate():
     """GATE-mandated regression: polling fallback's aggregate
     insertion path goes through the same dedup guard as the WS path.
