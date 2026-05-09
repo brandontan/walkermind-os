@@ -212,20 +212,44 @@ class ClobAdapter:
     async def get_order(self, order_id: str) -> dict:
         return await self._signed_request("GET", f"/data/order/{order_id}")
 
-    async def get_fills(self, order_id: str) -> list[dict]:
-        """Return broker-side fills for one order.
+    async def get_fills(
+        self, order_id: str, *, market: Optional[str] = None,
+    ) -> list[dict]:
+        """Return broker-side fills associated with one order.
 
-        Polymarket exposes fills via the trades endpoint filtered by the
-        taker order id. The wire shape can be either a bare list or a
+        Polymarket's ``/data/trades`` endpoint accepts ``id``,
+        ``maker_address``, ``market``, ``asset_id``, ``before``,
+        ``after`` (per the official ``py-clob-client.TradeParams`` /
+        ``add_query_trade_params`` surface). It does NOT accept a
+        ``taker_order_id`` filter — supplying one either returns the
+        full account history (which would corrupt downstream
+        aggregation) or a 4xx — so we query by ``maker_address``
+        (always the signer) plus an optional ``market`` filter, and
+        select trades client-side whose taker / maker order id matches
+        ``order_id``.
+
+        The wire shape can be either a bare list or a
         ``{"data": [...]}`` envelope depending on broker version — we
         normalise to a list so callers always iterate uniformly.
         """
-        path = f"/data/trades?taker_order_id={order_id}"
+        path = f"/data/trades?maker_address={self._signer.address}"
+        if market:
+            path = f"{path}&market={market}"
         resp = await self._signed_request("GET", path)
         if isinstance(resp, list):
-            return resp
-        data = resp.get("data") if isinstance(resp, dict) else None
-        return list(data) if isinstance(data, list) else []
+            trades = resp
+        elif isinstance(resp, dict):
+            data = resp.get("data")
+            trades = list(data) if isinstance(data, list) else []
+        else:
+            trades = []
+        return [
+            t for t in trades
+            if t.get("taker_order_id") == order_id
+            or t.get("maker_order_id") == order_id
+            or t.get("order_id") == order_id
+            or t.get("orderID") == order_id
+        ]
 
     async def get_open_orders(
         self, market: Optional[str] = None,
