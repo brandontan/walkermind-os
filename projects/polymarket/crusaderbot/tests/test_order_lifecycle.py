@@ -257,7 +257,14 @@ def test_aggregate_fills_empty_uses_fallback_price_and_size():
 # ---------------------------------------------------------------------------
 
 
-async def test_paper_mode_synthesises_fill_after_one_cycle():
+async def test_paper_mode_never_synthesises_fill_for_live_rows():
+    """Codex P1 review: USE_REAL_CLOB=False MUST NOT synthesise a fill
+    on mode='live' orders. Real live orders are only created when
+    USE_REAL_CLOB was True; if an operator later disables the toggle
+    while orders remain open at the broker, falsely 'filling' them
+    in DB without broker confirmation would corrupt positions / fills /
+    wallets. The manager just touches the row instead.
+    """
     order = _make_order()
     conn = FakeConn(orders=[order])
     settings = FakeSettings(use_real_clob=False)
@@ -267,16 +274,13 @@ async def test_paper_mode_synthesises_fill_after_one_cycle():
 
     out = await mgr.poll_once()
 
-    assert out["filled"] == 1
-    assert out["polled"] == 1
-    # Telegram notification fired with the user's telegram id.
-    notify_user.assert_awaited()
-    assert "Order filled" in notify_user.call_args.args[1]
-    # Audit captured fill payload.
-    audit_write.assert_awaited()
-    assert audit_write.call_args.kwargs["action"] == "order_filled"
-    # A fill row was written through the connection.
-    assert len(conn.fills_inserted) == 1
+    assert out["open"] == 1
+    assert out["filled"] == 0
+    notify_user.assert_not_awaited()
+    audit_write.assert_not_awaited()
+    assert conn.fills_inserted == []
+    # poll_attempts++ via a touch.
+    assert len(conn.touches) == 1
 
 
 async def test_paper_mode_does_not_call_broker():
@@ -302,16 +306,18 @@ async def test_paper_mode_does_not_call_broker():
 
 
 async def test_live_filled_writes_fills_and_notifies():
-    order = _make_order(polymarket_order_id="brk-fill-1")
+    order = _make_order(polymarket_order_id="brk-fill-1", price=0.55,
+                        size_usdc=82.5)
     conn = FakeConn(orders=[order])
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
-    client.get_order = AsyncMock(return_value={"status": "matched"})
-    client.get_fills = AsyncMock(return_value=[
-        {"fill_id": "f-1", "price": 0.55, "size": 100.0, "side": "yes"},
-        {"fill_id": "f-2", "price": 0.56, "size": 50.0, "side": "yes"},
-    ])
+    # The lifecycle now derives the fill aggregate from the broker
+    # order detail's size_matched + price fields rather than a separate
+    # /data/trades query (Codex P1 — taker_order_id filter is unsupported).
+    client.get_order = AsyncMock(return_value={
+        "status": "matched", "size_matched": 150.0, "price": 0.55,
+    })
     client.aclose = AsyncMock(return_value=None)
 
     mgr, notify_user, _no, audit_write = _build_manager(
@@ -321,9 +327,8 @@ async def test_live_filled_writes_fills_and_notifies():
 
     assert out["filled"] == 1
     client.get_order.assert_awaited_with("brk-fill-1")
-    client.get_fills.assert_awaited_with("brk-fill-1")
-    # Two fills were inserted via ON CONFLICT DO NOTHING.
-    assert len(conn.fills_inserted) == 2
+    # One synthetic aggregate fill row inserted.
+    assert len(conn.fills_inserted) == 1
     # User got the fill alert.
     notify_user.assert_awaited()
     # Audit recorded action='order_filled'.
@@ -337,8 +342,9 @@ async def test_live_cancelled_rolls_position_back():
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
-    client.get_order = AsyncMock(return_value={"status": "cancelled"})
-    client.get_fills = AsyncMock(return_value=[])
+    client.get_order = AsyncMock(return_value={
+        "status": "cancelled", "size_matched": 0,
+    })
     client.aclose = AsyncMock(return_value=None)
 
     mgr, notify_user, _no, audit_write = _build_manager(
@@ -354,8 +360,6 @@ async def test_live_cancelled_rolls_position_back():
         "UPDATE positions" in q and "status = 'cancelled'" in q
         for q, _ in conn.position_updates
     )
-    # get_fills was consulted before refund math.
-    client.get_fills.assert_awaited()
     notify_user.assert_awaited()
 
 
@@ -370,8 +374,9 @@ async def test_live_cancelled_credits_full_refund_when_no_fills():
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
-    client.get_order = AsyncMock(return_value={"status": "cancelled"})
-    client.get_fills = AsyncMock(return_value=[])
+    client.get_order = AsyncMock(return_value={
+        "status": "cancelled", "size_matched": 0,
+    })
     client.aclose = AsyncMock(return_value=None)
 
     mgr, *_ = _build_manager(
@@ -393,19 +398,19 @@ async def test_live_cancelled_partial_fill_resizes_position_and_refunds_remainde
     broker fills before refunding. Without it the user keeps matched
     shares AND receives a full USDC refund — duplicate exposure.
 
-    50 shares filled at 0.40 -> $20 matched; size_usdc=100 -> $80 refund.
-    The position resizes to size_usdc=20 and stays 'open' so the user
-    retains the matched share position; fills row is recorded.
+    Broker reports size_matched=50 at price=0.40 -> $20 matched;
+    size_usdc=100 -> $80 refund. Position resizes to size_usdc=20 and
+    stays 'open' so the user retains the matched share position; a
+    synthetic fill row is recorded.
     """
     order = _make_order(size_usdc=100.0)
     conn = FakeConn(orders=[order])
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
-    client.get_order = AsyncMock(return_value={"status": "cancelled"})
-    client.get_fills = AsyncMock(return_value=[
-        {"fill_id": "f-partial-1", "price": 0.40, "size": 50.0, "side": "yes"},
-    ])
+    client.get_order = AsyncMock(return_value={
+        "status": "cancelled", "size_matched": 50.0, "price": 0.40,
+    })
     client.aclose = AsyncMock(return_value=None)
 
     mgr, *_ = _build_manager(
@@ -445,8 +450,9 @@ async def test_live_cancelled_skips_credit_when_no_position_rolled_back():
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
-    client.get_order = AsyncMock(return_value={"status": "cancelled"})
-    client.get_fills = AsyncMock(return_value=[])
+    client.get_order = AsyncMock(return_value={
+        "status": "cancelled", "size_matched": 0,
+    })
     client.aclose = AsyncMock(return_value=None)
 
     mgr, *_ = _build_manager(
@@ -464,8 +470,9 @@ async def test_live_expired_credits_refund_same_as_cancel():
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
-    client.get_order = AsyncMock(return_value={"status": "expired"})
-    client.get_fills = AsyncMock(return_value=[])
+    client.get_order = AsyncMock(return_value={
+        "status": "expired", "size_matched": 0,
+    })
     client.aclose = AsyncMock(return_value=None)
 
     mgr, *_ = _build_manager(
@@ -486,8 +493,9 @@ async def test_live_expired_uses_expiry_path():
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
-    client.get_order = AsyncMock(return_value={"status": "expired"})
-    client.get_fills = AsyncMock(return_value=[])
+    client.get_order = AsyncMock(return_value={
+        "status": "expired", "size_matched": 0,
+    })
     client.aclose = AsyncMock(return_value=None)
 
     mgr, _nu, _no, audit_write = _build_manager(
@@ -574,10 +582,9 @@ async def test_terminal_race_skips_when_already_terminal():
     settings = FakeSettings(use_real_clob=True)
 
     client = AsyncMock()
-    client.get_order = AsyncMock(return_value={"status": "matched"})
-    client.get_fills = AsyncMock(return_value=[
-        {"fill_id": "f-x", "price": 0.55, "size": 100.0, "side": "yes"},
-    ])
+    client.get_order = AsyncMock(return_value={
+        "status": "matched", "size_matched": 100.0, "price": 0.55,
+    })
     client.aclose = AsyncMock(return_value=None)
 
     mgr, notify_user, _no, audit_write = _build_manager(
@@ -715,26 +722,45 @@ async def test_adapter_post_order_default_omits_tick_size(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-async def test_adapter_get_fills_normalises_envelope(monkeypatch):
+async def test_adapter_get_fills_uses_supported_filters_and_client_filters(
+    monkeypatch,
+):
+    """Codex P1: ``/data/trades`` does not accept ``taker_order_id``.
+    The adapter must query by supported filters (``maker_address`` +
+    optional ``market``) and select trades client-side by matching
+    the order id against ``taker_order_id`` / ``maker_order_id`` /
+    ``orderID`` / ``order_id`` fields.
+    """
     seen: list[httpx.Request] = []
 
     def handler(req: httpx.Request) -> httpx.Response:
         seen.append(req)
         return httpx.Response(
             200,
-            json={"data": [{"fill_id": "f1", "price": "0.5", "size": "10"}]},
+            json={"data": [
+                {"fill_id": "f1", "price": "0.5", "size": "10",
+                 "taker_order_id": "BRK-1"},
+                {"fill_id": "f2", "price": "0.4", "size": "5",
+                 "taker_order_id": "OTHER"},  # must be filtered out
+            ]},
         )
 
     adapter = _build_adapter(monkeypatch, {}, handler)
     try:
-        fills = await adapter.get_fills("BRK-1")
+        fills = await adapter.get_fills("BRK-1", market="cond-1")
     finally:
         await adapter.aclose()
 
+    # Exactly one matching trade returned (the OTHER trade is dropped).
     assert isinstance(fills, list) and len(fills) == 1
     assert fills[0]["fill_id"] == "f1"
+    # Wire path uses supported filters only, NOT taker_order_id.
+    url = str(seen[0].url)
     assert seen[0].method == "GET"
-    assert "/data/trades?taker_order_id=BRK-1" in str(seen[0].url)
+    assert "/data/trades" in url
+    assert "maker_address=" in url
+    assert "market=cond-1" in url
+    assert "taker_order_id" not in url
 
 
 async def test_adapter_get_open_orders_with_market_filter(monkeypatch):
