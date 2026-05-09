@@ -44,6 +44,38 @@ DEFAULT_HOST = "https://clob.polymarket.com"
 DEFAULT_TIMEOUT = 10.0
 
 
+def _trade_matches_order(trade: dict, order_id: str) -> bool:
+    """True if a Polymarket trade row references the given order id.
+
+    Checks both top-level fields (``taker_order_id`` / ``maker_order_id`` /
+    ``order_id`` / ``orderID``) and the nested ``maker_orders[].order_id``
+    array — Polymarket's Trade Object stores maker-side order hashes
+    inside that array, not as a top-level field, so resting GTC/GTD
+    fills would otherwise be dropped (Codex P2 review).
+    """
+    if not order_id:
+        return False
+    if (
+        trade.get("taker_order_id") == order_id
+        or trade.get("maker_order_id") == order_id
+        or trade.get("order_id") == order_id
+        or trade.get("orderID") == order_id
+    ):
+        return True
+    maker_orders = trade.get("maker_orders") or trade.get("makerOrders")
+    if isinstance(maker_orders, list):
+        for mo in maker_orders:
+            if not isinstance(mo, dict):
+                continue
+            if (
+                mo.get("order_id") == order_id
+                or mo.get("orderID") == order_id
+                or mo.get("id") == order_id
+            ):
+                return True
+    return False
+
+
 class ClobAdapter:
     """REST client for Polymarket CLOB authenticated endpoints.
 
@@ -228,6 +260,12 @@ class ClobAdapter:
         select trades client-side whose taker / maker order id matches
         ``order_id``.
 
+        Maker-side trade rows nest the maker order hash inside
+        ``maker_orders[].order_id`` rather than a top-level
+        ``maker_order_id`` (see Polymarket Trade Object docs); we walk
+        that array too so resting GTC/GTD fills aren't dropped (Codex
+        P2 review).
+
         The wire shape can be either a bare list or a
         ``{"data": [...]}`` envelope depending on broker version — we
         normalise to a list so callers always iterate uniformly.
@@ -243,13 +281,7 @@ class ClobAdapter:
             trades = list(data) if isinstance(data, list) else []
         else:
             trades = []
-        return [
-            t for t in trades
-            if t.get("taker_order_id") == order_id
-            or t.get("maker_order_id") == order_id
-            or t.get("order_id") == order_id
-            or t.get("orderID") == order_id
-        ]
+        return [t for t in trades if _trade_matches_order(t, order_id)]
 
     async def get_open_orders(
         self, market: Optional[str] = None,
