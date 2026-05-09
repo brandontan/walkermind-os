@@ -164,6 +164,25 @@ class Settings(BaseSettings):
     # order before manual reconciliation.
     ORDER_POLL_MAX_ATTEMPTS: int = 48
 
+    # --- CLOB WebSocket (Phase 4D) ---
+    # wss://ws-subscriptions-clob.polymarket.com/ws/<channel>. The client
+    # only opens the socket when USE_REAL_CLOB=True; paper mode never
+    # touches the network.
+    CLOB_WS_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws"
+    # Reconnect backoff cap. Initial delay 1s, doubled per attempt with
+    # +/-25% jitter, clipped at this value. Default 60s matches the
+    # Polymarket guidance for keep-alive backoff.
+    WS_RECONNECT_MAX_DELAY_SECONDS: int = 60
+    # Application-level ping interval. The peer is expected to echo
+    # within WS_HEARTBEAT_TIMEOUT_SECONDS or the socket is recycled.
+    WS_HEARTBEAT_INTERVAL_SECONDS: int = 30
+    WS_HEARTBEAT_TIMEOUT_SECONDS: int = 10
+    # APScheduler watchdog interval for the WebSocket client. Fires
+    # every N seconds and reconnects when ``client.is_alive()`` is
+    # False, covering both clean exits and silent socket deaths the
+    # heartbeat path missed.
+    WS_WATCHDOG_INTERVAL_SECONDS: int = 60
+
     @model_validator(mode="before")
     @classmethod
     def _alias_polygon_rpc_url(cls, data):

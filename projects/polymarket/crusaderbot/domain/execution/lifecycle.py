@@ -570,6 +570,147 @@ class OrderLifecycleManager:
 
     # ----- safe wrappers ----------------------------------------------
 
+    # ----- WebSocket event handlers (Phase 4D) -------------------------
+    # These are the single points the ``ClobWebSocketClient`` calls into.
+    # They look up the in-flight order row by broker id, then reuse the
+    # exact same ``_on_fill`` / ``_on_cancel`` / ``_on_expiry`` /
+    # ``_touch`` paths the polling loop uses. Dedup with polling is
+    # provided by two existing constraints:
+    #   * ``UPDATE orders ... WHERE status = ANY(STATUS_OPEN) RETURNING id``
+    #     — the second writer (poll OR ws) sees ``None`` and bails.
+    #   * ``INSERT INTO fills ... ON CONFLICT (fill_id) DO NOTHING`` —
+    #     the second writer's per-fill row is silently dropped.
+    # No new dedup table or in-memory set is needed.
+
+    async def handle_ws_fill(self, event: dict) -> None:
+        """Apply one ``user_fill`` event from the CLOB WebSocket.
+
+        ``event`` is the normalised dict ``ws_handler.parse_message``
+        produces: ``{kind, broker_order_id, fill_id, price, size,
+        side, raw}``. Returns silently when the order is not tracked
+        locally (could be a fill on an order placed outside this bot).
+        """
+        broker_id = event.get("broker_order_id")
+        fill_id = event.get("fill_id")
+        if not broker_id or not fill_id:
+            logger.debug(
+                "lifecycle ws_fill: dropping event missing ids: %s", event,
+            )
+            return
+
+        order_row = await self._lookup_order_by_broker_id(broker_id)
+        if order_row is None:
+            logger.info(
+                "lifecycle ws_fill: no local order matches broker_id=%s",
+                broker_id,
+            )
+            return
+        if order_row["status"] not in STATUS_OPEN:
+            # Already terminal — the polling loop or an earlier WS frame
+            # closed it. ``_on_fill`` would no-op via RETURNING anyway,
+            # but exiting here saves a transaction round trip.
+            logger.debug(
+                "lifecycle ws_fill: order %s already terminal (%s)",
+                order_row["id"], order_row["status"],
+            )
+            return
+
+        attempts = int(order_row.get("poll_attempts") or 0) + 1
+        side = event.get("side") or order_row["side"]
+        fills_payload = [{
+            "fill_id": str(fill_id),
+            "price": float(event["price"]),
+            "size": float(event["size"]),
+            "side": str(side).lower(),
+            "raw": event.get("raw"),
+        }]
+        await self._on_fill(
+            order=dict(order_row),
+            fill_price=float(event["price"]),
+            fill_size=float(event["size"]),
+            fills=fills_payload,
+            attempts=attempts,
+        )
+
+    async def handle_ws_order_update(self, event: dict) -> None:
+        """Apply one ``user_order`` status transition event.
+
+        Dispatches on the normalised status: ``filled`` reuses the
+        broker-payload fills aggregate via ``_broker_fills``;
+        ``cancelled`` / ``expired`` route through the existing
+        ``_terminal_close`` helper so partial-fill refund math stays
+        in one place.
+        """
+        broker_id = event.get("broker_order_id")
+        status = event.get("status")
+        if not broker_id or not status:
+            return
+
+        order_row = await self._lookup_order_by_broker_id(broker_id)
+        if order_row is None:
+            return
+        if order_row["status"] not in STATUS_OPEN:
+            return
+
+        order = dict(order_row)
+        attempts = int(order.get("poll_attempts") or 0) + 1
+        # Build a synthetic broker payload so ``_broker_fills`` can
+        # reuse its size_matched / price interpretation rules. For a
+        # status-only update with no size_matched the helper returns
+        # an empty list and the cancel/expiry refund path correctly
+        # treats it as zero-fill. For a filled status update we forward
+        # the size_matched + price from the WS frame.
+        size_matched = event.get("size_matched")
+        broker_payload = {
+            "status": status,
+            "size_matched": (
+                size_matched * 10 ** 6 if size_matched is not None else 0
+            ),
+            "price": event.get("price") or order.get("price"),
+        }
+        fills = _broker_fills(broker_payload, order)
+
+        if status == "filled":
+            fill_price, fill_size = _aggregate_fills(fills, fallback=order)
+            await self._on_fill(
+                order=order, fill_price=fill_price, fill_size=fill_size,
+                fills=fills, attempts=attempts,
+            )
+            return
+        if status == "cancelled":
+            await self._on_cancel(order=order, attempts=attempts, fills=fills)
+            return
+        if status == "expired":
+            await self._on_expiry(order=order, attempts=attempts, fills=fills)
+            return
+        # ``open`` updates from the WS path are informational; the poll
+        # loop already advances last_polled_at on its cadence.
+
+    async def _lookup_order_by_broker_id(
+        self, broker_order_id: str,
+    ) -> Optional[Any]:
+        """Resolve ``orders.polymarket_order_id`` -> the full order row.
+
+        Returns ``None`` for unknown broker ids (fills on orders placed
+        outside the bot) or rows already in a terminal state. The
+        SELECT mirrors ``poll_once`` so dispatchers consume the same
+        column shape.
+        """
+        pool = self._pool_override or get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, user_id, market_id, side, size_usdc, price,
+                       polymarket_order_id, status, poll_attempts, mode,
+                       fill_size, fill_price
+                  FROM orders
+                 WHERE polymarket_order_id = $1
+                   AND mode = 'live'
+                """,
+                broker_order_id,
+            )
+        return row
+
     async def _safe_audit(self, **kwargs: Any) -> None:
         try:
             await self._audit_write(**kwargs)
@@ -608,6 +749,16 @@ def get_default_manager() -> OrderLifecycleManager:
 async def poll_once() -> dict:
     """Module-level shim used as the APScheduler job target."""
     return await get_default_manager().poll_once()
+
+
+async def dispatch_ws_fill(event: dict) -> None:
+    """Module-level shim used as the WebSocket client's fill callback."""
+    await get_default_manager().handle_ws_fill(event)
+
+
+async def dispatch_ws_order_update(event: dict) -> None:
+    """Module-level shim used as the WebSocket client's order callback."""
+    await get_default_manager().handle_ws_order_update(event)
 
 
 def _broker_status(broker_payload: dict) -> str:

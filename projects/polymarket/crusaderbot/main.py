@@ -193,6 +193,11 @@ async def lifespan(_: FastAPI):
         except Exception as exc:
             log.warning("scheduler shutdown error: %s", exc)
         try:
+            from .scheduler import ws_shutdown
+            await ws_shutdown()
+        except Exception as exc:
+            log.warning("ws shutdown error: %s", exc)
+        try:
             if bot_app and bot_app.updater:
                 await bot_app.updater.stop()
         except Exception as exc:

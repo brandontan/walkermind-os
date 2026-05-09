@@ -45,12 +45,14 @@ from .exceptions import (
 )
 from .market_data import MarketDataClient
 from .mock import MockClobClient
+from .ws import ClobWebSocketClient
 
 __all__ = [
     "ClobAdapter",
     "MockClobClient",
     "MarketDataClient",
     "ClobClientProtocol",
+    "ClobWebSocketClient",
     "ClobAuthSigner",
     "HMACSigner",
     "L1Headers",

@@ -16,6 +16,7 @@ from .config import get_settings
 from .database import get_pool
 from .domain.execution import exit_watcher
 from .domain.execution import lifecycle as order_lifecycle
+from .integrations.clob import ClobWebSocketClient
 from .domain.execution.router import execute as router_execute
 from .domain.ops import job_tracker
 from .domain.risk.gate import GateContext, evaluate
@@ -374,6 +375,74 @@ async def poll_order_lifecycle() -> None:
     await order_lifecycle.poll_once()
 
 
+# ---------------- CLOB WebSocket (Phase 4D) ----------------
+# A single ``ClobWebSocketClient`` instance lives for the lifetime of the
+# scheduler. ``ws_connect`` spawns it on startup; ``ws_watchdog`` reconnects
+# if the run loop ever exits unexpectedly. Both jobs are no-ops when
+# USE_REAL_CLOB=False — the client itself enforces that contract, but the
+# scheduler also short-circuits to keep job_runs noise-free in paper mode.
+
+_ws_client: ClobWebSocketClient | None = None
+
+
+def get_ws_client() -> ClobWebSocketClient | None:
+    """Return the active WebSocket client, or None when paper-mode."""
+    return _ws_client
+
+
+async def ws_connect() -> None:
+    """One-shot startup job: build + start the WebSocket client.
+
+    Idempotent — calling twice is safe; the second call returns
+    immediately because the client refuses to start a second run loop.
+    """
+    global _ws_client
+    s = get_settings()
+    if not s.USE_REAL_CLOB:
+        return
+    if _ws_client is None:
+        _ws_client = ClobWebSocketClient(
+            settings=s,
+            on_fill=order_lifecycle.dispatch_ws_fill,
+            on_order_update=order_lifecycle.dispatch_ws_order_update,
+        )
+    await _ws_client.start()
+
+
+async def ws_watchdog() -> None:
+    """Periodic liveness check.
+
+    Triggers a reconnect when the run loop task has exited. Treats a
+    missing client as "needs construction" so an operator who flips
+    USE_REAL_CLOB at runtime gets a fresh client without a process
+    restart.
+    """
+    s = get_settings()
+    if not s.USE_REAL_CLOB:
+        return
+    global _ws_client
+    if _ws_client is None or not _ws_client.is_alive():
+        logger.warning("ws_watchdog: client not alive, reconnecting")
+        if _ws_client is not None:
+            try:
+                await _ws_client.stop()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("ws_watchdog: stale client stop failed: %s", exc)
+            _ws_client = None
+        await ws_connect()
+
+
+async def ws_shutdown() -> None:
+    """Close the WebSocket client cleanly. Called on bot shutdown."""
+    global _ws_client
+    if _ws_client is None:
+        return
+    try:
+        await _ws_client.stop()
+    finally:
+        _ws_client = None
+
+
 # ---------------- Resolution + redeem ----------------
 # Detection, dispatch, and settlement live in services.redeem.
 # These wrappers preserve the long-standing scheduler entry points so the
@@ -475,6 +544,14 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(poll_order_lifecycle, "interval",
                   seconds=s.ORDER_POLL_INTERVAL_SECONDS,
                   id="order_lifecycle", max_instances=1, coalesce=True)
+    # WebSocket fill streaming (Phase 4D). The client itself enforces the
+    # USE_REAL_CLOB=False guard; jobs are still registered so a runtime
+    # toggle flip + watchdog tick brings the socket up without a redeploy.
+    sched.add_job(ws_connect, "date", id="ws_connect",
+                  max_instances=1, coalesce=True)
+    sched.add_job(ws_watchdog, "interval",
+                  seconds=s.WS_WATCHDOG_INTERVAL_SECONDS,
+                  id="ws_watchdog", max_instances=1, coalesce=True)
     sched.add_job(redeem_hourly, "interval", seconds=s.REDEEM_INTERVAL,
                   id="redeem", max_instances=1, coalesce=True)
     sched.add_job(check_resolutions, "interval", seconds=s.RESOLUTION_CHECK_INTERVAL,
