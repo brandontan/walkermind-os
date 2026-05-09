@@ -1,4 +1,7 @@
-"""Live execution engine — real Polymarket CLOB orders.
+"""Live execution engine — real Polymarket CLOB orders via ClobClientProtocol.
+
+Phase 4B: callers now go through get_clob_client() / ClobClientProtocol instead
+of the legacy py-clob-client SDK path in integrations.polymarket.
 
 Defense-in-depth: re-validates ALL five activation guards before submitting.
 Persists order as 'pending' BEFORE submission to guarantee idempotency. Raises
@@ -6,6 +9,11 @@ typed errors so the router can decide whether a paper fallback is safe.
 
 Close paths intentionally skip the open-time guard check: an existing live
 position must be unwindable even when guards are later disabled.
+
+Dry-run mode: if USE_REAL_CLOB=True but ENABLE_LIVE_TRADING is not set, the
+execute() function logs the order intent and returns a mock fill without writing
+to the DB or calling the broker. This lets operators test credential paths
+without submitting real orders.
 """
 from __future__ import annotations
 
@@ -16,7 +24,12 @@ from uuid import UUID
 from ... import audit, notifications
 from ...config import get_settings
 from ...database import get_pool
-from ...integrations import polymarket
+from ...integrations.clob import (
+    ClobAuthError,
+    ClobClientProtocol,
+    MockClobClient,
+    get_clob_client,
+)
 from ...wallet import ledger
 
 logger = logging.getLogger(__name__)
@@ -62,8 +75,33 @@ async def execute(
     strategy_type: str,
     tp_pct: float | None,
     sl_pct: float | None,
+    order_type: str = "GTC",
+    clob_client: ClobClientProtocol | None = None,
 ) -> dict:
+    """Execute a live buy order via ClobClientProtocol.
+
+    idempotency_key must be a stable uuid derived from (signal_id, user_id,
+    market_id) by the caller — retrying the same signal never double-submits.
+
+    order_type: "GTC" (default) or "FOK". GTC fills partially and rests in
+    book; FOK fills in full immediately or cancels.
+    """
+    s = get_settings()
+
+    # Dry-run intercept: USE_REAL_CLOB=True but ENABLE_LIVE_TRADING not set.
+    # Log intent for credential/workflow testing; do not touch DB or broker.
+    if s.USE_REAL_CLOB and not s.ENABLE_LIVE_TRADING:
+        token_id = yes_token_id if side == "yes" else no_token_id
+        shares = float(size_usdc) / max(price, 0.0001)
+        logger.info(
+            "live.execute dry_run: USE_REAL_CLOB=True ENABLE_LIVE_TRADING=False "
+            "token=%s side=%s shares=%.4f price=%.4f order_type=%s key=%s",
+            token_id, side, shares, price, order_type, idempotency_key,
+        )
+        return {"status": "dry_run", "mode": "paper", "_mock": True}
+
     assert_live_guards(access_tier, trading_mode)
+
     token_id = yes_token_id if side == "yes" else no_token_id
     if not token_id:
         raise LivePreSubmitError("missing token_id for live order")
@@ -72,6 +110,7 @@ async def execute(
     # both size_usdc and entry_price so close-side can recompute the same
     # share count and submit an exact-quantity SELL (no exit-price re-quoting).
     shares = float(size_usdc) / max(price, 0.0001)
+    client = clob_client or get_clob_client(s)
 
     pool = get_pool()
     # Step 1: claim idempotency by inserting order as 'pending' BEFORE submit.
@@ -93,13 +132,26 @@ async def execute(
         return {"status": "duplicate", "mode": "live"}
     order_id = row["id"]
 
-    # Step 2a: PREPARE (local-only signing, no network). A failure here means
-    # no broker request has been made → safe to paper-fall-back.
+    # Step 2: SUBMIT via ClobClientProtocol.
+    #
+    # ClobAuthError means signing failed before any network call →
+    # definitively pre-submit → safe for router to paper-fallback.
+    #
+    # All other exceptions are post-submit AMBIGUOUS — the order may have
+    # been accepted by the broker even though we never received the ack
+    # (timeout, dropped TLS, transient 5xx after queueing). Mark 'unknown',
+    # alert operator for manual reconciliation, raise LivePostSubmitError
+    # so the router REFUSES to paper-fallback (paper after a possible live
+    # fill would duplicate exposure).
     try:
-        prepared = polymarket.prepare_live_order(
-            token_id=token_id, side="BUY", shares=shares, price=price,
+        submit_result = await client.post_order(
+            token_id=token_id,
+            side="BUY",
+            price=price,
+            size=shares,
+            order_type=order_type,
         )
-    except Exception as exc:
+    except ClobAuthError as exc:
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE orders SET status='failed', error_msg=$2 WHERE id=$1",
@@ -110,15 +162,6 @@ async def execute(
                           payload={"order_id": str(order_id),
                                    "error": str(exc)[:500]})
         raise LivePreSubmitError(f"prepare failed: {exc}") from exc
-
-    # Step 2b: SUBMIT (network). ANY failure here is AMBIGUOUS — the order
-    # may have been accepted by the broker even though we never received the
-    # ack (timeout, dropped TLS, transient 5xx after queueing, etc.). Mark
-    # the order 'unknown', alert the operator for manual reconciliation, and
-    # raise LivePostSubmitError so the router REFUSES to paper-fall-back
-    # (paper-fallback after a possible live fill would duplicate exposure).
-    try:
-        submit_result = await polymarket.submit_signed_live_order(prepared)
     except Exception as exc:
         async with pool.acquire() as conn:
             await conn.execute(
@@ -153,8 +196,8 @@ async def execute(
     )
 
     # Step 3: persist position + ledger debit atomically with order update.
-    # If this fails, the CLOB order EXISTS — we MUST raise LivePostSubmitError
-    # so the router does not paper-duplicate.
+    # If this fails, the CLOB order EXISTS — raise LivePostSubmitError so
+    # the router does not paper-duplicate.
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -205,10 +248,17 @@ async def execute(
     return {"order_id": order_id, "position_id": position_id, "mode": "live"}
 
 
-async def close_position(*, position: dict, exit_price: float,
-                         exit_reason: str) -> dict:
-    """Close an EXISTING live position. Does NOT re-check open-time guards —
-    a real on-chain exposure must always be unwindable.
+async def close_position(
+    *,
+    position: dict,
+    exit_price: float,
+    exit_reason: str,
+    clob_client: ClobClientProtocol | None = None,
+) -> dict:
+    """Close an EXISTING live position via ClobClientProtocol.
+
+    Does NOT re-check open-time guards — a real on-chain exposure must
+    always be unwindable even if guards are later disabled.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -243,12 +293,19 @@ async def close_position(*, position: dict, exit_price: float,
         return {"pnl_usdc": Decimal("0"), "exit_price": exit_price,
                 "exit_reason": "already_closed"}
 
-    # Submit only after the claim is ours. If the broker submit raises, roll
-    # the claim back to 'open' so a subsequent retry can re-attempt cleanly.
+    # Submit SELL via ClobClientProtocol. Any exception propagates to the
+    # caller (order.py uses LIVE_CLOSE_MAX_ATTEMPTS=1 — single attempt).
+    # On failure, roll the claim back to 'open' so a subsequent retry can
+    # re-attempt cleanly.
+    s = get_settings()
+    client = clob_client or get_clob_client(s)
     try:
-        await polymarket.submit_live_order(
-            token_id=token_id, side="SELL",
-            shares=shares_to_sell, price=exit_price,
+        await client.post_order(
+            token_id=token_id,
+            side="SELL",
+            price=exit_price,
+            size=shares_to_sell,
+            order_type="GTC",
         )
     except Exception:
         async with pool.acquire() as conn:
