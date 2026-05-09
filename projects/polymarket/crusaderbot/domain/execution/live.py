@@ -27,6 +27,7 @@ from ...database import get_pool
 from ...integrations.clob import (
     ClobAuthError,
     ClobClientProtocol,
+    ClobConfigError,
     MockClobClient,
     get_clob_client,
 )
@@ -121,7 +122,10 @@ async def execute(
     # both size_usdc and entry_price so close-side can recompute the same
     # share count and submit an exact-quantity SELL (no exit-price re-quoting).
     shares = float(size_usdc) / max(price, 0.0001)
-    client = clob_client or get_clob_client(s)
+    try:
+        client = clob_client or get_clob_client(s)
+    except ClobConfigError as exc:
+        raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
 
     pool = get_pool()
     # Step 1: claim idempotency by inserting order as 'pending' BEFORE submit.
@@ -271,6 +275,14 @@ async def close_position(
     Does NOT re-check open-time guards — a real on-chain exposure must
     always be unwindable even if guards are later disabled.
     """
+    s = get_settings()
+    if not s.USE_REAL_CLOB:
+        raise RuntimeError(
+            "close_position called with USE_REAL_CLOB=False — "
+            "MockClobClient cannot submit a real SELL; refusing to phantom-close "
+            "a live position. Set USE_REAL_CLOB=True or reconcile manually."
+        )
+
     pool = get_pool()
     async with pool.acquire() as conn:
         market = await conn.fetchrow(
@@ -308,8 +320,15 @@ async def close_position(
     # caller (order.py uses LIVE_CLOSE_MAX_ATTEMPTS=1 — single attempt).
     # On failure, roll the claim back to 'open' so a subsequent retry can
     # re-attempt cleanly.
-    s = get_settings()
-    client = clob_client or get_clob_client(s)
+    try:
+        client = clob_client or get_clob_client(s)
+    except ClobConfigError as exc:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE positions SET status='open' WHERE id=$1",
+                position["id"],
+            )
+        raise RuntimeError(f"CLOB client config error during close: {exc}") from exc
     try:
         await client.post_order(
             token_id=token_id,

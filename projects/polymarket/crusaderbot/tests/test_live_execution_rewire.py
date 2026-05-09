@@ -34,6 +34,7 @@ from projects.polymarket.crusaderbot.domain.execution.live import (
 )
 from projects.polymarket.crusaderbot.integrations.clob import (
     ClobAuthError,
+    ClobConfigError,
     MockClobClient,
 )
 
@@ -408,6 +409,25 @@ class TestExceptionClassification:
         # Order marked 'unknown' in DB.
         assert any("unknown" in str(e[0]) for e in conn.executed)
 
+    def test_clob_config_error_becomes_live_pre_submit_error(self) -> None:
+        """ClobConfigError from get_clob_client() → LivePreSubmitError (safe fallback).
+
+        Codex P2 finding: when all live guards pass but CLOB credentials are
+        missing/invalid, get_clob_client() raises ClobConfigError before any DB
+        write or broker call. The router only catches LivePreSubmitError for
+        paper fallback — unwrapped ClobConfigError drops the signal entirely.
+        """
+        s = _settings()
+        conn = FakeConn()
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.domain.execution.live.get_clob_client",
+                side_effect=ClobConfigError("missing CLOB credentials"),
+            ),
+            pytest.raises(LivePreSubmitError, match="CLOB client config error"),
+        ):
+            _run_execute(conn, s, client=None)
+
 
 # ---------------------------------------------------------------------------
 # close_position
@@ -525,3 +545,22 @@ class TestClosePosition:
         # ret = (0.2 - 0.4) / 0.4 = -0.5 → loss
         result = _run_close(conn, s, client, position=no_position)
         assert result["pnl_usdc"] < Decimal("0")
+
+    def test_close_raises_when_use_real_clob_false(self) -> None:
+        """USE_REAL_CLOB=False → RuntimeError before atomic claim.
+
+        Codex P1 (round 2): close_position intentionally skips assert_live_guards,
+        so the USE_REAL_CLOB=False path must be caught here to prevent
+        MockClobClient from phantom-closing a live position and crediting the
+        ledger without submitting a real SELL to Polymarket.
+        The check must fire BEFORE the atomic DB claim to leave the position
+        in 'open' status for operator reconciliation.
+        """
+        conn = FakeConn(close_claim=POSITION_ID, close_finalize=POSITION_ID)
+        s = _settings(use_real_clob=False)
+        client = MockClobClient()
+        with pytest.raises(RuntimeError, match="USE_REAL_CLOB=False"):
+            _run_close(conn, s, client)
+        # No DB fetchrow reached — position never touched.
+        assert conn._call == 0
+        assert client.open_orders() == []
