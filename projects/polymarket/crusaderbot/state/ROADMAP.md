@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-09 22:30 Asia/Jakarta
+**Last Updated:** 2026-05-10 09:00 Asia/Jakarta
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -134,4 +134,16 @@ Reference: `docs/blueprint/crusaderbot.md` §6 (Risk System), §12 (Activation G
 | Phase 4C | Order Lifecycle (live polling + fills + paper touch+stale) | ✅ Done | MAJOR | Merged PR #913 (2026-05-09) f326879d, SENTINEL APPROVED 96/100 (FINAL at a484012), NARROW INTEGRATION |
 
 Done condition: Phase 4A–4C merged with USE_REAL_CLOB default False (paper-safe). Live activation remains gated on ENABLE_LIVE_TRADING / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED + USE_REAL_CLOB owner decision — all NOT SET at time of post-merge sync.
+
+## Phase 5 — Telegram Auto-Trade UX
+
+| Lane | Name | Status | Tier | Notes |
+|---|---|---|---|---|
+| Phase 5A | Global menu handlers + 5-button main menu | ✅ Done | MINOR | Merged PR #924 (2026-05-10), declared WARP/CRUSADERBOT-PHASE5A-GLOBAL-HANDLERS |
+| Phase 5B | Dashboard hierarchy redesign | ✅ Done | STANDARD | Merged PR #926 (2026-05-10), declared WARP/CRUSADERBOT-PHASE5B-DASHBOARD, SENTINEL APPROVED 97/100 |
+| Phase 5C | Strategy preset system | ✅ Done | MAJOR | Merged PR #925 (2026-05-10), WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100 |
+| Phase 5D | 2-column grid + Copy/Auto Trade menu split | ✅ Done | STANDARD | Merged PR #928 (2026-05-10) |
+| Phase 5E | Copy Trade dashboard + wallet discovery | 🔲 Next | STANDARD | Unblocked by Phase 5D merge (PR #928) |
+
+Done condition: Phase 5A–5D merged with no activation guard changes. Phase 5E is the next active lane. Runtime posture: PAPER ONLY, USE_REAL_CLOB default False, all guards NOT SET.
 

@@ -1,13 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-09 22:00 Asia/Jakarta
+**Last Updated:** 2026-05-10 09:00 Asia/Jakarta
 
 ---
 
 ## Right Now
 
-- WARP/CRUSADERBOT-PHASE5C-PRESETS — FORGE complete (MAJOR / NARROW INTEGRATION). Strategy preset system with 5 named presets (Whale Mirror / Signal Sniper / Hybrid / Value Hunter / Full Auto), DB persistence via migration 016, Telegram picker → confirmation → activate → status flow. Live activation refused (paper-only). 814/814 tests green. Awaiting WARP•SENTINEL MAJOR audit before merge. Concurrent: WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX + Phase 5A global-handlers (both MINOR, awaiting WARP🔹CMD merge). Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
+- Phase 5E — Copy Trade dashboard + wallet discovery. Next active lane. Unblocked by Phase 5D merge (PR #928). Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
 
 ---
 
@@ -53,13 +53,13 @@ Done condition: Phase 4A-4C merged with USE_REAL_CLOB default False (paper-safe)
 
 ## Phase 5 -- Telegram Auto-Trade UX
 
-- [ ] Phase 5A -- Global menu handlers + 5-button main menu -- FORGE on WARP/CRUSADERBOT-PHASE5A-GLOBAL-HANDLERS (MINOR / NARROW INTEGRATION). Awaiting WARP🔹CMD review + merge decision.
-- [ ] Phase 5B -- Dashboard content enrichment -- NOT STARTED.
-- [ ] Phase 5C -- Strategy preset system -- FORGE on WARP/CRUSADERBOT-PHASE5C-PRESETS (MAJOR / NARROW INTEGRATION). 5 named presets, Confirmation + Status cards, DB persistence via migration 016. Live activation refused (paper-only). 814/814 tests green. Awaiting WARP•SENTINEL MAJOR audit before merge.
-- [ ] Phase 5D -- Customize wizard for inline preset value adjustment -- NOT STARTED.
-- [ ] Phase 5E -- Onboarding flow integration with Preset Picker -- NOT STARTED.
+- [x] Phase 5A -- Global menu handlers + 5-button main menu -- MERGED PR #924 (2026-05-10), MINOR, declared WARP/CRUSADERBOT-PHASE5A-GLOBAL-HANDLERS. _text_router priority fix, 5-button main menu, /settings command, my_trades view. 784/784 tests green.
+- [x] Phase 5B -- Dashboard hierarchy redesign -- MERGED PR #926 (2026-05-10), STANDARD, declared WARP/CRUSADERBOT-PHASE5B-DASHBOARD, SENTINEL APPROVED 97/100. Single-message hierarchy, four sections, /start routing for existing Tier 2+ users.
+- [x] Phase 5C -- Strategy preset system -- MERGED PR #925 (2026-05-10), MAJOR, WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100. 3 presets (signal_sniper / value_hunter / full_auto), DB migration 016, paper-only activation enforced. 814/814 tests green.
+- [x] Phase 5D -- 2-column grid + Copy/Auto Trade menu split -- MERGED PR #928 (2026-05-10), STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
+- [ ] Phase 5E -- Copy Trade dashboard + wallet discovery -- NOT STARTED. Next active lane, unblocked by Phase 5D merge (PR #928).
 
-Done condition: Phase 5A-5E merged with no activation guard or risk gate constant changes; preset surface is paper-only; live activation continues to require Dashboard 2FA-gated toggle.
+Done condition: Phase 5A-5D merged. Phase 5E next. No activation guard or risk gate constant changes; preset surface is paper-only; live activation requires Dashboard 2FA-gated toggle.
 
 ---
 
