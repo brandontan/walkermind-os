@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 15:00
-Status       : Phase 5A–5E + Phase 5J all merged. Phase 5I My Trades combined view PR open for WARP🔹CMD review. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 16:00
+Status       : Phase 5A–5E + Phase 5J all merged. Phase 5I My Trades PR open for WARP🔹CMD review. Phase 5F SENTINEL audit complete — verdict BLOCKED (branch name violation: claude/* prohibited, required WARP/CRUSADERBOT-PHASE5F-COPY-WIZARD). Code quality 85/100, zero safety issues. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - R12 final Fly.io production paper deploy -- Issue #900 closed; production paper deploy complete.
@@ -15,9 +15,9 @@ Status       : Phase 5A–5E + Phase 5J all merged. Phase 5I My Trades combined 
 
 [IN PROGRESS]
 - Phase 5I My Trades combined view -- PR open (STANDARD, WARP🔹CMD review, no SENTINEL required). Handler rewrite: combined positions + activity message, per-position close with confirmation, full history pagination, 2-col keyboard grid. 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
+- Phase 5F Copy Trade wizard + per-task edit -- SENTINEL audit BLOCKED. Code 85/100. Branch must be re-opened as WARP/CRUSADERBOT-PHASE5F-COPY-WIZARD. Two P1 defects (toggle_pause non-atomic + missing user_id in UPDATE WHERE). Report: projects/polymarket/crusaderbot/reports/sentinel/copy-trade-wizard.md.
 
 [NOT STARTED]
-- Phase 5F -- Copy Task setup wizard + per-task edit wizard (next after Phase 5E merge).
 - WARP/CRUSADERBOT-MAINNET-ONCHAIN-PREFLIGHT -- on-chain wallet, allowance, balance, and signer readiness checks complementing scripts/mainnet_preflight.py; no live trading activation and no real orders.
 - WARP/CRUSADERBOT-OPS-CIRCUIT-RESET -- operator endpoint / Telegram command to force_close the CLOB circuit breaker after incident review; no broker calls and no guard flips.
 - R13a Leaderboard -- paper P&L ranking, /leaderboard command, top 10, daily scheduler update.
@@ -28,8 +28,8 @@ Status       : Phase 5A–5E + Phase 5J all merged. Phase 5I My Trades combined 
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
+- WARP🔹CMD decision required: Phase 5F BLOCKED by claude/* branch violation. FORGE must re-open PR on WARP/CRUSADERBOT-PHASE5F-COPY-WIZARD, fix toggle_pause atomicity (P1), fix missing user_id in UPDATE WHERE (P1), update CHANGELOG.md branch name. No re-SENTINEL required for P1 fixes only. Source: projects/polymarket/crusaderbot/reports/sentinel/copy-trade-wizard.md. Tier: MAJOR.
 - WARP🔹CMD review required for Phase 5I PR (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md. Tier: STANDARD.
-- After Phase 5I merge: Phase 5F -- Copy Task setup wizard + per-task edit wizard is the next active lane.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]
@@ -44,4 +44,4 @@ Status       : Phase 5A–5E + Phase 5J all merged. Phase 5I My Trades combined 
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 
-<!-- CD verify: 2026-05-10 15:00 -->
+<!-- CD verify: 2026-05-10 16:00 -->
