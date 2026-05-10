@@ -125,6 +125,18 @@ def admin_menu(kill_active: bool) -> InlineKeyboardMarkup:
     ])
 
 
+def dashboard_nav(has_trades: bool) -> InlineKeyboardMarkup:
+    if not has_trades:
+        return InlineKeyboardMarkup([[
+            InlineKeyboardButton("🤖 Get Started", callback_data="dashboard:autotrade"),
+        ]])
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🤖 Auto-Trade", callback_data="dashboard:autotrade"),
+        InlineKeyboardButton("📈 Trades",     callback_data="dashboard:trades"),
+        InlineKeyboardButton("💰 Wallet",     callback_data="dashboard:wallet"),
+    ]])
+
+
 def confirm(action_key: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Yes", callback_data=f"confirm:{action_key}:yes"),

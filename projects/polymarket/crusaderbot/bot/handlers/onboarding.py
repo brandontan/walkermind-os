@@ -8,9 +8,10 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from ... import audit
-from ...users import upsert_user
+from ...users import get_user_by_telegram_id, upsert_user
 from ...wallet.vault import create_wallet_for_user, get_wallet
 from ..keyboards import main_menu
+from ..tier import Tier, has_tier
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,10 @@ async def start_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user is None or update.message is None:
         return
     tg_user = update.effective_user
+
+    existing = await get_user_by_telegram_id(tg_user.id)
     user = await upsert_user(tg_user.id, tg_user.username)
+
     wallet = await get_wallet(user["id"])
     if wallet is None:
         addr, idx = await create_wallet_for_user(user["id"])
@@ -27,6 +31,14 @@ async def start_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await audit.write(actor_role="user", action="wallet_created",
                           user_id=user["id"],
                           payload={"hd_index": idx, "address": addr})
+
+    await audit.write(actor_role="user", action="start", user_id=user["id"],
+                      payload={"username": tg_user.username})
+
+    if existing is not None and has_tier(user["access_tier"], Tier.ALLOWLISTED):
+        from .dashboard import dashboard
+        await dashboard(update, ctx)
+        return
 
     tier_label = (
         "Browse" if user["access_tier"] == 1
@@ -51,8 +63,6 @@ async def start_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         text, parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu(),
     )
-    await audit.write(actor_role="user", action="start", user_id=user["id"],
-                      payload={"username": tg_user.username})
 
 
 async def help_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
