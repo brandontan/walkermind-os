@@ -1,5 +1,5 @@
 Last Updated : 2026-05-10 20:00
-Status       : Phase 5G Auto-Trade customize wizard FORGE complete — PR open for WARP🔹CMD review (STANDARD). Phase 5H onboarding and Phase 5I My Trades PRs also open (STANDARD). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Status       : Phase 5G Auto-Trade customize wizard MERGED PR #938. Phase 5H onboarding and Phase 5I My Trades PRs open for WARP🔹CMD review. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - R12 final Fly.io production paper deploy -- Issue #900 closed; production paper deploy complete.
@@ -13,9 +13,9 @@ Status       : Phase 5G Auto-Trade customize wizard FORGE complete — PR open f
 - Phase 5J emergency menu redesign -- PR #932 merged, STANDARD, WARP•SENTINEL APPROVED 90/100 (0 criticals). Lock Account DB-enforced (migration 017), /unlock operator command, confirmation dialogs, 13 hermetic tests.
 - Phase 5E Copy Trade dashboard + wallet discovery -- PR #930 merged, MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + 5-min cache + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
 - Phase 5F Copy Trade wizard + per-task edit -- PR #935 merged, MAJOR, NARROW INTEGRATION. 3-step wizard, per-task edit, ConversationHandler 5 states, repository CRUD (toggle_pause atomic), 33 hermetic tests. P1 fixes applied (atomicity + user_id guard + asyncio.run() test pattern).
+- Phase 5G Auto-Trade customize wizard -- PR #938 merged, STANDARD, NARROW INTEGRATION. 5-step ConversationHandler wizard (capital, TP, SL, skip, review), custom text input with bounds validation, live-mode guard (Codex P1 fix), back/cancel at every step, save writes DB, 23 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/customize-wizard.md.
 
 [IN PROGRESS]
-- Phase 5G Auto-Trade customize wizard -- PR open (STANDARD, WARP🔹CMD review, no SENTINEL required). 5-step ConversationHandler wizard (capital, TP, SL, skip, review), custom input with validation, back/cancel at every step, save writes DB, 22 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/customize-wizard.md.
 - Phase 5I My Trades combined view -- PR open (STANDARD, WARP🔹CMD review, no SENTINEL required). Handler rewrite: combined positions + activity message, per-position close with confirmation, full history pagination, 2-col keyboard grid. 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
 - Phase 5H first-time onboarding flow -- PR open (STANDARD, WARP🔹CMD review, no SENTINEL required). ConversationHandler 5 states (WELCOME/FAQ/WALLET/STYLE/DEPOSIT), onboarding_complete flag (migration 019), QR code via qrcode[pil], 18 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5h-onboarding.md.
 
@@ -31,7 +31,6 @@ Status       : Phase 5G Auto-Trade customize wizard FORGE complete — PR open f
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for Phase 5G PR (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/customize-wizard.md. Tier: STANDARD.
 - WARP🔹CMD review required for Phase 5H PR (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5h-onboarding.md. Tier: STANDARD.
 - WARP🔹CMD review required for Phase 5I PR (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md. Tier: STANDARD.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
@@ -48,4 +47,4 @@ Status       : Phase 5G Auto-Trade customize wizard FORGE complete — PR open f
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 
-<!-- CD verify: 2026-05-10 16:30 -->
+<!-- CD verify: 2026-05-10 20:00 -->
