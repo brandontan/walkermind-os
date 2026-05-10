@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 14:30 Asia/Jakarta
-Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Open PRs = 0. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched. Current focus: Phase 5E Copy Trade dashboard + wallet discovery.
+Last Updated : 2026-05-10 17:30 Asia/Jakarta
+Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Phase 5J emergency menu redesign PR #932 open, STANDARD, WARP•SENTINEL APPROVED 90/100, 0 criticals, pending WARP🔹CMD merge decision. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - Phase 4A CLOB Adapter -- PR #911 merged, MAJOR, SENTINEL APPROVED 89/100, branch WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER.
@@ -20,7 +20,7 @@ Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Open PR
 - Phase 5D 2-column grid + Copy/Auto Trade menu split -- PR #928 merged, STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
 
 [IN PROGRESS]
-- None. Open PRs = 0. Phase 5E dispatch pending WARP🔹CMD direction.
+- Phase 5J emergency menu redesign -- PR #932 open, STANDARD, WARP•SENTINEL APPROVED 90/100 (0 criticals), pending WARP🔹CMD merge decision. branch WARP/CRUSADERBOT-PHASE5J-EMERGENCY. Lock Account DB-enforced (migration 017), /unlock operator command, 13 hermetic tests, CI green. Report: projects/polymarket/crusaderbot/reports/sentinel/phase5j-emergency.md.
 
 [NOT STARTED]
 - Phase 5E -- Copy Trade dashboard + wallet discovery. Next active lane, unblocked by Phase 5D merge (PR #928).
@@ -34,7 +34,8 @@ Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Open PR
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- Dispatch Phase 5E (Copy Trade dashboard + wallet discovery) as next active lane. Unblocked by Phase 5D merge (PR #928).
+- WARP🔹CMD merge decision — PR #932 Phase 5J emergency menu redesign (STANDARD, SENTINEL APPROVED 90/100, 0 criticals). Report: projects/polymarket/crusaderbot/reports/sentinel/phase5j-emergency.md.
+- After merge: dispatch Phase 5E (Copy Trade dashboard + wallet discovery) as next active lane.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]
