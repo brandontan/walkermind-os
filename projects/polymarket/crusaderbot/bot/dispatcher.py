@@ -47,6 +47,8 @@ async def _text_router(update, ctx):
         return
     if await activation.text_input(update, ctx):
         return
+    if await copy_trade.text_input(update, ctx):
+        return
     if await setup.text_input(update, ctx):
         return
 

@@ -121,6 +121,8 @@ def test_all_six_main_menu_routes_present():
 # ---------- menu_copytrade_handler ------------------------------------------
 
 def test_menu_copytrade_handler_sends_placeholder(monkeypatch):
+    """Phase 5E: dashboard shows empty-state text when user has no tasks."""
+    from unittest.mock import patch, AsyncMock as _AsyncMock
     from projects.polymarket.crusaderbot.bot.handlers.copy_trade import (
         menu_copytrade_handler,
     )
@@ -137,13 +139,22 @@ def test_menu_copytrade_handler_sends_placeholder(monkeypatch):
         callback_query=None,
         effective_user=SimpleNamespace(id=1, username="u"),
     )
-    asyncio.run(menu_copytrade_handler(update, ctx=SimpleNamespace()))
+    fake_user = {"id": "00000000-0000-0000-0000-000000000001", "access_tier": 2}
+    with patch(
+        "projects.polymarket.crusaderbot.bot.handlers.copy_trade.upsert_user",
+        return_value=fake_user,
+    ), patch(
+        "projects.polymarket.crusaderbot.bot.handlers.copy_trade._list_copy_tasks",
+        return_value=[],
+    ):
+        asyncio.run(menu_copytrade_handler(update, ctx=SimpleNamespace()))
     assert len(replies) == 1
     assert "Copy Trade" in replies[0]
-    assert "Coming soon" in replies[0] or "Phase 5E" in replies[0]
 
 
 def test_menu_copytrade_handler_inline_buttons(monkeypatch):
+    """Phase 5E: empty-state dashboard shows [Add Wallet] and [Discover] buttons."""
+    from unittest.mock import patch, AsyncMock as _AsyncMock
     from projects.polymarket.crusaderbot.bot.handlers.copy_trade import (
         menu_copytrade_handler,
     )
@@ -158,11 +169,19 @@ def test_menu_copytrade_handler_inline_buttons(monkeypatch):
         callback_query=None,
         effective_user=SimpleNamespace(id=1, username="u"),
     )
-    asyncio.run(menu_copytrade_handler(update, ctx=SimpleNamespace()))
+    fake_user = {"id": "00000000-0000-0000-0000-000000000001", "access_tier": 2}
+    with patch(
+        "projects.polymarket.crusaderbot.bot.handlers.copy_trade.upsert_user",
+        return_value=fake_user,
+    ), patch(
+        "projects.polymarket.crusaderbot.bot.handlers.copy_trade._list_copy_tasks",
+        return_value=[],
+    ):
+        asyncio.run(menu_copytrade_handler(update, ctx=SimpleNamespace()))
     kb = sent_kw[0]["reply_markup"]
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert "dashboard:main" in cbs
-    assert "preset:picker" in cbs
+    assert "copytrade:add" in cbs
+    assert "copytrade:discover" in cbs
 
 
 # ---------- Other keyboard 2-col layouts ------------------------------------

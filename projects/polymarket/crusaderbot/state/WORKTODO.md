@@ -57,7 +57,7 @@ Done condition: Phase 4A-4C merged with USE_REAL_CLOB default False (paper-safe)
 - [x] Phase 5B -- Dashboard hierarchy redesign -- MERGED PR #926 (2026-05-10), STANDARD, declared WARP/CRUSADERBOT-PHASE5B-DASHBOARD, SENTINEL APPROVED 97/100. Single-message hierarchy, four sections, /start routing for existing Tier 2+ users.
 - [x] Phase 5C -- Strategy preset system -- MERGED PR #925 (2026-05-10), MAJOR, WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100. 3 presets (signal_sniper / value_hunter / full_auto), DB migration 016, paper-only activation enforced. 814/814 tests green.
 - [x] Phase 5D -- 2-column grid + Copy/Auto Trade menu split -- MERGED PR #928 (2026-05-10), STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
-- [ ] Phase 5E -- Copy Trade dashboard + wallet discovery -- NOT STARTED. Next active lane, unblocked by Phase 5D merge (PR #928).
+- [ ] Phase 5E -- Copy Trade dashboard + wallet discovery -- IN PROGRESS. WARP•FORGE PR open on WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. SENTINEL MAJOR audit required before merge.
 
 Done condition: Phase 5A-5D merged. Phase 5E next. No activation guard or risk gate constant changes; preset surface is paper-only; live activation requires Dashboard 2FA-gated toggle.
 
