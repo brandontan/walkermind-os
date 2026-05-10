@@ -1481,6 +1481,32 @@ async def custom_input_handler(
     field = wz.get("custom_field", "")
     context = wz.get("custom_context", "")
 
+    # Handle task_name (plain string) before numeric parsing so rename works.
+    if field == "task_name" and context == "edit":
+        task_id_str = wz.get("edit_task_id", "")
+        user, ok = await _resolve_user(update)
+        if not ok or user is None:
+            return ConversationHandler.END
+        name = text.strip()[:50]
+        if not name:
+            await update.message.reply_text(
+                "❌ Name cannot be empty. Try again or tap Cancel:",
+            )
+            return COPY_CUSTOM
+        try:
+            task = await repo.update_task(UUID(task_id_str), user["id"], task_name=name)
+        except Exception as exc:
+            logger.error("rename task failed: %s", exc, exc_info=True)
+            await update.message.reply_text("❌ Update failed. Please try again.")
+            return COPY_CUSTOM
+        if task:
+            await update.message.reply_text(
+                _edit_screen_text(task),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=edit_task_main_kb(task),
+            )
+        return COPY_EDIT
+
     # --- parse value ---
     try:
         raw = Decimal(text.replace("$", "").replace("%", "").strip())
@@ -1686,13 +1712,12 @@ async def wizard_menu_tap(
 
 async def wizard_fallback_text(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE,
-) -> int:
-    """Unrecognised text while in wizard — show hint."""
+) -> None:
+    """Unrecognised text while in wizard — show hint, keep current state."""
     if update.message:
         await update.message.reply_text(
             "Couldn't parse that. Tap a button or /menu to exit.",
         )
-    return ConversationHandler.END  # keep current state unchanged
 
 
 # ---------------------------------------------------------------------------

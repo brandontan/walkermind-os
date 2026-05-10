@@ -39,7 +39,7 @@ Coverage:
    29  edit_delete_cancel    — fetches task, shows edit screen, stays COPY_EDIT
    30  custom_input_handler  — valid amount → advances to COPY_RISK
    31  custom_input_handler  — invalid text → shows error, stays COPY_CUSTOM
-   32  wizard_fallback_text  — unknown text shows hint, returns END
+   32  wizard_fallback_text  — unknown text shows hint, keeps state (returns None)
 """
 from __future__ import annotations
 
@@ -555,11 +555,10 @@ def test_31_custom_input_invalid_text_stays_custom():
 
 
 def test_32_wizard_fallback_text_shows_hint():
-    from telegram.ext import ConversationHandler
     update = _make_update(text="random gibberish")
     ctx = _make_ctx()
     state = run(wizard_fallback_text(update, ctx))
-    assert state == ConversationHandler.END
+    assert state is None
     update.message.reply_text.assert_called_once()
     args = update.message.reply_text.call_args[0]
     assert "button" in args[0].lower() or "menu" in args[0].lower()
