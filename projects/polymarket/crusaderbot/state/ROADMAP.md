@@ -1,7 +1,7 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-10 21:45
+**Last Updated:** 2026-05-10 22:30
 
 ## Current Posture
 
@@ -15,7 +15,7 @@
 
 | Track | Scope | Tier | Status | Notes |
 |---|---|---|---|--|
-| A | Trade Engine + TP/SL worker | MAJOR | 🟔 NEXT | Signal → risk gate → order → paper position open + background TP/SL auto-close |
+| A | Trade Engine + TP/SL worker | MAJOR | 🔄 IN REVIEW | TradeEngine service layer built; 39 tests green; PR open WARP/crusaderbot-fast-trade-engine; SENTINEL pending |
 | B | Copy Trade Execution | MAJOR | ⭌ BLOCKED | Depends on Track A merge; mirror target wallet trades into paper positions |
 | C | Trade Notifications | STANDARD | ❌ QEEUED | Entry / exit / copy trade Telegram notifications |
 | D | Risk Caps + Kill Switch hardening | MAJOR | ❌ QUEUED | Hard exposure caps, daily loss, max open positions, kill switch |

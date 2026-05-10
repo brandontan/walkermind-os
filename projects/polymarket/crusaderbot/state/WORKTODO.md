@@ -1,13 +1,25 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-10 17:44
+**Last Updated:** 2026-05-10 22:30
 
 ---
 
 ## Right Now
 
-- Phase 5G (#938), Phase 5H (#937), hotfix qrcode dependency (#939), and Phase 5I (#934) are merged; post-merge state sync lane active for repo-truth cleanup only. Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
+- Fast Track Track A trade engine built (WARP/crusaderbot-fast-trade-engine, Issue #941). PR open; WARP•SENTINEL validation required before merge. Track B and Track C remain blocked on Track A merge. Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
+
+---
+
+## Fast Track Week 1 -- Core Trading Loop
+
+- [ ] Track A -- Trade Engine + TP/SL worker -- PR open WARP/crusaderbot-fast-trade-engine (Issue #941), MAJOR, FULL RUNTIME INTEGRATION, SENTINEL REQUIRED. TradeEngine service layer delivered; 39 hermetic tests green. Awaiting SENTINEL before merge.
+- [ ] Track B -- Copy Trade Execution -- BLOCKED on Track A merge; MAJOR, SENTINEL REQUIRED
+- [ ] Track C -- Trade Notifications -- QUEUED; STANDARD; depends on Track A surface
+- [ ] Track D -- Risk Caps + Kill Switch hardening -- QUEUED; MAJOR; SENTINEL REQUIRED
+- [ ] Track E -- Daily P&L Report -- QUEUED; STANDARD
+
+Done condition: Track A merged + SENTINEL APPROVED; Track B through E sequenced after.
 
 ---
 

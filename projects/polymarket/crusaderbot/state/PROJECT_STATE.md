@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 21:30
-Status       : Fast Track roadmap selected by Mr. Walker. CrusaderBot is live on Fly.io in PAPER ONLY mode after Phase 5 UX redesign and asyncpg Supabase pooler hotfix. Post-merge sync lane is closed; no open PRs. Current active lane is Fast Track Week 1 preparation: Track A trade engine + TP/SL is next, but activation guards remain NOT SET and no live trading is enabled.
+Last Updated : 2026-05-10 22:30
+Status       : Fast Track Track A trade engine implemented. TradeEngine service layer (signal → risk gate → paper order → paper position) delivered with 39 hermetic tests green. PR open on WARP/crusaderbot-fast-trade-engine; WARP•SENTINEL validation required before merge. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -12,14 +12,13 @@ Status       : Fast Track roadmap selected by Mr. Walker. CrusaderBot is live on
 - Fast Track roadmap selected by Mr. Walker on 2026-05-10; Standard roadmap rejected for current execution posture.
 
 [IN PROGRESS]
-- Observation / runtime monitoring remains active in paper mode while Fast Track work begins.
-- Fast Track Week 1 is the active delivery path: Track A first, then Track B and Track C after Track A merge posture is valid.
+- Fast Track Track A — TradeEngine service layer built; PR open on WARP/crusaderbot-fast-trade-engine (Tier MAJOR, Claim FULL RUNTIME INTEGRATION). 39 hermetic tests green. WARP•SENTINEL validation pending before merge.
+- Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Fast Track Track A -- Trade engine + TP/SL: signal fires -> risk gate -> order created -> paper position opened; TP/SL background worker auto-closes positions. MAJOR; SENTINEL required.
-- Fast Track Track B -- Copy Trade execution: active copy_trade_tasks monitor target wallets and mirror paper positions with spend/min-size caps. MAJOR; SENTINEL required; depends on Track A.
+- Fast Track Track B -- Copy Trade execution: active copy_trade_tasks monitor target wallets and mirror paper positions with spend/min-size caps. MAJOR; SENTINEL required; depends on Track A merge.
 - Fast Track Track C -- Trade notifications: entry, exit, and copy trade Telegram notifications. STANDARD; merge after Track A integration surface is available.
 - Fast Track Track D -- Risk caps + kill switch hardening: hard exposure caps, daily loss guard, max open positions, Telegram/DB/env kill paths. MAJOR; SENTINEL required.
 - Fast Track Track E -- Daily P&L report: scheduled Telegram daily summary. STANDARD.
@@ -28,11 +27,9 @@ Status       : Fast Track roadmap selected by Mr. Walker. CrusaderBot is live on
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Create WARP•FORGE issue for Fast Track Track A.
-- Dispatch WARP•FORGE Track A on branch WARP/crusaderbot-fast-trade-engine.
-- Require report at projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-engine.md and state updates in the same PR.
-- After Track A PR is ready and pre-handoff checks pass, create separate WARP•SENTINEL issue for Track A validation before merge.
-- Do not flip live activation guards during Track A.
+- WARP•SENTINEL validation required for Fast Track Track A before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-engine.md. Tier: MAJOR.
+- After Track A merge: unblock Track B (Copy Trade execution) and Track C (trade notifications).
+- Do not flip activation guards.
 
 [KNOWN ISSUES]
 - /deposit has no tier gate; intentional and non-blocking.
