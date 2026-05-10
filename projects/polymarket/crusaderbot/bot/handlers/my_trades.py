@@ -366,6 +366,9 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
     total_pages = max(1, math.ceil(total / _HISTORY_PER_PAGE))
     page = min(page, total_pages - 1)
+    # Re-fetch if the original request was out of range (stale/crafted callback).
+    if not rows and total > 0:
+        rows, _ = await repo.get_activity_page(user["id"], page, _HISTORY_PER_PAGE)
 
     text = _format_history_page(rows, page, total)
     kb = history_nav_kb(
