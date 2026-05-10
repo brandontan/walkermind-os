@@ -39,7 +39,7 @@ ONBOARD_DEPOSIT = 4
 
 _WELCOME_TEXT = (
     "⚔️ *Welcome to CrusaderBot*\n\n"
-    "Your autonomous Polymarket trading bot.\n\n"
+    "Your autonomous Polymarket trading bot\\.\n\n"
     "Here is how it works:\n"
     "1\\. We create a wallet for you\n"
     "2\\. You pick a trading style\n"
@@ -50,7 +50,7 @@ _WELCOME_TEXT = (
 _FAQ_TEXT = (
     "ℹ️ *Frequently Asked Questions*\n\n"
     "*What is Polymarket?*\n"
-    "A prediction market where you trade on real-world outcomes — "
+    "A prediction market where you trade on real\\-world outcomes — "
     "elections, sports, crypto, and more\\.\n\n"
     "*How does copy trade work?*\n"
     "We monitor top Polymarket wallets\\. When they trade, CrusaderBot "
@@ -66,7 +66,7 @@ _FAQ_TEXT = (
 
 _STYLE_TEXT = (
     "🎯 *How do you want to trade?*\n\n"
-    "🐋 *Copy Trade* — Follow top wallets\\. Their trades = your trades\\.\n"
+    "🐋 *Copy Trade* — Follow top wallets\\. Their trades \\= your trades\\.\n"
     "🤖 *Auto Trade* — Bot decides using signals and edge models\\.\n"
     "⚡ *Both* — Copy Trade \\+ Auto Trade combined\\."
 )
