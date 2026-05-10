@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 14:30
-Status       : Phase 5F Copy Trade wizard + per-task edit built. ConversationHandler + repository CRUD + 33 hermetic tests. Awaiting SENTINEL MAJOR audit before merge. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 16:30
+Status       : Phase 5F Copy Trade wizard + per-task edit MERGED PR #935 (P1 fixes applied: toggle_pause atomic, user_id WHERE guard, asyncio.run() tests). Phase 5I My Trades PR open for WARP🔹CMD review. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - R12 final Fly.io production paper deploy -- Issue #900 closed; production paper deploy complete.
@@ -12,9 +12,10 @@ Status       : Phase 5F Copy Trade wizard + per-task edit built. ConversationHan
 - Phase 5D 2-column grid + Copy/Auto Trade menu split -- PR #928 merged, STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
 - Phase 5J emergency menu redesign -- PR #932 merged, STANDARD, WARP•SENTINEL APPROVED 90/100 (0 criticals). Lock Account DB-enforced (migration 017), /unlock operator command, confirmation dialogs, 13 hermetic tests.
 - Phase 5E Copy Trade dashboard + wallet discovery -- PR #930 merged, MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + 5-min cache + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
+- Phase 5F Copy Trade wizard + per-task edit -- PR #935 merged, MAJOR, NARROW INTEGRATION. 3-step wizard, per-task edit, ConversationHandler 5 states, repository CRUD (toggle_pause atomic), 33 hermetic tests. P1 fixes applied (atomicity + user_id guard + asyncio.run() test pattern).
 
 [IN PROGRESS]
-- Phase 5F — Copy Trade wizard + per-task edit -- code built, SENTINEL MAJOR audit pending before merge.
+- Phase 5I My Trades combined view -- PR open (STANDARD, WARP🔹CMD review, no SENTINEL required). Handler rewrite: combined positions + activity message, per-position close with confirmation, full history pagination, 2-col keyboard grid. 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
 
 [NOT STARTED]
 - Phase 5G or later -- copy execution engine (reads copy_trade_tasks rows with status=active to drive actual position mirroring; no live trading).
@@ -28,7 +29,7 @@ Status       : Phase 5F Copy Trade wizard + per-task edit built. ConversationHan
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL MAJOR audit required for Phase 5F before merge. Source: projects/polymarket/crusaderbot/reports/forge/copy-trade-wizard.md. Tier: MAJOR.
+- WARP🔹CMD review required for Phase 5I PR (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md. Tier: STANDARD.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]
@@ -43,4 +44,4 @@ Status       : Phase 5F Copy Trade wizard + per-task edit built. ConversationHan
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 
-<!-- CD verify: 2026-05-10 13:43 -->
+<!-- CD verify: 2026-05-10 16:30 -->

@@ -136,14 +136,13 @@ async def toggle_pause(task_id: UUID, user_id: UUID) -> str | None:
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT status FROM copy_trade_tasks WHERE id = $1 AND user_id = $2",
+            """
+            UPDATE copy_trade_tasks
+               SET status = CASE WHEN status = 'paused' THEN 'active' ELSE 'paused' END,
+                   updated_at = NOW()
+             WHERE id = $1 AND user_id = $2
+            RETURNING status
+            """,
             task_id, user_id,
         )
-        if row is None:
-            return None
-        new_status = "active" if row["status"] == "paused" else "paused"
-        await conn.execute(
-            "UPDATE copy_trade_tasks SET status = $1, updated_at = NOW() WHERE id = $2",
-            new_status, task_id,
-        )
-    return new_status
+    return row["status"] if row else None

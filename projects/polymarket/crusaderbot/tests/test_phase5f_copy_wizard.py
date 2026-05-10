@@ -359,10 +359,10 @@ def test_14_delete_task_returns_true_when_deleted():
 
 
 def test_15_toggle_pause_active_becomes_paused():
-    status_row = MagicMock()
-    status_row.__getitem__ = MagicMock(return_value="active")
-    pool, conn = _mock_pool(fetchrow_return=status_row)
-    conn.execute = AsyncMock()
+    # Atomic UPDATE CASE returns the new status directly.
+    result_row = MagicMock()
+    result_row.__getitem__ = MagicMock(return_value="paused")
+    pool, _conn = _mock_pool(fetchrow_return=result_row)
     with patch.object(repo_mod, "get_pool", return_value=pool):
         result = asyncio.run(
             repo_mod.toggle_pause(_FAKE_TASK_ID, _FAKE_USER_ID)

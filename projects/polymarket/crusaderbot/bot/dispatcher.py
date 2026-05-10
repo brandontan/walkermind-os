@@ -9,8 +9,8 @@ from telegram.ext import (
 
 from .handlers import (
     activation, admin, copy_trade, dashboard, demo_polish, emergency, onboarding,
-    positions, presets, settings as settings_handler, setup, signal_following,
-    wallet,
+    my_trades as my_trades_h, positions, presets,
+    settings as settings_handler, setup, signal_following, wallet,
 )
 from .menus.main import get_menu_route
 
@@ -126,6 +126,15 @@ def register(app: Application) -> None:
                                          pattern=r"^position:fc_ask:"))
     app.add_handler(CallbackQueryHandler(positions.force_close_confirm,
                                          pattern=r"^position:fc_(yes|no):"))
+    # Phase 5I My Trades combined view — close + history callbacks.
+    app.add_handler(CallbackQueryHandler(my_trades_h.close_ask_cb,
+                                         pattern=r"^mytrades:close_ask:"))
+    app.add_handler(CallbackQueryHandler(my_trades_h.close_confirm_cb,
+                                         pattern=r"^mytrades:close_(yes|no):"))
+    app.add_handler(CallbackQueryHandler(my_trades_h.history_cb,
+                                         pattern=r"^mytrades:hist:"))
+    app.add_handler(CallbackQueryHandler(my_trades_h.back_cb,
+                                         pattern=r"^mytrades:back$"))
     app.add_handler(CallbackQueryHandler(emergency.emergency_callback,
                                          pattern=r"^emergency:"))
     app.add_handler(CallbackQueryHandler(admin.admin_callback,  pattern=r"^admin:"))
