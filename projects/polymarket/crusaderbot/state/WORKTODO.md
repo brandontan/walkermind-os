@@ -1,13 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-10 13:43
+**Last Updated:** 2026-05-10 15:00
 
 ---
 
 ## Right Now
 
-- Phase 5F — Copy Task setup wizard + per-task edit wizard. Next active lane. Unblocked by Phase 5E merge (PR #930). Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
+- Phase 5I My Trades combined view — PR open, awaiting WARP🔹CMD review (STANDARD). After merge: Phase 5F Copy Task wizard. Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
 
 ---
 
@@ -58,8 +58,10 @@ Done condition: Phase 4A-4C merged with USE_REAL_CLOB default False (paper-safe)
 - [x] Phase 5C -- Strategy preset system -- MERGED PR #925 (2026-05-10), MAJOR, WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100. 3 presets (signal_sniper / value_hunter / full_auto), DB migration 016, paper-only activation enforced. 814/814 tests green.
 - [x] Phase 5D -- 2-column grid + Copy/Auto Trade menu split -- MERGED PR #928 (2026-05-10), STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
 - [x] Phase 5E -- Copy Trade dashboard + wallet discovery -- MERGED PR #930 (2026-05-10), MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
+- [ ] Phase 5I -- My Trades combined view -- PR open for WARP🔹CMD review (STANDARD, NARROW INTEGRATION). Combined positions + activity message, per-position close with confirmation (paper mode), full history pagination 10/page, 2-col keyboard grid, 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
+- [ ] Phase 5F -- Copy Task setup wizard + per-task edit wizard. Next after Phase 5I merge.
 
-Done condition: Phase 5A-5D merged. Phase 5E next. No activation guard or risk gate constant changes; preset surface is paper-only; live activation requires Dashboard 2FA-gated toggle.
+Done condition: Phase 5A-5E + 5I merged. Phase 5F next. No activation guard or risk gate constant changes; preset surface is paper-only; live activation requires Dashboard 2FA-gated toggle.
 
 ---
 
