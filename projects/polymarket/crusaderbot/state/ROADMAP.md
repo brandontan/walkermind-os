@@ -7,7 +7,7 @@
 ## Build Path (Replit → Claude Code MVP)
 
 | Lane | Name | Status | Tier | Notes |
-|---|---|---|---|---|
+|---|---|---|---|
 | R1 | Skeleton — FastAPI + DB + Redis + Telegram polling + migrations | ✅ Done | STANDARD | Merged via PR #852, SENTINEL PASS |
 | R2 | User onboarding + HD wallet generation | ✅ Done | STANDARD | Merged via PR #852, SENTINEL PASS |
 | R3 | Operator allowlist (Tier 2 access gate) | ✅ Done | STANDARD | Merged via PR #852, SENTINEL PASS |
@@ -144,5 +144,7 @@ Done condition: Phase 4A–4C merged with USE_REAL_CLOB default False (paper-saf
 | Phase 5C | Strategy preset system | ✅ Done | MAJOR | Merged PR #925 (2026-05-10), WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100 |
 | Phase 5D | 2-column grid + Copy/Auto Trade menu split | ✅ Done | STANDARD | Merged PR #928 (2026-05-10) |
 | Phase 5E | Copy Trade dashboard + wallet discovery | ✅ Done | MAJOR | Merged PR #930 (2026-05-10), WARP/CRUSADERBOT-PHASE5E-COPY-TRADE, NARROW INTEGRATION, 24 hermetic tests, migration 018 |
+| Phase 5F | Copy Trade setup wizard + per-task edit | ✅ Done | MAJOR | Merged PR #935 (2026-05-10), NARROW INTEGRATION, 3-step wizard + ConversationHandler 5 states + CRUD, 33 hermetic tests |
+| Phase 5I | My Trades combined view | 🔄 In Progress | STANDARD | PR open for WARP🔹CMD review, NARROW INTEGRATION, 13 hermetic tests |
 
-Done condition: Phase 5A–5E merged with no activation guard changes. Phase 5F is the next active lane. Runtime posture: PAPER ONLY, USE_REAL_CLOB default False, all guards NOT SET.
+Done condition: Phase 5A–5F merged with no activation guard changes. Phase 5I open PR pending WARP🔹CMD review. Runtime posture: PAPER ONLY, USE_REAL_CLOB default False, all guards NOT SET.
