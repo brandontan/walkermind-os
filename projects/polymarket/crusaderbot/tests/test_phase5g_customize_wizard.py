@@ -296,6 +296,10 @@ def test_save_new_activation_writes_db(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
     update_settings, set_auto_trade, set_paused = _patch_writes(monkeypatch)
+    monkeypatch.setattr(
+        h, "get_settings_for",
+        AsyncMock(return_value={"trading_mode": "paper"}),
+    )
 
     wz = {
         "preset_key": "signal_sniper", "is_new_activation": True,
@@ -320,6 +324,35 @@ def test_save_new_activation_writes_db(monkeypatch):
     set_paused.assert_awaited_once_with(uid, False)
     # wizard state cleared
     assert "customize_wz" not in ctx.user_data
+
+
+def test_save_new_activation_blocked_in_live_mode(monkeypatch):
+    uid = uuid4()
+    _patch_tier(monkeypatch, uid)
+    update_settings, set_auto_trade, _ = _patch_writes(monkeypatch)
+    monkeypatch.setattr(
+        h, "get_settings_for",
+        AsyncMock(return_value={"trading_mode": "live"}),
+    )
+
+    wz = {
+        "preset_key": "signal_sniper", "is_new_activation": True,
+        "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
+        "custom_field": None,
+    }
+    update = _make_cq_update("customize:save")
+    ctx = _make_ctx(wz)
+
+    result = asyncio.run(h.step_save(update, ctx))
+
+    assert result == ConversationHandler.END
+    # Must NOT activate auto-trade in live mode
+    set_auto_trade.assert_not_awaited()
+    update_settings.assert_not_awaited()
+    # Error message shown
+    update.callback_query.message.reply_text.assert_awaited_once()
+    msg = update.callback_query.message.reply_text.call_args[0][0]
+    assert "live" in msg.lower()
 
 
 def test_save_edit_only_writes_settings_not_activation(monkeypatch):

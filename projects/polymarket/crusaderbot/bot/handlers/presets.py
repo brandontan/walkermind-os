@@ -731,6 +731,16 @@ async def step_save(
                     "🔒 Account locked. Contact an operator to unlock.",
                 )
             return ConversationHandler.END
+        s = await get_settings_for(user["id"])
+        if s.get("trading_mode") == "live":
+            if q.message:
+                await q.message.reply_text(
+                    "⚠️ Live trading is active. Live preset activation is not yet "
+                    "supported — switch to paper mode in /settings, or use the "
+                    "Dashboard auto-trade toggle which runs the live activation "
+                    "checklist.",
+                )
+            return ConversationHandler.END
         await update_settings(
             user["id"],
             active_preset=p.key,
