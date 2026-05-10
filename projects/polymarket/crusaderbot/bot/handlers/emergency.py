@@ -29,7 +29,7 @@ from telegram.ext import ContextTypes
 from ... import audit
 from ...database import get_pool
 from ...domain.positions import registry as position_registry
-from ...users import set_paused, upsert_user
+from ...users import set_locked, set_paused, upsert_user
 from ..keyboards import emergency_confirm, emergency_feedback, emergency_menu
 
 logger = logging.getLogger(__name__)
@@ -181,6 +181,7 @@ async def emergency_callback(update: Update,
 
         elif action == "lock":
             await set_paused(user["id"], True)
+            await set_locked(user["id"], True)
             await audit.write(
                 actor_role="user", action="self_lock_account", user_id=user["id"],
             )

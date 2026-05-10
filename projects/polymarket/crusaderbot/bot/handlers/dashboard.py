@@ -276,6 +276,9 @@ async def autotrade_toggle_cb(update: Update,
     if await autotrade_toggle_pending_confirm(update, ctx):
         return
     new_state = not user["auto_trade_on"]
+    if new_state and user.get("locked", False):
+        await q.answer("Account locked. Contact an operator to unlock.", show_alert=True)
+        return
     await set_auto_trade(user["id"], new_state)
     await q.message.reply_text(
         f"Auto-trade is now *{'ON' if new_state else 'OFF'}*.",

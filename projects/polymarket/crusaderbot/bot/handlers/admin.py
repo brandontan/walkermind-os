@@ -555,6 +555,47 @@ async def resume_command(update: Update,
 
 
 # --------------------------------------------------------------------------
+# /unlock — per-user account lock release
+# --------------------------------------------------------------------------
+
+async def unlock_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """``/unlock @username`` — operator command to release a user account lock."""
+    if not _is_operator(update) or update.message is None:
+        await _reject_silently(update)
+        return
+    args = ctx.args or []
+    if not args:
+        await update.message.reply_text(
+            "Usage: `/unlock @username` or `/unlock <telegram_user_id>`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    target = args[0]
+    user = None
+    if target.startswith("@"):
+        user = await get_user_by_username(target)
+    else:
+        try:
+            from ...users import get_user_by_telegram_id
+            user = await get_user_by_telegram_id(int(target))
+        except ValueError:
+            user = None
+    if user is None:
+        await update.message.reply_text(f"User {target} not found.")
+        return
+    from ...users import set_locked
+    await set_locked(user["id"], False)
+    await audit.write(
+        actor_role="operator", action="operator_unlock", user_id=user["id"],
+    )
+    await update.message.reply_text(f"🔓 {target} unlocked.")
+    await notifications.send(
+        user["telegram_user_id"],
+        "🔓 Your account has been unlocked by an operator. You can resume trading.",
+    )
+
+
+# --------------------------------------------------------------------------
 # /jobs
 # --------------------------------------------------------------------------
 
