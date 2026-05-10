@@ -60,8 +60,9 @@ Done condition: Phase 4A-4C merged with USE_REAL_CLOB default False (paper-safe)
 - [x] Phase 5E -- Copy Trade dashboard + wallet discovery -- MERGED PR #930 (2026-05-10), MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
 - [ ] Phase 5I -- My Trades combined view -- PR open for WARP🔹CMD review (STANDARD, NARROW INTEGRATION). Combined positions + activity message, per-position close with confirmation (paper mode), full history pagination 10/page, 2-col keyboard grid, 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
 - [x] Phase 5F -- Copy Trade setup wizard + per-task edit -- MERGED PR #935 (2026-05-10), MAJOR, NARROW INTEGRATION, 3-step wizard, ConversationHandler 5 states, CRUD, 33 hermetic tests.
+- [ ] Phase 5H -- First-time onboarding flow -- PR open for WARP🔹CMD review (STANDARD). ConversationHandler 5 states, migration 019 (onboarding_complete), QR code, 18 hermetic tests.
 
-Done condition: Phase 5A-5F merged. Phase 5I PR open for WARP🔹CMD review. No activation guard or risk gate constant changes; preset surface is paper-only; live activation requires Dashboard 2FA-gated toggle.
+Done condition: Phase 5A-5F merged. Phase 5H + 5I PRs open for WARP🔹CMD review. No activation guard or risk gate constant changes; preset surface is paper-only; live activation requires Dashboard 2FA-gated toggle.
 
 ---
 

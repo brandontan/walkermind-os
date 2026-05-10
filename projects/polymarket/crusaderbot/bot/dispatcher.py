@@ -58,8 +58,11 @@ async def _global_error_handler(update: object, ctx) -> None:
 
 
 def register(app: Application) -> None:
+    # Onboarding ConversationHandler — must be first so /start is intercepted
+    # before any standalone CommandHandler("start", ...) could match.
+    app.add_handler(onboarding.build_onboard_handler())
+
     # Command handlers
-    app.add_handler(CommandHandler("start", onboarding.start_handler))
     app.add_handler(CommandHandler("help", onboarding.help_handler))
     app.add_handler(CommandHandler("menu", onboarding.menu_handler))
     # Demo-polish surface — investor-facing, read-only, no guard mutations.
