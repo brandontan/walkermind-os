@@ -94,6 +94,14 @@ async def set_paused(user_id: UUID, paused: bool) -> None:
         )
 
 
+async def set_locked(user_id: UUID, locked: bool) -> None:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET locked=$2 WHERE id=$1", user_id, locked,
+        )
+
+
 async def get_settings_for(user_id: UUID) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:

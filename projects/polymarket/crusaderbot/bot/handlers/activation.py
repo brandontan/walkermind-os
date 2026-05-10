@@ -233,6 +233,12 @@ async def text_input(
         )
         return True
     if awaiting == AWAITING_LIVE_CONFIRM:
+        if user.get("locked", False):
+            await update.message.reply_text(
+                "🔒 Account locked. Contact an operator to unlock.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return True
         await set_auto_trade(user["id"], True)
         await update.message.reply_text(
             "🟢 Auto-trade is now *ON* in *LIVE* mode. Existing risk "

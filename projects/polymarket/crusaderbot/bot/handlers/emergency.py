@@ -1,4 +1,4 @@
-"""Emergency menu — pause / pause+close-all (per-user).
+"""Emergency menu — pause / pause+close-all / lock (per-user).
 
 Per spec: emergency close uses the FORCE-CLOSE MARKER FLOW rather than
 liquidating directly. We set `force_close_intent=true` on each open position
@@ -13,6 +13,9 @@ open position. Mirrors the user-wide variant in domain.positions.registry —
 idempotent (already-set rows return 0) and ownership-checked at the SQL layer
 (``user_id = $2``) so a leaked or stale callback cannot mark someone else's
 position.
+
+Phase 5J: redesigned with action descriptions, per-action confirmation dialogs,
+and post-action feedback with nav buttons.
 """
 from __future__ import annotations
 
@@ -26,10 +29,48 @@ from telegram.ext import ContextTypes
 from ... import audit
 from ...database import get_pool
 from ...domain.positions import registry as position_registry
-from ...users import set_paused, upsert_user
-from ..keyboards import emergency_menu
+from ...users import set_locked, set_paused, upsert_user
+from ..keyboards import emergency_confirm, emergency_feedback, emergency_menu
 
 logger = logging.getLogger(__name__)
+
+_EMERGENCY_INTRO = (
+    "*🚨 Emergency Controls*\n"
+    "_These actions take effect immediately._\n\n"
+    "⏸ *Pause Auto-Trade* — Stop new trades. Keep open positions.\n"
+    "🛑 *Pause + Close All* — Stop trading AND close every position at market.\n"
+    "🔒 *Lock Account* — Freeze everything. Requires operator unlock."
+)
+
+_CONFIRM_TEXT: dict[str, str] = {
+    "pause": (
+        "*Confirm: Pause Auto-Trade?*\n"
+        "This will stop all new trades immediately.\n"
+        "Open positions will remain active."
+    ),
+    "pause_close": (
+        "*Confirm: Pause + Close All?*\n"
+        "This will stop trading AND mark every open position for force-close.\n"
+        "Positions close at market on the next exit watcher tick."
+    ),
+    "lock": (
+        "*Confirm: Lock Account?*\n"
+        "This will freeze all trading immediately.\n"
+        "Your account must be unlocked by an operator to resume."
+    ),
+}
+
+_FEEDBACK_TEXT: dict[str, str] = {
+    "pause": (
+        "⏸ Auto-Trade paused.\n"
+        "Open positions are still active.\n"
+        "Resume anytime from Auto-Trade menu."
+    ),
+    "lock": (
+        "🔒 Account locked.\n"
+        "All trading is frozen. Contact an operator to unlock."
+    ),
+}
 
 
 async def mark_force_close_intent_for_position(
@@ -68,7 +109,7 @@ async def emergency_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     if update.message is None:
         return
     await update.message.reply_text(
-        "*🛑 Emergency*\n\nUse with care. All actions are audited.",
+        _EMERGENCY_INTRO,
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=emergency_menu(),
     )
@@ -80,34 +121,71 @@ async def emergency_callback(update: Update,
     if q is None or update.effective_user is None:
         return
     await q.answer()
-    user = await upsert_user(update.effective_user.id, update.effective_user.username)
     sub = (q.data or "").split(":", 1)[-1]
 
-    if sub == "pause":
-        await set_paused(user["id"], True)
-        await audit.write(actor_role="user", action="self_pause", user_id=user["id"])
-        await q.message.reply_text("⏸ Paused — no new trades will be opened.")
-    elif sub == "resume":
-        await set_paused(user["id"], False)
-        await audit.write(actor_role="user", action="self_resume", user_id=user["id"])
-        await q.message.reply_text("▶️ Resumed.")
-    elif sub == "pause_close":
-        await set_paused(user["id"], True)
-        marked = await position_registry.mark_force_close_intent_for_user(
-            user["id"],
-        )
-        await audit.write(actor_role="user", action="self_pause_close",
-                          user_id=user["id"],
-                          payload={"marked_force_close_intent": marked})
-        # Drain the priority chain immediately so the user sees results now
-        # instead of waiting for the next EXIT_WATCH_INTERVAL tick.
-        try:
-            from ...scheduler import check_exits
-            await check_exits()
-        except Exception as exc:
-            logger.error("emergency inline check_exits failed: %s", exc)
-        await q.message.reply_text(
-            f"🛑 Paused + flagged {marked} position(s) for force-close.\n"
-            "Exit watcher just ran — see your dashboard for results.",
+    # Step 1 — show confirmation dialog
+    if sub in ("pause", "pause_close", "lock"):
+        await q.edit_message_text(
+            _CONFIRM_TEXT[sub],
             parse_mode=ParseMode.MARKDOWN,
+            reply_markup=emergency_confirm(sub),
         )
+        return
+
+    # Back / cancel — return to intro menu
+    if sub in ("cancel", "back"):
+        await q.edit_message_text(
+            _EMERGENCY_INTRO,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=emergency_menu(),
+        )
+        return
+
+    # Step 2 — confirmed; execute action
+    if sub.startswith("confirm:"):
+        action = sub.split(":", 1)[-1]
+        user = await upsert_user(
+            update.effective_user.id, update.effective_user.username,
+        )
+
+        if action == "pause":
+            await set_paused(user["id"], True)
+            await audit.write(
+                actor_role="user", action="self_pause", user_id=user["id"],
+            )
+            await q.edit_message_text(
+                _FEEDBACK_TEXT["pause"],
+                reply_markup=emergency_feedback(),
+            )
+
+        elif action == "pause_close":
+            await set_paused(user["id"], True)
+            marked = await position_registry.mark_force_close_intent_for_user(
+                user["id"],
+            )
+            await audit.write(
+                actor_role="user", action="self_pause_close",
+                user_id=user["id"],
+                payload={"marked_force_close_intent": marked},
+            )
+            try:
+                from ...scheduler import check_exits
+                await check_exits()
+            except Exception as exc:
+                logger.error("emergency inline check_exits failed: %s", exc)
+            await q.edit_message_text(
+                f"🛑 Paused + flagged {marked} position(s) for force-close.\n"
+                "Exit watcher just ran — see your dashboard for results.",
+                reply_markup=emergency_feedback(),
+            )
+
+        elif action == "lock":
+            await set_paused(user["id"], True)
+            await set_locked(user["id"], True)
+            await audit.write(
+                actor_role="user", action="self_lock_account", user_id=user["id"],
+            )
+            await q.edit_message_text(
+                _FEEDBACK_TEXT["lock"],
+                reply_markup=emergency_feedback(),
+            )
