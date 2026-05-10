@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-10 13:43
+**Last Updated:** 2026-05-10 17:44
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -145,6 +145,6 @@ Done condition: Phase 4A–4C merged with USE_REAL_CLOB default False (paper-saf
 | Phase 5D | 2-column grid + Copy/Auto Trade menu split | ✅ Done | STANDARD | Merged PR #928 (2026-05-10) |
 | Phase 5E | Copy Trade dashboard + wallet discovery | ✅ Done | MAJOR | Merged PR #930 (2026-05-10), WARP/CRUSADERBOT-PHASE5E-COPY-TRADE, NARROW INTEGRATION, 24 hermetic tests, migration 018 |
 | Phase 5F | Copy Trade setup wizard + per-task edit | ✅ Done | MAJOR | Merged PR #935 (2026-05-10), NARROW INTEGRATION, 3-step wizard + ConversationHandler 5 states + CRUD, 33 hermetic tests |
-| Phase 5I | My Trades combined view | 🔄 In Progress | STANDARD | PR open for WARP🔹CMD review, NARROW INTEGRATION, 13 hermetic tests |
+| Phase 5I | My Trades combined view | ✅ Done | STANDARD | Merged PR #934 (2026-05-10), NARROW INTEGRATION, 13 hermetic tests |
 
-Done condition: Phase 5A–5F merged with no activation guard changes. Phase 5I open PR pending WARP🔹CMD review. Runtime posture: PAPER ONLY, USE_REAL_CLOB default False, all guards NOT SET.
+Done condition: Phase 5A–5I merged with no activation guard changes. Runtime posture: PAPER ONLY, USE_REAL_CLOB default False, all guards NOT SET.

@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 21:00
-Status       : Phase 5G Auto-Trade customize wizard FORGE complete — PR open for WARP🔹CMD review (STANDARD). Phase 5H onboarding and Phase 5I My Trades PRs also open (STANDARD). Hotfix qrcode dependency PR open (MINOR) — adds qrcode[pil] to pyproject.toml so Phase 5H import resolves in Docker image. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 17:44
+Status       : Phase 5G customize wizard (PR #938), Phase 5H onboarding (PR #937), hotfix qrcode dependency (PR #939), and Phase 5I My Trades (PR #934) are merged. Post-merge state sync complete; no open PRs in this lane set. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - R12 final Fly.io production paper deploy -- Issue #900 closed; production paper deploy complete.
@@ -15,10 +15,7 @@ Status       : Phase 5G Auto-Trade customize wizard FORGE complete — PR open f
 - Phase 5F Copy Trade wizard + per-task edit -- PR #935 merged, MAJOR, NARROW INTEGRATION. 3-step wizard, per-task edit, ConversationHandler 5 states, repository CRUD (toggle_pause atomic), 33 hermetic tests. P1 fixes applied (atomicity + user_id guard + asyncio.run() test pattern).
 
 [IN PROGRESS]
-- Phase 5G Auto-Trade customize wizard -- PR open (STANDARD, WARP🔹CMD review, no SENTINEL required). 5-step ConversationHandler wizard (capital, TP, SL, skip, review), custom input with validation, back/cancel at every step, save writes DB, 22 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/customize-wizard.md.
-- Phase 5I My Trades combined view -- PR open (STANDARD, WARP🔹CMD review, no SENTINEL required). Handler rewrite: combined positions + activity message, per-position close with confirmation, full history pagination, 2-col keyboard grid. 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
-- Phase 5H first-time onboarding flow -- PR open (STANDARD, WARP🔹CMD review, no SENTINEL required). ConversationHandler 5 states (WELCOME/FAQ/WALLET/STYLE/DEPOSIT), onboarding_complete flag (migration 019), QR code via qrcode[pil], 18 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5h-onboarding.md.
-- Hotfix qrcode dependency -- PR open (MINOR, WARP🔹CMD review, no SENTINEL required). Adds "qrcode[pil]>=7.4.2" to projects/polymarket/crusaderbot/pyproject.toml [project.dependencies] so Phase 5H `import qrcode` resolves in the Fly.io Docker image (Dockerfile installs from pyproject.toml). No code changes outside the manifest. Report: projects/polymarket/crusaderbot/reports/forge/hotfix-qrcode-dep.md.
+- Post-merge state sync lane (PRs #937/#938/#939 + PR #934 verification) in progress: state artifacts updated to remove stale open-PR wording and align roadmap/worktodo/changelog with merged truth. No runtime or activation-guard changes.
 
 [NOT STARTED]
 - Phase 5G copy execution engine -- reads copy_trade_tasks rows with status=active to drive actual position mirroring; no live trading. (Phase 5G UX wizard shipped separately above.)
@@ -32,10 +29,7 @@ Status       : Phase 5G Auto-Trade customize wizard FORGE complete — PR open f
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for Phase 5G PR (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/customize-wizard.md. Tier: STANDARD.
-- WARP🔹CMD review required for Phase 5H PR (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5h-onboarding.md. Tier: STANDARD.
-- WARP🔹CMD review required for Phase 5I PR (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md. Tier: STANDARD.
-- WARP🔹CMD review required for qrcode dependency hotfix PR (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/hotfix-qrcode-dep.md. Tier: MINOR.
+- WARP🔹CMD review: post-merge state sync lane on WARP/crusaderbot-post-merge-state-sync (MINOR, FOUNDATION). Source report: projects/polymarket/crusaderbot/reports/forge/post-merge-state-sync.md.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]

@@ -1,13 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-10 15:00
+**Last Updated:** 2026-05-10 17:44
 
 ---
 
 ## Right Now
 
-- Phase 5I My Trades combined view — PR open, awaiting WARP🔹CMD review (STANDARD). Phase 5F Copy Trade wizard merged PR #935 (MAJOR). Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
+- Phase 5G (#938), Phase 5H (#937), hotfix qrcode dependency (#939), and Phase 5I (#934) are merged; post-merge state sync lane active for repo-truth cleanup only. Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
 
 ---
 
@@ -58,11 +58,11 @@ Done condition: Phase 4A-4C merged with USE_REAL_CLOB default False (paper-safe)
 - [x] Phase 5C -- Strategy preset system -- MERGED PR #925 (2026-05-10), MAJOR, WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100. 3 presets (signal_sniper / value_hunter / full_auto), DB migration 016, paper-only activation enforced. 814/814 tests green.
 - [x] Phase 5D -- 2-column grid + Copy/Auto Trade menu split -- MERGED PR #928 (2026-05-10), STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
 - [x] Phase 5E -- Copy Trade dashboard + wallet discovery -- MERGED PR #930 (2026-05-10), MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
-- [ ] Phase 5I -- My Trades combined view -- PR open for WARP🔹CMD review (STANDARD, NARROW INTEGRATION). Combined positions + activity message, per-position close with confirmation (paper mode), full history pagination 10/page, 2-col keyboard grid, 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
+- [x] Phase 5I -- My Trades combined view -- MERGED PR #934 (2026-05-10), STANDARD, NARROW INTEGRATION. Combined positions + activity message, per-position close with confirmation (paper mode), full history pagination 10/page, 2-col keyboard grid, 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
 - [x] Phase 5F -- Copy Trade setup wizard + per-task edit -- MERGED PR #935 (2026-05-10), MAJOR, NARROW INTEGRATION, 3-step wizard, ConversationHandler 5 states, CRUD, 33 hermetic tests.
-- [ ] Phase 5H -- First-time onboarding flow -- PR open for WARP🔹CMD review (STANDARD). ConversationHandler 5 states, migration 019 (onboarding_complete), QR code, 18 hermetic tests.
+- [x] Phase 5H -- First-time onboarding flow -- MERGED PR #937 (2026-05-10), STANDARD. ConversationHandler 5 states, migration 019 (onboarding_complete), QR code, 18 hermetic tests.
 
-Done condition: Phase 5A-5F merged. Phase 5H + 5I PRs open for WARP🔹CMD review. No activation guard or risk gate constant changes; preset surface is paper-only; live activation requires Dashboard 2FA-gated toggle.
+Done condition: Phase 5A-5I merged. No activation guard or risk gate constant changes; preset surface is paper-only; live activation requires Dashboard 2FA-gated toggle.
 
 ---
 
