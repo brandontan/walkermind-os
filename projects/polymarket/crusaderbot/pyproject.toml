@@ -20,6 +20,8 @@ dependencies = [
     "tenacity>=8.2",
     "eth-account>=0.10",
     "sentry-sdk[fastapi]>=2.0",
+    # Phase 5H onboarding — wallet QR code generation in bot/handlers/onboarding.py.
+    "qrcode[pil]>=7.4.2",
     # Phase 4D — push-based fill streaming over wss://ws-subscriptions-clob.polymarket.com.
     "websockets>=12.0,<14.0",
     # Test-only — listed here (not in a separate test extra) because the
