@@ -118,6 +118,14 @@ async def get_settings_for(user_id: UUID) -> dict:
     return dict(row)
 
 
+async def set_onboarding_complete(user_id: UUID, complete: bool = True) -> None:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET onboarding_complete=$2 WHERE id=$1", user_id, complete,
+        )
+
+
 async def update_settings(user_id: UUID, **fields) -> None:
     if not fields:
         return
