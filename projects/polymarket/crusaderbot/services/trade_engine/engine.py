@@ -94,7 +94,7 @@ class TradeResult:
     position_id: Optional[UUID]
     rejection_reason: Optional[str]
     failed_gate_step: Optional[int]
-    # chosen_mode resolved by the risk gate; equals mode when approved
+    # chosen_mode: actual execution mode from the router (equals mode when approved)
     chosen_mode: Optional[str] = None
 
 
@@ -166,6 +166,12 @@ class TradeEngine:
         raw_order_id = raw.get("order_id")
         raw_position_id = raw.get("position_id")
 
+        # Use the router's actual execution mode as chosen_mode so the field
+        # reflects what ran rather than what the gate decided (they diverge if
+        # the router downgrades live→paper when guards flip between gate and
+        # router evaluation).
+        actual_mode = raw.get("mode") or gate_result.chosen_mode
+
         return TradeResult(
             approved=True,
             mode=out_mode,
@@ -173,7 +179,7 @@ class TradeEngine:
             position_id=UUID(str(raw_position_id)) if raw_position_id else None,
             rejection_reason=None,
             failed_gate_step=None,
-            chosen_mode=gate_result.chosen_mode,
+            chosen_mode=actual_mode,
         )
 
     # ------------------------------------------------------------------
