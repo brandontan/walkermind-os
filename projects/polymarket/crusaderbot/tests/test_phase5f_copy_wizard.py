@@ -315,7 +315,7 @@ def test_11_create_task_returns_copy_trade_task():
     row = _fake_db_row()
     pool, _conn = _mock_pool(fetchrow_return=row)
     with patch.object(repo_mod, "get_pool", return_value=pool):
-        task = asyncio.get_event_loop().run_until_complete(
+        task = asyncio.run(
             repo_mod.create_task(
                 user_id=_FAKE_USER_ID,
                 wallet_address=_FAKE_WALLET,
@@ -331,7 +331,7 @@ def test_11_create_task_returns_copy_trade_task():
 def test_12_get_task_returns_none_when_not_found():
     pool, _conn = _mock_pool(fetchrow_return=None)
     with patch.object(repo_mod, "get_pool", return_value=pool):
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             repo_mod.get_task(_FAKE_TASK_ID, _FAKE_USER_ID)
         )
     assert result is None
@@ -341,7 +341,7 @@ def test_13_update_task_raises_for_unknown_field():
     pool, _conn = _mock_pool()
     with patch.object(repo_mod, "get_pool", return_value=pool):
         with pytest.raises(ValueError, match="Unknown fields"):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 repo_mod.update_task(
                     _FAKE_TASK_ID, _FAKE_USER_ID, nonexistent_field="x",
                 )
@@ -352,7 +352,7 @@ def test_14_delete_task_returns_true_when_deleted():
     fake_row = MagicMock()
     pool, _conn = _mock_pool(fetchrow_return=fake_row)
     with patch.object(repo_mod, "get_pool", return_value=pool):
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             repo_mod.delete_task(_FAKE_TASK_ID, _FAKE_USER_ID)
         )
     assert result is True
@@ -364,7 +364,7 @@ def test_15_toggle_pause_active_becomes_paused():
     pool, conn = _mock_pool(fetchrow_return=status_row)
     conn.execute = AsyncMock()
     with patch.object(repo_mod, "get_pool", return_value=pool):
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             repo_mod.toggle_pause(_FAKE_TASK_ID, _FAKE_USER_ID)
         )
     assert result == "paused"
@@ -376,7 +376,7 @@ def test_15_toggle_pause_active_becomes_paused():
 
 
 def run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 def test_16_wizard_enter_copy_renders_step1():
