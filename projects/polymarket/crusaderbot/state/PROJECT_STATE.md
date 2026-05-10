@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 09:30 Asia/Jakarta
-Status       : Phase 5E WARP•FORGE PR open — Copy Trade dashboard + wallet discovery. SENTINEL MAJOR audit required before merge. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 17:45 Asia/Jakarta
+Status       : Phase 5A–5D + Phase 5J emergency redesign all merged. Phase 5E Copy Trade dashboard PR #930 open (MAJOR, SENTINEL required). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - Phase 4A CLOB Adapter -- PR #911 merged, MAJOR, SENTINEL APPROVED 89/100, branch WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER.
@@ -18,9 +18,10 @@ Status       : Phase 5E WARP•FORGE PR open — Copy Trade dashboard + wallet d
 - Phase 5B dashboard hierarchy redesign -- PR #926 merged, STANDARD, declared WARP/CRUSADERBOT-PHASE5B-DASHBOARD, SENTINEL APPROVED 97/100. Single-message hierarchy, four sections, /start routing for existing Tier 2+ users.
 - SENTINEL report Phase 5B + 5C -- PR #927 merged. Report: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md.
 - Phase 5D 2-column grid + Copy/Auto Trade menu split -- PR #928 merged, STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
+- Phase 5J emergency menu redesign -- PR #932 merged, STANDARD, WARP•SENTINEL APPROVED 90/100 (0 criticals). Lock Account DB-enforced (migration 017), /unlock operator command, confirmation dialogs, 13 hermetic tests.
 
 [IN PROGRESS]
-- Phase 5E -- Copy Trade dashboard + wallet discovery. WARP•FORGE PR open on WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. SENTINEL MAJOR audit required before merge.
+- Phase 5E -- Copy Trade dashboard + wallet discovery. PR #930 open on WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. SENTINEL MAJOR audit required before merge. Migration 018, 24 hermetic tests, retry+backoff on wallet stats fetch.
 
 [NOT STARTED]
 - Phase 5F -- Copy Task setup wizard + per-task edit wizard (next after Phase 5E merge).
@@ -49,4 +50,4 @@ Status       : Phase 5E WARP•FORGE PR open — Copy Trade dashboard + wallet d
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 
-<!-- CD verify: 2026-05-10 02:59 -->
+<!-- CD verify: 2026-05-10 17:45 -->
