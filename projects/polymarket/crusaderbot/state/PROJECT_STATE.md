@@ -1,47 +1,47 @@
-Last Updated : 2026-05-10 17:44
-Status       : Phase 5G customize wizard (PR #938), Phase 5H onboarding (PR #937), hotfix qrcode dependency (PR #939), and Phase 5I My Trades (PR #934) are merged. Post-merge state sync complete; no open PRs in this lane set. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 21:30
+Status       : Fast Track roadmap selected by Mr. Walker. CrusaderBot is live on Fly.io in PAPER ONLY mode after Phase 5 UX redesign and asyncpg Supabase pooler hotfix. Post-merge sync lane is closed; no open PRs. Current active lane is Fast Track Week 1 preparation: Track A trade engine + TP/SL is next, but activation guards remain NOT SET and no live trading is enabled.
 
 [COMPLETED]
-- R12 final Fly.io production paper deploy -- Issue #900 closed; production paper deploy complete.
-- Phase 4E CLOB Resilience -- PR #919 merged, MAJOR, FULL RUNTIME INTEGRATION, SENTINEL APPROVED 94/100, branch WARP/CRUSADERBOT-PHASE4E-RESILIENCE.
-- asyncpg + Supabase Supavisor fix -- PR #923 merged, MINOR, branch WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX. Resolves Sentry DAWN-SNOWFLAKE-1729-G/J/P/Q. 822/822 tests green.
-- Phase 5A global-handlers -- PR #924 merged, MINOR, declared WARP/CRUSADERBOT-PHASE5A-GLOBAL-HANDLERS. _text_router priority fix, 5-button main menu, /settings command, my_trades view. 784/784 tests green.
-- Phase 5C strategy preset system -- PR #925 merged, MAJOR, branch WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100. 3 presets (signal_sniper / value_hunter / full_auto), DB migration 016, paper-only activation enforced. 814/814 tests green.
-- Phase 5B dashboard hierarchy redesign -- PR #926 merged, STANDARD, declared WARP/CRUSADERBOT-PHASE5B-DASHBOARD, SENTINEL APPROVED 97/100. Single-message hierarchy, four sections, /start routing for existing Tier 2+ users.
-- SENTINEL report Phase 5B + 5C -- PR #927 merged. Report: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md.
-- Phase 5D 2-column grid + Copy/Auto Trade menu split -- PR #928 merged, STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
-- Phase 5J emergency menu redesign -- PR #932 merged, STANDARD, WARP•SENTINEL APPROVED 90/100 (0 criticals). Lock Account DB-enforced (migration 017), /unlock operator command, confirmation dialogs, 13 hermetic tests.
-- Phase 5E Copy Trade dashboard + wallet discovery -- PR #930 merged, MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + 5-min cache + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
-- Phase 5F Copy Trade wizard + per-task edit -- PR #935 merged, MAJOR, NARROW INTEGRATION. 3-step wizard, per-task edit, ConversationHandler 5 states, repository CRUD (toggle_pause atomic), 33 hermetic tests. P1 fixes applied (atomicity + user_id guard + asyncio.run() test pattern).
+- Phase 1 project restructure complete.
+- Phase 2 wallet + deposit foundation complete.
+- Phase 3 strategy registry + signals complete.
+- Phase 4 real CLOB integration complete through Phase 4A-4E; live path remains guarded, USE_REAL_CLOB default False, and production is paper-safe.
+- Phase 4 hotfix asyncpg + Supabase Supavisor complete via PR #923; statement_cache_size=0 prevents prepared-statement cache failures on transaction pooler.
+- Phase 5 Telegram Auto-Trade UX complete through 5A-5J: global handlers, dashboard hierarchy, presets, 2-column menu, Copy Trade dashboard/wizard/edit, customize wizard, onboarding, My Trades, Emergency lock, qrcode dependency hotfix.
+- State sync after PRs #923-#939 complete; PROJECT_STATE / ROADMAP / WORKTODO aligned to merged Phase 5 truth.
+- Fast Track roadmap selected by Mr. Walker on 2026-05-10; Standard roadmap rejected for current execution posture.
 
 [IN PROGRESS]
-- Post-merge state sync lane (PRs #937/#938/#939 + PR #934 verification) in progress: state artifacts updated to remove stale open-PR wording and align roadmap/worktodo/changelog with merged truth. No runtime or activation-guard changes.
+- Observation / runtime monitoring remains active in paper mode while Fast Track work begins.
+- Fast Track Week 1 is the active delivery path: Track A first, then Track B and Track C after Track A merge posture is valid.
+- Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
+- Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Phase 5G copy execution engine -- reads copy_trade_tasks rows with status=active to drive actual position mirroring; no live trading. (Phase 5G UX wizard shipped separately above.)
-- WARP/CRUSADERBOT-MAINNET-ONCHAIN-PREFLIGHT -- on-chain wallet, allowance, balance, and signer readiness checks complementing scripts/mainnet_preflight.py; no live trading activation and no real orders.
-- WARP/CRUSADERBOT-OPS-CIRCUIT-RESET -- operator endpoint / Telegram command to force_close the CLOB circuit breaker after incident review; no broker calls and no guard flips.
-- R13a Leaderboard -- paper P&L ranking, /leaderboard command, top 10, daily scheduler update.
-- R13b Backtesting Engine -- replay historical Polymarket data and output win rate, Sharpe ratio, max drawdown, and EV.
-- R13c Multi-Signal Fusion -- combine sentiment and on-chain volume into copy-trade signal weighting; MAJOR if strategy execution behavior changes.
-- R13d Web Dashboard (Admin) -- React + FastAPI admin views for users, positions, P&L chart, and scheduler status.
-- R13e Referral System -- referral code, referee discount, and referral accounting.
-- R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
+- Fast Track Track A -- Trade engine + TP/SL: signal fires -> risk gate -> order created -> paper position opened; TP/SL background worker auto-closes positions. MAJOR; SENTINEL required.
+- Fast Track Track B -- Copy Trade execution: active copy_trade_tasks monitor target wallets and mirror paper positions with spend/min-size caps. MAJOR; SENTINEL required; depends on Track A.
+- Fast Track Track C -- Trade notifications: entry, exit, and copy trade Telegram notifications. STANDARD; merge after Track A integration surface is available.
+- Fast Track Track D -- Risk caps + kill switch hardening: hard exposure caps, daily loss guard, max open positions, Telegram/DB/env kill paths. MAJOR; SENTINEL required.
+- Fast Track Track E -- Daily P&L report: scheduled Telegram daily summary. STANDARD.
+- Fast Track Week 2 -- Live gate + UI premium pack + charts/insights + referral/share/fee prep.
+- Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin + onboarding polish.
+- Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review: post-merge state sync lane on WARP/crusaderbot-post-merge-state-sync (MINOR, FOUNDATION). Source report: projects/polymarket/crusaderbot/reports/forge/post-merge-state-sync.md.
-- Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
+- Create WARP•FORGE issue for Fast Track Track A.
+- Dispatch WARP•FORGE Track A on branch WARP/crusaderbot-fast-trade-engine.
+- Require report at projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-engine.md and state updates in the same PR.
+- After Track A PR is ready and pre-handoff checks pass, create separate WARP•SENTINEL issue for Track A validation before merge.
+- Do not flip live activation guards during Track A.
 
 [KNOWN ISSUES]
-- /deposit has no tier gate (intentional, non-blocking).
-- check_alchemy_ws is TCP-only and does not perform a full WebSocket handshake; follow-up low priority.
-- ENABLE_LIVE_TRADING code default in config.py is True (legacy); fly.toml [env] overrides to "false" so production posture is correct. Code default alignment remains deferred to WARP/config-guard-default-alignment.
+- /deposit has no tier gate; intentional and non-blocking.
+- check_alchemy_ws is TCP-only and does not perform a full WebSocket handshake; low-priority follow-up.
+- ENABLE_LIVE_TRADING code default in config.py is True (legacy); fly.toml [env] overrides to false so production posture is correct. Code default alignment remains deferred to WARP/config-guard-default-alignment.
 - integrations/polymarket.py _build_clob_client() is dead in the live execution path after Phase 4B but still indirectly referenced by submit_live_redemption(); cleanup deferred to WARP/CRUSADERBOT-POLYMARKET-LEGACY-CLEANUP.
-- Activation guards remain NOT SET and must not be changed without owner decision.
-- R13 backlog is post-MVP growth work; none is required to keep current paper-safe runtime functional.
+- Activation guards remain NOT SET and must not be changed without explicit owner decision.
+- R13 backlog is post-MVP growth work and not required for current paper-safe runtime.
 - [DEFERRED] Concurrent HALF_OPEN trial race in CircuitBreaker._record_failure may multiply on_open invocations and restart cool-down; P2, no safety implication.
 - [DEFERRED] CLOB circuit-open Telegram alert text uses plain markdown rather than MarkdownV2; P2, acceptable for static template.
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
-
-<!-- CD verify: 2026-05-10 16:30 -->
