@@ -181,7 +181,7 @@ async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handles [🤖 Auto-Trade] [📈 Trades] [💰 Wallet] inline buttons."""
+    """Handles dashboard inline nav: [🤖 Auto-Trade] [📈 Trades] [💰 Wallet] [📊 main]."""
     q = update.callback_query
     if q is None:
         return
@@ -190,6 +190,19 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     sub = (q.data or "").split(":", 1)[-1]
     user, ok = await _ensure(update, Tier.ALLOWLISTED)
     if not ok:
+        return
+
+    if sub == "main":
+        bal = await get_balance(user["id"])
+        pnl_today = await daily_pnl(user["id"])
+        st = await _fetch_stats(user["id"])
+        text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
+        has_trades = st["total_trades"] > 0 or (st["winning"] + st["losing"]) > 0
+        await q.message.reply_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=dashboard_nav(has_trades),
+        )
         return
 
     if sub == "autotrade":

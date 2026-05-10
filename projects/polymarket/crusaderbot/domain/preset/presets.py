@@ -1,4 +1,4 @@
-"""The 5 named strategy presets.
+"""The 3 named Auto-Trade strategy presets (Phase 5D).
 
 Each preset bundles strategy selection, capital allocation, TP, SL, and
 per-position cap. Values are stored as fractions (0.50 = 50%) so they map
@@ -7,6 +7,9 @@ directly to the existing user_settings columns.
 Hard ceilings remain enforced by domain/risk/constants.py — preset values
 must never exceed the system constants. Validation is performed at module
 import time so a misconfigured preset fails the test suite, not production.
+
+Phase 5D removes whale_mirror and hybrid — Copy Trade wallet-following is
+now its own separate surface (🐋 Copy Trade menu, Phase 5E/5F).
 """
 from __future__ import annotations
 
@@ -73,18 +76,6 @@ class Preset:
 # ---------------------------------------------------------------------------
 
 PRESETS: Dict[str, Preset] = {
-    "whale_mirror": Preset(
-        key="whale_mirror",
-        emoji="🐋",
-        name="Whale Mirror",
-        strategies=("copy_trade",),
-        capital_pct=0.50,
-        tp_pct=0.20,
-        sl_pct=0.10,
-        max_position_pct=0.05,
-        badge=PresetBadge.SAFE,
-        description="Mirror top-performing wallets; one strategy, conservative size.",
-    ),
     "signal_sniper": Preset(
         key="signal_sniper",
         emoji="📡",
@@ -95,19 +86,7 @@ PRESETS: Dict[str, Preset] = {
         sl_pct=0.08,
         max_position_pct=0.05,
         badge=PresetBadge.SAFE,
-        description="Subscribe to operator signals; tight stops, frequent trades.",
-    ),
-    "hybrid": Preset(
-        key="hybrid",
-        emoji="🐋📡",
-        name="Hybrid",
-        strategies=("copy_trade", "signal"),
-        capital_pct=0.60,
-        tp_pct=0.15,
-        sl_pct=0.10,
-        max_position_pct=0.05,
-        badge=PresetBadge.BALANCED,
-        description="Combine wallet mirroring with signal feeds for broader coverage.",
+        description="Auto-trade from curated signal feeds. Lower frequency, higher conviction.",
     ),
     "value_hunter": Preset(
         key="value_hunter",
@@ -119,33 +98,31 @@ PRESETS: Dict[str, Preset] = {
         sl_pct=0.12,
         max_position_pct=0.08,
         badge=PresetBadge.ADVANCED,
-        description="Edge-based mispricing trades; fewer entries, larger targets.",
+        description="Finds mispriced markets using edge model. Higher reward, requires patience.",
     ),
     "full_auto": Preset(
         key="full_auto",
         emoji="🚀",
         name="Full Auto",
-        strategies=("copy_trade", "signal", "value"),
+        strategies=("signal", "value"),
         capital_pct=0.80,
         tp_pct=0.20,
         sl_pct=0.15,
         max_position_pct=0.10,
         badge=PresetBadge.AGGRESSIVE,
-        description="All strategies live; maximum exposure within hard risk caps.",
+        description="All signal + value strategies active. Max exposure. For experienced traders.",
     ),
 }
 
-# Display order — picker renders this top-to-bottom. Whale Mirror leads as the
-# recommended starting point for new users.
+# Display order — picker renders this top-to-bottom.
+# Signal Sniper leads as the recommended starting point for new users.
 PRESET_ORDER: Tuple[str, ...] = (
-    "whale_mirror",
     "signal_sniper",
-    "hybrid",
     "value_hunter",
     "full_auto",
 )
 
-RECOMMENDED_PRESET: str = "whale_mirror"
+RECOMMENDED_PRESET: str = "signal_sniper"
 
 
 def get_preset(key: str) -> Preset | None:

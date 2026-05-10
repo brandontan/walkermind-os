@@ -131,7 +131,7 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
 
 async def show_preset_picker(update: Update,
                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Render the 5-preset picker card."""
+    """Render the preset picker card."""
     user, ok = await _ensure_tier2(update)
     if not ok:
         return
@@ -304,7 +304,7 @@ async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 async def _on_customize(update: Update) -> None:
     await _reply(
         update,
-        "✏️ Customize wizard ships in Phase 5D. For now the preset values "
+        "✏️ Customize wizard ships in Phase 5G. For now the preset values "
         "are activated as-is.",
     )
 
@@ -312,7 +312,7 @@ async def _on_customize(update: Update) -> None:
 async def _on_edit(update: Update) -> None:
     await _reply(
         update,
-        "✏️ Inline edit ships in Phase 5D. To change settings now, *Switch* "
+        "✏️ Inline edit ships in Phase 5G. To change settings now, *Switch* "
         "to a different preset or *Stop* and re-pick.",
         parse_mode=ParseMode.MARKDOWN,
     )
