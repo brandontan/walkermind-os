@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 13:43
-Status       : Phase 5A–5E + Phase 5J emergency redesign all merged. PR #930 merged (WARP/CRUSADERBOT-PHASE5E-COPY-TRADE). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 14:30
+Status       : Phase 5F Copy Trade wizard + per-task edit built. ConversationHandler + repository CRUD + 33 hermetic tests. Awaiting SENTINEL MAJOR audit before merge. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - R12 final Fly.io production paper deploy -- Issue #900 closed; production paper deploy complete.
@@ -14,10 +14,10 @@ Status       : Phase 5A–5E + Phase 5J emergency redesign all merged. PR #930 m
 - Phase 5E Copy Trade dashboard + wallet discovery -- PR #930 merged, MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + 5-min cache + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
 
 [IN PROGRESS]
-- None.
+- Phase 5F — Copy Trade wizard + per-task edit -- code built, SENTINEL MAJOR audit pending before merge.
 
 [NOT STARTED]
-- Phase 5F -- Copy Task setup wizard + per-task edit wizard (next after Phase 5E merge).
+- Phase 5G or later -- copy execution engine (reads copy_trade_tasks rows with status=active to drive actual position mirroring; no live trading).
 - WARP/CRUSADERBOT-MAINNET-ONCHAIN-PREFLIGHT -- on-chain wallet, allowance, balance, and signer readiness checks complementing scripts/mainnet_preflight.py; no live trading activation and no real orders.
 - WARP/CRUSADERBOT-OPS-CIRCUIT-RESET -- operator endpoint / Telegram command to force_close the CLOB circuit breaker after incident review; no broker calls and no guard flips.
 - R13a Leaderboard -- paper P&L ranking, /leaderboard command, top 10, daily scheduler update.
@@ -28,7 +28,7 @@ Status       : Phase 5A–5E + Phase 5J emergency redesign all merged. PR #930 m
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- Phase 5F -- Copy Task setup wizard + per-task edit wizard is the next active lane. Unblocked by Phase 5E merge (PR #930).
+- WARP•SENTINEL MAJOR audit required for Phase 5F before merge. Source: projects/polymarket/crusaderbot/reports/forge/copy-trade-wizard.md. Tier: MAJOR.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]

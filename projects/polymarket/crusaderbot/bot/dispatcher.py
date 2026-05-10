@@ -99,6 +99,11 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("summary_on", activation.summary_on_command))
     app.add_handler(CommandHandler("summary_off", activation.summary_off_command))
 
+    # Phase 5F wizard ConversationHandler — must be registered BEFORE the
+    # general copytrade: CallbackQueryHandler so it intercepts copytrade:copy:*
+    # and copytrade:edit:* entry points first.
+    app.add_handler(copy_trade.build_wizard_handler())
+
     # Callback queries
     app.add_handler(CallbackQueryHandler(wallet.wallet_callback, pattern=r"^wallet:"))
     app.add_handler(CallbackQueryHandler(setup.setup_callback,  pattern=r"^setup:"))
