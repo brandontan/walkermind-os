@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 14:30 Asia/Jakarta
-Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Open PRs = 0. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched. Current focus: Phase 5E Copy Trade dashboard + wallet discovery.
+Last Updated : 2026-05-10 09:30 Asia/Jakarta
+Status       : Phase 5E WARP•FORGE PR open — Copy Trade dashboard + wallet discovery. SENTINEL MAJOR audit required before merge. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - Phase 4A CLOB Adapter -- PR #911 merged, MAJOR, SENTINEL APPROVED 89/100, branch WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER.
@@ -20,10 +20,10 @@ Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Open PR
 - Phase 5D 2-column grid + Copy/Auto Trade menu split -- PR #928 merged, STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
 
 [IN PROGRESS]
-- None. Open PRs = 0. Phase 5E dispatch pending WARP🔹CMD direction.
+- Phase 5E -- Copy Trade dashboard + wallet discovery. WARP•FORGE PR open on WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. SENTINEL MAJOR audit required before merge.
 
 [NOT STARTED]
-- Phase 5E -- Copy Trade dashboard + wallet discovery. Next active lane, unblocked by Phase 5D merge (PR #928).
+- Phase 5F -- Copy Task setup wizard + per-task edit wizard (next after Phase 5E merge).
 - WARP/CRUSADERBOT-MAINNET-ONCHAIN-PREFLIGHT -- on-chain wallet, allowance, balance, and signer readiness checks complementing scripts/mainnet_preflight.py; no live trading activation and no real orders.
 - WARP/CRUSADERBOT-OPS-CIRCUIT-RESET -- operator endpoint / Telegram command to force_close the CLOB circuit breaker after incident review; no broker calls and no guard flips.
 - R13a Leaderboard -- paper P&L ranking, /leaderboard command, top 10, daily scheduler update.
@@ -34,7 +34,7 @@ Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Open PR
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- Dispatch Phase 5E (Copy Trade dashboard + wallet discovery) as next active lane. Unblocked by Phase 5D merge (PR #928).
+- WARP•SENTINEL validation required for Phase 5E Copy Trade dashboard before merge. Source: projects/polymarket/crusaderbot/reports/forge/copy-trade-dashboard.md. Tier: MAJOR.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]
