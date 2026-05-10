@@ -32,3 +32,5 @@
 2026-05-08 04:57 Asia/Jakarta | WARP/CRUSADERBOT-PREFLIGHT-CLEANUP | pre-flight cleanup lane (PR #899): 15 F401 unused imports cleared; MIN-01/02/03 resolved; ROADMAP rows aligned.
 2026-05-08 00:30 Asia/Jakarta | WARP/CRUSADERBOT-P3D-SIGNAL-SCAN-EXECUTION-QUEUE | P3d MERGED PR #897 (bb08092). SENTINEL APPROVED 94/100. 464/464 tests green. Strategy plane complete.
 2026-05-08 01:33 Asia/Jakarta | PR #898 MERGED 7bb0487f | state sync post-P3d: signal_scan crash-recovery guard + subscribe DO NOTHING fix + 52 new tests. Strategy plane 100% COMPLETE.
+
+2026-05-10 17:44 | WARP/crusaderbot-post-merge-state-sync | post-merge state sync (MINOR / FOUNDATION): cleared stale open-PR wording for merged PR #937 (Phase 5H), PR #938 (Phase 5G), PR #939 (qrcode hotfix), and verified Phase 5I disposition as merged PR #934 from main history; synced PROJECT_STATE / ROADMAP / WORKTODO / CHANGELOG. Activation guards remain NOT SET; no code/runtime changes.
