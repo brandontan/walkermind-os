@@ -7,9 +7,13 @@ Fetches from the Polymarket Gamma API:
 In-memory cache with 5-minute TTL. Cache keys are lower-cased addresses.
 On any API failure the stats are returned with available=False so callers
 can still allow copy setup without blocking on data availability.
+
+Retry policy: 3 retries with exponential backoff (1s, 2s, 4s).
+Timeout: 10s per request. Final failure returns fallback (available=False).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
@@ -21,6 +25,8 @@ logger = logging.getLogger(__name__)
 _GAMMA_BASE = "https://gamma-api.polymarket.com"
 _CACHE_TTL = 300  # seconds
 _TIMEOUT = aiohttp.ClientTimeout(total=10)
+_MAX_RETRIES = 3
+_BACKOFF_BASE = 1.0  # seconds; delays are 1s, 2s, 4s
 
 # {address_lower: (monotonic_timestamp, WalletStats)}
 _cache: dict[str, tuple[float, "WalletStats"]] = {}
@@ -51,7 +57,7 @@ async def fetch_wallet_stats(address: str) -> WalletStats:
         return cached[1]
 
     stats = await _fetch_profile(address)
-    _cache[addr_key] = (now, stats)
+    _cache[addr_key] = (time.monotonic(), stats)
     return stats
 
 
@@ -63,42 +69,74 @@ async def fetch_top_wallets(category: str | None = None) -> list[WalletStats]:
 
     Returns empty list on failure — callers show an error state.
     """
-    try:
-        params: dict[str, str | int] = {"limit": 10, "order": "desc"}
-        if category == "top_wr":
-            params["sortBy"] = "winRate"
-        else:
-            params["sortBy"] = "pnl30d"
-        if category and category not in ("top_pnl", "top_wr"):
-            params["category"] = category
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            params: dict[str, str | int] = {"limit": 10, "order": "desc"}
+            if category == "top_wr":
+                params["sortBy"] = "winRate"
+            else:
+                params["sortBy"] = "pnl30d"
+            if category and category not in ("top_pnl", "top_wr"):
+                params["category"] = category
 
-        async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-            url = f"{_GAMMA_BASE}/leaderboard"
-            async with session.get(url, params=params) as resp:
-                if resp.status != 200:
-                    logger.warning("leaderboard API status=%d", resp.status)
-                    return []
-                data = await resp.json()
-                entries = data if isinstance(data, list) else data.get("results", [])
-                return [_parse(e.get("address", ""), e) for e in entries[:10]]
-    except Exception:
-        logger.exception("fetch_top_wallets failed category=%s", category)
-        return []
+            async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
+                url = f"{_GAMMA_BASE}/leaderboard"
+                async with session.get(url, params=params) as resp:
+                    if resp.status != 200:
+                        logger.warning("leaderboard API status=%d", resp.status)
+                        return []
+                    data = await resp.json()
+                    entries = data if isinstance(data, list) else data.get("results", [])
+                    return [_parse(e.get("address", ""), e) for e in entries[:10]]
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            last_exc = exc
+            if attempt < _MAX_RETRIES:
+                delay = _BACKOFF_BASE * (2 ** attempt)
+                logger.warning(
+                    "leaderboard fetch attempt %d failed category=%s, retry in %.0fs: %s",
+                    attempt + 1, category, delay, exc,
+                )
+                await asyncio.sleep(delay)
+        except Exception:
+            logger.exception("fetch_top_wallets failed category=%s", category)
+            return []
+    logger.error(
+        "leaderboard fetch exhausted retries category=%s last=%s", category, last_exc,
+    )
+    return []
 
 
 async def _fetch_profile(address: str) -> WalletStats:
-    try:
-        async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-            url = f"{_GAMMA_BASE}/profiles/{address}"
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    logger.warning("profile API status=%d addr=%s", resp.status, address)
-                    return _unavailable(address)
-                data = await resp.json()
-                return _parse(address, data)
-    except Exception:
-        logger.exception("profile fetch failed addr=%s", address)
-        return _unavailable(address)
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
+                url = f"{_GAMMA_BASE}/profiles/{address}"
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        logger.warning(
+                            "profile API status=%d addr=%s", resp.status, address,
+                        )
+                        return _unavailable(address)
+                    data = await resp.json()
+                    return _parse(address, data)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            last_exc = exc
+            if attempt < _MAX_RETRIES:
+                delay = _BACKOFF_BASE * (2 ** attempt)
+                logger.warning(
+                    "profile fetch attempt %d failed addr=%s, retry in %.0fs: %s",
+                    attempt + 1, address, delay, exc,
+                )
+                await asyncio.sleep(delay)
+        except Exception:
+            logger.exception("profile fetch failed addr=%s", address)
+            return _unavailable(address)
+    logger.error(
+        "profile fetch exhausted retries addr=%s last=%s", address, last_exc,
+    )
+    return _unavailable(address)
 
 
 def _unavailable(address: str) -> WalletStats:
