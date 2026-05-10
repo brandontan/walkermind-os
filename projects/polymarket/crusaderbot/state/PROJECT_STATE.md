@@ -1,11 +1,11 @@
-Last Updated : 2026-05-10 17:00 Asia/Jakarta
-Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Phase 5J emergency menu redesign PR #931 open, STANDARD (bumped from MINOR — operator-enforced account lock DB flag added), pending WARP🔹CMD review. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 17:45 Asia/Jakarta
+Status       : Phase 5A–5D + Phase 5J emergency redesign all merged. Phase 5E Copy Trade dashboard PR #930 open (MAJOR, SENTINEL required). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - Phase 4A CLOB Adapter -- PR #911 merged, MAJOR, SENTINEL APPROVED 89/100, branch WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER.
 - Phase 4B Execution Rewire -- PR #912 merged, MAJOR, SENTINEL APPROVED 92/100, branch WARP/CRUSADERBOT-PHASE4B-EXECUTION-REWIRE.
 - Phase 4C Order Lifecycle -- PR #913 merged, MAJOR, SENTINEL APPROVED 96/100, branch WARP/CRUSADERBOT-PHASE4C-ORDER-LIFECYCLE.
-- Phase 4D WebSocket Order Fills -- PR #915 merged, MAJOR, SENTINEL APPROVED 98/100, branch WARP/CRUSADERBOT-PHASE4D-WEBSOCKET-FILLS.
+- Phase 4D WebSocket Order Fills -- PR #915 merged, MAJOR, FULL RUNTIME INTEGRATION, SENTINEL APPROVED 98/100, branch WARP/CRUSADERBOT-PHASE4D-WEBSOCKET-FILLS.
 - Phase 4E CLOB Resilience -- PR #919 merged, MAJOR, FULL RUNTIME INTEGRATION, SENTINEL APPROVED 94/100, branch WARP/CRUSADERBOT-PHASE4E-RESILIENCE.
 - Sentinel gate trail for Phase 4E -- Issue #920 closed completed after PR #921 merged Sentinel report/state into the Phase 4E source branch and PR #919 merged to main.
 - R12 final Fly.io production paper deploy -- Issue #900 is closed completed in GitHub; old pending wording is superseded by current live issue state.
@@ -18,12 +18,13 @@ Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Phase 5
 - Phase 5B dashboard hierarchy redesign -- PR #926 merged, STANDARD, declared WARP/CRUSADERBOT-PHASE5B-DASHBOARD, SENTINEL APPROVED 97/100. Single-message hierarchy, four sections, /start routing for existing Tier 2+ users.
 - SENTINEL report Phase 5B + 5C -- PR #927 merged. Report: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md.
 - Phase 5D 2-column grid + Copy/Auto Trade menu split -- PR #928 merged, STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
+- Phase 5J emergency menu redesign -- PR #932 merged, STANDARD, WARP•SENTINEL APPROVED 90/100 (0 criticals). Lock Account DB-enforced (migration 017), /unlock operator command, confirmation dialogs, 13 hermetic tests.
 
 [IN PROGRESS]
-- Phase 5J emergency menu redesign -- PR #931 open, STANDARD (bumped), WARP🔹CMD review pending. branch claude/emergency-menu-redesign-okgLY (declared WARP/CRUSADERBOT-PHASE5J-EMERGENCY). Confirmation dialog + Lock Account with DB-enforced lock (migration 017) + /unlock operator command + self-service resume gates. No trading logic or activation guards touched.
+- Phase 5E -- Copy Trade dashboard + wallet discovery. PR #930 open on WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. SENTINEL MAJOR audit required before merge. Migration 018, 24 hermetic tests, retry+backoff on wallet stats fetch.
 
 [NOT STARTED]
-- Phase 5E -- Copy Trade dashboard + wallet discovery. Next active lane, unblocked by Phase 5D merge (PR #928).
+- Phase 5F -- Copy Task setup wizard + per-task edit wizard (next after Phase 5E merge).
 - WARP/CRUSADERBOT-MAINNET-ONCHAIN-PREFLIGHT -- on-chain wallet, allowance, balance, and signer readiness checks complementing scripts/mainnet_preflight.py; no live trading activation and no real orders.
 - WARP/CRUSADERBOT-OPS-CIRCUIT-RESET -- operator endpoint / Telegram command to force_close the CLOB circuit breaker after incident review; no broker calls and no guard flips.
 - R13a Leaderboard -- paper P&L ranking, /leaderboard command, top 10, daily scheduler update.
@@ -34,8 +35,7 @@ Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Phase 5
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review Phase 5J emergency menu PR #931 (STANDARD) — merge direct per STANDARD workflow. Report: projects/polymarket/crusaderbot/reports/forge/phase5j-emergency.md.
-- After merge: dispatch Phase 5E (Copy Trade dashboard + wallet discovery) as next active lane.
+- WARP•SENTINEL validation required for Phase 5E Copy Trade dashboard before merge. Source: projects/polymarket/crusaderbot/reports/forge/copy-trade-dashboard.md. Tier: MAJOR.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]
@@ -50,4 +50,4 @@ Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Phase 5
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 
-<!-- CD verify: 2026-05-10 02:59 -->
+<!-- CD verify: 2026-05-10 17:45 -->
