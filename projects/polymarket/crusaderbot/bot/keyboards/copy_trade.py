@@ -106,3 +106,24 @@ def discover_wallet_kb(address: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton("← Back", callback_data="copytrade:discover"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))
+
+
+def _truncate_wallet(address: str) -> str:
+    """0x12345678…abcd-style display label for a 0x + 40-hex address."""
+    if len(address) < 12:
+        return address
+    return f"{address[:8]}…{address[-4:]}"
+
+
+def copy_targets_list_kb(wallet_addresses) -> InlineKeyboardMarkup:
+    """Legacy: one [🗑 Stop] button per active copy target (copy_targets table)."""
+    rows = [
+        [
+            InlineKeyboardButton(
+                f"🗑 Stop {_truncate_wallet(addr)}",
+                callback_data=f"copytrade:remove:{addr}",
+            )
+        ]
+        for addr in wallet_addresses
+    ]
+    return InlineKeyboardMarkup(rows)

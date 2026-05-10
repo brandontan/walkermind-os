@@ -177,7 +177,9 @@ def _dashboard_text(tasks: list[dict]) -> str:
     ]
     for i, t in enumerate(tasks, 1):
         badge = {"active": "🟢", "paused": "⏸", "stopped": "🔴"}.get(t["status"], "❓")
-        name = t["task_name"]
+        # Escape Markdown special chars in user-supplied task name to prevent
+        # Telegram parse-entities error when name contains _, *, [, etc.
+        name = t["task_name"].replace("_", "\\_").replace("*", "\\*").replace("[", "\\[")
         wallet = _truncate_wallet(t["wallet_address"])
         amount = f"${float(t['copy_amount']):,.2f} ({t['copy_mode']})"
         lines += [
@@ -252,12 +254,16 @@ async def copy_trade_callback(
     # -- dashboard --
     if action == "dashboard":
         await q.answer()
+        if ctx.user_data:
+            ctx.user_data.pop("awaiting", None)
         await menu_copytrade_handler(update, ctx)
         return
 
     # -- add wallet screen --
     if action == "add":
         await q.answer()
+        if ctx.user_data:
+            ctx.user_data.pop("awaiting", None)
         if q.message:
             await q.message.edit_text(
                 "➕ *Add Wallet*\n━" * 1 + "━" * 23 + "\n\n"
@@ -451,7 +457,7 @@ async def _legacy_list_active(user_id: UUID) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def _legacy_insert(user_id: UUID, wallet: str) -> str:
+async def _insert_active_target(user_id: UUID, wallet: str) -> str:
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -514,7 +520,7 @@ async def _legacy_add(
             parse_mode=ParseMode.MARKDOWN,
         )
         return
-    result = await _legacy_insert(user_id, wallet)
+    result = await _insert_active_target(user_id, wallet)
     if result == "cap_exceeded":
         await update.message.reply_text(
             f"❌ You already have {MAX_COPY_TARGETS_PER_USER} active copy "
