@@ -18,7 +18,6 @@ Status       : Phase 5A–5E + Phase 5J all merged. Phase 5I My Trades PR open f
 - Phase 5F Copy Trade wizard + per-task edit -- SENTINEL audit BLOCKED. Code 85/100. Branch must be re-opened as WARP/CRUSADERBOT-PHASE5F-COPY-WIZARD. Two P1 defects (toggle_pause non-atomic + missing user_id in UPDATE WHERE). Report: projects/polymarket/crusaderbot/reports/sentinel/copy-trade-wizard.md.
 
 [NOT STARTED]
-- Phase 5F -- Copy Task setup wizard + per-task edit wizard (next after Phase 5E merge).
 - WARP/CRUSADERBOT-MAINNET-ONCHAIN-PREFLIGHT -- on-chain wallet, allowance, balance, and signer readiness checks complementing scripts/mainnet_preflight.py; no live trading activation and no real orders.
 - WARP/CRUSADERBOT-OPS-CIRCUIT-RESET -- operator endpoint / Telegram command to force_close the CLOB circuit breaker after incident review; no broker calls and no guard flips.
 - R13a Leaderboard -- paper P&L ranking, /leaderboard command, top 10, daily scheduler update.
