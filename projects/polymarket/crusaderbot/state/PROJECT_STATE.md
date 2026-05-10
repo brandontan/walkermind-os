@@ -30,7 +30,6 @@ Status       : WARP•SENTINEL MAJOR audit complete for Phase 5C preset system (
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- WARP🔹CMD merge decision on PR #925 (Phase 5C presets, MAJOR, SENTINEL APPROVED 92/100). Source: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md.
 - WARP🔹CMD merge decision on PR #926 (Phase 5B dashboard, STANDARD, SENTINEL APPROVED 97/100). Resolve branch name posture (claude/ vs WARP/) at merge. Source: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md.
 - WARP🔹CMD review + merge decision on Phase 5A global-handlers (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5a-global-handlers.md. No SENTINEL required.
 - WARP🔹CMD review + merge decision on WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/asyncpg-supabase-fix.md. Resolves recurring production /health DB flap. Close PR #922 as superseded once merged.

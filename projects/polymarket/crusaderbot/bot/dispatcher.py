@@ -108,6 +108,8 @@ def register(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(setup.set_redeem_mode, pattern=r"^set_redeem:"))
     app.add_handler(CallbackQueryHandler(settings_handler.settings_callback,
                                          pattern=r"^settings:"))
+    app.add_handler(CallbackQueryHandler(dashboard.dashboard_nav_cb,
+                                         pattern=r"^dashboard:"))
     app.add_handler(CallbackQueryHandler(dashboard.autotrade_toggle_cb,
                                          pattern=r"^autotrade:"))
     app.add_handler(CallbackQueryHandler(dashboard.close_position_cb,
