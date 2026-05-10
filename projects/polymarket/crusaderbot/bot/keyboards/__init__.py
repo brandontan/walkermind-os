@@ -7,95 +7,107 @@ from telegram import (
 )
 
 
+def grid_rows(buttons: list, cols: int = 2) -> list[list]:
+    """Pair a flat list of buttons into rows of `cols` (default 2).
+
+    Odd-count lists produce a partial last row — the final button is not
+    centred by this helper; Telegram renders it left-aligned.
+    """
+    return [buttons[i:i + cols] for i in range(0, len(buttons), cols)]
+
+
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📊 Dashboard"), KeyboardButton("🤖 Auto-Trade")],
-            [KeyboardButton("💰 Wallet"),    KeyboardButton("📈 My Trades")],
-            [KeyboardButton("🚨 Emergency")],
+            [KeyboardButton("📊 Dashboard"),  KeyboardButton("🐋 Copy Trade")],
+            [KeyboardButton("🤖 Auto-Trade"), KeyboardButton("📈 My Trades")],
+            [KeyboardButton("💰 Wallet"),     KeyboardButton("🚨 Emergency")],
         ],
         resize_keyboard=True,
     )
 
 
 def wallet_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📥 Deposit", callback_data="wallet:deposit")],
-        [InlineKeyboardButton("💵 Balance", callback_data="wallet:balance")],
-        [InlineKeyboardButton("📤 Withdraw", callback_data="wallet:withdraw")],
-    ])
+    buttons = [
+        InlineKeyboardButton("📥 Deposit",  callback_data="wallet:deposit"),
+        InlineKeyboardButton("💵 Balance",  callback_data="wallet:balance"),
+        InlineKeyboardButton("📤 Withdraw", callback_data="wallet:withdraw"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def setup_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎯 Strategy", callback_data="setup:strategy")],
-        [InlineKeyboardButton("⚖️ Risk Profile", callback_data="setup:risk")],
-        [InlineKeyboardButton("🏷️ Categories", callback_data="setup:categories")],
-        [InlineKeyboardButton("💰 Capital %", callback_data="setup:capital")],
-        [InlineKeyboardButton("🎚️ TP / SL", callback_data="setup:tpsl")],
-        [InlineKeyboardButton("👥 Copy Targets", callback_data="setup:copy")],
-        [InlineKeyboardButton("🔁 Mode (Paper/Live)", callback_data="setup:mode")],
-        [InlineKeyboardButton("🏆 Auto-redeem (Instant/Hourly)",
-                              callback_data="setup:redeem")],
-    ])
+    buttons = [
+        InlineKeyboardButton("🎯 Strategy",          callback_data="setup:strategy"),
+        InlineKeyboardButton("⚖️ Risk Profile",      callback_data="setup:risk"),
+        InlineKeyboardButton("🏷️ Categories",        callback_data="setup:categories"),
+        InlineKeyboardButton("💰 Capital %",          callback_data="setup:capital"),
+        InlineKeyboardButton("🎚️ TP / SL",           callback_data="setup:tpsl"),
+        InlineKeyboardButton("👥 Copy Targets",       callback_data="setup:copy"),
+        InlineKeyboardButton("🔁 Mode (Paper/Live)",  callback_data="setup:mode"),
+        InlineKeyboardButton("🏆 Auto-redeem",        callback_data="setup:redeem"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def strategy_picker(current: list[str]) -> InlineKeyboardMarkup:
-    def mark(s):
+    def mark(s: str) -> str:
         return f"{'✅' if s in current else '◻️'} {s.title().replace('_', ' ')}"
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(mark("copy_trade"),
-                              callback_data="set_strategy:copy_trade")],
-        [InlineKeyboardButton(mark("signal"), callback_data="set_strategy:signal")],
-        [InlineKeyboardButton(mark("value") + " (R6b+)",
-                              callback_data="set_strategy:value")],
-        [InlineKeyboardButton("⬅️ Back", callback_data="setup:menu")],
-    ])
+    buttons = [
+        InlineKeyboardButton(mark("copy_trade"),
+                             callback_data="set_strategy:copy_trade"),
+        InlineKeyboardButton(mark("signal"), callback_data="set_strategy:signal"),
+        InlineKeyboardButton(mark("value") + " (R6b+)",
+                             callback_data="set_strategy:value"),
+        InlineKeyboardButton("⬅️ Back", callback_data="setup:menu"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def risk_picker(current: str) -> InlineKeyboardMarkup:
-    def mark(r):
+    def mark(r: str) -> str:
         return f"{'✅' if r == current else '◻️'} {r.title()}"
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(mark("conservative"),
-                              callback_data="set_risk:conservative")],
-        [InlineKeyboardButton(mark("balanced"), callback_data="set_risk:balanced")],
-        [InlineKeyboardButton(mark("aggressive"),
-                              callback_data="set_risk:aggressive")],
-        [InlineKeyboardButton("⬅️ Back", callback_data="setup:menu")],
-    ])
+    buttons = [
+        InlineKeyboardButton(mark("conservative"),
+                             callback_data="set_risk:conservative"),
+        InlineKeyboardButton(mark("balanced"),  callback_data="set_risk:balanced"),
+        InlineKeyboardButton(mark("aggressive"), callback_data="set_risk:aggressive"),
+        InlineKeyboardButton("⬅️ Back", callback_data="setup:menu"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def category_picker(current: list[str] | None) -> InlineKeyboardMarkup:
     cur = set(current or [])
-    def mark(c):
+    def mark(c: str) -> str:
         return f"{'✅' if c in cur or not cur and c == 'all' else '◻️'} {c.title()}"
     cats = ["all", "politics", "sports", "crypto", "tech", "culture"]
-    rows = [[InlineKeyboardButton(mark(c), callback_data=f"set_cat:{c}")]
-            for c in cats]
-    rows.append([InlineKeyboardButton("⬅️ Back", callback_data="setup:menu")])
-    return InlineKeyboardMarkup(rows)
+    buttons = [InlineKeyboardButton(mark(c), callback_data=f"set_cat:{c}")
+               for c in cats]
+    buttons.append(InlineKeyboardButton("⬅️ Back", callback_data="setup:menu"))
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def mode_picker(current: str) -> InlineKeyboardMarkup:
-    def mark(m):
+    def mark(m: str) -> str:
         return f"{'✅' if m == current else '◻️'} {m.title()}"
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(mark("paper"), callback_data="set_mode:paper")],
-        [InlineKeyboardButton(mark("live") + " (Tier 4)",
-                              callback_data="set_mode:live")],
-        [InlineKeyboardButton("⬅️ Back", callback_data="setup:menu")],
-    ])
+    buttons = [
+        InlineKeyboardButton(mark("paper"),  callback_data="set_mode:paper"),
+        InlineKeyboardButton(mark("live") + " (Tier 4)",
+                             callback_data="set_mode:live"),
+        InlineKeyboardButton("⬅️ Back", callback_data="setup:menu"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def autoredeem_picker(current: str) -> InlineKeyboardMarkup:
-    def mark(m):
+    def mark(m: str) -> str:
         return f"{'✅' if m == current else '◻️'} {m.title()}"
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(mark("instant"),
-                              callback_data="set_redeem:instant")],
-        [InlineKeyboardButton(mark("hourly"), callback_data="set_redeem:hourly")],
-    ])
+    buttons = [
+        InlineKeyboardButton(mark("instant"), callback_data="set_redeem:instant"),
+        InlineKeyboardButton(mark("hourly"),  callback_data="set_redeem:hourly"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def autotrade_toggle(on: bool) -> InlineKeyboardMarkup:
@@ -106,23 +118,25 @@ def autotrade_toggle(on: bool) -> InlineKeyboardMarkup:
 
 
 def emergency_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⏸ Pause new trades",
-                              callback_data="emergency:pause")],
-        [InlineKeyboardButton("▶️ Resume", callback_data="emergency:resume")],
-        [InlineKeyboardButton("🛑 Pause + Close All",
-                              callback_data="emergency:pause_close")],
-    ])
+    buttons = [
+        InlineKeyboardButton("⏸ Pause new trades",
+                             callback_data="emergency:pause"),
+        InlineKeyboardButton("▶️ Resume", callback_data="emergency:resume"),
+        InlineKeyboardButton("🛑 Pause + Close All",
+                             callback_data="emergency:pause_close"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def admin_menu(kill_active: bool) -> InlineKeyboardMarkup:
     label = "🟢 Disable kill switch" if kill_active else "🔴 Activate kill switch"
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(label, callback_data="admin:kill")],
-        [InlineKeyboardButton("📊 System status", callback_data="admin:status")],
-        [InlineKeyboardButton("🔁 Force redeem pending",
-                              callback_data="admin:force_redeem")],
-    ])
+    buttons = [
+        InlineKeyboardButton(label,             callback_data="admin:kill"),
+        InlineKeyboardButton("📊 System status", callback_data="admin:status"),
+        InlineKeyboardButton("🔁 Force redeem pending",
+                             callback_data="admin:force_redeem"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def dashboard_nav(has_trades: bool) -> InlineKeyboardMarkup:
@@ -130,15 +144,16 @@ def dashboard_nav(has_trades: bool) -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup([[
             InlineKeyboardButton("🤖 Get Started", callback_data="dashboard:autotrade"),
         ]])
-    return InlineKeyboardMarkup([[
+    buttons = [
         InlineKeyboardButton("🤖 Auto-Trade", callback_data="dashboard:autotrade"),
         InlineKeyboardButton("📈 Trades",     callback_data="dashboard:trades"),
         InlineKeyboardButton("💰 Wallet",     callback_data="dashboard:wallet"),
-    ]])
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def confirm(action_key: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Yes", callback_data=f"confirm:{action_key}:yes"),
-        InlineKeyboardButton("❌ No", callback_data=f"confirm:{action_key}:no"),
+        InlineKeyboardButton("❌ No",  callback_data=f"confirm:{action_key}:no"),
     ]])

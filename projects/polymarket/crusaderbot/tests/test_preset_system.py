@@ -1,4 +1,4 @@
-"""Hermetic tests for the Phase 5C strategy preset system.
+"""Hermetic tests for the Phase 5C/5D strategy preset system.
 
 No DB, no Telegram. The handler module is exercised by patching ``users``
 helpers, ``get_settings_for``, and ledger reads so each scenario verifies
@@ -34,20 +34,22 @@ from projects.polymarket.crusaderbot.domain.risk.constants import MAX_POSITION_P
 
 # ---------- Preset definitions ----------------------------------------------
 
-def test_five_presets_defined():
-    assert len(PRESETS) == 5
+def test_three_presets_defined():
+    assert len(PRESETS) == 3
     assert set(PRESET_ORDER) == set(PRESETS.keys())
 
 
 def test_preset_order_matches_spec():
-    assert PRESET_ORDER == (
-        "whale_mirror", "signal_sniper", "hybrid",
-        "value_hunter", "full_auto",
-    )
+    assert PRESET_ORDER == ("signal_sniper", "value_hunter", "full_auto")
 
 
-def test_recommended_is_whale_mirror():
-    assert RECOMMENDED_PRESET == "whale_mirror"
+def test_recommended_is_signal_sniper():
+    assert RECOMMENDED_PRESET == "signal_sniper"
+
+
+def test_whale_mirror_and_hybrid_removed():
+    assert "whale_mirror" not in PRESETS
+    assert "hybrid" not in PRESETS
 
 
 def test_presets_obey_hard_position_cap():
@@ -65,6 +67,8 @@ def test_presets_capital_under_full_kelly():
 def test_get_preset_unknown_returns_none():
     assert get_preset("nope") is None
     assert get_preset("") is None
+    assert get_preset("whale_mirror") is None
+    assert get_preset("hybrid") is None
 
 
 def test_preset_strategies_use_canonical_keys():
@@ -73,13 +77,20 @@ def test_preset_strategies_use_canonical_keys():
         assert set(p.strategies) <= allowed, p.key
 
 
+def test_full_auto_excludes_copy_trade_strategy():
+    # Phase 5D: copy_trade strategy belongs to Copy Trade surface, not Auto-Trade.
+    p = get_preset("full_auto")
+    assert p is not None
+    assert "copy_trade" not in p.strategies
+
+
 def test_preset_validation_rejects_oversize_capital():
     from projects.polymarket.crusaderbot.domain.preset.presets import (
         Preset, PresetBadge,
     )
     with pytest.raises(ValueError):
         Preset(
-            key="bad", emoji="x", name="Bad", strategies=("copy_trade",),
+            key="bad", emoji="x", name="Bad", strategies=("signal",),
             capital_pct=1.5, tp_pct=0.1, sl_pct=0.05,
             max_position_pct=0.05, badge=PresetBadge.SAFE, description="bad",
         )
@@ -91,7 +102,7 @@ def test_preset_validation_rejects_position_over_cap():
     )
     with pytest.raises(ValueError):
         Preset(
-            key="bad", emoji="x", name="Bad", strategies=("copy_trade",),
+            key="bad", emoji="x", name="Bad", strategies=("signal",),
             capital_pct=0.5, tp_pct=0.1, sl_pct=0.05,
             max_position_pct=0.5,  # > MAX_POSITION_PCT
             badge=PresetBadge.SAFE, description="bad",
@@ -100,23 +111,43 @@ def test_preset_validation_rejects_position_over_cap():
 
 # ---------- Keyboards --------------------------------------------------------
 
-def test_picker_keyboard_has_one_row_per_preset_with_recommended_marker():
+def test_picker_keyboard_has_two_col_grid_layout():
     kb = preset_picker()
-    assert len(kb.inline_keyboard) == 5
-    labels = [row[0].text for row in kb.inline_keyboard]
-    cbs = [row[0].callback_data for row in kb.inline_keyboard]
-    assert "⭐" in labels[0]  # recommended at top
-    assert cbs == [f"preset:pick:{k}" for k in PRESET_ORDER]
+    # 3 presets in 2-col grid → 2 rows (row 0 has 2, row 1 has 1)
+    assert len(kb.inline_keyboard) == 2
+    assert len(kb.inline_keyboard[0]) == 2
+    assert len(kb.inline_keyboard[1]) == 1
+
+
+def test_picker_keyboard_recommended_marked_and_first():
+    kb = preset_picker()
+    # Signal Sniper is recommended — first button in first row has ⭐
+    first_btn = kb.inline_keyboard[0][0]
+    assert "⭐" in first_btn.text
+    assert first_btn.callback_data == "preset:pick:signal_sniper"
+
+
+def test_picker_keyboard_all_preset_callbacks_present():
+    kb = preset_picker()
+    all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    assert all_cbs == [f"preset:pick:{k}" for k in PRESET_ORDER]
 
 
 def test_confirm_keyboard_carries_preset_key():
-    kb = preset_confirm("hybrid")
+    kb = preset_confirm("signal_sniper")
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
     assert cbs == [
-        "preset:activate:hybrid",
-        "preset:customize:hybrid",
+        "preset:activate:signal_sniper",
+        "preset:customize:signal_sniper",
         "preset:picker",
     ]
+
+
+def test_confirm_keyboard_is_two_col():
+    kb = preset_confirm("value_hunter")
+    # 3 buttons → row 0 has 2, row 1 has 1
+    assert len(kb.inline_keyboard[0]) == 2
+    assert len(kb.inline_keyboard[1]) == 1
 
 
 def test_status_keyboard_swaps_pause_resume():
@@ -137,6 +168,13 @@ def test_switch_and_stop_confirm_kb_back_target():
           for b in row]
     assert sw == ["preset:switch_yes", "preset:status"]
     assert st == ["preset:stop_yes", "preset:status"]
+
+
+def test_switch_confirm_is_two_col():
+    kb = preset_switch_confirm()
+    # 2 buttons → 1 row of 2
+    assert len(kb.inline_keyboard) == 1
+    assert len(kb.inline_keyboard[0]) == 2
 
 
 # ---------- Test doubles -----------------------------------------------------
@@ -234,7 +272,7 @@ def _patch_pool(monkeypatch, open_count=0):
 
 # ---------- show_preset_picker ----------------------------------------------
 
-def test_show_preset_picker_renders_all_five(monkeypatch):
+def test_show_preset_picker_renders_all_three(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
     update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
@@ -245,9 +283,9 @@ def test_show_preset_picker_renders_all_five(monkeypatch):
     text = replies[0]
     for p in list_presets():
         assert p.name in text
-    # Recommended marker present somewhere in the picker label set.
+    # Recommended marker in first button of first row.
     kb = kws[0]["reply_markup"]
-    assert any("⭐" in row[0].text for row in kb.inline_keyboard)
+    assert "⭐" in kb.inline_keyboard[0][0].text
 
 
 def test_show_preset_picker_clears_awaiting(monkeypatch):
@@ -276,7 +314,7 @@ def test_show_preset_status_falls_back_to_picker_when_no_preset(monkeypatch):
 def test_show_preset_status_renders_running_card(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=False)
-    _patch_settings(monkeypatch, {"active_preset": "whale_mirror"})
+    _patch_settings(monkeypatch, {"active_preset": "signal_sniper"})
     _patch_ledger(monkeypatch, balance=250.0, pnl=12.5)
     _patch_pool(monkeypatch, open_count=2)
     update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
@@ -284,7 +322,7 @@ def test_show_preset_status_renders_running_card(monkeypatch):
         update, ctx=SimpleNamespace(user_data={}),
     ))
     text = replies[0]
-    assert "Whale Mirror" in text
+    assert "Signal Sniper" in text
     assert "RUNNING" in text
     assert "$250.00" in text
     assert "$+12.50" in text
@@ -297,7 +335,7 @@ def test_show_preset_status_renders_running_card(monkeypatch):
 def test_show_preset_status_renders_paused_card(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=True)
-    _patch_settings(monkeypatch, {"active_preset": "hybrid"})
+    _patch_settings(monkeypatch, {"active_preset": "value_hunter"})
     _patch_ledger(monkeypatch, balance=10.0, pnl=-1.0)
     _patch_pool(monkeypatch, open_count=0)
     update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
@@ -344,6 +382,16 @@ def test_pick_unknown_preset_replies_error(monkeypatch):
     assert "Unknown preset" in replies[0]
 
 
+def test_pick_whale_mirror_returns_error(monkeypatch):
+    uid = uuid4()
+    _patch_tier(monkeypatch, uid)
+    update, replies, _kws = _make_update(callback_data="preset:pick:whale_mirror")
+    asyncio.run(presets_h.preset_callback(
+        update, ctx=SimpleNamespace(user_data={}),
+    ))
+    assert "Unknown preset" in replies[0]
+
+
 # ---------- _on_activate (paper) --------------------------------------------
 
 def test_activate_paper_writes_full_config_and_turns_on(monkeypatch):
@@ -355,16 +403,18 @@ def test_activate_paper_writes_full_config_and_turns_on(monkeypatch):
     _patch_ledger(monkeypatch, balance=500.0, pnl=0.0)
     _patch_pool(monkeypatch, open_count=0)
 
-    update, replies, _kws = _make_update(callback_data="preset:activate:hybrid")
+    update, replies, _kws = _make_update(
+        callback_data="preset:activate:signal_sniper",
+    )
     asyncio.run(presets_h.preset_callback(
         update, ctx=SimpleNamespace(user_data={}),
     ))
 
-    p = get_preset("hybrid")
+    p = get_preset("signal_sniper")
     upd_settings.assert_awaited_once()
     args, kwargs = upd_settings.await_args
     assert args[0] == uid
-    assert kwargs["active_preset"] == "hybrid"
+    assert kwargs["active_preset"] == "signal_sniper"
     assert kwargs["strategy_types"] == list(p.strategies)
     assert kwargs["capital_alloc_pct"] == p.capital_pct
     assert kwargs["tp_pct"] == p.tp_pct
@@ -382,7 +432,7 @@ def test_activate_blocked_in_live_mode(monkeypatch):
                                   "active_preset": None})
     upd_settings, set_auto, set_p = _patch_writes(monkeypatch)
     update, replies, _kws = _make_update(
-        callback_data="preset:activate:whale_mirror",
+        callback_data="preset:activate:signal_sniper",
     )
     asyncio.run(presets_h.preset_callback(
         update, ctx=SimpleNamespace(user_data={}),
@@ -398,7 +448,7 @@ def test_activate_blocked_in_live_mode(monkeypatch):
 def test_pause_persists_and_renders_paused_card(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=False)
-    _patch_settings(monkeypatch, {"active_preset": "whale_mirror"})
+    _patch_settings(monkeypatch, {"active_preset": "signal_sniper"})
     upd_settings, set_auto, set_p = _patch_writes(monkeypatch)
     _patch_ledger(monkeypatch)
     _patch_pool(monkeypatch)
@@ -413,7 +463,7 @@ def test_pause_persists_and_renders_paused_card(monkeypatch):
 def test_resume_persists_and_renders_running_card(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=True)
-    _patch_settings(monkeypatch, {"active_preset": "whale_mirror"})
+    _patch_settings(monkeypatch, {"active_preset": "signal_sniper"})
     upd_settings, set_auto, set_p = _patch_writes(monkeypatch)
     _patch_ledger(monkeypatch)
     _patch_pool(monkeypatch)
@@ -428,7 +478,7 @@ def test_resume_persists_and_renders_running_card(monkeypatch):
 def test_stop_yes_clears_preset_and_stops(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=False)
-    _patch_settings(monkeypatch, {"active_preset": "whale_mirror"})
+    _patch_settings(monkeypatch, {"active_preset": "signal_sniper"})
     upd_settings, set_auto, set_p = _patch_writes(monkeypatch)
     update, replies, _kws = _make_update(callback_data="preset:stop_yes")
     asyncio.run(presets_h.preset_callback(
@@ -510,7 +560,7 @@ def test_setup_root_routes_to_status_when_preset_active(monkeypatch):
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
     monkeypatch.setattr(setup_h, "get_settings_for",
-                        AsyncMock(return_value={"active_preset": "hybrid"}))
+                        AsyncMock(return_value={"active_preset": "signal_sniper"}))
     show_picker = AsyncMock()
     show_status = AsyncMock()
     monkeypatch.setattr(setup_h.presets_handler,

@@ -27,7 +27,7 @@ import logging
 import re
 from uuid import UUID
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
@@ -40,6 +40,18 @@ logger = logging.getLogger(__name__)
 
 MAX_COPY_TARGETS_PER_USER = 3
 _WALLET_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+_PLACEHOLDER_TEXT = (
+    "🐋 *Copy Trade*\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "Follow top wallets and mirror their trades automatically.\n\n"
+    "_Full Copy Trade dashboard arrives in Phase 5E._"
+)
+
+_PLACEHOLDER_KB = InlineKeyboardMarkup([[
+    InlineKeyboardButton("📊 Dashboard", callback_data="dashboard:main"),
+    InlineKeyboardButton("🤖 Auto-Trade", callback_data="preset:picker"),
+]])
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +192,25 @@ _USAGE = (
     "`/copytrade list`\n\n"
     f"Max {MAX_COPY_TARGETS_PER_USER} active leaders per account."
 )
+
+
+async def menu_copytrade_handler(update: Update,
+                                 ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """🐋 Copy Trade main menu entry point — Phase 5D placeholder."""
+    if update.message is not None:
+        await update.message.reply_text(
+            _PLACEHOLDER_TEXT,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_PLACEHOLDER_KB,
+        )
+    elif update.callback_query is not None:
+        await update.callback_query.answer()
+        if update.callback_query.message is not None:
+            await update.callback_query.message.reply_text(
+                _PLACEHOLDER_TEXT,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=_PLACEHOLDER_KB,
+            )
 
 
 async def copy_trade_command(update: Update,

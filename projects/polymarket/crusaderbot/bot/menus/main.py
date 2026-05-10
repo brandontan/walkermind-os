@@ -6,10 +6,12 @@ text router consumes. Centralising the mapping keeps button registration
 and handler wiring in one place: adding a new top-level menu surface is a
 one-line change here.
 
-Phase 5A reduces the main menu from 8 to 5 buttons:
-  📊 Dashboard   🤖 Auto-Trade
-  💰 Wallet      📈 My Trades
-  🚨 Emergency
+Phase 5A reduces the main menu from 8 to 5 buttons.
+Phase 5D expands to 6 buttons (adds 🐋 Copy Trade, separates it from Auto-Trade):
+
+  📊 Dashboard   🐋 Copy Trade
+  🤖 Auto-Trade  📈 My Trades
+  💰 Wallet      🚨 Emergency
 
 Settings and Help are now /settings and /help commands only.
 Positions + Activity are merged into My Trades (📈 My Trades).
@@ -22,7 +24,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    dashboard, emergency, positions, setup, wallet,
+    copy_trade, dashboard, emergency, positions, setup, wallet,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
@@ -31,9 +33,10 @@ HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 # Order mirrors keyboards.main_menu() rows for easy diffing.
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     "📊 Dashboard":  dashboard.dashboard,
+    "🐋 Copy Trade": copy_trade.menu_copytrade_handler,
     "🤖 Auto-Trade": setup.setup_root,
-    "💰 Wallet":     wallet.wallet_root,
     "📈 My Trades":  positions.my_trades,
+    "💰 Wallet":     wallet.wallet_root,
     "🚨 Emergency":  emergency.emergency_root,
 }
 

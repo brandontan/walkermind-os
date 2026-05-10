@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 10:00 Asia/Jakarta
-Status       : WARP•SENTINEL MAJOR audit complete for Phase 5C preset system (PR #925, APPROVED 92/100) and STANDARD focused audit complete for Phase 5B dashboard (PR #926, APPROVED 97/100). Both PRs clear for WARP🔹CMD merge decision. Four lanes await merge: 5C presets (MAJOR, SENTINEL APPROVED), 5B dashboard (STANDARD, SENTINEL APPROVED), 5A global-handlers (MINOR), ASYNCPG-SUPABASE-FIX (MINOR). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 14:00 Asia/Jakarta
+Status       : Phase 5D 2-column grid + Copy/Auto Trade menu split FORGE COMPLETE (STANDARD, no SENTINEL required). All 57 Phase 5D + preset tests green. Awaiting WARP🔹CMD review + merge decision. Four previous lanes still await merge: 5C presets (MAJOR, SENTINEL APPROVED), 5B dashboard (STANDARD, SENTINEL APPROVED), 5A global-handlers (MINOR), ASYNCPG-SUPABASE-FIX (MINOR). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - Phase 4A CLOB Adapter -- PR #911 merged, MAJOR, SENTINEL APPROVED 89/100, branch WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER.
@@ -14,7 +14,8 @@ Status       : WARP•SENTINEL MAJOR audit complete for Phase 5C preset system (
 - Operator dashboard and kill switch baseline -- PR #874 merged, STANDARD; /ops dashboard and operator controls are available.
 
 [IN PROGRESS]
-- WARP/CRUSADERBOT-PHASE5C-PRESETS -- MAJOR / NARROW INTEGRATION. Strategy preset system: 5 named presets (whale_mirror / signal_sniper / hybrid / value_hunter / full_auto) replace raw strategy picker. SENTINEL APPROVED 92/100. Zero critical issues. Forge: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5c-presets.md. Sentinel: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md. Awaiting WARP🔹CMD merge decision on PR #925.
+- claude/grid-layout-trade-menu-split-7OhAP (Phase 5D) -- STANDARD / MENU LAYOUT ONLY. 2-column button grid (grid_rows helper) applied to all inline keyboards. Main menu expanded 5→6 buttons: 🐋 Copy Trade split from Auto-Trade as separate entry point. Placeholder Copy Trade handler shows Phase 5E coming-soon card. Preset picker reduced 5→3 presets (whale_mirror + hybrid removed, copy_trade strategy belongs to Copy Trade surface). 57/57 Phase 5D + preset tests green. Forge: projects/polymarket/crusaderbot/reports/forge/grid-menu-split.md. Awaiting WARP🔹CMD review + merge decision.
+- WARP/CRUSADERBOT-PHASE5C-PRESETS -- MAJOR / NARROW INTEGRATION. Strategy preset system: 3 named presets (signal_sniper / value_hunter / full_auto) replace raw strategy picker (Phase 5D updated preset count). SENTINEL APPROVED 92/100. Zero critical issues. Forge: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5c-presets.md. Sentinel: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md. Awaiting WARP🔹CMD merge decision on PR #925.
 - Phase 5B dashboard hierarchy redesign -- STANDARD / DASHBOARD DISPLAY ONLY. Hierarchy layout, four sections, /start routing. SENTINEL APPROVED 97/100 (focused audit, explicit WARP🔹CMD request). Branch name mismatch (claude/ vs WARP/CRUSADERBOT-PHASE5B-DASHBOARD) — WARP🔹CMD to resolve at merge. Forge: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5b-dashboard.md. Sentinel: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md. Awaiting WARP🔹CMD merge decision on PR #926.
 - WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX -- MINOR / NARROW INTEGRATION FORGE. Resolves Sentry DAWN-SNOWFLAKE-1729-G/J/P/Q. Forge report: projects/polymarket/crusaderbot/reports/forge/asyncpg-supabase-fix.md. Awaiting WARP🔹CMD review + merge decision. Supersedes PR #922.
 - Phase 5A global-handlers -- MINOR / NARROW INTEGRATION FORGE. _text_router priority fix (menu buttons clear awaiting state and route before activation/setup consumers). Main menu reduced from 8 to 5 buttons (Dashboard, Auto-Trade, Wallet, My Trades, Emergency). /settings command registered. my_trades combined view added. 784/784 tests green. Forge report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5a-global-handlers.md. Awaiting WARP🔹CMD review + merge decision.
@@ -30,10 +31,11 @@ Status       : WARP•SENTINEL MAJOR audit complete for Phase 5C preset system (
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review + merge decision on Phase 5D (STANDARD, no SENTINEL required). Source: projects/polymarket/crusaderbot/reports/forge/grid-menu-split.md. Unlocks Phase 5E Copy Trade dashboard.
 - WARP🔹CMD merge decision on PR #926 (Phase 5B dashboard, STANDARD, SENTINEL APPROVED 97/100). Resolve branch name posture (claude/ vs WARP/) at merge. Source: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md.
 - WARP🔹CMD review + merge decision on Phase 5A global-handlers (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5a-global-handlers.md. No SENTINEL required.
 - WARP🔹CMD review + merge decision on WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/asyncpg-supabase-fix.md. Resolves recurring production /health DB flap. Close PR #922 as superseded once merged.
-- Dispatch WARP/CRUSADERBOT-MAINNET-ONCHAIN-PREFLIGHT as the next safety lane before any owner live-trading decision. Tier: MAJOR, SENTINEL REQUIRED. Scope: read-only wallet/chain/preflight only, no order submission, no guard flips.
+- After 5D merges: dispatch Phase 5E (Copy Trade dashboard + wallet discovery) as next lane in the dependency chain.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]
