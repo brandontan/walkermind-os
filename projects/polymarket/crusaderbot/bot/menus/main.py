@@ -24,7 +24,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    copy_trade, dashboard, emergency, positions, setup, wallet,
+    copy_trade, dashboard, emergency, my_trades as my_trades_h,
+    setup, wallet,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
@@ -35,7 +36,7 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     "📊 Dashboard":  dashboard.dashboard,
     "🐋 Copy Trade": copy_trade.menu_copytrade_handler,
     "🤖 Auto-Trade": setup.setup_root,
-    "📈 My Trades":  positions.my_trades,
+    "📈 My Trades":  my_trades_h.my_trades,
     "💰 Wallet":     wallet.wallet_root,
     "🚨 Emergency":  emergency.emergency_root,
 }

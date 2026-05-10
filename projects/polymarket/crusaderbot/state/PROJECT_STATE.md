@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 13:43
-Status       : Phase 5A–5E + Phase 5J emergency redesign all merged. PR #930 merged (WARP/CRUSADERBOT-PHASE5E-COPY-TRADE). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 15:00
+Status       : Phase 5A–5E + Phase 5J all merged. Phase 5I My Trades combined view PR open for WARP🔹CMD review. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - R12 final Fly.io production paper deploy -- Issue #900 closed; production paper deploy complete.
@@ -14,7 +14,7 @@ Status       : Phase 5A–5E + Phase 5J emergency redesign all merged. PR #930 m
 - Phase 5E Copy Trade dashboard + wallet discovery -- PR #930 merged, MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + 5-min cache + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
 
 [IN PROGRESS]
-- None.
+- Phase 5I My Trades combined view -- PR open (STANDARD, WARP🔹CMD review, no SENTINEL required). Handler rewrite: combined positions + activity message, per-position close with confirmation, full history pagination, 2-col keyboard grid. 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
 
 [NOT STARTED]
 - Phase 5F -- Copy Task setup wizard + per-task edit wizard (next after Phase 5E merge).
@@ -28,7 +28,8 @@ Status       : Phase 5A–5E + Phase 5J emergency redesign all merged. PR #930 m
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- Phase 5F -- Copy Task setup wizard + per-task edit wizard is the next active lane. Unblocked by Phase 5E merge (PR #930).
+- WARP🔹CMD review required for Phase 5I PR (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md. Tier: STANDARD.
+- After Phase 5I merge: Phase 5F -- Copy Task setup wizard + per-task edit wizard is the next active lane.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]
@@ -43,4 +44,4 @@ Status       : Phase 5A–5E + Phase 5J emergency redesign all merged. PR #930 m
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 
-<!-- CD verify: 2026-05-10 13:43 -->
+<!-- CD verify: 2026-05-10 15:00 -->
