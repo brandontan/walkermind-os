@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 14:30 Asia/Jakarta
-Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Open PRs = 0. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched. Current focus: Phase 5E Copy Trade dashboard + wallet discovery.
+Last Updated : 2026-05-10 16:00 Asia/Jakarta
+Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Phase 5J emergency menu redesign PR open, MINOR, pending WARP🔹CMD review. Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
 - Phase 4A CLOB Adapter -- PR #911 merged, MAJOR, SENTINEL APPROVED 89/100, branch WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER.
@@ -20,7 +20,7 @@ Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Open PR
 - Phase 5D 2-column grid + Copy/Auto Trade menu split -- PR #928 merged, STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
 
 [IN PROGRESS]
-- None. Open PRs = 0. Phase 5E dispatch pending WARP🔹CMD direction.
+- Phase 5J emergency menu redesign -- PR open, MINOR, WARP🔹CMD review pending. branch claude/emergency-menu-redesign-okgLY (declared WARP/CRUSADERBOT-PHASE5J-EMERGENCY). Confirmation dialog + Lock Account + 2-col grid + post-action feedback. No trading logic touched.
 
 [NOT STARTED]
 - Phase 5E -- Copy Trade dashboard + wallet discovery. Next active lane, unblocked by Phase 5D merge (PR #928).
@@ -34,7 +34,8 @@ Status       : Phase 5A–5D + asyncpg fix all merged (PRs #923–#928). Open PR
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- Dispatch Phase 5E (Copy Trade dashboard + wallet discovery) as next active lane. Unblocked by Phase 5D merge (PR #928).
+- WARP🔹CMD review Phase 5J emergency menu PR (MINOR) — merge direct. Report: projects/polymarket/crusaderbot/reports/forge/phase5j-emergency.md.
+- After merge: dispatch Phase 5E (Copy Trade dashboard + wallet discovery) as next active lane.
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]

@@ -119,11 +119,26 @@ def autotrade_toggle(on: bool) -> InlineKeyboardMarkup:
 
 def emergency_menu() -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton("⏸ Pause new trades",
-                             callback_data="emergency:pause"),
-        InlineKeyboardButton("▶️ Resume", callback_data="emergency:resume"),
-        InlineKeyboardButton("🛑 Pause + Close All",
-                             callback_data="emergency:pause_close"),
+        InlineKeyboardButton("⏸ Pause Auto-Trade",  callback_data="emergency:pause"),
+        InlineKeyboardButton("🛑 Pause + Close All", callback_data="emergency:pause_close"),
+        InlineKeyboardButton("🔒 Lock Account",      callback_data="emergency:lock"),
+        InlineKeyboardButton("⬅️ Back",              callback_data="emergency:back"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
+
+
+def emergency_confirm(action: str) -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton("✅ Confirm", callback_data=f"emergency:confirm:{action}"),
+        InlineKeyboardButton("❌ Cancel",  callback_data="emergency:cancel"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
+
+
+def emergency_feedback() -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton("📊 Dashboard",  callback_data="dashboard:main"),
+        InlineKeyboardButton("🤖 Auto-Trade", callback_data="dashboard:autotrade"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))
 
