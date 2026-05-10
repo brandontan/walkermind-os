@@ -2,7 +2,7 @@
 
 **Project:** projects/polymarket/crusaderbot
 **Blueprint:** docs/blueprint/crusaderbot.md (v3.1 LOCKED)
-**Last Updated:** 2026-05-10 09:00 Asia/Jakarta
+**Last Updated:** 2026-05-10 13:43
 
 ## Build Path (Replit → Claude Code MVP)
 
@@ -143,7 +143,6 @@ Done condition: Phase 4A–4C merged with USE_REAL_CLOB default False (paper-saf
 | Phase 5B | Dashboard hierarchy redesign | ✅ Done | STANDARD | Merged PR #926 (2026-05-10), declared WARP/CRUSADERBOT-PHASE5B-DASHBOARD, SENTINEL APPROVED 97/100 |
 | Phase 5C | Strategy preset system | ✅ Done | MAJOR | Merged PR #925 (2026-05-10), WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100 |
 | Phase 5D | 2-column grid + Copy/Auto Trade menu split | ✅ Done | STANDARD | Merged PR #928 (2026-05-10) |
-| Phase 5E | Copy Trade dashboard + wallet discovery | 🔲 Next | STANDARD | Unblocked by Phase 5D merge (PR #928) |
+| Phase 5E | Copy Trade dashboard + wallet discovery | ✅ Done | MAJOR | Merged PR #930 (2026-05-10), WARP/CRUSADERBOT-PHASE5E-COPY-TRADE, NARROW INTEGRATION, 24 hermetic tests, migration 018 |
 
-Done condition: Phase 5A–5D merged with no activation guard changes. Phase 5E is the next active lane. Runtime posture: PAPER ONLY, USE_REAL_CLOB default False, all guards NOT SET.
-
+Done condition: Phase 5A–5E merged with no activation guard changes. Phase 5F is the next active lane. Runtime posture: PAPER ONLY, USE_REAL_CLOB default False, all guards NOT SET.

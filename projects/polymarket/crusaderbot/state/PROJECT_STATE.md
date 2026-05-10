@@ -1,17 +1,9 @@
-Last Updated : 2026-05-10 17:45 Asia/Jakarta
-Status       : Phase 5A–5D + Phase 5J emergency redesign all merged. Phase 5E Copy Trade dashboard PR #930 open (MAJOR, SENTINEL required). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
+Last Updated : 2026-05-10 13:43
+Status       : Phase 5A–5E + Phase 5J emergency redesign all merged. PR #930 merged (WARP/CRUSADERBOT-PHASE5E-COPY-TRADE). Runtime posture unchanged: PAPER ONLY, no activation guards flipped, no execution path touched.
 
 [COMPLETED]
-- Phase 4A CLOB Adapter -- PR #911 merged, MAJOR, SENTINEL APPROVED 89/100, branch WARP/CRUSADERBOT-PHASE4A-CLOB-ADAPTER.
-- Phase 4B Execution Rewire -- PR #912 merged, MAJOR, SENTINEL APPROVED 92/100, branch WARP/CRUSADERBOT-PHASE4B-EXECUTION-REWIRE.
-- Phase 4C Order Lifecycle -- PR #913 merged, MAJOR, SENTINEL APPROVED 96/100, branch WARP/CRUSADERBOT-PHASE4C-ORDER-LIFECYCLE.
-- Phase 4D WebSocket Order Fills -- PR #915 merged, MAJOR, FULL RUNTIME INTEGRATION, SENTINEL APPROVED 98/100, branch WARP/CRUSADERBOT-PHASE4D-WEBSOCKET-FILLS.
+- R12 final Fly.io production paper deploy -- Issue #900 closed; production paper deploy complete.
 - Phase 4E CLOB Resilience -- PR #919 merged, MAJOR, FULL RUNTIME INTEGRATION, SENTINEL APPROVED 94/100, branch WARP/CRUSADERBOT-PHASE4E-RESILIENCE.
-- Sentinel gate trail for Phase 4E -- Issue #920 closed completed after PR #921 merged Sentinel report/state into the Phase 4E source branch and PR #919 merged to main.
-- R12 final Fly.io production paper deploy -- Issue #900 is closed completed in GitHub; old pending wording is superseded by current live issue state.
-- Phase 3 strategy plane -- P3a/P3b/P3c/P3d merged with required Sentinel coverage; strategy registry, copy trade, signal following, and per-user signal scan queue are live in paper-safe posture.
-- Demo data seeding -- PR #908 merged, STANDARD, SENTINEL APPROVED 98/100; migration 014, seed/cleanup scripts, runbook, and tests landed.
-- Operator dashboard and kill switch baseline -- PR #874 merged, STANDARD; /ops dashboard and operator controls are available.
 - asyncpg + Supabase Supavisor fix -- PR #923 merged, MINOR, branch WARP/CRUSADERBOT-ASYNCPG-SUPABASE-FIX. Resolves Sentry DAWN-SNOWFLAKE-1729-G/J/P/Q. 822/822 tests green.
 - Phase 5A global-handlers -- PR #924 merged, MINOR, declared WARP/CRUSADERBOT-PHASE5A-GLOBAL-HANDLERS. _text_router priority fix, 5-button main menu, /settings command, my_trades view. 784/784 tests green.
 - Phase 5C strategy preset system -- PR #925 merged, MAJOR, branch WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100. 3 presets (signal_sniper / value_hunter / full_auto), DB migration 016, paper-only activation enforced. 814/814 tests green.
@@ -19,9 +11,10 @@ Status       : Phase 5A–5D + Phase 5J emergency redesign all merged. Phase 5E 
 - SENTINEL report Phase 5B + 5C -- PR #927 merged. Report: projects/polymarket/crusaderbot/reports/sentinel/phase5bc-preset-dashboard.md.
 - Phase 5D 2-column grid + Copy/Auto Trade menu split -- PR #928 merged, STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
 - Phase 5J emergency menu redesign -- PR #932 merged, STANDARD, WARP•SENTINEL APPROVED 90/100 (0 criticals). Lock Account DB-enforced (migration 017), /unlock operator command, confirmation dialogs, 13 hermetic tests.
+- Phase 5E Copy Trade dashboard + wallet discovery -- PR #930 merged, MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + 5-min cache + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
 
 [IN PROGRESS]
-- Phase 5E -- Copy Trade dashboard + wallet discovery. PR #930 open on WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. SENTINEL MAJOR audit required before merge. Migration 018, 24 hermetic tests, retry+backoff on wallet stats fetch.
+- None.
 
 [NOT STARTED]
 - Phase 5F -- Copy Task setup wizard + per-task edit wizard (next after Phase 5E merge).
@@ -35,7 +28,7 @@ Status       : Phase 5A–5D + Phase 5J emergency redesign all merged. Phase 5E 
 - R13f Strategy Marketplace -- tier 4 named strategies, subscription model, and 10% platform take.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for Phase 5E Copy Trade dashboard before merge. Source: projects/polymarket/crusaderbot/reports/forge/copy-trade-dashboard.md. Tier: MAJOR.
+- Phase 5F -- Copy Task setup wizard + per-task edit wizard is the next active lane. Unblocked by Phase 5E merge (PR #930).
 - Keep activation guards NOT SET. No live trading activation, no capital mode change, no real order, no owner guard flip.
 
 [KNOWN ISSUES]
@@ -50,4 +43,4 @@ Status       : Phase 5A–5D + Phase 5J emergency redesign all merged. Phase 5E 
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 
-<!-- CD verify: 2026-05-10 17:45 -->
+<!-- CD verify: 2026-05-10 13:43 -->
