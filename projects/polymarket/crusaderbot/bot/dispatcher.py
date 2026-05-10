@@ -107,6 +107,11 @@ def register(app: Application) -> None:
     # and copytrade:edit:* entry points first.
     app.add_handler(copy_trade.build_wizard_handler())
 
+    # Phase 5G customize wizard — must be registered BEFORE the general
+    # preset: CallbackQueryHandler so it intercepts preset:customize:* and
+    # preset:edit entry points first.
+    app.add_handler(presets.build_customize_handler())
+
     # Callback queries
     app.add_handler(CallbackQueryHandler(wallet.wallet_callback, pattern=r"^wallet:"))
     app.add_handler(CallbackQueryHandler(setup.setup_callback,  pattern=r"^setup:"))
