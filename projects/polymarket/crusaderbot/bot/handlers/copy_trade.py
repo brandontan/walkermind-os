@@ -1,4 +1,4 @@
-"""Telegram handlers for the Copy Trade surface (Phase 5E).
+"""Telegram handlers for the Copy Trade surface (Phase 5E + 5F).
 
 Entry points
 ------------
@@ -6,6 +6,7 @@ menu_copytrade_handler  Called from the 🐋 Copy Trade reply-keyboard button.
 copy_trade_callback     Handles all copytrade: callback queries.
 text_input              Handles the paste-address awaiting flow.
 copy_trade_command      Legacy /copytrade add/remove/list command.
+build_wizard_handler    Returns the Phase 5F ConversationHandler.
 
 Dashboard states
 ----------------
@@ -22,11 +23,13 @@ Path A — Paste Address : user sends a wallet address; bot sets
 Path B — Smart Discovery : leaderboard of top 10 wallets by 30d PnL
     from Polymarket Gamma API with 6 filter categories.
 
-Scope boundary (Phase 5E)
--------------------------
-- Copy task setup wizard is Phase 5F scope (copytrade:copy:* → placeholder).
-- Per-task edit wizard is Phase 5F scope (copytrade:edit:* → placeholder).
-- No execution logic is built here.
+Phase 5F — Wizard ConversationHandler states
+--------------------------------------------
+COPY_AMOUNT     Step 1/3: amount mode + preset selection.
+COPY_RISK       Step 2/3: risk controls (defaults or edit).
+COPY_CONFIRM    Step 3/3: review + start copying.
+COPY_EDIT       Per-task edit screen (entered from dashboard Edit button).
+COPY_CUSTOM     Awaiting typed custom value for amount/risk/field.
 
 Awaiting keys used
 ------------------
@@ -36,11 +39,15 @@ from __future__ import annotations
 
 import logging
 import re
+from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
+from telegram.ext import (
+    CallbackQueryHandler, CommandHandler, ContextTypes,
+    ConversationHandler, MessageHandler, filters,
+)
 
 from ...database import get_pool
 from ...users import upsert_user
@@ -49,9 +56,21 @@ from ..keyboards.copy_trade import (
     copy_trade_empty_kb,
     copy_trade_task_list_kb,
     discover_filter_kb,
+    edit_delete_confirm_kb,
+    edit_task_main_kb,
     wallet_stats_kb,
+    wizard_amount_mode_kb,
+    wizard_custom_cancel_kb,
+    wizard_step1_fixed_kb,
+    wizard_step1_pct_kb,
+    wizard_step2_edit_kb,
+    wizard_step2_kb,
+    wizard_step3_kb,
+    wizard_success_kb,
 )
 from ..tier import Tier, has_tier, tier_block_message
+from ...domain.copy_trade import repository as repo
+from ...domain.copy_trade.models import CopyTradeTask
 from ...services.copy_trade.wallet_stats import (
     WalletStats,
     fetch_top_wallets,
@@ -653,3 +672,1119 @@ def _leaderboard_text(wallets: list[WalletStats], active_filter: str) -> str:
             "",
         ]
     return "\n".join(lines)
+
+
+# ===========================================================================
+# Phase 5F — Copy Trade wizard + per-task edit ConversationHandler
+# ===========================================================================
+
+# Conversation state tokens
+COPY_AMOUNT = 0
+COPY_RISK = 1
+COPY_CONFIRM = 2
+COPY_EDIT = 3
+COPY_CUSTOM = 4
+
+_DEFAULTS: dict[str, Decimal] = {
+    "tp_pct": Decimal("0.20"),
+    "sl_pct": Decimal("0.10"),
+    "max_daily_spend": Decimal("100.00"),
+    "slippage_pct": Decimal("0.05"),
+    "min_trade_size": Decimal("0.50"),
+}
+
+_MENU_BUTTONS = {"📊 Dashboard", "🐋 Copy Trade", "🤖 Auto-Trade",
+                 "📈 My Trades", "💰 Wallet", "🚨 Emergency"}
+
+
+# ---------------------------------------------------------------------------
+# Wizard data helpers
+# ---------------------------------------------------------------------------
+
+
+def _wz(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
+    return ctx.user_data.setdefault("wizard", {})
+
+
+def _init_wizard(wallet_addr: str) -> dict:
+    return {
+        "wallet_addr": wallet_addr,
+        "copy_mode": "fixed",
+        "copy_amount": Decimal("5.00"),
+        "copy_pct": None,
+        **_DEFAULTS,
+        "custom_field": None,
+        "custom_context": None,
+        "edit_task_id": None,
+        "return_state": None,
+    }
+
+
+def _fmt_wz_amount(wz: dict) -> str:
+    if wz.get("copy_mode") == "proportional":
+        pct = wz.get("copy_pct") or Decimal("0")
+        return f"{float(pct) * 100:.0f}% of trader position"
+    amt = wz.get("copy_amount") or Decimal("5.00")
+    return f"${float(amt):.2f} fixed"
+
+
+def _step3_text(wz: dict) -> str:
+    wallet = _truncate_wallet(wz["wallet_addr"])
+    tp = f"+{float(wz['tp_pct']) * 100:.0f}%"
+    sl = f"-{float(wz['sl_pct']) * 100:.0f}%"
+    maxd = f"${float(wz['max_daily_spend']):.0f}"
+    slip = f"{float(wz['slippage_pct']) * 100:.0f}%"
+    min_t = f"${float(wz['min_trade_size']):.2f}"
+    return (
+        "✅ *Confirm Copy Task*\n"
+        "━" * 24 + "\n\n"
+        f"👛 Wallet: `{wallet}`\n"
+        f"💰 Copy: {_fmt_wz_amount(wz)}\n"
+        f"📈 Take Profit: {tp}\n"
+        f"📉 Stop Loss: {sl}\n"
+        f"💳 Max Daily: {maxd}\n"
+        f"🔀 Slippage: {slip}\n"
+        f"📏 Min Trade: {min_t}\n"
+        f"🎲 Mode: Paper\n\n"
+        "_Tap Start Copying to activate._"
+    )
+
+
+def _step2_defaults_text(wz: dict) -> str:
+    tp = f"+{float(wz['tp_pct']) * 100:.0f}%"
+    sl = f"-{float(wz['sl_pct']) * 100:.0f}%"
+    maxd = f"${float(wz['max_daily_spend']):.0f}"
+    slip = f"{float(wz['slippage_pct']) * 100:.0f}%"
+    min_t = f"${float(wz['min_trade_size']):.2f}"
+    return (
+        "⚙️ *Risk Controls* — Step 2/3\n"
+        "━" * 24 + "\n\n"
+        f"📈 Take Profit: {tp}\n"
+        f"📉 Stop Loss: {sl}\n"
+        f"💳 Max Daily Spend: {maxd}\n"
+        f"🔀 Slippage: {slip}\n"
+        f"📏 Min Trade Size: {min_t}\n\n"
+        "Smart defaults pre-applied. Keep or edit."
+    )
+
+
+def _step2_edit_kb_from_wz(wz: dict) -> InlineKeyboardMarkup:
+    tp = f"+{float(wz['tp_pct']) * 100:.0f}%"
+    sl = f"-{float(wz['sl_pct']) * 100:.0f}%"
+    maxd = f"${float(wz['max_daily_spend']):.0f}"
+    slip = f"{float(wz['slippage_pct']) * 100:.0f}%"
+    min_t = f"${float(wz['min_trade_size']):.2f}"
+    return wizard_step2_edit_kb(tp, sl, maxd, slip, min_t)
+
+
+def _edit_screen_text(task: CopyTradeTask) -> str:
+    wallet = _truncate_wallet(task.wallet_address)
+    name = task.task_name.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[")
+    badge = task.status_badge
+    tp = f"+{float(task.tp_pct) * 100:.0f}%"
+    sl = f"-{float(task.sl_pct) * 100:.0f}%"
+    return (
+        f"✏️ *Edit Task — {name}*\n"
+        "━" * 24 + "\n\n"
+        f"👛 `{wallet}`  {badge} `{task.status}`\n"
+        f"💰 Copy: ${float(task.copy_amount):.2f} ({task.copy_mode})\n"
+        f"📈 TP: {tp}  📉 SL: {sl}\n\n"
+        "_Tap any setting to edit it._"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Entry point handlers
+# ---------------------------------------------------------------------------
+
+
+async def wizard_enter_copy(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Entry: user tapped '🐋 Copy This Wallet'."""
+    q = update.callback_query
+    if q is None:
+        return ConversationHandler.END
+    await q.answer()
+
+    user, ok = await _resolve_user(update)
+    if not ok or user is None:
+        return ConversationHandler.END
+
+    wallet_addr = (q.data or "")[len("copytrade:copy:"):]
+    ctx.user_data["wizard"] = _init_wizard(wallet_addr)
+
+    wallet = _truncate_wallet(wallet_addr)
+    text = (
+        "🐋 *Copy This Wallet* — Step 1/3\n"
+        "━" * 24 + "\n\n"
+        f"👛 `{wallet}`\n\n"
+        "Choose how to size each copied trade:"
+    )
+    if q.message:
+        await q.message.edit_text(
+            text, parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_amount_mode_kb(),
+        )
+    return COPY_AMOUNT
+
+
+async def wizard_enter_edit(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Entry: user tapped 'Edit' on a task card."""
+    q = update.callback_query
+    if q is None:
+        return ConversationHandler.END
+    await q.answer()
+
+    user, ok = await _resolve_user(update)
+    if not ok or user is None:
+        return ConversationHandler.END
+
+    task_id_str = (q.data or "")[len("copytrade:edit:"):]
+    try:
+        task = await repo.get_task(UUID(task_id_str), user["id"])
+    except Exception:
+        task = None
+
+    if task is None:
+        await q.answer("Task not found.", show_alert=True)
+        return ConversationHandler.END
+
+    ctx.user_data["wizard"] = {
+        "edit_task_id": task_id_str,
+        "custom_field": None,
+        "custom_context": "edit",
+        "return_state": COPY_EDIT,
+    }
+
+    if q.message:
+        await q.message.edit_text(
+            _edit_screen_text(task),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=edit_task_main_kb(task),
+        )
+    return COPY_EDIT
+
+
+# ---------------------------------------------------------------------------
+# COPY_AMOUNT state handlers
+# ---------------------------------------------------------------------------
+
+
+async def step1_mode_select(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User picked Fixed or % Mirror mode."""
+    q = update.callback_query
+    if q is None:
+        return COPY_AMOUNT
+    await q.answer()
+    mode = (q.data or "").split(":")[-1]  # "fixed" or "pct"
+    wz = _wz(ctx)
+    wz["copy_mode"] = "fixed" if mode == "fixed" else "proportional"
+
+    wallet = _truncate_wallet(wz.get("wallet_addr", ""))
+    if mode == "fixed":
+        text = (
+            "💵 *Fixed Amount* — Step 1/3\n"
+            "━" * 24 + "\n\n"
+            f"👛 `{wallet}`\n\n"
+            "Pick the dollar amount to copy per trade:"
+        )
+        kb = wizard_step1_fixed_kb()
+    else:
+        text = (
+            "📊 *% Mirror* — Step 1/3\n"
+            "━" * 24 + "\n\n"
+            f"👛 `{wallet}`\n\n"
+            "Mirror this % of the trader's position size:"
+        )
+        kb = wizard_step1_pct_kb()
+    if q.message:
+        await q.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+    return COPY_AMOUNT
+
+
+async def step1_fixed_select(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User selected a fixed amount preset ($1/$5/$10/$25)."""
+    q = update.callback_query
+    if q is None:
+        return COPY_AMOUNT
+    await q.answer()
+    amount_str = (q.data or "").split(":")[-1]
+    wz = _wz(ctx)
+    wz["copy_amount"] = Decimal(amount_str)
+    wz["copy_mode"] = "fixed"
+    wz["copy_pct"] = None
+
+    if q.message:
+        await q.message.edit_text(
+            _step2_defaults_text(wz),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_step2_kb(),
+        )
+    return COPY_RISK
+
+
+async def step1_pct_select(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User selected a percentage preset (5%/10%/25%/50%)."""
+    q = update.callback_query
+    if q is None:
+        return COPY_AMOUNT
+    await q.answer()
+    pct_str = (q.data or "").split(":")[-1]
+    wz = _wz(ctx)
+    wz["copy_pct"] = Decimal(pct_str) / Decimal("100")
+    wz["copy_mode"] = "proportional"
+    wz["copy_amount"] = Decimal("0")
+
+    if q.message:
+        await q.message.edit_text(
+            _step2_defaults_text(wz),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_step2_kb(),
+        )
+    return COPY_RISK
+
+
+async def step1_back_to_mode(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User tapped ← Mode from fixed/pct grid."""
+    q = update.callback_query
+    if q is None:
+        return COPY_AMOUNT
+    await q.answer()
+    wz = _wz(ctx)
+    wallet = _truncate_wallet(wz.get("wallet_addr", ""))
+    if q.message:
+        await q.message.edit_text(
+            "🐋 *Copy This Wallet* — Step 1/3\n"
+            "━" * 24 + "\n\n"
+            f"👛 `{wallet}`\n\n"
+            "Choose how to size each copied trade:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_amount_mode_kb(),
+        )
+    return COPY_AMOUNT
+
+
+async def step1_custom(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User tapped Custom for amount or pct — prompt text input."""
+    q = update.callback_query
+    if q is None:
+        return COPY_AMOUNT
+    await q.answer()
+    field = (q.data or "").split(":")[-1]  # "amount" or "pct"
+    wz = _wz(ctx)
+    wz["custom_field"] = field
+    wz["custom_context"] = "step1"
+    wz["return_state"] = COPY_AMOUNT
+
+    if field == "pct":
+        prompt = "Enter percentage (e.g. `15` for 15%):"
+        back_data = "wizard:back:mode"
+    else:
+        prompt = "Enter dollar amount (e.g. `7.50`):"
+        back_data = "wizard:back:mode"
+
+    if q.message:
+        await q.message.edit_text(
+            f"✏️ *Custom {field.title()}*\n━" + "━" * 23 + "\n\n" + prompt,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_custom_cancel_kb(back_data),
+        )
+    return COPY_CUSTOM
+
+
+# ---------------------------------------------------------------------------
+# COPY_RISK state handlers
+# ---------------------------------------------------------------------------
+
+
+async def step2_keep(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User kept defaults (or tapped Done in edit mode) — go to confirm."""
+    q = update.callback_query
+    if q is None:
+        return COPY_RISK
+    await q.answer()
+    wz = _wz(ctx)
+    if q.message:
+        await q.message.edit_text(
+            _step3_text(wz),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_step3_kb(),
+        )
+    return COPY_CONFIRM
+
+
+async def step2_edit(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User tapped Edit — show risk settings as tappable buttons."""
+    q = update.callback_query
+    if q is None:
+        return COPY_RISK
+    await q.answer()
+    wz = _wz(ctx)
+    if q.message:
+        await q.message.edit_text(
+            _step2_defaults_text(wz),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_step2_edit_kb_from_wz(wz),
+        )
+    return COPY_RISK
+
+
+async def step2_custom_field(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User tapped a risk field button — prompt custom text input."""
+    q = update.callback_query
+    if q is None:
+        return COPY_RISK
+    await q.answer()
+    field = (q.data or "").split(":")[-1]  # tp / sl / maxd / slip / min
+    wz = _wz(ctx)
+    wz["custom_field"] = field
+    wz["custom_context"] = "step2"
+    wz["return_state"] = COPY_RISK
+
+    prompts = {
+        "tp":   "Enter take-profit % (e.g. `20` for +20%):",
+        "sl":   "Enter stop-loss % (e.g. `10` for -10%):",
+        "maxd": "Enter max daily spend in USD (e.g. `150`):",
+        "slip": "Enter slippage % (e.g. `5` for 5%):",
+        "min":  "Enter minimum trade size in USD (e.g. `1.00`):",
+    }
+    prompt = prompts.get(field, "Enter value:")
+    if q.message:
+        await q.message.edit_text(
+            f"✏️ *Edit Risk — {field.upper()}*\n━" + "━" * 23 + "\n\n" + prompt,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_custom_cancel_kb("wizard:back:step2edit"),
+        )
+    return COPY_CUSTOM
+
+
+async def step2_back(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Back from step 2 to step 1."""
+    q = update.callback_query
+    if q is None:
+        return COPY_AMOUNT
+    await q.answer()
+    wz = _wz(ctx)
+    wallet = _truncate_wallet(wz.get("wallet_addr", ""))
+    if q.message:
+        await q.message.edit_text(
+            "🐋 *Copy This Wallet* — Step 1/3\n"
+            "━" * 24 + "\n\n"
+            f"👛 `{wallet}`\n\n"
+            "Choose how to size each copied trade:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_amount_mode_kb(),
+        )
+    return COPY_AMOUNT
+
+
+# ---------------------------------------------------------------------------
+# COPY_CONFIRM state handlers
+# ---------------------------------------------------------------------------
+
+
+async def step3_confirm(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User confirmed — create the task row in DB and show success."""
+    q = update.callback_query
+    if q is None:
+        return COPY_CONFIRM
+    await q.answer()
+
+    user, ok = await _resolve_user(update)
+    if not ok or user is None:
+        return ConversationHandler.END
+
+    wz = _wz(ctx)
+    wallet_addr = wz["wallet_addr"]
+    task_name = f"Copy {_truncate_wallet(wallet_addr)}"
+
+    try:
+        task = await repo.create_task(
+            user_id=user["id"],
+            wallet_address=wallet_addr,
+            task_name=task_name,
+            copy_mode=wz["copy_mode"],
+            copy_amount=wz["copy_amount"],
+            copy_pct=wz.get("copy_pct"),
+            tp_pct=wz["tp_pct"],
+            sl_pct=wz["sl_pct"],
+            max_daily_spend=wz["max_daily_spend"],
+            slippage_pct=wz["slippage_pct"],
+            min_trade_size=wz["min_trade_size"],
+        )
+    except Exception as exc:
+        logger.error("wizard: create_task failed: %s", exc, exc_info=True)
+        if q.message:
+            await q.message.edit_text(
+                "❌ Could not create task. Please try again later.",
+                reply_markup=wizard_success_kb(),
+            )
+        ctx.user_data.pop("wizard", None)
+        return ConversationHandler.END
+
+    ctx.user_data.pop("wizard", None)
+    if q.message:
+        await q.message.edit_text(
+            "✅ *Copy task created!*\n"
+            "━" * 24 + "\n\n"
+            f"👛 `{_truncate_wallet(wallet_addr)}`\n"
+            f"💰 {_fmt_wz_amount({**_DEFAULTS, 'copy_mode': task.copy_mode, 'copy_amount': task.copy_amount, 'copy_pct': task.copy_pct})}\n"
+            f"🎲 Mode: Paper\n\n"
+            "_Task is now active. No real capital deployed._",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_success_kb(),
+        )
+    return ConversationHandler.END
+
+
+async def step3_back(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Back from step 3 to step 2."""
+    q = update.callback_query
+    if q is None:
+        return COPY_RISK
+    await q.answer()
+    wz = _wz(ctx)
+    if q.message:
+        await q.message.edit_text(
+            _step2_defaults_text(wz),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_step2_kb(),
+        )
+    return COPY_RISK
+
+
+# ---------------------------------------------------------------------------
+# COPY_EDIT state handlers
+# ---------------------------------------------------------------------------
+
+
+async def edit_field_custom(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User tapped an edit field button — prompt custom text input."""
+    q = update.callback_query
+    if q is None:
+        return COPY_EDIT
+    await q.answer()
+    parts = (q.data or "").split(":")  # wizard:efc:{task_id}:{field}
+    if len(parts) < 4:
+        return COPY_EDIT
+    task_id_str, field = parts[2], parts[3]
+
+    wz = _wz(ctx)
+    wz["custom_field"] = field
+    wz["custom_context"] = "edit"
+    wz["edit_task_id"] = task_id_str
+    wz["return_state"] = COPY_EDIT
+
+    prompts = {
+        "amount": "Enter copy amount in USD (e.g. `10.00`):",
+        "tp":     "Enter take-profit % (e.g. `20` for +20%):",
+        "sl":     "Enter stop-loss % (e.g. `10` for -10%):",
+        "maxd":   "Enter max daily spend in USD (e.g. `150`):",
+        "slip":   "Enter slippage % (e.g. `5` for 5%):",
+        "min":    "Enter min trade size in USD (e.g. `1.00`):",
+    }
+    prompt = prompts.get(field, "Enter value:")
+    back_data = f"wizard:eback:edit:{task_id_str}"
+    if q.message:
+        await q.message.edit_text(
+            f"✏️ *Edit — {field.upper()}*\n━" + "━" * 23 + "\n\n" + prompt,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_custom_cancel_kb(back_data),
+        )
+    return COPY_CUSTOM
+
+
+async def edit_field_preset(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Handle wizard:ef:{task_id}:rev — toggle reverse_copy."""
+    q = update.callback_query
+    if q is None:
+        return COPY_EDIT
+    await q.answer()
+    parts = (q.data or "").split(":")  # wizard:ef:{task_id}:rev
+    if len(parts) < 4:
+        return COPY_EDIT
+    task_id_str = parts[2]
+
+    user, ok = await _resolve_user(update)
+    if not ok or user is None:
+        return COPY_EDIT
+
+    try:
+        existing = await repo.get_task(UUID(task_id_str), user["id"])
+        if existing is None:
+            await q.answer("Task not found.", show_alert=True)
+            return COPY_EDIT
+        task = await repo.update_task(
+            UUID(task_id_str), user["id"],
+            reverse_copy=not existing.reverse_copy,
+        )
+    except Exception as exc:
+        logger.error("edit_field_preset failed: %s", exc, exc_info=True)
+        return COPY_EDIT
+
+    if task and q.message:
+        await q.message.edit_text(
+            _edit_screen_text(task),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=edit_task_main_kb(task),
+        )
+    return COPY_EDIT
+
+
+async def edit_pause(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Toggle task status active ↔ paused."""
+    q = update.callback_query
+    if q is None:
+        return COPY_EDIT
+    await q.answer()
+    parts = (q.data or "").split(":")  # wizard:epause:{task_id}
+    if len(parts) < 3:
+        return COPY_EDIT
+    task_id_str = parts[2]
+
+    user, ok = await _resolve_user(update)
+    if not ok or user is None:
+        return COPY_EDIT
+
+    new_status = await repo.toggle_pause(UUID(task_id_str), user["id"])
+    if new_status is None:
+        await q.answer("Task not found.", show_alert=True)
+        return COPY_EDIT
+
+    label = "▶️ resumed" if new_status == "active" else "⏸ paused"
+    await q.answer(f"Task {label}")
+
+    try:
+        task = await repo.get_task(UUID(task_id_str), user["id"])
+    except Exception:
+        task = None
+
+    if task and q.message:
+        await q.message.edit_text(
+            _edit_screen_text(task),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=edit_task_main_kb(task),
+        )
+    return COPY_EDIT
+
+
+async def edit_delete_ask(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Show delete confirmation dialog."""
+    q = update.callback_query
+    if q is None:
+        return COPY_EDIT
+    await q.answer()
+    parts = (q.data or "").split(":")  # wizard:edel:ask:{task_id}
+    if len(parts) < 4:
+        return COPY_EDIT
+    task_id_str = parts[3]
+    if q.message:
+        await q.message.edit_text(
+            "🗑 *Delete Task?*\n━" + "━" * 23 + "\n\n"
+            "This will permanently remove the copy task.\n"
+            "Are you sure?",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=edit_delete_confirm_kb(task_id_str),
+        )
+    return COPY_EDIT
+
+
+async def edit_delete_confirm(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User confirmed delete — remove task from DB."""
+    q = update.callback_query
+    if q is None:
+        return COPY_EDIT
+    await q.answer()
+    parts = (q.data or "").split(":")  # wizard:edel:yes:{task_id}
+    if len(parts) < 4:
+        return COPY_EDIT
+    task_id_str = parts[3]
+
+    user, ok = await _resolve_user(update)
+    if not ok or user is None:
+        return ConversationHandler.END
+
+    try:
+        removed = await repo.delete_task(UUID(task_id_str), user["id"])
+    except Exception as exc:
+        logger.error("edit_delete_confirm failed: %s", exc, exc_info=True)
+        removed = False
+
+    ctx.user_data.pop("wizard", None)
+    if q.message:
+        msg = (
+            "🗑 Task deleted." if removed
+            else "⚠️ Task not found or already removed."
+        )
+        await q.message.edit_text(
+            msg,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🐋 Copy Trade", callback_data="copytrade:dashboard"),
+            ]]),
+        )
+    return ConversationHandler.END
+
+
+async def edit_delete_cancel(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """User cancelled delete — return to edit screen."""
+    q = update.callback_query
+    if q is None:
+        return COPY_EDIT
+    await q.answer()
+    parts = (q.data or "").split(":")  # wizard:edel:no:{task_id}
+    if len(parts) < 4:
+        return COPY_EDIT
+    task_id_str = parts[3]
+
+    user, ok = await _resolve_user(update)
+    if not ok or user is None:
+        return ConversationHandler.END
+
+    try:
+        task = await repo.get_task(UUID(task_id_str), user["id"])
+    except Exception:
+        task = None
+
+    if task and q.message:
+        await q.message.edit_text(
+            _edit_screen_text(task),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=edit_task_main_kb(task),
+        )
+    return COPY_EDIT
+
+
+async def edit_pnl(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Show per-task P&L summary (stub — execution engine not built yet)."""
+    q = update.callback_query
+    if q is None:
+        return COPY_EDIT
+    await q.answer()
+    parts = (q.data or "").split(":")  # wizard:epnl:{task_id}
+    task_id_str = parts[2] if len(parts) >= 3 else "?"
+    if q.message:
+        await q.message.reply_text(
+            "📊 *Task P&L*\n━" + "━" * 23 + "\n\n"
+            "_P&L tracking will be available once the copy execution engine is live._\n\n"
+            "🎲 Mode: Paper",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    return COPY_EDIT
+
+
+async def edit_rename(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Prompt user to type a new task name."""
+    q = update.callback_query
+    if q is None:
+        return COPY_EDIT
+    await q.answer()
+    parts = (q.data or "").split(":")  # wizard:erename:{task_id}
+    if len(parts) < 3:
+        return COPY_EDIT
+    task_id_str = parts[2]
+
+    wz = _wz(ctx)
+    wz["custom_field"] = "task_name"
+    wz["custom_context"] = "edit"
+    wz["edit_task_id"] = task_id_str
+    wz["return_state"] = COPY_EDIT
+
+    if q.message:
+        await q.message.edit_text(
+            "✏️ *Rename Task*\n━" + "━" * 23 + "\n\n"
+            "Type the new name (max 50 chars):",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_custom_cancel_kb(f"wizard:eback:edit:{task_id_str}"),
+        )
+    return COPY_CUSTOM
+
+
+async def edit_back(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Back from edit screen to Copy Trade dashboard."""
+    q = update.callback_query
+    if q is None:
+        return ConversationHandler.END
+    await q.answer()
+    ctx.user_data.pop("wizard", None)
+    await menu_copytrade_handler(update, ctx)
+    return ConversationHandler.END
+
+
+# ---------------------------------------------------------------------------
+# COPY_CUSTOM state handlers
+# ---------------------------------------------------------------------------
+
+
+async def custom_input_handler(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Process typed custom value for amount / risk / edit field."""
+    if update.message is None:
+        return COPY_CUSTOM
+
+    text = (update.message.text or "").strip()
+
+    # Main menu button tap exits the wizard
+    if text in _MENU_BUTTONS:
+        ctx.user_data.pop("wizard", None)
+        # Let _text_router handle routing
+        from ..menus.main import get_menu_route
+        handler = get_menu_route(text)
+        if handler:
+            await handler(update, ctx)
+        return ConversationHandler.END
+
+    wz = _wz(ctx)
+    field = wz.get("custom_field", "")
+    context = wz.get("custom_context", "")
+
+    # Handle task_name (plain string) before numeric parsing so rename works.
+    if field == "task_name" and context == "edit":
+        task_id_str = wz.get("edit_task_id", "")
+        user, ok = await _resolve_user(update)
+        if not ok or user is None:
+            return ConversationHandler.END
+        name = text.strip()[:50]
+        if not name:
+            await update.message.reply_text(
+                "❌ Name cannot be empty. Try again or tap Cancel:",
+            )
+            return COPY_CUSTOM
+        try:
+            task = await repo.update_task(UUID(task_id_str), user["id"], task_name=name)
+        except Exception as exc:
+            logger.error("rename task failed: %s", exc, exc_info=True)
+            await update.message.reply_text("❌ Update failed. Please try again.")
+            return COPY_CUSTOM
+        if task:
+            await update.message.reply_text(
+                _edit_screen_text(task),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=edit_task_main_kb(task),
+            )
+        return COPY_EDIT
+
+    # --- parse value ---
+    try:
+        raw = Decimal(text.replace("$", "").replace("%", "").strip())
+    except InvalidOperation:
+        await update.message.reply_text(
+            "❌ Invalid number. Try again or tap Cancel:",
+        )
+        return COPY_CUSTOM
+
+    if raw < 0:
+        await update.message.reply_text(
+            "❌ Value must be positive. Try again:",
+        )
+        return COPY_CUSTOM
+
+    # --- apply to wizard/task ---
+    if context == "step1":
+        if field == "amount":
+            wz["copy_amount"] = raw
+            wz["copy_mode"] = "fixed"
+            wz["copy_pct"] = None
+        else:  # pct
+            if raw > 100:
+                await update.message.reply_text("❌ Percentage must be ≤ 100. Try again:")
+                return COPY_CUSTOM
+            wz["copy_pct"] = raw / Decimal("100")
+            wz["copy_mode"] = "proportional"
+            wz["copy_amount"] = Decimal("0")
+        # Advance to step 2
+        await update.message.reply_text(
+            _step2_defaults_text(wz),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_step2_kb(),
+        )
+        return COPY_RISK
+
+    elif context == "step2":
+        _apply_risk_field(wz, field, raw)
+        await update.message.reply_text(
+            _step2_defaults_text(wz),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_step2_edit_kb_from_wz(wz),
+        )
+        return COPY_RISK
+
+    elif context == "edit":
+        task_id_str = wz.get("edit_task_id", "")
+        user, ok = await _resolve_user(update)
+        if not ok or user is None:
+            return ConversationHandler.END
+        try:
+            db_fields = _edit_field_to_db(field, raw, text)
+            task = await repo.update_task(UUID(task_id_str), user["id"], **db_fields)
+        except Exception as exc:
+            logger.error("custom_input edit update failed: %s", exc, exc_info=True)
+            await update.message.reply_text("❌ Update failed. Please try again.")
+            return COPY_CUSTOM
+
+        if task:
+            await update.message.reply_text(
+                _edit_screen_text(task),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=edit_task_main_kb(task),
+            )
+        return COPY_EDIT
+
+    await update.message.reply_text("❌ Unknown context. Try again or tap Cancel.")
+    return COPY_CUSTOM
+
+
+def _apply_risk_field(wz: dict, field: str, raw: Decimal) -> None:
+    if field == "tp":
+        wz["tp_pct"] = raw / Decimal("100")
+    elif field == "sl":
+        wz["sl_pct"] = raw / Decimal("100")
+    elif field == "maxd":
+        wz["max_daily_spend"] = raw
+    elif field == "slip":
+        wz["slippage_pct"] = raw / Decimal("100")
+    elif field == "min":
+        wz["min_trade_size"] = raw
+
+
+def _edit_field_to_db(field: str, raw: Decimal, original_text: str) -> dict:
+    if field == "amount":
+        return {"copy_amount": raw}
+    if field == "tp":
+        return {"tp_pct": raw / Decimal("100")}
+    if field == "sl":
+        return {"sl_pct": raw / Decimal("100")}
+    if field == "maxd":
+        return {"max_daily_spend": raw}
+    if field == "slip":
+        return {"slippage_pct": raw / Decimal("100")}
+    if field == "min":
+        return {"min_trade_size": raw}
+    if field == "task_name":
+        name = original_text.strip()[:50]
+        return {"task_name": name}
+    raise ValueError(f"Unknown edit field: {field}")
+
+
+async def custom_input_back(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Cancel button in custom input — return to appropriate state."""
+    q = update.callback_query
+    if q is None:
+        return COPY_CUSTOM
+    await q.answer()
+    wz = _wz(ctx)
+    return_state = wz.get("return_state", COPY_AMOUNT)
+    context = wz.get("custom_context", "")
+
+    if context == "edit":
+        task_id_str = wz.get("edit_task_id", "")
+        user, ok = await _resolve_user(update)
+        if not ok or user is None:
+            return ConversationHandler.END
+        try:
+            task = await repo.get_task(UUID(task_id_str), user["id"])
+        except Exception:
+            task = None
+        if task and q.message:
+            await q.message.edit_text(
+                _edit_screen_text(task),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=edit_task_main_kb(task),
+            )
+        return COPY_EDIT
+
+    elif return_state == COPY_RISK:
+        if q.message:
+            await q.message.edit_text(
+                _step2_defaults_text(wz),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=wizard_step2_kb(),
+            )
+        return COPY_RISK
+
+    else:
+        wallet = _truncate_wallet(wz.get("wallet_addr", ""))
+        if q.message:
+            await q.message.edit_text(
+                "🐋 *Copy This Wallet* — Step 1/3\n"
+                "━" * 24 + "\n\n"
+                f"👛 `{wallet}`\n\n"
+                "Choose how to size each copied trade:",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=wizard_amount_mode_kb(),
+            )
+        return COPY_AMOUNT
+
+
+# ---------------------------------------------------------------------------
+# Fallback handlers (shared across all states)
+# ---------------------------------------------------------------------------
+
+
+async def wizard_cancel(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Cancel wizard and return to Add Wallet screen."""
+    q = update.callback_query
+    if q is None:
+        return ConversationHandler.END
+    await q.answer()
+    ctx.user_data.pop("wizard", None)
+    if q.message:
+        await q.message.edit_text(
+            "➕ *Add Wallet*\n━" + "━" * 23 + "\n\n"
+            "Choose how to add a wallet to copy:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=copy_trade_add_wallet_kb(),
+        )
+    return ConversationHandler.END
+
+
+async def wizard_fallback_menu(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """/menu command in wizard — exit and show menu."""
+    ctx.user_data.pop("wizard", None)
+    from ..handlers import onboarding
+    await onboarding.menu_handler(update, ctx)
+    return ConversationHandler.END
+
+
+async def wizard_menu_tap(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Main menu reply-keyboard tap during wizard — exit and route."""
+    if update.message is None:
+        return ConversationHandler.END
+    text = (update.message.text or "").strip()
+    ctx.user_data.pop("wizard", None)
+    from ..menus.main import get_menu_route
+    handler = get_menu_route(text)
+    if handler:
+        await handler(update, ctx)
+    return ConversationHandler.END
+
+
+async def wizard_fallback_text(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Unrecognised text while in wizard — show hint, keep current state."""
+    if update.message:
+        await update.message.reply_text(
+            "Couldn't parse that. Tap a button or /menu to exit.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# ConversationHandler factory
+# ---------------------------------------------------------------------------
+
+
+def build_wizard_handler() -> ConversationHandler:
+    """Return the Phase 5F Copy Trade wizard ConversationHandler."""
+    return ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(wizard_enter_copy, pattern=r"^copytrade:copy:"),
+            CallbackQueryHandler(wizard_enter_edit, pattern=r"^copytrade:edit:"),
+        ],
+        states={
+            COPY_AMOUNT: [
+                CallbackQueryHandler(step1_mode_select,  pattern=r"^wizard:mode:(fixed|pct)$"),
+                CallbackQueryHandler(step1_fixed_select, pattern=r"^wizard:fixed:\d+$"),
+                CallbackQueryHandler(step1_pct_select,   pattern=r"^wizard:pct:\d+$"),
+                CallbackQueryHandler(step1_custom,       pattern=r"^wizard:custom:(amount|pct)$"),
+                CallbackQueryHandler(step1_back_to_mode, pattern=r"^wizard:back:mode$"),
+                CallbackQueryHandler(wizard_cancel,      pattern=r"^wizard:cancel$"),
+            ],
+            COPY_RISK: [
+                CallbackQueryHandler(step2_keep,         pattern=r"^wizard:keep$"),
+                CallbackQueryHandler(step2_edit,         pattern=r"^wizard:risk:edit$"),
+                CallbackQueryHandler(step2_custom_field, pattern=r"^wizard:custom:(tp|sl|maxd|slip|min)$"),
+                CallbackQueryHandler(step2_back,         pattern=r"^wizard:back:step1$"),
+                CallbackQueryHandler(custom_input_back,  pattern=r"^wizard:back:step2edit$"),
+                CallbackQueryHandler(wizard_cancel,      pattern=r"^wizard:cancel$"),
+            ],
+            COPY_CONFIRM: [
+                CallbackQueryHandler(step3_confirm, pattern=r"^wizard:confirm$"),
+                CallbackQueryHandler(step3_back,    pattern=r"^wizard:back:step2$"),
+                CallbackQueryHandler(wizard_cancel, pattern=r"^wizard:cancel$"),
+            ],
+            COPY_EDIT: [
+                CallbackQueryHandler(edit_field_custom,   pattern=r"^wizard:efc:"),
+                CallbackQueryHandler(edit_field_preset,   pattern=r"^wizard:ef:"),
+                CallbackQueryHandler(edit_pause,          pattern=r"^wizard:epause:"),
+                CallbackQueryHandler(edit_delete_ask,     pattern=r"^wizard:edel:ask:"),
+                CallbackQueryHandler(edit_delete_confirm, pattern=r"^wizard:edel:yes:"),
+                CallbackQueryHandler(edit_delete_cancel,  pattern=r"^wizard:edel:no:"),
+                CallbackQueryHandler(edit_pnl,            pattern=r"^wizard:epnl:"),
+                CallbackQueryHandler(edit_rename,         pattern=r"^wizard:erename:"),
+                CallbackQueryHandler(edit_back,           pattern=r"^wizard:eback$"),
+                CallbackQueryHandler(custom_input_back,   pattern=r"^wizard:eback:edit:"),
+                CallbackQueryHandler(wizard_cancel,       pattern=r"^wizard:cancel$"),
+            ],
+            COPY_CUSTOM: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND, custom_input_handler,
+                ),
+                CallbackQueryHandler(custom_input_back, pattern=r"^wizard:(back:|eback:)"),
+                CallbackQueryHandler(wizard_cancel,     pattern=r"^wizard:cancel$"),
+            ],
+        },
+        fallbacks=[
+            CommandHandler("menu", wizard_fallback_menu),
+            MessageHandler(
+                filters.Regex(r"^(📊|🐋|🤖|📈|💰|🚨)"), wizard_menu_tap,
+            ),
+            MessageHandler(
+                filters.TEXT & ~filters.COMMAND, wizard_fallback_text,
+            ),
+        ],
+        per_message=False,
+        allow_reentry=True,
+        name="copy_trade_wizard",
+    )
