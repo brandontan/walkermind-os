@@ -17,7 +17,10 @@ from typing import Tuple
 
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
+from telegram.ext import (
+    CallbackQueryHandler, CommandHandler, ContextTypes, ConversationHandler,
+    MessageHandler, filters,
+)
 
 from ...database import get_pool
 from ...domain.preset import Preset, get_preset, list_presets
@@ -28,6 +31,8 @@ from ...wallet.ledger import daily_pnl, get_balance
 from ..keyboards.presets import (
     preset_confirm, preset_picker, preset_status, preset_stop_confirm,
     preset_switch_confirm,
+    wizard_capital_kb, wizard_custom_input_kb, wizard_done_kb,
+    wizard_review_kb, wizard_sl_kb, wizard_tp_kb,
 )
 from ..tier import Tier, has_tier, tier_block_message
 
@@ -372,4 +377,573 @@ async def _on_stop_yes(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
         update,
         "🛑 Auto-trade stopped. Active preset cleared. Open positions are "
         "untouched — close them via /positions if needed.",
+    )
+
+
+# ===========================================================================
+# Phase 5G — Customize wizard ConversationHandler
+# ===========================================================================
+
+# Conversation state tokens
+CUSTOM_CAPITAL = 0
+CUSTOM_TP = 1
+CUSTOM_SL = 2
+CUSTOM_REVIEW = 3
+CUSTOM_INPUT = 4
+
+_MENU_BUTTONS_CUSTOMIZE = {
+    "📊 Dashboard", "🐋 Copy Trade", "🤖 Auto-Trade",
+    "📈 My Trades", "💰 Wallet", "🚨 Emergency",
+}
+
+
+def _cwz(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
+    return ctx.user_data.setdefault("customize_wz", {})
+
+
+# ---------------------------------------------------------------------------
+# Text renderers
+# ---------------------------------------------------------------------------
+
+def _step1_text(p: Preset) -> str:
+    return (
+        f"*Step 1/5 — Capital Allocation*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Preset: {p.emoji} *{p.name}*\n\n"
+        "How much of your balance to deploy?"
+    )
+
+
+def _step2_text() -> str:
+    return (
+        "*Step 2/5 — Take Profit*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Auto-close winning positions at:"
+    )
+
+
+def _step3_text() -> str:
+    return (
+        "*Step 3/5 — Stop Loss*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Auto-close losing positions at:"
+    )
+
+
+def _step5_text(wz: dict, p: Preset) -> str:
+    cap = round(wz["capital_pct"] * 100)
+    tp = round(wz["tp_pct"] * 100)
+    sl = round(wz["sl_pct"] * 100)
+    return (
+        "*Step 5/5 — Review*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"├ Preset         : {p.emoji} *{p.name}*\n"
+        f"├ Capital        : `{cap}%`\n"
+        f"├ Take Profit    : `+{tp}%`\n"
+        f"├ Stop Loss      : `-{sl}%`\n"
+        "└ Mode           : `Paper`\n\n"
+        "Tap *Save* to apply."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Entry handlers
+# ---------------------------------------------------------------------------
+
+async def wizard_enter_customize(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Entry: user tapped Customize on the confirmation card."""
+    q = update.callback_query
+    if q is None:
+        return ConversationHandler.END
+    await q.answer()
+    user, ok = await _ensure_tier2(update)
+    if not ok:
+        return ConversationHandler.END
+
+    preset_key = (q.data or "")[len("preset:customize:"):]
+    p = get_preset(preset_key)
+    if p is None:
+        if q.message:
+            await q.message.reply_text("❌ Unknown preset.")
+        return ConversationHandler.END
+
+    ctx.user_data["customize_wz"] = {
+        "preset_key": preset_key,
+        "is_new_activation": True,
+        "capital_pct": p.capital_pct,
+        "tp_pct": p.tp_pct,
+        "sl_pct": p.sl_pct,
+        "custom_field": None,
+    }
+    if q.message:
+        await q.message.edit_text(
+            _step1_text(p),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_capital_kb(),
+        )
+    return CUSTOM_CAPITAL
+
+
+async def wizard_enter_edit(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    """Entry: user tapped Edit Config on the status card."""
+    q = update.callback_query
+    if q is None:
+        return ConversationHandler.END
+    await q.answer()
+    user, ok = await _ensure_tier2(update)
+    if not ok:
+        return ConversationHandler.END
+
+    s = await get_settings_for(user["id"])
+    preset_key = s.get("active_preset")
+    p = get_preset(preset_key) if preset_key else None
+    if p is None:
+        if q.message:
+            await q.message.reply_text("No active preset to edit.")
+        return ConversationHandler.END
+
+    ctx.user_data["customize_wz"] = {
+        "preset_key": preset_key,
+        "is_new_activation": False,
+        "capital_pct": float(s.get("capital_alloc_pct") or p.capital_pct),
+        "tp_pct": float(s.get("tp_pct") or p.tp_pct),
+        "sl_pct": float(s.get("sl_pct") or p.sl_pct),
+        "custom_field": None,
+    }
+    if q.message:
+        await q.message.edit_text(
+            _step1_text(p),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_capital_kb(),
+        )
+    return CUSTOM_CAPITAL
+
+
+# ---------------------------------------------------------------------------
+# Step 1 — Capital
+# ---------------------------------------------------------------------------
+
+async def step1_capital_select(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return CUSTOM_CAPITAL
+    await q.answer()
+    pct_str = (q.data or "")[len("customize:capital:"):]
+    try:
+        pct = int(pct_str) / 100.0
+    except ValueError:
+        return CUSTOM_CAPITAL
+    _cwz(ctx)["capital_pct"] = pct
+    if q.message:
+        await q.message.edit_text(
+            _step2_text(),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_tp_kb(),
+        )
+    return CUSTOM_TP
+
+
+# ---------------------------------------------------------------------------
+# Step 2 — Take Profit
+# ---------------------------------------------------------------------------
+
+async def step2_tp_select(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return CUSTOM_TP
+    await q.answer()
+    pct_str = (q.data or "")[len("customize:tp:"):]
+    try:
+        pct = int(pct_str) / 100.0
+    except ValueError:
+        return CUSTOM_TP
+    _cwz(ctx)["tp_pct"] = pct
+    if q.message:
+        await q.message.edit_text(
+            _step3_text(),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_sl_kb(),
+        )
+    return CUSTOM_SL
+
+
+async def step2_tp_custom(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return CUSTOM_TP
+    await q.answer()
+    _cwz(ctx)["custom_field"] = "tp"
+    if q.message:
+        await q.message.edit_text(
+            "*Take Profit — Custom Value*\n\n"
+            "Enter a number between 1 and 200 (e.g. `25` for +25%):",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_custom_input_kb("tp"),
+        )
+    return CUSTOM_INPUT
+
+
+# ---------------------------------------------------------------------------
+# Step 3 — Stop Loss
+# ---------------------------------------------------------------------------
+
+async def step3_sl_select(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return CUSTOM_SL
+    await q.answer()
+    pct_str = (q.data or "")[len("customize:sl:"):]
+    try:
+        pct = int(pct_str) / 100.0
+    except ValueError:
+        return CUSTOM_SL
+    wz = _cwz(ctx)
+    wz["sl_pct"] = pct
+    p = get_preset(wz.get("preset_key", ""))
+    if q.message:
+        await q.message.edit_text(
+            _step5_text(wz, p) if p else "*Step 5/5 — Review*",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_review_kb(),
+        )
+    return CUSTOM_REVIEW
+
+
+async def step3_sl_custom(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return CUSTOM_SL
+    await q.answer()
+    _cwz(ctx)["custom_field"] = "sl"
+    if q.message:
+        await q.message.edit_text(
+            "*Stop Loss — Custom Value*\n\n"
+            "Enter a number between 1 and 50 (e.g. `12` for -12%):",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_custom_input_kb("sl"),
+        )
+    return CUSTOM_INPUT
+
+
+# ---------------------------------------------------------------------------
+# Custom text input (shared TP / SL)
+# ---------------------------------------------------------------------------
+
+async def custom_input_handler(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    if update.message is None:
+        return CUSTOM_INPUT
+    raw = (update.message.text or "").strip()
+
+    # Menu tap exits wizard immediately.
+    if raw in _MENU_BUTTONS_CUSTOMIZE:
+        ctx.user_data.pop("customize_wz", None)
+        return ConversationHandler.END
+
+    wz = _cwz(ctx)
+    field = wz.get("custom_field")
+
+    try:
+        value = float(raw)
+    except ValueError:
+        await update.message.reply_text(
+            "⚠️ Please enter a number (e.g. `15` for 15%).",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return CUSTOM_INPUT
+
+    if field == "tp":
+        if not (1 <= value <= 200):
+            await update.message.reply_text(
+                "⚠️ Take Profit must be between 1 and 200.",
+            )
+            return CUSTOM_INPUT
+        wz["tp_pct"] = value / 100.0
+        wz["custom_field"] = None
+        await update.message.reply_text(
+            _step3_text(),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_sl_kb(),
+        )
+        return CUSTOM_SL
+
+    if field == "sl":
+        if not (1 <= value <= 50):
+            await update.message.reply_text(
+                "⚠️ Stop Loss must be between 1 and 50.",
+            )
+            return CUSTOM_INPUT
+        wz["sl_pct"] = value / 100.0
+        wz["custom_field"] = None
+        p = get_preset(wz.get("preset_key", ""))
+        await update.message.reply_text(
+            _step5_text(wz, p) if p else "*Step 5/5 — Review*",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_review_kb(),
+        )
+        return CUSTOM_REVIEW
+
+    return ConversationHandler.END
+
+
+# ---------------------------------------------------------------------------
+# Step 5 — Save
+# ---------------------------------------------------------------------------
+
+async def step_save(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return CUSTOM_REVIEW
+    await q.answer()
+    user, ok = await _ensure_tier2(update)
+    if not ok:
+        return ConversationHandler.END
+
+    wz = _cwz(ctx)
+    preset_key = wz.get("preset_key")
+    p = get_preset(preset_key) if preset_key else None
+    if p is None:
+        if q.message:
+            await q.message.reply_text("❌ Preset not found.")
+        return ConversationHandler.END
+
+    if wz.get("is_new_activation"):
+        if user.get("locked", False):
+            if q.message:
+                await q.message.reply_text(
+                    "🔒 Account locked. Contact an operator to unlock.",
+                )
+            return ConversationHandler.END
+        await update_settings(
+            user["id"],
+            active_preset=p.key,
+            strategy_types=list(p.strategies),
+            capital_alloc_pct=wz["capital_pct"],
+            tp_pct=wz["tp_pct"],
+            sl_pct=wz["sl_pct"],
+            max_position_pct=p.max_position_pct,
+        )
+        await set_auto_trade(user["id"], True)
+        await set_paused(user["id"], False)
+    else:
+        await update_settings(
+            user["id"],
+            capital_alloc_pct=wz["capital_pct"],
+            tp_pct=wz["tp_pct"],
+            sl_pct=wz["sl_pct"],
+        )
+
+    logger.info(
+        "customize.save user=%s preset=%s capital=%.2f tp=%.2f sl=%.2f new=%s",
+        user["id"], p.key,
+        wz["capital_pct"], wz["tp_pct"], wz["sl_pct"],
+        wz.get("is_new_activation"),
+    )
+    ctx.user_data.pop("customize_wz", None)
+
+    if q.message:
+        await q.message.edit_text(
+            "✅ Settings saved. Auto-Trade will use your custom config.",
+            reply_markup=wizard_done_kb(),
+        )
+    return ConversationHandler.END
+
+
+# ---------------------------------------------------------------------------
+# Back navigation
+# ---------------------------------------------------------------------------
+
+async def step_back_to_capital(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return CUSTOM_CAPITAL
+    await q.answer()
+    wz = _cwz(ctx)
+    p = get_preset(wz.get("preset_key", ""))
+    if q.message:
+        await q.message.edit_text(
+            _step1_text(p) if p else "*Step 1/5 — Capital Allocation*",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_capital_kb(),
+        )
+    return CUSTOM_CAPITAL
+
+
+async def step_back_to_tp(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return CUSTOM_TP
+    await q.answer()
+    if q.message:
+        await q.message.edit_text(
+            _step2_text(),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_tp_kb(),
+        )
+    return CUSTOM_TP
+
+
+async def step_back_to_sl(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return CUSTOM_SL
+    await q.answer()
+    if q.message:
+        await q.message.edit_text(
+            _step3_text(),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wizard_sl_kb(),
+        )
+    return CUSTOM_SL
+
+
+# ---------------------------------------------------------------------------
+# Cancel / fallbacks
+# ---------------------------------------------------------------------------
+
+async def wizard_cancel(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    q = update.callback_query
+    if q is None:
+        return ConversationHandler.END
+    await q.answer()
+    ctx.user_data.pop("customize_wz", None)
+    if q.message:
+        await q.message.edit_text(
+            "✕ Customize cancelled. Original preset settings kept.",
+        )
+    return ConversationHandler.END
+
+
+async def wizard_fallback_menu(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    from .onboarding import menu_handler as _menu_handler
+    ctx.user_data.pop("customize_wz", None)
+    await _menu_handler(update, ctx)
+    return ConversationHandler.END
+
+
+async def wizard_menu_tap(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    from ..menus.main import get_menu_route
+    ctx.user_data.pop("customize_wz", None)
+    text = (update.message.text or "").strip() if update.message else ""
+    handler = get_menu_route(text)
+    if handler:
+        await handler(update, ctx)
+    return ConversationHandler.END
+
+
+async def wizard_fallback_text(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    if update.message:
+        await update.message.reply_text("Tap a button or /menu to exit.")
+    return ConversationHandler.END
+
+
+# ---------------------------------------------------------------------------
+# ConversationHandler factory
+# ---------------------------------------------------------------------------
+
+def build_customize_handler() -> ConversationHandler:
+    """Return the Phase 5G customize wizard ConversationHandler."""
+    return ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(
+                wizard_enter_customize, pattern=r"^preset:customize:",
+            ),
+            CallbackQueryHandler(
+                wizard_enter_edit, pattern=r"^preset:edit$",
+            ),
+        ],
+        states={
+            CUSTOM_CAPITAL: [
+                CallbackQueryHandler(
+                    step1_capital_select, pattern=r"^customize:capital:\d+$",
+                ),
+                CallbackQueryHandler(wizard_cancel, pattern=r"^customize:cancel$"),
+            ],
+            CUSTOM_TP: [
+                CallbackQueryHandler(
+                    step2_tp_select, pattern=r"^customize:tp:\d+$",
+                ),
+                CallbackQueryHandler(
+                    step2_tp_custom, pattern=r"^customize:tp:custom$",
+                ),
+                CallbackQueryHandler(
+                    step_back_to_capital, pattern=r"^customize:back:capital$",
+                ),
+                CallbackQueryHandler(wizard_cancel, pattern=r"^customize:cancel$"),
+            ],
+            CUSTOM_SL: [
+                CallbackQueryHandler(
+                    step3_sl_select, pattern=r"^customize:sl:\d+$",
+                ),
+                CallbackQueryHandler(
+                    step3_sl_custom, pattern=r"^customize:sl:custom$",
+                ),
+                CallbackQueryHandler(
+                    step_back_to_tp, pattern=r"^customize:back:tp$",
+                ),
+                CallbackQueryHandler(wizard_cancel, pattern=r"^customize:cancel$"),
+            ],
+            CUSTOM_REVIEW: [
+                CallbackQueryHandler(step_save,       pattern=r"^customize:save$"),
+                CallbackQueryHandler(
+                    step_back_to_sl, pattern=r"^customize:back:sl$",
+                ),
+                CallbackQueryHandler(wizard_cancel, pattern=r"^customize:cancel$"),
+            ],
+            CUSTOM_INPUT: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND, custom_input_handler,
+                ),
+                CallbackQueryHandler(
+                    step_back_to_tp, pattern=r"^customize:back:tp$",
+                ),
+                CallbackQueryHandler(
+                    step_back_to_sl, pattern=r"^customize:back:sl$",
+                ),
+                CallbackQueryHandler(wizard_cancel, pattern=r"^customize:cancel$"),
+            ],
+        },
+        fallbacks=[
+            CommandHandler("menu", wizard_fallback_menu),
+            MessageHandler(
+                filters.Regex(r"^(📊|🐋|🤖|📈|💰|🚨)"), wizard_menu_tap,
+            ),
+            MessageHandler(
+                filters.TEXT & ~filters.COMMAND, wizard_fallback_text,
+            ),
+        ],
+        per_message=False,
+        allow_reentry=True,
+        name="customize_wizard",
     )
