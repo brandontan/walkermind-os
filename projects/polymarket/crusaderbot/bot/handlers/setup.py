@@ -14,6 +14,7 @@ from ..keyboards import (
     setup_menu, strategy_picker,
 )
 from ..tier import Tier, has_tier, tier_block_message
+from . import presets as presets_handler
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,25 @@ async def _ensure_tier2(update: Update) -> tuple[dict | None, bool]:
 
 
 async def setup_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Phase 5C entry point: route to preset status card or preset picker.
+
+    The legacy raw-strategy menu is preserved at ``setup_legacy_root`` so the
+    advanced surface (categories, mode picker, autoredeem mode) remains
+    reachable for power users.
+    """
+    user, ok = await _ensure_tier2(update)
+    if not ok or update.message is None:
+        return
+    s = await get_settings_for(user["id"])
+    if s.get("active_preset"):
+        await presets_handler.show_preset_status(update, ctx)
+    else:
+        await presets_handler.show_preset_picker(update, ctx)
+
+
+async def setup_legacy_root(update: Update,
+                            ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Legacy raw-strategy setup menu (pre-Phase 5C)."""
     user, ok = await _ensure_tier2(update)
     if not ok or update.message is None:
         return
