@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 21:00
-Status       : Track K Access Tiers + Admin Panel built. 29 hermetic tests green. PR open for WARP🔹CMD review. Track H merged PR #979. Track G and Track I PRs open. Track F SENTINEL APPROVED 97/100 awaiting merge. MomentumReversalStrategy PR #978 open. Production PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 02:35
+Status       : Track K Access Tiers + Admin Panel built. 29 hermetic tests green. PR open for WARP🔹CMD review. Track H merged PR #979. Track G and Track I PRs open. Track F SENTINEL APPROVED 97/100 awaiting merge. MomentumReversalStrategy PR #978 open. Hotfix DB pooler detection PR open. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -24,6 +24,7 @@ Status       : Track K Access Tiers + Admin Panel built. 29 hermetic tests green
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
 - Track I -- Referral + Share System: PR open, WARP🔹CMD review required. Tier: STANDARD.
 - MomentumReversalStrategy adapter: PR #978 open on WARP/crusaderbot-momentum-strategy-adapter. STANDARD, NARROW INTEGRATION. 50 hermetic tests green. Issue #975. Awaiting WARP🔹CMD review.
+- Hotfix DB pooler detection: PR open on WARP/HOTFIX-DB-POOLER-FIX. STANDARD, FOUNDATION. 11 hermetic tests green. Awaiting WARP🔹CMD review.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -38,6 +39,7 @@ Status       : Track K Access Tiers + Admin Panel built. 29 hermetic tests green
 
 [NEXT PRIORITY]
 - WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
+- WARP🔹CMD review required for Hotfix DB pooler detection. Source: projects/polymarket/crusaderbot/reports/forge/hotfix-db-pooler-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for MomentumReversalStrategy adapter PR #978. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-momentum-strategy-adapter.md. Tier: STANDARD.
 - WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
 - WARP🔹CMD review required for Track G UI Premium Pack 1. Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md. Tier: STANDARD.
