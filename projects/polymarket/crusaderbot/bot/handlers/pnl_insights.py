@@ -85,40 +85,40 @@ async def _fetch_insights(user_id: UUID) -> dict:
         stats = await conn.fetchrow(
             """
             SELECT
-                COUNT(*) FILTER (WHERE status != 'open' AND mode = 'paper')
+                COUNT(*) FILTER (WHERE status = 'closed' AND mode = 'paper')
                     AS total_closed,
-                COUNT(*) FILTER (WHERE status != 'open' AND mode = 'paper'
+                COUNT(*) FILTER (WHERE status = 'closed' AND mode = 'paper'
                                    AND pnl_usdc > 0)
                     AS wins,
-                COUNT(*) FILTER (WHERE status != 'open' AND mode = 'paper'
+                COUNT(*) FILTER (WHERE status = 'closed' AND mode = 'paper'
                                    AND pnl_usdc <= 0)
                     AS losses,
                 COALESCE(SUM(pnl_usdc)
-                    FILTER (WHERE status != 'open' AND mode = 'paper'
+                    FILTER (WHERE status = 'closed' AND mode = 'paper'
                               AND pnl_usdc > 0), 0)
                     AS gross_wins,
                 COALESCE(SUM(ABS(pnl_usdc))
-                    FILTER (WHERE status != 'open' AND mode = 'paper'
+                    FILTER (WHERE status = 'closed' AND mode = 'paper'
                               AND pnl_usdc <= 0), 0)
                     AS gross_losses,
-                MAX(pnl_usdc) FILTER (WHERE status != 'open' AND mode = 'paper')
+                MAX(pnl_usdc) FILTER (WHERE status = 'closed' AND mode = 'paper')
                     AS best_pnl,
-                MIN(pnl_usdc) FILTER (WHERE status != 'open' AND mode = 'paper')
+                MIN(pnl_usdc) FILTER (WHERE status = 'closed' AND mode = 'paper')
                     AS worst_pnl,
                 COALESCE(AVG(pnl_usdc)
-                    FILTER (WHERE status != 'open' AND mode = 'paper'
+                    FILTER (WHERE status = 'closed' AND mode = 'paper'
                               AND pnl_usdc > 0), 0)
                     AS avg_win,
                 COALESCE(ABS(AVG(pnl_usdc))
-                    FILTER (WHERE status != 'open' AND mode = 'paper'
+                    FILTER (WHERE status = 'closed' AND mode = 'paper'
                               AND pnl_usdc <= 0), 0)
                     AS avg_loss,
                 COUNT(*) FILTER (
-                    WHERE status != 'open' AND mode = 'paper'
+                    WHERE status = 'closed' AND mode = 'paper'
                       AND closed_at >= NOW() - INTERVAL '7 days')
                     AS trades_7d,
                 COALESCE(SUM(pnl_usdc) FILTER (
-                    WHERE status != 'open' AND mode = 'paper'
+                    WHERE status = 'closed' AND mode = 'paper'
                       AND closed_at >= NOW() - INTERVAL '7 days'), 0)
                     AS pnl_7d
             FROM positions WHERE user_id = $1
@@ -129,7 +129,7 @@ async def _fetch_insights(user_id: UUID) -> dict:
             """
             SELECT COALESCE(m.question, p.market_id) AS title
               FROM positions p LEFT JOIN markets m ON m.id = p.market_id
-             WHERE p.user_id = $1 AND p.status != 'open' AND p.mode = 'paper'
+             WHERE p.user_id = $1 AND p.status = 'closed' AND p.mode = 'paper'
              ORDER BY p.pnl_usdc DESC NULLS LAST LIMIT 1
             """,
             user_id,
@@ -138,7 +138,7 @@ async def _fetch_insights(user_id: UUID) -> dict:
             """
             SELECT COALESCE(m.question, p.market_id) AS title
               FROM positions p LEFT JOIN markets m ON m.id = p.market_id
-             WHERE p.user_id = $1 AND p.status != 'open' AND p.mode = 'paper'
+             WHERE p.user_id = $1 AND p.status = 'closed' AND p.mode = 'paper'
              ORDER BY p.pnl_usdc ASC NULLS LAST LIMIT 1
             """,
             user_id,
@@ -146,7 +146,7 @@ async def _fetch_insights(user_id: UUID) -> dict:
         streak_rows = await conn.fetch(
             """
             SELECT pnl_usdc FROM positions
-             WHERE user_id = $1 AND status != 'open' AND mode = 'paper'
+             WHERE user_id = $1 AND status = 'closed' AND mode = 'paper'
                AND pnl_usdc IS NOT NULL
              ORDER BY closed_at DESC NULLS LAST LIMIT 25
             """,
@@ -199,7 +199,7 @@ def format_insights(data: dict) -> str:
     """Render insights data as a Telegram Markdown message."""
     if data["total_closed"] == 0:
         return (
-            "📊 *PNL Insights*\n"
+            "\U0001f4ca *PNL Insights*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "No closed trades yet. Start paper trading to see your insights."
         )
@@ -233,7 +233,7 @@ def format_insights(data: dict) -> str:
     if streak_len == 0:
         streak_str = "—"
     else:
-        icon = "🔥" if streak_dir == "win" else "❄️"
+        icon = "\U0001f525" if streak_dir == "win" else "❄️"
         label = "win" if streak_dir == "win" else "loss"
         streak_str = f"{icon} {streak_len} {label}{'s' if streak_len > 1 else ''}"
 
@@ -243,24 +243,24 @@ def format_insights(data: dict) -> str:
     pnl_7d_str = f"{pnl_7d_sign}${pnl_7d:.2f}"
 
     return (
-        "📊 *PNL Insights*\n"
+        "\U0001f4ca *PNL Insights*\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "🏆 *Performance*\n"
+        "\U0001f3c6 *Performance*\n"
         f"├─ Closed Trades: {total} ({wins}W / {losses}L)\n"
         f"├─ Win Rate: {win_rate}%\n"
         f"└─ Profit Factor: {pf_str}\n\n"
-        "💰 *Averages*\n"
+        "\U0001f4b0 *Averages*\n"
         f"├─ Avg Win: +${avg_win:.2f}\n"
         f"└─ Avg Loss: -${avg_loss:.2f}\n\n"
-        "🎯 *Best Trade*\n"
+        "\U0001f3af *Best Trade*\n"
         f"├─ P&L: {best_str}\n"
         f"└─ _{best_title}_\n\n"
-        "📉 *Worst Trade*\n"
+        "\U0001f4c9 *Worst Trade*\n"
         f"├─ P&L: {worst_str}\n"
         f"└─ _{worst_title}_\n\n"
         "⚡ *Streak*\n"
         f"└─ Current: {streak_str}\n\n"
-        "📅 *Last 7 Days*\n"
+        "\U0001f4c5 *Last 7 Days*\n"
         f"├─ Trades: {trades_7d}\n"
         f"└─ P&L: {pnl_7d_str}"
     )
