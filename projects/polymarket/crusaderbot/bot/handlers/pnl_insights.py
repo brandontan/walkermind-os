@@ -239,8 +239,7 @@ def format_insights(data: dict) -> str:
 
     pnl_7d = data["pnl_7d"]
     trades_7d = data["trades_7d"]
-    pnl_7d_sign = "+" if pnl_7d >= 0 else ""
-    pnl_7d_str = f"{pnl_7d_sign}${pnl_7d:.2f}"
+    pnl_7d_str = _fmt_signed_usdc(pnl_7d)
 
     return (
         "\U0001f4ca *PNL Insights*\n"
