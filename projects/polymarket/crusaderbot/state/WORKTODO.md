@@ -1,7 +1,7 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-10 22:30
+**Last Updated:** 2026-05-11 10:00
 
 ---
 
@@ -13,7 +13,7 @@
 
 ## Fast Track Week 1 -- Core Trading Loop
 
-- [ ] Track A -- Trade Engine + TP/SL worker -- PR open WARP/crusaderbot-fast-trade-engine (Issue #941), MAJOR, FULL RUNTIME INTEGRATION, SENTINEL REQUIRED. TradeEngine service layer delivered; 39 hermetic tests green. Awaiting SENTINEL before merge.
+- [ ] Track A -- Trade Engine + TP/SL worker -- PR open WARP/crusaderbot-fast-trade-engine (Issue #941), MAJOR, FULL RUNTIME INTEGRATION, SENTINEL REQUIRED. TradeEngine wired into active scan runtime; signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green. Awaiting SENTINEL before merge.
 - [ ] Track B -- Copy Trade Execution -- BLOCKED on Track A merge; MAJOR, SENTINEL REQUIRED
 - [ ] Track C -- Trade Notifications -- QUEUED; STANDARD; depends on Track A surface
 - [ ] Track D -- Risk Caps + Kill Switch hardening -- QUEUED; MAJOR; SENTINEL REQUIRED
