@@ -160,14 +160,11 @@ def register(app: Application) -> None:
                                          pattern=r"^copytrade:"))
     app.add_handler(CallbackQueryHandler(signal_following.signals_callback,
                                          pattern=r"^signals:"))
-<<<<<<< HEAD
     app.add_handler(CallbackQueryHandler(market_card.market_callback,
                                          pattern=r"^market:"))
-=======
     # Track F — live gate step 3 buttons.
     app.add_handler(CallbackQueryHandler(live_gate.live_gate_callback,
                                          pattern=r"^live_gate:"))
->>>>>>> f75ffef (forge: Track F Live Opt-In Gate (MAJOR) — issue #968)
 
     # Free text — must be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))

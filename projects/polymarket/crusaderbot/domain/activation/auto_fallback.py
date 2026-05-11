@@ -28,17 +28,24 @@ ERROR_THRESHOLD: int = 5
 LOOKBACK_SECONDS: int = 60
 JOB_ID = "auto_fallback_monitor"
 
+# Actions emitted by domain/execution/live.py on submission failure.
+LIVE_ERROR_ACTIONS: tuple[str, ...] = (
+    "live_pre_submit_failed",
+    "live_submit_ambiguous",
+    "live_post_submit_db_error",
+)
+
 
 async def get_recent_error_count(lookback_seconds: int = LOOKBACK_SECONDS) -> int:
-    """Count execution-error events in the last ``lookback_seconds`` from audit.log."""
+    """Count live-execution error events in the last ``lookback_seconds`` from audit.log."""
     since = datetime.now(timezone.utc) - timedelta(seconds=lookback_seconds)
     try:
         pool = get_pool()
         async with pool.acquire() as conn:
             count = await conn.fetchval(
                 "SELECT COUNT(*) FROM audit.log "
-                "WHERE action = 'execution_error' AND ts >= $1",
-                since,
+                "WHERE action = ANY($1) AND ts >= $2",
+                list(LIVE_ERROR_ACTIONS), since,
             )
         return int(count or 0)
     except Exception as exc:

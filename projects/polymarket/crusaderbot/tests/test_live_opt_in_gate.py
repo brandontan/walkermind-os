@@ -46,6 +46,7 @@ from projects.polymarket.crusaderbot.domain.activation.live_opt_in_gate import (
 )
 from projects.polymarket.crusaderbot.bot.handlers import live_gate
 from projects.polymarket.crusaderbot.domain.activation import auto_fallback, live_checklist
+from projects.polymarket.crusaderbot.domain.activation.auto_fallback import LIVE_ERROR_ACTIONS
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
