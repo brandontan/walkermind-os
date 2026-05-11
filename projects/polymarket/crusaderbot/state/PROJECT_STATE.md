@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 21:00
-Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track C MERGED PR #951. Track D FORGE complete PR #954 — SENTINEL APPROVED 92/100, zero critical issues. Awaiting WARP🔹CMD merge decision. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 21:05
+Status       : Fast Track Week 1 Track A, B, C, and D are MERGED. Track D Live Gate Hardening merged PR #954 after WARP•SENTINEL APPROVED 92/100 with zero critical issues. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -10,12 +10,13 @@ Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track 
 - Phase 5 Telegram Auto-Trade UX complete through 5A-5J: global handlers, dashboard hierarchy, presets, 2-column menu, Copy Trade dashboard/wizard/edit, customize wizard, onboarding, My Trades, Emergency lock, qrcode dependency hotfix.
 - State sync after PRs #923-#939 complete; PROJECT_STATE / ROADMAP / WORKTODO aligned to merged Phase 5 truth.
 - Fast Track roadmap selected by Mr. Walker on 2026-05-10; Standard roadmap rejected for current execution posture.
-- Fast Track Track A — TradeEngine service layer FULL RUNTIME INTEGRATION MERGED PR #942 (2026-05-11). signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
-- Fast Track Track B — Copy Trade execution MERGED PR #948 (2026-05-11). CopyTradeMonitor.run_once(), 020_copy_trade_execution.sql migration, 25 hermetic tests green. P1 fixes: outcome field, market field, copy_pct scaling applied.
-- Fast Track Track C — Trade notifications MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; alert_user_manual_close added; already_closed guard; 16 hermetic tests green.
+- Fast Track Track A -- Trade Engine + TP/SL worker MERGED PR #942 (2026-05-11). TradeEngine service layer; signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
+- Fast Track Track B -- Copy Trade execution MERGED PR #948 (2026-05-11). CopyTradeMonitor.run_once(), 020_copy_trade_execution.sql migration, 25 hermetic tests green. P1 fixes: outcome field, market field, copy_pct scaling applied.
+- Fast Track Track C -- Trade notifications MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; alert_user_manual_close added; already_closed guard; 16 hermetic tests green.
+- Fast Track Track D -- Live Gate Hardening MERGED PR #954 (2026-05-11). Gate step 14 slippage/market-impact guard, risk assertion audit layer, shadow/live parity hooks, readiness validator, RISK_CONTROLS_VALIDATED config default false, and 35 hermetic tests green.
+- WARP•SENTINEL Track D validation APPROVED 92/100 with zero critical issues. Report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-live-gate-hardening.md.
 
 [IN PROGRESS]
-- Track D Live Gate Hardening — PR #954 open; SENTINEL APPROVED 92/100; awaiting WARP🔹CMD merge decision.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -27,9 +28,9 @@ Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD merge decision required for Track D PR #954 — SENTINEL APPROVED 92/100.
-- Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-live-gate-hardening.md
+- Fast Track Track E -- Daily P&L Report.
 - Do not flip activation guards.
+- Keep production PAPER ONLY until explicit owner live activation decision.
 
 [KNOWN ISSUES]
 - /deposit has no tier gate; intentional and non-blocking.
