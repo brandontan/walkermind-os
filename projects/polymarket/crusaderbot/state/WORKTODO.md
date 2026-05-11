@@ -7,17 +7,17 @@
 
 ## Right Now
 
-- Week 2 Track F -- Live Opt-In Gate IMPLEMENTED. PR open for WARP•SENTINEL audit (MAJOR, Tier EXECUTION).
+- Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-11). Issue #968 closed.
 - Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY.
-- NEXT: WARP•SENTINEL audit → WARP🔹CMD merge decision.
+- NEXT: WARP🔹CMD review for Track G UI Premium Pack 1.
 
 ---
 
 ## Fast Track Week 2 -- Live Gate + Premium UX
 
 - [x] Premium PNL Insights UX -- MERGED PR #965 (2026-05-11), STANDARD, NARROW INTEGRATION. /insights command; insight_kb; dashboard:insights sub; my_trades nav update; 22 hermetic tests green; issue #963 closed.
-- [x] Track F -- Live Opt-In Gate (SENTINEL + owner checklist) -- IMPLEMENTED (2026-05-12). PR open for WARP•SENTINEL audit; issue #968.
+- [x] Track F -- Live Opt-In Gate -- MERGED PR #970 (2026-05-11). 3-step /enable_live gate; 4-guard check; mode_change_events audit (021); auto-fallback 60s monitor; 20 hermetic tests green; issue #968 closed.
 - [ ] Referral / fee / fee prep -- NOT STARTED.
 
 Done condition: WARP🔹CMD merge decision on each lane; activation guards remain OFF throughout.

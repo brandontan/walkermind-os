@@ -1,7 +1,7 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 23:45 Asia/Jakarta
+**Last Updated:** 2026-05-12 00:01 Asia/Jakarta
 
 ## Current Posture
 
@@ -15,7 +15,8 @@
 ## Week 1 — Core Trading Loop (COMPLETE)
 
 | Track | Scope | Tier | Status | Notes |
-|---|---|---|---|---|
+|---|---|---|---|
+|---|
 | A | Trade Engine + TP/SL worker | MAJOR | ✅ MERGED | MERGED PR #942 (2026-05-11). TradeEngine FULL RUNTIME INTEGRATION; signal_scan_job routes through TradeEngine; 47 tests green |
 | B | Copy Trade Execution | MAJOR | ✅ MERGED | MERGED PR #948 (2026-05-11). CopyTradeMonitor wired through TradeEngine; 25 tests green |
 | C | Trade Notifications | STANDARD | ✅ MERGED | MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; 16 tests green |
@@ -30,9 +31,13 @@
 - PAPER only
 - SENTINEL required for MAJOR lanes
 
-## Week 2 – Live Gate + Premium UX — NEXT / IN QUEUE
+## Week 2 – Live Gate + Premium UX — IN PROGRESS
 
-- Track F: Live Opt-In Gate (SENTINEL + owner checklist) — NEXT LANE
+| Track | Scope | Tier | Status | Notes |
+|---|---|---|---|---|
+| F | Live Opt-In Gate | MAJOR | ✅ MERGED | MERGED PR #970 (2026-05-11). 3-step /enable_live gate; 4-guard check; mode_change_events audit (021); auto-fallback 60s monitor; 20 hermetic tests green; issue #968 closed |
+| G | UI Premium Pack 1 | STANDARD | 🚧 PR OPEN | animated_entry_sequence, /market card, market_card_kb; 21 hermetic tests; WARP🔹CMD review required |
+
 - Charts / insights follow-on (post-PNL-Insights)
 - Referral / fee prep
 

@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 01:30
-Status       : Fast Track Week 2 Track F (Live Opt-In Gate) and Track G (UI Premium Pack 1) both built — PRs open. Track F requires SENTINEL audit (MAJOR). Track G requires WARP🔹CMD review (STANDARD). Production PAPER ONLY, activation guards OFF.
+Last Updated : 2026-05-12 00:01
+Status       : Fast Track Week 2 Track F (Live Opt-In Gate) MERGED PR #970. Track G (UI Premium Pack 1) PR open, WARP🔹CMD review required (STANDARD). Production PAPER ONLY, activation guards OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -14,10 +14,9 @@ Status       : Fast Track Week 2 Track F (Live Opt-In Gate) and Track G (UI Prem
 - Fast Track Track E -- Daily P&L Report MERGED PR #962 (2026-05-11). Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed.
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; issue #963 closed.
 - Track G UI Premium Pack 1 built (2026-05-12). animated_entry_sequence (4-step edit flow, 1.2s delays, edit+send fallbacks), /market {slug} rich market card, market_card_kb 2x2 inline keyboard, get_market_by_slug Gamma slug lookup; 21 hermetic tests green; PR open.
-- Fast Track Week 2 Track F -- Live Opt-In Gate implemented (2026-05-12). 3-step /enable_live Telegram gate; 4-guard read-only check; mode_change_events audit log (migration 021); auto-fallback 60s monitor; 20 hermetic tests green; PR open for SENTINEL audit; issue #968.
+- Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-11). 3-step /enable_live Telegram gate; 4-guard read-only check; mode_change_events audit log (migration 021); auto-fallback 60s monitor; 20 hermetic tests green; issue #968 closed.
 
 [IN PROGRESS]
-- Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL audit required before merge.
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
@@ -29,9 +28,6 @@ Status       : Fast Track Week 2 Track F (Live Opt-In Gate) and Track G (UI Prem
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for CRUSADERBOT-FAST-LIVE-GATE before merge.
-- Source: projects/polymarket/crusaderbot/reports/forge/CRUSADERBOT-FAST-LIVE-GATE.md
-- Tier: MAJOR
 - WARP🔹CMD review required for Track G UI Premium Pack 1.
 - Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md
 - Tier: STANDARD
