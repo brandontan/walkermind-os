@@ -286,6 +286,8 @@ class TestRuntimeIsolation:
             rows_a = asyncio.run(get_recent_activity(_UID_A))
             rows_b = asyncio.run(get_recent_activity(_UID_B))
 
+        assert len(rows_a) >= 1, "rows_a is empty — mock or get_recent_activity not returning results"
+        assert len(rows_b) >= 1, "rows_b is empty — mock or get_recent_activity not returning results"
         for r in rows_a:
             assert r["user_id"] == _UID_A
         for r in rows_b:
@@ -538,8 +540,16 @@ class TestConcurrentIsolation:
 
             class _Conn:
                 async def fetch(self, sql: str, *a: Any) -> list:
-                    return [r for r in store.get(uid, [])
-                            if r.get("user_id") == uid]
+                    # Use the UUID the production code actually passed as arg,
+                    # not the closure uid — catches wrong-user query bugs.
+                    queried_uid = next(
+                        (arg for arg in a if isinstance(arg, UUID) and arg in store),
+                        None,
+                    )
+                    if queried_uid is None:
+                        return []
+                    return [r for r in store.get(queried_uid, [])
+                            if r.get("user_id") == queried_uid]
 
                 async def fetchrow(self, sql: str, *a: Any):
                     return None
