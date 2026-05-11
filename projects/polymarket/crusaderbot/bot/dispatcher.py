@@ -111,6 +111,12 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("chart", portfolio_chart_h.chart_command))
     app.add_handler(CommandHandler("market", market_card.market_command))
     app.add_handler(CommandHandler("referral", referral.referral_command))
+    # Onboarding-polish command aliases — user-friendly shortcuts.
+    app.add_handler(CommandHandler("scan",   signal_following.signals_command))
+    app.add_handler(CommandHandler("pnl",    dashboard.dashboard))
+    app.add_handler(CommandHandler("close",  positions.show_positions))
+    app.add_handler(CommandHandler("trades", my_trades_h.my_trades))
+    app.add_handler(CommandHandler("mode",   settings_handler.settings_root))
 
     # Phase 5F wizard ConversationHandler — must be registered BEFORE the
     # general copytrade: CallbackQueryHandler so it intercepts copytrade:copy:*
@@ -174,6 +180,9 @@ def register(app: Application) -> None:
     # Track I — referral share card button.
     app.add_handler(CallbackQueryHandler(share_card.referral_callback,
                                          pattern=r"^referral:share:"))
+    # Onboarding polish — View Dashboard button after paper activation.
+    app.add_handler(CallbackQueryHandler(onboarding.view_dashboard_cb,
+                                         pattern=r"^onboard:view_dashboard$"))
 
     # Free text — must be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))
