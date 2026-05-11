@@ -43,6 +43,7 @@ Done condition: Track A-E merged and SENTINEL-approved where MAJOR; activation g
   - Migration runner path fix: PR #881 MERGED (2026-05-06) 538fd999 -- 008+009 now in migrations/
 - [x] P3c -- Signal Following strategy -- MERGED PR #892 (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
 - [x] P3d -- Per-user signal scan loop + execution queue wiring -- MERGED PR #897 (bb08092) + state sync PR #898 (7bb0487f), MAJOR, SENTINEL APPROVED 94/100. 464/464 tests green.
+- [ ] P3e -- MomentumReversalStrategy adapter -- PR open WARP/crusaderbot-momentum-strategy-adapter, STANDARD, NARROW INTEGRATION. momentum_reversal strategy; bootstrap updated; 50 hermetic tests green; issue #975. Awaiting WARP🔹CMD merge.
 
 Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wired through risk gate, SENTINEL APPROVED before live activation.
 

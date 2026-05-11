@@ -1,4 +1,4 @@
-Last Updated : 2026-05-12 01:30
+Last Updated : 2026-05-11 18:00
 Status       : WARP•SENTINEL APPROVED Track F Live Opt-In Gate PR #970 (97/100, 0 critical). P1 pre-merge items for WARP🔹CMD: branch rename (claude/* forbidden) + Claim Level in PR body. Track G UI Premium Pack 1 also built (PR open). Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
@@ -19,6 +19,7 @@ Status       : WARP•SENTINEL APPROVED Track F Live Opt-In Gate PR #970 (97/100
 [IN PROGRESS]
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
+- MomentumReversalStrategy adapter: PR open on WARP/crusaderbot-momentum-strategy-adapter. STANDARD, NARROW INTEGRATION. 50 hermetic tests green. Issue #975. Awaiting WARP🔹CMD review.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -33,6 +34,7 @@ Status       : WARP•SENTINEL APPROVED Track F Live Opt-In Gate PR #970 (97/100
 - WARP🔹CMD review required for Track G UI Premium Pack 1.
 - Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md
 - Tier: STANDARD
+- WARP🔹CMD review required for MomentumReversalStrategy adapter PR. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-momentum-strategy-adapter.md. Tier: STANDARD.
 - Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
