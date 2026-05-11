@@ -10,6 +10,7 @@ from uuid import UUID
 from ...database import get_pool
 from ...wallet.ledger import daily_pnl, get_balance
 from ..execution import fallback as live_fallback
+from ..execution.slippage import check_market_impact
 from ..ops.kill_switch import is_active as kill_switch_is_active
 from . import constants as K
 
@@ -296,5 +297,14 @@ async def evaluate(ctx: GateContext) -> GateResult:
                 "live_guard_unset gate fallback trigger failed: %s", fb_exc,
             )
     await _log(ctx.user_id, ctx.market_id, 13, True, f"approved_{chosen_mode}")
+
+    # 14. Slippage / market-impact guard
+    impact_result = check_market_impact(final_size, ctx.market_liquidity)
+    if not impact_result.accepted:
+        await _log(ctx.user_id, ctx.market_id, 14, False, impact_result.reason)
+        return GateResult(False, "market_impact_cap", 14)
+    await _log(ctx.user_id, ctx.market_id, 14, True,
+               f"impact_ok_{impact_result.impact_pct:.4f}")
+
     await _record_idempotency(ctx.user_id, ctx.idempotency_key)
     return GateResult(True, "approved", None, final_size, chosen_mode)

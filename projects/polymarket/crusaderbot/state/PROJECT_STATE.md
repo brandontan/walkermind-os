@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 19:00
-Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track C MERGED PR #951. Track D queued. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 20:30
+Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track C MERGED PR #951. Track D FORGE complete — PR open, SENTINEL required before merge. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -15,19 +15,21 @@ Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track 
 - Fast Track Track C — Trade notifications MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; alert_user_manual_close added; already_closed guard; 16 hermetic tests green.
 
 [IN PROGRESS]
+- Track D Live Gate Hardening — PR open on WARP/crusaderbot-live-gate-hardening; WARP•SENTINEL validation required before merge.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Fast Track Track D -- Risk caps + kill switch hardening: hard exposure caps, daily loss guard, max open positions, Telegram/DB/env kill paths. MAJOR; SENTINEL required.
 - Fast Track Track E -- Daily P&L report: scheduled Telegram daily summary. STANDARD.
 - Fast Track Week 2 -- Live gate + UI premium pack + charts/insights + referral/share/fee prep.
 - Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin + onboarding polish.
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Track D (Risk caps + kill switch hardening) — MAJOR, SENTINEL REQUIRED. Awaiting WARP🔹CMD task declaration.
+- WARP•SENTINEL validation required for Track D (live-gate-hardening) before merge.
+- Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-live-gate-hardening.md
+- Tier: MAJOR
 - Do not flip activation guards.
 
 [KNOWN ISSUES]

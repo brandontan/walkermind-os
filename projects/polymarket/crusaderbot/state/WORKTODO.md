@@ -7,7 +7,7 @@
 
 ## Right Now
 
-- Fast Track Track C (trade notifications) MERGED PR #951 (2026-05-11). Track D (Risk caps + kill switch hardening) queued — MAJOR, SENTINEL REQUIRED. Awaiting WARP🔹CMD task declaration. Activation guards remain NOT SET.
+- Track D Live Gate Hardening FORGE complete — PR open on WARP/crusaderbot-live-gate-hardening. WARP•SENTINEL validation required before merge. Activation guards remain NOT SET.
 
 ---
 
@@ -16,7 +16,7 @@
 - [x] Track A -- Trade Engine + TP/SL worker -- MERGED PR #942 (2026-05-11), MAJOR, FULL RUNTIME INTEGRATION. TradeEngine service layer; signal_scan_job routes through TradeEngine; 47 hermetic tests green.
 - [x] Track B -- Copy Trade Execution -- MERGED PR #948 (2026-05-11), MAJOR. CopyTradeMonitor.run_once(), 020 migration, 25 hermetic tests green; P1 fixes applied.
 - [x] Track C -- Trade Notifications -- MERGED PR #951 (2026-05-11), STANDARD. TradeNotifier service layer; 16 hermetic tests green; already_closed guard P2 fix.
-- [ ] Track D -- Risk Caps + Kill Switch hardening -- QUEUED; MAJOR; SENTINEL REQUIRED
+- [ ] Track D -- Risk Caps + Kill Switch hardening -- FORGE COMPLETE PR open; MAJOR; SENTINEL REQUIRED before merge
 - [ ] Track E -- Daily P&L Report -- QUEUED; STANDARD
 
 Done condition: Track A merged + SENTINEL APPROVED; Track B through E sequenced after.
