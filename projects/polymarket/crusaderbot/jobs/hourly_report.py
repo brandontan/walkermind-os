@@ -38,7 +38,7 @@ async def _fetch_stats(since: datetime) -> dict:
             "SELECT count(*) FROM positions WHERE closed_at > $1", since,
         ) or 0
         pnl_row = await conn.fetchrow(
-            "SELECT COALESCE(SUM(realized_pnl_usdc), 0) AS pnl "
+            "SELECT COALESCE(SUM(pnl_usdc), 0) AS pnl "
             "FROM positions WHERE closed_at > $1", since,
         )
         hourly_pnl: Decimal = Decimal(str(pnl_row["pnl"] if pnl_row else 0))

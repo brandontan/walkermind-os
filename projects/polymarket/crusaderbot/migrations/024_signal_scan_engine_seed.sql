@@ -42,6 +42,9 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- 3. Seed demo signal publication pointing at the demo market (YES edge)
+-- Guard: only insert if the demo feed was successfully created above
+-- (on a fresh DB with no users, the feed insert above produces 0 rows,
+--  so this WHERE EXISTS prevents a FK violation that would abort startup migrations)
 INSERT INTO signal_publications (feed_id, market_id, side, target_price,
                                   signal_type, payload, exit_signal,
                                   published_at, expires_at, is_demo)
@@ -56,7 +59,11 @@ SELECT
     NOW(),
     NOW() + INTERVAL '4 hours',
     TRUE
-WHERE NOT EXISTS (
+WHERE EXISTS (
+    SELECT 1 FROM signal_feeds
+     WHERE id = '00000000-0000-0000-0001-000000000001'::uuid AND status = 'active'
+)
+AND NOT EXISTS (
     SELECT 1 FROM signal_publications
      WHERE feed_id = '00000000-0000-0000-0001-000000000001'::uuid
        AND market_id = 'demo-market-will-btc-100k-2026'
