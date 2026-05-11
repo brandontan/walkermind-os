@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 19:00
-Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track C MERGED PR #951. Track D queued. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 21:00
+Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track C MERGED PR #951. Track D FORGE complete PR #954 — SENTINEL APPROVED 92/100, zero critical issues. Awaiting WARP🔹CMD merge decision. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -15,19 +15,20 @@ Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track 
 - Fast Track Track C — Trade notifications MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; alert_user_manual_close added; already_closed guard; 16 hermetic tests green.
 
 [IN PROGRESS]
+- Track D Live Gate Hardening — PR #954 open; SENTINEL APPROVED 92/100; awaiting WARP🔹CMD merge decision.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Fast Track Track D -- Risk caps + kill switch hardening: hard exposure caps, daily loss guard, max open positions, Telegram/DB/env kill paths. MAJOR; SENTINEL required.
-- Fast Track Track E -- Daily P&L report: scheduled Telegram daily summary. STANDARD.
+- Fast Track Track E -- Daily P&L Report: scheduled Telegram daily summary. STANDARD.
 - Fast Track Week 2 -- Live gate + UI premium pack + charts/insights + referral/share/fee prep.
 - Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin + onboarding polish.
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Track D (Risk caps + kill switch hardening) — MAJOR, SENTINEL REQUIRED. Awaiting WARP🔹CMD task declaration.
+- WARP🔹CMD merge decision required for Track D PR #954 — SENTINEL APPROVED 92/100.
+- Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-live-gate-hardening.md
 - Do not flip activation guards.
 
 [KNOWN ISSUES]
@@ -41,3 +42,5 @@ Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track 
 - [DEFERRED] CLOB circuit-open Telegram alert text uses plain markdown rather than MarkdownV2; P2, acceptable for static template.
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
+- [DEFERRED] Forge report Known Issues section for Track D references stale parity patch approach (gate.get_settings); code is correct post-Codex fix; documentation drift only.
+- [DEFERRED] check_price_deviation() not yet wired into live execution path; callable and tested; deferred until ENABLE_LIVE_TRADING gate is considered.

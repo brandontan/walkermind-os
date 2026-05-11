@@ -12,6 +12,14 @@ MIN_EDGE_BPS = 200
 SIGNAL_STALE_SECONDS = 300
 DEDUP_WINDOW_SECONDS = 300
 
+# Slippage / market-impact guardrails (gate step 14).
+# MAX_MARKET_IMPACT_PCT: reject if size_usdc / market_liquidity exceeds this.
+# Prevents a single order from consuming more than 5% of visible depth.
+MAX_MARKET_IMPACT_PCT = 0.05
+# MAX_SLIPPAGE_PCT: maximum tolerated price deviation from mid for live orders.
+# Not enforced in paper mode; validated by the readiness check before live activation.
+MAX_SLIPPAGE_PCT = 0.03
+
 PROFILES: dict[str, dict] = {
     "conservative": {
         "kelly": 0.10, "max_pos_pct": 0.03, "max_concurrent": 3,

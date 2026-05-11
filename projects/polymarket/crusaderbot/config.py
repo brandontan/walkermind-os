@@ -134,6 +134,11 @@ class Settings(BaseSettings):
     ENABLE_LIVE_TRADING: bool = True
     EXECUTION_PATH_VALIDATED: bool = False
     CAPITAL_MODE_CONFIRMED: bool = False
+    # Set to True ONLY after WARP•SENTINEL validates the risk assertion layer
+    # (domain.risk.hardening.audit_risk_constants returns passed=True and the
+    # readiness validator issues PASS on all checks).  Never set without an
+    # explicit WARP🔹CMD decision backed by a SENTINEL report.
+    RISK_CONTROLS_VALIDATED: bool = False
     FEE_COLLECTION_ENABLED: bool = False
     AUTO_REDEEM_ENABLED: bool = True
 
