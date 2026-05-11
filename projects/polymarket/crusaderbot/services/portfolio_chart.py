@@ -68,6 +68,7 @@ async def _fetch_daily_balance_series(
 
     running = Decimal(0)
     anchor_balance = Decimal(0)  # last cumulative balance before the window
+    had_pre_window_rows = False
     series: list[tuple[date, Decimal]] = []
     for row in rows:
         running += Decimal(str(row["daily_net"] or 0))
@@ -77,6 +78,7 @@ async def _fetch_daily_balance_series(
         else:
             # Keep updating anchor so it holds the balance at window start.
             anchor_balance = running
+            had_pre_window_rows = True
 
     # Carry-forward: inject the pre-window balance as the opening anchor so
     # the chart always starts at cutoff_date with the correct balance.
@@ -85,7 +87,10 @@ async def _fetch_daily_balance_series(
     # Case B — in-window entries exist but start after cutoff_date: prepend
     #   the anchor so lows/highs reflect the full selected period, not just
     #   the sub-range from the first transaction.
-    if anchor_balance != 0 and cutoff_date is not None:
+    # Uses had_pre_window_rows (not anchor_balance != 0) so accounts whose
+    # history nets to exactly $0 still receive carry-forward rather than
+    # a false empty-state fallback.
+    if had_pre_window_rows and cutoff_date is not None:
         if not series:
             today = _today_jakarta()
             series = [(cutoff_date, anchor_balance), (today, anchor_balance)]

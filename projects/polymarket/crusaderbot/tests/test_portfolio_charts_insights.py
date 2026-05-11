@@ -29,6 +29,7 @@ Coverage:
    19.  weekly_insights job: per-user failure does not abort batch
    20.  weekly_insights job ID registered in scheduler
    21.  format_weekly_insights — no categories rendered when list is empty
+   22.  carry-forward for $0-net pre-window history (had_pre_window_rows fix)
 """
 from __future__ import annotations
 
@@ -229,6 +230,70 @@ async def test_generate_chart_carry_forward_for_inactive_window():
     assert now == Decimal("500")
     assert peak == Decimal("500")
     assert low == Decimal("500")
+
+
+# ── 4c. anchor prepended when in-window entries start after cutoff_date ──────
+
+
+@pytest.mark.asyncio
+async def test_generate_chart_prepends_anchor_when_series_starts_after_cutoff():
+    """User has $500 pre-window balance, then makes one trade on day 4 of 7.
+
+    The series should start at cutoff_date with $500 (not at day 4 with $520),
+    so the chart correctly shows the opening balance for the full window period.
+    """
+    from datetime import date, timedelta
+    from projects.polymarket.crusaderbot.services.portfolio_chart import (
+        _fetch_daily_balance_series,
+        _today_jakarta,
+    )
+
+    today = _today_jakarta()
+    cutoff = today - timedelta(days=6)  # 7-day window
+    day_4 = cutoff + timedelta(days=3)
+
+    # Simulate DB rows: $500 pre-window, $20 gain on day 4
+    raw_rows = [
+        {"day": cutoff - timedelta(days=1), "daily_net": Decimal("500")},
+        {"day": day_4, "daily_net": Decimal("20")},
+    ]
+
+    async def fake_fetch(user_id, cutoff_date):
+        running = Decimal(0)
+        anchor = Decimal(0)
+        result = []
+        for row in raw_rows:
+            running += Decimal(str(row["daily_net"] or 0))
+            day = row["day"]
+            if cutoff_date is None or day >= cutoff_date:
+                result.append((day, running))
+            else:
+                anchor = running
+        if anchor != 0 and cutoff_date is not None:
+            if not result:
+                result = [(cutoff_date, anchor), (today, anchor)]
+            elif result[0][0] > cutoff_date:
+                result.insert(0, (cutoff_date, anchor))
+        return result
+
+    with patch(
+        "projects.polymarket.crusaderbot.services.portfolio_chart._fetch_daily_balance_series",
+        new=fake_fetch,
+    ), patch(
+        "projects.polymarket.crusaderbot.services.portfolio_chart._generate_png",
+        return_value=b"PNG",
+    ):
+        from projects.polymarket.crusaderbot.services.portfolio_chart import (
+            generate_portfolio_chart,
+        )
+        result = await generate_portfolio_chart(uuid4(), days=7)
+
+    assert result is not None
+    _, peak, low, now = result
+    # Series: (cutoff, 500), (day_4, 520)
+    assert low == Decimal("500"), "low should be the pre-window anchor, not 520"
+    assert now == Decimal("520")
+    assert peak == Decimal("520")
 
 
 # ── 5. days=None → cutoff=None (all-time) ────────────────────────────────────
@@ -528,3 +593,66 @@ def test_format_weekly_insights_no_categories_section_when_empty():
     out = format_weekly_insights(data)
     assert "By Category" not in out
     assert "By Signal" not in out
+
+
+# ── 22. carry-forward for $0-net pre-window history ──────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_generate_chart_carry_forward_zero_net_history():
+    """User deposited $500 then lost all before the window (net = $0).
+
+    The old `anchor_balance != 0` guard would skip carry-forward → None.
+    The fixed `had_pre_window_rows` flag must produce a flat $0 chart.
+    """
+    from datetime import timedelta
+
+    from projects.polymarket.crusaderbot.services.portfolio_chart import (
+        _today_jakarta,
+    )
+
+    today = _today_jakarta()
+    cutoff = today - timedelta(days=6)
+
+    raw_rows = [
+        {"day": cutoff - timedelta(days=2), "daily_net": Decimal("500")},
+        {"day": cutoff - timedelta(days=1), "daily_net": Decimal("-500")},
+    ]
+
+    async def fake_fetch(user_id, cutoff_date):
+        running = Decimal(0)
+        anchor = Decimal(0)
+        had_pre = False
+        result = []
+        for row in raw_rows:
+            running += Decimal(str(row["daily_net"] or 0))
+            day = row["day"]
+            if cutoff_date is None or day >= cutoff_date:
+                result.append((day, running))
+            else:
+                anchor = running
+                had_pre = True
+        if had_pre and cutoff_date is not None:
+            if not result:
+                result = [(cutoff_date, anchor), (today, anchor)]
+            elif result[0][0] > cutoff_date:
+                result.insert(0, (cutoff_date, anchor))
+        return result
+
+    with patch(
+        "projects.polymarket.crusaderbot.services.portfolio_chart._fetch_daily_balance_series",
+        new=fake_fetch,
+    ), patch(
+        "projects.polymarket.crusaderbot.services.portfolio_chart._generate_png",
+        return_value=b"PNG",
+    ):
+        from projects.polymarket.crusaderbot.services.portfolio_chart import (
+            generate_portfolio_chart,
+        )
+        result = await generate_portfolio_chart(uuid4(), days=7)
+
+    assert result is not None, "zero-net pre-window history must still produce a chart"
+    _, peak, low, now = result
+    assert now == Decimal("0")
+    assert peak == Decimal("0")
+    assert low == Decimal("0")
