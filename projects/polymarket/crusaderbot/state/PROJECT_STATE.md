@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 00:01
-Status       : Fast Track Week 2 Track F (Live Opt-In Gate) MERGED PR #970. Track G (UI Premium Pack 1) PR open, WARP🔹CMD review required (STANDARD). Production PAPER ONLY, activation guards OFF.
+Last Updated : 2026-05-12 01:30
+Status       : WARP•SENTINEL APPROVED Track F Live Opt-In Gate PR #970 (97/100, 0 critical). P1 pre-merge items for WARP🔹CMD: branch rename (claude/* forbidden) + Claim Level in PR body. Track G UI Premium Pack 1 also built (PR open). Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -14,9 +14,10 @@ Status       : Fast Track Week 2 Track F (Live Opt-In Gate) MERGED PR #970. Trac
 - Fast Track Track E -- Daily P&L Report MERGED PR #962 (2026-05-11). Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed.
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; issue #963 closed.
 - Track G UI Premium Pack 1 built (2026-05-12). animated_entry_sequence (4-step edit flow, 1.2s delays, edit+send fallbacks), /market {slug} rich market card, market_card_kb 2x2 inline keyboard, get_market_by_slug Gamma slug lookup; 21 hermetic tests green; PR open.
-- Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-11). 3-step /enable_live Telegram gate; 4-guard read-only check; mode_change_events audit log (migration 021); auto-fallback 60s monitor; 20 hermetic tests green; issue #968 closed.
+- Fast Track Week 2 Track F -- Live Opt-In Gate implemented (2026-05-12). 3-step /enable_live Telegram gate; 4-guard read-only check; mode_change_events audit log (migration 021); auto-fallback 60s monitor; 20 hermetic tests green; PR open for SENTINEL audit; issue #968.
 
 [IN PROGRESS]
+- Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
@@ -28,6 +29,7 @@ Status       : Fast Track Week 2 Track F (Live Opt-In Gate) MERGED PR #970. Trac
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
 - WARP🔹CMD review required for Track G UI Premium Pack 1.
 - Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md
 - Tier: STANDARD
@@ -47,3 +49,5 @@ Status       : Fast Track Week 2 Track F (Live Opt-In Gate) MERGED PR #970. Trac
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 - [DEFERRED] Forge report Known Issues section for Track D references stale parity patch approach (gate.get_settings); code is correct post-Codex fix; documentation drift only.
 - [DEFERRED] check_price_deviation() not yet wired into live execution path; callable and tested; deferred until ENABLE_LIVE_TRADING gate is considered.
+- [DEFERRED] auto_fallback.py: audit event written after mode switch, not before — found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
+- [DEFERRED] live_gate.py: AWAITING_STEP2 not proactively expired if Step 3 button never pressed — found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
