@@ -297,7 +297,7 @@ async def alert_user_tp_hit(
     """Notify the position owner that TP was hit and the close was submitted."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        f"🎯 *[{mode.upper()}] TP hit*\n"
+        f"\U0001f3af *[{mode.upper()}] TP hit*\n"
         f"{label}\n"
         f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
         f"P&L: *${pnl_usdc:+.2f}*"
@@ -318,7 +318,7 @@ async def alert_user_sl_hit(
     """Notify the position owner that SL was hit and the close was submitted."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        f"🛑 *[{mode.upper()}] SL hit*\n"
+        f"\U0001f6d1 *[{mode.upper()}] SL hit*\n"
         f"{label}\n"
         f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
         f"P&L: *${pnl_usdc:+.2f}*"
@@ -339,7 +339,7 @@ async def alert_user_force_close(
     """Notify the position owner that an emergency force-close completed."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        f"🚨 *[{mode.upper()}] Force-close executed*\n"
+        f"\U0001f6a8 *[{mode.upper()}] Force-close executed*\n"
         f"{label}\n"
         f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
         f"P&L: *${pnl_usdc:+.2f}*"
@@ -360,7 +360,28 @@ async def alert_user_strategy_exit(
     """Notify the position owner of a strategy-driven exit close."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        f"📉 *[{mode.upper()}] Strategy exit*\n"
+        f"\U0001f4c9 *[{mode.upper()}] Strategy exit*\n"
+        f"{label}\n"
+        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
+        f"P&L: *${pnl_usdc:+.2f}*"
+    )
+    await notifications.send(telegram_user_id, text)
+
+
+async def alert_user_manual_close(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Notify the position owner that a manual close completed successfully."""
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"✅ *[{mode.upper()}] Manual close*\n"
         f"{label}\n"
         f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
         f"P&L: *${pnl_usdc:+.2f}*"
