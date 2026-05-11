@@ -242,6 +242,12 @@ def test_safe_md_strips_asterisks_backticks_brackets():
     assert "[" not in _safe_md("[link] text")
 
 
+def test_safe_md_strips_backslashes():
+    # Trailing backslash escapes the closing _ in _title_ and breaks Telegram Markdown.
+    assert "\\" not in _safe_md("Market title\\")
+    assert "\\" not in _safe_md("will this\\_happen?")
+
+
 def test_safe_md_leaves_plain_text_unchanged():
     plain = "Will Bitcoin hit 120K by July?"
     assert _safe_md(plain) == plain
@@ -287,6 +293,6 @@ def test_fetch_insights_queries_filter_paper_mode():
     # (stats aggregate, best_row, worst_row, streak_rows).
     paper_filter_count = src.count("mode = 'paper'")
     assert paper_filter_count >= 4, (
-        f"Expected >=4 'mode = \\'paper\\'' filters in _fetch_insights, "
+        f"Expected >=4 'mode = \'paper\'' filters in _fetch_insights, "
         f"found {paper_filter_count}. Paper-mode boundary must not regress."
     )

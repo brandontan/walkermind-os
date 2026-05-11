@@ -41,7 +41,8 @@ def _safe_md(s: str) -> str:
     alternatives so dynamic market titles never break the Markdown structure.
     """
     return (
-        s.replace("_", " ")
+        s.replace("\\", "")
+         .replace("_", " ")
          .replace("*", "")
          .replace("`", "")
          .replace("[", "")
@@ -212,11 +213,11 @@ def format_insights(data: dict) -> str:
     best_pnl = data["best_pnl"]
     worst_pnl = data["worst_pnl"]
     best_str = (
-        f"{'+' if best_pnl >= 0 else '-'}${abs(best_pnl):.2f}"
+        f"{"+" if best_pnl >= 0 else "-"}${abs(best_pnl):.2f}"
         if best_pnl is not None else "N/A"
     )
     worst_str = (
-        f"{'+' if worst_pnl >= 0 else '-'}${abs(worst_pnl):.2f}"
+        f"{"+" if worst_pnl >= 0 else "-"}${abs(worst_pnl):.2f}"
         if worst_pnl is not None else "N/A"
     )
     best_title = _safe_md(data.get("best_title") or "—")
