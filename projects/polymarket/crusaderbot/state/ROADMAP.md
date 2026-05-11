@@ -43,9 +43,12 @@
 
 ## Week 3 — Multi-User Hardening
 
-- Tenant isolation audit
-- Access tiers + admin controls
-- Onboarding polish + conversion flows
+| Track | Scope | Tier | Status | Notes |
+|---|---|---|---|---|
+| J | Multi-User Isolation Audit | MAJOR | ✅ MERGED | MERGED PR #988 (2026-05-12). 120+ queries audited; zero isolation violations; 24 hermetic tests green; WARP•SENTINEL APPROVED 98/100 |
+
+- Access tiers + admin controls (Track K — PR open, WARP🔹CMD review required)
+- Onboarding polish + conversion flows (Track L — PR open, WARP🔹CMD review required)
 
 ## Week 4 – Closed Beta
 
