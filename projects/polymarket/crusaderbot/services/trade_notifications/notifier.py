@@ -21,6 +21,7 @@ Engineering rules:
 """
 from __future__ import annotations
 
+import asyncio
 import enum
 import logging
 from decimal import Decimal
@@ -28,10 +29,43 @@ from typing import Optional
 from uuid import UUID
 
 import structlog
+from telegram.constants import ParseMode
 
 from ... import notifications
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+_ANIM_DELAY = 1.2  # seconds between animated edits
+
+
+async def _send_initial_animated(
+    chat_id: int,
+    text: str,
+) -> Optional[tuple[int, int]]:
+    """Send first animated message. Returns (message_id, chat_id) or None on failure."""
+    try:
+        bot = notifications.get_bot()
+        msg = await bot.send_message(chat_id=chat_id, text=text)
+        return msg.message_id, msg.chat_id
+    except Exception as exc:
+        logging.getLogger(__name__).error(
+            "animated_status.send_initial_failed chat=%s error=%s", chat_id, exc
+        )
+        return None
+
+
+async def _edit_or_resend(chat_id: int, message_id: int, text: str) -> None:
+    """Edit message in place; send fresh if edit fails (message too old or deleted)."""
+    try:
+        bot = notifications.get_bot()
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=text,
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    except Exception:
+        await notifications.send(chat_id, text)
 
 
 class NotificationEvent(str, enum.Enum):
@@ -116,6 +150,70 @@ class TradeNotifier:
             event=NotificationEvent.ENTRY,
             market_id=market_id,
         )
+
+    async def animated_entry_sequence(
+        self,
+        *,
+        telegram_user_id: int,
+        market_id: str,
+        market_question: Optional[str],
+        side: str,
+        size_usdc: Decimal,
+        price: float,
+        tp_pct: Optional[float],
+        sl_pct: Optional[float],
+        mode: str = "paper",
+        strategy_type: Optional[str] = None,
+    ) -> None:
+        """4-step animated trade execution sequence via in-place message edits.
+
+        Falls back to static notify_entry() if initial send fails.
+        Falls back to send_message() if any edit fails (message too old).
+        Uses asyncio.sleep — never blocks the event loop.
+        """
+        label = _market_label(market_question, market_id)
+
+        result = await _send_initial_animated(telegram_user_id, "🔍 Scanning markets...")
+        if result is None:
+            await self.notify_entry(
+                telegram_user_id=telegram_user_id,
+                market_id=market_id,
+                market_question=market_question,
+                side=side,
+                size_usdc=size_usdc,
+                price=price,
+                tp_pct=tp_pct,
+                sl_pct=sl_pct,
+                mode=mode,
+                strategy_type=strategy_type,
+            )
+            return
+
+        msg_id, chat_id = result
+
+        await asyncio.sleep(_ANIM_DELAY)
+        await _edit_or_resend(
+            chat_id, msg_id,
+            f"📡 Signal found: {label} — {side.upper()} @ {price:.3f}",
+        )
+
+        await asyncio.sleep(_ANIM_DELAY)
+        await _edit_or_resend(chat_id, msg_id, "⚡ Executing trade...")
+
+        await asyncio.sleep(_ANIM_DELAY)
+        tag = _mode_tag(mode)
+        icon = "\U0001f4c8" if side.lower() == "yes" else "\U0001f4c9"
+        side_upper = side.upper()
+        lines = [
+            f"{icon} *{tag} ENTRY — {side_upper}*",
+            label,
+            f"Size: ${size_usdc:.2f} | Price: {price:.3f}",
+            f"TP: {_fmt_tp(tp_pct)} | SL: {_fmt_sl(sl_pct)}",
+            "Paper mode",
+        ]
+        if strategy_type and strategy_type != "manual":
+            lines.append(f"Strategy: {strategy_type}")
+        await _edit_or_resend(chat_id, msg_id, "\n".join(lines))
 
     async def notify_tp_hit(
         self,
