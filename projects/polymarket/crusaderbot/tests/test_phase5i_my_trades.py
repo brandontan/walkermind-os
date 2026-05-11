@@ -137,10 +137,13 @@ def test_my_trades_renders_with_positions():
     pos = _make_position(entry_price=0.42, size_usdc=5.00)
     activity = [_make_activity(pnl_usdc=2.10)]
 
+    _settings = {"tp_pct": None, "sl_pct": None}
     with _patch_tier_ok(), \
          patch.object(mt.repo, "get_open_positions", AsyncMock(return_value=[pos])), \
          patch.object(mt.repo, "get_recent_activity", AsyncMock(return_value=activity)), \
-         patch.object(mt, "_fetch_mark", AsyncMock(return_value=0.48)):
+         patch.object(mt, "_fetch_mark", AsyncMock(return_value=0.48)), \
+         patch("projects.polymarket.crusaderbot.bot.handlers.my_trades.get_settings_for",
+               AsyncMock(return_value=_settings)):
         asyncio.run(mt.my_trades(update, ctx=None))
 
     assert replies, "reply_text was never called"
@@ -158,9 +161,12 @@ def test_my_trades_renders_empty_state():
     replies: list[str] = []
     update = _make_message_update(replies)
 
+    _settings = {"tp_pct": None, "sl_pct": None}
     with _patch_tier_ok(), \
          patch.object(mt.repo, "get_open_positions", AsyncMock(return_value=[])), \
-         patch.object(mt.repo, "get_recent_activity", AsyncMock(return_value=[])):
+         patch.object(mt.repo, "get_recent_activity", AsyncMock(return_value=[])), \
+         patch("projects.polymarket.crusaderbot.bot.handlers.my_trades.get_settings_for",
+               AsyncMock(return_value=_settings)):
         asyncio.run(mt.my_trades(update, ctx=None))
 
     assert replies
@@ -321,13 +327,13 @@ def test_format_positions_section_hierarchy():
     pos2 = _make_position(entry_price=0.65, size_usdc=3.50, side="no",
                           question="GDP Q2 above 3%?")
     marks = [0.48, 0.61]
-    text = mt._format_positions_section([pos1, pos2], marks)
+    text = mt._format_positions_section([pos1, pos2], marks, tp_pct=None, sl_pct=None)
 
     assert "Open Positions (2)" in text
     assert "1." in text and "2." in text
-    assert "YES at $0.42" in text
-    assert "NO at $0.65" in text
-    assert "$5.00" in text and "$3.50" in text
+    assert "YES @ $0.420" in text
+    assert "NO @ $0.650" in text
+    assert "TP: —" in text and "SL: —" in text
 
 
 # ---------- Test 11: Global menu works during close flow -------------------
