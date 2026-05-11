@@ -476,7 +476,7 @@ def test_resume_persists_and_renders_running_card(monkeypatch):
 
 
 def test_stop_yes_clears_preset_and_stops(monkeypatch):
-    uid = uuid4()
+    uid = uuid4()    
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=False)
     _patch_settings(monkeypatch, {"active_preset": "signal_sniper"})
     upd_settings, set_auto, set_p = _patch_writes(monkeypatch)
@@ -536,38 +536,29 @@ def test_switch_intent_shows_confirmation(monkeypatch):
 # ---------- setup.setup_root routing ----------------------------------------
 
 def test_setup_root_routes_to_picker_when_no_preset(monkeypatch):
+    # UX Overhaul: setup_root always shows the strategy card (no preset routing).
     uid = uuid4()
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    monkeypatch.setattr(setup_h, "get_settings_for",
-                        AsyncMock(return_value={"active_preset": None}))
-    show_picker = AsyncMock()
-    show_status = AsyncMock()
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_picker", show_picker)
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_status", show_status)
-    update, _replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
-    show_picker.assert_awaited_once()
-    show_status.assert_not_awaited()
+    assert replies, "setup_root must send a message"
+    assert "Auto-Trade" in replies[0] or "Strategy" in replies[0]
+    cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
+           for b in row]
+    assert any(c.startswith("strategy:") for c in cbs)
 
 
 def test_setup_root_routes_to_status_when_preset_active(monkeypatch):
+    # UX Overhaul: setup_root always shows the strategy card regardless of preset.
     uid = uuid4()
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    monkeypatch.setattr(setup_h, "get_settings_for",
-                        AsyncMock(return_value={"active_preset": "signal_sniper"}))
-    show_picker = AsyncMock()
-    show_status = AsyncMock()
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_picker", show_picker)
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_status", show_status)
-    update, _replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
-    show_status.assert_awaited_once()
-    show_picker.assert_not_awaited()
+    assert replies, "setup_root must send a message"
+    cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
+           for b in row]
+    assert any(c.startswith("strategy:") for c in cbs)

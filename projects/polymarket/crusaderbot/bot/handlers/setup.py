@@ -18,6 +18,15 @@ from . import presets as presets_handler
 
 logger = logging.getLogger(__name__)
 
+STRATEGY_DISPLAY_NAMES: dict[str, str] = {
+    "signal":            "Signal",
+    "value":             "Edge Finder",
+    "edge_finder":       "Edge Finder",
+    "momentum_reversal": "Momentum Reversal",
+    "momentum":          "Momentum Reversal",
+    "all":               "All Strategies",
+}
+
 
 async def _ensure_tier2(update: Update) -> tuple[dict | None, bool]:
     if update.effective_user is None:
@@ -72,7 +81,7 @@ async def setup_legacy_root(update: Update,
     s = await get_settings_for(user["id"])
     text = (
         "*🤖 Setup*\n\n"
-        f"Strategy: `{', '.join(s['strategy_types'])}`\n"
+        f"Strategy: `{', '.join(STRATEGY_DISPLAY_NAMES.get(t, t) for t in (s['strategy_types'] or []))}`\n"
         f"Risk profile: `{s['risk_profile']}`\n"
         f"Capital alloc: `{float(s['capital_alloc_pct']) * 100:.0f}%`\n"
         f"TP/SL: `{s['tp_pct'] or '—'} / {s['sl_pct'] or '—'}`\n"
@@ -105,27 +114,36 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             reply_markup=strategy_card_kb(),
         )
         return
+    elif sub == "capital":
+        # Remap legacy setup:capital → new settings capital preset flow.
+        from ..keyboards.settings import capital_preset_kb as _cap_kb
+        from ...wallet.ledger import get_balance as _get_balance
+        bal = float(await _get_balance(user["id"]))
+        mode = s.get("trading_mode", "paper")
+        await q.message.reply_text(
+            "💰 *Capital Allocation Per Trade*\n"
+            "──────────────────\n"
+            f"Balance: ${bal:.2f} ({'Live' if mode == 'live' else 'Paper'})\n\n"
+            "⚠️ Max 95% — full allocation forbidden.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_cap_kb(bal, mode),
+        )
+    elif sub == "tpsl":
+        # Remap legacy setup:tpsl → new settings TP/SL preset flow (step 1).
+        from ..keyboards.settings import tp_preset_kb as _tp_kb
+        current_tp = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+        current_str = f"+{current_tp * 100:.0f}%" if current_tp is not None else "not set"
+        await q.message.reply_text(
+            f"📊 *Take Profit*\nCurrent: {current_str}\n\nSelect your take-profit target:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_tp_kb(current_tp * 100 if current_tp else None),
+        )
     elif sub == "risk":
         await q.message.reply_text("Pick risk profile:",
                                    reply_markup=risk_picker(s["risk_profile"]))
     elif sub == "categories":
         await q.message.reply_text("Pick categories:",
                                    reply_markup=category_picker(s["category_filters"]))
-    elif sub == "capital":
-        ctx.user_data["awaiting"] = "capital_pct"
-        await q.message.reply_text(
-            "Enter capital allocation percentage (1-95). Example: `50` = use up to "
-            "50% of balance per trade. Max 95% — full allocation is forbidden. "
-            "Send the number now.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    elif sub == "tpsl":
-        ctx.user_data["awaiting"] = "tpsl"
-        await q.message.reply_text(
-            "Enter `TP SL` as two percentages separated by a space. Example: `15 8` "
-            "= take profit at +15%, stop loss at -8%. Send `skip` to clear.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
     elif sub == "copy":
         ctx.user_data["awaiting"] = "copy_target"
         await q.message.reply_text(
@@ -332,18 +350,6 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
             await update.message.reply_text(
                 f"✅ Capital allocation set to {pct:.0f}%."
             )
-        elif awaiting == "tpsl":
-            if text.lower() == "skip":
-                await update_settings(user["id"], tp_pct=None, sl_pct=None)
-                await update.message.reply_text("✅ TP / SL cleared.")
-            else:
-                tp_s, sl_s = text.split()
-                tp = float(tp_s) / 100.0
-                sl = float(sl_s) / 100.0
-                await update_settings(user["id"], tp_pct=tp, sl_pct=sl)
-                await update.message.reply_text(
-                    f"✅ TP set to +{tp*100:.1f}%, SL set to -{sl*100:.1f}%."
-                )
         elif awaiting == "copy_target":
             await _handle_copy_target_input(update, user, text)
         else:

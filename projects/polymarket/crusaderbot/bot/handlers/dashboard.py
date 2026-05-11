@@ -14,6 +14,7 @@ from ...wallet.ledger import daily_pnl, get_balance
 from ...wallet.vault import get_wallet
 from ..keyboards import autotrade_toggle, dashboard_nav, setup_menu, wallet_menu
 from ..tier import Tier, has_tier, tier_block_message
+from .setup import STRATEGY_DISPLAY_NAMES
 
 
 async def _ensure(update: Update, min_tier: int) -> tuple[dict | None, bool]:
@@ -128,7 +129,7 @@ def _build_text(
     auto_status = "🟢 ACTIVE" if auto_on else "⚪ INACTIVE"
     strats = st["strategy_types"]
     preset = (
-        ", ".join(s.replace("_", " ").title() for s in strats)
+        ", ".join(STRATEGY_DISPLAY_NAMES.get(s, s.replace("_", " ").title()) for s in strats)
         if strats else "Not configured"
     )
     risk_icon = _risk_icon(st["risk_profile"])
@@ -229,7 +230,7 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         s = await get_settings_for(user["id"])
         text = (
             "*🤖 Auto-Trade Setup*\n\n"
-            f"Strategy: `{', '.join(s['strategy_types'])}`\n"
+            f"Strategy: `{', '.join(STRATEGY_DISPLAY_NAMES.get(t, t) for t in (s['strategy_types'] or []))}`\n"
             f"Risk profile: `{s['risk_profile']}`\n"
             f"Capital alloc: `{float(s['capital_alloc_pct']) * 100:.0f}%`\n"
             f"Mode: `{s['trading_mode']}`\n"
