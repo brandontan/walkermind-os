@@ -91,7 +91,7 @@ async def _fetch_insights(user_id: UUID) -> dict:
                                    AND pnl_usdc > 0)
                     AS wins,
                 COUNT(*) FILTER (WHERE status != 'open' AND mode = 'paper'
-                                   AND pnl_usdc < 0)
+                                   AND pnl_usdc <= 0)
                     AS losses,
                 COALESCE(SUM(pnl_usdc)
                     FILTER (WHERE status != 'open' AND mode = 'paper'
@@ -99,7 +99,7 @@ async def _fetch_insights(user_id: UUID) -> dict:
                     AS gross_wins,
                 COALESCE(SUM(ABS(pnl_usdc))
                     FILTER (WHERE status != 'open' AND mode = 'paper'
-                              AND pnl_usdc < 0), 0)
+                              AND pnl_usdc <= 0), 0)
                     AS gross_losses,
                 MAX(pnl_usdc) FILTER (WHERE status != 'open' AND mode = 'paper')
                     AS best_pnl,
@@ -111,7 +111,7 @@ async def _fetch_insights(user_id: UUID) -> dict:
                     AS avg_win,
                 COALESCE(ABS(AVG(pnl_usdc))
                     FILTER (WHERE status != 'open' AND mode = 'paper'
-                              AND pnl_usdc < 0), 0)
+                              AND pnl_usdc <= 0), 0)
                     AS avg_loss,
                 COUNT(*) FILTER (
                     WHERE status != 'open' AND mode = 'paper'
