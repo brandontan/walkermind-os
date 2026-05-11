@@ -54,6 +54,9 @@ def test_format_summary_positive_amounts():
 
 
 def test_format_summary_negative_amounts():
+    # Track E (#960): activity today (closed_today>0) keeps the full
+    # format so the negative-amount rendering can be asserted. The
+    # no-trade empty state would otherwise hide the P&L lines.
     out = dp.format_summary(
         date_label="2026-05-05",
         realized=Decimal("-7.10"),
@@ -62,23 +65,28 @@ def test_format_summary_negative_amounts():
         open_count=0,
         exposure_pct=Decimal("0"),
         mode="PAPER",
+        closed_today=1,
+        losses_today=1,
     )
     assert "`-$7.10`" in out
     assert "`-$2.00`" in out
 
 
-def test_format_summary_zero_amounts():
+def test_format_summary_zero_amounts_when_activity_present():
+    # Track E (#960): when activity occurred today, the full format
+    # still renders zero P&L as +$0.00 (>= 0 path) rather than the
+    # no-trade empty state. open_count > 0 keeps us in full format.
     out = dp.format_summary(
         date_label="2026-05-05",
         realized=Decimal("0"),
         unrealized=Decimal("0"),
         fees=Decimal("0"),
-        open_count=0,
+        open_count=1,
         exposure_pct=Decimal("0"),
         mode="PAPER",
     )
-    # Zero is rendered as +$0.00 by convention (>= 0 path).
     assert "`+$0.00`" in out
+    assert "No paper trades today" not in out
 
 
 # ---------- Toggle persistence ----------------------------------------------
@@ -305,8 +313,16 @@ def test_realized_pnl_query_targets_positions_pnl_usdc_not_ledger():
 
 
 def test_build_summary_handles_missing_balance_zero_exposure():
+    # An open position keeps us in full format (open_count > 0) so the
+    # exposure line is exercised. With balance=0 the exposure_pct is
+    # forced to 0.0% to avoid division by zero.
     conn = _SummaryConn(
-        realized=0, fees=0, balance=0, mode="live", positions=[],
+        realized=0, fees=0, balance=0, mode="live",
+        positions=[
+            {"side": "yes", "size_usdc": Decimal("5"),
+             "entry_price": Decimal("0.5"),
+             "current_price": Decimal("0.5")},
+        ],
     )
     with patch.object(dp, "get_pool", return_value=_Pool(conn)):
         out = asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
@@ -433,3 +449,226 @@ def test_scheduler_registers_daily_pnl_summary_job():
     fields = {f.name: str(f) for f in job.trigger.fields}
     assert fields.get("hour") == "23"
     assert fields.get("minute") == "0"
+
+
+# ---------- Fast Track Track E (#960): paper-mode counts + no-trade state ---
+
+
+def test_format_summary_no_trade_state_renders_compact_line():
+    """Track E: zero activity AND zero open positions → compact form."""
+    out = dp.format_summary(
+        date_label="2026-05-05",
+        realized=Decimal("0"),
+        unrealized=Decimal("0"),
+        fees=Decimal("0"),
+        open_count=0,
+        exposure_pct=Decimal("0"),
+        mode="PAPER",
+        opened_today=0,
+        closed_today=0,
+        wins_today=0,
+        losses_today=0,
+    )
+    assert "No paper trades today" in out
+    assert "Mode: `PAPER`" in out
+    # Full-format rows must NOT leak into the compact form.
+    assert "Realized P&L" not in out
+    assert "Exposure" not in out
+
+
+def test_format_summary_no_trade_state_skipped_when_position_open():
+    """An open position keeps the full format even with zero trades today."""
+    out = dp.format_summary(
+        date_label="2026-05-05",
+        realized=Decimal("0"),
+        unrealized=Decimal("1.50"),
+        fees=Decimal("0"),
+        open_count=1,
+        exposure_pct=Decimal("5.0"),
+        mode="PAPER",
+        opened_today=0,
+        closed_today=0,
+    )
+    assert "Realized P&L" in out
+    assert "Trades opened : `0`" in out
+    assert "Trades closed : `0` (W:0 L:0)" in out
+    assert "No paper trades today" not in out
+
+
+def test_format_summary_includes_trade_counts_with_wl_breakdown():
+    """Counts line surfaces opened/closed plus W/L breakdown."""
+    out = dp.format_summary(
+        date_label="2026-05-05",
+        realized=Decimal("8.00"),
+        unrealized=Decimal("0"),
+        fees=Decimal("0.30"),
+        open_count=2,
+        exposure_pct=Decimal("12.5"),
+        mode="PAPER",
+        opened_today=4,
+        closed_today=3,
+        wins_today=2,
+        losses_today=1,
+    )
+    assert "Trades opened : `4`" in out
+    assert "Trades closed : `3` (W:2 L:1)" in out
+    # Existing R12 lines remain.
+    assert "Realized P&L  : `+$8.00`" in out
+    assert "Open positions: `2`" in out
+
+
+def test_build_summary_paper_counts_aggregated_via_counts_row():
+    """_fetch_user_summary_row pulls paper-mode counts from the counts query."""
+
+    class _CountsConn(_SummaryConn):
+        def __init__(self, *, counts: dict, **kwargs):
+            super().__init__(**kwargs)
+            self._counts = counts
+
+        async def fetchrow(self, query: str, *args: Any):
+            if "opened_today" in query and "closed_today" in query:
+                return self._counts
+            return None
+
+    conn = _CountsConn(
+        realized=5.0, fees=0, balance=100.0, mode="paper",
+        positions=[
+            {"side": "yes", "size_usdc": Decimal("10"),
+             "entry_price": Decimal("0.5"),
+             "current_price": Decimal("0.5")},
+        ],
+        counts={"opened_today": 3, "closed_today": 2,
+                "wins_today": 1, "losses_today": 1},
+    )
+    with patch.object(dp, "get_pool", return_value=_Pool(conn)):
+        out = asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
+    assert "Trades opened : `3`" in out
+    assert "Trades closed : `2` (W:1 L:1)" in out
+
+
+def test_build_summary_no_trade_state_on_empty_paper_history():
+    """No paper trades today AND no open positions → compact summary."""
+
+    class _EmptyConn(_SummaryConn):
+        async def fetchrow(self, query: str, *args: Any):
+            if "opened_today" in query and "closed_today" in query:
+                return {"opened_today": 0, "closed_today": 0,
+                        "wins_today": 0, "losses_today": 0}
+            return None
+
+    conn = _EmptyConn(
+        realized=0, fees=0, balance=100.0, mode="paper", positions=[],
+    )
+    with patch.object(dp, "get_pool", return_value=_Pool(conn)):
+        out = asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
+    assert "No paper trades today" in out
+    assert "Realized P&L" not in out
+
+
+def test_build_summary_counts_query_filters_paper_mode():
+    """The counts query must scope to mode='paper' so live trades never
+    leak into the Fast Track paper summary breakdown."""
+    captured: list[str] = []
+
+    class _CaptureConn:
+        async def fetchval(self, query: str, *args: Any):
+            return Decimal("0")
+
+        async def fetch(self, query: str, *args: Any):
+            return []
+
+        async def fetchrow(self, query: str, *args: Any):
+            captured.append(query)
+            return {"opened_today": 0, "closed_today": 0,
+                    "wins_today": 0, "losses_today": 0}
+
+        async def execute(self, query: str, *args: Any):
+            return "OK"
+
+    with patch.object(dp, "get_pool", return_value=_Pool(_CaptureConn())):
+        asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
+    counts_queries = [q for q in captured
+                      if "opened_today" in q and "closed_today" in q]
+    assert counts_queries, (
+        "counts query missing from build_summary_for_user — got: "
+        + repr(captured)
+    )
+    # Every paper-mode counter must filter mode='paper'.
+    q = counts_queries[0]
+    assert q.count("mode='paper'") >= 4, (
+        f"counts query must filter mode='paper' on all four counters: {q!r}"
+    )
+
+
+def test_scheduler_registers_run_job_as_daily_callable():
+    """Track E callback wiring: APScheduler job must dispatch run_job."""
+    from projects.polymarket.crusaderbot import scheduler
+
+    class _SettingsStub:
+        TIMEZONE = "Asia/Jakarta"
+        MARKET_SCAN_INTERVAL = 300
+        DEPOSIT_WATCH_INTERVAL = 120
+        SIGNAL_SCAN_INTERVAL = 180
+        EXIT_WATCH_INTERVAL = 60
+        REDEEM_INTERVAL = 3600
+        RESOLUTION_CHECK_INTERVAL = 300
+        ORDER_POLL_INTERVAL_SECONDS = 30
+        WS_WATCHDOG_INTERVAL_SECONDS = 60
+        COPY_TRADE_MONITOR_INTERVAL = 60
+
+    with patch.object(scheduler, "get_settings", return_value=_SettingsStub()):
+        sched = scheduler.setup_scheduler()
+    job = sched.get_job(dp.JOB_ID)
+    assert job is not None
+    assert job.func is dp.run_job, (
+        f"scheduler must dispatch daily_pnl_summary.run_job, got {job.func!r}"
+    )
+
+
+def test_format_summary_no_trade_branch_skipped_when_realized_nonzero():
+    """Codex P1 (PR #962): paper-scoped counts can be 0 while a live-mode
+    close today still contributes nonzero realized P&L. The no-trade
+    compact form must NOT hide that line."""
+    out = dp.format_summary(
+        date_label="2026-05-05",
+        realized=Decimal("5.00"),
+        unrealized=Decimal("0"),
+        fees=Decimal("0"),
+        open_count=0,
+        exposure_pct=Decimal("0"),
+        mode="LIVE",
+        opened_today=0, closed_today=0,
+    )
+    assert "Realized P&L  : `+$5.00`" in out
+    assert "No paper trades today" not in out
+
+
+def test_format_summary_no_trade_branch_skipped_when_fees_nonzero():
+    """Codex P1 (PR #962): nonzero fees on a paper-zero day must surface
+    in the full format rather than be hidden by the compact branch."""
+    out = dp.format_summary(
+        date_label="2026-05-05",
+        realized=Decimal("0"),
+        unrealized=Decimal("0"),
+        fees=Decimal("0.25"),
+        open_count=0,
+        exposure_pct=Decimal("0"),
+        mode="LIVE",
+    )
+    assert "Fees paid     : `$0.25`" in out
+    assert "No paper trades today" not in out
+
+
+def test_run_job_invokes_run_once_callback_path():
+    """run_job is a thin wrapper that defers to run_once and logs stats."""
+    captured: dict = {}
+
+    async def fake_run_once():
+        captured["called"] = True
+        return {"sent": 1, "skipped_disabled": 0,
+                "skipped_no_telegram": 0, "failed": 0,
+                "total_users": 1, "date": "2026-05-05"}
+
+    with patch.object(dp, "run_once", side_effect=fake_run_once):
+        asyncio.run(dp.run_job())
+    assert captured.get("called") is True

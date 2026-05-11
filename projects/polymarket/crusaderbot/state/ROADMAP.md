@@ -1,7 +1,7 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 21:05 Asia/Jakarta
+**Last Updated:** 2026-05-11 21:35 Asia/Jakarta
 
 ## Current Posture
 
@@ -20,7 +20,7 @@
 | B | Copy Trade Execution | MAJOR | ✅ MERGED | MERGED PR #948 (2026-05-11). CopyTradeMonitor wired through TradeEngine; 25 tests green |
 | C | Trade Notifications | STANDARD | ✅ MERGED | MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; 16 tests green |
 | D | Live Gate Hardening | MAJOR | ✅ MERGED | MERGED PR #954 (2026-05-11). Slippage/market-impact gate step 14, risk assertion audit, parity hooks, readiness validator; WARP•SENTINEL APPROVED 92/100; 35 tests green |
-| E | Daily P&L Report | STANDARD | ❌ QUEUED | Scheduled daily Telegram summary |
+| E | Daily P&L Report | STANDARD | 🟡 IN REVIEW | FORGE complete on WARP/crusaderbot-daily-pnl-report (closes #960). Paper-mode counts (opened/closed/W/L), no-trade empty state, scheduler callback wiring test; 26 daily_pnl_summary tests green |
 
 **During Week 1:**
 

@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 19:50
-Status       : Fast Track Week 1 Track A, B, C, and D are MERGED. Track D Live Gate Hardening merged PR #954 after WARP•SENTINEL APPROVED 92/100 with zero critical issues. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF.
+Last Updated : 2026-05-11 21:35
+Status       : Fast Track Week 1 Track A, B, C, and D MERGED. Track E Daily P&L Report FORGE complete on WARP/crusaderbot-daily-pnl-report — paper-mode counts (opened/closed/W/L), no-trade empty state, scheduler callback wiring test; PR open for WARP🔹CMD review, closes #960. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -17,18 +17,18 @@ Status       : Fast Track Week 1 Track A, B, C, and D are MERGED. Track D Live G
 - WARP•SENTINEL Track D validation APPROVED 92/100 with zero critical issues. Report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-live-gate-hardening.md.
 
 [IN PROGRESS]
+- Fast Track Track E -- Daily P&L Report FORGE complete on WARP/crusaderbot-daily-pnl-report; PR open closes #960; STANDARD, NARROW INTEGRATION; 26 daily_pnl_summary tests green.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Fast Track Track E -- Daily P&L Report: scheduled Telegram daily summary. STANDARD.
 - Fast Track Week 2 -- Live gate + UI premium pack + charts/insights + referral/share/fee prep.
 - Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin + onboarding polish.
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Fast Track Track E -- Daily P&L Report.
+- WARP🔹CMD review of Track E PR (WARP/crusaderbot-daily-pnl-report, closes #960). No WARP•SENTINEL required (STANDARD tier, NARROW INTEGRATION).
 - Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
