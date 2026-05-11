@@ -10,20 +10,20 @@ Usage (by the readiness validator):
         ...surface to operator...
 
 The check runs the gate twice against the same ``GateContext``:
-  1. With ``trading_mode='paper'`` (current posture) — no DB mutations
-     because step 10 idempotency is not recorded on dry-run paths.
-  2. With ``trading_mode='paper'`` but with a settings mock that pretends
-     all activation guards are True — simulates what the gate would do in
-     live mode without actually enabling live trading.
+  1. With ``trading_mode='paper'`` (current posture) — no DB mutations.
+  2. With ``trading_mode='live'`` and ``_passes_live_guards`` forced True —
+     simulates what the gate would do in live mode without enabling live
+     trading or mutating any user state.
 
-Parity passes when both gate evaluations reach the same step verdict and
-produce the same ``chosen_mode`` decision (both paper, in current posture).
+Parity passes when both gate evaluations reach the same step verdict.
+chosen_mode may differ (paper vs live) — that is expected and not a failure.
 Divergence indicates a bug in the guard-routing logic.
 
 Important: parity validation does NOT write to risk_log, idempotency_keys,
-or any other DB table.  It operates in dry-run mode by monkey-patching the
-``_log`` and ``_record_idempotency`` callables within a local scope so the
-live gate module remains unchanged.
+user_settings, or any other DB table.  Mutations are suppressed by patching
+``_log``, ``_record_idempotency``, and all three ``live_fallback.trigger_*``
+callables.  ``_passes_live_guards`` is also patched (not ``get_settings``,
+which is imported inside ``evaluate()`` and has no module-level attribute).
 """
 from __future__ import annotations
 
@@ -68,11 +68,9 @@ async def validate_gate_parity(
     """Run gate in paper and simulated-live mode; compare verdicts.
 
     Both runs share the same context and the same DB state.  The only
-    difference is that the simulated-live run pretends all four activation
-    guards (ENABLE_LIVE_TRADING, EXECUTION_PATH_VALIDATED,
-    CAPITAL_MODE_CONFIRMED, USE_REAL_CLOB) are True, so the gate's
-    chosen_mode computation exercises the live-guard path without requiring
-    the real env flags to change.
+    difference is that the simulated-live run patches ``_passes_live_guards``
+    to return True, exercising the live chosen_mode path without requiring
+    the real env flags to change and without mutating any user state.
     """
     from ..risk.gate import GateContext, evaluate
 
@@ -99,19 +97,31 @@ async def validate_gate_parity(
         trading_mode=trading_mode,
     )
 
+    # Shared noop for all live_fallback mutation calls. The fallback
+    # functions write to user_settings and send Telegram notifications —
+    # both are state mutations that must never fire during a parity check.
+    _fallback_noop = AsyncMock(return_value=None)
+    _GATE = "projects.polymarket.crusaderbot.domain.risk.gate"
+
     # Run 1 — paper mode (current posture, no mutations)
     with (
-        patch("projects.polymarket.crusaderbot.domain.risk.gate._log", _noop),
-        patch("projects.polymarket.crusaderbot.domain.risk.gate._record_idempotency",
-              _noop),
-        patch("projects.polymarket.crusaderbot.domain.risk.gate._idempotent_already_seen",
-              AsyncMock(return_value=False)),
-        patch("projects.polymarket.crusaderbot.domain.risk.gate._recent_dup_market_trade",
-              AsyncMock(return_value=False)),
+        patch(f"{_GATE}._log", _noop),
+        patch(f"{_GATE}._record_idempotency", _noop),
+        patch(f"{_GATE}._idempotent_already_seen", AsyncMock(return_value=False)),
+        patch(f"{_GATE}._recent_dup_market_trade", AsyncMock(return_value=False)),
+        patch(f"{_GATE}.live_fallback.trigger_for_kill_switch_halt", _fallback_noop),
+        patch(f"{_GATE}.live_fallback.trigger_for_drawdown_halt", _fallback_noop),
+        patch(f"{_GATE}.live_fallback.trigger_for_live_guard_unset", _fallback_noop),
     ):
         paper_result = await evaluate(base_ctx)
 
-    # Run 2 — simulated live (guards forced True, trading_mode='live')
+    # Run 2 — simulated live (guards forced True via _passes_live_guards patch,
+    # trading_mode='live').
+    #
+    # Patch _passes_live_guards directly rather than mocking get_settings:
+    # evaluate() imports get_settings inside the function body (not at module
+    # level), so patch("...gate.get_settings", ...) raises AttributeError.
+    # Patching the guard-routing function is both correct and stable.
     live_ctx = GateContext(
         user_id=user_id,
         telegram_user_id=telegram_user_id,
@@ -133,22 +143,15 @@ async def validate_gate_parity(
         trading_mode="live",
     )
 
-    class _FakeSettings:
-        ENABLE_LIVE_TRADING = True
-        EXECUTION_PATH_VALIDATED = True
-        CAPITAL_MODE_CONFIRMED = True
-        USE_REAL_CLOB = True
-
     with (
-        patch("projects.polymarket.crusaderbot.domain.risk.gate._log", _noop),
-        patch("projects.polymarket.crusaderbot.domain.risk.gate._record_idempotency",
-              _noop),
-        patch("projects.polymarket.crusaderbot.domain.risk.gate._idempotent_already_seen",
-              AsyncMock(return_value=False)),
-        patch("projects.polymarket.crusaderbot.domain.risk.gate._recent_dup_market_trade",
-              AsyncMock(return_value=False)),
-        patch("projects.polymarket.crusaderbot.domain.risk.gate.get_settings",
-              return_value=_FakeSettings()),
+        patch(f"{_GATE}._log", _noop),
+        patch(f"{_GATE}._record_idempotency", _noop),
+        patch(f"{_GATE}._idempotent_already_seen", AsyncMock(return_value=False)),
+        patch(f"{_GATE}._recent_dup_market_trade", AsyncMock(return_value=False)),
+        patch(f"{_GATE}._passes_live_guards", return_value=True),
+        patch(f"{_GATE}.live_fallback.trigger_for_kill_switch_halt", _fallback_noop),
+        patch(f"{_GATE}.live_fallback.trigger_for_drawdown_halt", _fallback_noop),
+        patch(f"{_GATE}.live_fallback.trigger_for_live_guard_unset", _fallback_noop),
     ):
         live_result = await evaluate(live_ctx)
 
