@@ -8,9 +8,19 @@
 ## Right Now
 
 - Track E Daily P&L Report MERGED PR #962; issue #960 closed. Week 1 Fast Track Tracks A-E complete.
-- Next lane: Week 2 live gate preparation + premium UX prep, still PAPER ONLY.
+- Week 2 first lane: Premium PNL Insights UX (issue #963) PR open from WARP/crusaderbot-premium-pnl-insights. Awaiting WARP🔹CMD merge decision.
 - Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY.
+
+---
+
+## Fast Track Week 2 -- Live Gate + Premium UX
+
+- [x] Premium PNL Insights UX -- PR open WARP/crusaderbot-premium-pnl-insights (2026-05-11), STANDARD, NARROW INTEGRATION. /insights command; insight_kb; dashboard:insights sub; my_trades nav update; 15 hermetic tests green; issue #963.
+- [ ] Live gate preparation (SENTINEL + owner checklist) -- NOT STARTED.
+- [ ] Referral / fee / fee prep -- NOT STARTED.
+
+Done condition: WARP🔹CMD merge decision on each lane; activation guards remain OFF throughout.
 
 ---
 

@@ -37,7 +37,10 @@ def my_trades_main_kb(position_ids: list[UUID | str]) -> InlineKeyboardMarkup:
                 "📋 Full History", callback_data="mytrades:hist:0"
             ),
             InlineKeyboardButton(
-                "📊 Dashboard", callback_data="dashboard:main"
+                "📊 Insights", callback_data="insights:refresh"
+            ),
+            InlineKeyboardButton(
+                "🏠 Dashboard", callback_data="dashboard:main"
             ),
         ]
     )

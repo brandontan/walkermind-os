@@ -160,11 +160,20 @@ def dashboard_nav(has_trades: bool) -> InlineKeyboardMarkup:
             InlineKeyboardButton("🤖 Get Started", callback_data="dashboard:autotrade"),
         ]])
     buttons = [
-        InlineKeyboardButton("🤖 Auto-Trade", callback_data="dashboard:autotrade"),
-        InlineKeyboardButton("📈 Trades",     callback_data="dashboard:trades"),
-        InlineKeyboardButton("💰 Wallet",     callback_data="dashboard:wallet"),
+        InlineKeyboardButton("🤖 Auto-Trade",  callback_data="dashboard:autotrade"),
+        InlineKeyboardButton("📈 Trades",      callback_data="dashboard:trades"),
+        InlineKeyboardButton("💰 Wallet",      callback_data="dashboard:wallet"),
+        InlineKeyboardButton("📊 Insights",    callback_data="dashboard:insights"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))
+
+
+def insights_kb() -> InlineKeyboardMarkup:
+    """Keyboard attached to the PNL Insights message."""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔄 Refresh",    callback_data="insights:refresh"),
+        InlineKeyboardButton("📊 Dashboard",  callback_data="dashboard:main"),
+    ]])
 
 
 def confirm(action_key: str) -> InlineKeyboardMarkup:

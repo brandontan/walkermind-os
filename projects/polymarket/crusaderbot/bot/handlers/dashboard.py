@@ -262,6 +262,16 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             reply_markup=wallet_menu(),
         )
 
+    elif sub == "insights":
+        from .pnl_insights import _fetch_insights, format_insights
+        from ..keyboards import insights_kb
+        data = await _fetch_insights(user["id"])
+        await q.message.reply_text(
+            format_insights(data),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=insights_kb(),
+        )
+
 
 async def autotrade_toggle_cb(update: Update,
                               ctx: ContextTypes.DEFAULT_TYPE) -> None:
