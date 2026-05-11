@@ -1,30 +1,28 @@
-"""Hermetic tests for Phase 5H first-time onboarding flow.
+"""Hermetic tests for onboarding polish — Track L.
 
 No real DB, no Telegram API, no network. All external calls are mocked.
 
-Coverage (10 tests):
+Coverage (15 tests):
   Keyboards (no async):
-    1  welcome_kb     — has Let's Go and Learn More buttons
-    2  faq_kb         — has Got it button
-    3  wallet_kb      — has Copy Address and Next buttons
-    4  style_picker_kb — has Copy Trade, Auto Trade, Both buttons
-    5  deposit_kb     — has Show QR, Copy Address, Skip buttons
+    1  get_started_kb    — has Get Started button
+    2  mode_select_kb    — has Paper Trading and Live Trading buttons
+    3  paper_complete_kb — has View Dashboard button
 
   Handler flows (mocked DB + mock Update):
-    6  New user /start — shows welcome message, returns ONBOARD_WELCOME
-    7  Existing user /start (onboarding_complete=True, ALLOWLISTED)
-          — routes to dashboard, returns END
-    8  Learn More — shows FAQ, returns ONBOARD_FAQ
-    9  Got it from FAQ — re-shows welcome, returns ONBOARD_WELCOME
-   10  Let's Go with existing wallet — skips wallet step, goes to ONBOARD_STYLE
-   11  Let's Go with no wallet — creates wallet, shows wallet step, returns ONBOARD_WALLET
-   12  Copy Address in wallet step — sends address, stays ONBOARD_WALLET
-   13  Next in wallet step — shows style picker, returns ONBOARD_STYLE
-   14  Style pick (copy_trade) — shows deposit prompt, returns ONBOARD_DEPOSIT
-   15  Skip in deposit step — sets onboarding_complete, shows completion, returns END
-   16  QR in deposit step — generates QR photo, stays ONBOARD_DEPOSIT
-   17  deposit_copy — sends full address, stays ONBOARD_DEPOSIT
-   18  Second /start (onboarding_complete=True, BROWSE) — shows welcome back, returns END
+    4  New user /start   — shows welcome text, returns ONBOARD_WELCOME
+    5  Existing user /start (ALLOWLISTED) — routes to dashboard, returns END
+    6  Returning BROWSE user /start — shows welcome back, returns END
+    7  Get Started callback — shows mode selection, returns ONBOARD_MODE
+    8  Paper mode selected — marks onboarding_complete, shows paper confirmation, END
+    9  Paper mode selected without user_id in ctx — still shows confirmation, END
+   10  Live mode selected  — shows live redirect text, END
+   11  view_dashboard_cb   — delegates to dashboard handler
+
+  /help (mocked operator check):
+   12  /help non-operator — shows TRADING, PORTFOLIO, SETTINGS; no ADMIN section
+   13  /help operator     — shows TRADING, PORTFOLIO, SETTINGS, ADMIN section
+   14  /help TRADING category — contains /scan, /positions, /close, /pnl
+   15  /help PORTFOLIO category — contains /chart, /insights, /trades
 """
 from __future__ import annotations
 
@@ -36,25 +34,19 @@ from uuid import uuid4
 import pytest
 
 from projects.polymarket.crusaderbot.bot.keyboards.onboarding import (
-    deposit_kb,
-    faq_kb,
-    style_picker_kb,
-    wallet_kb,
-    welcome_kb,
+    get_started_kb,
+    mode_select_kb,
+    paper_complete_kb,
 )
 import projects.polymarket.crusaderbot.bot.handlers.onboarding as ob_mod
 from projects.polymarket.crusaderbot.bot.handlers.onboarding import (
-    ONBOARD_DEPOSIT,
-    ONBOARD_FAQ,
-    ONBOARD_STYLE,
-    ONBOARD_WALLET,
+    ONBOARD_MODE,
     ONBOARD_WELCOME,
     _entry,
-    _deposit_cb,
-    _faq_cb,
-    _style_cb,
-    _wallet_cb,
-    _welcome_cb,
+    _get_started_cb,
+    _mode_cb,
+    view_dashboard_cb,
+    help_handler,
 )
 from telegram.ext import ConversationHandler
 
@@ -80,12 +72,8 @@ def _make_cmd_update(tg_user_id=12345, username="testuser"):
     async def _reply_text(text, **kw):
         replies.append(("text", text, kw))
 
-    async def _reply_photo(photo, **kw):
-        replies.append(("photo", photo, kw))
-
     msg = SimpleNamespace(
         reply_text=AsyncMock(side_effect=_reply_text),
-        reply_photo=AsyncMock(side_effect=_reply_photo),
     )
     tg_user = SimpleNamespace(id=tg_user_id, username=username, first_name="Test")
     return SimpleNamespace(
@@ -98,18 +86,12 @@ def _make_cmd_update(tg_user_id=12345, username="testuser"):
 
 def _make_cb_update(callback_data: str, tg_user_id=12345, username="testuser"):
     replies: list = []
-    photos: list = []
 
     async def _reply_text(text, **kw):
         replies.append(("text", text, kw))
 
-    async def _reply_photo(photo, **kw):
-        photos.append(photo)
-        replies.append(("photo", photo, kw))
-
     msg = SimpleNamespace(
         reply_text=AsyncMock(side_effect=_reply_text),
-        reply_photo=AsyncMock(side_effect=_reply_photo),
     )
     cq = SimpleNamespace(
         data=callback_data,
@@ -122,62 +104,44 @@ def _make_cb_update(callback_data: str, tg_user_id=12345, username="testuser"):
         callback_query=cq,
         effective_user=tg_user,
         effective_message=msg,
-    ), replies, photos
+    ), replies
 
 
 def _ctx(user_data: dict | None = None):
     ctx = MagicMock()
+    ctx.args = []
     ctx.user_data = user_data or {}
     return ctx
 
 
 # ---------------------------------------------------------------------------
-# 1–5: Keyboard purity tests (no async)
+# 1–3: Keyboard purity tests (no async)
 # ---------------------------------------------------------------------------
 
-def test_welcome_kb_buttons():
-    kb = welcome_kb()
+def test_get_started_kb_button():
+    kb = get_started_kb()
     flat = [btn for row in kb.inline_keyboard for btn in row]
     datas = {b.callback_data for b in flat}
-    assert "onboard:lets_go" in datas
-    assert "onboard:learn_more" in datas
+    assert "onboard:get_started" in datas
 
 
-def test_faq_kb_button():
-    kb = faq_kb()
+def test_mode_select_kb_buttons():
+    kb = mode_select_kb()
     flat = [btn for row in kb.inline_keyboard for btn in row]
     datas = {b.callback_data for b in flat}
-    assert "onboard:got_it" in datas
+    assert "onboard:mode_paper" in datas
+    assert "onboard:mode_live" in datas
 
 
-def test_wallet_kb_buttons():
-    kb = wallet_kb()
+def test_paper_complete_kb_button():
+    kb = paper_complete_kb()
     flat = [btn for row in kb.inline_keyboard for btn in row]
     datas = {b.callback_data for b in flat}
-    assert "onboard:copy_addr" in datas
-    assert "onboard:next" in datas
-
-
-def test_style_picker_kb_buttons():
-    kb = style_picker_kb()
-    flat = [btn for row in kb.inline_keyboard for btn in row]
-    datas = {b.callback_data for b in flat}
-    assert "onboard:style:copy_trade" in datas
-    assert "onboard:style:auto_trade" in datas
-    assert "onboard:style:both" in datas
-
-
-def test_deposit_kb_buttons():
-    kb = deposit_kb()
-    flat = [btn for row in kb.inline_keyboard for btn in row]
-    datas = {b.callback_data for b in flat}
-    assert "onboard:qr" in datas
-    assert "onboard:deposit_copy" in datas
-    assert "onboard:skip" in datas
+    assert "onboard:view_dashboard" in datas
 
 
 # ---------------------------------------------------------------------------
-# 6: New user /start shows welcome
+# 4: New user /start shows welcome
 # ---------------------------------------------------------------------------
 
 def test_new_user_start_shows_welcome():
@@ -188,7 +152,8 @@ def test_new_user_start_shows_welcome():
     with (
         patch.object(ob_mod, "upsert_user", AsyncMock(return_value=user)),
         patch.object(ob_mod, "audit") as mock_audit,
-        patch.object(ob_mod, "get_wallet", AsyncMock(return_value=None)),
+        patch.object(ob_mod, "get_or_create_referral_code", AsyncMock()),
+        patch.object(ob_mod, "parse_ref_param", return_value=None),
     ):
         mock_audit.write = AsyncMock()
         result = asyncio.run(_entry(update, ctx))
@@ -199,203 +164,34 @@ def test_new_user_start_shows_welcome():
 
 
 # ---------------------------------------------------------------------------
-# 7: Existing user /start (onboarding_complete=True, ALLOWLISTED) → dashboard
+# 5: Existing user /start (ALLOWLISTED) → dashboard
 # ---------------------------------------------------------------------------
 
-def test_existing_user_start_shows_dashboard():
+def test_existing_user_start_routes_to_dashboard():
     user = _make_user(onboarding_complete=True, access_tier=2)
     update, replies = _make_cmd_update()
     ctx = _ctx()
 
     mock_dashboard = AsyncMock()
+    import projects.polymarket.crusaderbot.bot.handlers.dashboard as dash_mod
+
     with (
         patch.object(ob_mod, "upsert_user", AsyncMock(return_value=user)),
         patch.object(ob_mod, "audit") as mock_audit,
-        patch.object(ob_mod, "get_wallet", AsyncMock(return_value={"deposit_address": "0xABC"})),
-        patch("projects.polymarket.crusaderbot.bot.handlers.onboarding.has_tier",
-              return_value=True),
-        patch("projects.polymarket.crusaderbot.bot.handlers.dashboard.dashboard",
-              mock_dashboard),
-    ):
-        mock_audit.write = AsyncMock()
-        # Import dashboard inside the patch context
-        import projects.polymarket.crusaderbot.bot.handlers.dashboard as dash_mod
-        with patch.object(dash_mod, "dashboard", mock_dashboard):
-            result = asyncio.run(_entry(update, ctx))
-
-    assert result == ConversationHandler.END
-
-
-# ---------------------------------------------------------------------------
-# 8: Learn More shows FAQ
-# ---------------------------------------------------------------------------
-
-def test_learn_more_shows_faq():
-    update, replies, _ = _make_cb_update("onboard:learn_more")
-    ctx = _ctx()
-
-    result = asyncio.run(_welcome_cb(update, ctx))
-
-    assert result == ONBOARD_FAQ
-    assert any("Frequently Asked Questions" in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 9: Got it from FAQ returns to welcome
-# ---------------------------------------------------------------------------
-
-def test_faq_got_it_returns_to_welcome():
-    update, replies, _ = _make_cb_update("onboard:got_it")
-    ctx = _ctx()
-
-    result = asyncio.run(_faq_cb(update, ctx))
-
-    assert result == ONBOARD_WELCOME
-    assert any("Welcome to CrusaderBot" in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 10: Let's Go with existing wallet skips to ONBOARD_STYLE
-# ---------------------------------------------------------------------------
-
-def test_lets_go_existing_wallet_skips_to_style():
-    uid = uuid4()
-    update, replies, _ = _make_cb_update("onboard:lets_go")
-    ctx = _ctx({"onboard_user_id": str(uid)})
-
-    with patch.object(ob_mod, "get_wallet",
-                      AsyncMock(return_value={"deposit_address": "0xABCD1234EF9"})):
-        result = asyncio.run(_welcome_cb(update, ctx))
-
-    assert result == ONBOARD_STYLE
-    assert ctx.user_data.get("onboard_addr") == "0xABCD1234EF9"
-    assert any("How do you want to trade" in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 11: Let's Go with no wallet creates wallet, shows wallet step
-# ---------------------------------------------------------------------------
-
-def test_lets_go_no_wallet_creates_and_shows_wallet_step():
-    uid = uuid4()
-    addr = "0x45DBabc123cF9"
-    update, replies, _ = _make_cb_update("onboard:lets_go")
-    ctx = _ctx({"onboard_user_id": str(uid)})
-
-    with (
         patch.object(ob_mod, "get_wallet", AsyncMock(return_value=None)),
-        patch.object(ob_mod, "create_wallet_for_user", AsyncMock(return_value=(addr, 1))),
-        patch.object(ob_mod, "audit") as mock_audit,
+        patch.object(ob_mod, "get_or_create_referral_code", AsyncMock()),
+        patch.object(ob_mod, "parse_ref_param", return_value=None),
+        patch.object(ob_mod, "has_tier", return_value=True),
+        patch.object(dash_mod, "dashboard", mock_dashboard),
     ):
         mock_audit.write = AsyncMock()
-        result = asyncio.run(_welcome_cb(update, ctx))
-
-    assert result == ONBOARD_WALLET
-    assert ctx.user_data.get("onboard_addr") == addr
-    assert any("Wallet ready" in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 12: Copy Address in wallet step sends address, stays ONBOARD_WALLET
-# ---------------------------------------------------------------------------
-
-def test_wallet_copy_address_stays_in_wallet():
-    addr = "0x45DBabc123cF9"
-    update, replies, _ = _make_cb_update("onboard:copy_addr")
-    ctx = _ctx({"onboard_addr": addr})
-
-    result = asyncio.run(_wallet_cb(update, ctx))
-
-    assert result == ONBOARD_WALLET
-    assert any(addr in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 13: Next in wallet step goes to ONBOARD_STYLE
-# ---------------------------------------------------------------------------
-
-def test_wallet_next_goes_to_style():
-    update, replies, _ = _make_cb_update("onboard:next")
-    ctx = _ctx({"onboard_addr": "0x45DBabc123cF9"})
-
-    result = asyncio.run(_wallet_cb(update, ctx))
-
-    assert result == ONBOARD_STYLE
-    assert any("How do you want to trade" in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 14: Style pick shows deposit prompt, returns ONBOARD_DEPOSIT
-# ---------------------------------------------------------------------------
-
-def test_style_pick_shows_deposit_prompt():
-    for style in ("copy_trade", "auto_trade", "both"):
-        update, replies, _ = _make_cb_update(f"onboard:style:{style}")
-        ctx = _ctx({"onboard_addr": "0x45DBabc123cF9", "onboard_user_id": str(uuid4())})
-
-        result = asyncio.run(_style_cb(update, ctx))
-
-        assert result == ONBOARD_DEPOSIT, f"Expected ONBOARD_DEPOSIT for style={style}"
-        assert any("Deposit USDC" in r[1] for r in replies)
-        assert ctx.user_data.get("onboard_style") == style
-
-
-# ---------------------------------------------------------------------------
-# 15: Skip sets onboarding_complete, shows completion message, returns END
-# ---------------------------------------------------------------------------
-
-def test_skip_sets_onboarding_complete_and_ends():
-    uid = uuid4()
-    update, replies, _ = _make_cb_update("onboard:skip")
-    ctx = _ctx({
-        "onboard_user_id": str(uid),
-        "onboard_style": "copy_trade",
-        "onboard_addr": "0x45DBabc123cF9",
-    })
-
-    set_mock = AsyncMock()
-    with patch.object(ob_mod, "set_onboarding_complete", set_mock):
-        result = asyncio.run(_deposit_cb(update, ctx))
+        result = asyncio.run(_entry(update, ctx))
 
     assert result == ConversationHandler.END
-    set_mock.assert_awaited_once_with(uid)
-    assert any("You're all set" in r[1] for r in replies)
 
 
 # ---------------------------------------------------------------------------
-# 16: Show QR generates photo, stays ONBOARD_DEPOSIT
-# ---------------------------------------------------------------------------
-
-def test_show_qr_sends_photo():
-    addr = "0x45DBabc123cF9"
-    update, replies, photos = _make_cb_update("onboard:qr")
-    ctx = _ctx({"onboard_addr": addr, "onboard_user_id": str(uuid4())})
-
-    with patch.object(ob_mod, "_make_qr_bytes", return_value=b"FAKEPNG"):
-        result = asyncio.run(_deposit_cb(update, ctx))
-
-    assert result == ONBOARD_DEPOSIT
-    assert photos, "Expected a photo to be sent"
-    assert photos[0] == b"FAKEPNG"
-
-
-# ---------------------------------------------------------------------------
-# 17: deposit_copy sends full address, stays ONBOARD_DEPOSIT
-# ---------------------------------------------------------------------------
-
-def test_deposit_copy_sends_address():
-    addr = "0x45DBabc123cF9"
-    update, replies, _ = _make_cb_update("onboard:deposit_copy")
-    ctx = _ctx({"onboard_addr": addr, "onboard_user_id": str(uuid4())})
-
-    result = asyncio.run(_deposit_cb(update, ctx))
-
-    assert result == ONBOARD_DEPOSIT
-    assert any(addr in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 18: Second /start (onboarding_complete=True, BROWSE=1) shows welcome-back
+# 6: Returning BROWSE user /start shows welcome back
 # ---------------------------------------------------------------------------
 
 def test_returning_browse_user_sees_welcome_back():
@@ -406,13 +202,172 @@ def test_returning_browse_user_sees_welcome_back():
     with (
         patch.object(ob_mod, "upsert_user", AsyncMock(return_value=user)),
         patch.object(ob_mod, "audit") as mock_audit,
-        patch.object(ob_mod, "get_wallet",
-                     AsyncMock(return_value={"deposit_address": "0xABC"})),
-        patch("projects.polymarket.crusaderbot.bot.handlers.onboarding.has_tier",
-              return_value=False),
+        patch.object(ob_mod, "get_wallet", AsyncMock(return_value=None)),
+        patch.object(ob_mod, "get_or_create_referral_code", AsyncMock()),
+        patch.object(ob_mod, "parse_ref_param", return_value=None),
+        patch.object(ob_mod, "has_tier", return_value=False),
     ):
         mock_audit.write = AsyncMock()
         result = asyncio.run(_entry(update, ctx))
 
     assert result == ConversationHandler.END
     assert any("Welcome back" in r[1] for r in replies)
+
+
+# ---------------------------------------------------------------------------
+# 7: Get Started callback shows mode selection
+# ---------------------------------------------------------------------------
+
+def test_get_started_shows_mode_selection():
+    update, replies = _make_cb_update("onboard:get_started")
+    ctx = _ctx()
+
+    result = asyncio.run(_get_started_cb(update, ctx))
+
+    assert result == ONBOARD_MODE
+    assert any("Choose your trading mode" in r[1] for r in replies)
+
+
+# ---------------------------------------------------------------------------
+# 8: Paper mode selected — marks complete, shows confirmation, END
+# ---------------------------------------------------------------------------
+
+def test_mode_paper_marks_complete_and_shows_confirmation():
+    uid = uuid4()
+    update, replies = _make_cb_update("onboard:mode_paper")
+    ctx = _ctx({"onboard_user_id": str(uid)})
+
+    set_mock = AsyncMock()
+    with patch.object(ob_mod, "set_onboarding_complete", set_mock):
+        result = asyncio.run(_mode_cb(update, ctx))
+
+    assert result == ConversationHandler.END
+    set_mock.assert_awaited_once_with(uid)
+    assert any("Paper mode activated" in r[1] for r in replies)
+
+
+# ---------------------------------------------------------------------------
+# 9: Paper mode without user_id in ctx — still shows confirmation, END
+# ---------------------------------------------------------------------------
+
+def test_mode_paper_without_user_id_still_shows_confirmation():
+    update, replies = _make_cb_update("onboard:mode_paper")
+    ctx = _ctx()  # no onboard_user_id
+
+    result = asyncio.run(_mode_cb(update, ctx))
+
+    assert result == ConversationHandler.END
+    assert any("Paper mode activated" in r[1] for r in replies)
+
+
+# ---------------------------------------------------------------------------
+# 10: Live mode selected — shows redirect, END
+# ---------------------------------------------------------------------------
+
+def test_mode_live_shows_redirect_and_ends():
+    update, replies = _make_cb_update("onboard:mode_live")
+    ctx = _ctx()
+
+    result = asyncio.run(_mode_cb(update, ctx))
+
+    assert result == ConversationHandler.END
+    assert any("enable_live" in r[1] or "Live Trading" in r[1] for r in replies)
+
+
+# ---------------------------------------------------------------------------
+# 11: view_dashboard_cb delegates to dashboard handler
+# ---------------------------------------------------------------------------
+
+def test_view_dashboard_cb_calls_dashboard():
+    update, replies = _make_cb_update("onboard:view_dashboard")
+    ctx = _ctx()
+
+    mock_dashboard = AsyncMock()
+    import projects.polymarket.crusaderbot.bot.handlers.dashboard as dash_mod
+
+    with patch.object(dash_mod, "dashboard", mock_dashboard):
+        asyncio.run(view_dashboard_cb(update, ctx))
+
+    mock_dashboard.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# 12: /help non-operator — no ADMIN section
+# ---------------------------------------------------------------------------
+
+def test_help_non_operator_hides_admin():
+    update, replies = _make_cmd_update(tg_user_id=99999)
+    ctx = _ctx()
+
+    mock_settings = MagicMock()
+    mock_settings.OPERATOR_CHAT_ID = 11111  # different from tg_user_id
+
+    with patch.object(ob_mod, "get_settings", return_value=mock_settings):
+        asyncio.run(help_handler(update, ctx))
+
+    text = " ".join(r[1] for r in replies)
+    assert "TRADING" in text
+    assert "PORTFOLIO" in text
+    assert "SETTINGS" in text
+    assert "ADMIN" not in text
+
+
+# ---------------------------------------------------------------------------
+# 13: /help operator — shows ADMIN section
+# ---------------------------------------------------------------------------
+
+def test_help_operator_shows_admin():
+    op_id = 11111
+    update, replies = _make_cmd_update(tg_user_id=op_id)
+    ctx = _ctx()
+
+    mock_settings = MagicMock()
+    mock_settings.OPERATOR_CHAT_ID = op_id
+
+    with patch.object(ob_mod, "get_settings", return_value=mock_settings):
+        asyncio.run(help_handler(update, ctx))
+
+    text = " ".join(r[1] for r in replies)
+    assert "ADMIN" in text
+    assert "/admin" in text
+
+
+# ---------------------------------------------------------------------------
+# 14: /help TRADING category contains expected commands
+# ---------------------------------------------------------------------------
+
+def test_help_trading_category_commands():
+    update, replies = _make_cmd_update()
+    ctx = _ctx()
+
+    mock_settings = MagicMock()
+    mock_settings.OPERATOR_CHAT_ID = 99999  # non-operator
+
+    with patch.object(ob_mod, "get_settings", return_value=mock_settings):
+        asyncio.run(help_handler(update, ctx))
+
+    text = " ".join(r[1] for r in replies)
+    assert "/scan" in text
+    assert "/positions" in text
+    assert "/close" in text
+    assert "/pnl" in text
+
+
+# ---------------------------------------------------------------------------
+# 15: /help PORTFOLIO category contains expected commands
+# ---------------------------------------------------------------------------
+
+def test_help_portfolio_category_commands():
+    update, replies = _make_cmd_update()
+    ctx = _ctx()
+
+    mock_settings = MagicMock()
+    mock_settings.OPERATOR_CHAT_ID = 99999
+
+    with patch.object(ob_mod, "get_settings", return_value=mock_settings):
+        asyncio.run(help_handler(update, ctx))
+
+    text = " ".join(r[1] for r in replies)
+    assert "/chart" in text
+    assert "/insights" in text
+    assert "/trades" in text
