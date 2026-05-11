@@ -1,6 +1,6 @@
 """Hermetic tests for Fast Track B — CopyTradeMonitor copy-trade execution.
 
-Coverage (23 test cases, 13 async + 10 pure helpers):
+Coverage (25 test cases, 13 async + 12 pure helpers):
   TC01  signal accepted end-to-end
   TC02  signal rejected — min_trade_size constraint
   TC03  signal rejected — daily max_spend cap reached
@@ -23,9 +23,11 @@ Coverage (23 test cases, 13 async + 10 pure helpers):
     resolve_side sell→no
     resolve_side reverse buy→no
     resolve_side reverse sell→yes
+    resolve_side outcome overrides buy/sell
+    resolve_side outcome + reverse_copy
     make_idempotency_key format
     compute_copy_size fixed mode
-    compute_copy_size proportional mirror fallback
+    compute_copy_size proportional mirror fallback + copy_pct
 
 No DB, no broker, no Telegram. All external calls patched.
 """
@@ -494,6 +496,21 @@ def test_resolve_side_reverse_sell_to_yes() -> None:
     assert _resolve_side("sell", True) == "yes"
 
 
+def test_resolve_side_outcome_overrides_buy_sell() -> None:
+    # BUY of NO outcome must resolve to 'no', not 'yes'
+    assert _resolve_side("buy", False, outcome="no") == "no"
+    assert _resolve_side("buy", False, outcome="yes") == "yes"
+    # SELL of YES outcome must resolve to 'yes' when outcome is authoritative
+    assert _resolve_side("sell", False, outcome="yes") == "yes"
+
+
+def test_resolve_side_outcome_with_reverse_copy() -> None:
+    # outcome='no' + reverse_copy → 'yes'
+    assert _resolve_side("buy", True, outcome="no") == "yes"
+    # outcome='yes' + reverse_copy → 'no'
+    assert _resolve_side("buy", True, outcome="yes") == "no"
+
+
 def test_make_idempotency_key_format() -> None:
     task_id = UUID("12345678-1234-1234-1234-123456789abc")
     assert _make_idempotency_key(task_id, "lt_999") == (
@@ -525,5 +542,5 @@ def test_compute_copy_size_proportional_mirror_fallback() -> None:
         created_at=now, updated_at=now,
     )
     # No bankroll in trade → mirror_size_direct; leader=10, available=100, cap=10%
-    # min(10, 100*0.10) = 10
-    assert _compute_copy_size(task, 10.0, {}, 100.0) == 10.0
+    # min(10, 100*0.10) = 10; copy_pct=0.5 → 10 * 0.5 = 5.0
+    assert _compute_copy_size(task, 10.0, {}, 100.0) == 5.0

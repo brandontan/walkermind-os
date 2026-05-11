@@ -205,7 +205,8 @@ async def _process_one(
             raw_side=raw_side,
         )
         return
-    side = _resolve_side(raw_side, task.reverse_copy)
+    outcome = (leader_trade.get("outcome") or "").strip().lower() or None
+    side = _resolve_side(raw_side, task.reverse_copy, outcome)
 
     # --- load user context for TradeSignal ---
     user_ctx = await _load_user_context(task.user_id)
@@ -221,6 +222,7 @@ async def _process_one(
         leader_trade.get("market_id")
         or leader_trade.get("conditionId")
         or leader_trade.get("condition_id")
+        or leader_trade.get("market")
         or ""
     )
     if not market_id:
@@ -458,12 +460,20 @@ def _extract_liquidity(trade: dict[str, Any]) -> float:
     return 50_000.0
 
 
-def _resolve_side(raw_side: str, reverse_copy: bool) -> str:
-    """Normalise leader side to 'yes' | 'no' and apply reverse_copy."""
-    # Polymarket activity uses 'BUY'/'SELL' — map to yes/no
-    normalised = {"buy": "yes", "sell": "no", "yes": "yes", "no": "no"}.get(
-        raw_side.lower(), "yes"
-    )
+def _resolve_side(raw_side: str, reverse_copy: bool, outcome: str | None = None) -> str:
+    """Normalise leader side to 'yes' | 'no' and apply reverse_copy.
+
+    Polymarket trade payloads carry an ``outcome`` field ('yes'/'no') that
+    identifies which token was transacted.  When present it takes priority
+    over the buy/sell heuristic so that BUY NO is correctly copied as 'no'.
+    """
+    if outcome in ("yes", "no"):
+        normalised = outcome
+    else:
+        # Fallback: BUY → long-YES, SELL → long-NO when outcome is absent.
+        normalised = {"buy": "yes", "sell": "no", "yes": "yes", "no": "no"}.get(
+            raw_side.lower(), "yes"
+        )
     if reverse_copy:
         return "no" if normalised == "yes" else "yes"
     return normalised
@@ -480,7 +490,7 @@ def _compute_copy_size(
         # Fixed: use copy_amount directly, capped at remaining daily spend
         fixed = float(task.copy_amount)
         return fixed if fixed >= MIN_TRADE_SIZE_USDC else 0.0
-    # Proportional: use scaler with leader bankroll if available
+    # Proportional: compute base size, then scale by copy_pct if set
     leader_bankroll = float(
         leader_trade.get("bankroll")
         or leader_trade.get("portfolioValue")
@@ -488,17 +498,21 @@ def _compute_copy_size(
         or 0.0
     )
     if leader_bankroll > 0.0:
-        return scale_size(
+        base = scale_size(
             leader_size=leader_size,
             leader_bankroll=leader_bankroll,
             user_available=remaining_spend,
             max_position_pct=0.10,  # hard-coded 10% position cap per HARD RULES
         )
-    return mirror_size_direct(
-        leader_size=leader_size,
-        user_available=remaining_spend,
-        max_position_pct=0.10,
-    )
+    else:
+        base = mirror_size_direct(
+            leader_size=leader_size,
+            user_available=remaining_spend,
+            max_position_pct=0.10,
+        )
+    # Apply copy_pct scaling factor (0–1 fraction) if set by the user.
+    pct_factor = float(task.copy_pct) if task.copy_pct else 1.0
+    return base * pct_factor
 
 
 def _make_idempotency_key(task_id: UUID, leader_trade_id: str) -> str:
