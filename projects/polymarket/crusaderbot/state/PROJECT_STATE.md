@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 13:46
-Status       : Fast Track Track A MERGED PR #942. TradeEngine service layer FULL RUNTIME INTEGRATION complete; signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green. Track B (Copy Trade execution) unblocked. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 15:25
+Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution) WARP•SENTINEL APPROVED (97/100, 0 critical) — awaiting WARP🔹CMD merge decision on PR #948. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -13,12 +13,12 @@ Status       : Fast Track Track A MERGED PR #942. TradeEngine service layer FULL
 - Fast Track Track A — TradeEngine service layer FULL RUNTIME INTEGRATION MERGED PR #942 (2026-05-11). signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
 
 [IN PROGRESS]
+- Fast Track Track B -- Copy Trade execution WARP•SENTINEL APPROVED 97/100 (0 critical). Source: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-fast-copy-execution.md. PR #948 open, awaiting WARP🔹CMD merge.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Fast Track Track B -- Copy Trade execution: active copy_trade_tasks monitor target wallets and mirror paper positions with spend/min-size caps. MAJOR; SENTINEL required; depends on Track A merge.
 - Fast Track Track C -- Trade notifications: entry, exit, and copy trade Telegram notifications. STANDARD; merge after Track A integration surface is available.
 - Fast Track Track D -- Risk caps + kill switch hardening: hard exposure caps, daily loss guard, max open positions, Telegram/DB/env kill paths. MAJOR; SENTINEL required.
 - Fast Track Track E -- Daily P&L report: scheduled Telegram daily summary. STANDARD.
@@ -27,7 +27,7 @@ Status       : Fast Track Track A MERGED PR #942. TradeEngine service layer FULL
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Track A merged. Track B (Copy Trade execution) now unblocked — MAJOR, SENTINEL REQUIRED. Assign to WARP•FORGE.
+- WARP🔹CMD merge decision on PR #948 (Fast Track Track B). WARP•SENTINEL APPROVED 97/100 (0 critical). Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-fast-copy-execution.md.
 - Track C (trade notifications) can proceed concurrently — STANDARD.
 - Do not flip activation guards.
 
@@ -42,3 +42,7 @@ Status       : Fast Track Track A MERGED PR #942. TradeEngine service layer FULL
 - [DEFERRED] CLOB circuit-open Telegram alert text uses plain markdown rather than MarkdownV2; P2, acceptable for static template.
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
+- [DEFERRED] CopyTradeMonitor `_extract_price` falls back to 0.5 when leader trade lacks price field — defensive only; real-mode hardening should pull from markets table — found in PR #948.
+- [DEFERRED] CopyTradeMonitor `_extract_liquidity` falls back to 50_000 USDC when absent — paper-safe; live activation must replace with real liquidity lookup — found in PR #948.
+- [DEFERRED] CopyTradeMonitor `_get_daily_spend` uses UTC date; ~7h offset from Asia/Jakarta user day; cosmetic only — found in PR #948.
+- [DEFERRED] No DB-failure injection test in test_fast_track_b.py; wallet API failure covered. Add asyncpg pool failure test to harden failure-modes Phase 3 — found in PR #948.
