@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 01:30
-Status       : Fast Track Week 1 fully complete — Tracks A-E + Premium PNL Insights MERGED (PR #965). Track G UI Premium Pack 1 built — animated status + rich market cards PR open. Production PAPER ONLY, activation guards OFF.
+Last Updated : 2026-05-12 02:00
+Status       : Fast Track Week 1 fully complete — Tracks A-E + Premium PNL Insights MERGED (PR #965). Track G UI Premium Pack 1 MERGED PR #972 (2026-05-12). Production PAPER ONLY, activation guards OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -13,7 +13,7 @@ Status       : Fast Track Week 1 fully complete — Tracks A-E + Premium PNL Ins
 - Fast Track Track D -- Live Gate Hardening MERGED PR #954 (2026-05-11). WARP-SENTINEL APPROVED 92/100; 35 tests green.
 - Fast Track Track E -- Daily P&L Report MERGED PR #962 (2026-05-11). Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed.
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; issue #963 closed.
-- Track G UI Premium Pack 1 built (2026-05-12). animated_entry_sequence (4-step edit flow, 1.2s delays, edit+send fallbacks), /market {slug} rich market card, market_card_kb 2x2 inline keyboard, get_market_by_slug Gamma slug lookup; 21 hermetic tests green; PR open.
+- Track G UI Premium Pack 1 MERGED PR #972 (2026-05-12). animated_entry_sequence (4-step edit flow, 1.2s delays, edit+send fallbacks), /market {slug} rich market card, market_card_kb 2x2 inline keyboard, get_market_by_slug Gamma slug lookup; 21 hermetic tests green; issue #971 closed.
 
 [IN PROGRESS]
 - Observation / runtime monitoring remains active in paper mode.
@@ -26,10 +26,7 @@ Status       : Fast Track Week 1 fully complete — Tracks A-E + Premium PNL Ins
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for Track G UI Premium Pack 1.
-- Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md
-- Tier: STANDARD
-- After merge: Week 2 Track F -- Live Opt-In Gate.
+- Week 2 Track F -- Live Opt-In Gate is next lane.
 - Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 

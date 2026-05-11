@@ -1,3 +1,4 @@
+2026-05-12 02:00 | claude/ui-premium-pack-1-5UETE | Track G UI Premium Pack 1 MERGED PR #972 — animated_entry_sequence, /market card, 21 tests green
 2026-05-12 01:30 | claude/ui-premium-pack-1-5UETE | Track G UI Premium Pack 1 FORGE (STANDARD, PRESENTATION): animated_entry_sequence 4-step edit flow, /market rich card, market_card_kb, get_market_by_slug; 21 hermetic tests green; PR open for WARP🔹CMD review
 2026-05-11 21:35 | WARP/crusaderbot-daily-pnl-report | Fast Track Track E Daily P&L Report FORGE (STANDARD, NARROW INTEGRATION, closes #960): paper-mode counts (opened/closed/W/L), no-trade empty-state branch, scheduler callback wiring test, mode='paper' filter on counts query; 26 daily_pnl_summary tests green; no activation guard or execution path touched
 2026-05-11 19:50 | WARP/issue-label-convention | COMMANDER.md issue label convention updated — warp-core label split into role-specific labels (warp-forge/warp-sentinel/warp-echo); PR #961 merged
