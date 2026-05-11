@@ -1,16 +1,16 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-12 00:00
+**Last Updated:** 2026-05-12 02:00
 
 ---
 
 ## Right Now
 
-- Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-11). Issue #968 closed.
+- Track H -- Portfolio Charts + Insights MERGED PR #979 (2026-05-12).
 - Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY.
-- NEXT: WARP🔹CMD review for Track G UI Premium Pack 1.
+- NEXT: WARP🔹CMD review for Track G (UI Premium Pack 1), Track I (Referral + Share System), PR #978 (MomentumReversalStrategy adapter).
 
 ---
 
@@ -18,7 +18,9 @@
 
 - [x] Premium PNL Insights UX -- MERGED PR #965 (2026-05-11), STANDARD, NARROW INTEGRATION. /insights command; insight_kb; dashboard:insights sub; my_trades nav update; 22 hermetic tests green; issue #963 closed.
 - [x] Track F -- Live Opt-In Gate -- MERGED PR #970 (2026-05-11). 3-step /enable_live gate; 4-guard check; mode_change_events audit (021); auto-fallback 60s monitor; 20 hermetic tests green; issue #968 closed.
-- [ ] Referral / fee / fee prep -- NOT STARTED.
+- [ ] Track G -- UI Premium Pack 1 -- PR open, WARP🔹CMD review required. STANDARD, NARROW INTEGRATION.
+- [x] Track H -- Portfolio Charts + Insights -- MERGED PR #979 (2026-05-12). STANDARD, NARROW INTEGRATION. /chart PNG photo; chart:7/30/all callbacks; /insights weekly breakdown; weekly_insights cron Monday 08:00 WIB; had_pre_window_rows carry-forward fix; 30 hermetic tests green.
+- [ ] Track I -- Referral + Share System -- PR open, WARP🔹CMD review required. STANDARD, FOUNDATION.
 
 Done condition: WARP🔹CMD merge decision on each lane; activation guards remain OFF throughout.
 
@@ -43,7 +45,7 @@ Done condition: Track A-E merged and SENTINEL-approved where MAJOR; activation g
   - Migration runner path fix: PR #881 MERGED (2026-05-06) 538fd999 -- 008+009 now in migrations/
 - [x] P3c -- Signal Following strategy -- MERGED PR #892 (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
 - [x] P3d -- Per-user signal scan loop + execution queue wiring -- MERGED PR #897 (bb08092) + state sync PR #898 (7bb0487f), MAJOR, SENTINEL APPROVED 94/100. 464/464 tests green.
-- [ ] P3e -- MomentumReversalStrategy adapter -- PR open WARP/crusaderbot-momentum-strategy-adapter, STANDARD, NARROW INTEGRATION. momentum_reversal strategy; bootstrap updated; 50 hermetic tests green; issue #975. Awaiting WARP🔹CMD merge.
+- [ ] P3e -- MomentumReversalStrategy adapter -- PR open WARP/crusaderbot-momentum-strategy-adapter, STANDARD, NARROW INTEGRATION. momentum_reversal strategy; bootstrap updated; STRATEGY_AVAILABILITY updated; 50 hermetic tests green; issue #975. Awaiting WARP🔹CMD merge.
 
 Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wired through risk gate, SENTINEL APPROVED before live activation.
 

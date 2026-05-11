@@ -1,5 +1,5 @@
 Last Updated : 2026-05-12 02:00
-Status       : Track H Portfolio Charts built (PR open). Track I Referral + Share System built (PR open). MomentumReversalStrategy adapter built (PR open, issue #975). Track F SENTINEL APPROVED 97/100 pending merge. Production PAPER ONLY. Activation guards remain OFF.
+Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). Track G and Track I PRs open awaiting WARP🔹CMD review. Track F SENTINEL APPROVED 97/100 awaiting merge. MomentumReversalStrategy adapter PR #978 open. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -15,13 +15,12 @@ Status       : Track H Portfolio Charts built (PR open). Track I Referral + Shar
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; issue #963 closed.
 - Track G UI Premium Pack 1 built (2026-05-12). animated_entry_sequence (4-step edit flow, 1.2s delays, edit+send fallbacks), /market {slug} rich market card, market_card_kb 2x2 inline keyboard, get_market_by_slug Gamma slug lookup; 21 hermetic tests green; PR open.
 - Fast Track Week 2 Track F -- Live Opt-In Gate implemented (2026-05-12). 3-step /enable_live Telegram gate; 4-guard read-only check; mode_change_events audit log (migration 021); auto-fallback 60s monitor; 20 hermetic tests green; PR open for SENTINEL audit; issue #968.
-- Track H Portfolio Charts + Insights built (2026-05-11). /chart PNG photo via matplotlib; chart:7/30/all period callbacks; /insights weekly category+signal breakdown; weekly_insights cron Monday 08:00 WIB; 29 hermetic tests green; PR open on WARP/CRUSADERBOT-FAST-UI-PREMIUM-2.
+- Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). /chart PNG photo via matplotlib; chart:7/30/all period callbacks; /insights weekly category+signal breakdown; weekly_insights cron Monday 08:00 WIB; had_pre_window_rows carry-forward fix; 30 hermetic tests green; STANDARD, NARROW INTEGRATION.
 - Track I -- Referral + Share System built (2026-05-11). referral_codes/referral_events/fees/fee_config tables (migration 022); /referral command; deep-link join wiring on /start; [Share] button on winning trade notifications; share card handler; fee logic gated (FEE_COLLECTION_ENABLED=False); referral payout gated (REFERRAL_PAYOUT_ENABLED=False); 18 hermetic tests; PR open.
 
 [IN PROGRESS]
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
-- Track H Portfolio Charts + Insights: PR open on WARP/CRUSADERBOT-FAST-UI-PREMIUM-2, WARP🔹CMD review required. Tier: STANDARD, Claim: NARROW INTEGRATION.
 - Track I -- Referral + Share System: PR open, WARP🔹CMD review required. Tier: STANDARD.
 - MomentumReversalStrategy adapter: PR #978 open on WARP/crusaderbot-momentum-strategy-adapter. STANDARD, NARROW INTEGRATION. 50 hermetic tests green. Issue #975. Awaiting WARP🔹CMD review.
 - Observation / runtime monitoring remains active in paper mode.
@@ -29,7 +28,7 @@ Status       : Track H Portfolio Charts built (PR open). Track I Referral + Shar
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Wire share_trade_kb into trade close call sites (notify_tp_hit callers in trade_engine/signal_scan) when PNL > 0 -- surface ready, wiring deferred.
+- Wire share_trade_kb into trade close call sites (notify_tp_hit callers in trade_engine/signal_scan) when PNL > 0 — surface ready, wiring deferred.
 - Referral payout activation: separate lane, requires WARP🔹CMD decision.
 - Fee collection activation: separate lane, requires WARP🔹CMD decision.
 - Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin + onboarding polish.
@@ -39,7 +38,6 @@ Status       : Track H Portfolio Charts built (PR open). Track I Referral + Shar
 - WARP🔹CMD review required for MomentumReversalStrategy adapter PR #978. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-momentum-strategy-adapter.md. Tier: STANDARD.
 - WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
 - WARP🔹CMD review required for Track G UI Premium Pack 1. Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md. Tier: STANDARD.
-- WARP🔹CMD review required for Track H Portfolio Charts + Insights. Source: projects/polymarket/crusaderbot/reports/forge/fast-ui-premium-2.md. Tier: STANDARD. Claim: NARROW INTEGRATION.
 - WARP🔹CMD review required for Track I Referral + Share System. Source: projects/polymarket/crusaderbot/reports/forge/fast-referral.md. Tier: STANDARD.
 - Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
@@ -57,5 +55,5 @@ Status       : Track H Portfolio Charts built (PR open). Track I Referral + Shar
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 - [DEFERRED] Forge report Known Issues section for Track D references stale parity patch approach (gate.get_settings); code is correct post-Codex fix; documentation drift only.
 - [DEFERRED] check_price_deviation() not yet wired into live execution path; callable and tested; deferred until ENABLE_LIVE_TRADING gate is considered.
-- [DEFERRED] auto_fallback.py: audit event written after mode switch, not before -- found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
-- [DEFERRED] live_gate.py: AWAITING_STEP2 not proactively expired if Step 3 button never pressed -- found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
+- [DEFERRED] auto_fallback.py: audit event written after mode switch, not before — found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
+- [DEFERRED] live_gate.py: AWAITING_STEP2 not proactively expired if Step 3 button never pressed — found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
