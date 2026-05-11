@@ -427,9 +427,26 @@ Skills are execution helpers only, not authority sources, and never a justificat
   - Check reports older than 7 days and trigger archive if needed
   - Return sync status, exact drift, exact files needing update, recommended sync action
 
-- cek pr
-  - List all open PRs with current status, tier, and gate state
-  - Flag any traceability or state drift visible from PR context
+- cek pr / cek / recheck / cek all
+  - Aliases: all four trigger the same flow.
+  - Full PR+Issue review cycle:
+    1. Fetch all open PRs (limit 5) + all open issues (limit 5)
+    2. For each PR: read metadata, files, tier, gate state. Run pre-review drift check. WARP🔹CMD decides: MERGE / CLOSE / NEEDS-FIX / HOLD
+    3. For each decision:
+       - MERGE: execute merge immediately + close linked issue
+       - CLOSE: execute close immediately + close linked issue + post reason
+       - NEEDS-FIX: post fix-task comment to PR (per PR COMMENT AUTO-POST RULE)
+       - HOLD: state reason, move to next
+    4. Orphan issues (no linked PR):
+       - stale or superseded: close with reason
+       - valid but unstarted: flag as pending
+    5. Return consolidated summary: merged / closed / needs-fix / held / orphan issues
+  - Rules:
+    - Limit 5 PRs + 5 issues per run
+    - Execute decisions immediately
+    - Merge gate rules still apply (AUTO PR ACTION RULE)
+    - MAJOR without SENTINEL verdict: HOLD, flag to Mr. Walker
+    - Post-merge sync after each merge
 
 - merge pr
   - Inspect PR against all merge gates
@@ -511,6 +528,7 @@ Examples:
 - continue work = resume current valid lane
 - next lane = choose next best grouped execution lane
 - sync and continue = sync truth files then continue execution
+- cek pr / cek / recheck / cek all = full PR+issue review cycle: fetch open PRs+issues (limit 5 each), decide per item, execute immediately (merge/close/comment), return consolidated summary
 - merge pr = inspect, decide, merge if gate-clean, then sync
 - close pr = inspect, decide, close if justified, then reroute
 
