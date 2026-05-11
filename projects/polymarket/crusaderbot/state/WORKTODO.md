@@ -1,13 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 18:30
+**Last Updated:** 2026-05-11 19:00
 
 ---
 
 ## Right Now
 
-- Fast Track Track B (Copy Trade execution) MERGED PR #948. Track C (trade notifications) PR open on WARP/crusaderbot-fast-trade-notifications-v2 — WARP🔹CMD review required. Activation guards remain NOT SET.
+- Fast Track Track C (trade notifications) MERGED PR #951 (2026-05-11). Track D (Risk caps + kill switch hardening) queued — MAJOR, SENTINEL REQUIRED. Awaiting WARP🔹CMD task declaration. Activation guards remain NOT SET.
 
 ---
 
@@ -15,7 +15,7 @@
 
 - [x] Track A -- Trade Engine + TP/SL worker -- MERGED PR #942 (2026-05-11), MAJOR, FULL RUNTIME INTEGRATION. TradeEngine service layer; signal_scan_job routes through TradeEngine; 47 hermetic tests green.
 - [x] Track B -- Copy Trade Execution -- MERGED PR #948 (2026-05-11), MAJOR. CopyTradeMonitor.run_once(), 020 migration, 25 hermetic tests green; P1 fixes applied.
-- [x] Track C -- Trade Notifications -- PR open on WARP/crusaderbot-fast-trade-notifications-v2; STANDARD; WARP🔹CMD review required.
+- [x] Track C -- Trade Notifications -- MERGED PR #951 (2026-05-11), STANDARD. TradeNotifier service layer; 16 hermetic tests green; already_closed guard P2 fix.
 - [ ] Track D -- Risk Caps + Kill Switch hardening -- QUEUED; MAJOR; SENTINEL REQUIRED
 - [ ] Track E -- Daily P&L Report -- QUEUED; STANDARD
 

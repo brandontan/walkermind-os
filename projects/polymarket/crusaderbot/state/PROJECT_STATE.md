@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 18:30
-Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution) MERGED PR #948. Track C (trade notifications) PR open on WARP/crusaderbot-fast-trade-notifications-v2. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 19:00
+Status       : Fast Track Track A MERGED PR #942. Track B MERGED PR #948. Track C MERGED PR #951. Track D queued. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -12,9 +12,9 @@ Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution)
 - Fast Track roadmap selected by Mr. Walker on 2026-05-10; Standard roadmap rejected for current execution posture.
 - Fast Track Track A — TradeEngine service layer FULL RUNTIME INTEGRATION MERGED PR #942 (2026-05-11). signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
 - Fast Track Track B — Copy Trade execution MERGED PR #948 (2026-05-11). CopyTradeMonitor.run_once(), 020_copy_trade_execution.sql migration, 25 hermetic tests green. P1 fixes: outcome field, market field, copy_pct scaling applied.
+- Fast Track Track C — Trade notifications MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; alert_user_manual_close added; already_closed guard; 16 hermetic tests green.
 
 [IN PROGRESS]
-- Fast Track Track C -- Trade notifications PR open on WARP/crusaderbot-fast-trade-notifications-v2; STANDARD; WARP🔹CMD review required.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -27,7 +27,7 @@ Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution)
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for Track C (trade notifications) PR on WARP/crusaderbot-fast-trade-notifications-v2. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-notifications.md. Tier: STANDARD.
+- Track D (Risk caps + kill switch hardening) — MAJOR, SENTINEL REQUIRED. Awaiting WARP🔹CMD task declaration.
 - Do not flip activation guards.
 
 [KNOWN ISSUES]
