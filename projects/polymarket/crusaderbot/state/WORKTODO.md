@@ -1,13 +1,14 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 21:35
+**Last Updated:** 2026-05-11 21:45
 
 ---
 
 ## Right Now
 
-- Track E Daily P&L Report FORGE complete on WARP/crusaderbot-daily-pnl-report — paper-mode counts (opened/closed/W/L), no-trade empty state, scheduler callback wiring test; PR open closes #960; STANDARD, NARROW INTEGRATION; 26 daily_pnl_summary tests green. Awaiting WARP🔹CMD review (no WARP•SENTINEL required).
+- Track E Daily P&L Report MERGED PR #962; issue #960 closed. Week 1 Fast Track Tracks A-E complete.
+- Next lane: Week 2 live gate preparation + premium UX prep, still PAPER ONLY.
 - Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY.
 
@@ -19,9 +20,9 @@
 - [x] Track B -- Copy Trade Execution -- MERGED PR #948 (2026-05-11), MAJOR. CopyTradeMonitor.run_once(), 020 migration, 25 hermetic tests green; P1 fixes applied.
 - [x] Track C -- Trade Notifications -- MERGED PR #951 (2026-05-11), STANDARD. TradeNotifier service layer; 16 hermetic tests green; already_closed guard P2 fix.
 - [x] Track D -- Live Gate Hardening -- MERGED PR #954 (2026-05-11), MAJOR. Gate step 14 slippage/market-impact, risk assertion audit, shadow/live parity hooks, readiness validator, RISK_CONTROLS_VALIDATED default false; WARP•SENTINEL APPROVED 92/100; 35 tests green.
-- [ ] Track E -- Daily P&L Report -- FORGE COMPLETE on WARP/crusaderbot-daily-pnl-report (closes #960). STANDARD, NARROW INTEGRATION. Paper-mode counts (opened/closed/W/L), no-trade empty state, scheduler callback wiring test; 26 daily_pnl_summary tests green. Awaiting WARP🔹CMD review.
+- [x] Track E -- Daily P&L Report -- MERGED PR #962 (2026-05-11), STANDARD, NARROW INTEGRATION. Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed.
 
-Done condition: Track A-D merged and SENTINEL-approved where MAJOR; Track E PR opened for WARP🔹CMD review; activation guards remain OFF.
+Done condition: Track A-E merged and SENTINEL-approved where MAJOR; activation guards remain OFF; Week 2 queued next.
 
 ---
 
@@ -51,32 +52,6 @@ Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wi
 - [ ] R12 -- Deployment (Fly.io) final -- Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Lane 2C MERGED PR #907 (Telegram demo polish, CRU-6, MINOR, Claim NONE). Lane 1C MERGED PR #908 (2026-05-08) ca5f6f57 (STANDARD, NARROW INTEGRATION, SENTINEL APPROVED 98/100) -- migration 014 + seed/cleanup scripts + runbook, 514/514 tests green at merge. Operator prod verification pending per runbooks (Issue #900). Activation guards remain NOT SET.
 
 Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD before final deployment.
-
----
-
-## Phase 4 -- CLOB Integration
-
-- [x] Phase 4A -- CLOB Adapter (auth + adapter + market data + mock + factory) -- MERGED PR #911 (2026-05-08), MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 89/100
-- [x] Ops Dashboard + Tier 2 Operator Seed -- MERGED PR #910 (2026-05-08) cabdc42f, STANDARD, NARROW INTEGRATION, SENTINEL NOT REQUIRED
-- [x] Phase 4B -- Live Execution Rewire onto get_clob_client() / ClobClientProtocol -- MERGED PR #912 (2026-05-09) cb920661, MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 92/100
-- [x] Phase 4C -- Order Lifecycle (live polling + fills + paper touch+stale) -- MERGED PR #913 (2026-05-09) f326879d, MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 96/100 FINAL at HEAD a484012
-
-Done condition: Phase 4A-4C merged with USE_REAL_CLOB default False (paper-safe). Live activation gated on owner decision.
-
----
-
-## Phase 5 -- Telegram Auto-Trade UX
-
-- [x] Phase 5A -- Global menu handlers + 5-button main menu -- MERGED PR #924 (2026-05-10), MINOR, declared WARP/CRUSADERBOT-PHASE5A-GLOBAL-HANDLERS. 784/784 tests green.
-- [x] Phase 5B -- Dashboard hierarchy redesign -- MERGED PR #926 (2026-05-10), STANDARD, SENTINEL APPROVED 97/100.
-- [x] Phase 5C -- Strategy preset system -- MERGED PR #925 (2026-05-10), MAJOR, WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100. 814/814 tests green.
-- [x] Phase 5D -- 2-column grid + Copy/Auto Trade menu split -- MERGED PR #928 (2026-05-10), STANDARD.
-- [x] Phase 5E -- Copy Trade dashboard + wallet discovery -- MERGED PR #930 (2026-05-10), MAJOR, NARROW INTEGRATION. 903/903 tests green.
-- [x] Phase 5I -- My Trades combined view -- MERGED PR #934 (2026-05-10), STANDARD, NARROW INTEGRATION.
-- [x] Phase 5F -- Copy Trade setup wizard + per-task edit -- MERGED PR #935 (2026-05-10), MAJOR, NARROW INTEGRATION, 3-step wizard, ConversationHandler 5 states, CRUD, 33 hermetic tests.
-- [x] Phase 5H -- First-time onboarding flow -- MERGED PR #937 (2026-05-10), STANDARD. ConversationHandler 5 states, migration 019 (onboarding_complete), QRCode, 18 hermetic tests.
-
-Done condition: Phase 5A-5J merged. No activation guard or risk gate constant changes; preset surface is paper-only; live activation requires Dashboard 2FA-gated toggle.
 
 ---
 
