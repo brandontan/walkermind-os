@@ -1,18 +1,18 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 21:35 Asia/Jakarta
+**Last Updated:** 2026-05-11 21:45 Asia/Jakarta
 
 ## Current Posture
 
 - Production: LIVE on Fly.io (PAPER ONLY)
 - Telegram UX Phase 5A-5J complete
 - Real CLOB Phase 4A-4E complete; live path guarded
-- Week 1 Fast Track Tracks A-D merged
+- Week 1 Fast Track Tracks A-E merged
 - Activation guards: OFF (do not touch)
 - Roadmap Mode: FAST TRACK (Mr. Walker decision)
 
-## Week 1 — Core Trading Loop (ACTIVE)
+## Week 1 — Core Trading Loop (COMPLETE)
 
 | Track | Scope | Tier | Status | Notes |
 |---|---|---|---|---|
@@ -20,7 +20,7 @@
 | B | Copy Trade Execution | MAJOR | ✅ MERGED | MERGED PR #948 (2026-05-11). CopyTradeMonitor wired through TradeEngine; 25 tests green |
 | C | Trade Notifications | STANDARD | ✅ MERGED | MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; 16 tests green |
 | D | Live Gate Hardening | MAJOR | ✅ MERGED | MERGED PR #954 (2026-05-11). Slippage/market-impact gate step 14, risk assertion audit, parity hooks, readiness validator; WARP•SENTINEL APPROVED 92/100; 35 tests green |
-| E | Daily P&L Report | STANDARD | 🟡 IN REVIEW | FORGE complete on WARP/crusaderbot-daily-pnl-report (closes #960). Paper-mode counts (opened/closed/W/L), no-trade empty state, scheduler callback wiring test; 26 daily_pnl_summary tests green |
+| E | Daily P&L Report | STANDARD | ✅ MERGED | MERGED PR #962 (2026-05-11). Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed |
 
 **During Week 1:**
 
