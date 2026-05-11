@@ -190,7 +190,9 @@ async def _admin_stats(message) -> None:
             "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions WHERE mode='paper'"
         ) or 0.0
         free_n = await conn.fetchval(
-            "SELECT COUNT(*) FROM user_tiers WHERE tier='FREE'"
+            "SELECT COUNT(*) FROM users u "
+            "LEFT JOIN user_tiers ut ON ut.user_id = u.telegram_user_id "
+            "WHERE ut.tier IS NULL OR ut.tier = 'FREE'"
         ) or 0
         premium_n = await conn.fetchval(
             "SELECT COUNT(*) FROM user_tiers WHERE tier='PREMIUM'"
@@ -223,8 +225,11 @@ async def _admin_broadcast(message, args: list[str], ctx) -> None:
     failed = 0
     for r in rows:
         try:
-            await notifications.send(int(r["telegram_user_id"]), text)
-            sent += 1
+            ok = await notifications.send(int(r["telegram_user_id"]), text)
+            if ok:
+                sent += 1
+            else:
+                failed += 1
         except Exception as exc:  # noqa: BLE001
             logger.warning("broadcast send failed user=%s err=%s",
                            r["telegram_user_id"], exc)

@@ -404,10 +404,11 @@ def test_admin_root_settier_success():
 
 
 def test_admin_root_routes_stats():
+    # fetchval call order: total_users, open_positions, paper_pnl, free_n (JOIN), premium_n, admin_n
     upd = _update(user_id=55)
     settings_mock = _settings_not_operator(55)
     pool, conn = _mock_pool()
-    conn.fetchval = AsyncMock(side_effect=[5, 3, -12.5, 2, 2, 1])
+    conn.fetchval = AsyncMock(side_effect=[5, 3, -12.5, 3, 1, 1])
     with patch(
         "projects.polymarket.crusaderbot.bot.handlers.admin.get_settings",
         return_value=settings_mock,
@@ -441,13 +442,17 @@ def test_admin_root_broadcast_no_args():
     assert "Usage" in text
 
 
-def test_admin_root_broadcast_sends():
+def test_admin_root_broadcast_sends_counts_return_value():
+    """sent/failed counts are driven by notifications.send return value, not exceptions."""
     upd = _update(user_id=55)
     settings_mock = _settings_not_operator(55)
     pool, conn = _mock_pool()
     conn.fetch = AsyncMock(return_value=[
-        {"telegram_user_id": 100}, {"telegram_user_id": 200}
+        {"telegram_user_id": 100},
+        {"telegram_user_id": 200},
+        {"telegram_user_id": 300},
     ])
+    # First two succeed (True), third fails permanently (False).
     with patch(
         "projects.polymarket.crusaderbot.bot.handlers.admin.get_settings",
         return_value=settings_mock,
@@ -459,12 +464,13 @@ def test_admin_root_broadcast_sends():
         return_value=pool,
     ), patch(
         "projects.polymarket.crusaderbot.bot.handlers.admin.notifications.send",
-        new=AsyncMock(),
+        new=AsyncMock(side_effect=[True, True, False]),
     ):
         _run(admin_h.admin_root(upd, _ctx("broadcast", "Hello", "world")))
 
     text = upd.message.reply_text.await_args[0][0]
     assert "2 delivered" in text
+    assert "1 failed" in text
 
 
 def test_admin_root_unknown_subcommand_shows_help():
