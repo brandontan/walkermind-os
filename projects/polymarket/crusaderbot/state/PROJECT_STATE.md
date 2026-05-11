@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 15:30
-Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution) MERGED PR #948. Track C (trade notifications) PR #947 open. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 16:25
+Status       : Fast Track Track B MERGED PR #948 (2026-05-11). CopyTradeMonitor live in paper mode; Track C PR #947 open. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -28,6 +28,7 @@ Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution)
 
 [NEXT PRIORITY]
 - WARP🔹CMD review required for Track C (trade notifications) PR #947. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-notifications.md. Tier: STANDARD.
+- Track D (Risk Caps + Kill Switch hardening) — MAJOR; SENTINEL REQUIRED before merge.
 - Do not flip activation guards.
 
 [KNOWN ISSUES]
