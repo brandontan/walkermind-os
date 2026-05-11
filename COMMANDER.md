@@ -383,6 +383,43 @@ Treat each of the following as `BLOCKER`:
 - WARP•FORGE remains first implementation role for fix tasks
 
 ---
+### PR first-pass consolidation rule
+
+Purpose:
+Prevent slow drip-review behavior. WARP🔹CMD must collect all material findings in one pass before posting a PR decision.
+
+Rules:
+- Do not post a PR review comment until metadata, changed files, CI/checks, bot reviews, PR body, report, and touched state files have all been checked.
+- First pass must classify every finding into exactly one bucket:
+  1. `REAL BLOCKER`
+  2. `BATCH FIX`
+  3. `IGNORE / FOLLOW-UP`
+- Only `REAL BLOCKER` may stop merge.
+- `BATCH FIX` items must be grouped into one WARP•FORGE fix request or one direct-fix pass when eligible.
+- `IGNORE / FOLLOW-UP` items must not appear as merge blockers.
+- Do not create serial re-review loops for wording, checkbox, timestamp, or changelog cleanup unless they directly contradict code truth, claim level, branch traceability, runtime safety, or required validation gate.
+- If Tier = MAJOR and WARP•SENTINEL has not issued APPROVED or CONDITIONAL, that is the primary blocker. Do not drip minor cleanup blockers after that; batch all pre-SENTINEL cleanup into one instruction.
+- If CI is red, dirty, or required validation is missing, collect remaining obvious repo-truth blockers before commenting. One comment only.
+- After a fix push, re-review only the previously listed blockers plus any new files/changes introduced by the fix. Do not restart the full review from zero unless scope changed materially.
+
+Output format:
+```text
+DECISION: MERGE / HOLD / NEEDS-FIX / CLOSE
+Primary blocker: [one line or none]
+Batch fix:
+- [all required fixes in one list]
+Ignore / follow-up:
+- [non-blocking items only if worth recording]
+Next gate: [WARP🔹CMD / WARP•FORGE / WARP•SENTINEL]
+```
+
+Hard anti-patterns:
+- Finding one blocker, posting it, then discovering another obvious blocker on the next recheck.
+- Blocking on cosmetic wording after a stronger validation blocker already exists.
+- Treating evidence wording drift as equal to runtime/capital/safety risk.
+- Asking Mr. Walker to steer between adjacent fixes that belong in one FORGE pass.
+
+---
 
 ## SHORTCUT COMMANDS
 
@@ -548,6 +585,13 @@ Default preference:
 - close invalid or superseded PRs
 - avoid leaving obviously resolved PRs idle
 - follow immediately with post-merge sync discipline
+
+Decision compression:
+- If PR is MAJOR without WARP•SENTINEL verdict, decision is HOLD immediately.
+- Minor repo-truth cleanup found in the same MAJOR PR must be batched as pre-SENTINEL cleanup, not dripped as separate blockers.
+- If PR is STANDARD/MINOR, CI green, mergeable clean, and no real blocker exists, merge immediately.
+- Do not let wording-only or evidence-format cleanup outrank a stronger existing validation blocker.
+- Do not reopen the full review loop after every fix push unless scope changed materially.
 
 Hard stop:
 - do not merge if branch traceability is inconsistent across PR, reports, and repo-truth artifacts
@@ -811,10 +855,19 @@ When Mr. Walker shares a PR URL or number:
 1. Read PR metadata, files changed, reviews, comments
 2. Identify PR type: WARP•FORGE / WARP•SENTINEL / WARP•ECHO
 3. Read Validation Tier, Claim Level, Validation Target, Not in Scope
-4. Run pre-review drift check
-5. Decide: merge / hold / close / needs-fix
-6. If needs-fix or SENTINEL required -> post copy-ready task comment to PR immediately
-7. If action decided (merge/close) -> execute immediately — do not state intent without acting
+4. Run one complete first-pass review:
+   - metadata / branch
+   - PR body declarations
+   - changed files
+   - CI/checks
+   - bot reviews
+   - report path/content
+   - touched state files
+   - tier/claim/gate requirement
+5. Consolidate all findings into `REAL BLOCKER` / `BATCH FIX` / `IGNORE`.
+6. Decide once: merge / hold / close / needs-fix.
+7. If needs-fix or SENTINEL required -> post one batched copy-ready task comment to PR immediately.
+8. If action decided (merge/close) -> execute immediately — do not state intent without acting.
 
 **"DECISION: MERGE" is not a merge.** The action tool call is the merge.
 
@@ -870,6 +923,12 @@ for additional instruction from Mr. Walker.
 ### Scope
 - WARP•FORGE fix task -> post comment when issue requires fix
 - WARP•SENTINEL task -> post comment when Tier = MAJOR and SENTINEL has not run
+
+### Anti-drip comment rule
+- One PR review cycle = one PR comment maximum.
+- The comment must include all known blockers from the completed first pass.
+- Do not post separate comments for claim wording, changelog wording, state timestamp, CI, and Sentinel gate if they are known in the same review cycle.
+- If a later finding appears after a new commit, say explicitly: `New finding introduced by latest push:`. Otherwise assume the previous review missed it and avoid repeating the pattern.
 
 ### Format — Fix task comment
 
