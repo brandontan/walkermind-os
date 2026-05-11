@@ -22,7 +22,6 @@ Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). 
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
 - Track I -- Referral + Share System: PR open, WARP🔹CMD review required. Tier: STANDARD.
-- MomentumReversalStrategy adapter: PR #978 open on WARP/crusaderbot-momentum-strategy-adapter. STANDARD, NARROW INTEGRATION. 50 hermetic tests green. Issue #975. Awaiting WARP🔹CMD review.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.

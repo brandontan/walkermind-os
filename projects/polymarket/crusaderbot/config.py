@@ -140,6 +140,7 @@ class Settings(BaseSettings):
     # explicit WARP🔹CMD decision backed by a SENTINEL report.
     RISK_CONTROLS_VALIDATED: bool = False
     FEE_COLLECTION_ENABLED: bool = False
+    REFERRAL_PAYOUT_ENABLED: bool = False
     AUTO_REDEEM_ENABLED: bool = True
 
     # --- App config ---
