@@ -1,13 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 16:25
+**Last Updated:** 2026-05-11 18:30
 
 ---
 
 ## Right Now
 
-- Fast Track Track B (Copy Trade execution) MERGED PR #948. Track C (trade notifications) PR #947 open — WARP🔹CMD review required. Activation guards remain NOT SET.
+- Fast Track Track B (Copy Trade execution) MERGED PR #948. Track C (trade notifications) PR open on WARP/crusaderbot-fast-trade-notifications-v2 — WARP🔹CMD review required. Activation guards remain NOT SET.
 
 ---
 
@@ -15,7 +15,7 @@
 
 - [x] Track A -- Trade Engine + TP/SL worker -- MERGED PR #942 (2026-05-11), MAJOR, FULL RUNTIME INTEGRATION. TradeEngine service layer; signal_scan_job routes through TradeEngine; 47 hermetic tests green.
 - [x] Track B -- Copy Trade Execution -- MERGED PR #948 (2026-05-11), MAJOR. CopyTradeMonitor.run_once(), 020 migration, 25 hermetic tests green; P1 fixes applied.
-- [x] Track C -- Trade Notifications -- PR #947 open; STANDARD; WARP🔹CMD review required.
+- [x] Track C -- Trade Notifications -- PR open on WARP/crusaderbot-fast-trade-notifications-v2; STANDARD; WARP🔹CMD review required.
 - [ ] Track D -- Risk Caps + Kill Switch hardening -- QUEUED; MAJOR; SENTINEL REQUIRED
 - [ ] Track E -- Daily P&L Report -- QUEUED; STANDARD
 
@@ -68,7 +68,7 @@ Done condition: Phase 4A-4C merged with USE_REAL_CLOB default False (paper-safe)
 - [x] Phase 5A -- Global menu handlers + 5-button main menu -- MERGED PR #924 (2026-05-10), MINOR, declared WARP/CRUSADERBOT-PHASE5A-GLOBAL-HANDLERS. _text_router priority fix, 5-button main menu, /settings command, my_trades view. 784/784 tests green.
 - [x] Phase 5B -- Dashboard hierarchy redesign -- MERGED PR #926 (2026-05-10), STANDARD, declared WARP/CRUSADERBOT-PHASE5B-DASHBOARD, SENTINEL APPROVED 97/100. Single-message hierarchy, four sections, /start routing for existing Tier 2+ users.
 - [x] Phase 5C -- Strategy preset system -- MERGED PR #925 (2026-05-10), MAJOR, WARP/CRUSADERBOT-PHASE5C-PRESETS, SENTINEL APPROVED 92/100. 3 presets (signal_sniper / value_hunter / full_auto), DB migration 016, paper-only activation enforced. 814/814 tests green.
-- [x] Phase 5D -- 2-column grid + Copy/Auto Trade menu split -- MERGED PR #928 (2026-05-10), STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐳 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
+- [x] Phase 5D -- 2-column grid + Copy/Auto Trade menu split -- MERGED PR #928 (2026-05-10), STANDARD. grid_rows() helper, main menu 5→6 buttons, 🐋 Copy Trade entry point, preset trim 5→3. 57/57 Phase 5D + preset tests green.
 - [x] Phase 5E -- Copy Trade dashboard + wallet discovery -- MERGED PR #930 (2026-05-10), MAJOR, NARROW INTEGRATION, WARP/CRUSADERBOT-PHASE5E-COPY-TRADE. Dashboard empty state + task-list hierarchy, two-path wallet discovery (Paste Address + Discover leaderboard), wallet stats service (Gamma API + retry+backoff), migration 018, 24 hermetic tests. 903/903 tests green.
 - [x] Phase 5I -- My Trades combined view -- MERGED PR #934 (2026-05-10), STANDARD, NARROW INTEGRATION. Combined positions + activity message, per-position close with confirmation (paper mode), full history pagination 10/page, 2-col keyboard grid, 13 hermetic tests. Report: projects/polymarket/crusaderbot/reports/forge/phase5i-my-trades.md.
 - [x] Phase 5F -- Copy Trade setup wizard + per-task edit -- MERGED PR #935 (2026-05-10), MAJOR, NARROW INTEGRATION, 3-step wizard, ConversationHandler 5 states, CRUD, 33 hermetic tests.

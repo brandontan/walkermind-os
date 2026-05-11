@@ -7,7 +7,10 @@ from uuid import UUID
 
 from ... import audit, notifications
 from ...database import get_pool
+from ...services.trade_notifications import TradeNotifier
 from ...wallet import ledger
+
+_notifier = TradeNotifier()
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +74,17 @@ async def execute(
                           "price": price,
                           "strategy": strategy_type,
                       })
-    label = market_question or market_id
-    await notifications.send(
-        telegram_user_id,
-        f"📈 *[PAPER] Opened*\n{label}\n*{side.upper()}* @ {price:.3f}\n"
-        f"Size: ${size_usdc:.2f}",
+    await _notifier.notify_entry(
+        telegram_user_id=telegram_user_id,
+        market_id=market_id,
+        market_question=market_question,
+        side=side,
+        size_usdc=size_usdc,
+        price=price,
+        tp_pct=tp_pct,
+        sl_pct=sl_pct,
+        mode="paper",
+        strategy_type=strategy_type,
     )
     return {"order_id": order_id, "position_id": position_id, "mode": "paper"}
 

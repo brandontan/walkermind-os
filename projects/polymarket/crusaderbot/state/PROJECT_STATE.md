@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 16:25
-Status       : Fast Track Track B MERGED PR #948 (2026-05-11). CopyTradeMonitor live in paper mode; Track C PR #947 open. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 18:30
+Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution) MERGED PR #948. Track C (trade notifications) PR open on WARP/crusaderbot-fast-trade-notifications-v2. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -14,7 +14,7 @@ Status       : Fast Track Track B MERGED PR #948 (2026-05-11). CopyTradeMonitor 
 - Fast Track Track B — Copy Trade execution MERGED PR #948 (2026-05-11). CopyTradeMonitor.run_once(), 020_copy_trade_execution.sql migration, 25 hermetic tests green. P1 fixes: outcome field, market field, copy_pct scaling applied.
 
 [IN PROGRESS]
-- Fast Track Track C -- Trade notifications PR #947 open; STANDARD; WARP🔹CMD review required.
+- Fast Track Track C -- Trade notifications PR open on WARP/crusaderbot-fast-trade-notifications-v2; STANDARD; WARP🔹CMD review required.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -27,8 +27,7 @@ Status       : Fast Track Track B MERGED PR #948 (2026-05-11). CopyTradeMonitor 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for Track C (trade notifications) PR #947. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-notifications.md. Tier: STANDARD.
-- Track D (Risk Caps + Kill Switch hardening) — MAJOR; SENTINEL REQUIRED before merge.
+- WARP🔹CMD review required for Track C (trade notifications) PR on WARP/crusaderbot-fast-trade-notifications-v2. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-notifications.md. Tier: STANDARD.
 - Do not flip activation guards.
 
 [KNOWN ISSUES]
