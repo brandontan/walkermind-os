@@ -210,6 +210,8 @@ def _extract_24h_price_change(m: dict[str, Any]) -> float | None:
 
 def _extract_liquidity(m: dict[str, Any]) -> float:
     liq = m.get("liquidity")
+    if liq is None:
+        liq = m.get("liquidityNum") or m.get("liquidity_num")
     if isinstance(liq, dict):
         return float(liq.get("total") or 0)
     if liq is not None:
@@ -225,6 +227,9 @@ def _extract_volume_24h(m: dict[str, Any]) -> float:
         m.get("volume_24hr")
         or m.get("volume24h")
         or m.get("volume24hr")
+        or m.get("volumeNum")
+        or m.get("volume_num")
+        or m.get("volume")
         or 0
     )
     try:
