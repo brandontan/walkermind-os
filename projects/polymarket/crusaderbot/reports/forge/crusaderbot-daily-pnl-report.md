@@ -18,14 +18,14 @@ The summary continues to dispatch via APScheduler (`scheduler.setup_scheduler`) 
 
 Aggregation flow (`_fetch_user_summary_row`) now executes one additional SQL call against `positions` that returns four COUNT(\*) FILTER columns scoped to `mode='paper'`: `opened_today`, `closed_today`, `wins_today`, `losses_today`. R12's realized/unrealized/fees/exposure queries are preserved verbatim — the existing operator-facing totals retain their unfiltered semantics.
 
-Formatter (`format_summary`) takes the four new counts as keyword args with default 0 (back-compat for R12 callers). When `opened_today == 0 and closed_today == 0 and open_count == 0`, the formatter returns a compact two-line "No paper trades today" body; otherwise it renders the extended eight-line summary with the new `Trades opened` and `Trades closed (W:X L:Y)` lines.
+Formatter (`format_summary`) takes the four new counts as keyword args with default 0 (back-compat for R12 callers). The compact "No paper trades today" body renders only when every signal is zero: `opened_today == closed_today == open_count == 0` AND `realized == unrealized == fees == 0`. Codex P1 on PR #962 surfaced the latter half of the gate — the realized/unrealized/fees totals stay mode-agnostic (R12 contract preserved) so a live-mode close on a paper-zero day would otherwise be silently hidden by the compact form. The stricter gate forces the full eight-line summary whenever any nonzero performance signal exists.
 
 ## 3. Files created / modified (full repo-root paths)
 
 Modified:
 
 - `projects/polymarket/crusaderbot/jobs/daily_pnl_summary.py` — added paper-mode counts query, extended `format_summary` signature with `opened_today`/`closed_today`/`wins_today`/`losses_today` (defaulted to 0), added no-trade empty-state branch, updated module docstring.
-- `projects/polymarket/crusaderbot/tests/test_daily_pnl_summary.py` — added 8 new tests (no-trade compact form, no-trade skipped when open position present, W/L breakdown rendering, counts aggregation via fetchrow, no-trade end-to-end via build_summary_for_user, mode='paper' filter assertion on counts query, scheduler `run_job` callable wiring, run_job → run_once callback path), updated 2 R12 tests (`test_format_summary_zero_amounts_when_activity_present`, `test_format_summary_negative_amounts`, `test_build_summary_handles_missing_balance_zero_exposure`) so they pin down the full-format path instead of accidentally hitting the new no-trade branch.
+- `projects/polymarket/crusaderbot/tests/test_daily_pnl_summary.py` — added 10 new tests (no-trade compact form, no-trade skipped when open position present, W/L breakdown rendering, counts aggregation via fetchrow, no-trade end-to-end via build_summary_for_user, mode='paper' filter assertion on counts query, scheduler `run_job` callable wiring, run_job → run_once callback path, Codex P1 regression: no-trade skipped when realized nonzero, Codex P1 regression: no-trade skipped when fees nonzero), updated 3 R12 tests (`test_format_summary_zero_amounts_when_activity_present`, `test_format_summary_negative_amounts`, `test_build_summary_handles_missing_balance_zero_exposure`) so they pin down the full-format path instead of accidentally hitting the new no-trade branch.
 
 State updates (next chunk):
 

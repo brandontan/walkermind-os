@@ -625,6 +625,40 @@ def test_scheduler_registers_run_job_as_daily_callable():
     )
 
 
+def test_format_summary_no_trade_branch_skipped_when_realized_nonzero():
+    """Codex P1 (PR #962): paper-scoped counts can be 0 while a live-mode
+    close today still contributes nonzero realized P&L. The no-trade
+    compact form must NOT hide that line."""
+    out = dp.format_summary(
+        date_label="2026-05-05",
+        realized=Decimal("5.00"),
+        unrealized=Decimal("0"),
+        fees=Decimal("0"),
+        open_count=0,
+        exposure_pct=Decimal("0"),
+        mode="LIVE",
+        opened_today=0, closed_today=0,
+    )
+    assert "Realized P&L  : `+$5.00`" in out
+    assert "No paper trades today" not in out
+
+
+def test_format_summary_no_trade_branch_skipped_when_fees_nonzero():
+    """Codex P1 (PR #962): nonzero fees on a paper-zero day must surface
+    in the full format rather than be hidden by the compact branch."""
+    out = dp.format_summary(
+        date_label="2026-05-05",
+        realized=Decimal("0"),
+        unrealized=Decimal("0"),
+        fees=Decimal("0.25"),
+        open_count=0,
+        exposure_pct=Decimal("0"),
+        mode="LIVE",
+    )
+    assert "Fees paid     : `$0.25`" in out
+    assert "No paper trades today" not in out
+
+
 def test_run_job_invokes_run_once_callback_path():
     """run_job is a thin wrapper that defers to run_once and logs stats."""
     captured: dict = {}
