@@ -1,13 +1,14 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 10:00
+**Last Updated:** 2026-05-11 10:30
 
 ## Current Posture
 
-- Production: LIVE on Fly.io (PAPer ONLY)
+- Production: LIVE on Fly.io (PAPER ONLY)
 - Telegram UX Phase 5A-5I complete
 - Real CLOB Phase 4A-4E complete; live path guarded
+- Fast Track Track A MERGED PR #942; TradeEngine active in scan runtime
 - Activation guards: OFF (do not touch)
 - Roadmap Mode: FAST TRACK (Mr. Walker decision)
 
@@ -15,9 +16,9 @@
 
 | Track | Scope | Tier | Status | Notes |
 |---|---|---|---|--|
-| A | Trade Engine + TP/SL worker | MAJOR | 🔄 IN REVIEW | TradeEngine wired into active scan runtime; signal_scan_job routes through TradeEngine; 47 tests green; PR open WARP/crusaderbot-fast-trade-engine; SENTINEL pending |
-| B | Copy Trade Execution | MAJOR | ⬌ BLOCKED | Depends on Track A merge; mirror target wallet trades into paper positions |
-| C | Trade Notifications | STANDARD | ❌ QEEUED | Entry / exit / copy trade Telegram notifications |
+| A | Trade Engine + TP/SL worker | MAJOR | ✅ MERGED | PR #942 (2026-05-11); TradeEngine wired into signal_scan_job; 47 tests green |
+| B | Copy Trade Execution | MAJOR | ❌ QUEUED | Unblocked; MAJOR, SENTINEL required; branch to be declared by WARP🔹CMD |
+| C | Trade Notifications | STANDARD | ❌ QUEUED | Unblocked; entry / exit / copy trade Telegram notifications |
 | D | Risk Caps + Kill Switch hardening | MAJOR | ❌ QUEUED | Hard exposure caps, daily loss, max open positions, kill switch |
 | E | Daily P&L Report | STANDARD | ❌ QUEUED | Scheduled daily summary in Telegram |
 

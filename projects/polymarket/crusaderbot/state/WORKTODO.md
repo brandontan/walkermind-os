@@ -1,21 +1,21 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 10:00
+**Last Updated:** 2026-05-11 10:30
 
 ---
 
 ## Right Now
 
-- Fast Track Track A trade engine built (WARP/crusaderbot-fast-trade-engine, Issue #941). PR open; WARP•SENTINEL validation required before merge. Track B and Track C remain blocked on Track A merge. Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
+- Fast Track Track A MERGED PR #942 (2026-05-11). Track B (Copy Trade execution) and Track C (trade notifications) now unblocked — awaiting WARP🔹CMD branch declaration. Activation guards (ENABLE_LIVE_TRADING / USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED) remain NOT SET.
 
 ---
 
 ## Fast Track Week 1 -- Core Trading Loop
 
-- [ ] Track A -- Trade Engine + TP/SL worker -- PR open WARP/crusaderbot-fast-trade-engine (Issue #941), MAJOR, FULL RUNTIME INTEGRATION, SENTINEL REQUIRED. TradeEngine wired into active scan runtime; signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green. Awaiting SENTINEL before merge.
-- [ ] Track B -- Copy Trade Execution -- BLOCKED on Track A merge; MAJOR, SENTINEL REQUIRED
-- [ ] Track C -- Trade Notifications -- QUEUED; STANDARD; depends on Track A surface
+- [x] Track A -- Trade Engine + TP/SL worker -- MERGED PR #942 (2026-05-11), MAJOR, FULL RUNTIME INTEGRATION. TradeEngine wired into active scan runtime; signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
+- [ ] Track B -- Copy Trade Execution -- UNBLOCKED; MAJOR, SENTINEL REQUIRED
+- [ ] Track C -- Trade Notifications -- UNBLOCKED; STANDARD
 - [ ] Track D -- Risk Caps + Kill Switch hardening -- QUEUED; MAJOR; SENTINEL REQUIRED
 - [ ] Track E -- Daily P&L Report -- QUEUED; STANDARD
 
