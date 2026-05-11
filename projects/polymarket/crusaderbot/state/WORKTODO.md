@@ -8,7 +8,7 @@
 ## Right Now
 
 - Track E Daily P&L Report MERGED PR #962; issue #960 closed. Week 1 Fast Track Tracks A-E complete.
-- Week 2 first lane: Premium PNL Insights UX (issue #963) PR open from WARP/crusaderbot-premium-pnl-insights. Awaiting WARP🔹CMD merge decision.
+- Week 2 first lane: Premium PNL Insights UX (issue #963) MERGED PR #965 (2026-05-11). Week 2 next lane TBD by WARP🔹CMD.
 - Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY.
 
