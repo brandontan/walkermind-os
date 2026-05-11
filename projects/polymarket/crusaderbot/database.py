@@ -33,14 +33,17 @@ def _log_connection_type(dsn: str) -> None:
     """Log whether DATABASE_URL points at a Supabase pooler or a direct connection.
 
     Logs WARNING for pooler (statement_cache_size=0 already applied).
-    Logs INFO for direct connections. DSN parse failures are silently
-    skipped so a malformed URL never crashes pool init.
+    Logs INFO for direct connections. DSN parse failures and hostless
+    URLs are silently skipped so a malformed URL never crashes pool init
+    or emits a misleading 'direct connection' signal.
     """
     try:
         parsed = urlparse(dsn)
     except Exception:  # noqa: BLE001 — diagnostics must never crash boot
         return
     host = (parsed.hostname or "").lower()
+    if not host:
+        return
     if _POOLER_HOST_HINT in host:
         logger.warning(
             "DATABASE_URL points at Supabase connection pooler "

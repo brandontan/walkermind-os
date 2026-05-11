@@ -258,22 +258,31 @@ def test_init_pool_logs_info_for_direct_connection(caplog):
 
 
 def test_init_pool_diagnostic_does_not_crash_on_malformed_dsn(caplog):
-    """A garbage DSN must not crash the diagnostic helper — the pool
-    init itself will fail later on, but the diagnostic must be a
-    noop on parse failure so it never becomes a boot blocker.
+    """A garbage DSN must not crash or log anything from the diagnostic
+    helper — no hostname means silent noop so a malformed DATABASE_URL
+    never produces a misleading 'direct connection' INFO at startup.
     """
     create_pool_mock = AsyncMock(return_value=_FakePool())
     fake_settings = MagicMock(
         DATABASE_URL="not-a-real-dsn",
         DB_POOL_MAX=5,
     )
-    with patch.object(
-        db_module.asyncpg, "create_pool", new=create_pool_mock,
-    ), patch.object(
-        db_module, "get_settings", return_value=fake_settings,
+    with caplog.at_level(
+        "INFO", logger="projects.polymarket.crusaderbot.database",
     ):
-        # Must not raise.
-        _run(db_module.init_pool())
+        with patch.object(
+            db_module.asyncpg, "create_pool", new=create_pool_mock,
+        ), patch.object(
+            db_module, "get_settings", return_value=fake_settings,
+        ):
+            _run(db_module.init_pool())
+    diagnostic_msgs = [
+        r.getMessage() for r in caplog.records
+        if "direct connection" in r.getMessage() or "connection pooler" in r.getMessage()
+    ]
+    assert diagnostic_msgs == [], (
+        f"malformed DSN must produce no connection-type log, got {diagnostic_msgs!r}"
+    )
 
 
 # ---------- ping(): exception class surfaced via last_ping_error() ----------
