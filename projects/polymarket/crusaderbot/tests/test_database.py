@@ -349,9 +349,9 @@ def test_ping_failure_logs_with_exc_info(caplog):
 
 def test_check_database_surfaces_exception_class_in_health_reason():
     """End-to-end: a ping failure surfaces the asyncpg class name in
-    the ``checks["database"]`` string returned by ``run_health_checks``.
+    the ``checks[\"database\"]`` string returned by ``run_health_checks``.
     Operators read this string in the Telegram alert; without it they
-    were stuck with the generic ``"reported unhealthy"`` text.
+    were stuck with the generic ``\"reported unhealthy\"`` text.
     """
     from projects.polymarket.crusaderbot.monitoring import health as monitoring_health
 
