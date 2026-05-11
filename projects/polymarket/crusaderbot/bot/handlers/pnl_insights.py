@@ -76,34 +76,40 @@ async def _fetch_insights(user_id: UUID) -> dict:
         stats = await conn.fetchrow(
             """
             SELECT
-                COUNT(*) FILTER (WHERE status != 'open')
+                COUNT(*) FILTER (WHERE status != 'open' AND mode = 'paper')
                     AS total_closed,
-                COUNT(*) FILTER (WHERE status != 'open' AND pnl_usdc > 0)
+                COUNT(*) FILTER (WHERE status != 'open' AND mode = 'paper'
+                                   AND pnl_usdc > 0)
                     AS wins,
-                COUNT(*) FILTER (WHERE status != 'open' AND pnl_usdc < 0)
+                COUNT(*) FILTER (WHERE status != 'open' AND mode = 'paper'
+                                   AND pnl_usdc < 0)
                     AS losses,
                 COALESCE(SUM(pnl_usdc)
-                    FILTER (WHERE status != 'open' AND pnl_usdc > 0), 0)
+                    FILTER (WHERE status != 'open' AND mode = 'paper'
+                              AND pnl_usdc > 0), 0)
                     AS gross_wins,
                 COALESCE(SUM(ABS(pnl_usdc))
-                    FILTER (WHERE status != 'open' AND pnl_usdc < 0), 0)
+                    FILTER (WHERE status != 'open' AND mode = 'paper'
+                              AND pnl_usdc < 0), 0)
                     AS gross_losses,
-                MAX(pnl_usdc) FILTER (WHERE status != 'open')
+                MAX(pnl_usdc) FILTER (WHERE status != 'open' AND mode = 'paper')
                     AS best_pnl,
-                MIN(pnl_usdc) FILTER (WHERE status != 'open')
+                MIN(pnl_usdc) FILTER (WHERE status != 'open' AND mode = 'paper')
                     AS worst_pnl,
                 COALESCE(AVG(pnl_usdc)
-                    FILTER (WHERE status != 'open' AND pnl_usdc > 0), 0)
+                    FILTER (WHERE status != 'open' AND mode = 'paper'
+                              AND pnl_usdc > 0), 0)
                     AS avg_win,
                 COALESCE(ABS(AVG(pnl_usdc))
-                    FILTER (WHERE status != 'open' AND pnl_usdc < 0), 0)
+                    FILTER (WHERE status != 'open' AND mode = 'paper'
+                              AND pnl_usdc < 0), 0)
                     AS avg_loss,
                 COUNT(*) FILTER (
-                    WHERE status != 'open'
+                    WHERE status != 'open' AND mode = 'paper'
                       AND closed_at >= NOW() - INTERVAL '7 days')
                     AS trades_7d,
                 COALESCE(SUM(pnl_usdc) FILTER (
-                    WHERE status != 'open'
+                    WHERE status != 'open' AND mode = 'paper'
                       AND closed_at >= NOW() - INTERVAL '7 days'), 0)
                     AS pnl_7d
             FROM positions WHERE user_id = $1
@@ -114,7 +120,7 @@ async def _fetch_insights(user_id: UUID) -> dict:
             """
             SELECT COALESCE(m.question, p.market_id) AS title
               FROM positions p LEFT JOIN markets m ON m.id = p.market_id
-             WHERE p.user_id = $1 AND p.status != 'open'
+             WHERE p.user_id = $1 AND p.status != 'open' AND p.mode = 'paper'
              ORDER BY p.pnl_usdc DESC NULLS LAST LIMIT 1
             """,
             user_id,
@@ -123,7 +129,7 @@ async def _fetch_insights(user_id: UUID) -> dict:
             """
             SELECT COALESCE(m.question, p.market_id) AS title
               FROM positions p LEFT JOIN markets m ON m.id = p.market_id
-             WHERE p.user_id = $1 AND p.status != 'open'
+             WHERE p.user_id = $1 AND p.status != 'open' AND p.mode = 'paper'
              ORDER BY p.pnl_usdc ASC NULLS LAST LIMIT 1
             """,
             user_id,
@@ -131,7 +137,8 @@ async def _fetch_insights(user_id: UUID) -> dict:
         streak_rows = await conn.fetch(
             """
             SELECT pnl_usdc FROM positions
-             WHERE user_id = $1 AND status != 'open' AND pnl_usdc IS NOT NULL
+             WHERE user_id = $1 AND status != 'open' AND mode = 'paper'
+               AND pnl_usdc IS NOT NULL
              ORDER BY closed_at DESC NULLS LAST LIMIT 25
             """,
             user_id,
@@ -205,10 +212,11 @@ def format_insights(data: dict) -> str:
     best_pnl = data["best_pnl"]
     worst_pnl = data["worst_pnl"]
     best_str = (
-        f"+${best_pnl:.2f}" if best_pnl is not None else "N/A"
+        f"{'+' if best_pnl >= 0 else '-'}${abs(best_pnl):.2f}"
+        if best_pnl is not None else "N/A"
     )
     worst_str = (
-        f"{'+' if worst_pnl >= 0 else ''}${worst_pnl:.2f}"
+        f"{'+' if worst_pnl >= 0 else '-'}${abs(worst_pnl):.2f}"
         if worst_pnl is not None else "N/A"
     )
     best_title = _safe_md(data.get("best_title") or "—")

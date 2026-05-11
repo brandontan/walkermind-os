@@ -126,7 +126,16 @@ def test_format_insights_best_pnl_positive():
 def test_format_insights_worst_pnl_negative():
     data = _base_data(worst_pnl=Decimal("-4.20"))
     out = format_insights(data)
-    assert "-$4.20" in out or "$-4.20" in out
+    assert "-$4.20" in out
+
+
+def test_format_insights_best_pnl_negative_all_losses():
+    # When every trade is a loss, MAX(pnl_usdc) is still negative; must not
+    # render as "+$-1.23" (Codex P2, commit af21621).
+    data = _base_data(best_pnl=Decimal("-1.23"))
+    out = format_insights(data)
+    assert "-$1.23" in out
+    assert "+$-" not in out
 
 
 # ---------- 7. _compute_streak empty list --------------------------------------
@@ -257,3 +266,27 @@ def test_my_trades_main_kb_includes_insights():
         for b in row
     ]
     assert "insights:refresh" in all_callbacks
+
+
+# ---------- 20. paper-mode filter present in all _fetch_insights queries -------
+
+
+def test_fetch_insights_queries_filter_paper_mode():
+    """All four SQL queries in _fetch_insights must include mode='paper'.
+
+    This is a static assertion on the query strings — it pins the paper-mode
+    data boundary so future edits cannot silently remove the filter and allow
+    live-mode positions to leak into the paper insights surface.
+    """
+    import inspect
+    from projects.polymarket.crusaderbot.bot.handlers.pnl_insights import (
+        _fetch_insights,
+    )
+    src = inspect.getsource(_fetch_insights)
+    # Count occurrences of mode = 'paper' — there must be at least 4
+    # (stats aggregate, best_row, worst_row, streak_rows).
+    paper_filter_count = src.count("mode = 'paper'")
+    assert paper_filter_count >= 4, (
+        f"Expected >=4 'mode = \\'paper\\'' filters in _fetch_insights, "
+        f"found {paper_filter_count}. Paper-mode boundary must not regress."
+    )
