@@ -90,6 +90,23 @@ async def get_market(market_id: str) -> Optional[dict]:
         return None
 
 
+async def get_market_by_slug(slug: str) -> Optional[dict]:
+    """Fetch a single active market by slug from Gamma API. Cached 2 min."""
+    key = f"mktslug:{slug}"
+    if hit := await get_cache(key):
+        return hit
+    try:
+        data = await _get_json(f"{GAMMA}/markets", params={"slug": slug})
+        markets: list = data if isinstance(data, list) else data.get("data", [])
+        result = markets[0] if markets else None
+        if result:
+            await set_cache(key, result, ttl=120)
+        return result
+    except Exception as exc:
+        logger.warning("get_market_by_slug %s failed: %s", slug, exc)
+        return None
+
+
 async def get_book(token_id: str) -> dict:
     """Order book (CLOB). Cached 30s."""
     key = f"book:{token_id}"
