@@ -26,3 +26,6 @@ aiosqlite>=0.19.0
 
 # QR code generation for onboarding deposit step
 qrcode[pil]>=7.4.2
+
+# Portfolio chart generation (server-side, Agg backend — no display needed)
+matplotlib>=3.8.0

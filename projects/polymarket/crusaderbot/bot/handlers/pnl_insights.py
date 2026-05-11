@@ -19,6 +19,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from ...database import get_pool
+from ...jobs.weekly_insights import _fetch_weekly_stats, format_weekly_insights
 from ...users import upsert_user
 from ..keyboards import insights_kb
 from ..tier import Tier, has_tier, tier_block_message
@@ -277,8 +278,11 @@ async def pnl_insights_command(
         await update.message.reply_text(tier_block_message(Tier.ALLOWLISTED))
         return
     data = await _fetch_insights(user["id"])
+    weekly_data = await _fetch_weekly_stats(user["id"])
+    weekly_section = format_weekly_insights(weekly_data)
+    full_text = format_insights(data) + "\n\n" + weekly_section
     await update.message.reply_text(
-        format_insights(data),
+        full_text,
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=insights_kb(),
     )
@@ -298,8 +302,11 @@ async def insights_cb(
         await q.answer(tier_block_message(Tier.ALLOWLISTED), show_alert=True)
         return
     data = await _fetch_insights(user["id"])
+    weekly_data = await _fetch_weekly_stats(user["id"])
+    weekly_section = format_weekly_insights(weekly_data)
+    full_text = format_insights(data) + "\n\n" + weekly_section
     await q.message.reply_text(
-        format_insights(data),
+        full_text,
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=insights_kb(),
     )
