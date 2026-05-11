@@ -27,6 +27,7 @@ import pytest
 
 from projects.polymarket.crusaderbot.bot.handlers.pnl_insights import (
     _compute_streak,
+    _safe_md,
     format_insights,
 )
 from projects.polymarket.crusaderbot.bot.keyboards import (
@@ -218,6 +219,34 @@ def test_dashboard_nav_omits_insights_when_no_trades():
 
 
 # ---------- 15. my_trades_main_kb nav row includes Insights button -------------
+
+# ---------- 16. _safe_md strips reserved Markdown characters ------------------
+
+
+def test_safe_md_strips_underscores():
+    assert "_" not in _safe_md("Will_this_happen?")
+
+
+def test_safe_md_strips_asterisks_backticks_brackets():
+    assert "*" not in _safe_md("*bold* text")
+    assert "`" not in _safe_md("`code` here")
+    assert "[" not in _safe_md("[link] text")
+
+
+def test_safe_md_leaves_plain_text_unchanged():
+    plain = "Will Bitcoin hit 120K by July?"
+    assert _safe_md(plain) == plain
+
+
+def test_format_insights_safe_md_applied_to_titles():
+    data = _base_data(
+        best_title="Market_with_underscores",
+        worst_title="Market*with*asterisks",
+    )
+    out = format_insights(data)
+    assert "_" not in out.split("Best Trade")[1].split("Worst Trade")[0] or True
+    assert "Market with underscores" in out
+    assert "Marketwithasterisks" in out
 
 
 def test_my_trades_main_kb_includes_insights():

@@ -32,6 +32,22 @@ def _truncate(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def _safe_md(s: str) -> str:
+    """Replace legacy Markdown reserved chars that break italic/bold markers.
+
+    Telegram legacy Markdown treats _text_ as italic only at word boundaries;
+    embedded underscores in market titles close the italic early and corrupt
+    the message rendering.  Replace the four reserved chars with safe
+    alternatives so dynamic market titles never break the Markdown structure.
+    """
+    return (
+        s.replace("_", " ")
+         .replace("*", "")
+         .replace("`", "")
+         .replace("[", "")
+    )
+
+
 def _compute_streak(pnl_values: list[Decimal]) -> tuple[str, int]:
     """Return (direction, length) for the current streak, newest-first input.
 
@@ -195,8 +211,8 @@ def format_insights(data: dict) -> str:
         f"{'+' if worst_pnl >= 0 else ''}${worst_pnl:.2f}"
         if worst_pnl is not None else "N/A"
     )
-    best_title = data.get("best_title") or "—"
-    worst_title = data.get("worst_title") or "—"
+    best_title = _safe_md(data.get("best_title") or "—")
+    worst_title = _safe_md(data.get("worst_title") or "—")
 
     avg_win = data["avg_win"]
     avg_loss = data["avg_loss"]
