@@ -15,7 +15,7 @@
 
 - [x] Track A -- Trade Engine + TP/SL worker -- MERGED PR #942 (2026-05-11), MAJOR, FULL RUNTIME INTEGRATION. TradeEngine service layer; signal_scan_job routes through TradeEngine; 47 hermetic tests green.
 - [ ] Track B -- Copy Trade Execution -- UNBLOCKED; MAJOR, SENTINEL REQUIRED
-- [ ] Track C -- Trade Notifications -- QUEUED; STANDARD; depends on Track A surface
+- [x] Track C -- Trade Notifications -- FORGE COMPLETE; STANDARD, NARROW INTEGRATION; 16 hermetic tests green; PR open for WARP🔹CMD review
 - [ ] Track D -- Risk Caps + Kill Switch hardening -- QUEUED; MAJOR; SENTINEL REQUIRED
 - [ ] Track E -- Daily P&L Report -- QUEUED; STANDARD
 

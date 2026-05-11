@@ -368,6 +368,27 @@ async def alert_user_strategy_exit(
     await notifications.send(telegram_user_id, text)
 
 
+async def alert_user_manual_close(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Notify the position owner that a manual close completed successfully."""
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"✅ *[{mode.upper()}] Manual close*\n"
+        f"{label}\n"
+        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
+        f"P&L: *${pnl_usdc:+.2f}*"
+    )
+    await notifications.send(telegram_user_id, text)
+
+
 async def alert_user_close_failed(
     *,
     telegram_user_id: int,
