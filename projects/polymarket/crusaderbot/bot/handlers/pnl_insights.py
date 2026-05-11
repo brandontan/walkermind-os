@@ -212,13 +212,13 @@ def format_insights(data: dict) -> str:
 
     best_pnl = data["best_pnl"]
     worst_pnl = data["worst_pnl"]
+    best_sign = "+" if best_pnl is not None and best_pnl >= 0 else "-"
+    worst_sign = "+" if worst_pnl is not None and worst_pnl >= 0 else "-"
     best_str = (
-        f"{"+" if best_pnl >= 0 else "-"}${abs(best_pnl):.2f}"
-        if best_pnl is not None else "N/A"
+        f"{best_sign}${abs(best_pnl):.2f}" if best_pnl is not None else "N/A"
     )
     worst_str = (
-        f"{"+" if worst_pnl >= 0 else "-"}${abs(worst_pnl):.2f}"
-        if worst_pnl is not None else "N/A"
+        f"{worst_sign}${abs(worst_pnl):.2f}" if worst_pnl is not None else "N/A"
     )
     best_title = _safe_md(data.get("best_title") or "—")
     worst_title = _safe_md(data.get("worst_title") or "—")
