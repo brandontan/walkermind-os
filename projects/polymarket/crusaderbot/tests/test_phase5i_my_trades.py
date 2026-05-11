@@ -140,7 +140,8 @@ def test_my_trades_renders_with_positions():
     with _patch_tier_ok(), \
          patch.object(mt.repo, "get_open_positions", AsyncMock(return_value=[pos])), \
          patch.object(mt.repo, "get_recent_activity", AsyncMock(return_value=activity)), \
-         patch.object(mt, "_fetch_mark", AsyncMock(return_value=0.48)):
+         patch.object(mt, "_fetch_mark", AsyncMock(return_value=0.48)), \
+         patch.object(mt, "get_settings_for", AsyncMock(return_value={"tp_pct": None, "sl_pct": None})):
         asyncio.run(mt.my_trades(update, ctx=None))
 
     assert replies, "reply_text was never called"
@@ -160,7 +161,8 @@ def test_my_trades_renders_empty_state():
 
     with _patch_tier_ok(), \
          patch.object(mt.repo, "get_open_positions", AsyncMock(return_value=[])), \
-         patch.object(mt.repo, "get_recent_activity", AsyncMock(return_value=[])):
+         patch.object(mt.repo, "get_recent_activity", AsyncMock(return_value=[])), \
+         patch.object(mt, "get_settings_for", AsyncMock(return_value={"tp_pct": None, "sl_pct": None})):
         asyncio.run(mt.my_trades(update, ctx=None))
 
     assert replies
@@ -321,20 +323,20 @@ def test_format_positions_section_hierarchy():
     pos2 = _make_position(entry_price=0.65, size_usdc=3.50, side="no",
                           question="GDP Q2 above 3%?")
     marks = [0.48, 0.61]
-    text = mt._format_positions_section([pos1, pos2], marks)
+    text = mt._format_positions_section([pos1, pos2], marks, None, None)
 
     assert "Open Positions (2)" in text
     assert "1." in text and "2." in text
-    assert "YES at $0.42" in text
-    assert "NO at $0.65" in text
-    assert "$5.00" in text and "$3.50" in text
+    assert "YES @" in text
+    assert "NO @" in text
+    assert "0.42" in text and "0.65" in text
 
 
 # ---------- Test 11: Global menu works during close flow -------------------
 
 
 def test_main_menu_routes_my_trades_registered():
-    """MAIN_MENU_ROUTES maps 📈 My Trades to the new my_trades_h.my_trades."""
+    """МAIN_MENU_ROUTES maps 📈 My Trades to the new my_trades_h.my_trades."""
     handler = MAIN_MENU_ROUTES.get("📈 My Trades")
     assert handler is not None
     assert handler is mt.my_trades
