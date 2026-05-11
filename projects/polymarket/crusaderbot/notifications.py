@@ -6,7 +6,7 @@ are logged at ERROR (not silently swallowed).
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from telegram import Bot
 from telegram.constants import ParseMode
@@ -44,7 +44,12 @@ def _retry():
     )
 
 
-async def send(chat_id: int, text: str, parse_mode: str = ParseMode.MARKDOWN) -> bool:
+async def send(
+    chat_id: int,
+    text: str,
+    parse_mode: str = ParseMode.MARKDOWN,
+    reply_markup: Optional[Any] = None,
+) -> bool:
     """Send a Telegram message with retry, swallowing permanent failures.
 
     Returns ``True`` on successful delivery and ``False`` on permanent
@@ -56,7 +61,10 @@ async def send(chat_id: int, text: str, parse_mode: str = ParseMode.MARKDOWN) ->
         async for attempt in _retry():
             with attempt:
                 await get_bot().send_message(
-                    chat_id=chat_id, text=text, parse_mode=parse_mode,
+                    chat_id=chat_id,
+                    text=text,
+                    parse_mode=parse_mode,
+                    reply_markup=reply_markup,
                 )
         return True
     except Exception as exc:
