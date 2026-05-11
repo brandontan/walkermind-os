@@ -385,6 +385,9 @@ class TestRuntimeIsolation:
             ):
                 await _fetch_insights(_UID_B)
 
+            assert any("positions" in sql.lower() for sql, _ in calls), (
+                "_fetch_insights made no positions query — insights path broken"
+            )
             for sql, args in calls:
                 if "positions" in sql.lower():
                     assert _UID_B in args, (
@@ -456,6 +459,9 @@ class TestRuntimeIsolation:
         ):
             asyncio.run(get_activity_page(_UID_A, page=0))
 
+        assert any("positions" in sql.lower() for sql, _ in conn.calls), (
+            "get_activity_page made no positions query — activity path broken"
+        )
         for sql, args in conn.calls:
             if "positions" in sql.lower():
                 assert _UID_A in args, (
