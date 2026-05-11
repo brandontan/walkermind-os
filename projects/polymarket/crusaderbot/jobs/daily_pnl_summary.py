@@ -1,10 +1,15 @@
-"""R12 Daily P&L Summary — once-per-day Telegram push.
+"""Daily P&L Summary — once-per-day Telegram push.
 
 Runs as an APScheduler cron job at 23:00 Asia/Jakarta. For every user
-with the opt-in flag still ON, the job assembles a six-line summary
-covering today's realized / unrealized P&L, fees paid, open position
-count, total exposure as a fraction of balance, and the user's current
-trading mode.
+with the opt-in flag still ON, the job assembles a summary covering
+today's realized / unrealized P&L, fees paid, open position count,
+total exposure as a fraction of balance, the user's trading mode, and
+paper-mode activity counts (opened today, closed today with W/L).
+
+Fast Track Track E (#960) adds the paper-mode activity counts and an
+explicit no-trade empty state so the daily review is readable on days
+with zero activity. R12's realized/unrealized/fees/exposure semantics
+are preserved verbatim.
 
 Opt-in toggle is stored in ``system_settings`` keyed
 ``daily_summary_off:{user_id}``. Default is ON — absence of the row
@@ -97,6 +102,10 @@ async def _fetch_user_summary_row(user_id: UUID) -> dict:
         "closed_at >= date_trunc('day', NOW() AT TIME ZONE $2) "
         "AT TIME ZONE $2"
     )
+    opened_today_filter = (
+        "opened_at >= date_trunc('day', NOW() AT TIME ZONE $2) "
+        "AT TIME ZONE $2"
+    )
     async with pool.acquire() as conn:
         realized = await conn.fetchval(
             f"SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions "
@@ -121,6 +130,26 @@ async def _fetch_user_summary_row(user_id: UUID) -> dict:
         mode = await conn.fetchval(
             "SELECT trading_mode FROM user_settings WHERE user_id=$1",
             user_id,
+        )
+        # Paper-mode activity counts (Fast Track Track E #960). One row,
+        # four COUNT(*) FILTER clauses so a no-trade day still returns
+        # zeros instead of NULL. mode='paper' is enforced explicitly so
+        # the count breakdown stays paper-scoped after live activation.
+        counts_row = await conn.fetchrow(
+            f"SELECT "
+            f"  COUNT(*) FILTER (WHERE mode='paper' AND {opened_today_filter}) "
+            f"    AS opened_today, "
+            f"  COUNT(*) FILTER (WHERE mode='paper' AND status='closed' "
+            f"    AND closed_at IS NOT NULL AND {closed_today_filter}) "
+            f"    AS closed_today, "
+            f"  COUNT(*) FILTER (WHERE mode='paper' AND status='closed' "
+            f"    AND closed_at IS NOT NULL AND pnl_usdc > 0 "
+            f"    AND {closed_today_filter}) AS wins_today, "
+            f"  COUNT(*) FILTER (WHERE mode='paper' AND status='closed' "
+            f"    AND closed_at IS NOT NULL AND pnl_usdc < 0 "
+            f"    AND {closed_today_filter}) AS losses_today "
+            f"FROM positions WHERE user_id=$1",
+            user_id, TIMEZONE_NAME,
         )
 
     realized_d = Decimal(realized or 0)
@@ -157,6 +186,7 @@ async def _fetch_user_summary_row(user_id: UUID) -> dict:
         else (exposure / balance_d) * Decimal(100)
     )
 
+    counts = counts_row or {}
     return {
         "realized": realized_d,
         "unrealized": unrealized,
@@ -164,6 +194,10 @@ async def _fetch_user_summary_row(user_id: UUID) -> dict:
         "open_count": open_count,
         "exposure_pct": exposure_pct,
         "mode": (mode or "paper").upper(),
+        "opened_today": int(counts.get("opened_today") or 0),
+        "closed_today": int(counts.get("closed_today") or 0),
+        "wins_today": int(counts.get("wins_today") or 0),
+        "losses_today": int(counts.get("losses_today") or 0),
     }
 
 
@@ -173,12 +207,23 @@ def _fmt_signed(value: Decimal) -> str:
 
 def format_summary(*, date_label: str, realized: Decimal, unrealized: Decimal,
                    fees: Decimal, open_count: int, exposure_pct: Decimal,
-                   mode: str) -> str:
+                   mode: str, opened_today: int = 0, closed_today: int = 0,
+                   wins_today: int = 0, losses_today: int = 0) -> str:
+    # No-trade empty state: no activity today AND no open positions.
+    # Renders a compact two-line summary so the daily review remains
+    # readable on idle days. Track E (#960).
+    if opened_today == 0 and closed_today == 0 and open_count == 0:
+        return (
+            f"📊 *Daily Summary — {date_label}*\n"
+            f"No paper trades today. Mode: `{mode}`."
+        )
     return (
         f"📊 *Daily Summary — {date_label}*\n"
         f"Realized P&L  : `{_fmt_signed(realized)}`\n"
         f"Unrealized P&L: `{_fmt_signed(unrealized)}`\n"
         f"Fees paid     : `${fees:.2f}`\n"
+        f"Trades opened : `{opened_today}`\n"
+        f"Trades closed : `{closed_today}` (W:{wins_today} L:{losses_today})\n"
         f"Open positions: `{open_count}`\n"
         f"Exposure      : `{exposure_pct:.1f}%`\n"
         f"Mode          : `{mode}`"

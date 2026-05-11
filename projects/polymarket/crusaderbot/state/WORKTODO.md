@@ -1,14 +1,14 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 21:05
+**Last Updated:** 2026-05-11 21:35
 
 ---
 
 ## Right Now
 
-- Track D Live Gate Hardening MERGED PR #954. WARP•SENTINEL APPROVED 92/100 with zero critical issues. Activation guards remain NOT SET.
-- Next lane: Track E -- Daily P&L Report (STANDARD).
+- Track E Daily P&L Report FORGE complete on WARP/crusaderbot-daily-pnl-report — paper-mode counts (opened/closed/W/L), no-trade empty state, scheduler callback wiring test; PR open closes #960; STANDARD, NARROW INTEGRATION; 26 daily_pnl_summary tests green. Awaiting WARP🔹CMD review (no WARP•SENTINEL required).
+- Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY.
 
 ---
@@ -19,9 +19,9 @@
 - [x] Track B -- Copy Trade Execution -- MERGED PR #948 (2026-05-11), MAJOR. CopyTradeMonitor.run_once(), 020 migration, 25 hermetic tests green; P1 fixes applied.
 - [x] Track C -- Trade Notifications -- MERGED PR #951 (2026-05-11), STANDARD. TradeNotifier service layer; 16 hermetic tests green; already_closed guard P2 fix.
 - [x] Track D -- Live Gate Hardening -- MERGED PR #954 (2026-05-11), MAJOR. Gate step 14 slippage/market-impact, risk assertion audit, shadow/live parity hooks, readiness validator, RISK_CONTROLS_VALIDATED default false; WARP•SENTINEL APPROVED 92/100; 35 tests green.
-- [ ] Track E -- Daily P&L Report -- QUEUED; STANDARD.
+- [ ] Track E -- Daily P&L Report -- FORGE COMPLETE on WARP/crusaderbot-daily-pnl-report (closes #960). STANDARD, NARROW INTEGRATION. Paper-mode counts (opened/closed/W/L), no-trade empty state, scheduler callback wiring test; 26 daily_pnl_summary tests green. Awaiting WARP🔹CMD review.
 
-Done condition: Track A-D merged and SENTINEL-approved where MAJOR; Track E queued next; activation guards remain OFF.
+Done condition: Track A-D merged and SENTINEL-approved where MAJOR; Track E PR opened for WARP🔹CMD review; activation guards remain OFF.
 
 ---
 
