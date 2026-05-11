@@ -16,6 +16,11 @@ from telegram.ext import (
 )
 
 from ... import audit
+from ...services.referral.referral_service import (
+    get_or_create_referral_code,
+    parse_ref_param,
+    record_referral,
+)
 from ...users import get_user_by_telegram_id, set_onboarding_complete, upsert_user
 from ...wallet.vault import create_wallet_for_user, get_wallet
 from ..keyboards import main_menu
@@ -98,17 +103,38 @@ async def _entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         return ConversationHandler.END
 
     tg_user = update.effective_user
+    start_param: str | None = None
+    if ctx.args:
+        start_param = ctx.args[0]
+
+    ref_code = parse_ref_param(start_param)
+
     user = await upsert_user(tg_user.id, tg_user.username)
+    user_id = user["id"]
+
     await audit.write(
-        actor_role="user", action="start", user_id=user["id"],
-        payload={"username": tg_user.username},
+        actor_role="user", action="start", user_id=user_id,
+        payload={"username": tg_user.username, "ref_code": ref_code},
     )
 
-    if user.get("onboarding_complete", False):
+    is_new_user = not user.get("onboarding_complete", False)
+
+    if ref_code and is_new_user:
+        try:
+            await record_referral(referrer_code=ref_code, referred_user_id=user_id)
+        except Exception as exc:
+            logger.warning("onboarding.referral_record_failed ref=%s error=%s", ref_code, exc)
+
+    try:
+        await get_or_create_referral_code(user_id)
+    except Exception as exc:
+        logger.warning("onboarding.referral_code_create_failed user_id=%s error=%s", user_id, exc)
+
+    if not is_new_user:
         # Returning user — wallet should already exist but ensure safety
-        wallet = await get_wallet(user["id"])
+        wallet = await get_wallet(user_id)
         if wallet is None:
-            await create_wallet_for_user(user["id"])
+            await create_wallet_for_user(user_id)
 
         if has_tier(user["access_tier"], Tier.ALLOWLISTED):
             from .dashboard import dashboard
@@ -124,7 +150,7 @@ async def _entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         return ConversationHandler.END
 
     # New user — begin onboarding
-    ctx.user_data["onboard_user_id"] = str(user["id"])
+    ctx.user_data["onboard_user_id"] = str(user_id)
     await update.message.reply_text(
         _WELCOME_TEXT,
         parse_mode=ParseMode.MARKDOWN_V2,
@@ -393,6 +419,7 @@ async def help_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "/positions — open positions with live P&L + force-close\n"
         "/activity — recent trades\n"
         "/summary\\_on, /summary\\_off — daily P&L digest\n"
+        "/referral — your referral code, link, and stats\n"
         "/emergency — pause or close all\n\n"
         "*🛠️ Operator*\n"
         "/admin, /allowlist — operator controls\n"
