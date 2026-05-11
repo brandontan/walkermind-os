@@ -29,6 +29,7 @@ from typing import Optional
 from uuid import UUID
 
 import structlog
+from telegram import InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
 from ... import notifications
@@ -225,8 +226,14 @@ class TradeNotifier:
         exit_price: float,
         pnl_usdc: float,
         mode: str = "paper",
+        trade_id: Optional[str] = None,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
-        """Send TP_HIT notification when take-profit threshold is breached."""
+        """Send TP_HIT notification when take-profit threshold is breached.
+
+        When pnl_usdc > 0 and trade_id is provided, callers should pass
+        share_trade_kb(trade_id) as reply_markup to show [Share] button.
+        """
         label = _market_label(market_question, market_id)
         tag = _mode_tag(mode)
         text = (
@@ -237,6 +244,7 @@ class TradeNotifier:
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.TP_HIT, market_id=market_id,
+            reply_markup=reply_markup,
         )
 
     async def notify_sl_hit(
@@ -249,6 +257,7 @@ class TradeNotifier:
         exit_price: float,
         pnl_usdc: float,
         mode: str = "paper",
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
         """Send SL_HIT notification when stop-loss threshold is breached."""
         label = _market_label(market_question, market_id)
@@ -261,6 +270,7 @@ class TradeNotifier:
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.SL_HIT, market_id=market_id,
+            reply_markup=reply_markup,
         )
 
     async def notify_manual_close(
@@ -273,6 +283,7 @@ class TradeNotifier:
         exit_price: float,
         pnl_usdc: float,
         mode: str = "paper",
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
         """Send MANUAL notification when user closes a position via My Trades."""
         label = _market_label(market_question, market_id)
@@ -285,6 +296,7 @@ class TradeNotifier:
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.MANUAL, market_id=market_id,
+            reply_markup=reply_markup,
         )
 
     async def notify_emergency_close(
@@ -364,10 +376,11 @@ class TradeNotifier:
         *,
         event: NotificationEvent,
         market_id: str,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
         """Send text to user. Catches all failures — runtime must not be interrupted."""
         try:
-            await notifications.send(telegram_user_id, text)
+            await notifications.send(telegram_user_id, text, reply_markup=reply_markup)
         except Exception as exc:  # noqa: BLE001 — must not propagate
             # structlog's `event` positional arg conflicts with the local
             # ``event`` param name — use the stdlib logger to avoid the clash.
