@@ -680,3 +680,245 @@ class TestExitReasonValues:
     def test_emergency_maps_to_force_close(self):
         # Track A "EMERGENCY" close is stored as FORCE_CLOSE in the DB
         assert ExitReason.FORCE_CLOSE.value == "force_close"
+
+
+# ---------------------------------------------------------------------------
+# Scan path → TradeEngine integration
+# ---------------------------------------------------------------------------
+
+from unittest.mock import MagicMock, patch  # noqa: E402 (post-import for clarity)
+
+from projects.polymarket.crusaderbot.domain.strategy.types import SignalCandidate
+from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import (
+    _build_trade_signal,
+    _process_candidate,
+)
+
+_SCAN_ENGINE = (
+    "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job._engine"
+)
+_SCAN_ROUTER = (
+    "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job.router_execute"
+)
+_SCAN_DEDUP = (
+    "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job"
+    "._publication_already_queued"
+)
+_SCAN_STALE = (
+    "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job"
+    "._load_stale_queued_row"
+)
+_SCAN_MARKET = (
+    "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job._load_market"
+)
+_SCAN_INSERT = (
+    "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job"
+    "._insert_execution_queue"
+)
+_SCAN_MARK_EXEC = (
+    "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job._mark_executed"
+)
+
+
+def _make_scan_row(user_id: UUID | None = None) -> dict:
+    return {
+        "user_id": user_id or _USER_UUID,
+        "telegram_user_id": 12345,
+        "access_tier": 3,
+        "auto_trade_on": True,
+        "paused": False,
+        "balance_usdc": Decimal("500.00"),
+        "risk_profile": "balanced",
+        "trading_mode": "paper",
+        "tp_pct": 0.20,
+        "sl_pct": 0.10,
+        "daily_loss_override": None,
+        "resolved_profile": "balanced",
+    }
+
+
+def _make_scan_cand(pub_id: str | None = None) -> SignalCandidate:
+    return SignalCandidate(
+        market_id="mkt-scan-001",
+        condition_id="cond-001",
+        side="YES",
+        confidence=0.75,
+        suggested_size_usdc=25.0,
+        strategy_name="signal_following",
+        signal_ts=_NOW,
+        metadata={"publication_id": pub_id or str(uuid4())},
+    )
+
+
+def _make_scan_market() -> dict:
+    return {
+        "id": "mkt-scan-001",
+        "question": "Will X happen?",
+        "yes_price": 0.60,
+        "no_price": 0.40,
+        "yes_token_id": "yt-001",
+        "no_token_id": "nt-001",
+        "liquidity_usdc": 50_000.0,
+        "status": "open",
+    }
+
+
+class TestScanPathTradeEngineIntegration:
+    """Prove the active scan path routes through TradeEngine, not direct router."""
+
+    @pytest.mark.asyncio
+    async def test_process_candidate_calls_engine_not_router_on_approval(self):
+        """Normal approval path must call TradeEngine.execute(), not router_execute."""
+        row = _make_scan_row()
+        cand = _make_scan_cand()
+        market = _make_scan_market()
+        approved = TradeResult(
+            approved=True, mode="paper",
+            order_id=_ORDER_UUID, position_id=_POS_UUID,
+            rejection_reason=None, failed_gate_step=None,
+            chosen_mode="paper", final_size_usdc=Decimal("25.00"),
+        )
+
+        mock_router = AsyncMock()
+        mock_engine_execute = AsyncMock(return_value=approved)
+
+        with (
+            patch(_SCAN_STALE, new=AsyncMock(return_value=None)),
+            patch(_SCAN_DEDUP, new=AsyncMock(return_value=False)),
+            patch(_SCAN_MARKET, new=AsyncMock(return_value=market)),
+            patch(_SCAN_ENGINE + ".execute", new=mock_engine_execute),
+            patch(_SCAN_ROUTER, new=mock_router),
+            patch(_SCAN_INSERT, new=AsyncMock(return_value=True)),
+            patch(_SCAN_MARK_EXEC, new=AsyncMock()),
+        ):
+            await _process_candidate(row, cand)
+
+        mock_engine_execute.assert_called_once()
+        signal_arg = mock_engine_execute.call_args[0][0]
+        assert isinstance(signal_arg, TradeSignal)
+        assert signal_arg.market_id == "mkt-scan-001"
+        assert signal_arg.side == "yes"  # normalized to lowercase
+        assert signal_arg.trading_mode == "paper"
+        assert signal_arg.tp_pct == pytest.approx(0.20)
+        assert signal_arg.sl_pct == pytest.approx(0.10)
+        # router_execute must NOT be called on the normal approval path
+        mock_router.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_candidate_gate_rejection_skips_queue(self):
+        """Gate rejection must not insert into execution_queue."""
+        row = _make_scan_row()
+        cand = _make_scan_cand()
+        market = _make_scan_market()
+        rejected = TradeResult(
+            approved=False, mode=None,
+            order_id=None, position_id=None,
+            rejection_reason="auto_trade_off", failed_gate_step=1,
+            chosen_mode=None,
+        )
+
+        mock_insert = AsyncMock(return_value=True)
+        with (
+            patch(_SCAN_STALE, new=AsyncMock(return_value=None)),
+            patch(_SCAN_DEDUP, new=AsyncMock(return_value=False)),
+            patch(_SCAN_MARKET, new=AsyncMock(return_value=market)),
+            patch(_SCAN_ENGINE + ".execute", new=AsyncMock(return_value=rejected)),
+            patch(_SCAN_INSERT, new=mock_insert),
+            patch(_SCAN_MARK_EXEC, new=AsyncMock()),
+        ):
+            await _process_candidate(row, cand)
+
+        mock_insert.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_candidate_dedup_skips_engine(self):
+        """Permanent dedup must short-circuit before TradeEngine is called."""
+        row = _make_scan_row()
+        cand = _make_scan_cand()
+
+        mock_engine_execute = AsyncMock()
+        with (
+            patch(_SCAN_STALE, new=AsyncMock(return_value=None)),
+            patch(_SCAN_DEDUP, new=AsyncMock(return_value=True)),
+            patch(_SCAN_ENGINE + ".execute", new=mock_engine_execute),
+        ):
+            await _process_candidate(row, cand)
+
+        mock_engine_execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_candidate_duplicate_mode_skips_queue_insert(self):
+        """Idempotent duplicate result must not insert a second queue entry."""
+        row = _make_scan_row()
+        cand = _make_scan_cand()
+        market = _make_scan_market()
+        dup = TradeResult(
+            approved=True, mode="duplicate",
+            order_id=None, position_id=None,
+            rejection_reason=None, failed_gate_step=None,
+            chosen_mode="paper", final_size_usdc=Decimal("25.00"),
+        )
+
+        mock_insert = AsyncMock(return_value=True)
+        with (
+            patch(_SCAN_STALE, new=AsyncMock(return_value=None)),
+            patch(_SCAN_DEDUP, new=AsyncMock(return_value=False)),
+            patch(_SCAN_MARKET, new=AsyncMock(return_value=market)),
+            patch(_SCAN_ENGINE + ".execute", new=AsyncMock(return_value=dup)),
+            patch(_SCAN_INSERT, new=mock_insert),
+            patch(_SCAN_MARK_EXEC, new=AsyncMock()),
+        ):
+            await _process_candidate(row, cand)
+
+        mock_insert.assert_not_called()
+
+    def test_build_trade_signal_yes_side_maps_yes_price(self):
+        """YES-side signal uses yes_price as proposed_price."""
+        row = _make_scan_row()
+        cand = _make_scan_cand()
+        market = _make_scan_market()
+        sig = _build_trade_signal(row=row, cand=cand, market=market, idempotency_key="k1")
+        assert sig.side == "yes"
+        assert sig.price == pytest.approx(0.60)
+        assert sig.market_liquidity == pytest.approx(50_000.0)
+        assert sig.trading_mode == "paper"
+        assert sig.strategy_type == "signal_following"
+        assert sig.idempotency_key == "k1"
+
+    def test_build_trade_signal_no_side_maps_no_price(self):
+        """NO-side signal uses no_price as proposed_price."""
+        row = _make_scan_row()
+        cand_no = SignalCandidate(
+            market_id="mkt-scan-001",
+            condition_id="cond-001",
+            side="NO",
+            confidence=0.70,
+            suggested_size_usdc=20.0,
+            strategy_name="signal_following",
+            signal_ts=_NOW,
+            metadata={},
+        )
+        market = _make_scan_market()
+        sig = _build_trade_signal(row=row, cand=cand_no, market=market, idempotency_key="k2")
+        assert sig.side == "no"
+        assert sig.price == pytest.approx(0.40)
+
+    def test_build_trade_signal_tp_sl_from_row(self):
+        """TP and SL are taken from user settings row, not hardcoded."""
+        row = {**_make_scan_row(), "tp_pct": 0.30, "sl_pct": 0.15}
+        sig = _build_trade_signal(
+            row=row, cand=_make_scan_cand(), market=_make_scan_market(),
+            idempotency_key="k3",
+        )
+        assert sig.tp_pct == pytest.approx(0.30)
+        assert sig.sl_pct == pytest.approx(0.15)
+
+    def test_build_trade_signal_none_tp_sl_when_row_missing(self):
+        """Missing TP/SL in row produces None fields on TradeSignal."""
+        row = {**_make_scan_row(), "tp_pct": None, "sl_pct": None}
+        sig = _build_trade_signal(
+            row=row, cand=_make_scan_cand(), market=_make_scan_market(),
+            idempotency_key="k4",
+        )
+        assert sig.tp_pct is None
+        assert sig.sl_pct is None
