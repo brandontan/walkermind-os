@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 08:00
-Status       : UX Overhaul MERGED PR #989. Hotfix legacy handler cleanup built on WARP/HOTFIX-UX-OVERHAUL-HANDLERS, PR open for WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 09:00
+Status       : Hotfix legacy UX handler cleanup MERGED PR #990. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -21,9 +21,9 @@ Status       : UX Overhaul MERGED PR #989. Hotfix legacy handler cleanup built o
 - MomentumReversalStrategy adapter MERGED PR #978 (2026-05-11). Scan contract, registry bootstrap, STRATEGY_AVAILABILITY updated (momentum_reversal: balanced+aggressive); 50 hermetic tests green; issue #975 closed. STANDARD, NARROW INTEGRATION.
 - Track J Multi-User Isolation Audit MERGED PR #988 (2026-05-12). 120+ queries audited; zero isolation violations; 24 hermetic tests green; WARP•SENTINEL APPROVED 98/100, zero critical issues; MAJOR, FULL RUNTIME INTEGRATION.
 - UX Overhaul Premium Grade MERGED PR #989 (2026-05-12). 9-part Telegram UX redesign; main menu, TP/SL presets, capital presets, strategy cards, settings hub, copy trade fallback, insights fix, my trades format; 45 hermetic tests green; STANDARD, PRESENTATION.
+- Hotfix legacy UX handler cleanup MERGED PR #990 (2026-05-12). Removed legacy TP/SL and capital text-prompt handlers; remapped setup:capital/setup:tpsl to new preset flows; STRATEGY_DISPLAY_NAMES applied to dashboard and setup status; 99 hermetic tests green; STANDARD, PRESENTATION.
 
 [IN PROGRESS]
-- Hotfix legacy UX handler cleanup: PR open on WARP/HOTFIX-UX-OVERHAUL-HANDLERS. STANDARD, PRESENTATION. Removed legacy TP/SL and capital text prompts; STRATEGY_DISPLAY_NAMES applied. 99 hermetic tests green. Awaiting WARP🔹CMD review.
 - Track K Access Tiers + Admin Panel: PR open on WARP/CRUSADERBOT-FAST-ADMIN. STANDARD, FOUNDATION. 29 hermetic tests green. Awaiting WARP🔹CMD review.
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
@@ -42,7 +42,6 @@ Status       : UX Overhaul MERGED PR #989. Hotfix legacy handler cleanup built o
 - Before-live hardening: add AND user_id=$N guard to position_id-only UPDATEs in domain/positions/registry.py (update_current_price line 200, record_close_failure line 215, reset_close_failure line 229, finalize_close_failed line 250) and domain/execution/paper.py close_position UPDATE line 114. Required before ENABLE_LIVE_TRADING activation; safe to defer for PAPER ONLY posture.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for Hotfix legacy UX handler cleanup. Source: projects/polymarket/crusaderbot/reports/forge/forge-hotfix-ux-handlers.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track L Onboarding Polish PR. Source: projects/polymarket/crusaderbot/reports/forge/onboarding-polish.md. Tier: STANDARD.
 - WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
