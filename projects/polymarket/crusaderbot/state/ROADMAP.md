@@ -1,13 +1,14 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 19:35 Asia/Jakarta
+**Last Updated:** 2026-05-11 21:05 Asia/Jakarta
 
 ## Current Posture
 
 - Production: LIVE on Fly.io (PAPER ONLY)
-- Telegram UX Phase 5A-5I complete
+- Telegram UX Phase 5A-5J complete
 - Real CLOB Phase 4A-4E complete; live path guarded
+- Week 1 Fast Track Tracks A-D merged
 - Activation guards: OFF (do not touch)
 - Roadmap Mode: FAST TRACK (Mr. Walker decision)
 
@@ -18,8 +19,8 @@
 | A | Trade Engine + TP/SL worker | MAJOR | ✅ MERGED | MERGED PR #942 (2026-05-11). TradeEngine FULL RUNTIME INTEGRATION; signal_scan_job routes through TradeEngine; 47 tests green |
 | B | Copy Trade Execution | MAJOR | ✅ MERGED | MERGED PR #948 (2026-05-11). CopyTradeMonitor wired through TradeEngine; 25 tests green |
 | C | Trade Notifications | STANDARD | ✅ MERGED | MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; 16 tests green |
-| D | Risk Caps + Kill Switch hardening | MAJOR | ❌ QUEUED | Hard exposure caps, daily loss, max open positions, kill switch |
-| E | Daily P&L Report | STANDARD | ❌ QUEUED | Scheduled daily summary in Telegram |
+| D | Live Gate Hardening | MAJOR | ✅ MERGED | MERGED PR #954 (2026-05-11). Slippage/market-impact gate step 14, risk assertion audit, parity hooks, readiness validator; WARP•SENTINEL APPROVED 92/100; 35 tests green |
+| E | Daily P&L Report | STANDARD | ❌ QUEUED | Scheduled daily Telegram summary |
 
 **During Week 1:**
 
@@ -32,7 +33,7 @@
 
 - Live gate preparation (SENTINEL + owner checklist)
 - UI improvements: charts, insights, better PNL surfaces
-- Referral / fee / share prep
+- Referral / fee / fee prep
 
 ## Week 3 — Multi-User Hardening
 
@@ -52,5 +53,6 @@
 - ENABLE_LIVE_TRADING = false
 - EXECUTION_PATH_VALIDATED = false
 - CAPITAL_MODE_CONFIRMED = false
+- RISK_CONTROLS_VALIDATED = false
 - USE_REAL_CLOB = false
 - Paper mode only until explicit owner decision
