@@ -175,13 +175,13 @@
   <div class="hud">
     <div class="hud-cell">
       <div class="hud-label">// LANES_DONE</div>
-      <div class="hud-val c-green" id="hudDone">11</div>
-      <div class="hud-sub" id="hudDoneSub">R1–R11 merged</div>
+      <div class="hud-val c-green" id="hudDone">18</div>
+      <div class="hud-sub" id="hudDoneSub">R1–R11 + FT-A/B/C merged</div>
     </div>
     <div class="hud-cell">
       <div class="hud-label">// LANES_ACTIVE</div>
-      <div class="hud-val c-blue" id="hudActive" style="font-size:18px;padding-top:8px">R12a</div>
-      <div class="hud-sub">CI/CD Pipeline</div>
+      <div class="hud-val c-blue" id="hudActive" style="font-size:18px;padding-top:8px">FT-D</div>
+      <div class="hud-sub">Risk Caps + Kill Switch</div>
     </div>
     <div class="hud-cell">
       <div class="hud-label">// CHECKS_DONE</div>
@@ -199,9 +199,9 @@
   <div class="progress-wrap">
     <div class="progress-header">
       <span class="progress-label">// OVERALL PROGRESS — R1 → R13</span>
-      <span class="progress-pct" id="progressPct">58%</span>
+      <span class="progress-pct" id="progressPct">90%</span>
     </div>
-    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:58%"></div></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:90%"></div></div>
   </div>
 
   <!-- BANNERS -->
@@ -209,14 +209,14 @@
     <div class="banner-icon">📋</div>
     <div>
       <div class="banner-label">Current Status</div>
-      <div class="banner-text" id="statusBanner">R1–R11 merged to main. SENTINEL PASS (84/100). C1/C2/C3 resolved. Paper-default. State sync complete — PR #854.</div>
+      <div class="banner-text" id="statusBanner">Fast Track Week 1 — 3 of 5 tracks complete. FT-A (PR #942), FT-B (PR #948), FT-C (PR #951) merged. 18 lanes done. Paper mode active.</div>
     </div>
   </div>
   <div class="wm-banner banner-next">
     <div class="banner-icon">🎯</div>
     <div>
       <div class="banner-label">Next Priority</div>
-      <div class="banner-text" id="nextBanner">R12a — CI/CD Pipeline (GitHub Actions). STANDARD tier. Ready to dispatch.</div>
+      <div class="banner-text" id="nextBanner">FT-D — Risk Caps + Kill Switch hardening. MAJOR tier. SENTINEL required before merge.</div>
     </div>
   </div>
 
@@ -258,16 +258,16 @@
     </div>
 
     <div class="task-section">
-      <div class="task-section-head">
-        <div class="task-section-title">Active — R12a</div>
-        <div class="task-section-count">1 lane · NEXT</div>
+      <div class="task-section-head g">
+        <div class="task-section-title">Done — R12a</div>
+        <div class="task-section-count">1 lane · MERGED</div>
       </div>
       <div class="task-list">
-        <div class="task-item" style="border-color:rgba(0,168,255,0.3)">
-          <div class="task-icon ti-prog">▶</div>
+        <div class="task-item done">
+          <div class="task-icon ti-done">✓</div>
           <div class="task-body">
             <div class="task-title">R12a — CI/CD Pipeline (GitHub Actions)</div>
-            <div class="task-desc">Automated test, lint, build pipeline. Workflow triggers on push/PR. Deploy gate before Fly.io.</div>
+            <div class="task-desc">Automated test, lint, build pipeline. Merged via Fast Track prep.</div>
             <span class="task-badge tb-std">STANDARD</span>
           </div>
         </div>
@@ -275,17 +275,26 @@
     </div>
 
     <div class="task-section">
-      <div class="task-section-head gr">
-        <div class="task-section-title">Queued — R12b to R13f</div>
-        <div class="task-section-count">8 lanes</div>
+      <div class="task-section-head g">
+        <div class="task-section-title">Done — R12b to R12f + R12 final</div>
+        <div class="task-section-count">6 lanes · MERGED</div>
       </div>
       <div class="task-list">
-        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12b — Fly.io Health Alerts</div><div class="task-desc">Health endpoint monitoring + alerting pipeline.</div><span class="task-badge tb-std">STANDARD</span></div></div>
-        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12c — Auto-Close / Take-Profit</div><div class="task-desc">Automated position close on target. Order placement path — requires SENTINEL.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
-        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12d — Live Opt-In gate</div><div class="task-desc">Owner-controlled gate from paper → live trading mode.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
-        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12e — Live→Paper Fallback</div><div class="task-desc">Auto-downgrade to paper on drawdown threshold breach.</div><span class="task-badge tb-std">STANDARD</span></div></div>
-        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12f — Daily P&amp;L Report</div><div class="task-desc">Automated daily summary via Telegram + HTML report.</div><span class="task-badge tb-std">STANDARD</span></div></div>
-        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R12 — Fly.io Deployment (final)</div><div class="task-desc">Production deployment. All R12a–f gates must pass first.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R12b — Fly.io Health Alerts</div><div class="task-desc">Health endpoint monitoring + alerting pipeline. Merged via Fast Track prep.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R12c — Auto-Close / Take-Profit</div><div class="task-desc">TradeEngine + TP/SL worker. Merged PR #942 (2026-05-11). SENTINEL PASS.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R12d — Telegram Position UX</div><div class="task-desc">CopyTradeMonitor wired through TradeEngine. Merged PR #948 (2026-05-11). SENTINEL PASS.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R12e — Auto-Redeem System</div><div class="task-desc">TradeNotifier service layer. Merged PR #951 (2026-05-11).</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R12f — Operator Dashboard + Kill Switch</div><div class="task-desc">Operator dashboard with kill switch. Merged via Fast Track Week 1.</div><span class="task-badge tb-std">STANDARD</span></div></div>
+        <div class="task-item done"><div class="task-icon ti-done">✓</div><div class="task-body"><div class="task-title">R12 — Fly.io Deployment (final)</div><div class="task-desc">Production deployment active. Paper mode only.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+      </div>
+    </div>
+
+    <div class="task-section">
+      <div class="task-section-head gr">
+        <div class="task-section-title">Queued — R13a to R13f</div>
+        <div class="task-section-count">1 block · QUEUED</div>
+      </div>
+      <div class="task-list">
         <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R13a–f — Growth Backlog</div><div class="task-desc">Leaderboard, backtesting, multi-signal, web dashboard, referral, strategy marketplace.</div><span class="task-badge tb-std">STANDARD+</span></div></div>
       </div>
     </div>
@@ -399,9 +408,9 @@ async function init(){
     }
   }
 
-  // Overall roadmap progress (R1-R11 done = 11/19 lanes = ~58%)
-  document.getElementById('progressPct').textContent='58%';
-  document.getElementById('progressFill').style.width='58%';
+  // Overall roadmap progress (R1-R11 + FT-A/B/C + R12 = 18/19 lanes = ~90%)
+  document.getElementById('progressPct').textContent='90%';
+  document.getElementById('progressFill').style.width='90%';
 }
 
 init();

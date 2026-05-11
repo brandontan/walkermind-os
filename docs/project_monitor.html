@@ -233,13 +233,13 @@
   <div class="hud">
     <div class="hud-cell">
       <div class="hud-label">// LANES_DONE</div>
-      <div class="hud-val c-green" id="metricDone">11</div>
-      <div class="hud-sub">R1–R11 merged</div>
+      <div class="hud-val c-green" id="metricDone">18</div>
+      <div class="hud-sub">R1–R11 + FT-A/B/C merged</div>
     </div>
     <div class="hud-cell">
       <div class="hud-label">// ACTIVE_LANE</div>
-      <div class="hud-val c-blue" id="metricActive" style="font-size:18px;padding-top:8px">R12a</div>
-      <div class="hud-sub" id="metricActiveSub">CI/CD Pipeline</div>
+      <div class="hud-val c-blue" id="metricActive" style="font-size:18px;padding-top:8px">FT-D</div>
+      <div class="hud-sub" id="metricActiveSub">Risk Caps + Kill Switch</div>
     </div>
     <div class="hud-cell">
       <div class="hud-label">// TOTAL_LANES</div>
@@ -249,7 +249,7 @@
     <div class="hud-cell">
       <div class="hud-label">// SENTINEL_PASS</div>
       <div class="hud-val c-green">✓</div>
-      <div class="hud-sub">R1–R11 validated</div>
+      <div class="hud-sub">R1–R11 + FT-A/B/C validated</div>
     </div>
   </div>
 
@@ -258,14 +258,14 @@
     <div class="banner-icon">📋</div>
     <div>
       <div class="banner-label">Current Status</div>
-      <div class="banner-text" id="currentStatusText">R1–R11 merged to main. SENTINEL PASS. C1/C2/C3 resolved. Paper-default mode. State sync complete via PR #854.</div>
+      <div class="banner-text" id="currentStatusText">Fast Track Week 1 — 3 of 5 tracks complete. FT-A (PR #942), FT-B (PR #948), FT-C (PR #951) merged. Paper mode active. R1–R11 + FT-A/B/C = 18 lanes done.</div>
     </div>
   </div>
   <div class="wm-banner banner-next">
     <div class="banner-icon">🎯</div>
     <div>
       <div class="banner-label">Next Priority</div>
-      <div class="banner-text" id="nextPriorityText">R12a — CI/CD Pipeline (GitHub Actions). STANDARD tier. Dispatch ready.</div>
+      <div class="banner-text" id="nextPriorityText">FT-D — Risk Caps + Kill Switch hardening. MAJOR tier. SENTINEL required before merge.</div>
     </div>
   </div>
 
@@ -367,13 +367,13 @@ const STATIC_ROADMAP = [
   {id:'R9', name:'Risk engine',                       status:'done',   tier:'MAJOR'},
   {id:'R10',name:'Telegram integration',              status:'done',   tier:'STANDARD'},
   {id:'R11',name:'Fee + referral accounting',         status:'done',   tier:'STANDARD'},
-  {id:'R12a',name:'CI/CD Pipeline (GitHub Actions)', status:'active', tier:'STANDARD'},
-  {id:'R12b',name:'Fly.io Health Alerts',            status:'next',   tier:'STANDARD'},
-  {id:'R12c',name:'Auto-Close / Take-Profit',        status:'pending',tier:'MAJOR'},
-  {id:'R12d',name:'Live Opt-In gate',                status:'pending',tier:'MAJOR'},
-  {id:'R12e',name:'Live→Paper Fallback',             status:'pending',tier:'STANDARD'},
-  {id:'R12f',name:'Daily P&L report',                status:'pending',tier:'STANDARD'},
-  {id:'R12', name:'Fly.io Deployment (final)',        status:'pending',tier:'MAJOR'},
+  {id:'R12a',name:'CI/CD Pipeline (GitHub Actions)', status:'done',   tier:'STANDARD'},
+  {id:'R12b',name:'Fly.io Health Alerts',            status:'done',   tier:'STANDARD'},
+  {id:'R12c',name:'Auto-Close / Take-Profit',        status:'done',   tier:'MAJOR'},
+  {id:'R12d',name:'Telegram Position UX',            status:'done',   tier:'MAJOR'},
+  {id:'R12e',name:'Auto-Redeem System',              status:'done',   tier:'STANDARD'},
+  {id:'R12f',name:'Operator Dashboard + Kill Switch',status:'done',   tier:'STANDARD'},
+  {id:'R12', name:'Fly.io Deployment (final)',        status:'done',   tier:'MAJOR'},
   {id:'R13+',name:'Growth backlog (a–f)',             status:'pending',tier:'STANDARD'},
 ];
 
@@ -464,10 +464,10 @@ function renderRoadmap(lanes){
 function renderActivityFeed(){
   const ps=state.projectState;
   const items=[
-    {dot:'fd-g',tag:'ft-merged',label:'MERGED',title:'R1–R11 import merged via PR #852 — SENTINEL PASS (84/100)'},
-    {dot:'fd-g',tag:'ft-merged',label:'SYNCED',title:'Post-merge state sync — PR #854 merged. ROADMAP + CHANGELOG + PROJECT_STATE updated.'},
-    {dot:'fd-b',tag:'ft-open',label:'ACTIVE',title:'R12a — CI/CD Pipeline (GitHub Actions) — NEXT PRIORITY'},
-    {dot:'fd-y',tag:'ft-warn',label:'NOTE',title:'C1: Idempotency key on order placement — resolved. C2: Risk constants frozen. C3: Deposit handler hardened.'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED',title:'FT-A merged — PR #942. TradeEngine FULL RUNTIME INTEGRATION; 47 tests green.'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED',title:'FT-B merged — PR #948. CopyTradeMonitor wired through TradeEngine; 23 tests green.'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED',title:'FT-C merged — PR #951. TradeNotifier service layer; 16 tests green.'},
+    {dot:'fd-b',tag:'ft-open',label:'ACTIVE',title:'FT-D — Risk Caps + Kill Switch hardening — NEXT PRIORITY. MAJOR tier. SENTINEL required.'},
     {dot:'fd-b',tag:'ft-info',label:'STATE',title:ps.updated?'Last updated: '+ps.updated:'State files synced'},
   ];
   document.getElementById('activityFeedCount').textContent=String(items.length);
