@@ -78,11 +78,19 @@ async def _fetch_daily_balance_series(
             # Keep updating anchor so it holds the balance at window start.
             anchor_balance = running
 
-    # Carry-forward: if the window has no entries but there is a pre-existing
-    # balance, show a flat line at that balance rather than an empty-state.
-    if not series and anchor_balance != 0 and cutoff_date is not None:
-        today = _today_jakarta()
-        series = [(cutoff_date, anchor_balance), (today, anchor_balance)]
+    # Carry-forward: inject the pre-window balance as the opening anchor so
+    # the chart always starts at cutoff_date with the correct balance.
+    #
+    # Case A — no in-window entries: flat line at the carry-forward balance.
+    # Case B — in-window entries exist but start after cutoff_date: prepend
+    #   the anchor so lows/highs reflect the full selected period, not just
+    #   the sub-range from the first transaction.
+    if anchor_balance != 0 and cutoff_date is not None:
+        if not series:
+            today = _today_jakarta()
+            series = [(cutoff_date, anchor_balance), (today, anchor_balance)]
+        elif series[0][0] > cutoff_date:
+            series.insert(0, (cutoff_date, anchor_balance))
 
     return series
 

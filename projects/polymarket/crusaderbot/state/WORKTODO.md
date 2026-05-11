@@ -1,7 +1,7 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-12 00:00
+**Last Updated:** 2026-05-11 22:00
 
 ---
 
@@ -10,7 +10,7 @@
 - Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-11). Issue #968 closed.
 - Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY.
-- NEXT: WARP🔹CMD review for Track G UI Premium Pack 1.
+- NEXT: WARP✔️CMD review for Track G (UI Premium Pack 1), Track H (Portfolio Charts + Insights, WARP/CRUSADERBOT-FAST-UI-PREMIUM-2), Track I (Referral + Share System).
 
 ---
 
@@ -18,9 +18,11 @@
 
 - [x] Premium PNL Insights UX -- MERGED PR #965 (2026-05-11), STANDARD, NARROW INTEGRATION. /insights command; insight_kb; dashboard:insights sub; my_trades nav update; 22 hermetic tests green; issue #963 closed.
 - [x] Track F -- Live Opt-In Gate -- MERGED PR #970 (2026-05-11). 3-step /enable_live gate; 4-guard check; mode_change_events audit (021); auto-fallback 60s monitor; 20 hermetic tests green; issue #968 closed.
-- [ ] Referral / fee / fee prep -- NOT STARTED.
+- [ ] Track G -- UI Premium Pack 1 -- PR open, WARP✔️CMD review required. STANDARD, NARROW INTEGRATION.
+- [ ] Track H -- Portfolio Charts + Insights -- PR open on WARP/CRUSADERBOT-FAST-UI-PREMIUM-2, WARP✔️CMD review required. STANDARD, NARROW INTEGRATION. /chart PNG photo; chart:7/30/all callbacks; /insights weekly breakdown; weekly_insights cron Monday 08:00 WIB; 29 hermetic tests green.
+- [ ] Track I -- Referral + Share System -- PR open, WARP✔️CMD review required. STANDARD, FOUNDATION.
 
-Done condition: WARP🔹CMD merge decision on each lane; activation guards remain OFF throughout.
+Done condition: WARP✔️CMD merge decision on each lane; activation guards remain OFF throughout.
 
 ---
 
@@ -61,7 +63,7 @@ Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wi
 - [x] R12 Live Readiness -- Daily P&L Summary (cron 23:00 Jakarta + /summary_on /summary_off) -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS (STANDARD, NARROW INTEGRATION)
 - [ ] R12 -- Deployment (Fly.io) final -- Lane 1B MERGED PR #901 (MAJOR, NARROW INTEGRATION, SENTINEL APPROVED 95/100). Lane 2C MERGED PR #907 (Telegram demo polish, CRU-6, MINOR, Claim NONE). Lane 1C MERGED PR #908 (2026-05-08) ca5f6f57 (STANDARD, NARROW INTEGRATION, SENTINEL APPROVED 98/100) -- migration 014 + seed/cleanup scripts + runbook, 514/514 tests green at merge. Operator prod verification pending per runbooks (Issue #900). Activation guards remain NOT SET.
 
-Done condition: All R12 lanes merged + activation guards reviewed by WARP🔹CMD before final deployment.
+Done condition: All R12 lanes merged + activation guards reviewed by WARP✔️CMD before final deployment.
 
 ---
 
