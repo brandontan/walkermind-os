@@ -32,6 +32,14 @@ def _truncate(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def _fmt_signed_usdc(value: Decimal | None) -> str:
+    """Format a USDC PnL value as a signed dollar string, e.g. +$8.50 or -$4.20."""
+    if value is None:
+        return "N/A"
+    sign = "+" if value >= 0 else "-"
+    return f"{sign}${abs(value):.2f}"
+
+
 def _safe_md(s: str) -> str:
     """Replace legacy Markdown reserved chars that break italic/bold markers.
 
@@ -212,14 +220,8 @@ def format_insights(data: dict) -> str:
 
     best_pnl = data["best_pnl"]
     worst_pnl = data["worst_pnl"]
-    best_sign = "+" if best_pnl is not None and best_pnl >= 0 else "-"
-    worst_sign = "+" if worst_pnl is not None and worst_pnl >= 0 else "-"
-    best_str = (
-        f"{best_sign}${abs(best_pnl):.2f}" if best_pnl is not None else "N/A"
-    )
-    worst_str = (
-        f"{worst_sign}${abs(worst_pnl):.2f}" if worst_pnl is not None else "N/A"
-    )
+    best_str = _fmt_signed_usdc(best_pnl)
+    worst_str = _fmt_signed_usdc(worst_pnl)
     best_title = _safe_md(data.get("best_title") or "—")
     worst_title = _safe_md(data.get("worst_title") or "—")
 

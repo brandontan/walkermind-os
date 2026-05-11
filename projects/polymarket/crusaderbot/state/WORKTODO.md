@@ -16,7 +16,7 @@
 
 ## Fast Track Week 2 -- Live Gate + Premium UX
 
-- [x] Premium PNL Insights UX -- PR open WARP/crusaderbot-premium-pnl-insights (2026-05-11), STANDARD, NARROW INTEGRATION. /insights command; insight_kb; dashboard:insights sub; my_trades nav update; 15 hermetic tests green; issue #963.
+- [x] Premium PNL Insights UX -- PR open WARP/crusaderbot-premium-pnl-insights (2026-05-11), STANDARD, NARROW INTEGRATION. /insights command; insight_kb; dashboard:insights sub; my_trades nav update; 22 hermetic tests green; issue #963.
 - [ ] Live gate preparation (SENTINEL + owner checklist) -- NOT STARTED.
 - [ ] Referral / fee / fee prep -- NOT STARTED.
 

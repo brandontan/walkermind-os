@@ -73,21 +73,22 @@ State updates (this same PR):
 
 ## 4. What is working
 
-- 21 hermetic tests green under pytest 9.0.2 / pytest-asyncio 0.23:
+- 22 hermetic tests green under pytest 9.0.2 / pytest-asyncio 0.23:
   - `format_insights`: empty state, wins-only (∞ profit factor), losses-only, mixed,
     best/worst PnL string rendering, negative best_pnl (all-loss account).
   - `_compute_streak`: empty, win streak, loss streak, direction break, break-even-as-loss.
-  - `_safe_md`: strips `_`, `*`, `` ` ``, `[`; leaves plain text intact; applied in formatter.
+  - `_safe_md`: strips `_`, `*`, `` ` ``, `[`, `\`; leaves plain text intact; applied in formatter.
   - Keyboard structure: `insights_kb` buttons, `dashboard_nav` Insights presence/absence,
     `my_trades_main_kb` Insights link.
-  - Paper-mode boundary: static source inspection asserts `mode = 'paper'` appears in
-    all 4 queries inside `_fetch_insights` — regression-proof.
+  - Paper-mode boundary: per-query source inspection splits on each `await conn.fetchrow/fetch(`
+    call and asserts each of the 4 blocks individually contains `mode = 'paper'` — regression-proof
+    even when aggregate query has multiple filter occurrences.
 - Pure functions (`format_insights`, `_compute_streak`, `_safe_md`) are fully decoupled
   from DB and Telegram runtime — testable with no mocks.
 - All 4 DB queries in `_fetch_insights` filter `mode = 'paper'` — live positions cannot
   leak into the paper insights surface after activation guards change.
-- `best_pnl` and `worst_pnl` formatted with explicit sign + abs() following the
-  `_fmt_signed` pattern from `daily_pnl_summary.py`; no `+$-N.NN` rendering.
+- `best_pnl` and `worst_pnl` formatted via `_fmt_signed_usdc(value: Decimal | None) -> str`
+  helper (sign + abs()); no `+$-N.NN` rendering; Python 3.11-safe (no quote-nesting in f-strings).
 - Dispatcher registers `/insights` command before the free-text fallback and registers
   `insights:` callback before Phase 5I my_trades handlers.
 - Tier gate (ALLOWLISTED = Tier 2+) enforced on both command and callback paths.

@@ -1,5 +1,5 @@
 Last Updated : 2026-05-11 23:00
-Status       : Fast Track Week 1 Tracks A-E MERGED. Week 2 first lane: CrusaderBot Premium PNL Insights UX (issue #963) — /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 21 hermetic tests green; replacement PR opened from WARP/crusaderbot-premium-pnl-insights. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF.
+Status       : Fast Track Week 1 Tracks A-E MERGED. Week 2 first lane: CrusaderBot Premium PNL Insights UX (issue #963) — /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; replacement PR opened from WARP/crusaderbot-premium-pnl-insights. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
