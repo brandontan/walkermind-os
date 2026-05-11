@@ -199,9 +199,9 @@
   <div class="progress-wrap">
     <div class="progress-header">
       <span class="progress-label">// OVERALL PROGRESS — R1 → R13</span>
-      <span class="progress-pct" id="progressPct">90%</span>
+      <span class="progress-pct" id="progressPct">95%</span>
     </div>
-    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:90%"></div></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:95%"></div></div>
   </div>
 
   <!-- BANNERS -->
@@ -291,10 +291,12 @@
 
     <div class="task-section">
       <div class="task-section-head gr">
-        <div class="task-section-title">Queued — R13a to R13f</div>
-        <div class="task-section-count">1 block · QUEUED</div>
+        <div class="task-section-title">Queued — FT-D, FT-E, R13a–f</div>
+        <div class="task-section-count">3 items · QUEUED</div>
       </div>
       <div class="task-list">
+        <div class="task-item" style="border-color:rgba(251,191,36,0.3)"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">FT-D — Risk Caps + Kill Switch hardening</div><div class="task-desc">Hard exposure caps, daily loss, max open positions, kill switch. SENTINEL required.</div><span class="task-badge tb-major">MAJOR</span><span class="task-badge tb-sentinel" style="margin-left:6px">SENTINEL</span></div></div>
+        <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">FT-E — Daily P&amp;L Report</div><div class="task-desc">Scheduled daily summary in Telegram.</div><span class="task-badge tb-std">STANDARD</span></div></div>
         <div class="task-item"><div class="task-icon ti-pend">○</div><div class="task-body"><div class="task-title">R13a–f — Growth Backlog</div><div class="task-desc">Leaderboard, backtesting, multi-signal, web dashboard, referral, strategy marketplace.</div><span class="task-badge tb-std">STANDARD+</span></div></div>
       </div>
     </div>
@@ -317,7 +319,7 @@
 const BASE='https://raw.githubusercontent.com/bayuewalker/walkermind-os/main/projects/polymarket/crusaderbot/state/';
 function setTs(){const t=new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});document.getElementById('ts').innerHTML='Updated: <span>'+t+'</span>';}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function cleanLine(r){return String(r||'').replace(/^\uFEFF/,'').replace(/^\s{0,3}#{1,6}\s*/,'').replace(/\*\*(.*?)\*\*/g,'$1').replace(/`([^`]+)`/g,'$1').trim();}
+function cleanLine(r){return String(r||'').replace(/^﻿/,'').replace(/^\s{0,3}#{1,6}\s*/,'').replace(/\*\*(.*?)\*\*/g,'$1').replace(/`([^`]+)`/g,'$1').trim();}
 
 async function fetchSrc(url){
   try{const r=await fetch(url+'?v='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error(r.status);return await r.text();}
@@ -408,9 +410,9 @@ async function init(){
     }
   }
 
-  // Overall roadmap progress (R1-R11 + FT-A/B/C + R12 = 18/19 lanes = ~90%)
-  document.getElementById('progressPct').textContent='90%';
-  document.getElementById('progressFill').style.width='90%';
+  // Overall roadmap progress (R1-R11 + FT-A/B/C + R12 = 18/19 lanes = ~95%)
+  document.getElementById('progressPct').textContent='95%';
+  document.getElementById('progressFill').style.width='95%';
 }
 
 init();
