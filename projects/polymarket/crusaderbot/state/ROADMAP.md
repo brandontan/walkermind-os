@@ -1,14 +1,14 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 21:45 Asia/Jakarta
+**Last Updated:** 2026-05-11 23:45 Asia/Jakarta
 
 ## Current Posture
 
 - Production: LIVE on Fly.io (PAPER ONLY)
 - Telegram UX Phase 5A-5J complete
 - Real CLOB Phase 4A-4E complete; live path guarded
-- Week 1 Fast Track Tracks A-E merged
+- Week 1 Fast Track Tracks A-E + Premium PNL Insights MERGED — Week 1 fully complete
 - Activation guards: OFF (do not touch)
 - Roadmap Mode: FAST TRACK (Mr. Walker decision)
 
@@ -21,6 +21,7 @@
 | C | Trade Notifications | STANDARD | ✅ MERGED | MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; paper.py wired; 16 tests green |
 | D | Live Gate Hardening | MAJOR | ✅ MERGED | MERGED PR #954 (2026-05-11). Slippage/market-impact gate step 14, risk assertion audit, parity hooks, readiness validator; WARP•SENTINEL APPROVED 92/100; 35 tests green |
 | E | Daily P&L Report | STANDARD | ✅ MERGED | MERGED PR #962 (2026-05-11). Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed |
+| PNL | Premium PNL Insights UX | STANDARD | ✅ MERGED | MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary, _safe_md title escaping, best_pnl sign fix; 22 tests green; issue #963 closed |
 
 **During Week 1:**
 
@@ -29,11 +30,11 @@
 - PAPER only
 - SENTINEL required for MAJOR lanes
 
-## Week 2 – Live Gate + Premium UX
+## Week 2 – Live Gate + Premium UX — NEXT / IN QUEUE
 
-- Live gate preparation (SENTINEL + owner checklist)
-- UI improvements: charts, insights, better PNL surfaces
-- Referral / fee / fee prep
+- Track F: Live Opt-In Gate (SENTINEL + owner checklist) — NEXT LANE
+- Charts / insights follow-on (post-PNL-Insights)
+- Referral / fee prep
 
 ## Week 3 — Multi-User Hardening
 
