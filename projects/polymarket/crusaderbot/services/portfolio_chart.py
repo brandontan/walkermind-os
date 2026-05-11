@@ -67,12 +67,22 @@ async def _fetch_daily_balance_series(
         return []
 
     running = Decimal(0)
+    anchor_balance = Decimal(0)  # last cumulative balance before the window
     series: list[tuple[date, Decimal]] = []
     for row in rows:
         running += Decimal(str(row["daily_net"] or 0))
         day: date = row["day"]
         if cutoff_date is None or day >= cutoff_date:
             series.append((day, running))
+        else:
+            # Keep updating anchor so it holds the balance at window start.
+            anchor_balance = running
+
+    # Carry-forward: if the window has no entries but there is a pre-existing
+    # balance, show a flat line at that balance rather than an empty-state.
+    if not series and anchor_balance != 0 and cutoff_date is not None:
+        today = _today_jakarta()
+        series = [(cutoff_date, anchor_balance), (today, anchor_balance)]
 
     return series
 
