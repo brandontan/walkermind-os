@@ -1,5 +1,5 @@
 Last Updated : 2026-05-12 07:00
-Status       : Track J Multi-User Isolation Audit: WARP•SENTINEL APPROVED 98/100, zero critical issues. Awaiting WARP🔹CMD merge decision. Production PAPER ONLY. Activation guards remain OFF.
+Status       : Track J Multi-User Isolation Audit MERGED PR #988. 24 hermetic tests green. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -19,9 +19,9 @@ Status       : Track J Multi-User Isolation Audit: WARP•SENTINEL APPROVED 98/1
 - Track I -- Referral + Share System built (2026-05-11). referral_codes/referral_events/fees/fee_config tables (migration 022); /referral command; deep-link join wiring on /start; [Share] button on winning trade notifications; share card handler; fee logic gated (FEE_COLLECTION_ENABLED=False); referral payout gated (REFERRAL_PAYOUT_ENABLED=False); 18 hermetic tests; PR open.
 - Track L -- Onboarding Polish built (2026-05-11). /start 2-step flow (Welcome → Mode Select → Paper/Live); /help categorized (TRADING/PORTFOLIO/SETTINGS/ADMIN); ADMIN section operator-gated; 5 command aliases (/scan /pnl /close /trades /mode); 15 hermetic tests green; STANDARD, PRESENTATION.
 - MomentumReversalStrategy adapter MERGED PR #978 (2026-05-11). Scan contract, registry bootstrap, STRATEGY_AVAILABILITY updated (momentum_reversal: balanced+aggressive); 50 hermetic tests green; issue #975 closed. STANDARD, NARROW INTEGRATION.
+- Track J -- Multi-User Isolation Audit MERGED PR #988 (2026-05-12). 120+ queries audited; zero isolation violations; 24 hermetic tests green; runtime isolation + concurrent stress + admin boundary; MAJOR, FULL RUNTIME INTEGRATION.
 
 [IN PROGRESS]
-- Track J Multi-User Isolation Audit: PR #988 open on WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT. MAJOR, FULL RUNTIME INTEGRATION. 24 hermetic tests green. WARP•SENTINEL APPROVED 98/100, zero critical issues. Awaiting WARP🔹CMD merge decision.
 - Track K Access Tiers + Admin Panel: PR open on WARP/CRUSADERBOT-FAST-ADMIN. STANDARD, FOUNDATION. 29 hermetic tests green. Awaiting WARP🔹CMD review.
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
@@ -40,7 +40,6 @@ Status       : Track J Multi-User Isolation Audit: WARP•SENTINEL APPROVED 98/1
 - Before-live hardening: add AND user_id=$N guard to position_id-only UPDATEs in domain/positions/registry.py (update_current_price line 200, record_close_failure line 215, reset_close_failure line 229, finalize_close_failed line 250) and domain/execution/paper.py close_position UPDATE line 114. Required before ENABLE_LIVE_TRADING activation; safe to defer for PAPER ONLY posture.
 
 [NEXT PRIORITY]
-- WARP🔹CMD merge decision required for Track J Multi-User Isolation Audit. PR #988. WARP•SENTINEL APPROVED 98/100, zero critical issues. Source: projects/polymarket/crusaderbot/reports/sentinel/CRUSADERBOT-FAST-ISOLATION-AUDIT.md.
 - WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track L Onboarding Polish PR. Source: projects/polymarket/crusaderbot/reports/forge/onboarding-polish.md. Tier: STANDARD.
 - WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
