@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 02:00
-Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). Track G and Track I PRs open awaiting WARP🔹CMD review. Track F SENTINEL APPROVED 97/100 awaiting merge. MomentumReversalStrategy adapter PR #978 open. Production PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 01:00
+Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). Track G and Track I PRs open awaiting WARP🔹CMD review. Track F SENTINEL APPROVED 97/100 awaiting merge. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.

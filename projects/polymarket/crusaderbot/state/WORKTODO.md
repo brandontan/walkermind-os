@@ -1,7 +1,7 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-12 02:00
+**Last Updated:** 2026-05-12 01:00
 
 ---
 
@@ -10,7 +10,7 @@
 - Track H -- Portfolio Charts + Insights MERGED PR #979 (2026-05-12).
 - Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY.
-- NEXT: WARP🔹CMD review for Track G (UI Premium Pack 1), Track I (Referral + Share System), PR #978 (MomentumReversalStrategy adapter).
+- NEXT: WARP🔹CMD review for Track G (UI Premium Pack 1), Track I (Referral + Share System).
 
 ---
 
