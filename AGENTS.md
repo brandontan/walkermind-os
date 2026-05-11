@@ -447,7 +447,7 @@ Detailed behavior for each shortcut lives in `COMMANDER.md`.
 | `start work` | Read repo truth, identify active lane, return summary + recommended action |
 | `sync and continue` | Run project sync then proceed into next lane |
 | `project sync` | Check drift across state files, return sync status and required actions |
-| `cek pr` | List all open PRs with current status |
+| `cek pr` / `cek` / `recheck` / `cek all` | Full PR+Issue review cycle: fetch (limit 5 each), decide, execute (merge/close/fix-comment), return summary |
 | `merge pr` | Inspect PR, evaluate gates, merge if clean |
 | `close pr` | Inspect PR, close if justified, post reason |
 | `degen mode on` | Activate degen mode (Mr. Walker only) |
