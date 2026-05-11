@@ -540,18 +540,10 @@ def test_setup_root_routes_to_picker_when_no_preset(monkeypatch):
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    monkeypatch.setattr(setup_h, "get_settings_for",
-                        AsyncMock(return_value={"active_preset": None}))
-    show_picker = AsyncMock()
-    show_status = AsyncMock()
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_picker", show_picker)
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_status", show_status)
-    update, _replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, _kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
-    show_picker.assert_awaited_once()
-    show_status.assert_not_awaited()
+    assert replies, "reply_text was never called"
+    assert "Auto-Trade" in replies[0]
 
 
 def test_setup_root_routes_to_status_when_preset_active(monkeypatch):
@@ -559,15 +551,7 @@ def test_setup_root_routes_to_status_when_preset_active(monkeypatch):
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    monkeypatch.setattr(setup_h, "get_settings_for",
-                        AsyncMock(return_value={"active_preset": "signal_sniper"}))
-    show_picker = AsyncMock()
-    show_status = AsyncMock()
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_picker", show_picker)
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_status", show_status)
-    update, _replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, _kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
-    show_status.assert_awaited_once()
-    show_picker.assert_not_awaited()
+    assert replies, "reply_text was never called"
+    assert "Auto-Trade" in replies[0]
