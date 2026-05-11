@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 23:45
-Status       : Fast Track Week 1 fully complete — Tracks A-E + Premium PNL Insights MERGED (PR #965); issue #963 closed. Week 2 Track F (Live Opt-In Gate) is next lane. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF.
+Last Updated : 2026-05-11 23:51
+Status       : WARP•SENTINEL APPROVED Track F Live Opt-In Gate PR #970 (97/100, 0 critical). P1 pre-merge items for WARP🔹CMD: branch rename (claude/* forbidden) + Claim Level in PR body. Production remains PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -25,7 +25,7 @@ Status       : Fast Track Week 1 fully complete — Tracks A-E + Premium PNL Ins
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Week 2 Track F -- Live Opt-In Gate is next lane. Open issue: #966 (post-merge state sync PR, current task).
+- WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch from claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
 - Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
@@ -42,3 +42,5 @@ Status       : Fast Track Week 1 fully complete — Tracks A-E + Premium PNL Ins
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
 - [DEFERRED] Forge report Known Issues section for Track D references stale parity patch approach (gate.get_settings); code is correct post-Codex fix; documentation drift only.
 - [DEFERRED] check_price_deviation() not yet wired into live execution path; callable and tested; deferred until ENABLE_LIVE_TRADING gate is considered.
+- [DEFERRED] auto_fallback.py: audit event written after mode switch, not before — found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
+- [DEFERRED] live_gate.py: AWAITING_STEP2 not proactively expired if Step 3 button never pressed — found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
