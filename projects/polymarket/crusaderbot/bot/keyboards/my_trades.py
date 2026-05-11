@@ -39,9 +39,6 @@ def my_trades_main_kb(position_ids: list[UUID | str]) -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 "📊 Insights", callback_data="insights:refresh"
             ),
-            InlineKeyboardButton(
-                "🏠 Dashboard", callback_data="dashboard:main"
-            ),
         ]
     )
     return InlineKeyboardMarkup(rows)
@@ -68,16 +65,7 @@ def close_confirm_kb(position_id: UUID | str) -> InlineKeyboardMarkup:
 def close_success_kb() -> InlineKeyboardMarkup:
     """Navigation buttons shown after a successful position close."""
     return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    "📈 My Trades", callback_data="mytrades:back"
-                ),
-                InlineKeyboardButton(
-                    "📊 Dashboard", callback_data="dashboard:main"
-                ),
-            ]
-        ]
+        [[InlineKeyboardButton("📈 My Trades", callback_data="mytrades:back")]]
     )
 
 

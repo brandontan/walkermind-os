@@ -11,7 +11,7 @@ from ...database import get_pool
 from ...users import get_settings_for, update_settings, upsert_user
 from ..keyboards import (
     autoredeem_picker, category_picker, mode_picker, risk_picker,
-    setup_menu, strategy_picker,
+    setup_menu, strategy_card_kb, strategy_picker,
 )
 from ..tier import Tier, has_tier, tier_block_message
 from . import presets as presets_handler
@@ -33,21 +33,34 @@ async def _ensure_tier2(update: Update) -> tuple[dict | None, bool]:
     return user, True
 
 
-async def setup_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Phase 5C entry point: route to preset status card or preset picker.
+_AUTOTRADE_TEXT = (
+    "🤖 *Auto-Trade Strategy*\n"
+    "──────────────────\n"
+    "Pick your trading strategy:\n\n"
+    "📡 *Signal*\n"
+    "Reacts to market momentum shifts.\n"
+    "_Best for: short-term moves._\n\n"
+    "🔍 *Edge Finder*\n"
+    "Finds underpriced contracts.\n"
+    "_Best for: medium-term holds._\n\n"
+    "🔄 *Momentum Reversal*\n"
+    "Detects overreaction, trades the bounce.\n"
+    "_Best for: contrarian plays._\n\n"
+    "⚡ *All Strategies*\n"
+    "Runs all three in parallel."
+)
 
-    The legacy raw-strategy menu is preserved at ``setup_legacy_root`` so the
-    advanced surface (categories, mode picker, autoredeem mode) remains
-    reachable for power users.
-    """
+
+async def setup_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """🤖 Auto-Trade reply-keyboard button → strategy card picker (single render)."""
     user, ok = await _ensure_tier2(update)
     if not ok or update.message is None:
         return
-    s = await get_settings_for(user["id"])
-    if s.get("active_preset"):
-        await presets_handler.show_preset_status(update, ctx)
-    else:
-        await presets_handler.show_preset_picker(update, ctx)
+    await update.message.reply_text(
+        _AUTOTRADE_TEXT,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=strategy_card_kb(),
+    )
 
 
 async def setup_legacy_root(update: Update,
@@ -85,8 +98,13 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         await q.message.edit_reply_markup(reply_markup=setup_menu())
         return
     if sub == "strategy":
-        await q.message.reply_text("Pick strategies:",
-                                   reply_markup=strategy_picker(s["strategy_types"]))
+        # Route to the new strategy card UI.
+        await q.message.reply_text(
+            _AUTOTRADE_TEXT,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=strategy_card_kb(),
+        )
+        return
     elif sub == "risk":
         await q.message.reply_text("Pick risk profile:",
                                    reply_markup=risk_picker(s["risk_profile"]))
@@ -134,6 +152,7 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def set_strategy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Legacy checkbox strategy toggle — used by presets and /setup_advanced."""
     q = update.callback_query
     if q is None:
         return
@@ -152,6 +171,51 @@ async def set_strategy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         cur = ["copy_trade"]
     await update_settings(user["id"], strategy_types=cur)
     await q.message.edit_reply_markup(reply_markup=strategy_picker(cur))
+
+
+# Internal mapping: user-facing card label → backend strategy name(s).
+_CARD_TO_BACKEND: dict[str, list[str]] = {
+    "signal":              ["signal"],
+    "edge_finder":         ["value"],
+    "momentum_reversal":   ["momentum_reversal"],
+    "all":                 ["signal", "value", "momentum_reversal"],
+}
+
+_CARD_CONFIRM: dict[str, str] = {
+    "signal":            "Signal",
+    "edge_finder":       "Edge Finder",
+    "momentum_reversal": "Momentum Reversal",
+    "all":               "All Strategies",
+}
+
+
+async def set_strategy_card(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle strategy:<card> callbacks from the Auto-Trade strategy card menu."""
+    q = update.callback_query
+    if q is None:
+        return
+    await q.answer()
+    user, ok = await _ensure_tier2(update)
+    if not ok:
+        return
+    card = (q.data or "").split(":", 1)[-1]
+
+    if card == "back":
+        from ..keyboards import main_menu
+        await q.message.reply_text("Main menu:", reply_markup=main_menu())
+        return
+
+    backend = _CARD_TO_BACKEND.get(card)
+    if backend is None:
+        return
+
+    await update_settings(user["id"], strategy_types=backend)
+    label = _CARD_CONFIRM.get(card, card)
+    await q.message.reply_text(
+        f"✅ Strategy set to *{label}*.",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=strategy_card_kb(),
+    )
 
 
 async def set_risk(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

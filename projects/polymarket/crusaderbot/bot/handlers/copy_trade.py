@@ -313,7 +313,22 @@ async def copy_trade_callback(
     if action == "discover" or action.startswith("discover:"):
         await q.answer()
         category = action[len("discover:"):] if ":" in action else "top_pnl"
-        wallets = await fetch_top_wallets(category or None)
+        try:
+            wallets = await fetch_top_wallets(category or None)
+        except Exception as exc:
+            logger.warning("copy trade leaderboard fetch failed: %s", exc)
+            wallets = []
+        if not wallets:
+            if q.message:
+                await q.message.edit_text(
+                    "🐋 *Copy Trade*\n\nWallet data temporarily unavailable.",
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔄 Retry", callback_data=f"copytrade:discover:{category}")],
+                        [InlineKeyboardButton("↩️ Back", callback_data="copytrade:dashboard")],
+                    ]),
+                )
+            return
         text = _leaderboard_text(wallets, category)
         if q.message:
             await q.message.edit_text(

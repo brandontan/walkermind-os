@@ -47,7 +47,7 @@ from ...domain.execution import paper as paper_exec
 from ...domain.trading import repository as repo
 from ...integrations.polymarket import get_book
 from ...monitoring import alerts as monitoring_alerts
-from ...users import upsert_user
+from ...users import get_settings_for, upsert_user
 from ..keyboards.my_trades import (
     close_confirm_kb,
     close_success_kb,
@@ -133,11 +133,16 @@ def _fmt_current(mark: Optional[float], side: str, entry: float,
 
 
 def _format_positions_section(
-    positions: list[dict], marks: list[Optional[float]]
+    positions: list[dict],
+    marks: list[Optional[float]],
+    tp_pct: Optional[float],
+    sl_pct: Optional[float],
 ) -> str:
     count = len(positions)
     if count == 0:
         return "Open Positions\n\nNo open positions."
+    tp_str = f"+{tp_pct * 100:.0f}%" if tp_pct is not None else "—"
+    sl_str = f"-{sl_pct * 100:.0f}%" if sl_pct is not None else "—"
     lines = [f"Open Positions ({count})\n"]
     for i, (pos, mark) in enumerate(zip(positions, marks), start=1):
         title = _truncate(pos["question"] or pos["market_id"], _MARKET_MAX)
@@ -147,9 +152,8 @@ def _format_positions_section(
         current_str = _fmt_current(mark, pos["side"], entry, size)
         lines.append(
             f"{i}. {title}\n"
-            f"   Side: {side_label} at ${entry:.2f}\n"
-            f"   Size: ${size:.2f}\n"
-            f"   Current: {current_str}"
+            f"   {side_label} @ ${entry:.3f} → {current_str}\n"
+            f"   TP: {tp_str} | SL: {sl_str}"
         )
     return "\n\n".join(lines)
 
@@ -171,11 +175,13 @@ def _build_main_text(
     positions: list[dict],
     marks: list[Optional[float]],
     activity: list[dict],
+    tp_pct: Optional[float] = None,
+    sl_pct: Optional[float] = None,
 ) -> str:
-    pos_section = _format_positions_section(positions, marks)
+    pos_section = _format_positions_section(positions, marks, tp_pct, sl_pct)
     act_section = _format_activity_section(activity)
     return (
-        f"*My Trades*\n"
+        f"*📈 My Trades*\n"
         f"{_SEP}\n\n"
         f"{pos_section}\n\n"
         f"{_SEP}\n\n"
@@ -215,6 +221,10 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     positions = await repo.get_open_positions(user["id"])
     activity = await repo.get_recent_activity(user["id"], limit=5)
+    s = await get_settings_for(user["id"])
+
+    tp_pct = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+    sl_pct = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
 
     token_ids: list[Optional[str]] = [
         (p["yes_token_id"] if p["side"] == "yes" else p["no_token_id"])
@@ -224,7 +234,7 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await asyncio.gather(*(_fetch_mark(tid) for tid in token_ids))
     ) if token_ids else []
 
-    text = _build_main_text(positions, marks, activity)
+    text = _build_main_text(positions, marks, activity, tp_pct, sl_pct)
     kb = my_trades_main_kb([p["id"] for p in positions])
     await update.message.reply_text(
         text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
@@ -409,6 +419,10 @@ async def back_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     positions = await repo.get_open_positions(user["id"])
     activity = await repo.get_recent_activity(user["id"], limit=5)
+    s = await get_settings_for(user["id"])
+
+    tp_pct = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+    sl_pct = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
 
     token_ids: list[Optional[str]] = [
         (p["yes_token_id"] if p["side"] == "yes" else p["no_token_id"])
@@ -418,7 +432,7 @@ async def back_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await asyncio.gather(*(_fetch_mark(tid) for tid in token_ids))
     ) if token_ids else []
 
-    text = _build_main_text(positions, marks, activity)
+    text = _build_main_text(positions, marks, activity, tp_pct, sl_pct)
     kb = my_trades_main_kb([p["id"] for p in positions])
     await q.message.reply_text(
         text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
