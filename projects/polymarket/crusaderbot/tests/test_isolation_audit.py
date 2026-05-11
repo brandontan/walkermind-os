@@ -418,6 +418,9 @@ class TestRuntimeIsolation:
             ):
                 await _fetch_daily_balance_series(_UID_A, cutoff_date=None)
 
+            assert any("ledger" in sql.lower() for sql, _ in calls), (
+                "_fetch_daily_balance_series made no ledger query — chart path broken"
+            )
             for sql, args in calls:
                 if "ledger" in sql.lower():
                     assert _UID_A in args, (
@@ -603,13 +606,23 @@ class TestConcurrentIsolation:
 
         results = asyncio.run(_run())
         # tasks were appended as [A_open, A_closed, B_open, B_closed, ...] so
-        # expected uid for each result slot follows the same interleaved order.
-        expected_uids = []
+        # expected uid and minimum row count follow the same interleaved order.
+        # _UID_C has no positions, so its tasks return 0 rows (correct).
+        _open_counts = {_UID_A: 3, _UID_B: 2, _UID_C: 0}
+        _closed_counts = {_UID_A: 1, _UID_B: 1, _UID_C: 0}
+        expected_uids: list[UUID] = []
+        expected_min_counts: list[int] = []
         for uid in [_UID_A, _UID_B, _UID_C, _UID_A, _UID_B]:
-            expected_uids.append(uid)  # open task
-            expected_uids.append(uid)  # closed task
+            expected_uids.append(uid)
+            expected_min_counts.append(_open_counts[uid])
+            expected_uids.append(uid)
+            expected_min_counts.append(_closed_counts[uid])
 
-        for expected_uid, result in zip(expected_uids, results):
+        for expected_uid, min_count, result in zip(expected_uids, expected_min_counts, results):
+            assert len(result) >= min_count, (
+                f"query for {expected_uid} returned {len(result)} rows, "
+                f"expected >= {min_count} — wrong-user binding may have caused empty result"
+            )
             for row in result:
                 assert row.get("user_id") == expected_uid, (
                     f"Cross-user bleed: query for {expected_uid} "
