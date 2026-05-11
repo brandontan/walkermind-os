@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 10:00
-Status       : Fast Track Track A FULL RUNTIME INTEGRATION complete. TradeEngine wired into active signal scan runtime; signal_scan_job._process_candidate now routes through TradeEngine (gate + paper fill) on all normal paths; 47 hermetic tests green. PR open on WARP/crusaderbot-fast-trade-engine; WARP•SENTINEL validation required before merge. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 14:30
+Status       : Fast Track Track A FULL RUNTIME INTEGRATION validated. WARP•SENTINEL verdict APPROVED (96/100, 0 critical) on WARP/crusaderbot-fast-trade-engine / PR #942. TradeEngine wired into active signal scan runtime; signal_scan_job._process_candidate routes through TradeEngine (gate + paper fill) on all normal paths; crash-recovery direct router path narrow and kill-switch-guarded; 47+26 hermetic tests green. Activation guards remain NOT SET. PR #942 cleared for WARP🔹CMD final merge decision.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -12,7 +12,7 @@ Status       : Fast Track Track A FULL RUNTIME INTEGRATION complete. TradeEngine
 - Fast Track roadmap selected by Mr. Walker on 2026-05-10; Standard roadmap rejected for current execution posture.
 
 [IN PROGRESS]
-- Fast Track Track A — TradeEngine wired into active scan runtime; signal_scan_job uses TradeEngine on all normal paths; PR open on WARP/crusaderbot-fast-trade-engine (Tier MAJOR, Claim FULL RUNTIME INTEGRATION). 47 hermetic tests green. WARP•SENTINEL validation pending before merge.
+- Fast Track Track A — TradeEngine wired into active scan runtime; signal_scan_job uses TradeEngine on all normal paths; PR #942 open on WARP/crusaderbot-fast-trade-engine (Tier MAJOR, Claim FULL RUNTIME INTEGRATION). WARP•SENTINEL verdict APPROVED 96/100, 0 critical. SENTINEL report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-fast-trade-engine.md. Awaiting WARP🔹CMD final merge decision.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -27,7 +27,7 @@ Status       : Fast Track Track A FULL RUNTIME INTEGRATION complete. TradeEngine
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for Fast Track Track A before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-engine.md. Tier: MAJOR.
+- WARP🔹CMD final merge decision for PR #942 (Fast Track Track A). SENTINEL APPROVED 96/100, 0 critical. Source: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-fast-trade-engine.md.
 - After Track A merge: unblock Track B (Copy Trade execution) and Track C (trade notifications).
 - Do not flip activation guards.
 
@@ -42,3 +42,4 @@ Status       : Fast Track Track A FULL RUNTIME INTEGRATION complete. TradeEngine
 - [DEFERRED] CLOB circuit-open Telegram alert text uses plain markdown rather than MarkdownV2; P2, acceptable for static template.
 - [DEFERRED] Ops dashboard CLOB circuit card refreshes only via page-level 30s meta refresh; SSE/WS push is future enhancement.
 - [DEFERRED] Package-level single-instance CircuitBreaker is adequate for single-broker steady state; per-broker instances can be passed via circuit_breaker kwarg if needed.
+- [DEFERRED] signal_scan_job._load_stale_queued_row has no age discriminator; in-flight 'queued' rows from a concurrent tick may be treated as crash-recovery candidates. Paper engine idempotency keeps this safe — found in WARP/crusaderbot-fast-trade-engine (PR #942). P2.
