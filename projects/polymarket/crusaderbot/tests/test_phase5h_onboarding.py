@@ -278,17 +278,17 @@ def test_mode_live_shows_redirect_and_ends():
 # 11: view_dashboard_cb delegates to dashboard handler
 # ---------------------------------------------------------------------------
 
-def test_view_dashboard_cb_calls_dashboard():
+def test_view_dashboard_cb_calls_show_dashboard_for_cb():
     update, replies = _make_cb_update("onboard:view_dashboard")
     ctx = _ctx()
 
-    mock_dashboard = AsyncMock()
+    mock_show = AsyncMock()
     import projects.polymarket.crusaderbot.bot.handlers.dashboard as dash_mod
 
-    with patch.object(dash_mod, "dashboard", mock_dashboard):
+    with patch.object(dash_mod, "show_dashboard_for_cb", mock_show):
         asyncio.run(view_dashboard_cb(update, ctx))
 
-    mock_dashboard.assert_awaited_once()
+    mock_show.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

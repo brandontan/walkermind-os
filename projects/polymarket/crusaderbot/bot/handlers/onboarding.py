@@ -193,9 +193,8 @@ async def view_dashboard_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     if q is None:
         return
     await q.answer()
-    from .dashboard import dashboard
-    # Re-use the dashboard command handler via a synthetic update
-    await dashboard(update, ctx)
+    from .dashboard import show_dashboard_for_cb
+    await show_dashboard_for_cb(update, ctx)
 
 
 # ---------------------------------------------------------------------------

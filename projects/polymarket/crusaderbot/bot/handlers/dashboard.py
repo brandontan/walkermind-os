@@ -180,6 +180,26 @@ async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Render the dashboard in response to a callback query (q.message path)."""
+    q = update.callback_query
+    if q is None:
+        return
+    user, ok = await _ensure(update, Tier.ALLOWLISTED)
+    if not ok:
+        return
+    bal = await get_balance(user["id"])
+    pnl_today = await daily_pnl(user["id"])
+    st = await _fetch_stats(user["id"])
+    text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
+    has_trades = st["total_trades"] > 0 or (st["winning"] + st["losing"]) > 0
+    await q.message.reply_text(
+        text,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=dashboard_nav(has_trades),
+    )
+
+
 async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles dashboard inline nav: [🤖 Auto-Trade] [📈 Trades] [💰 Wallet] [📊 main]."""
     q = update.callback_query
