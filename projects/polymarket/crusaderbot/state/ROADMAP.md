@@ -16,7 +16,7 @@
 | Track | Scope | Tier | Status | Notes |
 |---|---|---|---|--|
 | A | Trade Engine + TP/SL worker | MAJOR | 🔄 IN REVIEW | TradeEngine wired into active scan runtime; signal_scan_job routes through TradeEngine; 47 tests green; PR open WARP/crusaderbot-fast-trade-engine; SENTINEL pending |
-| B | Copy Trade Execution | MAJOR | ⯌ BLOCKED | Depends on Track A merge; mirror target wallet trades into paper positions |
+| B | Copy Trade Execution | MAJOR | ⬌ BLOCKED | Depends on Track A merge; mirror target wallet trades into paper positions |
 | C | Trade Notifications | STANDARD | ❌ QEEUED | Entry / exit / copy trade Telegram notifications |
 | D | Risk Caps + Kill Switch hardening | MAJOR | ❌ QUEUED | Hard exposure caps, daily loss, max open positions, kill switch |
 | E | Daily P&L Report | STANDARD | ❌ QUEUED | Scheduled daily summary in Telegram |

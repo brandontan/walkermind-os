@@ -19,7 +19,7 @@ Fast Track A canonical trade engine wired into the active signal scan runtime.
 - `TradeSignal` (frozen dataclass): full typed contract for a single signal — user context, market fields, size, price, TP/SL, strategy metadata, idempotency key
 - `TradeResult` (frozen dataclass): typed execution outcome — `approved`, `mode`, `order_id`, `position_id`, `rejection_reason`, `failed_gate_step`, `chosen_mode`, `final_size_usdc`
 - `TradeEngine.execute(signal)`: evaluates the 13-step risk gate; on rejection returns `TradeResult(approved=False)`; on approval calls `router.execute` → instant paper fill; handles idempotent duplicate correctly
-- `chosen_mode`: set from router’s actual response, not gate decision — prevents live/paper mismatch if guards change between gate eval and router call
+- `chosen_mode`: set from router's actual response, not gate decision — prevents live/paper mismatch if guards change between gate eval and router call
 - `final_size_usdc`: Kelly-adjusted size from gate propagated through `TradeResult` so the scan job can record it in execution_queue without re-deriving it
 
 **`services/trade_engine/__init__.py`** — public API re-export (`TradeEngine`, `TradeSignal`, `TradeResult`)
@@ -132,7 +132,7 @@ No activation guards touched. No live execution paths added.
 
 - Float boundary: `ret == -sl_pct` exactly will not trigger SL due to IEEE 754. In production this is benign — price will not land on exact boundary; next watcher tick resolves it.
 - Crash recovery path uses `router_execute` directly (by design). If a crash recovery tick introduces a new position while a normal tick also processes the same candidate (different publication_ids), both positions are valid. Dedup is per `(user_id, publication_id)`.
-- `signal_scan_job` execution_queue insert is now post-execution (audit log) rather than pre-execution (reservation). Concurrent ticks for the same signal are protected by the paper engine’s idempotency_key; the second call returns `mode="duplicate"` and skips the queue insert.
+- `signal_scan_job` execution_queue insert is now post-execution (audit log) rather than pre-execution (reservation). Concurrent ticks for the same signal are protected by the paper engine's idempotency_key; the second call returns `mode="duplicate"` and skips the queue insert.
 
 ---
 
