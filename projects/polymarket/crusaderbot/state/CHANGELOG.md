@@ -35,3 +35,4 @@
 2026-05-08 01:33 Asia/Jakarta | PR #898 MERGED 7bb0487f | state sync post-P3d.
 
 2026-05-10 17:44 | WARP/crusaderbot-post-merge-state-sync | post-merge state sync (MINOR / FOUNDATION): cleared stale open-PR wording for merged PRs #937/#938/#939/#934. Activation guards remain NOT SET.
+2026-05-11 13:46 | WARP/crusaderbot-fast-trade-engine | Fast Track Track A MERGED PR #942 — TradeEngine FULL RUNTIME INTEGRATION; signal_scan_job routes through TradeEngine; 47 hermetic tests green.

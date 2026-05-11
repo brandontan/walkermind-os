@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 10:00
-Status       : Fast Track Track A FULL RUNTIME INTEGRATION complete. TradeEngine wired into active signal scan runtime; signal_scan_job._process_candidate now routes through TradeEngine (gate + paper fill) on all normal paths; 47 hermetic tests green. PR open on WARP/crusaderbot-fast-trade-engine; WARP•SENTINEL validation required before merge. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 13:46
+Status       : Fast Track Track A MERGED PR #942. TradeEngine service layer FULL RUNTIME INTEGRATION complete; signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green. Track B (Copy Trade execution) unblocked. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -10,9 +10,9 @@ Status       : Fast Track Track A FULL RUNTIME INTEGRATION complete. TradeEngine
 - Phase 5 Telegram Auto-Trade UX complete through 5A-5J: global handlers, dashboard hierarchy, presets, 2-column menu, Copy Trade dashboard/wizard/edit, customize wizard, onboarding, My Trades, Emergency lock, qrcode dependency hotfix.
 - State sync after PRs #923-#939 complete; PROJECT_STATE / ROADMAP / WORKTODO aligned to merged Phase 5 truth.
 - Fast Track roadmap selected by Mr. Walker on 2026-05-10; Standard roadmap rejected for current execution posture.
+- Fast Track Track A — TradeEngine service layer FULL RUNTIME INTEGRATION MERGED PR #942 (2026-05-11). signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
 
 [IN PROGRESS]
-- Fast Track Track A — TradeEngine wired into active scan runtime; signal_scan_job uses TradeEngine on all normal paths; PR open on WARP/crusaderbot-fast-trade-engine (Tier MAJOR, Claim FULL RUNTIME INTEGRATION). 47 hermetic tests green. WARP•SENTINEL validation pending before merge.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -27,8 +27,8 @@ Status       : Fast Track Track A FULL RUNTIME INTEGRATION complete. TradeEngine
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for Fast Track Track A before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-engine.md. Tier: MAJOR.
-- After Track A merge: unblock Track B (Copy Trade execution) and Track C (trade notifications).
+- Track A merged. Track B (Copy Trade execution) now unblocked — MAJOR, SENTINEL REQUIRED. Assign to WARP•FORGE.
+- Track C (trade notifications) can proceed concurrently — STANDARD.
 - Do not flip activation guards.
 
 [KNOWN ISSUES]
