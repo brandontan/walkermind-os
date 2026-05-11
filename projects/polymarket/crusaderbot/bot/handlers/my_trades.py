@@ -9,7 +9,7 @@ Surfaces:
 
 Message structure:
   My Trades
-  ─────────────────
+  ─────────────────────
   Open Positions (N)
 
   1. <market title>
@@ -19,7 +19,7 @@ Message structure:
 
   [Close 1]  [Close 2]
   [📋 Full History]  [📊 Dashboard]
-  ─────────────────
+  ─────────────────────
   Recent Activity (last 5)
   ✅ <market>: +$2.10
   ❌ <market>: -$1.80
@@ -345,20 +345,20 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         reply_markup=close_success_kb(),
     )
 
-    # Fire-and-forget: manual close trade notification.
-    # Failure must not affect the UX response above.
-    try:
-        await monitoring_alerts.alert_user_manual_close(
-            telegram_user_id=user["telegram_user_id"],
-            market_id=pos["market_id"],
-            market_question=pos.get("market_question"),
-            side=pos["side"],
-            exit_price=exit_price,
-            pnl_usdc=realized,
-            mode=pos.get("mode", "paper"),
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.error("manual_close notification failed: %s", exc)
+    # Only notify on a real state transition; skip if position was already closed.
+    if result.get("exit_reason") != "already_closed":
+        try:
+            await monitoring_alerts.alert_user_manual_close(
+                telegram_user_id=user["telegram_user_id"],
+                market_id=pos["market_id"],
+                market_question=pos.get("market_question"),
+                side=pos["side"],
+                exit_price=exit_price,
+                pnl_usdc=realized,
+                mode=pos.get("mode", "paper"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("manual_close notification failed: %s", exc)
 
 
 async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
