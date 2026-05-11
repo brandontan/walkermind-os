@@ -1,8 +1,6 @@
-<<<<<<< WARP/CRUSADERBOT-FAST-ADMIN
 2026-05-11 21:00 | WARP/CRUSADERBOT-FAST-ADMIN | Track K Access Tiers + Admin Panel FORGE (STANDARD, FOUNDATION): migration 023 user_tiers; services/tiers.py; require_access_tier decorator; admin_root ADMIN tier check + subcommands (users/settier/stats/broadcast); 29 hermetic tests green; PR open for WARP🔹CMD review
-=======
 2026-05-11 22:00 | claude/onboarding-polish-BonnO | Track L Onboarding Polish FORGE (STANDARD, PRESENTATION): /start 2-step flow; /help categorized; 5 command aliases; 15 hermetic tests; PR open for WARP🔹CMD review
->>>>>>> main
+2026-05-11 20:00 | claude/telegram-ux-overhaul-lnbhv | UX Overhaul Premium Grade FORGE (STANDARD, PRESENTATION): main menu restructure; TP/SL preset buttons 2-step; capital preset buttons; strategy cards; settings hub; copy trade fallback; insights threshold fix; my trades TP/SL display; dedup fix; 45 hermetic tests; PR open for WARP🔹CMD review
 2026-05-11 19:00 | WARP/HOTFIX-DB-POOLER-FIX | Hotfix DB pooler detection — _log_connection_type replaces port-gated warning; INFO for direct, WARNING for pooler.supabase.com; 11 tests green; STANDARD, FOUNDATION
 2026-05-12 01:00 | WARP/CRUSADERBOT-FAST-UI-PREMIUM-2 | Track H Portfolio Charts + Insights MERGED PR #979 — /chart PNG, chart:7/30/all, /insights weekly breakdown, weekly_insights cron Mon 08:00 WIB, had_pre_window_rows carry-forward fix; 30 hermetic tests; STANDARD, NARROW INTEGRATION
 2026-05-11 22:00 | WARP/CRUSADERBOT-FAST-REFERRAL | Track I Referral + Share System FORGE (STANDARD, FOUNDATION): migration 022 (referral_codes/referral_events/fees/fee_config); /referral command; deep-link join wiring; [Share] button on winning trade notifications; fee logic gated (FEE_COLLECTION_ENABLED=False); referral payout gated (REFERRAL_PAYOUT_ENABLED=False); 18 hermetic tests; PR open for WARP🔹CMD review

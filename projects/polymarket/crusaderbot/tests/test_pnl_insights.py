@@ -67,8 +67,7 @@ def _base_data(**overrides) -> dict:
 def test_format_insights_empty_state():
     data = _base_data(total_closed=0)
     out = format_insights(data)
-    assert "No closed trades yet" in out
-    assert "PNL Insights" in out
+    assert "Not enough data" in out
     assert "Performance" not in out
 
 
@@ -198,7 +197,9 @@ def test_insights_kb_structure():
     assert len(btns) == 2
     callbacks = {b.callback_data for b in btns}
     assert "insights:refresh" in callbacks
-    assert "dashboard:main" in callbacks
+    # Dashboard button removed from insights per UX overhaul (Part 6).
+    assert "dashboard:main" not in callbacks
+    assert "insights:full_report" in callbacks
 
 
 # ---------- 13. dashboard_nav includes Insights button when has_trades ---------

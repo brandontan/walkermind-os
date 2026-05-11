@@ -1,4 +1,4 @@
-Last Updated : 2026-05-12 02:35
+Last Updated : 2026-05-11 20:00
 <<<<<<< WARP/CRUSADERBOT-FAST-ADMIN
 Status       : Track K Access Tiers + Admin Panel built. 29 hermetic tests green. PR open for WARP🔹CMD review. Track H merged PR #979. Track G and Track I PRs open. Track F SENTINEL APPROVED 97/100 awaiting merge. MomentumReversalStrategy PR #978 open. Hotfix DB pooler detection PR open. Production PAPER ONLY. Activation guards remain OFF.
 =======
@@ -24,6 +24,7 @@ Status       : Track L Onboarding Polish built. Hotfix DB pooler detection MERGE
 - Track L -- Onboarding Polish built (2026-05-11). /start 2-step flow (Welcome → Mode Select → Paper/Live); /help categorized (TRADING/PORTFOLIO/SETTINGS/ADMIN); ADMIN section operator-gated; 5 command aliases (/scan /pnl /close /trades /mode); 15 hermetic tests green; STANDARD, PRESENTATION.
 
 [IN PROGRESS]
+- UX Overhaul (Premium Grade Telegram): PR open on claude/telegram-ux-overhaul-lnbhv. All 9 parts implemented. 45 hermetic tests. STANDARD, PRESENTATION. Awaiting WARP🔹CMD review.
 - Track K Access Tiers + Admin Panel: PR open on WARP/CRUSADERBOT-FAST-ADMIN. STANDARD, FOUNDATION. 29 hermetic tests green. Awaiting WARP🔹CMD review.
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
@@ -44,15 +45,9 @@ Status       : Track L Onboarding Polish built. Hotfix DB pooler detection MERGE
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for UX Overhaul PR. Source: projects/polymarket/crusaderbot/reports/forge/ux-overhaul.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
 - WARP🔹CMD review required for Hotfix DB pooler detection. Source: projects/polymarket/crusaderbot/reports/forge/hotfix-db-pooler-fix.md. Tier: STANDARD.
-=======
-- Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin.
-- Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
-
-[NEXT PRIORITY]
-- WARP🔹CMD review required for Track L Onboarding Polish PR. Source: projects/polymarket/crusaderbot/reports/forge/onboarding-polish.md. Tier: STANDARD.
->>>>>>> main
 - WARP🔹CMD review required for MomentumReversalStrategy adapter PR #978. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-momentum-strategy-adapter.md. Tier: STANDARD.
 - WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
 - WARP🔹CMD review required for Track G UI Premium Pack 1. Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md. Tier: STANDARD.

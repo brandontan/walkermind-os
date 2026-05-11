@@ -14,6 +14,9 @@ from .handlers import (
     positions, presets, referral, settings as settings_handler, setup,
     share_card, signal_following, wallet,
 )
+from .handlers.settings import (
+    cap_set_callback, settings_text_input, sl_set_callback, tp_set_callback,
+)
 from .menus.main import get_menu_route
 
 logger = logging.getLogger(__name__)
@@ -52,6 +55,8 @@ async def _text_router(update, ctx):
     if await activation.text_input(update, ctx):
         return
     if await copy_trade.text_input(update, ctx):
+        return
+    if await settings_text_input(update, ctx):
         return
     if await setup.text_input(update, ctx):
         return
@@ -142,6 +147,10 @@ def register(app: Application) -> None:
                                          pattern=r"^settings:"))
     app.add_handler(CallbackQueryHandler(dashboard.dashboard_nav_cb,
                                          pattern=r"^dashboard:"))
+    app.add_handler(CallbackQueryHandler(setup.set_strategy_card, pattern=r"^strategy:"))
+    app.add_handler(CallbackQueryHandler(tp_set_callback,         pattern=r"^tp_set:"))
+    app.add_handler(CallbackQueryHandler(sl_set_callback,         pattern=r"^sl_set:"))
+    app.add_handler(CallbackQueryHandler(cap_set_callback,        pattern=r"^cap_set:"))
     app.add_handler(CallbackQueryHandler(dashboard.autotrade_toggle_cb,
                                          pattern=r"^autotrade:"))
     app.add_handler(CallbackQueryHandler(dashboard.close_position_cb,

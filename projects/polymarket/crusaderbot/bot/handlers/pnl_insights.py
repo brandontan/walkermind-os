@@ -198,11 +198,13 @@ async def _fetch_insights(user_id: UUID) -> dict:
 
 def format_insights(data: dict) -> str:
     """Render insights data as a Telegram Markdown message."""
-    if data["total_closed"] == 0:
+    if data["total_closed"] < 3:
         return (
-            "\U0001f4ca *PNL Insights*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "No closed trades yet. Start paper trading to see your insights."
+            "📊 *Weekly Insights*\n"
+            "──────────────────\n"
+            "Not enough data yet.\n"
+            "Need at least 3 closed trades.\n"
+            f"Current: {data['total_closed']} closed trades."
         )
 
     total = data["total_closed"]

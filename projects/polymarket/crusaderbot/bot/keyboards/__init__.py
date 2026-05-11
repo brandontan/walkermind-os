@@ -19,9 +19,9 @@ def grid_rows(buttons: list, cols: int = 2) -> list[list]:
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📊 Dashboard"),  KeyboardButton("🐋 Copy Trade")],
-            [KeyboardButton("🤖 Auto-Trade"), KeyboardButton("📈 My Trades")],
-            [KeyboardButton("💰 Wallet"),     KeyboardButton("🚨 Emergency")],
+            [KeyboardButton("📊 Dashboard"),  KeyboardButton("📈 My Trades")],
+            [KeyboardButton("🤖 Auto-Trade"), KeyboardButton("🐋 Copy Trade")],
+            [KeyboardButton("⚙️ Settings"),   KeyboardButton("🛑 Stop Bot")],
         ],
         resize_keyboard=True,
     )
@@ -51,17 +51,28 @@ def setup_menu() -> InlineKeyboardMarkup:
 
 
 def strategy_picker(current: list[str]) -> InlineKeyboardMarkup:
+    """Legacy checkbox picker — kept for presets and backward compat."""
     def mark(s: str) -> str:
         return f"{'✅' if s in current else '◻️'} {s.title().replace('_', ' ')}"
     buttons = [
         InlineKeyboardButton(mark("copy_trade"),
                              callback_data="set_strategy:copy_trade"),
         InlineKeyboardButton(mark("signal"), callback_data="set_strategy:signal"),
-        InlineKeyboardButton(mark("value") + " (R6b+)",
-                             callback_data="set_strategy:value"),
+        InlineKeyboardButton(mark("value"),  callback_data="set_strategy:value"),
         InlineKeyboardButton("⬅️ Back", callback_data="setup:menu"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))
+
+
+def strategy_card_kb() -> InlineKeyboardMarkup:
+    """Descriptive strategy card keyboard — shown in the Auto-Trade menu."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Select Signal",        callback_data="strategy:signal")],
+        [InlineKeyboardButton("Select Edge Finder",   callback_data="strategy:edge_finder")],
+        [InlineKeyboardButton("Select Momentum",      callback_data="strategy:momentum_reversal")],
+        [InlineKeyboardButton("⚡ Select All",         callback_data="strategy:all")],
+        [InlineKeyboardButton("↩️ Back to Main Menu", callback_data="strategy:back")],
+    ])
 
 
 def risk_picker(current: str) -> InlineKeyboardMarkup:
@@ -171,8 +182,8 @@ def dashboard_nav(has_trades: bool) -> InlineKeyboardMarkup:
 def insights_kb() -> InlineKeyboardMarkup:
     """Keyboard attached to the PNL Insights message."""
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("🔄 Refresh",    callback_data="insights:refresh"),
-        InlineKeyboardButton("📊 Dashboard",  callback_data="dashboard:main"),
+        InlineKeyboardButton("🔄 Refresh",       callback_data="insights:refresh"),
+        InlineKeyboardButton("📋 Full Report",   callback_data="insights:full_report"),
     ]])
 
 

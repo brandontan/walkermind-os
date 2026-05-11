@@ -1,13 +1,27 @@
-"""R12e Settings menu handler.
+"""Settings hub handler — UX Overhaul.
 
-Top-level ⚙️ Settings surface. Phase 1 ships the auto-redeem mode
-toggle (blueprint §9). Other rows (notifications, 2FA, language,
-privacy, advanced) are placeholders deferred to later lanes.
+Hub surface: ⚙️ Settings reply-keyboard button → settings_hub_root
+Sub-surfaces (all via settings:* callbacks):
+  settings:wallet      → wallet surface
+  settings:tpsl        → TP/SL 2-step preset flow
+  settings:capital     → Capital allocation preset flow
+  settings:risk        → Risk profile picker
+  settings:notifications → stub (not in scope)
+  settings:mode        → Paper/Live mode picker
+  settings:hub         → re-render hub
+  settings:back        → send main_menu reply keyboard
 
-Tier gating: settings is reachable from any tier — the blueprint
-positions Settings as a global account surface rather than a
-strategy-config surface, so we do not gate it on Tier 2 (allowlisted)
-the way ``setup`` does.
+TP/SL flow (2 steps):
+  settings:tpsl → tp_preset_kb (callbacks: tp_set:<N> / tp_set:custom)
+  tp_set:<N>    → save TP, show sl_preset_kb
+  tp_set:custom → set awaiting="tpsl_tp", prompt text
+  sl_set:<N>    → save SL, show confirm
+  sl_set:custom → set awaiting="tpsl_sl", prompt text
+
+Capital flow:
+  settings:capital → capital_preset_kb (callbacks: cap_set:<N> / cap_set:custom)
+  cap_set:<N>      → save capital %, show confirm
+  cap_set:custom   → set awaiting="capital_pct", prompt text (reuses setup.text_input)
 """
 from __future__ import annotations
 
@@ -18,62 +32,195 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from ...users import get_settings_for, update_settings, upsert_user
-from ..keyboards.settings import autoredeem_settings_picker, settings_menu
+from ...wallet.ledger import get_balance
+from ..keyboards import risk_picker, setup_menu
+from ..keyboards.settings import (
+    autoredeem_settings_picker,
+    capital_preset_kb,
+    settings_hub_kb,
+    settings_menu,
+    sl_preset_kb,
+    tp_preset_kb,
+    tpsl_confirm_kb,
+)
+from ..tier import Tier, has_tier, tier_block_message
 
 logger = logging.getLogger(__name__)
 
+_HUB_TEXT = (
+    "*⚙️ Settings*\n"
+    "──────────────────\n"
+    "Configure your bot preferences."
+)
 
-def _redeem_info_text(auto_redeem_mode: str) -> str:
+
+def _tp_step_text(current_tp: float | None) -> str:
+    current_str = f"+{current_tp * 100:.0f}%" if current_tp is not None else "not set"
     return (
-        "*⚙️ Settings*\n\n"
-        f"Auto-Redeem Mode: `{auto_redeem_mode}`\n\n"
-        "_Instant uses more gas. Hourly batches redeems for lower cost._"
+        "📊 *Take Profit*\n"
+        f"Current: {current_str}\n\n"
+        "Select your take-profit target:"
+    )
+
+
+def _sl_step_text(current_sl: float | None) -> str:
+    current_str = f"-{current_sl * 100:.0f}%" if current_sl is not None else "not set"
+    return (
+        "📊 *Stop Loss*\n"
+        f"Current: {current_str}\n\n"
+        "Select your stop-loss threshold:"
+    )
+
+
+def _capital_text(balance: float, mode: str) -> str:
+    mode_label = "Live" if mode == "live" else "Paper"
+    return (
+        "💰 *Capital Allocation Per Trade*\n"
+        "──────────────────\n"
+        f"Balance: ${balance:.2f} ({mode_label})\n\n"
+        "⚠️ Max 95% — full allocation forbidden."
+    )
+
+
+async def _ensure(update: Update) -> tuple[dict | None, bool]:
+    if update.effective_user is None:
+        return None, False
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
+        msg = tier_block_message(Tier.ALLOWLISTED)
+        if update.message:
+            await update.message.reply_text(msg)
+        elif update.callback_query:
+            await update.callback_query.answer(msg, show_alert=True)
+        return None, False
+    return user, True
+
+
+async def settings_hub_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """⚙️ Settings reply-keyboard button → render Settings hub."""
+    user, ok = await _ensure(update)
+    if not ok or update.message is None:
+        return
+    await update.message.reply_text(
+        _HUB_TEXT,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=settings_hub_kb(),
     )
 
 
 async def settings_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Render the Settings root view."""
+    """/settings command — keep old auto-redeem surface for compat."""
     if update.effective_user is None or update.message is None:
         return
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
     s = await get_settings_for(user["id"])
     await update.message.reply_text(
-        _redeem_info_text(s["auto_redeem_mode"]),
+        _HUB_TEXT,
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=settings_menu(s["auto_redeem_mode"]),
+        reply_markup=settings_hub_kb(),
     )
 
 
 async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle ``settings:*`` callback queries.
-
-    Three sub-actions:
-      * ``settings:menu``                → repaint root keyboard
-      * ``settings:redeem``              → open the auto-redeem picker
-      * ``settings:redeem_set:<choice>`` → apply auto-redeem choice
-    """
+    """Handle all settings:* callback queries."""
     q = update.callback_query
     if q is None or update.effective_user is None:
         return
     await q.answer()
+
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
     data = q.data or ""
 
-    if data == "settings:menu":
-        s = await get_settings_for(user["id"])
+    # --- Hub re-render ---
+    if data in ("settings:hub", "settings:menu"):
         await q.message.edit_text(
-            _redeem_info_text(s["auto_redeem_mode"]),
+            _HUB_TEXT,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=settings_menu(s["auto_redeem_mode"]),
+            reply_markup=settings_hub_kb(),
         )
         return
 
+    # --- Back to main menu ---
+    if data == "settings:back":
+        from ..keyboards import main_menu
+        await q.message.reply_text(
+            "Main menu:", reply_markup=main_menu()
+        )
+        return
+
+    # --- Wallet surface ---
+    if data == "settings:wallet":
+        from ...wallet.vault import get_wallet
+        w = await get_wallet(user["id"])
+        addr = w["deposit_address"] if w else "(not set)"
+        from ..keyboards import wallet_menu
+        await q.message.reply_text(
+            f"*💰 Wallet*\n\nDeposit address (Polygon USDC):\n`{addr}`\n\n"
+            "Tap an option below.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=wallet_menu(),
+        )
+        return
+
+    # --- TP/SL step 1 ---
+    if data == "settings:tpsl":
+        s = await get_settings_for(user["id"])
+        current_tp = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+        await q.message.reply_text(
+            _tp_step_text(current_tp),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=tp_preset_kb(current_tp * 100 if current_tp else None),
+        )
+        return
+
+    # --- Capital allocation ---
+    if data == "settings:capital":
+        s = await get_settings_for(user["id"])
+        bal = float(await get_balance(user["id"]))
+        mode = s.get("trading_mode", "paper")
+        await q.message.reply_text(
+            _capital_text(bal, mode),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=capital_preset_kb(bal, mode),
+        )
+        return
+
+    # --- Risk profile ---
+    if data == "settings:risk":
+        s = await get_settings_for(user["id"])
+        await q.message.reply_text(
+            "*⚖️ Risk Profile*\n\nSelect your risk level:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=risk_picker(s["risk_profile"]),
+        )
+        return
+
+    # --- Notifications stub ---
+    if data == "settings:notifications":
+        await q.message.reply_text(
+            "*🔔 Notifications*\n\nNotification preferences coming soon.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=settings_hub_kb(),
+        )
+        return
+
+    # --- Mode (Paper/Live) ---
+    if data == "settings:mode":
+        from ..keyboards import mode_picker
+        s = await get_settings_for(user["id"])
+        await q.message.reply_text(
+            "*📄 Mode*\n\nPaper: safe virtual trading. Live: real capital (Tier 4 required).",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=mode_picker(s["trading_mode"]),
+        )
+        return
+
+    # --- Legacy auto-redeem ---
     if data == "settings:redeem":
         s = await get_settings_for(user["id"])
         await q.message.reply_text(
             "Pick auto-redeem mode.\n\n"
-            "*Instant* — settle the moment a market resolves "
-            "(live trades are gas-spike guarded).\n"
+            "*Instant* — settle the moment a market resolves.\n"
             "*Hourly* — wait for the hourly batch (default, lower gas).",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=autoredeem_settings_picker(s["auto_redeem_mode"]),
@@ -93,3 +240,186 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
             parse_mode=ParseMode.MARKDOWN,
         )
         return
+
+
+async def tp_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle tp_set:<N> and tp_set:custom callbacks."""
+    q = update.callback_query
+    if q is None or update.effective_user is None:
+        return
+    await q.answer()
+
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    value = (q.data or "").split(":", 1)[-1]
+
+    if value == "custom":
+        if ctx.user_data is not None:
+            ctx.user_data["awaiting"] = "tpsl_tp"
+        await q.message.reply_text(
+            "Enter TP percentage (e.g. 20):\n_(integer, 1–100)_",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    try:
+        tp_pct = int(value)
+        if not 1 <= tp_pct <= 100:
+            raise ValueError("out of range")
+    except ValueError:
+        await q.answer("Invalid TP value.", show_alert=True)
+        return
+
+    # Store TP in user_data; wait for SL selection before saving to DB.
+    if ctx.user_data is not None:
+        ctx.user_data["pending_tp"] = tp_pct
+
+    s = await get_settings_for(user["id"])
+    current_sl = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
+    await q.message.reply_text(
+        _sl_step_text(current_sl),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=sl_preset_kb(current_sl * 100 if current_sl else None),
+    )
+
+
+async def sl_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle sl_set:<N> and sl_set:custom callbacks."""
+    q = update.callback_query
+    if q is None or update.effective_user is None:
+        return
+    await q.answer()
+
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    value = (q.data or "").split(":", 1)[-1]
+
+    if value == "custom":
+        if ctx.user_data is not None:
+            ctx.user_data["awaiting"] = "tpsl_sl"
+        await q.message.reply_text(
+            "Enter SL percentage (e.g. 12):\n_(integer, 1–50)_",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    try:
+        sl_pct = int(value)
+        if not 1 <= sl_pct <= 50:
+            raise ValueError("out of range")
+    except ValueError:
+        await q.answer("Invalid SL value.", show_alert=True)
+        return
+
+    pending_tp = (ctx.user_data or {}).get("pending_tp")
+    if pending_tp is None:
+        # SL tapped without TP step (edge case: direct deep-link)
+        s = await get_settings_for(user["id"])
+        tp_pct_raw = s.get("tp_pct")
+        pending_tp = int(float(tp_pct_raw) * 100) if tp_pct_raw is not None else 25
+
+    tp_frac = pending_tp / 100.0
+    sl_frac = sl_pct / 100.0
+    await update_settings(user["id"], tp_pct=tp_frac, sl_pct=sl_frac)
+
+    if ctx.user_data is not None:
+        ctx.user_data.pop("pending_tp", None)
+
+    await q.message.reply_text(
+        f"✅ TP set to +{pending_tp}%, SL set to -{sl_pct}%.",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=tpsl_confirm_kb(),
+    )
+
+
+async def cap_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle cap_set:<N> and cap_set:custom callbacks."""
+    q = update.callback_query
+    if q is None or update.effective_user is None:
+        return
+    await q.answer()
+
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    value = (q.data or "").split(":", 1)[-1]
+
+    if value == "custom":
+        if ctx.user_data is not None:
+            ctx.user_data["awaiting"] = "capital_pct"
+        await q.message.reply_text(
+            "Enter percentage (1–95):\n_(integer only)_",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    try:
+        pct = int(value)
+        if not 1 <= pct <= 95:
+            raise ValueError("out of range")
+    except ValueError:
+        await q.answer("Invalid percentage.", show_alert=True)
+        return
+
+    capital_alloc = pct / 100.0
+    await update_settings(user["id"], capital_alloc_pct=capital_alloc)
+    await q.message.reply_text(
+        f"✅ Capital allocation set to {pct}%.",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=tpsl_confirm_kb(),
+    )
+
+
+async def settings_text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Handle awaiting text inputs for tpsl_tp, tpsl_sl flows.
+
+    Returns True if consumed. capital_pct is handled by setup.text_input.
+    """
+    if update.message is None or update.effective_user is None:
+        return False
+    awaiting = (ctx.user_data or {}).get("awaiting")
+    if awaiting not in ("tpsl_tp", "tpsl_sl"):
+        return False
+
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    text = (update.message.text or "").strip()
+
+    try:
+        val = int(text)
+    except ValueError:
+        await update.message.reply_text("❌ Enter an integer number. Try again.")
+        return True
+
+    if awaiting == "tpsl_tp":
+        if not 1 <= val <= 100:
+            await update.message.reply_text("❌ TP must be 1–100. Try again.")
+            return True
+        if ctx.user_data is not None:
+            ctx.user_data["pending_tp"] = val
+            ctx.user_data.pop("awaiting", None)
+        s = await get_settings_for(user["id"])
+        current_sl = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
+        await update.message.reply_text(
+            _sl_step_text(current_sl),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=sl_preset_kb(current_sl * 100 if current_sl else None),
+        )
+        return True
+
+    if awaiting == "tpsl_sl":
+        if not 1 <= val <= 50:
+            await update.message.reply_text("❌ SL must be 1–50. Try again.")
+            return True
+        pending_tp = (ctx.user_data or {}).get("pending_tp")
+        if pending_tp is None:
+            s = await get_settings_for(user["id"])
+            tp_raw = s.get("tp_pct")
+            pending_tp = int(float(tp_raw) * 100) if tp_raw is not None else 25
+        await update_settings(user["id"], tp_pct=pending_tp / 100.0, sl_pct=val / 100.0)
+        if ctx.user_data is not None:
+            ctx.user_data.pop("pending_tp", None)
+            ctx.user_data.pop("awaiting", None)
+        await update.message.reply_text(
+            f"✅ TP set to +{pending_tp}%, SL set to -{val}%.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=tpsl_confirm_kb(),
+        )
+        return True
+
+    return False
