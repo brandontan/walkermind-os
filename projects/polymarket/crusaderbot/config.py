@@ -151,6 +151,7 @@ class Settings(BaseSettings):
     MARKET_SCAN_INTERVAL: int = 300
     DEPOSIT_WATCH_INTERVAL: int = 120
     SIGNAL_SCAN_INTERVAL: int = 180
+    MARKET_SIGNAL_SCAN_INTERVAL: int = 60
     COPY_TRADE_MONITOR_INTERVAL: int = 60  # Fast Track B — copy trade tick cadence
     EXIT_WATCH_INTERVAL: int = 60
     REDEEM_INTERVAL: int = 3600
