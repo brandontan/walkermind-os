@@ -6,10 +6,9 @@ Pipeline (per user, per scan tick):
     3. SignalFollowingStrategy.scan() -> list[SignalCandidate]  (pure DB reads)
     4. Per candidate:
        a. execution_queue pre-check: skip if publication_id already present
-       b. Build GateContext, run 13-step risk gate
-       c. On approval: INSERT into execution_queue ON CONFLICT DO NOTHING
-       d. Call router_execute; update queue status to executed/failed
-       e. Log outcome: accepted | skipped_dedup | rejected | failed
+       b. Build TradeSignal; run TradeEngine.execute() (gate + paper fill)
+       c. On approval: INSERT into execution_queue + mark executed
+       d. Log outcome: accepted | duplicate | skipped_dedup | rejected | failed
 
 Deduplication (dual-layer):
     Outer — execution_queue UNIQUE (user_id, publication_id) — permanent;
@@ -18,9 +17,19 @@ Deduplication (dual-layer):
             for recent risk rejections so the gate is not re-evaluated every
             30 s during a transient block (e.g. max_concurrent_trades).
 
+Crash recovery:
+    A prior tick may have inserted a 'queued' row and crashed before the
+    paper engine completed. This path resumes via router_execute directly
+    (bypassing TradeEngine / re-running the risk gate) because:
+      * Gate step 10 rejects the same idempotency_key for 30 min.
+      * Gate step 9 rejects stale signals after the 5-min staleness window.
+    The crash-recovery router call is the ONLY place router_execute is used
+    directly in this module. All normal execution paths go through TradeEngine.
+
 Safety:
     * No activation guard mutations.
-    * Risk gate is mandatory; router_execute is NEVER called without approval.
+    * Risk gate is mandatory inside TradeEngine; router_execute is never
+      called without approval on the normal path.
     * No HTTP fetches.  No threading — asyncio only.
     * Every exception is caught, logged, and does NOT propagate to the caller
       so one bad user/publication cannot crash the whole scan tick.
@@ -37,9 +46,9 @@ import structlog
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
-from ...domain.risk.gate import GateContext, GateResult, evaluate as risk_evaluate
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
+from ..trade_engine import TradeEngine, TradeResult, TradeSignal
 
 logger = structlog.get_logger(__name__)
 
@@ -48,6 +57,9 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 _STRATEGY_NAME = "signal_following"
+
+# Module-level TradeEngine singleton — stateless; safe to share across ticks.
+_engine: TradeEngine = TradeEngine()
 
 
 # ---------------------------------------------------------------------------
@@ -252,13 +264,14 @@ def _build_idempotency_key(
     return f"sf:{digest}"
 
 
-def _build_gate_context(
+def _build_trade_signal(
     *,
     row: dict[str, Any],
     cand: SignalCandidate,
     market: dict[str, Any],
     idempotency_key: str,
-) -> GateContext:
+) -> TradeSignal:
+    """Build a typed TradeSignal from scan-loop data for TradeEngine.execute()."""
     _side = cand.side.lower()
     if _side == "no":
         _primary, _fallback = market.get("no_price"), market.get("yes_price")
@@ -268,29 +281,34 @@ def _build_gate_context(
     _price = float(
         _primary if _primary is not None else (_fallback if _fallback is not None else 0.5)
     )
-    return GateContext(
+    return TradeSignal(
         user_id=UUID(str(row["user_id"])),
         telegram_user_id=int(row["telegram_user_id"]),
         access_tier=int(row["access_tier"]),
         auto_trade_on=bool(row["auto_trade_on"]),
         paused=bool(row["paused"]),
         market_id=cand.market_id,
+        market_question=str(market.get("question") or ""),
+        yes_token_id=market.get("yes_token_id"),
+        no_token_id=market.get("no_token_id"),
         side=_side,
         proposed_size_usdc=Decimal(str(cand.suggested_size_usdc)),
-        proposed_price=_price,
+        price=_price,
         market_liquidity=float(market.get("liquidity_usdc") or 0.0),
         market_status=str(market.get("status") or ""),
-        edge_bps=None,
-        signal_ts=cand.signal_ts,
         idempotency_key=idempotency_key,
         strategy_type=_STRATEGY_NAME,
         risk_profile=str(row.get("resolved_profile") or "balanced"),
+        trading_mode=str(row.get("trading_mode") or "paper"),
+        signal_ts=cand.signal_ts,
+        edge_bps=None,
+        tp_pct=float(row["tp_pct"]) if row.get("tp_pct") is not None else None,
+        sl_pct=float(row["sl_pct"]) if row.get("sl_pct") is not None else None,
         daily_loss_override=(
             float(row["daily_loss_override"])
             if row.get("daily_loss_override") is not None
             else None
         ),
-        trading_mode=str(row.get("trading_mode") or "paper"),
     )
 
 
@@ -322,9 +340,11 @@ async def _process_candidate(
     )
 
     # 0. Crash-recovery resume — a prior tick inserted a 'queued' row but
-    #    crashed before router_execute.  Re-running the gate would fail at
-    #    step 10 (idempotency_key already recorded for 30 min) or step 9
-    #    (signal stale after 5 min), so execute directly from the stored row.
+    #    crashed before the paper engine completed. Re-running the gate would
+    #    fail at step 10 (idempotency_key already recorded for 30 min) or
+    #    step 9 (signal stale after 5 min), so router_execute is called
+    #    directly from the stored row. This is the ONLY direct router call
+    #    in this module; all normal execution paths go through TradeEngine.
     if pub_uuid is not None:
         try:
             stale = await _load_stale_queued_row(user_id, pub_uuid)
@@ -403,92 +423,67 @@ async def _process_candidate(
         log.info("scan_outcome", outcome="skipped_market_not_synced")
         return
 
-    # 3. Build idempotency key + gate context.
+    # 3. Build TradeSignal — typed contract for TradeEngine (gate + paper fill).
     idem_key = _build_idempotency_key(user_id, cand.market_id, side, pub_uuid)
     try:
-        gate_ctx = _build_gate_context(
+        signal = _build_trade_signal(
             row=row, cand=cand, market=market, idempotency_key=idem_key,
         )
     except Exception as exc:
-        log.warning("gate_context_build_failed", error=str(exc))
+        log.warning("trade_signal_build_failed", error=str(exc))
         return
 
-    # 4. Risk gate — mandatory before any queue insert or execution.
+    # 4. Execute through TradeEngine — risk gate (13 steps) is mandatory inside
+    #    the engine; router_execute is never called directly on this path.
     try:
-        result: GateResult = await risk_evaluate(gate_ctx)
+        result: TradeResult = await _engine.execute(signal)
     except Exception as exc:
-        log.error("risk_gate_error", error=str(exc))
+        err_str = f"{type(exc).__name__}: {exc}"
+        log.error("scan_outcome", outcome="failed", error=err_str)
         return
 
     if not result.approved:
         log.info(
             "scan_outcome",
             outcome="rejected",
-            reason=result.reason,
-            step=result.failed_step,
+            reason=result.rejection_reason,
+            step=result.failed_gate_step,
         )
         return
 
-    # 5. Insert execution queue entry (ON CONFLICT DO NOTHING for concurrent
-    #    tick safety — the UNIQUE partial index handles the race).
-    final_size = result.final_size_usdc or Decimal(str(cand.suggested_size_usdc))
-    try:
-        inserted = await _insert_execution_queue(
-            user_id=user_id,
-            strategy_name=_STRATEGY_NAME,
-            market_id=cand.market_id,
-            side=side,
-            publication_id=pub_uuid,
-            suggested_size_usdc=Decimal(str(cand.suggested_size_usdc)),
-            final_size_usdc=final_size,
-            idempotency_key=idem_key,
-            chosen_mode=result.chosen_mode,
-        )
-    except Exception as exc:
-        log.error("exec_queue_insert_failed", error=str(exc))
-        return
-
-    if not inserted:
-        # Concurrent tick inserted first — dedup at the DB boundary.
-        log.info("scan_outcome", outcome="skipped_concurrent_dedup")
-        return
-
-    # 6. Execute via router.
-    tp = float(row["tp_pct"]) if row.get("tp_pct") is not None else None
-    sl = float(row["sl_pct"]) if row.get("sl_pct") is not None else None
-    try:
-        await router_execute(
-            chosen_mode=result.chosen_mode,
-            user_id=user_id,
-            telegram_user_id=int(row["telegram_user_id"]),
-            access_tier=int(row["access_tier"]),
-            market_id=cand.market_id,
-            market_question=str(market.get("question") or ""),
-            yes_token_id=market.get("yes_token_id"),
-            no_token_id=market.get("no_token_id"),
-            side=side,
-            size_usdc=final_size,
-            price=gate_ctx.proposed_price,
-            idempotency_key=idem_key,
-            strategy_type=_STRATEGY_NAME,
-            tp_pct=tp,
-            sl_pct=sl,
-            trading_mode=str(row.get("trading_mode") or "paper"),
-        )
-        await _mark_executed(user_id, pub_uuid, idem_key)
+    # 5. Record in execution_queue — post-execution audit + permanent dedup anchor.
+    #    On conflict (concurrent tick filled first): skip; paper engine idempotency
+    #    key ensures the second call returned mode="duplicate".
+    final_size = result.final_size_usdc or signal.proposed_size_usdc
+    if result.mode != "duplicate":
+        try:
+            inserted = await _insert_execution_queue(
+                user_id=user_id,
+                strategy_name=_STRATEGY_NAME,
+                market_id=cand.market_id,
+                side=side,
+                publication_id=pub_uuid,
+                suggested_size_usdc=signal.proposed_size_usdc,
+                final_size_usdc=final_size,
+                idempotency_key=idem_key,
+                chosen_mode=result.chosen_mode or "paper",
+            )
+        except Exception as exc:
+            log.warning("exec_queue_insert_failed", error=str(exc))
+            inserted = False
+        if inserted:
+            try:
+                await _mark_executed(user_id, pub_uuid, idem_key)
+            except Exception as exc:
+                log.warning("exec_queue_mark_executed_failed", error=str(exc))
         log.info(
             "scan_outcome",
             outcome="accepted",
             mode=result.chosen_mode,
             size=str(final_size),
         )
-    except Exception as exc:
-        err_str = f"{type(exc).__name__}: {exc}"
-        log.error("scan_outcome", outcome="failed", error=err_str)
-        try:
-            await _mark_failed(user_id, pub_uuid, idem_key, err_str)
-        except Exception as mark_exc:
-            log.warning("exec_queue_mark_failed_error", error=str(mark_exc))
+    else:
+        log.info("scan_outcome", outcome="duplicate", mode=result.chosen_mode)
 
 
 # ---------------------------------------------------------------------------
