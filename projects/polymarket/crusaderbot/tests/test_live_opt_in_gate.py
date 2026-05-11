@@ -45,7 +45,7 @@ from projects.polymarket.crusaderbot.domain.activation.live_opt_in_gate import (
     check_activation_guards,
 )
 from projects.polymarket.crusaderbot.bot.handlers import live_gate
-from projects.polymarket.crusaderbot.domain.activation import auto_fallback
+from projects.polymarket.crusaderbot.domain.activation import auto_fallback, live_checklist
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -73,6 +73,8 @@ USER_ROW = {
 }
 
 SETTINGS_ROW = {"trading_mode": "paper"}
+CHECKLIST_PASS = SimpleNamespace(ready_for_live=True, passed=True, failed_gates=[], outcomes=[])
+CHECKLIST_FAIL = SimpleNamespace(ready_for_live=False, passed=False, failed_gates=["ENABLE_LIVE_TRADING"], outcomes=[])
 
 
 def _make_msg_update(text: str = "") -> tuple[SimpleNamespace, AsyncMock]:
@@ -237,6 +239,8 @@ def test_callback_yes_within_timeout_enables_live():
     })
 
     with patch.object(live_gate, "upsert_user", AsyncMock(return_value=USER_ROW)), \
+         patch.object(live_gate.live_checklist, "evaluate",
+                      AsyncMock(return_value=CHECKLIST_PASS)), \
          patch.object(live_gate, "get_settings_for", AsyncMock(return_value=SETTINGS_ROW)), \
          patch.object(live_gate, "update_settings", AsyncMock()) as mock_update, \
          patch.object(live_gate, "write_mode_change_event", AsyncMock()) as mock_audit:
@@ -249,6 +253,27 @@ def test_callback_yes_within_timeout_enables_live():
         to_mode="live",
         reason=ModeChangeReason.USER_CONFIRMED,
     )
+    reply.assert_awaited_once()
+
+
+def test_callback_yes_checklist_fail_blocks_mode_change():
+    update, reply = _make_cb_update("live_gate:yes")
+    ctx = _make_ctx({
+        "awaiting": live_gate.AWAITING_STEP2,
+        live_gate.GATE_TS_KEY: time.monotonic(),
+    })
+
+    with patch.object(live_gate, "upsert_user", AsyncMock(return_value=USER_ROW)), \
+         patch.object(live_gate.live_checklist, "evaluate",
+                      AsyncMock(return_value=CHECKLIST_FAIL)), \
+         patch.object(live_gate.live_checklist, "render_telegram",
+                      return_value="🔒 not ready"), \
+         patch.object(live_gate, "update_settings", AsyncMock()) as mock_update, \
+         patch.object(live_gate, "write_mode_change_event", AsyncMock()) as mock_audit:
+        asyncio.run(live_gate.live_gate_callback(update, ctx))
+
+    mock_update.assert_not_awaited()
+    mock_audit.assert_not_awaited()
     reply.assert_awaited_once()
 
 

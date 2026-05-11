@@ -37,7 +37,7 @@ async def get_recent_error_count(lookback_seconds: int = LOOKBACK_SECONDS) -> in
         async with pool.acquire() as conn:
             count = await conn.fetchval(
                 "SELECT COUNT(*) FROM audit.log "
-                "WHERE action = 'execution_error' AND created_at >= $1",
+                "WHERE action = 'execution_error' AND ts >= $1",
                 since,
             )
         return int(count or 0)

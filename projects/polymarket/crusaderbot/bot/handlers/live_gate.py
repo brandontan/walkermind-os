@@ -22,6 +22,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
+from ...domain.activation import live_checklist
 from ...domain.activation.live_opt_in_gate import (
     ModeChangeReason,
     check_activation_guards,
@@ -185,6 +186,18 @@ async def live_gate_callback(
         user = await upsert_user(
             update.effective_user.id, update.effective_user.username,
         )
+
+        # Defense-in-depth: re-run full 8-gate checklist. Guards or user state
+        # may have changed between CONFIRM and the button press.
+        checklist_result = await live_checklist.evaluate(user["id"])
+        if not checklist_result.ready_for_live:
+            if query.message:
+                await query.message.reply_text(
+                    live_checklist.render_telegram(checklist_result),
+                    parse_mode="Markdown",
+                )
+            return
+
         settings_row = await get_settings_for(user["id"])
         from_mode = settings_row.get("trading_mode") or "paper"
 
