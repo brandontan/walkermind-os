@@ -423,6 +423,7 @@ def test_scheduler_registers_daily_pnl_summary_job():
         RESOLUTION_CHECK_INTERVAL = 300
         ORDER_POLL_INTERVAL_SECONDS = 30
         WS_WATCHDOG_INTERVAL_SECONDS = 60
+        COPY_TRADE_MONITOR_INTERVAL = 60
 
     with patch.object(scheduler, "get_settings", return_value=_SettingsStub()):
         sched = scheduler.setup_scheduler()

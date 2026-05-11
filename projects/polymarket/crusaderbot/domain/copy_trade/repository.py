@@ -122,6 +122,14 @@ async def update_task(
     return _row_to_task(row) if row else None
 
 
+async def list_active_tasks() -> list[CopyTradeTask]:
+    """Return all copy_trade_tasks where status = 'active', across all users."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(_SELECT + " WHERE status = 'active'")
+    return [_row_to_task(r) for r in rows]
+
+
 async def delete_task(task_id: UUID, user_id: UUID) -> bool:
     pool = get_pool()
     async with pool.acquire() as conn:

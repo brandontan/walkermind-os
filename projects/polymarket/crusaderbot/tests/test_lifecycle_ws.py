@@ -197,7 +197,7 @@ async def test_ws_fill_missing_required_fields_drops_event():
 
 
 async def test_ws_fill_records_partial_only_no_terminal_update():
-    """Codex P1 / WARP🔹CMD: the WS fill path is records-only. Each
+    """Codex P1 / WARP\U0001f539CMD: the WS fill path is records-only. Each
     CONFIRMED ``user_fill`` writes one fills row + bumps the position
     mark price; it MUST NOT mark the order as filled. Terminal status
     arrives via ``handle_ws_order_update(status=filled)`` or the
@@ -439,7 +439,7 @@ async def test_ws_gap_aggregate_fill_inserted_when_per_trade_undercovers():
 
 
 async def test_open_update_with_size_matched_persists_aggregate():
-    """Codex P1 round 10 / WARP🔹CMD GATE: partial UPDATE
+    """Codex P1 round 10 / WARP\U0001f539CMD GATE: partial UPDATE
     (status=open, size_matched > 0 but < original_size) must persist
     the matched aggregate so a later cancellation that omits
     size_matched can hydrate it. Without this, _terminal_close
@@ -820,6 +820,7 @@ def test_setup_scheduler_registers_ws_jobs(monkeypatch):
         RESOLUTION_CHECK_INTERVAL = 300
         ORDER_POLL_INTERVAL_SECONDS = 30
         WS_WATCHDOG_INTERVAL_SECONDS = 60
+        COPY_TRADE_MONITOR_INTERVAL = 60
 
     monkeypatch.setattr(sch, "get_settings", lambda: _S())
     sch.setup_scheduler()

@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 13:46
-Status       : Fast Track Track A MERGED PR #942. TradeEngine service layer FULL RUNTIME INTEGRATION complete; signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green. Track B (Copy Trade execution) unblocked. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 14:30
+Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution) implemented — WARP•SENTINEL validation required before merge. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -13,12 +13,12 @@ Status       : Fast Track Track A MERGED PR #942. TradeEngine service layer FULL
 - Fast Track Track A — TradeEngine service layer FULL RUNTIME INTEGRATION MERGED PR #942 (2026-05-11). signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
 
 [IN PROGRESS]
+- Fast Track Track B -- Copy Trade execution FORGE complete; PR open; WARP•SENTINEL validation required before merge. CopyTradeMonitor.run_once(), 020_copy_trade_execution.sql migration, 23 hermetic tests green.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Fast Track Track B -- Copy Trade execution: active copy_trade_tasks monitor target wallets and mirror paper positions with spend/min-size caps. MAJOR; SENTINEL required; depends on Track A merge.
 - Fast Track Track C -- Trade notifications: entry, exit, and copy trade Telegram notifications. STANDARD; merge after Track A integration surface is available.
 - Fast Track Track D -- Risk caps + kill switch hardening: hard exposure caps, daily loss guard, max open positions, Telegram/DB/env kill paths. MAJOR; SENTINEL required.
 - Fast Track Track E -- Daily P&L report: scheduled Telegram daily summary. STANDARD.
@@ -27,7 +27,7 @@ Status       : Fast Track Track A MERGED PR #942. TradeEngine service layer FULL
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Track A merged. Track B (Copy Trade execution) now unblocked — MAJOR, SENTINEL REQUIRED. Assign to WARP•FORGE.
+- WARP•SENTINEL validation required for Fast Track Track B (Copy Trade execution) before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-copy-execution.md. Tier: MAJOR.
 - Track C (trade notifications) can proceed concurrently — STANDARD.
 - Do not flip activation guards.
 
