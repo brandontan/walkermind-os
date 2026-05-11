@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 14:30
-Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution) implemented — WARP•SENTINEL validation required before merge. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 15:30
+Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution) MERGED PR #948. Track C (trade notifications) PR #947 open. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -11,15 +11,15 @@ Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution)
 - State sync after PRs #923-#939 complete; PROJECT_STATE / ROADMAP / WORKTODO aligned to merged Phase 5 truth.
 - Fast Track roadmap selected by Mr. Walker on 2026-05-10; Standard roadmap rejected for current execution posture.
 - Fast Track Track A — TradeEngine service layer FULL RUNTIME INTEGRATION MERGED PR #942 (2026-05-11). signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
+- Fast Track Track B — Copy Trade execution MERGED PR #948 (2026-05-11). CopyTradeMonitor.run_once(), 020_copy_trade_execution.sql migration, 25 hermetic tests green. P1 fixes: outcome field, market field, copy_pct scaling applied.
 
 [IN PROGRESS]
-- Fast Track Track B -- Copy Trade execution FORGE complete; PR open; WARP•SENTINEL validation required before merge. CopyTradeMonitor.run_once(), 020_copy_trade_execution.sql migration, 23 hermetic tests green.
+- Fast Track Track C -- Trade notifications PR #947 open; STANDARD; WARP🔹CMD review required.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Fast Track Track C -- Trade notifications: entry, exit, and copy trade Telegram notifications. STANDARD; merge after Track A integration surface is available.
 - Fast Track Track D -- Risk caps + kill switch hardening: hard exposure caps, daily loss guard, max open positions, Telegram/DB/env kill paths. MAJOR; SENTINEL required.
 - Fast Track Track E -- Daily P&L report: scheduled Telegram daily summary. STANDARD.
 - Fast Track Week 2 -- Live gate + UI premium pack + charts/insights + referral/share/fee prep.
@@ -27,8 +27,7 @@ Status       : Fast Track Track A MERGED PR #942. Track B (Copy Trade execution)
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for Fast Track Track B (Copy Trade execution) before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-copy-execution.md. Tier: MAJOR.
-- Track C (trade notifications) can proceed concurrently — STANDARD.
+- WARP🔹CMD review required for Track C (trade notifications) PR #947. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-trade-notifications.md. Tier: STANDARD.
 - Do not flip activation guards.
 
 [KNOWN ISSUES]
