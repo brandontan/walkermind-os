@@ -109,11 +109,10 @@ async def settings_hub_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def settings_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """/settings command — keep old auto-redeem surface for compat."""
-    if update.effective_user is None or update.message is None:
+    """/settings command — routes to hub, tier-gated same as main-menu entry."""
+    user, ok = await _ensure(update)
+    if not ok or update.message is None:
         return
-    user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    s = await get_settings_for(user["id"])
     await update.message.reply_text(
         _HUB_TEXT,
         parse_mode=ParseMode.MARKDOWN,
@@ -206,12 +205,12 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
 
     # --- Mode (Paper/Live) ---
     if data == "settings:mode":
-        from ..keyboards import mode_picker
+        from ..keyboards.settings import settings_mode_picker
         s = await get_settings_for(user["id"])
         await q.message.reply_text(
             "*📄 Mode*\n\nPaper: safe virtual trading. Live: real capital (Tier 4 required).",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=mode_picker(s["trading_mode"]),
+            reply_markup=settings_mode_picker(s["trading_mode"]),
         )
         return
 

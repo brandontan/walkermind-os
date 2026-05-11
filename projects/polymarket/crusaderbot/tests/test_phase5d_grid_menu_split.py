@@ -89,8 +89,8 @@ def test_main_menu_expected_buttons():
         "🐋 Copy Trade",
         "🤖 Auto-Trade",
         "📈 My Trades",
-        "💰 Wallet",
-        "🚨 Emergency",
+        "⚙️ Settings",
+        "🛑 Stop Bot",
     }
 
 
@@ -113,7 +113,7 @@ def test_copy_trade_and_auto_trade_are_different_handlers():
 def test_all_six_main_menu_routes_present():
     expected = {
         "📊 Dashboard", "🐋 Copy Trade", "🤖 Auto-Trade",
-        "📈 My Trades", "💰 Wallet", "🚨 Emergency",
+        "📈 My Trades", "⚙️ Settings", "🛑 Stop Bot",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 

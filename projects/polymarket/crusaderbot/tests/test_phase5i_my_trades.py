@@ -358,7 +358,8 @@ def test_my_trades_main_kb_two_col_close_buttons():
     # Last row is the nav row.
     nav_labels = [btn.text for btn in rows[-1]]
     assert any("Full History" in l for l in nav_labels)
-    assert any("Dashboard" in l for l in nav_labels)
+    # Dashboard button removed from My Trades nav in UX overhaul (Part 9).
+    assert not any("Dashboard" in l for l in nav_labels)
 
 
 # ---------- Test 13: close_confirm_kb structure ----------------------------

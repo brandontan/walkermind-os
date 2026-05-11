@@ -100,3 +100,15 @@ def autoredeem_settings_picker(current: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton("⬅️ Back", callback_data="settings:hub"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))
+
+
+def settings_mode_picker(current: str) -> InlineKeyboardMarkup:
+    """Mode picker scoped to Settings hub — Back routes to settings:hub."""
+    def mark(m: str) -> str:
+        return f"{'✅' if m == current else '◻️'} {m.title()}"
+    buttons = [
+        InlineKeyboardButton(mark("paper"), callback_data="set_mode:paper"),
+        InlineKeyboardButton(mark("live") + " (Tier 4)", callback_data="set_mode:live"),
+        InlineKeyboardButton("⬅️ Back", callback_data="settings:hub"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
