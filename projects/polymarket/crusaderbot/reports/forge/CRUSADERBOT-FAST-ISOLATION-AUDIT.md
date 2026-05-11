@@ -3,7 +3,7 @@
 **Branch:** WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT
 **Date:** 2026-05-11
 **Validation Tier:** MAJOR
-**Claim Level:** EXECUTION
+**Claim Level:** FULL RUNTIME INTEGRATION
 **Validation Target:** Multi-user DB isolation across all production query surfaces
 **Not in Scope:** Live-trading execution (guards remain OFF), payment/fee activation, referral payout
 
@@ -209,5 +209,5 @@ The following functions in `domain/positions/registry.py` use `WHERE id = $1` (p
 ---
 
 **Validation Tier:** MAJOR
-**Claim Level:** EXECUTION
+**Claim Level:** FULL RUNTIME INTEGRATION
 **Suggested Next Step:** WARP•SENTINEL audit — minimum score 90 required before beta user onboarding
