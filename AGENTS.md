@@ -1552,26 +1552,93 @@ On session handoff block: treat as execution resume input. Verify against repo t
 
 ## Review guidelines
 
-Focus review on:
-- branch name matches declared WARP/{feature} exactly — no date suffix, no underscores, no sentence slug
-- forge report exists at correct path with correct naming (no date suffix, no underscore)
-- PROJECT_STATE.md updated with full timestamp, scope-bound edit only
-- no hardcoded secrets or API keys
-- no full Kelly (a=1.0)
-- no phase*/ folders
-- no silent exception handling (except: pass)
-- no threading — asyncio only
-- repo-root relative paths in all reports and state files
-- no mojibake sequences in committed files
+Codex acts as **WARP•GATE** — the automated pre-review quality gate for WalkerMind OS.
+Flag only P0 (block merge) and P1 (must fix before merge) issues. Skip P2 / style / cosmetic.
+
+### GATE 1 — Branch format (P0 if fail)
+- PR head branch MUST match `WARP/{FEATURE-NAME}` — uppercase prefix, hyphen-separated slug
+- No underscores, no dots, no date suffix
+- `claude/*` branches = P0 BLOCK — forbidden per branch naming rules
+- `NWAP/*` branches = P0 BLOCK — historical only, not valid for new work
+- Codex worktree showing `work` = normal, do not block on this
+
+### GATE 2 — PR body declarations (P1 if missing)
+PR body MUST contain ALL of these fields:
+- `Validation Tier` (MINOR / STANDARD / MAJOR)
+- `Claim Level` (FOUNDATION / NARROW INTEGRATION / FULL RUNTIME INTEGRATION)
+- `Validation Target`
+- `Not in Scope`
+Each missing field = P1 finding. All four missing = P0.
+
+### GATE 3 — Forge report (P1 if fail)
+For WARP•FORGE PRs (code + state changes):
+- Report MUST exist at `{PROJECT_ROOT}/reports/forge/{feature}.md`
+- `{feature}` = short hyphen-separated slug matching branch feature token
+- No phase prefix, no date suffix, no underscores in filename
+- Wrong: `phase24_01_validation.md` or `WARP•FORGE_REPORT_wallet_20260424.md`
+- Right: `wallet-state-read-boundary.md` or `execution-kill-switch.md`
+- MINOR report: 3 sections minimum
+- STANDARD/MAJOR report: 6 sections minimum
+- Report missing or wrong naming = P1
+
+### GATE 4 — PROJECT_STATE.md (P1 if fail)
+- `{PROJECT_ROOT}/state/PROJECT_STATE.md` must be updated in PR
+- `Last Updated` timestamp must be present, format YYYY-MM-DD HH:MM (Asia/Jakarta UTC+7)
+- `Last Updated` must not be earlier than previous value
+- Section labels must use fixed ASCII bracket format: `[COMPLETED]`, `[IN PROGRESS]`, etc — no emoji
+- Branch reference in PROJECT_STATE must match actual PR head branch exactly
+- Scope-bound edit only — items outside task scope must be preserved verbatim
+
+### GATE 5 — Hard stops (P0 if any found)
+Scan ALL changed files for:
+- Hardcoded secrets, API keys, tokens, passwords — P0
+- Full Kelly position sizing `a=1.0` or `kelly_fraction=1.0` — P0
+- Silent exception handling `except: pass` or bare `except:` in runtime paths — P0
+- `import threading` or `from threading import` — P0 (asyncio only)
+- `phase*/` folder creation — P0 (domain structure, no phase folders)
+- `ENABLE_LIVE_TRADING` guard bypass — P0
+- Force push or destructive git operations — P0
+
+### GATE 6 — Drift checks (P1 if found)
+- Imports in new/modified Python files must resolve
+- Adapters/facades must wrap real logic — no fake abstractions
+- Report claims must match implementation reality
+- Branch name in forge report must match actual PR head branch exactly
+- PROJECT_STATE.md and ROADMAP.md must not contradict on milestone status
+- Validation Tier / Claim Level / Validation Target / Not in Scope all declared
+
+### GATE 7 — PR type and merge order (P1 if wrong)
+- WARP•SENTINEL PR must NOT merge before corresponding WARP•FORGE PR
+- A PR containing only a WARP•SENTINEL report must not merge first
+- Sync commits (title starts with `sync:`) = skip review
+
+### GATE 8 — MAJOR tier flag (P1 informational)
+If PR body contains `Validation Tier: MAJOR` or `Tier: MAJOR`:
+- Flag: "MAJOR tier — WARP•SENTINEL audit required before merge"
+- This is informational, not a block — WARP◆CMD decides
+
+### Risk rules (P0 if violated)
+These constants are non-negotiable in trading logic:
+- Kelly fraction ≤ 0.25
+- Position size ≤ 10% of bankroll
+- Loss limit = -$2,000
+- Drawdown guard > 8%
+- Minimum liquidity = $10,000
+- Kill switch must be present and functional
+- Deduplication check required
+
+### Encoding (P1 if found)
+- All committed files must be UTF-8 without BOM
+- No mojibake sequences: `â` / `ð` / `\udc` / `U+FFFD`
+- Runner locale should be `C.UTF-8` or `en_US.UTF-8`
+- `PYTHONIOENCODING=utf-8` expected
 
 Skip review on:
-- wording, comments, whitespace, style, formatting
-- non-runtime docs changes
-- test-only additions with zero runtime logic
-- MINOR state/roadmap wording sync only
-
----
-
+- Wording, comments, whitespace, style, formatting choices
+- Non-runtime docs changes
+- Test-only additions with zero runtime logic
+- MINOR state/roadmap wording sync commits
+- PR titles starting with `sync:` or `post-merge sync`
 ## COST EFFICIENCY RULES (ALL AGENTS)
 
 Token cost compounds across every agent call. Every agent must
