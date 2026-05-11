@@ -71,9 +71,15 @@ def test_meets_tier_below():
 
 
 def test_meets_tier_unknown_user_tier_defaults_to_free_rank():
-    # Unknown tier maps to rank 0 (same as FREE), so it meets FREE but not PREMIUM.
+    # Unknown user tier maps to rank 0 (same as FREE), so it meets FREE but not PREMIUM.
     assert tier_svc.meets_tier("UNKNOWN", "FREE") is True
     assert tier_svc.meets_tier("UNKNOWN", "PREMIUM") is False
+
+
+def test_meets_tier_raises_on_unknown_required_tier():
+    # Fail closed: a misspelled required tier raises rather than granting access.
+    with pytest.raises(ValueError, match="unknown required tier"):
+        tier_svc.meets_tier("ADMIN", "PREMUM")  # typo
 
 
 def test_valid_tiers_set():
@@ -234,6 +240,30 @@ def test_require_access_tier_no_user_is_noop():
 
     _run(wrapped(upd, _ctx()))
     assert called == []
+
+
+def test_require_access_tier_raises_at_decoration_time_on_bad_tier():
+    with pytest.raises(ValueError, match="unknown tier"):
+        at_mw.require_access_tier("PREMUM")  # typo — caught at decoration, not runtime
+
+
+def test_require_access_tier_returns_handler_return_value():
+    """Wrapper must propagate the handler's return value for ConversationHandler."""
+    SENTINEL = object()
+
+    async def _handler(update, ctx):
+        return SENTINEL
+
+    wrapped = at_mw.require_access_tier("FREE")(_handler)
+    upd = _update(user_id=10)
+
+    with patch(
+        "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
+        new=AsyncMock(return_value="FREE"),
+    ):
+        result = _run(wrapped(upd, _ctx()))
+
+    assert result is SENTINEL
 
 
 # ---------------------------------------------------------------------------

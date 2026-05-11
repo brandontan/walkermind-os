@@ -25,6 +25,15 @@ def tier_rank(tier: str) -> int:
 
 
 def meets_tier(user_tier: str, required: str) -> bool:
+    """Return True iff user_tier satisfies the required tier.
+
+    Raises ValueError if required is not a known tier — unknown required
+    tiers would map to rank 0 and silently grant access to everyone.
+    """
+    if required not in VALID_TIERS:
+        raise ValueError(
+            f"meets_tier: unknown required tier {required!r}. Valid: {sorted(VALID_TIERS)}"
+        )
     return tier_rank(user_tier) >= tier_rank(required)
 
 

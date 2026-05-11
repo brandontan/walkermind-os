@@ -36,7 +36,16 @@ HandlerFn = Callable[..., Awaitable[Any]]
 
 
 def require_access_tier(min_tier: str) -> Callable[[HandlerFn], HandlerFn]:
-    """Decorator: gate a Telegram handler on the caller's string tier."""
+    """Decorator: gate a Telegram handler on the caller's string tier.
+
+    Raises ValueError at decoration time if min_tier is not a known tier,
+    so typos are caught when the module is imported, not at runtime.
+    """
+    from ...services.tiers import VALID_TIERS  # local import avoids circular at module level
+    if min_tier not in VALID_TIERS:
+        raise ValueError(
+            f"require_access_tier: unknown tier {min_tier!r}. Valid: {sorted(VALID_TIERS)}"
+        )
 
     def decorator(handler: HandlerFn) -> HandlerFn:
         @wraps(handler)
@@ -45,9 +54,9 @@ def require_access_tier(min_tier: str) -> Callable[[HandlerFn], HandlerFn]:
             context: ContextTypes.DEFAULT_TYPE,
             *args: Any,
             **kwargs: Any,
-        ) -> None:
+        ) -> Any:
             if update.effective_user is None or update.effective_message is None:
-                return
+                return None
             telegram_user_id = update.effective_user.id
             user_tier = await get_user_tier(telegram_user_id)
             if not meets_tier(user_tier, min_tier):
@@ -64,8 +73,8 @@ def require_access_tier(min_tier: str) -> Callable[[HandlerFn], HandlerFn]:
                 await update.effective_message.reply_text(
                     msg, parse_mode="Markdown"
                 )
-                return
-            await handler(update, context, *args, **kwargs)
+                return None
+            return await handler(update, context, *args, **kwargs)
 
         return wrapper
 
