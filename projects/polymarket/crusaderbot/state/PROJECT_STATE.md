@@ -1,5 +1,5 @@
-Last Updated : 2026-05-10 22:30
-Status       : Fast Track Track A trade engine implemented. TradeEngine service layer (signal → risk gate → paper order → paper position) delivered with 39 hermetic tests green. PR open on WARP/crusaderbot-fast-trade-engine; WARP•SENTINEL validation required before merge. Activation guards remain NOT SET.
+Last Updated : 2026-05-11 10:00
+Status       : Fast Track Track A FULL RUNTIME INTEGRATION complete. TradeEngine wired into active signal scan runtime; signal_scan_job._process_candidate now routes through TradeEngine (gate + paper fill) on all normal paths; 47 hermetic tests green. PR open on WARP/crusaderbot-fast-trade-engine; WARP•SENTINEL validation required before merge. Activation guards remain NOT SET.
 
 [COMPLETED]
 - Phase 1 project restructure complete.
@@ -12,7 +12,7 @@ Status       : Fast Track Track A trade engine implemented. TradeEngine service 
 - Fast Track roadmap selected by Mr. Walker on 2026-05-10; Standard roadmap rejected for current execution posture.
 
 [IN PROGRESS]
-- Fast Track Track A — TradeEngine service layer built; PR open on WARP/crusaderbot-fast-trade-engine (Tier MAJOR, Claim FULL RUNTIME INTEGRATION). 39 hermetic tests green. WARP•SENTINEL validation pending before merge.
+- Fast Track Track A — TradeEngine wired into active scan runtime; signal_scan_job uses TradeEngine on all normal paths; PR open on WARP/crusaderbot-fast-trade-engine (Tier MAJOR, Claim FULL RUNTIME INTEGRATION). 47 hermetic tests green. WARP•SENTINEL validation pending before merge.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.

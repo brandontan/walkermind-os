@@ -96,6 +96,8 @@ class TradeResult:
     failed_gate_step: Optional[int]
     # chosen_mode: actual execution mode from the router (equals mode when approved)
     chosen_mode: Optional[str] = None
+    # Kelly-adjusted final size committed to the router; None on rejection/duplicate
+    final_size_usdc: Optional[Decimal] = None
 
 
 class TradeEngine:
@@ -132,6 +134,7 @@ class TradeEngine:
                 rejection_reason=gate_result.reason,
                 failed_gate_step=gate_result.failed_step,
                 chosen_mode=None,
+                final_size_usdc=None,
             )
 
         final_size = gate_result.final_size_usdc or signal.proposed_size_usdc
@@ -180,6 +183,7 @@ class TradeEngine:
             rejection_reason=None,
             failed_gate_step=None,
             chosen_mode=actual_mode,
+            final_size_usdc=final_size,
         )
 
     # ------------------------------------------------------------------
