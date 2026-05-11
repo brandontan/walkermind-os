@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 21:45
-Status       : Fast Track Week 1 Tracks A-E MERGED. Track E Daily P&L Report merged PR #962 with paper-mode daily Telegram P&L summary, opened/closed/W/L counts, no-trade empty state, scheduler callback wiring test; issue #960 closed. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF.
+Last Updated : 2026-05-11 23:00
+Status       : Fast Track Week 1 Tracks A-E MERGED. Week 2 first lane: CrusaderBot Premium PNL Insights UX (issue #963) — /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; replacement PR opened from WARP/crusaderbot-premium-pnl-insights. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -14,17 +14,18 @@ Status       : Fast Track Week 1 Tracks A-E MERGED. Track E Daily P&L Report mer
 - Fast Track Track E -- Daily P&L Report MERGED PR #962 (2026-05-11). Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed.
 
 [IN PROGRESS]
+- Fast Track Week 2 first lane (Premium PNL Insights UX) replacement PR open from WARP/crusaderbot-premium-pnl-insights, awaiting WARP🔹CMD merge decision. Supersedes PR #964.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- Fast Track Week 2 -- Live gate + UI premium pack + charts/insights + referral/share/fee prep.
+- Fast Track Week 2 -- remaining lanes: live gate preparation, charts/insights (follow-on), referral/share/fee prep.
 - Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin + onboarding polish.
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Week 2 lane selection: live gate preparation + premium UX prep, still PAPER ONLY.
+- WARP🔹CMD merge decision on replacement PR from WARP/crusaderbot-premium-pnl-insights (Closes #963).
 - Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 

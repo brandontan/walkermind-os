@@ -188,9 +188,10 @@ def test_menu_copytrade_handler_inline_buttons(monkeypatch):
 
 def test_dashboard_nav_with_trades_is_two_col():
     kb = dashboard_nav(has_trades=True)
-    # 3 buttons → row 0 has 2, row 1 has 1
+    # 4 buttons (Auto-Trade, Trades, Wallet, Insights) → 2 rows of 2
+    assert len(kb.inline_keyboard) == 2
     assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 1
+    assert len(kb.inline_keyboard[1]) == 2
 
 
 def test_wallet_menu_is_two_col():
