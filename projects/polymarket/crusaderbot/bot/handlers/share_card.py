@@ -2,11 +2,19 @@
 from __future__ import annotations
 
 import logging
+import re
 from uuid import UUID
 
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
+
+_MDV2_SPECIAL = re.compile(r'([_*\[\]()~`>#+=|{}.!\-\\])')
+
+
+def _esc(text: str) -> str:
+    """Escape all Telegram MarkdownV2 special characters."""
+    return _MDV2_SPECIAL.sub(r'\\\1', text)
 
 from ...database import get_pool
 from ...services.referral.referral_service import get_or_create_referral_code, build_deep_link
@@ -88,10 +96,14 @@ async def referral_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
 
     deep_link = build_deep_link(code)
 
+    pct_str = _esc(f"+{pct:.1f}%")
+    title_str = _esc(market_title)
+    link_str = _esc(deep_link)
+
     card = (
-        f"🏆 Just made *+{pct:.1f}%* on _{market_title}_\n"
+        f"\U0001f3c6 Just made *{pct_str}* on _{title_str}_\n"
         f"using CrusaderBot\\!\n\n"
-        f"Join me: {deep_link}"
+        f"Join me: {link_str}"
     )
 
     await q.message.reply_text(

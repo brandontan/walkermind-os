@@ -20,10 +20,11 @@ Coverage:
 
     config
       * REFERRAL_PAYOUT_ENABLED default is False
+      * FEE_COLLECTION_ENABLED default is False
 
     notifier
       * notify_tp_hit — reply_markup forwarded to notifications.send
-      * notify_sl_hit — reply_markup forwarded to notifications.send
+      * notify_sl_hit — sends without reply_markup (default None)
       * notify_manual_close — reply_markup forwarded to notifications.send
 
 No live DB, no live Telegram. All external calls patched.
@@ -286,12 +287,11 @@ async def test_get_referral_stats_payout_disabled():
 
 
 # ---------------------------------------------------------------------------
-# config — REFERRAL_PAYOUT_ENABLED default
+# config — guard defaults
 # ---------------------------------------------------------------------------
 
 def test_referral_payout_enabled_default_false():
     from projects.polymarket.crusaderbot.config import Settings
-    import os
     required = {
         "TELEGRAM_BOT_TOKEN": "tok",
         "DATABASE_URL": "postgresql://x",
@@ -352,11 +352,7 @@ async def test_notify_tp_hit_with_reply_markup():
         )
 
     mock_send.assert_called_once()
-    _, kwargs = mock_send.call_args
-    assert kwargs.get("reply_markup") is kb or mock_send.call_args[0][2:] or True
-    call_kwargs = mock_send.call_args.kwargs if mock_send.call_args.kwargs else {}
-    call_args = mock_send.call_args.args
-    assert kb in call_args or call_kwargs.get("reply_markup") is kb or True
+    assert mock_send.call_args.kwargs.get("reply_markup") is kb
 
 
 @pytest.mark.asyncio
@@ -375,6 +371,7 @@ async def test_notify_sl_hit_no_reply_markup():
         )
 
     mock_send.assert_called_once()
+    assert mock_send.call_args.kwargs.get("reply_markup") is None
 
 
 @pytest.mark.asyncio
@@ -397,3 +394,4 @@ async def test_notify_manual_close_with_reply_markup():
         )
 
     mock_send.assert_called_once()
+    assert mock_send.call_args.kwargs.get("reply_markup") is kb
