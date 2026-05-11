@@ -35,6 +35,7 @@ from projects.polymarket.crusaderbot.domain.strategy.types import (
     UserContext,
 )
 from projects.polymarket.crusaderbot.services.signal_scan import signal_scan_job as job
+from projects.polymarket.crusaderbot.services.trade_engine import TradeResult
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -369,24 +370,24 @@ def test_process_candidate_logs_rejection_and_does_not_execute():
     row = _user_row()
     cand = _candidate()
 
-    from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
+    rejected = TradeResult(
+        approved=False, mode=None, order_id=None, position_id=None,
+        rejection_reason="max_concurrent_trades", failed_gate_step=7,
+    )
+    insert_called = {"called": False}
 
-    executed = {"called": False}
-
-    async def _fake_router(**kwargs):
-        executed["called"] = True
+    async def _track_insert(**kwargs):
+        insert_called["called"] = True
+        return True
 
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
-            patch.object(
-                job, "risk_evaluate",
-                return_value=GateResult(False, "max_concurrent_trades", 7),
-            ), \
-            patch.object(job, "router_execute", side_effect=_fake_router):
+            patch.object(job._engine, "execute", new=AsyncMock(return_value=rejected)), \
+            patch.object(job, "_insert_execution_queue", side_effect=_track_insert):
         asyncio.run(job._process_candidate(row, cand))
 
-    assert not executed["called"]
+    assert not insert_called["called"]
 
 
 # ---------------------------------------------------------------------------
@@ -399,29 +400,26 @@ def test_process_candidate_happy_path_inserts_queue_and_executes():
     row = _user_row()
     cand = _candidate()
 
-    from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
-
-    executed = {"called": False}
+    from uuid import uuid4 as _uuid4
+    approved = TradeResult(
+        approved=True, mode="paper",
+        order_id=_uuid4(), position_id=_uuid4(),
+        rejection_reason=None, failed_gate_step=None,
+        chosen_mode="paper", final_size_usdc=Decimal("10"),
+    )
     marked = {"called": False}
-
-    async def _fake_router(**kwargs):
-        executed["called"] = True
 
     async def _fake_mark_executed(*a, **kw):
         marked["called"] = True
 
-    gate_ok = GateResult(True, "approved", None, Decimal("10"), "paper")
-
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
-            patch.object(job, "risk_evaluate", return_value=gate_ok), \
+            patch.object(job._engine, "execute", new=AsyncMock(return_value=approved)), \
             patch.object(job, "_insert_execution_queue", return_value=True), \
-            patch.object(job, "router_execute", side_effect=_fake_router), \
             patch.object(job, "_mark_executed", side_effect=_fake_mark_executed):
         asyncio.run(job._process_candidate(row, cand))
 
-    assert executed["called"]
     assert marked["called"]
 
 
@@ -430,35 +428,29 @@ def test_process_candidate_happy_path_inserts_queue_and_executes():
 # ---------------------------------------------------------------------------
 
 
-def test_process_candidate_marks_failed_when_router_raises():
+def test_process_candidate_handles_engine_exception_gracefully():
+    """Engine exception is caught and logged; no _mark_failed since queue not pre-inserted."""
     bootstrap_default_strategies()
     row = _user_row()
     cand = _candidate()
 
-    from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
+    async def _boom(signal):
+        raise RuntimeError("engine error")
 
-    marked_failed = {"called": False, "err": None}
+    mark_failed_called = {"called": False}
 
-    async def _boom(**kwargs):
-        raise RuntimeError("clob error")
-
-    async def _fake_mark_failed(user_id, pub_id, idem_key, error):
-        marked_failed["called"] = True
-        marked_failed["err"] = error
-
-    gate_ok = GateResult(True, "approved", None, Decimal("10"), "paper")
+    async def _track_mark_failed(*a, **kw):
+        mark_failed_called["called"] = True
 
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
-            patch.object(job, "risk_evaluate", return_value=gate_ok), \
-            patch.object(job, "_insert_execution_queue", return_value=True), \
-            patch.object(job, "router_execute", side_effect=_boom), \
-            patch.object(job, "_mark_failed", side_effect=_fake_mark_failed):
-        asyncio.run(job._process_candidate(row, cand))
+            patch.object(job._engine, "execute", side_effect=_boom), \
+            patch.object(job, "_mark_failed", side_effect=_track_mark_failed):
+        asyncio.run(job._process_candidate(row, cand))  # must not raise
 
-    assert marked_failed["called"]
-    assert "clob error" in marked_failed["err"]
+    # In new flow: engine exception caught at step 4, logged, return — no queue entry to fail
+    assert not mark_failed_called["called"]
 
 
 # ---------------------------------------------------------------------------
@@ -466,29 +458,34 @@ def test_process_candidate_marks_failed_when_router_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_process_candidate_skips_when_concurrent_insert_conflict():
+def test_process_candidate_skips_mark_executed_when_insert_conflicts():
+    """ON CONFLICT on queue insert (concurrent tick) → skip _mark_executed."""
     bootstrap_default_strategies()
     row = _user_row()
     cand = _candidate()
 
-    from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
+    from uuid import uuid4 as _uuid4
+    approved = TradeResult(
+        approved=True, mode="paper",
+        order_id=_uuid4(), position_id=_uuid4(),
+        rejection_reason=None, failed_gate_step=None,
+        chosen_mode="paper", final_size_usdc=Decimal("10"),
+    )
+    mark_exec_called = {"called": False}
 
-    executed = {"called": False}
-
-    async def _fake_router(**kwargs):
-        executed["called"] = True
-
-    gate_ok = GateResult(True, "approved", None, Decimal("10"), "paper")
+    async def _track_mark_exec(*a, **kw):
+        mark_exec_called["called"] = True
 
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
-            patch.object(job, "risk_evaluate", return_value=gate_ok), \
+            patch.object(job._engine, "execute", new=AsyncMock(return_value=approved)), \
             patch.object(job, "_insert_execution_queue", return_value=False), \
-            patch.object(job, "router_execute", side_effect=_fake_router):
+            patch.object(job, "_mark_executed", side_effect=_track_mark_exec):
         asyncio.run(job._process_candidate(row, cand))
 
-    assert not executed["called"]
+    # Insert returned False (ON CONFLICT DO NOTHING) → _mark_executed must be skipped
+    assert not mark_exec_called["called"]
 
 
 # ---------------------------------------------------------------------------
@@ -501,24 +498,25 @@ def test_process_candidate_risk_rejects_inactive_market():
     row = _user_row()
     cand = _candidate()
 
-    from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
+    # TradeEngine rejects because market is resolved (gate step 13).
+    rejected = TradeResult(
+        approved=False, mode=None, order_id=None, position_id=None,
+        rejection_reason="market_inactive", failed_gate_step=13,
+    )
+    insert_called = {"called": False}
 
-    executed = {"called": False}
-
-    async def _fake_router(**kwargs):
-        executed["called"] = True
-
-    # Gate rejects because market is resolved (step 13).
-    gate_rejected = GateResult(False, "market_inactive", 13)
+    async def _track_insert(**kwargs):
+        insert_called["called"] = True
+        return True
 
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row(status="resolved")), \
-            patch.object(job, "risk_evaluate", return_value=gate_rejected), \
-            patch.object(job, "router_execute", side_effect=_fake_router):
+            patch.object(job._engine, "execute", new=AsyncMock(return_value=rejected)), \
+            patch.object(job, "_insert_execution_queue", side_effect=_track_insert):
         asyncio.run(job._process_candidate(row, cand))
 
-    assert not executed["called"]
+    assert not insert_called["called"]
 
 
 # ---------------------------------------------------------------------------
@@ -618,13 +616,13 @@ def test_process_candidate_resumes_stale_queued_row():
             patch.object(job, "_load_market", return_value=_market_row()), \
             patch.object(job, "router_execute", side_effect=_fake_router), \
             patch.object(job, "_mark_executed", side_effect=_fake_mark_executed), \
-            patch.object(job, "risk_evaluate") as mock_gate:
+            patch.object(job._engine, "execute", new=AsyncMock()) as mock_engine:
         asyncio.run(job._process_candidate(row, cand))
 
     assert executed["called"]
     assert marked["called"]
-    # Gate must NOT be called — crash recovery bypasses the risk gate entirely.
-    mock_gate.assert_not_called()
+    # TradeEngine must NOT be called — crash recovery bypasses engine entirely.
+    mock_engine.assert_not_called()
 
 
 def test_process_candidate_skips_resume_when_kill_switch_active():
