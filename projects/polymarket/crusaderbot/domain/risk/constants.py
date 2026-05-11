@@ -44,6 +44,7 @@ STRATEGY_AVAILABILITY: dict[str, list[str]] = {
     "signal_following": ["conservative", "balanced", "aggressive"],
     "value":      ["balanced", "aggressive"],   # Phase R6b+
     "momentum":   ["aggressive"],               # Phase R9+
+    "momentum_reversal": ["balanced", "aggressive"],
 }
 
 
