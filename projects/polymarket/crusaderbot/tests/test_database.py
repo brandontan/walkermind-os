@@ -208,9 +208,10 @@ def test_init_pool_warns_for_pooler_host_any_port(caplog):
 
 
 def test_init_pool_does_not_warn_for_non_supabase_host(caplog):
-    """Non-Supabase hosts (Fly Postgres, RDS, etc.) must not get the
-    Supabase-specific diagnostic — the warning is host-aware on
-    purpose so the message stays actionable.
+    """Non-Supabase hosts (Fly Postgres, RDS, Fly PgBouncer, etc.) must
+    produce no connection-type log at all — their topology cannot be
+    determined from the host alone, so logging 'direct connection' would
+    be misleading for proxied deployments.
     """
     create_pool_mock = AsyncMock(return_value=_FakePool())
     fake_settings = MagicMock(
@@ -218,7 +219,7 @@ def test_init_pool_does_not_warn_for_non_supabase_host(caplog):
         DB_POOL_MAX=5,
     )
     with caplog.at_level(
-        "WARNING", logger="projects.polymarket.crusaderbot.database",
+        "INFO", logger="projects.polymarket.crusaderbot.database",
     ):
         with patch.object(
             db_module.asyncpg, "create_pool", new=create_pool_mock,
@@ -226,16 +227,20 @@ def test_init_pool_does_not_warn_for_non_supabase_host(caplog):
             db_module, "get_settings", return_value=fake_settings,
         ):
             _run(db_module.init_pool())
-    pooler_warnings = [
-        r for r in caplog.records
-        if "connection pooler" in r.getMessage()
+    diagnostic_msgs = [
+        r.getMessage() for r in caplog.records
+        if "connection pooler" in r.getMessage() or "direct" in r.getMessage()
     ]
-    assert pooler_warnings == []
+    assert diagnostic_msgs == [], (
+        f"non-Supabase host must produce no connection-type log, got {diagnostic_msgs!r}"
+    )
 
 
-def test_init_pool_logs_info_for_direct_connection(caplog):
-    """When DATABASE_URL does not contain 'pooler.supabase.com', init_pool
-    logs INFO confirming a direct connection is in use.
+def test_init_pool_logs_info_for_direct_supabase_connection(caplog):
+    """A direct Supabase host (supabase.co, not pooler.supabase.com)
+    logs INFO confirming direct Supabase connection. Non-Supabase hosts
+    (Fly PgBouncer, RDS, etc.) produce no log — their connection type
+    cannot be determined from the host alone.
     """
     create_pool_mock = AsyncMock(return_value=_FakePool())
     fake_settings = MagicMock(
@@ -252,8 +257,8 @@ def test_init_pool_logs_info_for_direct_connection(caplog):
         ):
             _run(db_module.init_pool())
     msgs = [r.getMessage() for r in caplog.records]
-    assert any("direct connection" in m for m in msgs), (
-        f"expected direct-connection INFO log, got {msgs!r}"
+    assert any("direct Supabase connection" in m for m in msgs), (
+        f"expected direct-Supabase-connection INFO log, got {msgs!r}"
     )
 
 

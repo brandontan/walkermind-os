@@ -30,12 +30,13 @@ _POOLER_HOST_HINT = "pooler.supabase.com"
 
 
 def _log_connection_type(dsn: str) -> None:
-    """Log whether DATABASE_URL points at a Supabase pooler or a direct connection.
+    """Log whether DATABASE_URL points at a Supabase pooler or direct connection.
 
-    Logs WARNING for pooler (statement_cache_size=0 already applied).
-    Logs INFO for direct connections. DSN parse failures and hostless
-    URLs are silently skipped so a malformed URL never crashes pool init
-    or emits a misleading 'direct connection' signal.
+    Logs WARNING when host contains 'pooler.supabase.com' (any port).
+    Logs INFO when host is a Supabase direct host (contains 'supabase'
+    but not the pooler hint). Silent noop for non-Supabase hosts and
+    hostless/malformed DSNs — connection topology cannot be determined
+    from the host alone for arbitrary proxies (Fly PgBouncer, RDS, etc.).
     """
     try:
         parsed = urlparse(dsn)
@@ -51,9 +52,9 @@ def _log_connection_type(dsn: str) -> None:
             "asyncpg prepared-statement errors under multiplexed connections.",
             host,
         )
-    else:
+    elif "supabase" in host:
         logger.info(
-            "DATABASE_URL uses direct connection (host=%s).",
+            "DATABASE_URL uses direct Supabase connection (host=%s).",
             host,
         )
 
