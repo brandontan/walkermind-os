@@ -209,10 +209,14 @@ def format_summary(*, date_label: str, realized: Decimal, unrealized: Decimal,
                    fees: Decimal, open_count: int, exposure_pct: Decimal,
                    mode: str, opened_today: int = 0, closed_today: int = 0,
                    wins_today: int = 0, losses_today: int = 0) -> str:
-    # No-trade empty state: no activity today AND no open positions.
-    # Renders a compact two-line summary so the daily review remains
-    # readable on idle days. Track E (#960).
-    if opened_today == 0 and closed_today == 0 and open_count == 0:
+    # No-trade empty state: zero paper activity, zero open positions, AND
+    # zero realized/unrealized P&L and zero fees. The realized/unrealized/
+    # fees totals stay mode-agnostic (R12 semantics preserved) so a
+    # live-mode close on a paper-zero day still contributes to them —
+    # the stricter gate prevents the compact form from hiding nonzero
+    # performance (Codex P1 review on PR #962). Track E (#960).
+    if (opened_today == 0 and closed_today == 0 and open_count == 0
+            and realized == 0 and unrealized == 0 and fees == 0):
         return (
             f"📊 *Daily Summary — {date_label}*\n"
             f"No paper trades today. Mode: `{mode}`."
