@@ -7,14 +7,14 @@
 
 ## Right Now
 
-- Fast Track Track A MERGED PR #942 (2026-05-11). Track B (Copy Trade execution) now unblocked. Track C (trade notifications) can proceed concurrently. Activation guards remain NOT SET.
+- Fast Track Track B (Copy Trade execution) FORGE complete — PR open; WARP•SENTINEL validation required. Track C (trade notifications) can proceed concurrently. Activation guards remain NOT SET.
 
 ---
 
 ## Fast Track Week 1 -- Core Trading Loop
 
 - [x] Track A -- Trade Engine + TP/SL worker -- MERGED PR #942 (2026-05-11), MAJOR, FULL RUNTIME INTEGRATION. TradeEngine service layer; signal_scan_job routes through TradeEngine; 47 hermetic tests green.
-- [ ] Track B -- Copy Trade Execution -- UNBLOCKED; MAJOR, SENTINEL REQUIRED
+- [x] Track B -- Copy Trade Execution -- FORGE COMPLETE (2026-05-11); PR open; SENTINEL REQUIRED before merge
 - [ ] Track C -- Trade Notifications -- QUEUED; STANDARD; depends on Track A surface
 - [ ] Track D -- Risk Caps + Kill Switch hardening -- QUEUED; MAJOR; SENTINEL REQUIRED
 - [ ] Track E -- Daily P&L Report -- QUEUED; STANDARD

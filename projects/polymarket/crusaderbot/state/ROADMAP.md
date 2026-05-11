@@ -16,7 +16,7 @@
 | Track | Scope | Tier | Status | Notes |
 |---|---|---|---|--|
 | A | Trade Engine + TP/SL worker | MAJOR | ✅ MERGED | MERGED PR #942 (2026-05-11). TradeEngine FULL RUNTIME INTEGRATION; signal_scan_job routes through TradeEngine; 47 tests green |
-| B | Copy Trade Execution | MAJOR | ❌ QUEUED | Track A merged; unblocked; SENTINEL REQUIRED |
+| B | Copy Trade Execution | MAJOR | 🔶 FORGE DONE | FORGE complete 2026-05-11; PR open; SENTINEL REQUIRED before merge |
 | C | Trade Notifications | STANDARD | ❌ QEEUED | Entry / exit / copy trade Telegram notifications |
 | D | Risk Caps + Kill Switch hardening | MAJOR | ❌ QUEUED | Hard exposure caps, daily loss, max open positions, kill switch |
 | E | Daily P&L Report | STANDARD | ❌ QUEUED | Scheduled daily summary in Telegram |
