@@ -1,5 +1,5 @@
 Last Updated : 2026-05-12 02:35
-Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). Track G and Track I PRs open awaiting WARP🔹CMD review. Track F SENTINEL APPROVED 97/100 awaiting merge. MomentumReversalStrategy adapter PR #978 open for WARP🔹CMD review. Hotfix DB pooler detection PR open for WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF.
+Status       : Track L Onboarding Polish built. Hotfix DB pooler detection MERGED PR #985. Track H MERGED PR #979. Track G and Track I PRs open awaiting WARP🔹CMD review. Track F SENTINEL APPROVED 97/100 awaiting merge. MomentumReversalStrategy adapter PR #978 open for WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -17,13 +17,13 @@ Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). 
 - Fast Track Week 2 Track F -- Live Opt-In Gate implemented (2026-05-12). 3-step /enable_live Telegram gate; 4-guard read-only check; mode_change_events audit log (migration 021); auto-fallback 60s monitor; 20 hermetic tests green; PR open for SENTINEL audit; issue #968.
 - Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). /chart PNG photo via matplotlib; chart:7/30/all period callbacks; /insights weekly category+signal breakdown; weekly_insights cron Monday 08:00 WIB; had_pre_window_rows carry-forward fix; 30 hermetic tests green; STANDARD, NARROW INTEGRATION.
 - Track I -- Referral + Share System built (2026-05-11). referral_codes/referral_events/fees/fee_config tables (migration 022); /referral command; deep-link join wiring on /start; [Share] button on winning trade notifications; share card handler; fee logic gated (FEE_COLLECTION_ENABLED=False); referral payout gated (REFERRAL_PAYOUT_ENABLED=False); 18 hermetic tests; PR open.
+- Track L -- Onboarding Polish built (2026-05-11). /start 2-step flow (Welcome → Mode Select → Paper/Live); /help categorized (TRADING/PORTFOLIO/SETTINGS/ADMIN); ADMIN section operator-gated; 5 command aliases (/scan /pnl /close /trades /mode); 15 hermetic tests green; STANDARD, PRESENTATION.
 
 [IN PROGRESS]
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
 - Track I -- Referral + Share System: PR open, WARP🔹CMD review required. Tier: STANDARD.
 - MomentumReversalStrategy adapter: PR #978 open on WARP/crusaderbot-momentum-strategy-adapter. STANDARD, NARROW INTEGRATION. 50 hermetic tests green. Issue #975. Awaiting WARP🔹CMD review.
-- Hotfix DB pooler detection: PR open on WARP/HOTFIX-DB-POOLER-FIX. STANDARD, FOUNDATION. 11 hermetic tests green. Awaiting WARP🔹CMD review.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -32,11 +32,11 @@ Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). 
 - Wire share_trade_kb into trade close call sites (notify_tp_hit callers in trade_engine/signal_scan) when PNL > 0 — surface ready, wiring deferred.
 - Referral payout activation: separate lane, requires WARP🔹CMD decision.
 - Fee collection activation: separate lane, requires WARP🔹CMD decision.
-- Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin + onboarding polish.
+- Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin.
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for Hotfix DB pooler detection. Source: projects/polymarket/crusaderbot/reports/forge/hotfix-db-pooler-fix.md. Tier: STANDARD.
+- WARP🔹CMD review required for Track L Onboarding Polish PR. Source: projects/polymarket/crusaderbot/reports/forge/onboarding-polish.md. Tier: STANDARD.
 - WARP🔹CMD review required for MomentumReversalStrategy adapter PR #978. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-momentum-strategy-adapter.md. Tier: STANDARD.
 - WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
 - WARP🔹CMD review required for Track G UI Premium Pack 1. Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md. Tier: STANDARD.
