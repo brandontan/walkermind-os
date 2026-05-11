@@ -957,7 +957,8 @@ is dispatched. Never pre-create SENTINEL issue at FORGE dispatch time.
 
 ### Labels (both must be applied)
 
-`warp-core` + `major` / `standard`
+Agent: `warp-forge` / `warp-sentinel` / `warp-echo` (match the role executing the task)
+Tier: `major` / `standard`
 
 ### Issue format
 
