@@ -22,6 +22,11 @@ from .domain.ops import job_tracker
 from .domain.risk.gate import GateContext, evaluate
 from .domain.signal.copy_trade import CopyTradeStrategy
 from .integrations import polygon, polymarket
+from .domain.activation.auto_fallback import (
+    JOB_ID as AUTO_FALLBACK_JOB_ID,
+    LOOKBACK_SECONDS as AUTO_FALLBACK_INTERVAL,
+    run_auto_fallback_check,
+)
 from .jobs import daily_pnl_summary
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
@@ -569,6 +574,12 @@ def setup_scheduler() -> AsyncIOScheduler:
         daily_pnl_summary.run_job, "cron",
         hour=23, minute=0,
         id=daily_pnl_summary.JOB_ID, max_instances=1, coalesce=True,
+    )
+    # Track F — auto-fallback monitor (60s poll).
+    sched.add_job(
+        run_auto_fallback_check, "interval",
+        seconds=AUTO_FALLBACK_INTERVAL,
+        id=AUTO_FALLBACK_JOB_ID, max_instances=1, coalesce=True,
     )
     sched.add_listener(
         _job_tracker_listener,

@@ -8,9 +8,9 @@ from telegram.ext import (
 )
 
 from .handlers import (
-    activation, admin, copy_trade, dashboard, demo_polish, emergency, market_card,
-    onboarding, my_trades as my_trades_h, pnl_insights as pnl_insights_h, positions,
-    presets, settings as settings_handler, setup, signal_following, wallet,
+    activation, admin, copy_trade, dashboard, demo_polish, emergency, live_gate,
+    market_card, onboarding, my_trades as my_trades_h, pnl_insights as pnl_insights_h,
+    positions, presets, settings as settings_handler, setup, signal_following, wallet,
 )
 from .menus.main import get_menu_route
 
@@ -44,6 +44,8 @@ async def _text_router(update, ctx):
         if ctx.user_data:
             ctx.user_data.pop("awaiting", None)
         await menu_handler(update, ctx)
+        return
+    if await live_gate.text_input(update, ctx):
         return
     if await activation.text_input(update, ctx):
         return
@@ -99,6 +101,8 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler(
         "live_checklist", activation.live_checklist_command,
     ))
+    # Track F — 3-step live opt-in gate.
+    app.add_handler(CommandHandler("enable_live", live_gate.enable_live_command))
     app.add_handler(CommandHandler("summary_on", activation.summary_on_command))
     app.add_handler(CommandHandler("summary_off", activation.summary_off_command))
     app.add_handler(CommandHandler("insights", pnl_insights_h.pnl_insights_command))
@@ -156,8 +160,14 @@ def register(app: Application) -> None:
                                          pattern=r"^copytrade:"))
     app.add_handler(CallbackQueryHandler(signal_following.signals_callback,
                                          pattern=r"^signals:"))
+<<<<<<< HEAD
     app.add_handler(CallbackQueryHandler(market_card.market_callback,
                                          pattern=r"^market:"))
+=======
+    # Track F — live gate step 3 buttons.
+    app.add_handler(CallbackQueryHandler(live_gate.live_gate_callback,
+                                         pattern=r"^live_gate:"))
+>>>>>>> f75ffef (forge: Track F Live Opt-In Gate (MAJOR) — issue #968)
 
     # Free text — must be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))

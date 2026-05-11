@@ -1,23 +1,23 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-11 21:45
+**Last Updated:** 2026-05-12 00:00
 
 ---
 
 ## Right Now
 
-- Week 1 Fast Track fully complete: Tracks A-E + Premium PNL Insights MERGED (PR #965); issue #963 closed.
-- Next lane: Week 2 Track F -- Live Opt-In Gate.
+- Week 2 Track F -- Live Opt-In Gate IMPLEMENTED. PR open for WARP•SENTINEL audit (MAJOR, Tier EXECUTION).
 - Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY.
+- NEXT: WARP•SENTINEL audit → WARP🔹CMD merge decision.
 
 ---
 
 ## Fast Track Week 2 -- Live Gate + Premium UX
 
 - [x] Premium PNL Insights UX -- MERGED PR #965 (2026-05-11), STANDARD, NARROW INTEGRATION. /insights command; insight_kb; dashboard:insights sub; my_trades nav update; 22 hermetic tests green; issue #963 closed.
-- [ ] Track F -- Live Opt-In Gate (SENTINEL + owner checklist) -- NEXT LANE. NOT STARTED.
+- [x] Track F -- Live Opt-In Gate (SENTINEL + owner checklist) -- IMPLEMENTED (2026-05-12). PR open for WARP•SENTINEL audit; issue #968.
 - [ ] Referral / fee / fee prep -- NOT STARTED.
 
 Done condition: WARP🔹CMD merge decision on each lane; activation guards remain OFF throughout.
