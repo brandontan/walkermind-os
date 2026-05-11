@@ -278,30 +278,61 @@ class TestRuntimeIsolation:
 
     # 2-H: /pnl — dashboard _fetch_stats passes user_id to every query
     def test_dashboard_fetch_stats_passes_user_id(self):
-        # Import only the function we need; patch at the database module level
-        # to avoid importing dashboard (which requires cryptography).
-        from projects.polymarket.crusaderbot.domain.trading.repository import (
-            get_open_positions,
-        )
+        from projects.polymarket.crusaderbot.bot.handlers.dashboard import _fetch_stats
 
-        # Verify the query includes WHERE user_id = $1 by checking that
-        # the RecordingConn receives _UID_A as the first arg.
-        pool, conn = self._setup()
-        with patch(
-            "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
-            return_value=pool,
-        ):
-            rows = asyncio.run(get_open_positions(_UID_A))
+        async def _run():
+            calls: list[tuple[str, tuple]] = []
 
-        # All SQL calls must contain _UID_A, not _UID_B or _UID_C
-        for sql, args in conn.calls:
-            if "positions" in sql.lower():
+            class _StatsConn:
+                async def fetchrow(self, sql: str, *args: Any) -> dict:
+                    calls.append((sql, args))
+                    if "positions_value" in sql:
+                        return {
+                            "positions_value": Decimal("0"),
+                            "winning": 0,
+                            "losing": 0,
+                        }
+                    if "total_trades" in sql:
+                        return {
+                            "total_trades": 0,
+                            "wins": 0,
+                            "losses": 0,
+                            "total_volume": Decimal("0"),
+                            "markets_traded": 0,
+                        }
+                    if "pnl_7d" in sql:
+                        return {
+                            "pnl_7d": Decimal("0"),
+                            "pnl_30d": Decimal("0"),
+                            "pnl_all": Decimal("0"),
+                        }
+                    # user_settings row
+                    return {
+                        "risk_profile": "moderate",
+                        "strategy_types": [],
+                        "trading_mode": "paper",
+                    }
+
+            conn = _StatsConn()
+            pool = _make_pool(conn)
+            with patch(
+                "projects.polymarket.crusaderbot.bot.handlers.dashboard.get_pool",
+                return_value=pool,
+            ):
+                await _fetch_stats(_UID_A)
+
+            assert len(calls) == 4, (
+                f"_fetch_stats should make exactly 4 fetchrow calls, got {len(calls)}"
+            )
+            for sql, args in calls:
                 assert _UID_A in args, (
-                    f"get_open_positions missing user_id _UID_A in call:\n"
+                    f"_fetch_stats query missing user_id _UID_A:\n"
                     f"  SQL: {sql[:120]}\n  args: {args}"
                 )
-                assert _UID_B not in args, "Cross-user: _UID_B found in _UID_A query"
-                assert _UID_C not in args, "Cross-user: _UID_C found in _UID_A query"
+                assert _UID_B not in args, "Cross-user: _UID_B found in _fetch_stats call"
+                assert _UID_C not in args, "Cross-user: _UID_C found in _fetch_stats call"
+
+        asyncio.run(_run())
 
     # 2-I: /insights — _fetch_insights passes user_id to every query
     def test_insights_fetch_passes_user_id(self):
@@ -553,42 +584,49 @@ class TestConcurrentIsolation:
             )
 
     def test_10_concurrent_risk_gate_queries_isolated(self):
-        """Risk gate helper functions each scope SQL to their user_id argument."""
-        from projects.polymarket.crusaderbot.domain.risk import gate as risk_gate_mod
+        """_open_position_count scopes its SQL query to the requesting user_id."""
+        from projects.polymarket.crusaderbot.domain.risk.gate import _open_position_count
 
         uids = [uuid4() for _ in range(10)]
 
-        async def _check_open_count(uid: UUID) -> list[UUID]:
-            """_open_position_count(uid) must only pass uid to the DB."""
-            seen: list[UUID] = []
+        async def _check_one(uid: UUID) -> list[tuple[str, tuple]]:
+            calls: list[tuple[str, tuple]] = []
 
-            async def _mock_pool_func(pool_uid: UUID) -> int:
-                seen.append(pool_uid)
-                return 0
+            class _RiskConn:
+                async def fetchval(self, sql: str, *args: Any) -> int:
+                    calls.append((sql, args))
+                    return 0
 
-            with patch.object(risk_gate_mod, "_open_position_count",
-                               side_effect=_mock_pool_func):
-                await risk_gate_mod._open_position_count(uid)
-            return seen
+            conn = _RiskConn()
+            pool = _make_pool(conn)
+            with patch(
+                "projects.polymarket.crusaderbot.domain.risk.gate.get_pool",
+                return_value=pool,
+            ):
+                await _open_position_count(uid)
+            return calls
 
         async def _run_all():
-            return await asyncio.gather(*[_check_open_count(u) for u in uids])
+            return await asyncio.gather(*[_check_one(u) for u in uids])
 
-        per_task_uids = asyncio.run(_run_all())
+        per_task_calls = asyncio.run(_run_all())
 
-        for i, (uid, seen) in enumerate(zip(uids, per_task_uids)):
-            # The mock captures the uid passed in; verify each task only saw its own uid
-            for seen_uid in seen:
-                assert seen_uid == uid, (
-                    f"Task {i}: query for user {uid} had foreign uid {seen_uid}"
-                )
-
-        # Also verify the actual SQL in _open_position_count uses user_id=$1
-        import inspect
-        src = inspect.getsource(risk_gate_mod._open_position_count)
-        assert "user_id" in src.lower() or "$1" in src, (
-            "_open_position_count source must reference user_id"
-        )
+        for uid, calls in zip(uids, per_task_calls):
+            assert len(calls) == 1, (
+                f"Expected 1 DB call for _open_position_count, got {len(calls)}"
+            )
+            sql, args = calls[0]
+            assert "user_id" in sql.lower() or "$1" in sql, (
+                f"_open_position_count SQL missing user_id scope: {sql!r}"
+            )
+            assert uid in args, (
+                f"_open_position_count called with wrong uid: expected {uid}, args={args}"
+            )
+            for arg in args:
+                if isinstance(arg, UUID) and arg != uid:
+                    raise AssertionError(
+                        f"Foreign UUID {arg} in _open_position_count call for user {uid}"
+                    )
 
 
 # ---------------------------------------------------------------------------
