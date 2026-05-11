@@ -10,6 +10,7 @@ from telegram.ext import (
 from .handlers import (
     activation, admin, copy_trade, dashboard, demo_polish, emergency, live_gate,
     market_card, onboarding, my_trades as my_trades_h, pnl_insights as pnl_insights_h,
+    portfolio_chart as portfolio_chart_h,
     positions, presets, referral, settings as settings_handler, setup,
     share_card, signal_following, wallet,
 )
@@ -107,6 +108,7 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("summary_on", activation.summary_on_command))
     app.add_handler(CommandHandler("summary_off", activation.summary_off_command))
     app.add_handler(CommandHandler("insights", pnl_insights_h.pnl_insights_command))
+    app.add_handler(CommandHandler("chart", portfolio_chart_h.chart_command))
     app.add_handler(CommandHandler("market", market_card.market_command))
     app.add_handler(CommandHandler("referral", referral.referral_command))
 
@@ -144,6 +146,8 @@ def register(app: Application) -> None:
                                          pattern=r"^position:fc_(yes|no):"))
     app.add_handler(CallbackQueryHandler(pnl_insights_h.insights_cb,
                                          pattern=r"^insights:"))
+    app.add_handler(CallbackQueryHandler(portfolio_chart_h.chart_callback,
+                                         pattern=r"^chart:"))
     # Phase 5I My Trades combined view — close + history callbacks.
     app.add_handler(CallbackQueryHandler(my_trades_h.close_ask_cb,
                                          pattern=r"^mytrades:close_ask:"))

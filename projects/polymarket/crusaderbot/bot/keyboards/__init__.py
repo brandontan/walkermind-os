@@ -176,6 +176,19 @@ def insights_kb() -> InlineKeyboardMarkup:
     ]])
 
 
+def chart_kb(current_days: int | str) -> InlineKeyboardMarkup:
+    """Inline keyboard for the portfolio chart — period selector."""
+    def mark(key: str, label: str) -> InlineKeyboardButton:
+        tick = "✅ " if str(current_days) == key else ""
+        return InlineKeyboardButton(f"{tick}{label}", callback_data=f"chart:{key}")
+
+    return InlineKeyboardMarkup([[
+        mark("7",   "7 Days"),
+        mark("30",  "30 Days"),
+        mark("all", "All Time"),
+    ]])
+
+
 def confirm(action_key: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Yes", callback_data=f"confirm:{action_key}:yes"),
