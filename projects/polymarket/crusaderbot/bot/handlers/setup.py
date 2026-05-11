@@ -114,6 +114,30 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             reply_markup=strategy_card_kb(),
         )
         return
+    elif sub == "capital":
+        # Remap legacy setup:capital → new settings capital preset flow.
+        from ..keyboards.settings import capital_preset_kb as _cap_kb
+        from ...wallet.ledger import get_balance as _get_balance
+        bal = float(await _get_balance(user["id"]))
+        mode = s.get("trading_mode", "paper")
+        await q.message.reply_text(
+            "💰 *Capital Allocation Per Trade*\n"
+            "──────────────────\n"
+            f"Balance: ${bal:.2f} ({'Live' if mode == 'live' else 'Paper'})\n\n"
+            "⚠️ Max 95% — full allocation forbidden.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_cap_kb(bal, mode),
+        )
+    elif sub == "tpsl":
+        # Remap legacy setup:tpsl → new settings TP/SL preset flow (step 1).
+        from ..keyboards.settings import tp_preset_kb as _tp_kb
+        current_tp = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+        current_str = f"+{current_tp * 100:.0f}%" if current_tp is not None else "not set"
+        await q.message.reply_text(
+            f"📊 *Take Profit*\nCurrent: {current_str}\n\nSelect your take-profit target:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_tp_kb(current_tp * 100 if current_tp else None),
+        )
     elif sub == "risk":
         await q.message.reply_text("Pick risk profile:",
                                    reply_markup=risk_picker(s["risk_profile"]))
