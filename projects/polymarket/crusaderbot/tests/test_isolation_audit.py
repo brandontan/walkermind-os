@@ -80,8 +80,19 @@ class _RecordingConn:
         self.calls: list[tuple[str, tuple]] = []
 
     def _filter(self, sql: str, args: tuple) -> list[dict]:
-        """Return rows scoped to the user_id that appears in args."""
-        uid = next((a for a in args if isinstance(a, UUID)), None)
+        """Return rows scoped to the user_id that appears in args.
+
+        When multiple UUIDs are present (e.g. position_id + user_id), the
+        user_id is the UUID that is a key in the store — not necessarily the
+        first positional arg.  This mirrors queries like
+          WHERE p.id = $1 AND p.user_id = $2
+        where args = (position_id, user_id).
+        """
+        uuids = [a for a in args if isinstance(a, UUID)]
+        # Prefer the UUID that is a known store key (= user_id)
+        uid = next((u for u in uuids if u in self._store), None)
+        if uid is None:
+            uid = uuids[0] if uuids else None
         if uid is None:
             return []
         return [row for row in self._store.get(uid, [])
@@ -96,8 +107,12 @@ class _RecordingConn:
         rows = self._filter(sql, args)
         if not rows:
             return None
-        # For position-by-id lookup, also filter by position id
-        pos_id = next((a for a in args if isinstance(a, UUID) and a != args[0]), None)
+        # For ownership queries with two UUIDs, filter by the position_id
+        # (the UUID that is NOT a store key, i.e. not a user_id).
+        pos_id = next(
+            (a for a in args if isinstance(a, UUID) and a not in self._store),
+            None,
+        )
         if pos_id:
             rows = [r for r in rows if r["id"] == pos_id]
         return rows[0] if rows else None
@@ -577,11 +592,19 @@ class TestConcurrentIsolation:
             return await asyncio.gather(*tasks)
 
         results = asyncio.run(_run())
-        all_rows = [row for result in results for row in result]
-        for row in all_rows:
-            assert row.get("user_id") in (_UID_A, _UID_B, _UID_C), (
-                f"Unknown user_id in concurrent result: {row.get('user_id')}"
-            )
+        # tasks were appended as [A_open, A_closed, B_open, B_closed, ...] so
+        # expected uid for each result slot follows the same interleaved order.
+        expected_uids = []
+        for uid in [_UID_A, _UID_B, _UID_C, _UID_A, _UID_B]:
+            expected_uids.append(uid)  # open task
+            expected_uids.append(uid)  # closed task
+
+        for expected_uid, result in zip(expected_uids, results):
+            for row in result:
+                assert row.get("user_id") == expected_uid, (
+                    f"Cross-user bleed: query for {expected_uid} "
+                    f"returned row owned by {row.get('user_id')}"
+                )
 
     def test_10_concurrent_risk_gate_queries_isolated(self):
         """_open_position_count scopes its SQL query to the requesting user_id."""
