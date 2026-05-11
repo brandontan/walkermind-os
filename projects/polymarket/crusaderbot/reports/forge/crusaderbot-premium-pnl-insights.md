@@ -23,6 +23,8 @@ Additionally, the `/insights` surface is wired into the existing navigation:
 - `dashboard:insights` sub-handler added to `dashboard_nav_cb`.
 
 All changes are presentation-only. No execution, risk, capital, or guard values touched.
+All 4 DB queries filter `mode = 'paper'` — live positions cannot leak into the paper
+insights surface after activation guards change.
 
 ## 2. Current system architecture
 
@@ -30,20 +32,20 @@ Data flow for `/insights`:
 1. `pnl_insights_command` (CommandHandler) / `insights_cb` (CallbackQueryHandler) calls
    `_fetch_insights(user_id)`.
 2. `_fetch_insights` acquires one DB connection and runs 4 queries against `positions`
-   and `markets` (all read-only):
+   and `markets` (all read-only, all `mode = 'paper'` scoped):
    - Aggregate stats (`fetchrow`): total_closed, wins, losses, gross_wins, gross_losses,
      best_pnl, worst_pnl, avg_win, avg_loss, trades_7d, pnl_7d.
-   - Best trade market title (`fetchrow`): JOIN on `markets`, ORDER BY pnl_usdc DESC LIMIT 1.
+   - Best trade market title (`fetchrow`): JOIN on `markets`, `mode = 'paper'`, ORDER BY pnl_usdc DESC LIMIT 1.
    - Worst trade market title (`fetchrow`): same, ORDER BY pnl_usdc ASC LIMIT 1.
-   - Streak source (`fetch`): last 25 closed pnl_usdc values DESC by closed_at.
+   - Streak source (`fetch`): last 25 paper-mode closed pnl_usdc values DESC by closed_at.
 3. `_compute_streak(pnl_values)` computes direction and length from the streak list.
-4. `format_insights(data)` renders the Telegram Markdown message (pure function).
-5. Reply is sent with `insights_kb()` (Refresh + Dashboard buttons).
+4. `_safe_md(title)` strips Telegram legacy Markdown reserved chars (`_`, `*`, `` ` ``, `[`) from market titles.
+5. `format_insights(data)` renders the Telegram Markdown message (pure function).
+6. Reply is sent with `insights_kb()` (Refresh + Dashboard buttons).
 
 The `dashboard:insights` sub in `dashboard_nav_cb` delegates entirely to the same
 `_fetch_insights` / `format_insights` / `insights_kb` trio via a deferred import
-to match the existing pattern in dashboard.py (autotrade_toggle_pending_confirm uses
-the same style).
+to match the existing pattern in dashboard.py.
 
 ## 3. Files created / modified (full repo-root paths)
 
@@ -61,22 +63,31 @@ Modified:
   sub-case in `dashboard_nav_cb` (deferred import of pnl_insights).
 - `projects/polymarket/crusaderbot/bot/dispatcher.py` — imported `pnl_insights_h`;
   registered `CommandHandler("insights", ...)` and `CallbackQueryHandler(pattern=r"^insights:")`.
+- `projects/polymarket/crusaderbot/tests/test_phase5d_grid_menu_split.py` — updated
+  `test_dashboard_nav_with_trades_is_two_col` to reflect 4-button 2×2 layout.
 
-State updates (this same commit):
+State updates (this same PR):
 - `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`
 - `projects/polymarket/crusaderbot/state/WORKTODO.md`
 - `projects/polymarket/crusaderbot/state/CHANGELOG.md`
 
 ## 4. What is working
 
-- 15 hermetic tests green under pytest 9.0.2 / pytest-asyncio 0.23:
+- 21 hermetic tests green under pytest 9.0.2 / pytest-asyncio 0.23:
   - `format_insights`: empty state, wins-only (∞ profit factor), losses-only, mixed,
-    best/worst PnL string rendering.
+    best/worst PnL string rendering, negative best_pnl (all-loss account).
   - `_compute_streak`: empty, win streak, loss streak, direction break, break-even-as-loss.
+  - `_safe_md`: strips `_`, `*`, `` ` ``, `[`; leaves plain text intact; applied in formatter.
   - Keyboard structure: `insights_kb` buttons, `dashboard_nav` Insights presence/absence,
     `my_trades_main_kb` Insights link.
-- Pure functions (`format_insights`, `_compute_streak`) are fully decoupled from DB and
-  Telegram runtime — testable with no mocks.
+  - Paper-mode boundary: static source inspection asserts `mode = 'paper'` appears in
+    all 4 queries inside `_fetch_insights` — regression-proof.
+- Pure functions (`format_insights`, `_compute_streak`, `_safe_md`) are fully decoupled
+  from DB and Telegram runtime — testable with no mocks.
+- All 4 DB queries in `_fetch_insights` filter `mode = 'paper'` — live positions cannot
+  leak into the paper insights surface after activation guards change.
+- `best_pnl` and `worst_pnl` formatted with explicit sign + abs() following the
+  `_fmt_signed` pattern from `daily_pnl_summary.py`; no `+$-N.NN` rendering.
 - Dispatcher registers `/insights` command before the free-text fallback and registers
   `insights:` callback before Phase 5I my_trades handlers.
 - Tier gate (ALLOWLISTED = Tier 2+) enforced on both command and callback paths.
@@ -89,7 +100,8 @@ State updates (this same commit):
 
 ## 6. What is next
 
-- WARP🔹CMD review of this PR.
+- WARP🔹CMD review of replacement PR from WARP/crusaderbot-premium-pnl-insights.
+- PR #964 superseded by this replacement PR.
 - No WARP•SENTINEL required (STANDARD tier, NARROW INTEGRATION, no risk/execution
   surface, no activation guard changes).
 - Future enhancements (NOT in this lane): weekly digest, chart image attachments,
@@ -100,10 +112,10 @@ State updates (this same commit):
 ## Metadata
 
 - **Validation Target:** `bot/handlers/pnl_insights.py` handler + formatter + streak
-  logic; `bot/keyboards/__init__.py` `insights_kb` + `dashboard_nav` update;
-  `bot/keyboards/my_trades.py` nav row update; `bot/handlers/dashboard.py`
+  logic + paper-mode boundary; `bot/keyboards/__init__.py` `insights_kb` + `dashboard_nav`
+  update; `bot/keyboards/my_trades.py` nav row update; `bot/handlers/dashboard.py`
   `dashboard:insights` sub; `bot/dispatcher.py` command + callback registration;
-  `tests/test_pnl_insights.py` 15 hermetic tests.
+  `tests/test_pnl_insights.py` 21 hermetic tests.
 - **Not in Scope:** activation guard flips, live trading enablement, CLOB order placement,
   risk/capital/execution logic, DB schema migration, referral/share/fee implementation.
 - **Suggested Next Step:** WARP🔹CMD merge decision after auto-PR review.
