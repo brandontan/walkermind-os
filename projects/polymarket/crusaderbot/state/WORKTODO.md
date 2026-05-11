@@ -19,7 +19,7 @@
 - [x] Track D -- Risk Caps + Kill Switch hardening -- MERGED PR #954 (2026-05-11), MAJOR, SENTINEL APPROVED 92/100. Slippage gate step 14, risk assertion audit, ReadinessValidator, parity hooks, RISK_CONTROLS_VALIDATED guard; 35 hermetic tests green.
 - [ ] Track E -- Daily P&L Report -- QUEUED; STANDARD
 
-Done condition: Track A merged + SENTINEL APPROVED; Track B through E sequenced after.
+Done condition: Tracks A–D merged + SENTINEL APPROVED; Track E queued pending WARP🔹CMD direction.
 
 ---
 
@@ -84,6 +84,7 @@ Done condition: Phase 5A-5I merged. No activation guard or risk gate constant ch
 - CAPITAL_MODE_CONFIRMED -- NOT SET
 - ENABLE_LIVE_TRADING -- NOT SET
 - USE_REAL_CLOB -- NOT SET (default False, paper-safe)
+- RISK_CONTROLS_VALIDATED -- NOT SET (added Track D PR #954; must never be set True without SENTINEL approval)
 
 ---
 
