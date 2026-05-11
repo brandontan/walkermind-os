@@ -32,15 +32,15 @@ from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
 
 logger = logging.getLogger(__name__)
 
-DROP_THRESHOLD: float = -0.10       # ≥10% 24h drop required
-MIN_VOLUME_24H: float = 1_000.0    # USD minimum 24h volume
-MIN_YES_PRICE: float = 0.10        # skip near-zero (dead) markets
-MAX_YES_PRICE: float = 0.85        # skip near-certain markets
+DROP_THRESHOLD: float = -0.10
+MIN_VOLUME_24H: float = 1_000.0
+MIN_YES_PRICE: float = 0.10
+MAX_YES_PRICE: float = 0.85
 DEFAULT_TP_PCT: float = 0.15
 DEFAULT_SL_PCT: float = 0.08
 SCAN_MARKET_LIMIT: int = 100
 
-_SUGGESTED_SIZE_FRACTION: float = 0.05  # 5% of allocated capital per candidate
+_SUGGESTED_SIZE_FRACTION: float = 0.05
 _SUGGESTED_SIZE_MIN_USDC: float = 1.0
 _SUGGESTED_SIZE_MAX_USDC: float = 50.0
 
@@ -131,7 +131,7 @@ def _evaluate_market(
         return None
     if m.get("closed"):
         return None
-    if not m.get("acceptingOrders", True):
+    if not m.get("acceptingOrders", m.get("accepting_orders", True)):
         return None
 
     yes_price = _extract_yes_price(m)

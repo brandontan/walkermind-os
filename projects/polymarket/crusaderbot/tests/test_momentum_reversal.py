@@ -154,9 +154,7 @@ def test_default_tp_sl_values_are_conservative():
 
 
 def test_evaluate_exit_returns_hold():
-    result = asyncio.get_event_loop().run_until_complete(
-        MomentumReversalStrategy().evaluate_exit({})
-    )
+    result = asyncio.run(MomentumReversalStrategy().evaluate_exit({}))
     assert result == ExitDecision(should_exit=False, reason="hold")
 
 
@@ -193,18 +191,14 @@ def test_bootstrap_is_idempotent():
 def test_scan_returns_empty_list_when_get_markets_returns_empty():
     s = MomentumReversalStrategy()
     with patch(_PM_PATCH, new=AsyncMock(return_value=[])):
-        result = asyncio.get_event_loop().run_until_complete(
-            s.scan(_make_filters(), _make_context())
-        )
+        result = asyncio.run(s.scan(_make_filters(), _make_context()))
     assert result == []
 
 
 def test_scan_returns_empty_list_when_get_markets_raises():
     s = MomentumReversalStrategy()
     with patch(_PM_PATCH, new=AsyncMock(side_effect=RuntimeError("network error"))):
-        result = asyncio.get_event_loop().run_until_complete(
-            s.scan(_make_filters(), _make_context())
-        )
+        result = asyncio.run(s.scan(_make_filters(), _make_context()))
     assert result == []
 
 
@@ -212,9 +206,7 @@ def test_scan_skips_malformed_market_dict_without_exception():
     s = MomentumReversalStrategy()
     bad_markets = [{"garbage": True}, None, {}, {"id": "x"}]
     with patch(_PM_PATCH, new=AsyncMock(return_value=bad_markets)):
-        result = asyncio.get_event_loop().run_until_complete(
-            s.scan(_make_filters(), _make_context())
-        )
+        result = asyncio.run(s.scan(_make_filters(), _make_context()))
     assert result == []
 
 
@@ -510,7 +502,7 @@ def _run_scan(
 ) -> list[SignalCandidate]:
     s = MomentumReversalStrategy()
     with patch(_PM_PATCH, new=AsyncMock(return_value=markets)):
-        return asyncio.get_event_loop().run_until_complete(
+        return asyncio.run(
             s.scan(
                 _make_filters(min_liquidity=min_liquidity, blacklisted=blacklisted),
                 _make_context(available=available, alloc=alloc),
