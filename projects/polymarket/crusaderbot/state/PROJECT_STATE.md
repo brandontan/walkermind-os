@@ -1,5 +1,5 @@
-Last Updated : 2026-05-11 23:00
-Status       : Fast Track Week 1 Tracks A-E MERGED. Week 2 first lane: CrusaderBot Premium PNL Insights UX (issue #963) — /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; replacement PR opened from WARP/crusaderbot-premium-pnl-insights. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF.
+Last Updated : 2026-05-11 23:15
+Status       : Fast Track Week 1 Tracks A-E MERGED. Week 2 first lane -- CrusaderBot Premium PNL Insights UX (issue #963) MERGED via PR #965 at 6606c592222dea971b93d90318872dd273e83f91. /insights command, insights:refresh callback, dashboard:insights sub-handler, insights_kb, dashboard + my_trades nav updates, mode='paper' query boundary, _safe_md title escaping, signed PNL formatting, and 22 hermetic tests are complete. PR #964 was superseded and closed unmerged. Production remains LIVE on Telegram + Fly.io in PAPER ONLY posture. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -10,22 +10,23 @@ Status       : Fast Track Week 1 Tracks A-E MERGED. Week 2 first lane: CrusaderB
 - Fast Track Track A -- Trade Engine + TP/SL worker MERGED PR #942 (2026-05-11). TradeEngine service layer; signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
 - Fast Track Track B -- Copy Trade Execution MERGED PR #948 (2026-05-11). CopyTradeMonitor.run_once(), 020_copy_trade_execution.sql migration, 25 hermetic tests green.
 - Fast Track Track C -- Trade notifications MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; 16 hermetic tests green.
-- Fast Track Track D -- Live Gate Hardening MERGED PR #954 (2026-05-11). WARP-SENTINEL APPROVED 92/100; 35 tests green.
+- Fast Track Track D -- Live Gate Hardening MERGED PR #954 (2026-05-11). WARP-SENTINEL PPPROVED 92/100; 35 tests green.
 - Fast Track Track E -- Daily P&L Report MERGED PR #962 (2026-05-11). Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed.
+- Fast Track Week 2 first lane -- Premium PNL Insights UX MERGED PR #965 (2026-05-11, merge commit 6606c592222dea971b93d90318872dd273e83f91). /insights command, insights:refresh, dashboard:insights, insights_kb, dashboard + my_trades nav updates, paper-mode query boundary, _safe_md title escaping, signed PNL formatting, 22 hermetic tests green; issue #963 closed. PR #964 superseded and closed unmerged.
 
 [IN PROGRESS]
-- Fast Track Week 2 first lane (Premium PNL Insights UX) replacement PR open from WARP/crusaderbot-premium-pnl-insights, awaiting WARP🔹CMD merge decision. Supersedes PR #964.
 - Observation / runtime monitoring remains active in paper mode.
-- Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
-- Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
+- Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcjcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
+- Activation guards remain OFF / NOT SET: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false. USE_REAL_CLOB remains false / not enabled.
 
 [NOT STARTED]
-- Fast Track Week 2 -- remaining lanes: live gate preparation, charts/insights (follow-on), referral/share/fee prep.
+- Fast Track Week 2 -- Live Gate Preparation (SENTINEL + owner checklist) -- NEXT LANE. Must remain PAPER ONLY until explicit owner activation decision. No activation guard flips.
+- Fast Track Week 2 -- charts/insights follow-on and referral/share/fee prep.
 - Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin + onboarding polish.
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD merge decision on replacement PR from WARP/crusaderbot-premium-pnl-insights (Closes #963).
+- Execute Week 2 Live Gate Preparation as MAJOR: WARP-SENTINEL + owner checklist required before any live activation consideration.
 - Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
