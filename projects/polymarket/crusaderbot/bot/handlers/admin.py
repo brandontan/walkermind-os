@@ -17,6 +17,13 @@ from ...config import get_settings
 from ...database import get_pool, is_kill_switch_active, set_kill_switch
 from ...domain.ops import job_tracker
 from ...domain.ops import kill_switch as ops_kill_switch
+from ...services.tiers import (
+    TIER_ADMIN,
+    VALID_TIERS,
+    get_user_tier,
+    list_all_user_tiers,
+    set_user_tier,
+)
 from ...users import force_set_tier, get_user_by_username
 from ..keyboards import admin_menu
 from ..keyboards.admin import ops_dashboard_keyboard
@@ -55,16 +62,175 @@ async def _reject_silently(update: Update) -> None:
             pass
 
 
+_ADMIN_HELP = (
+    "*⚙️ Admin panel*\n\n"
+    "Commands:\n"
+    "  /admin users — list all users + tiers\n"
+    "  /admin settier {user\\_id} {tier} — change tier (FREE/PREMIUM/ADMIN)\n"
+    "  /admin stats — totals and paper PNL\n"
+    "  /admin broadcast {message} — send to all users"
+)
+
+
+async def _is_admin_user(update: Update) -> bool:
+    """Return True if the caller is the operator OR holds ADMIN tier."""
+    if _is_operator(update):
+        return True
+    if update.effective_user is None:
+        return False
+    tier = await get_user_tier(update.effective_user.id)
+    return tier == TIER_ADMIN
+
+
 async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_operator(update) or update.message is None:
-        if update.message:
-            await update.message.reply_text("⛔ Operator only.")
+    if update.message is None:
         return
-    active = await is_kill_switch_active()
-    await update.message.reply_text(
-        f"*⚙️ Admin*\n\nKill switch: {'🔴 ACTIVE' if active else '🟢 inactive'}",
+    is_op = _is_operator(update)
+    if not is_op:
+        if not await _is_admin_user(update):
+            await update.message.reply_text("⛔ Admin access required.")
+            return
+
+    args = list(ctx.args or [])
+
+    # Route subcommands for both operators and ADMIN tier users.
+    if args:
+        sub = args[0].lower()
+        actor_id = (update.effective_user.id
+                    if update.effective_user else 0)
+        if sub == "users":
+            await _admin_users(update.message)
+        elif sub == "settier":
+            await _admin_settier(update.message, args[1:], actor_id)
+        elif sub == "stats":
+            await _admin_stats(update.message)
+        elif sub == "broadcast":
+            await _admin_broadcast(update.message, args[1:], ctx)
+        else:
+            await update.message.reply_text(
+                _ADMIN_HELP, parse_mode=ParseMode.MARKDOWN
+            )
+        return
+
+    # No subcommand: operator sees kill-switch panel; ADMIN tier sees help.
+    if is_op:
+        active = await is_kill_switch_active()
+        await update.message.reply_text(
+            f"*⚙️ Admin*\n\nKill switch: {'🔴 ACTIVE' if active else '🟢 inactive'}",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=admin_menu(active),
+        )
+    else:
+        await update.message.reply_text(
+            _ADMIN_HELP, parse_mode=ParseMode.MARKDOWN
+        )
+
+
+# --------------------------------------------------------------------------
+# Admin panel subcommand implementations
+# --------------------------------------------------------------------------
+
+
+async def _admin_users(message) -> None:
+    rows = await list_all_user_tiers(limit=50)
+    if not rows:
+        await message.reply_text("No users in user\\_tiers table yet.",
+                                 parse_mode=ParseMode.MARKDOWN)
+        return
+    lines = ["*Users + Tiers* (most recent first)\n"]
+    for r in rows:
+        ts = r["assigned_at"].strftime("%m-%d %H:%M") if r.get("assigned_at") else "—"
+        lines.append(
+            f"`{r['user_id']}` — *{r['tier']}* (set {ts})"
+        )
+    await message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+
+async def _admin_settier(message, args: list[str], actor_id: int) -> None:
+    if len(args) < 2:
+        await message.reply_text(
+            "Usage: `/admin settier {user\\_id} {FREE|PREMIUM|ADMIN}`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    raw_uid, raw_tier = args[0], args[1].upper()
+    try:
+        target_uid = int(raw_uid)
+    except ValueError:
+        await message.reply_text(f"Invalid user\\_id: `{raw_uid}`",
+                                 parse_mode=ParseMode.MARKDOWN)
+        return
+    if raw_tier not in VALID_TIERS:
+        await message.reply_text(
+            f"Invalid tier `{raw_tier}`. Valid: FREE, PREMIUM, ADMIN",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    await set_user_tier(target_uid, raw_tier, assigned_by=actor_id)
+    await audit.write(
+        actor_role="admin",
+        action="settier",
+        payload={"target_user_id": target_uid, "tier": raw_tier,
+                 "assigned_by": actor_id},
+    )
+    await message.reply_text(
+        f"✅ User `{target_uid}` set to *{raw_tier}*.",
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=admin_menu(active),
+    )
+
+
+async def _admin_stats(message) -> None:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        total_users = await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        open_positions = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE status='open'"
+        ) or 0
+        paper_pnl = await conn.fetchval(
+            "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions WHERE mode='paper'"
+        ) or 0.0
+        free_n = await conn.fetchval(
+            "SELECT COUNT(*) FROM user_tiers WHERE tier='FREE'"
+        ) or 0
+        premium_n = await conn.fetchval(
+            "SELECT COUNT(*) FROM user_tiers WHERE tier='PREMIUM'"
+        ) or 0
+        admin_n = await conn.fetchval(
+            "SELECT COUNT(*) FROM user_tiers WHERE tier='ADMIN'"
+        ) or 0
+    await message.reply_text(
+        "*📊 Admin Stats*\n\n"
+        f"Total users: {total_users}\n"
+        f"Tiers — FREE: {free_n} · PREMIUM: {premium_n} · ADMIN: {admin_n}\n"
+        f"Open positions: {open_positions}\n"
+        f"Paper PNL (all time): ${float(paper_pnl):+,.2f}",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def _admin_broadcast(message, args: list[str], ctx) -> None:
+    if not args:
+        await message.reply_text(
+            "Usage: `/admin broadcast {message}`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    text = " ".join(args)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT telegram_user_id FROM users")
+    sent = 0
+    failed = 0
+    for r in rows:
+        try:
+            await notifications.send(int(r["telegram_user_id"]), text)
+            sent += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("broadcast send failed user=%s err=%s",
+                           r["telegram_user_id"], exc)
+            failed += 1
+    await message.reply_text(
+        f"✅ Broadcast sent: {sent} delivered, {failed} failed."
     )
 
 

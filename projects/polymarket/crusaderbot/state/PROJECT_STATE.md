@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 02:30
-Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). Track G and Track I PRs open awaiting WARP🔹CMD review. Track F SENTINEL APPROVED 97/100 awaiting merge. MomentumReversalStrategy adapter PR #978 open for WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-11 21:00
+Status       : Track K Access Tiers + Admin Panel built. 29 hermetic tests green. PR open for WARP🔹CMD review. Track H merged PR #979. Track G and Track I PRs open. Track F SENTINEL APPROVED 97/100 awaiting merge. MomentumReversalStrategy PR #978 open. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -19,6 +19,7 @@ Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). 
 - Track I -- Referral + Share System built (2026-05-11). referral_codes/referral_events/fees/fee_config tables (migration 022); /referral command; deep-link join wiring on /start; [Share] button on winning trade notifications; share card handler; fee logic gated (FEE_COLLECTION_ENABLED=False); referral payout gated (REFERRAL_PAYOUT_ENABLED=False); 18 hermetic tests; PR open.
 
 [IN PROGRESS]
+- Track K Access Tiers + Admin Panel: PR open on WARP/CRUSADERBOT-FAST-ADMIN. STANDARD, FOUNDATION. 29 hermetic tests green. Awaiting WARP🔹CMD review.
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
 - Track I -- Referral + Share System: PR open, WARP🔹CMD review required. Tier: STANDARD.
@@ -31,10 +32,12 @@ Status       : Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). 
 - Wire share_trade_kb into trade close call sites (notify_tp_hit callers in trade_engine/signal_scan) when PNL > 0 — surface ready, wiring deferred.
 - Referral payout activation: separate lane, requires WARP🔹CMD decision.
 - Fee collection activation: separate lane, requires WARP🔹CMD decision.
-- Fast Track Week 3 -- Multi-user isolation audit + access tiers + admin + onboarding polish.
+- Wire @require_access_tier('PREMIUM') onto trading command handlers (separate lane).
+- Seed boss user ADMIN tier row in user_tiers (can be done via /admin settier post-deploy).
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
 - WARP🔹CMD review required for MomentumReversalStrategy adapter PR #978. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-momentum-strategy-adapter.md. Tier: STANDARD.
 - WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
 - WARP🔹CMD review required for Track G UI Premium Pack 1. Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md. Tier: STANDARD.
