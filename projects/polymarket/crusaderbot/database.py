@@ -18,51 +18,41 @@ _pool: Optional[asyncpg.Pool] = None
 # the asyncpg exception class in the operator-facing reason string.
 _last_ping_error: Optional[str] = None
 
-# Supavisor (Supabase) transaction-pool DSNs route every transaction
-# through a multiplexed pgbouncer-style proxy. The default port for the
-# transaction pool is 6543; the session pool is 5432. asyncpg's
-# server-side prepared statement cache cannot survive multiplexed
-# connections (statement names are leased per-backend and do not follow
-# a transaction across backends), which surfaces as
+# Supavisor (Supabase) pooler DSNs route every transaction through a
+# multiplexed pgbouncer-style proxy. asyncpg's server-side prepared
+# statement cache cannot survive multiplexed connections, surfacing as
 # `prepared statement "__asyncpg_stmt_*__" does not exist` /
 # DuplicatePreparedStatementError / ProtocolViolationError under load.
 # We always pass statement_cache_size=0 so the pool is safe under any
-# pooler topology; the host pattern + port check below is purely
-# diagnostic so operators can correlate this warning with /health flap
-# events on legacy deploys whose DSN still points at the transaction
-# pool. See https://github.com/MagicStack/asyncpg/issues/339 and
-# https://supabase.com/docs/guides/database/connecting-to-postgres.
-_SUPAVISOR_HOST_HINT = "pooler.supabase"
-_SUPAVISOR_TRANSACTION_PORT = 6543
+# pooler topology. The host check below is diagnostic only — startup is
+# never blocked. See https://github.com/MagicStack/asyncpg/issues/339.
+_POOLER_HOST_HINT = "pooler.supabase.com"
 
 
-def _warn_if_supavisor_transaction_pool(dsn: str) -> None:
-    """Emit a diagnostic warning when DSN looks like a Supavisor txn pool.
+def _log_connection_type(dsn: str) -> None:
+    """Log whether DATABASE_URL points at a Supabase pooler or a direct connection.
 
-    The warning is purely informational — startup is never blocked. It
-    fires only when the host substring matches Supabase's documented
-    Supavisor pattern AND the port is the documented transaction-pool
-    port (6543). DSN parse failures are silently skipped so a malformed
-    or otherwise-shaped URL never crashes the pool init.
+    Logs WARNING for pooler (statement_cache_size=0 already applied).
+    Logs INFO for direct connections. DSN parse failures are silently
+    skipped so a malformed URL never crashes pool init.
     """
     try:
         parsed = urlparse(dsn)
     except Exception:  # noqa: BLE001 — diagnostics must never crash boot
         return
     host = (parsed.hostname or "").lower()
-    if _SUPAVISOR_HOST_HINT not in host:
-        return
-    if parsed.port != _SUPAVISOR_TRANSACTION_PORT:
-        return
-    logger.warning(
-        "DATABASE_URL points at Supabase Supavisor transaction pool "
-        "(host=%s port=%s); applying statement_cache_size=0 to "
-        "neutralise asyncpg's server-side prepared statement cache. "
-        "If session-only features (LISTEN/NOTIFY, SET SESSION, "
-        "advisory locks) are needed, switch the DSN to the session "
-        "pooler (port 5432) or the direct connection.",
-        host, parsed.port,
-    )
+    if _POOLER_HOST_HINT in host:
+        logger.warning(
+            "DATABASE_URL points at Supabase connection pooler "
+            "(host=%s); statement_cache_size=0 applied to prevent "
+            "asyncpg prepared-statement errors under multiplexed connections.",
+            host,
+        )
+    else:
+        logger.info(
+            "DATABASE_URL uses direct connection (host=%s).",
+            host,
+        )
 
 
 async def init_pool() -> asyncpg.Pool:
@@ -70,7 +60,7 @@ async def init_pool() -> asyncpg.Pool:
     if _pool is not None:
         return _pool
     settings = get_settings()
-    _warn_if_supavisor_transaction_pool(settings.DATABASE_URL)
+    _log_connection_type(settings.DATABASE_URL)
     # statement_cache_size=0 disables asyncpg's per-connection
     # server-side prepared statement cache. Required when DATABASE_URL
     # points at a transaction-pooled proxy (Supabase Supavisor, Fly

@@ -149,10 +149,10 @@ def test_init_pool_passes_application_name_server_setting():
 
 
 def test_init_pool_warns_when_supavisor_transaction_pool(caplog):
-    """When DATABASE_URL host contains 'pooler.supabase' AND port is
-    6543, init_pool emits an informational WARNING so the operator can
-    correlate /health flap events with the DSN topology. The warning
-    is NOT a startup blocker.
+    """When DATABASE_URL host contains 'pooler.supabase.com', init_pool
+    emits a WARNING regardless of port so the operator can correlate
+    /health flap events with the DSN topology. The warning is NOT a
+    startup blocker.
     """
     create_pool_mock = AsyncMock(return_value=_FakePool())
     fake_settings = MagicMock(
@@ -172,18 +172,17 @@ def test_init_pool_warns_when_supavisor_transaction_pool(caplog):
         ):
             _run(db_module.init_pool())
     msgs = [r.getMessage() for r in caplog.records]
-    assert any("Supavisor transaction pool" in m for m in msgs), (
-        f"expected Supavisor transaction-pool warning, got {msgs!r}"
+    assert any("connection pooler" in m for m in msgs), (
+        f"expected pooler warning, got {msgs!r}"
     )
     # Pool init MUST NOT have been blocked.
     create_pool_mock.assert_awaited_once()
 
 
-def test_init_pool_does_not_warn_for_session_pool_port(caplog):
-    """The session pooler (port 5432) is compatible with prepared
-    statements and must NOT trigger the warning, even when the host
-    matches the Supavisor pattern. Otherwise operators on a healthy
-    session-pooled deploy would see a misleading warning every boot.
+def test_init_pool_warns_for_pooler_host_any_port(caplog):
+    """The pooler warning fires whenever the host contains
+    'pooler.supabase.com', regardless of port — session pooler (5432)
+    still routes through the Supavisor proxy so the warning is correct.
     """
     create_pool_mock = AsyncMock(return_value=_FakePool())
     fake_settings = MagicMock(
@@ -202,13 +201,9 @@ def test_init_pool_does_not_warn_for_session_pool_port(caplog):
             db_module, "get_settings", return_value=fake_settings,
         ):
             _run(db_module.init_pool())
-    supavisor_warnings = [
-        r for r in caplog.records
-        if "Supavisor transaction pool" in r.getMessage()
-    ]
-    assert supavisor_warnings == [], (
-        f"port 5432 must not trigger the transaction-pool warning, got "
-        f"{[w.getMessage() for w in supavisor_warnings]!r}"
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("connection pooler" in m for m in msgs), (
+        f"port 5432 pooler host must still trigger pooler warning, got {msgs!r}"
     )
 
 
@@ -231,11 +226,35 @@ def test_init_pool_does_not_warn_for_non_supabase_host(caplog):
             db_module, "get_settings", return_value=fake_settings,
         ):
             _run(db_module.init_pool())
-    supavisor_warnings = [
+    pooler_warnings = [
         r for r in caplog.records
-        if "Supavisor transaction pool" in r.getMessage()
+        if "connection pooler" in r.getMessage()
     ]
-    assert supavisor_warnings == []
+    assert pooler_warnings == []
+
+
+def test_init_pool_logs_info_for_direct_connection(caplog):
+    """When DATABASE_URL does not contain 'pooler.supabase.com', init_pool
+    logs INFO confirming a direct connection is in use.
+    """
+    create_pool_mock = AsyncMock(return_value=_FakePool())
+    fake_settings = MagicMock(
+        DATABASE_URL="postgresql://postgres:pw@db.ykyagjdeqcgcktnpdhes.supabase.co:5432/postgres",
+        DB_POOL_MAX=5,
+    )
+    with caplog.at_level(
+        "INFO", logger="projects.polymarket.crusaderbot.database",
+    ):
+        with patch.object(
+            db_module.asyncpg, "create_pool", new=create_pool_mock,
+        ), patch.object(
+            db_module, "get_settings", return_value=fake_settings,
+        ):
+            _run(db_module.init_pool())
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("direct connection" in m for m in msgs), (
+        f"expected direct-connection INFO log, got {msgs!r}"
+    )
 
 
 def test_init_pool_diagnostic_does_not_crash_on_malformed_dsn(caplog):
