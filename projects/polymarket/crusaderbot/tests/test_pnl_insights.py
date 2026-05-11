@@ -278,21 +278,26 @@ def test_my_trades_main_kb_includes_insights():
 
 
 def test_fetch_insights_queries_filter_paper_mode():
-    """All four SQL queries in _fetch_insights must include mode='paper'.
+    """Every SQL statement in _fetch_insights must include mode='paper'.
 
-    This is a static assertion on the query strings — it pins the paper-mode
-    data boundary so future edits cannot silently remove the filter and allow
-    live-mode positions to leak into the paper insights surface.
+    Validates each of the four query blocks individually so a regression in
+    any single query cannot be masked by the aggregate query's multiple filter
+    occurrences (Codex P2 on count-based approach).
     """
     import inspect
+    import re
     from projects.polymarket.crusaderbot.bot.handlers.pnl_insights import (
         _fetch_insights,
     )
     src = inspect.getsource(_fetch_insights)
-    # Count occurrences of mode = 'paper' — there must be at least 4
-    # (stats aggregate, best_row, worst_row, streak_rows).
-    paper_filter_count = src.count("mode = 'paper'")
-    assert paper_filter_count >= 4, (
-        f"Expected >=4 'mode = \'paper\'' filters in _fetch_insights, "
-        f"found {paper_filter_count}. Paper-mode boundary must not regress."
+    # Split at each DB call — gives one block per query (preamble + 4 blocks).
+    query_blocks = re.split(r"await conn\.(?:fetchrow|fetch)\(", src)
+    assert len(query_blocks) == 5, (
+        f"Expected 4 queries in _fetch_insights, got {len(query_blocks) - 1}. "
+        "Update this test if the query count changes intentionally."
     )
+    for i, block in enumerate(query_blocks[1:], 1):
+        assert "mode = 'paper'" in block, (
+            f"Query {i} in _fetch_insights is missing 'mode = \\'paper\\'' filter. "
+            "Paper-mode boundary must not regress."
+        )
