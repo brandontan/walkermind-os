@@ -52,7 +52,7 @@ async def sync_markets() -> None:
     async with pool.acquire() as conn:
         for m in markets:
             try:
-                mid = str(m.get("id") or m.get("conditionId") or "")
+                mid = str(m.get("conditionId") or m.get("id") or "")  # prefer conditionId (hex) — matches markets.id PK
                 if not mid:
                     continue
                 outcomes = m.get("outcomePrices") or m.get("outcome_prices") or [None, None]

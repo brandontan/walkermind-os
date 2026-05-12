@@ -312,7 +312,7 @@ async def run_job() -> tuple[int, int]:
             try:
                 if m.get("closed") or m.get("resolved"):
                     continue
-                mid = str(m.get("id") or m.get("conditionId") or "")
+                mid = str(m.get("conditionId") or m.get("id") or "")  # prefer conditionId (hex) — matches markets.id PK
                 if not mid:
                     continue
                 liq = float(m.get("liquidity") or 0)
