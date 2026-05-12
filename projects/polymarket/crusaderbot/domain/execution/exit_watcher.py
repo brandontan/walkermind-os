@@ -174,7 +174,7 @@ async def _act_on_decision(
 ) -> None:
     """Execute the watcher's decision: close+alert, or refresh current_price."""
     if not decision.should_exit:
-        await registry.update_current_price(position.id, decision.current_price)
+        await registry.update_current_price(position.id, decision.current_price, position.user_id)
         return
 
     reason = decision.reason or ExitReason.STRATEGY_EXIT.value
@@ -187,7 +187,7 @@ async def _act_on_decision(
     )
 
     if not result.ok:
-        new_count = await registry.record_close_failure(position.id)
+        new_count = await registry.record_close_failure(position.id, position.user_id)
         await audit.write(
             actor_role="bot", action="exit_watcher_close_failed",
             user_id=position.user_id,
@@ -216,7 +216,7 @@ async def _act_on_decision(
 
     # Successful close: reset the failure counter (idempotent if it was 0).
     if position.close_failure_count > 0:
-        await registry.reset_close_failure(position.id)
+        await registry.reset_close_failure(position.id, position.user_id)
 
     payload = result.payload or {}
     pnl_decimal = payload.get("pnl_usdc", Decimal("0"))
