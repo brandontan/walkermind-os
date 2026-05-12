@@ -217,9 +217,9 @@ def check_branch(branch: str) -> list[str]:
     """Branch findings are routed as fix-required, not hard workflow failures.
 
     Mr. Walker's intended behavior:
+      - accept WARP/ uppercase or lowercase
       - accept WARP/HOTFIX-KEYBOARD-MISSING
       - accept WARP/hotfix-keyboard-missing
-      - reject/fix lowercase prefix and other invalid formats before CMD merge
       - do not let branch slug cosmetics outrank function/safety
     """
     findings: list[str] = []
