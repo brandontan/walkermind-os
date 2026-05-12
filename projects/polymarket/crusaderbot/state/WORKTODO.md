@@ -1,16 +1,16 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-12 01:00
+**Last Updated:** 2026-05-12 08:16
 
 ---
 
 ## Right Now
 
-- Track H -- Portfolio Charts + Insights MERGED PR #979 (2026-05-12).
+- Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner (60s), hourly_report cron, /health operator command, migration 024 deployed.
 - Activation guards remain NOT SET.
-- Production remains Telegram + Fly.io live, PAPER ONLY.
-- NEXT: WARP🔹CMD review for Track G (UI Premium Pack 1), Track I (Referral + Share System).
+- Production remains Telegram + Fly.io live, PAPER ONLY. signal_publications now being written by scanner.
+- NEXT: WARP🔹CMD review for Track G (UI Premium Pack 1), Track I (Referral + Share System), Track K, Track L, Hotfix UX.
 
 ---
 
@@ -45,7 +45,7 @@ Done condition: Track A-E merged and SENTINEL-approved where MAJOR; activation g
   - Migration runner path fix: PR #881 MERGED (2026-05-06) 538fd999 -- 008+009 now in migrations/
 - [x] P3c -- Signal Following strategy -- MERGED PR #892 (5ee8487e), MAJOR, SENTINEL APPROVED 100/100
 - [x] P3d -- Per-user signal scan loop + execution queue wiring -- MERGED PR #897 (bb08092) + state sync PR #898 (7bb0487f), MAJOR, SENTINEL APPROVED 94/100. 464/464 tests green.
-- [ ] P3e -- MomentumReversalStrategy adapter -- PR open WARP/crusaderbot-momentum-strategy-adapter, STANDARD, NARROW INTEGRATION. momentum_reversal strategy; bootstrap updated; STRATEGY_AVAILABILITY updated; 50 hermetic tests green; issue #975. Awaiting WARP🔹CMD merge.
+- [x] P3e -- MomentumReversalStrategy adapter -- MERGED PR #978 (2026-05-11), STANDARD, NARROW INTEGRATION. momentum_reversal strategy; bootstrap updated; STRATEGY_AVAILABILITY updated; 50 hermetic tests green; issue #975 closed.
 
 Done condition: P3a-P3d merged, registry catalog populated at boot, scan loop wired through risk gate, SENTINEL APPROVED before live activation.
 
