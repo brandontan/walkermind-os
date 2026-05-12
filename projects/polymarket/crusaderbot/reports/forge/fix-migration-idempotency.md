@@ -1,6 +1,7 @@
 # WARP•FORGE Report — fix-migration-idempotency
 
 **Branch:** WARP/fix-migration-idempotency
+**PR:** #1003
 **Date:** 2026-05-12
 **Tier:** MAJOR
 **Claim Level:** NARROW INTEGRATION
