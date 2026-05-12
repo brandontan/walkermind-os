@@ -110,9 +110,9 @@ async def _fetch_insights(user_id: UUID) -> dict:
                     FILTER (WHERE status = 'closed' AND mode = 'paper'
                               AND pnl_usdc > 0), 0)
                     AS avg_win,
-                COALESCE(ABS(AVG(pnl_usdc))
+                COALESCE(ABS(AVG(pnl_usdc)
                     FILTER (WHERE status = 'closed' AND mode = 'paper'
-                              AND pnl_usdc <= 0), 0)
+                              AND pnl_usdc <= 0)), 0)
                     AS avg_loss,
                 COUNT(*) FILTER (
                     WHERE status = 'closed' AND mode = 'paper'

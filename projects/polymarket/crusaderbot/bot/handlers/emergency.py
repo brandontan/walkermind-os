@@ -24,6 +24,7 @@ from uuid import UUID
 
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ... import audit
@@ -33,6 +34,17 @@ from ...users import set_locked, set_paused, upsert_user
 from ..keyboards import emergency_confirm, emergency_feedback, emergency_menu
 
 logger = logging.getLogger(__name__)
+
+
+async def _safe_edit(q, text: str, **kwargs) -> None:
+    """Edit a callback query message, ignoring no-op edits."""
+    try:
+        await q.edit_message_text(text, **kwargs)
+    except BadRequest as exc:
+        if "Message is not modified" in str(exc):
+            return
+        raise
+
 
 _EMERGENCY_INTRO = (
     "*🚨 Emergency Controls*\n"
@@ -125,7 +137,8 @@ async def emergency_callback(update: Update,
 
     # Step 1 — show confirmation dialog
     if sub in ("pause", "pause_close", "lock"):
-        await q.edit_message_text(
+        await _safe_edit(
+            q,
             _CONFIRM_TEXT[sub],
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=emergency_confirm(sub),
@@ -134,7 +147,8 @@ async def emergency_callback(update: Update,
 
     # Back / cancel — return to intro menu
     if sub in ("cancel", "back"):
-        await q.edit_message_text(
+        await _safe_edit(
+            q,
             _EMERGENCY_INTRO,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=emergency_menu(),
@@ -153,7 +167,8 @@ async def emergency_callback(update: Update,
             await audit.write(
                 actor_role="user", action="self_pause", user_id=user["id"],
             )
-            await q.edit_message_text(
+            await _safe_edit(
+                q,
                 _FEEDBACK_TEXT["pause"],
                 reply_markup=emergency_feedback(),
             )
@@ -173,7 +188,8 @@ async def emergency_callback(update: Update,
                 await check_exits()
             except Exception as exc:
                 logger.error("emergency inline check_exits failed: %s", exc)
-            await q.edit_message_text(
+            await _safe_edit(
+                q,
                 f"🛑 Paused + flagged {marked} position(s) for force-close.\n"
                 "Exit watcher just ran — see your dashboard for results.",
                 reply_markup=emergency_feedback(),
@@ -185,7 +201,8 @@ async def emergency_callback(update: Update,
             await audit.write(
                 actor_role="user", action="self_lock_account", user_id=user["id"],
             )
-            await q.edit_message_text(
+            await _safe_edit(
+                q,
                 _FEEDBACK_TEXT["lock"],
                 reply_markup=emergency_feedback(),
             )
