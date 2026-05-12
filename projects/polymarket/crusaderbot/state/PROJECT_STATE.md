@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 12:01
-Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strategy_type hotfix MERGED PR #995 (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 09:07
+Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strategy_type hotfix MERGED PR #995 (2026-05-12). WARP Auto Gate v1 PR open (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries; 22 hermetic tests green; issue #963 closed.
@@ -12,13 +12,13 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strateg
 - Hotfix /insights UndefinedColumnError strategy_type MERGED PR #995 (2026-05-12). LEFT JOIN orders in weekly_insights signal breakdown fixes DAWN-SNOWFLAKE-1729-10 and DAWN-SNOWFLAKE-1729-Z.
 
 [IN PROGRESS]
+- WARP Auto Gate v1 issue #980 PR open. warp-auto-gate.yml + warp_auto_gate.py delivered. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
-- WARP Auto Gate v1 issue #980 is open. STANDARD, NARROW INTEGRATION. Repo automation only; no CrusaderBot runtime changes.
 - Wire share_trade_kb into trade close call sites when PNL > 0; surface ready, wiring deferred.
 - Referral payout activation: separate lane, requires WARP🔹CMD decision.
 - Fee collection activation: separate lane, requires WARP🔹CMD decision.
@@ -28,9 +28,8 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strateg
 - Before-live hardening: add AND user_id=$N guard to position_id-only UPDATEs in domain/positions/registry.py and domain/execution/paper.py close_position UPDATE. Required before ENABLE_LIVE_TRADING activation; safe to defer for PAPER ONLY posture.
 
 [NEXT PRIORITY]
-- Start WARP Auto Gate v1 from issue #980 only if Mr. Walker wants repo automation lane next.
+- WARP🔹CMD review of WARP Auto Gate v1 PR. Tier: STANDARD. No WARP•SENTINEL required.
 - Continue closed beta observation / paper-mode runtime monitoring.
-- Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
 [KNOWN ISSUES]

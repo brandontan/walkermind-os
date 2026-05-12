@@ -1,0 +1,47 @@
+name: WARP Auto Gate v1
+
+# Evaluates AGENTS.md PR gate rules on every WARP/* PR event and whenever
+# a tracked CI workflow completes. Posts or updates one idempotent comment
+# (marker: <!-- WARP-AUTO-GATE -->) and fails the job when P0/P1 blockers
+# are found.  Auto-merge is intentionally out of scope for v1.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_run:
+    workflows:
+      - "CrusaderBot CI"
+      - "CrusaderBot CD"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to re-gate"
+        required: true
+        type: string
+
+permissions:
+  pull-requests: write
+  checks: read
+  contents: read
+
+jobs:
+  warp-gate:
+    name: WARP Auto Gate
+    runs-on: ubuntu-latest
+    steps:
+      # Check out base-branch code (pull_request_target safety model).
+      # The gate script fetches all PR data via API — no checkout of
+      # untrusted head code is required.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run WARP Auto Gate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PR_NUMBER: set for pull_request_target and workflow_dispatch events.
+          # For workflow_run events, WR_HEAD_SHA is set and the script looks
+          # up the matching open PR itself.
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          WR_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: python3 scripts/warp_auto_gate.py

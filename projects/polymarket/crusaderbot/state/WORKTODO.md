@@ -11,7 +11,7 @@
 - Hotfix /insights strategy_type MERGED PR #995 (2026-05-12). weekly_insights signal breakdown now joins orders for strategy_type.
 - Activation guards remain NOT SET.
 - Production remains Telegram + Fly.io live, PAPER ONLY. signal_publications now being written by scanner.
-- NEXT: closed beta observation / paper-mode runtime monitoring, or WARP Auto Gate v1 issue #980 if repo automation lane is selected.
+- NEXT: closed beta observation / paper-mode runtime monitoring. WARP Auto Gate v1 issue #980 PR open, awaiting WARP🔹CMD review.
 
 ---
 
@@ -77,7 +77,7 @@ Done condition: P3 lanes merged, registry catalog populated at boot, scan loop w
 
 ## Known Issues / Tech Debt
 
-- [ ] WARP Auto Gate v1 issue #980 -- STANDARD repo automation lane, no CrusaderBot runtime code.
+- [x] WARP Auto Gate v1 issue #980 -- STANDARD repo automation lane, no CrusaderBot runtime code. PR open, awaiting WARP🔹CMD review.
 - [ ] check_alchemy_ws TCP-only, no full WS handshake (follow-up lane, LOW).
 - [ ] services/* dead code (post-R12 cleanup, LOW).
 - [ ] /deposit no tier gate (intentional, non-blocking).
