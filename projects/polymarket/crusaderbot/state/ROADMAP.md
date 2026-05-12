@@ -1,7 +1,7 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-12 00:01 Asia/Jakarta
+**Last Updated:** 2026-05-12 23:58 Asia/Jakarta
 
 ## Current Posture
 
@@ -36,7 +36,7 @@
 | Track | Scope | Tier | Status | Notes |
 |---|---|---|---|---|
 | F | Live Opt-In Gate | MAJOR | ✅ MERGED | MERGED PR #970 (2026-05-11). 3-step /enable_live gate; 4-guard check; mode_change_events audit (021); auto-fallback 60s monitor; 20 hermetic tests green; issue #968 closed |
-| G | UI Premium Pack 1 | STANDARD | 🚧 PR OPEN | animated_entry_sequence, /market card, market_card_kb; 21 hermetic tests; WARP🔹CMD review required |
+| G | UI Premium Pack 1 | STANDARD | ✅ MERGED | MERGED in prior lane; queue now clear (open PRs = 0). |
 
 - Charts / insights follow-on (post-PNL-Insights)
 - Referral / fee prep
@@ -47,8 +47,8 @@
 |---|---|---|---|---|
 | J | Multi-User Isolation Audit | MAJOR | ✅ MERGED | MERGED PR #988 (2026-05-12). 120+ queries audited; zero isolation violations; 24 hermetic tests green; WARP•SENTINEL APPROVED 98/100 |
 
-- Access tiers + admin controls (Track K — PR open, WARP🔹CMD review required)
-- Onboarding polish + conversion flows (Track L — PR open, WARP🔹CMD review required)
+- Access tiers + admin controls (Track K — merged in prior lane; no open PR).
+- Onboarding polish + conversion flows (Track L — merged in prior lane; no open PR).
 
 ## Week 4 – Closed Beta
 

@@ -1,11 +1,16 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-12 12:01
+**Last Updated:** 2026-05-12 23:58
 
 ---
 
 ## Right Now
+
+- GitHub queue synced: open PRs = 0, open issues = 0.
+- Focus remains closed beta observation and paper-mode runtime monitoring.
+- Production posture unchanged: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
+
 
 - Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner (60s), hourly_report cron, /health operator command, migration 024 deployed.
 - Hotfix /insights strategy_type MERGED PR #995 (2026-05-12). weekly_insights signal breakdown now joins orders for strategy_type.
