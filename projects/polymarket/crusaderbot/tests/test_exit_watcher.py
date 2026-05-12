@@ -518,7 +518,7 @@ def test_run_once_close_failure_increments_counter_and_alerts():
         for p_ in patches:
             p_.stop()
 
-    record_failure.assert_awaited_once_with(pos.id)
+    record_failure.assert_awaited_once_with(pos.id, pos.user_id)
     assert len(captured.close_failed_user) == 1
     assert captured.close_failed_user[0]["telegram_user_id"] == pos.telegram_user_id
     # Operator alert dispatched because failure_count(=2) crossed threshold.
@@ -571,7 +571,7 @@ def test_run_once_live_close_failure_records_without_retry():
     assert submit_calls[0] == 1, (
         "live mode submit must be attempted exactly once — no retry"
     )
-    record_failure.assert_awaited_once_with(pos.id)
+    record_failure.assert_awaited_once_with(pos.id, pos.user_id)
     assert len(captured.close_failed_user) == 1
     assert len(captured.close_failed_op) == 1
     assert captured.close_failed_op[0]["mode"] == "live"
@@ -600,7 +600,7 @@ def test_run_once_hold_updates_current_price_only():
             p_.stop()
     assert n == 0
     assert submit_calls == []
-    update_price.assert_awaited_once_with(pos.id, pytest.approx(0.40))
+    update_price.assert_awaited_once_with(pos.id, pytest.approx(0.40), pos.user_id)
     assert captured.tp_hit == captured.sl_hit == []
 
 
