@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 06:10
-Status       : Signal Scan Engine built. market_signal_scanner job wired; migration 024 applied to prod DB (5 pipeline blockers resolved); /health command added; hourly ADMIN report added. PR open on WARP/SIGNAL-SCAN-ENGINE. MAJOR — WARP•SENTINEL required before merge.
+Last Updated : 2026-05-12 08:00
+Status       : Signal Scan Engine PR open on WARP/SIGNAL-SCAN-ENGINE (MAJOR — WARP•SENTINEL required). Hotfix legacy handler cleanup PR open on WARP/HOTFIX-UX-OVERHAUL-HANDLERS (STANDARD). Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -20,9 +20,11 @@ Status       : Signal Scan Engine built. market_signal_scanner job wired; migrat
 - Track L -- Onboarding Polish built (2026-05-11). /start 2-step flow (Welcome → Mode Select → Paper/Live); /help categorized (TRADING/PORTFOLIO/SETTINGS/ADMIN); ADMIN section operator-gated; 5 command aliases (/scan /pnl /close /trades /mode); 15 hermetic tests green; STANDARD, PRESENTATION.
 - MomentumReversalStrategy adapter MERGED PR #978 (2026-05-11). Scan contract, registry bootstrap, STRATEGY_AVAILABILITY updated (momentum_reversal: balanced+aggressive); 50 hermetic tests green; issue #975 closed. STANDARD, NARROW INTEGRATION.
 - Track J Multi-User Isolation Audit MERGED PR #988 (2026-05-12). 120+ queries audited; zero isolation violations; 24 hermetic tests green; WARP•SENTINEL APPROVED 98/100, zero critical issues; MAJOR, FULL RUNTIME INTEGRATION.
+- UX Overhaul Premium Grade MERGED PR #989 (2026-05-12). 9-part Telegram UX redesign; main menu, TP/SL presets, capital presets, strategy cards, settings hub, copy trade fallback, insights fix, my trades format; 45 hermetic tests green; STANDARD, PRESENTATION.
 
 [IN PROGRESS]
 - Signal Scan Engine: PR open on WARP/SIGNAL-SCAN-ENGINE. MAJOR, FULL RUNTIME INTEGRATION. WARP•SENTINEL audit required before merge.
+- Hotfix legacy UX handler cleanup: PR open on WARP/HOTFIX-UX-OVERHAUL-HANDLERS. STANDARD, PRESENTATION. Removed legacy TP/SL and capital text prompts; STRATEGY_DISPLAY_NAMES applied. 99 hermetic tests green. Awaiting WARP🔹CMD review.
 - Track K Access Tiers + Admin Panel: PR open on WARP/CRUSADERBOT-FAST-ADMIN. STANDARD, FOUNDATION. 29 hermetic tests green. Awaiting WARP🔹CMD review.
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
@@ -42,6 +44,7 @@ Status       : Signal Scan Engine built. market_signal_scanner job wired; migrat
 
 [NEXT PRIORITY]
 - WARP•SENTINEL validation required for Signal Scan Engine before merge. Source: projects/polymarket/crusaderbot/reports/forge/signal-scan-engine.md. Tier: MAJOR.
+- WARP🔹CMD review required for Hotfix legacy UX handler cleanup. Source: projects/polymarket/crusaderbot/reports/forge/forge-hotfix-ux-handlers.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track L Onboarding Polish PR. Source: projects/polymarket/crusaderbot/reports/forge/onboarding-polish.md. Tier: STANDARD.
 - WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.

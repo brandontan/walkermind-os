@@ -536,22 +536,29 @@ def test_switch_intent_shows_confirmation(monkeypatch):
 # ---------- setup.setup_root routing ----------------------------------------
 
 def test_setup_root_routes_to_picker_when_no_preset(monkeypatch):
+    # UX Overhaul: setup_root always shows the strategy card regardless of preset.
     uid = uuid4()
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    update, replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
-    assert replies, "reply_text was never called"
-    assert "Auto-Trade" in replies[0]
+    assert replies, "setup_root must send a message"
+    assert "Auto-Trade" in replies[0] or "Strategy" in replies[0]
+    cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
+           for b in row]
+    assert any(c.startswith("strategy:") for c in cbs)
 
 
 def test_setup_root_routes_to_status_when_preset_active(monkeypatch):
+    # UX Overhaul: setup_root always shows the strategy card regardless of preset.
     uid = uuid4()
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    update, replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
-    assert replies, "reply_text was never called"
-    assert "Auto-Trade" in replies[0]
+    assert replies, "setup_root must send a message"
+    cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
+           for b in row]
+    assert any(c.startswith("strategy:") for c in cbs)
