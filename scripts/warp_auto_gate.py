@@ -23,7 +23,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-GATE_COMMENT_MARKER = "<!-- WARP-AUTO-GATE -->"
+GATE_COMMENT_MARKER = "<!-- WARP•GATE -->"
 API_BASE = "https://api.github.com"
 
 
@@ -36,7 +36,7 @@ def _headers(token: str) -> dict[str, str]:
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "WARP-Auto-Gate/1",
+        "User-Agent": "WARP-Gate/1",
     }
 
 
@@ -320,7 +320,7 @@ def build_comment(branch: str, pr_number: int, all_issues: list[tuple[str, list[
 
     lines = [
         GATE_COMMENT_MARKER,
-        f"## WARP Auto Gate v1 — {verdict}",
+        f"## WARP•Gate v1 — {verdict}",
         "",
         f"**Branch:** `{branch}` &nbsp; **PR:** #{pr_number}",
         "",
@@ -347,7 +347,7 @@ def build_comment(branch: str, pr_number: int, all_issues: list[tuple[str, list[
 
     lines += [
         "---",
-        "_WARP Auto Gate v1 — repo automation only. No CrusaderBot runtime changes._",
+        "_WARP•Gate v1 — repo automation only. No CrusaderBot runtime changes._",
     ]
     return "\n".join(lines)
 
