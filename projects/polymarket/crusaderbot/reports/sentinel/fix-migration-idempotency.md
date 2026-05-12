@@ -83,7 +83,7 @@ logger.info("Migrations complete (%d files)", len(files))
 - **Silent failure:** None. Both `raise` preserved. Exception propagates to lifespan → startup abort. ✅
 - **Connection lifecycle:** `async with pool.acquire() as conn:` as context manager. On exception, context manager exits cleanly; connection returned/discarded by asyncpg pool. No dangling connection. ✅
 - **Transaction safety:** Migration 025 contains explicit `BEGIN`/`COMMIT`. `conn.execute(sql)` sends full file as one string to PostgreSQL — explicit transaction block handled server-side. No implicit asyncpg transaction wrapper. Safe. ✅
-- **Exception scope:** `except Exception` broad — acceptable for migration runner startup context. No `except: pass` or swallow. ✅
+- **Exception scope:** `except Exception` broad — acceptable for migration runner startup context. No bare swallowing — all exceptions log and re-raise. ✅
 
 ### 2.3 — Asyncpg Transaction State Risk
 
