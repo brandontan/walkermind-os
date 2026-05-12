@@ -90,7 +90,7 @@ async def _get_health_data() -> dict:
         "signals_1h": int(signals_1h),
         "markets_1h": int(markets_1h),
         "running_jobs": int(running_jobs),
-        "total_jobs_distinct": 11,  # known registered job count
+        "total_jobs_distinct": 17,  # known registered job count
         "pool_used": pool_used,
         "pool_max": pool_max,
         "errors_1h": int(errors_1h),
