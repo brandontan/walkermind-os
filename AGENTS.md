@@ -959,7 +959,7 @@ WARP/{feature}
 ```
 
 Rules:
-- prefix is always `WARP/` — uppercase, no exceptions
+- prefix is always `WARP/` — uppercase, lowercase, no exceptions
 - `{feature}` is a short hyphen-separated slug (noun/adjective based, not a sentence)
 - no dots, no underscores, no date suffix
 - phase tokens use hyphens when needed: `phase6-5-3` (never `6.5.3`)
