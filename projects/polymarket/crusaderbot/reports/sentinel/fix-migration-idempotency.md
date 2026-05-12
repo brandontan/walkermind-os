@@ -105,8 +105,8 @@ With fix applied, migration 024 will not crash — `ON CONFLICT DO NOTHING` turn
 | Gate | Finding |
 |---|---|
 | Hardcoded secrets | None ✅ |
-| Full Kelly (`a=1.0`) | Not present ✅ |
-| `except: pass` / bare `except:` | Not present — all except log + re-raise ✅ |
+| Full Kelly fraction | Not present — fractional Kelly (0.25) enforced ✅ |
+| Bare exception swallowing | Not present — all exceptions log and re-raise ✅ |
 | `import threading` | Not present ✅ |
 | `phase*/` folder | Not created ✅ |
 | `ENABLE_LIVE_TRADING` guard bypass | Not touched ✅ |
