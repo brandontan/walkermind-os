@@ -1,7 +1,8 @@
-Last Updated : 2026-05-12 21:00
-Status       : Hotfix persistent reply keyboard restore PR open (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 22:00
+Status       : Heisenberg API integration PR open (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
+- Heisenberg API integration PR open (2026-05-12). services/heisenberg.py client; jobs/market_sync.py agent-574 sync; market_signal_scanner live path (agents 568/575/585); migration 025 live feed; HEISENBERG_API_TOKEN env wiring. STANDARD, NARROW INTEGRATION.
 - Hotfix persistent reply keyboard restore PR open (2026-05-12). dashboard() reply_markup=main_menu(); _mode_cb paper path sends main_menu() on completion. STANDARD, PRESENTATION.
 - Telegram inline UI restore + paper autotrade smoke MERGED PR #999 (2026-05-12). ConversationHandler fallback menu button sets patched in copy_trade.py and presets.py to match UX Overhaul layout; health.py job count corrected to 17; paper path smoke verified by code inspection; issue #998 closed. STANDARD, NARROW INTEGRATION.
 - P1 user_id isolation hardening MERGED PR #997 (2026-05-12). AND user_id=$N added to 5 UPDATE statements across registry.py and paper.py; exit_watcher call sites updated. STANDARD, NARROW INTEGRATION.
@@ -30,6 +31,7 @@ Status       : Hotfix persistent reply keyboard restore PR open (2026-05-12). Pr
 - Live execution path user_id guards: domain/execution/live.py has 4 position UPDATEs (lines 309, 328, 343, 361) missing AND user_id=$N. Deferred to WARP/live-execution-user-id-guards; required before ENABLE_LIVE_TRADING activation.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for Heisenberg integration PR. Deploy HEISENBERG_API_TOKEN secret via fly secrets set, then apply migration 025. Source: projects/polymarket/crusaderbot/reports/forge/feat-heisenberg-signal-integration.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/HOTFIX-KEYBOARD-MISSING. Source: projects/polymarket/crusaderbot/reports/forge/hotfix-keyboard-missing.md. Tier: STANDARD.
 - Continue closed beta observation / paper-mode runtime monitoring.
 - Keep production PAPER ONLY until explicit owner live activation decision.

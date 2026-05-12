@@ -27,7 +27,7 @@ from .domain.activation.auto_fallback import (
     LOOKBACK_SECONDS as AUTO_FALLBACK_INTERVAL,
     run_auto_fallback_check,
 )
-from .jobs import daily_pnl_summary, hourly_report, market_signal_scanner, weekly_insights
+from .jobs import daily_pnl_summary, hourly_report, market_signal_scanner, market_sync, weekly_insights
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
 from .services.redeem import hourly_worker as redeem_hourly_worker
@@ -549,6 +549,9 @@ def setup_scheduler() -> AsyncIOScheduler:
                   seconds=s.MARKET_SIGNAL_SCAN_INTERVAL,
                   id=market_signal_scanner.JOB_ID, max_instances=1, coalesce=True,
                   replace_existing=True)
+    sched.add_job(market_sync.run_job, "interval",
+                  seconds=1800,
+                  id=market_sync.JOB_ID, max_instances=1, coalesce=True)
     sched.add_job(copy_trade_monitor.run_once, "interval",
                   seconds=s.COPY_TRADE_MONITOR_INTERVAL,
                   id="copy_trade_monitor", max_instances=1, coalesce=True)

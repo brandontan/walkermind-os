@@ -42,6 +42,7 @@ kill_timeout = "30s"
   SECURITY_HARDENING_VALIDATED  = "false"
   FEE_COLLECTION_ENABLED        = "false"
   AUTO_REDEEM_ENABLED           = "false"
+  HEISENBERG_API_TOKEN          = ""
 
 [[services]]
   protocol      = "tcp"
