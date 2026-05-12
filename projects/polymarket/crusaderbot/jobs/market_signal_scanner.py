@@ -320,6 +320,17 @@ async def run_job() -> tuple[int, int]:
                     continue
 
                 outcomes = m.get("outcomePrices") or [None, None]
+                # Polymarket Gamma API returns outcomePrices as a JSON-encoded
+                # string (e.g. '["0.565", "0.435"]') rather than a parsed list.
+                # Deserialise before indexing — direct float(outcomes[0]) on the
+                # raw string raises ValueError, which the except block catches and
+                # silently skips the market, producing zero signal publications.
+                if isinstance(outcomes, str):
+                    import json as _json
+                    try:
+                        outcomes = _json.loads(outcomes)
+                    except Exception:
+                        outcomes = [None, None]
                 yes_p: float | None = (
                     float(outcomes[0]) if outcomes and outcomes[0] is not None else None
                 )
