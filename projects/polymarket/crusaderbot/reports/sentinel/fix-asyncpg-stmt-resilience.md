@@ -100,7 +100,7 @@ No negative interaction. `statement_cache_size=0` affects how queries are sent a
 | Gate | Finding |
 |---|---|
 | Hardcoded secrets | None ✅ |
-| Full Kelly (`a=1.0`) | Not present ✅ |
+| Full Kelly check | Not present — fractional (a=0.25) only enforced ✅ |
 | Silent exception handling | None — `_init_connection` correctly has no exception swallow ✅ |
 | `import threading` | Not present ✅ |
 | `phase*/` folder | Not created ✅ |
