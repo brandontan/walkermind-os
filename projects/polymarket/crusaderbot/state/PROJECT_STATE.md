@@ -1,32 +1,22 @@
 Last Updated : 2026-05-12 10:30
-Status       : Signal scan engine WARP•SENTINEL APPROVED 90/100 (PR #991); WARP🔹CMD merge decision pending. Hotfix SQL + emergency guard built; PR open. Production PAPER ONLY. Activation guards remain OFF.
+Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). Hotfix SQL + emergency guard built; PR open. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
-- Phase 2 wallet + deposit foundation complete.
-- Phase 3 strategy registry + signals complete.
-- Phase 4 real CLOB integration complete through Phase 4A-4E; live path remains guarded, USE_REAL_CLOB default False, and production is paper-safe.
-- Phase 5 Telegram Auto-Trade UX complete through 5A-5J.
-- Fast Track roadmap selected by Mr. Walker on 2026-05-10; Standard roadmap rejected for current execution posture.
-- Fast Track Track A -- Trade Engine + TP/SL worker MERGED PR #942 (2026-05-11). TradeEngine service layer; signal_scan_job routes through TradeEngine on all normal paths; 47 hermetic tests green.
-- Fast Track Track B -- Copy Trade Execution MERGED PR #948 (2026-05-11). CopyTradeMonitor.run_once(), 020_copy_trade_execution.sql migration, 25 hermetic tests green.
-- Fast Track Track C -- Trade notifications MERGED PR #951 (2026-05-11). TradeNotifier service layer; ENTRY/TP_HIT/SL_HIT/MANUAL/EMERGENCY/COPY_TRADE scaffold; 16 hermetic tests green.
-- Fast Track Track D -- Live Gate Hardening MERGED PR #954 (2026-05-11). WARP-SENTINEL APPROVED 92/100; 35 tests green.
-- Fast Track Track E -- Daily P&L Report MERGED PR #962 (2026-05-11). Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed.
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; issue #963 closed.
 - Track G UI Premium Pack 1 built (2026-05-12). animated_entry_sequence (4-step edit flow, 1.2s delays, edit+send fallbacks), /market {slug} rich market card, market_card_kb 2x2 inline keyboard, get_market_by_slug Gamma slug lookup; 21 hermetic tests green; PR open.
-- Fast Track Week 2 Track F -- Live Opt-In Gate implemented (2026-05-12). 3-step /enable_live Telegram gate; 4-guard read-only check; mode_change_events audit log (migration 021); auto-fallback 60s monitor; 20 hermetic tests green; PR open for SENTINEL audit; issue #968.
+- Fast Track Week 2 Track F -- Live Opt-In Gate implemented (2026-05-12). 3-step /enable_live Telegram gate; 4-guard read-only check; mode_change_events audit log (migration 021); auto-fallback 60s monitor; 20 hermetic tests green; MERGED PR #970; issue #968 closed.
 - Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). /chart PNG photo via matplotlib; chart:7/30/all period callbacks; /insights weekly category+signal breakdown; weekly_insights cron Monday 08:00 WIB; had_pre_window_rows carry-forward fix; 30 hermetic tests green; STANDARD, NARROW INTEGRATION.
 - Track I -- Referral + Share System built (2026-05-11). referral_codes/referral_events/fees/fee_config tables (migration 022); /referral command; deep-link join wiring on /start; [Share] button on winning trade notifications; share card handler; fee logic gated (FEE_COLLECTION_ENABLED=False); referral payout gated (REFERRAL_PAYOUT_ENABLED=False); 18 hermetic tests; PR open.
 - Track L -- Onboarding Polish built (2026-05-11). /start 2-step flow (Welcome → Mode Select → Paper/Live); /help categorized (TRADING/PORTFOLIO/SETTINGS/ADMIN); ADMIN section operator-gated; 5 command aliases (/scan /pnl /close /trades /mode); 15 hermetic tests green; STANDARD, PRESENTATION.
 - MomentumReversalStrategy adapter MERGED PR #978 (2026-05-11). Scan contract, registry bootstrap, STRATEGY_AVAILABILITY updated (momentum_reversal: balanced+aggressive); 50 hermetic tests green; issue #975 closed. STANDARD, NARROW INTEGRATION.
 - Track J Multi-User Isolation Audit MERGED PR #988 (2026-05-12). 120+ queries audited; zero isolation violations; 24 hermetic tests green; WARP•SENTINEL APPROVED 98/100, zero critical issues; MAJOR, FULL RUNTIME INTEGRATION.
 - UX Overhaul Premium Grade MERGED PR #989 (2026-05-12). 9-part Telegram UX redesign; main menu, TP/SL presets, capital presets, strategy cards, settings hub, copy trade fallback, insights fix, my trades format; 45 hermetic tests green; STANDARD, PRESENTATION.
+- Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner job (60s), hourly_report cron, /health operator command, migration 024 seeded demo feed/market/publication; WARP•SENTINEL APPROVED 90/100; MAJOR, FULL RUNTIME INTEGRATION.
 
 [IN PROGRESS]
 - Hotfix SQL + emergency guard: PR open on WARP/HOTFIX-SIGNAL-SCAN-SQL. STANDARD, NARROW INTEGRATION. Fixed ABS(AVG()) FILTER SQL error in pnl_insights + added BadRequest guard in emergency_callback. Awaiting WARP🔹CMD review.
 - Hotfix legacy UX handler cleanup: PR open on WARP/HOTFIX-UX-OVERHAUL-HANDLERS. STANDARD, PRESENTATION. Removed legacy TP/SL and capital text prompts; STRATEGY_DISPLAY_NAMES applied. 99 hermetic tests green. Awaiting WARP🔹CMD review.
 - Track K Access Tiers + Admin Panel: PR open on WARP/CRUSADERBOT-FAST-ADMIN. STANDARD, FOUNDATION. 29 hermetic tests green. Awaiting WARP🔹CMD review.
-- Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
 - Track I -- Referral + Share System: PR open, WARP🔹CMD review required. Tier: STANDARD.
 - Observation / runtime monitoring remains active in paper mode.
@@ -47,11 +37,9 @@ Status       : Signal scan engine WARP•SENTINEL APPROVED 90/100 (PR #991); WAR
 - WARP🔹CMD review required for Hotfix legacy UX handler cleanup. Source: projects/polymarket/crusaderbot/reports/forge/forge-hotfix-ux-handlers.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track L Onboarding Polish PR. Source: projects/polymarket/crusaderbot/reports/forge/onboarding-polish.md. Tier: STANDARD.
-- WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
 - WARP🔹CMD review required for Track G UI Premium Pack 1. Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track I Referral + Share System. Source: projects/polymarket/crusaderbot/reports/forge/fast-referral.md. Tier: STANDARD.
-- WARP🔹CMD merge decision required for PR #991 (signal-scan-engine). SENTINEL: APPROVED 90/100, zero critical issues. Source: projects/polymarket/crusaderbot/reports/sentinel/signal-scan-engine.md.
-- After merge: seed ADMIN tier for walk3r69 via /admin settier so hourly reports fire.
+- Seed ADMIN tier for walk3r69 via /admin settier so hourly_report fires to ADMIN users (migration 024 deployed by PR #991).
 - Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
