@@ -922,6 +922,7 @@ def test_scheduler_registers_order_lifecycle_job(monkeypatch):
         ORDER_POLL_INTERVAL_SECONDS = 30
         WS_WATCHDOG_INTERVAL_SECONDS = 60
         COPY_TRADE_MONITOR_INTERVAL = 60
+        MARKET_SIGNAL_SCAN_INTERVAL = 60
 
     monkeypatch.setattr(scheduler_mod, "get_settings", lambda: _S())
 

@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 08:00
-Status       : UX Overhaul MERGED PR #989. Hotfix legacy handler cleanup built on WARP/HOTFIX-UX-OVERHAUL-HANDLERS, PR open for WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 08:01
+Status       : Signal scan engine WARP•SENTINEL APPROVED 90/100 (PR #991); WARP🔹CMD merge decision pending. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -29,7 +29,7 @@ Status       : UX Overhaul MERGED PR #989. Hotfix legacy handler cleanup built o
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
 - Track I -- Referral + Share System: PR open, WARP🔹CMD review required. Tier: STANDARD.
 - Observation / runtime monitoring remains active in paper mode.
-- Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset.
+- Current production posture: Telegram @CrusaderBot live, Fly.io app running, Supabase project ykyagjdeqcgcktnpdhes, test user walk3r69 has $1000 paper USDC and Full Auto aggressive preset. access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed (migration 024).
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
@@ -48,6 +48,8 @@ Status       : UX Overhaul MERGED PR #989. Hotfix legacy handler cleanup built o
 - WARP🔹CMD merge decision on PR #970 (Track F). Pre-merge: (1) rename branch claude/forge-task-968-L0jm2 to WARP/CRUSADERBOT-FAST-LIVE-GATE, (2) add Claim Level: EXECUTION to PR body. Sentinel: APPROVED 97/100.
 - WARP🔹CMD review required for Track G UI Premium Pack 1. Source: projects/polymarket/crusaderbot/reports/forge-fast-ui-premium-1.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track I Referral + Share System. Source: projects/polymarket/crusaderbot/reports/forge/fast-referral.md. Tier: STANDARD.
+- WARP🔹CMD merge decision required for PR #991 (signal-scan-engine). SENTINEL: APPROVED 90/100, zero critical issues. Source: projects/polymarket/crusaderbot/reports/sentinel/signal-scan-engine.md.
+- After merge: seed ADMIN tier for walk3r69 via /admin settier so hourly reports fire.
 - Do not flip activation guards.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
@@ -66,3 +68,5 @@ Status       : UX Overhaul MERGED PR #989. Hotfix legacy handler cleanup built o
 - [DEFERRED] check_price_deviation() not yet wired into live execution path; callable and tested; deferred until ENABLE_LIVE_TRADING gate is considered.
 - [DEFERRED] auto_fallback.py: audit event written after mode switch, not before — found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
 - [DEFERRED] live_gate.py: AWAITING_STEP2 not proactively expired if Step 3 button never pressed — found in PR #970 CRUSADERBOT-FAST-LIVE-GATE.
+- [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact — found in PR #991 SIGNAL-SCAN-ENGINE.
+- [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct — found in PR #991 SIGNAL-SCAN-ENGINE.

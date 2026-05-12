@@ -229,7 +229,7 @@ def test_build_summary_for_user_assembles_lines():
              "current_price": Decimal("0.6")},
             # NO position. Entry/current are side-specific (NO price) —
             # registry.update_current_price persists the NO mark for NO
-            # rows. Bought NO at 0.4, NO market dropped to 0.3 → loss.
+            # rows. Bought NO at 0.40, NO market dropped to 0.3 → loss.
             # ret = (0.3 - 0.4) / 0.4 = -0.25 → -$2.50
             {"side": "no", "size_usdc": Decimal("10"),
              "entry_price": Decimal("0.4"),
@@ -440,6 +440,7 @@ def test_scheduler_registers_daily_pnl_summary_job():
         ORDER_POLL_INTERVAL_SECONDS = 30
         WS_WATCHDOG_INTERVAL_SECONDS = 60
         COPY_TRADE_MONITOR_INTERVAL = 60
+        MARKET_SIGNAL_SCAN_INTERVAL = 60
 
     with patch.object(scheduler, "get_settings", return_value=_SettingsStub()):
         sched = scheduler.setup_scheduler()
@@ -615,6 +616,7 @@ def test_scheduler_registers_run_job_as_daily_callable():
         ORDER_POLL_INTERVAL_SECONDS = 30
         WS_WATCHDOG_INTERVAL_SECONDS = 60
         COPY_TRADE_MONITOR_INTERVAL = 60
+        MARKET_SIGNAL_SCAN_INTERVAL = 60
 
     with patch.object(scheduler, "get_settings", return_value=_SettingsStub()):
         sched = scheduler.setup_scheduler()

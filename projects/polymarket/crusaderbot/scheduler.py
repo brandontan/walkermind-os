@@ -27,7 +27,7 @@ from .domain.activation.auto_fallback import (
     LOOKBACK_SECONDS as AUTO_FALLBACK_INTERVAL,
     run_auto_fallback_check,
 )
-from .jobs import daily_pnl_summary, weekly_insights
+from .jobs import daily_pnl_summary, hourly_report, market_signal_scanner, weekly_insights
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
 from .services.redeem import hourly_worker as redeem_hourly_worker
@@ -545,6 +545,10 @@ def setup_scheduler() -> AsyncIOScheduler:
                   id="signal_scan", max_instances=1, coalesce=True)
     sched.add_job(sf_scan_job.run_once, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
                   id="signal_following_scan", max_instances=1, coalesce=True)
+    sched.add_job(market_signal_scanner.run_job, "interval",
+                  seconds=s.MARKET_SIGNAL_SCAN_INTERVAL,
+                  id=market_signal_scanner.JOB_ID, max_instances=1, coalesce=True,
+                  replace_existing=True)
     sched.add_job(copy_trade_monitor.run_once, "interval",
                   seconds=s.COPY_TRADE_MONITOR_INTERVAL,
                   id="copy_trade_monitor", max_instances=1, coalesce=True)
@@ -580,6 +584,12 @@ def setup_scheduler() -> AsyncIOScheduler:
         weekly_insights.run_job, "cron",
         day_of_week="mon", hour=8, minute=0,
         id=weekly_insights.JOB_ID, max_instances=1, coalesce=True,
+    )
+    # Hourly system report → all ADMIN-tier users.
+    sched.add_job(
+        hourly_report.run_job, "cron",
+        minute=0,
+        id=hourly_report.JOB_ID, max_instances=1, coalesce=True,
     )
     # Track F — auto-fallback monitor (60s poll).
     sched.add_job(

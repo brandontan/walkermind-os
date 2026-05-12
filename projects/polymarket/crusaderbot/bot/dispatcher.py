@@ -8,9 +8,9 @@ from telegram.ext import (
 )
 
 from .handlers import (
-    activation, admin, copy_trade, dashboard, demo_polish, emergency, live_gate,
-    market_card, onboarding, my_trades as my_trades_h, pnl_insights as pnl_insights_h,
-    portfolio_chart as portfolio_chart_h,
+    activation, admin, copy_trade, dashboard, demo_polish, emergency, health as health_h,
+    live_gate, market_card, onboarding, my_trades as my_trades_h,
+    pnl_insights as pnl_insights_h, portfolio_chart as portfolio_chart_h,
     positions, presets, referral, settings as settings_handler, setup,
     share_card, signal_following, wallet,
 )
@@ -97,6 +97,7 @@ def register(app: Application) -> None:
     # same audited path.
     app.add_handler(CommandHandler("kill", admin.kill_command))
     app.add_handler(CommandHandler("resume", admin.resume_command))
+    app.add_handler(CommandHandler("health", health_h.health_command))
     app.add_handler(CommandHandler("jobs", admin.jobs_command))
     app.add_handler(CommandHandler("auditlog", admin.auditlog_command))
     app.add_handler(CommandHandler("unlock", admin.unlock_command))
