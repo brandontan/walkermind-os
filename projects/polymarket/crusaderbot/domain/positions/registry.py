@@ -189,7 +189,7 @@ async def mark_force_close_intent_for_user(user_id: UUID) -> int:
     return int(marked or 0)
 
 
-async def update_current_price(position_id: UUID, price: float) -> None:
+async def update_current_price(position_id: UUID, price: float, user_id: UUID) -> None:
     """Refresh ``current_price`` on a held position (no exit triggered).
 
     The watcher calls this every tick on positions that did not breach TP or
@@ -198,12 +198,12 @@ async def update_current_price(position_id: UUID, price: float) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE positions SET current_price = $1 WHERE id = $2",
-            price, position_id,
+            "UPDATE positions SET current_price = $1 WHERE id = $2 AND user_id = $3",
+            price, position_id, user_id,
         )
 
 
-async def record_close_failure(position_id: UUID) -> int:
+async def record_close_failure(position_id: UUID, user_id: UUID) -> int:
     """Increment ``close_failure_count`` and return the new value.
 
     Called after a CLOB submit error + the single in-tick retry both fail.
@@ -215,24 +215,24 @@ async def record_close_failure(position_id: UUID) -> int:
         new_count = await conn.fetchval(
             "UPDATE positions "
             "   SET close_failure_count = close_failure_count + 1 "
-            " WHERE id = $1 "
+            " WHERE id = $1 AND user_id = $2 "
             " RETURNING close_failure_count",
-            position_id,
+            position_id, user_id,
         )
     return int(new_count or 0)
 
 
-async def reset_close_failure(position_id: UUID) -> None:
+async def reset_close_failure(position_id: UUID, user_id: UUID) -> None:
     """Zero ``close_failure_count`` after a successful close attempt."""
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE positions SET close_failure_count = 0 WHERE id = $1",
-            position_id,
+            "UPDATE positions SET close_failure_count = 0 WHERE id = $1 AND user_id = $2",
+            position_id, user_id,
         )
 
 
-async def finalize_close_failed(position_id: UUID, error_msg: str) -> bool:
+async def finalize_close_failed(position_id: UUID, user_id: UUID, error_msg: str) -> bool:
     """Flip a position to ``status = 'close_failed'`` and stamp exit_reason.
 
     Used when consecutive close failures cross the operator-alert threshold
@@ -253,10 +253,10 @@ async def finalize_close_failed(position_id: UUID, error_msg: str) -> bool:
                SET status = 'close_failed',
                    exit_reason = $2,
                    closed_at = NOW()
-             WHERE id = $1 AND status = 'open'
+             WHERE id = $1 AND status = 'open' AND user_id = $3
              RETURNING id
             """,
-            position_id, ExitReason.CLOSE_FAILED.value,
+            position_id, ExitReason.CLOSE_FAILED.value, user_id,
         )
     if updated is None:
         return False
