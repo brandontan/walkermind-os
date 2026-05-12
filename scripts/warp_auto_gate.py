@@ -87,10 +87,18 @@ def p0_findings(fs:list[dict[str,Any]])->list[str]:
     sec=re.compile(r"(?:api[_-]?key|secret[_-]?key|password|private[_-]?key|access[_-]?token)\s*[=:]\s*['\"][A-Za-z0-9+/=_\-]{12,}['\"]",re.I)
     for fi in fs:
         fn=str(fi.get("filename","")); patch=fi.get("patch","") or ""
-        add="\n".join(l[1:] for l in patch.splitlines() if l.startswith("+") and not l.startswith("+++"))
+        added_lines=[l[1:] for l in patch.splitlines() if l.startswith("+") and not l.startswith("+++")]
+        add="\n".join(added_lines)
         if re.search(r"(^|/)phase\d+[/_]",fn): out.append(f"P0: forbidden phase*/ folder introduced: `{fn}`.")
         if sec.search(add): out.append(f"P0: potential hardcoded credential in `{fn}`.")
         for p,lbl in pats:
+            if fn=="scripts/warp_auto_gate.py" and lbl=="full Kelly / a=1.0":
+                src="\n".join(
+                    line for line in added_lines
+                    if "pats=[" not in line and "full Kelly / a=1.0" not in line
+                )
+                if re.search(p,src,re.M|re.I): out.append(f"P0: {lbl} in `{fn}`.")
+                continue
             if re.search(p,add,re.M|re.I): out.append(f"P0: {lbl} in `{fn}`.")
     return out
 def drift_findings(fs:list[dict[str,Any]],br:str)->list[str]:
@@ -104,7 +112,8 @@ def drift_findings(fs:list[dict[str,Any]],br:str)->list[str]:
 def ci_findings(crs:list[dict[str,Any]])->list[str]:
     return [f"CI check `{r.get('name')}` completed with `{r.get('conclusion')}`." for r in crs if r.get("name")!="WARP Auto Gate" and r.get("status")=="completed" and r.get("conclusion") in {"failure","timed_out","cancelled"}]
 def sentinel_ready(t:str,body:str,rep:str,fix:list[str])->bool:
-    return t=="MAJOR" and bool(rep) and not fix and all(x in (body or "") for x in ["Report:","State:","Validation Tier:","Claim Level:"])
+    required=["Report","State","Validation Tier","Claim Level"]
+    return t=="MAJOR" and bool(rep) and not fix and all(bool(field(body,k)) for k in required)
 
 def forge_task(br:str,t:str,c:str,fix:list[str])->str:
     fixes="\n".join(f"- {x}" for x in fix)
@@ -178,8 +187,13 @@ def build_comment(br:str,num:int,route:str,p0:list[str],fix:list[str],info:list[
 def main()->int:
     tok=os.getenv("GITHUB_TOKEN",""); repo=os.getenv("GITHUB_REPOSITORY",""); pn=os.getenv("PR_NUMBER","").strip(); sha=os.getenv("WR_HEAD_SHA","").strip()
     if not tok or not repo: print("ERROR: missing GITHUB_TOKEN or GITHUB_REPOSITORY",file=sys.stderr); return 1
+    if not pn and not sha:
+        print("ERROR: missing PR context (PR_NUMBER and WR_HEAD_SHA are both empty).", file=sys.stderr)
+        return 1
     num=int(pn) if pn else pr_by_sha(repo,sha,tok)
-    if not num: print(f"No open PR found for SHA {sha} — nothing to gate."); return 0
+    if not num:
+        print(f"ERROR: unable to resolve PR from context (PR_NUMBER={pn or 'unset'}, WR_HEAD_SHA={sha or 'unset'}).", file=sys.stderr)
+        return 1
     pr=req(f"/repos/{repo}/pulls/{num}",tok); br=pr["head"]["ref"]; head=pr["head"]["sha"]; body=pr.get("body") or ""; title=pr.get("title") or ""
     if title.lower().startswith("sync:") or "post-merge sync" in title.lower(): print(f"Skipping sync PR: {title!r}"); return 0
     fs=get_files(repo,num,tok); cr=checks(repo,head,tok); t=tier(body); c=claim(body)
