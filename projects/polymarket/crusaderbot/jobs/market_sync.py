@@ -84,14 +84,21 @@ async def run_job() -> int:
                     m.get("side_b_token_id") or m.get("no_token_id"), maxlen=100
                 )
                 resolution_at = _parse_dt(m.get("end_date") or m.get("endDate"))
+                liquidity_usdc = _safe_float(
+                    m.get("liquidity_usdc")
+                    or m.get("liquidity")
+                    or m.get("volume_num")
+                    or m.get("volume"),
+                    default=0.0,
+                )
 
                 await conn.execute(
                     """
                     INSERT INTO markets
                         (id, slug, question, category, status,
                          yes_price, no_price, yes_token_id, no_token_id,
-                         resolution_at, condition_id, is_demo, synced_at)
-                    VALUES ($1,$2,$3,$4,'active',$5,$6,$7,$8,$9,$10,FALSE,NOW())
+                         liquidity_usdc, resolution_at, condition_id, is_demo, synced_at)
+                    VALUES ($1,$2,$3,$4,'active',$5,$6,$7,$8,$9,$10,$11,FALSE,NOW())
                     ON CONFLICT (id) DO UPDATE SET
                         slug          = EXCLUDED.slug,
                         question      = EXCLUDED.question,
@@ -101,6 +108,7 @@ async def run_job() -> int:
                         no_price      = EXCLUDED.no_price,
                         yes_token_id  = EXCLUDED.yes_token_id,
                         no_token_id   = EXCLUDED.no_token_id,
+                        liquidity_usdc = EXCLUDED.liquidity_usdc,
                         resolution_at = EXCLUDED.resolution_at,
                         condition_id  = EXCLUDED.condition_id,
                         is_demo       = FALSE,
@@ -108,7 +116,7 @@ async def run_job() -> int:
                     """,
                     condition_id, slug, question, category,
                     yes_price, no_price, yes_token_id, no_token_id,
-                    resolution_at, condition_id,
+                    liquidity_usdc, resolution_at, condition_id,
                 )
                 upserts += 1
             except Exception as exc:
