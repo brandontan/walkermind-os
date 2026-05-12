@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 10:30
-Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). Hotfix SQL + emergency guard built; PR open. Production PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 08:16
+Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner, hourly_report, /health live on Fly.io (paper mode). Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; issue #963 closed.
