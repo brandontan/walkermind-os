@@ -1,9 +1,10 @@
-Last Updated : 2026-05-12 23:45
-Status       : asyncpg resilience PR open (2026-05-12). Migration idempotency PR open (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 23:55
+Status       : asyncpg resilience PR open (2026-05-12). Migration idempotency fix MERGED PR #1003 (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Heisenberg API integration PR open (2026-05-12). services/heisenberg.py client; jobs/market_sync.py agent-574 sync; market_signal_scanner live path (agents 568/575/585); migration 025 live feed; HEISENBERG_API_TOKEN env wiring. STANDARD, NARROW INTEGRATION.
 - Hotfix persistent reply keyboard restore PR open (2026-05-12). dashboard() reply_markup=main_menu(); _mode_cb paper path sends main_menu() on completion. STANDARD, PRESENTATION.
+- Migration idempotency fix MERGED PR #1003 (2026-05-12). ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3. MAJOR, NARROW INTEGRATION.
 - Telegram inline UI restore + paper autotrade smoke MERGED PR #999 (2026-05-12). ConversationHandler fallback menu button sets patched in copy_trade.py and presets.py to match UX Overhaul layout; health.py job count corrected to 17; paper path smoke verified by code inspection; issue #998 closed. STANDARD, NARROW INTEGRATION.
 - P1 user_id isolation hardening MERGED PR #997 (2026-05-12). AND user_id=$N added to 5 UPDATE statements across registry.py and paper.py; exit_watcher call sites updated. STANDARD, NARROW INTEGRATION.
 - WARP Auto Gate v1 MERGED PR #996 (2026-05-12). warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment. STANDARD, NARROW INTEGRATION.
@@ -17,7 +18,6 @@ Status       : asyncpg resilience PR open (2026-05-12). Migration idempotency PR
 
 [IN PROGRESS]
 - asyncpg resilience PR open: WARP/fix-asyncpg-stmt-resilience. _init_connection warm-ping added to init_pool(); statement_cache_size=0 already in place since PR #985. MAJOR, NARROW INTEGRATION. Awaiting WARP•SENTINEL.
-- Migration idempotency fix PR open: WARP/fix-migration-idempotency. ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() error handling. MAJOR, NARROW INTEGRATION. Awaiting WARP•SENTINEL.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -33,7 +33,6 @@ Status       : asyncpg resilience PR open (2026-05-12). Migration idempotency PR
 - Live execution path user_id guards: domain/execution/live.py has 4 position UPDATEs (lines 309, 328, 343, 361) missing AND user_id=$N. Deferred to WARP/live-execution-user-id-guards; required before ENABLE_LIVE_TRADING activation.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for WARP/fix-migration-idempotency before merge. Source: projects/polymarket/crusaderbot/reports/forge/fix-migration-idempotency.md. Tier: MAJOR.
 - WARP•SENTINEL validation required for WARP/fix-asyncpg-stmt-resilience before merge. Source: projects/polymarket/crusaderbot/reports/forge/fix-asyncpg-stmt-resilience.md. Tier: MAJOR.
 - WARP🔹CMD review required for Heisenberg integration PR. Deploy HEISENBERG_API_TOKEN secret via fly secrets set, then apply migration 025. Source: projects/polymarket/crusaderbot/reports/forge/feat-heisenberg-signal-integration.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/HOTFIX-KEYBOARD-MISSING. Source: projects/polymarket/crusaderbot/reports/forge/hotfix-keyboard-missing.md. Tier: STANDARD.

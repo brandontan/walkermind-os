@@ -119,17 +119,28 @@ async def close_pool() -> None:
 
 
 async def run_migrations() -> None:
+    """Run all SQL migrations. MUST be idempotent — safe to call on every restart."""
     pool = await init_pool()
     migrations_dir = Path(__file__).parent / "migrations"
     files = sorted(migrations_dir.glob("*.sql"))
     if not files:
         logger.warning("No migration files found in %s", migrations_dir)
         return
-    async with pool.acquire() as conn:
-        for f in files:
-            sql = f.read_text(encoding="utf-8")
-            logger.info("Running migration %s", f.name)
-            await conn.execute(sql)
+    try:
+        async with pool.acquire() as conn:
+            for f in files:
+                sql = f.read_text(encoding="utf-8")
+                logger.info("Running migration %s", f.name)
+                try:
+                    await conn.execute(sql)
+                except Exception as exc:
+                    logger.error(
+                        "Migration failed: %s — %s", f.name, exc, exc_info=True
+                    )
+                    raise
+    except Exception as exc:
+        logger.error("run_migrations failed: %s", exc, exc_info=True)
+        raise
     logger.info("Migrations complete (%d files)", len(files))
 
 
