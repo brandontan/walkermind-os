@@ -14,6 +14,7 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_sca
 - Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner job (60s), hourly_report cron, /health operator command, migration 024 seeded demo feed/market/publication; WARP•SENTINEL APPROVED 90/100; MAJOR, FULL RUNTIME INTEGRATION.
 
 [IN PROGRESS]
+- Hotfix SQL + emergency guard: PR open on WARP/HOTFIX-SIGNAL-SCAN-SQL. STANDARD, NARROW INTEGRATION. Fixed ABS(AVG()) FILTER SQL error in pnl_insights + added BadRequest guard in emergency_callback. Awaiting WARP🔹CMD review.
 - Hotfix legacy UX handler cleanup: PR open on WARP/HOTFIX-UX-OVERHAUL-HANDLERS. STANDARD, PRESENTATION. Removed legacy TP/SL and capital text prompts; STRATEGY_DISPLAY_NAMES applied. 99 hermetic tests green. Awaiting WARP🔹CMD review.
 - Track K Access Tiers + Admin Panel: PR open on WARP/CRUSADERBOT-FAST-ADMIN. STANDARD, FOUNDATION. 29 hermetic tests green. Awaiting WARP🔹CMD review.
 - Track G UI Premium Pack 1: PR open, WARP🔹CMD review required.
@@ -32,6 +33,7 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_sca
 - Before-live hardening: add AND user_id=$N guard to position_id-only UPDATEs in domain/positions/registry.py (update_current_price line 200, record_close_failure line 215, reset_close_failure line 229, finalize_close_failed line 250) and domain/execution/paper.py close_position UPDATE line 114. Required before ENABLE_LIVE_TRADING activation; safe to defer for PAPER ONLY posture.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for Hotfix SQL + emergency guard (ACTIVE Sentry bug). Source: projects/polymarket/crusaderbot/reports/forge/hotfix-signal-scan-sql.md. Tier: STANDARD.
 - WARP🔹CMD review required for Hotfix legacy UX handler cleanup. Source: projects/polymarket/crusaderbot/reports/forge/forge-hotfix-ux-handlers.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track L Onboarding Polish PR. Source: projects/polymarket/crusaderbot/reports/forge/onboarding-polish.md. Tier: STANDARD.
