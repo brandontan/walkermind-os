@@ -1,5 +1,5 @@
 Last Updated : 2026-05-12 08:00
-Status       : Signal Scan Engine PR open on WARP/SIGNAL-SCAN-ENGINE (MAJOR — WARP•SENTINEL required). Hotfix legacy handler cleanup PR open on WARP/HOTFIX-UX-OVERHAUL-HANDLERS (STANDARD). Production PAPER ONLY. Activation guards remain OFF.
+Status       : UX Overhaul MERGED PR #989. Hotfix legacy handler cleanup built on WARP/HOTFIX-UX-OVERHAUL-HANDLERS, PR open for WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Phase 2 wallet + deposit foundation complete.
@@ -23,7 +23,6 @@ Status       : Signal Scan Engine PR open on WARP/SIGNAL-SCAN-ENGINE (MAJOR — 
 - UX Overhaul Premium Grade MERGED PR #989 (2026-05-12). 9-part Telegram UX redesign; main menu, TP/SL presets, capital presets, strategy cards, settings hub, copy trade fallback, insights fix, my trades format; 45 hermetic tests green; STANDARD, PRESENTATION.
 
 [IN PROGRESS]
-- Signal Scan Engine: PR open on WARP/SIGNAL-SCAN-ENGINE. MAJOR, FULL RUNTIME INTEGRATION. WARP•SENTINEL audit required before merge.
 - Hotfix legacy UX handler cleanup: PR open on WARP/HOTFIX-UX-OVERHAUL-HANDLERS. STANDARD, PRESENTATION. Removed legacy TP/SL and capital text prompts; STRATEGY_DISPLAY_NAMES applied. 99 hermetic tests green. Awaiting WARP🔹CMD review.
 - Track K Access Tiers + Admin Panel: PR open on WARP/CRUSADERBOT-FAST-ADMIN. STANDARD, FOUNDATION. 29 hermetic tests green. Awaiting WARP🔹CMD review.
 - Fast Track Week 2 Track F (Live Opt-In Gate): PR #970 open, WARP•SENTINEL APPROVED 97/100. Awaiting WARP🔹CMD merge decision (P1: branch rename + Claim Level in PR body).
@@ -43,7 +42,6 @@ Status       : Signal Scan Engine PR open on WARP/SIGNAL-SCAN-ENGINE (MAJOR — 
 - Before-live hardening: add AND user_id=$N guard to position_id-only UPDATEs in domain/positions/registry.py (update_current_price line 200, record_close_failure line 215, reset_close_failure line 229, finalize_close_failed line 250) and domain/execution/paper.py close_position UPDATE line 114. Required before ENABLE_LIVE_TRADING activation; safe to defer for PAPER ONLY posture.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for Signal Scan Engine before merge. Source: projects/polymarket/crusaderbot/reports/forge/signal-scan-engine.md. Tier: MAJOR.
 - WARP🔹CMD review required for Hotfix legacy UX handler cleanup. Source: projects/polymarket/crusaderbot/reports/forge/forge-hotfix-ux-handlers.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track L Onboarding Polish PR. Source: projects/polymarket/crusaderbot/reports/forge/onboarding-polish.md. Tier: STANDARD.

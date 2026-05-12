@@ -476,7 +476,7 @@ def test_resume_persists_and_renders_running_card(monkeypatch):
 
 
 def test_stop_yes_clears_preset_and_stops(monkeypatch):
-    uid = uuid4()
+    uid = uuid4()    
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=False)
     _patch_settings(monkeypatch, {"active_preset": "signal_sniper"})
     upd_settings, set_auto, set_p = _patch_writes(monkeypatch)
@@ -536,7 +536,7 @@ def test_switch_intent_shows_confirmation(monkeypatch):
 # ---------- setup.setup_root routing ----------------------------------------
 
 def test_setup_root_routes_to_picker_when_no_preset(monkeypatch):
-    # UX Overhaul: setup_root always shows the strategy card regardless of preset.
+    # UX Overhaul: setup_root always shows the strategy card (no preset routing).
     uid = uuid4()
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
