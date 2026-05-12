@@ -1,7 +1,8 @@
-Last Updated : 2026-05-12 23:30
-Status       : Migration idempotency fix PR open (2026-05-12). asyncpg resilience PR open (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 23:55
+Status       : Migration idempotency fix PR open (2026-05-12). asyncpg resilience WARP•SENTINEL APPROVED — awaiting WARP🔹CMD merge decision. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
+- asyncpg resilience WARP•SENTINEL APPROVED (2026-05-12). _init_connection warm-ping; statement_cache_size=0 confirmed pre-existing. Zero critical issues. MAJOR, NARROW INTEGRATION. Awaiting WARP🔹CMD merge.
 - Heisenberg API integration PR open (2026-05-12). services/heisenberg.py client; jobs/market_sync.py agent-574 sync; market_signal_scanner live path (agents 568/575/585); migration 025 live feed; HEISENBERG_API_TOKEN env wiring. STANDARD, NARROW INTEGRATION.
 - Hotfix persistent reply keyboard restore PR open (2026-05-12). dashboard() reply_markup=main_menu(); _mode_cb paper path sends main_menu() on completion. STANDARD, PRESENTATION.
 - Telegram inline UI restore + paper autotrade smoke MERGED PR #999 (2026-05-12). ConversationHandler fallback menu button sets patched in copy_trade.py and presets.py to match UX Overhaul layout; health.py job count corrected to 17; paper path smoke verified by code inspection; issue #998 closed. STANDARD, NARROW INTEGRATION.
@@ -17,7 +18,6 @@ Status       : Migration idempotency fix PR open (2026-05-12). asyncpg resilienc
 
 [IN PROGRESS]
 - Migration idempotency fix PR open: WARP/fix-migration-idempotency. ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() error handling. MAJOR, NARROW INTEGRATION. Awaiting WARP•SENTINEL.
-- asyncpg resilience PR open: WARP/fix-asyncpg-stmt-resilience. init_connection warmup added; statement_cache_size=0 already in place. MAJOR, NARROW INTEGRATION. Awaiting WARP•SENTINEL.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -34,7 +34,7 @@ Status       : Migration idempotency fix PR open (2026-05-12). asyncpg resilienc
 
 [NEXT PRIORITY]
 - WARP•SENTINEL validation required for WARP/fix-migration-idempotency before merge. Source: projects/polymarket/crusaderbot/reports/forge/fix-migration-idempotency.md. Tier: MAJOR.
-- WARP•SENTINEL validation required for WARP/fix-asyncpg-stmt-resilience before merge. Source: projects/polymarket/crusaderbot/reports/forge/fix-asyncpg-stmt-resilience.md. Tier: MAJOR.
+- WARP🔹CMD merge decision required for WARP/fix-asyncpg-stmt-resilience. SENTINEL APPROVED. Sentinel report: projects/polymarket/crusaderbot/reports/sentinel/fix-asyncpg-stmt-resilience.md. Post-merge: amend CHANGELOG timestamp, monitor Sentry DAWN-SNOWFLAKE-1729-X.
 - WARP🔹CMD review required for Heisenberg integration PR. Deploy HEISENBERG_API_TOKEN secret via fly secrets set, then apply migration 025. Source: projects/polymarket/crusaderbot/reports/forge/feat-heisenberg-signal-integration.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/HOTFIX-KEYBOARD-MISSING. Source: projects/polymarket/crusaderbot/reports/forge/hotfix-keyboard-missing.md. Tier: STANDARD.
 - Continue closed beta observation / paper-mode runtime monitoring.

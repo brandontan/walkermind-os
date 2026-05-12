@@ -48,3 +48,4 @@
 2026-05-12 08:16 | WARP/SIGNAL-SCAN-ENGINE | Signal Scan Engine MERGED PR #991 — market_signal_scanner (60s), hourly_report cron, /health operator command, migration 024; WARP•SENTINEL APPROVED 90/100; MAJOR, FULL RUNTIME INTEGRATION
 2026-05-12 09:07 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 FORGE (STANDARD, NARROW INTEGRATION): warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; no runtime code touched; PR open for WARP🔹CMD review
 2026-05-12 09:13 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 MERGED PR #996 — warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; STANDARD, NARROW INTEGRATION
+2026-05-12 23:55 | claude/approve-asyncpg-resilience-kIh4E | asyncpg resilience WARP•SENTINEL APPROVED — _init_connection warm-ping correct; statement_cache_size=0 pre-existence confirmed; zero critical issues; MAJOR, NARROW INTEGRATION; PR #1004 approved for WARP🔹CMD merge
