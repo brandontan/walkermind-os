@@ -340,7 +340,7 @@ def test_format_positions_section_hierarchy():
 
 
 def test_main_menu_routes_my_trades_registered():
-    """МAIN_MENU_ROUTES maps 📈 My Trades to the new my_trades_h.my_trades."""
+    """MAIN_MENU_ROUTES maps 📈 My Trades to the new my_trades_h.my_trades."""
     handler = MAIN_MENU_ROUTES.get("📈 My Trades")
     assert handler is not None
     assert handler is mt.my_trades
