@@ -12,7 +12,7 @@ from ...database import get_pool
 from ...users import get_settings_for, set_auto_trade, upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
 from ...wallet.vault import get_wallet
-from ..keyboards import autotrade_toggle, dashboard_nav, setup_menu, wallet_menu
+from ..keyboards import autotrade_toggle, dashboard_nav, main_menu, setup_menu, wallet_menu
 from ..tier import Tier, has_tier, tier_block_message
 from .setup import STRATEGY_DISPLAY_NAMES
 
@@ -177,7 +177,7 @@ async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         text,
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=dashboard_nav(has_trades),
+        reply_markup=main_menu(),
     )
 
 

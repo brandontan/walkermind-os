@@ -181,6 +181,7 @@ async def _mode_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=paper_complete_kb(),
     )
+    await q.message.reply_text("Main menu:", reply_markup=main_menu())
     return ConversationHandler.END
 
 
