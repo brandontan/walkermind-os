@@ -59,6 +59,17 @@ def _log_connection_type(dsn: str) -> None:
         )
 
 
+async def _init_connection(conn: asyncpg.Connection) -> None:
+    """Warm-ping every new pool connection on creation.
+
+    Surfaces broken connections (e.g. Supabase idle-timeout recycled backends)
+    at pool-init time rather than mid-request, so the pool health check in
+    /health and job_runs write paths never hit a silently dead connection.
+    asyncpg calls this coroutine once per new physical backend connection.
+    """
+    await conn.execute("SELECT 1")
+
+
 async def init_pool() -> asyncpg.Pool:
     global _pool
     if _pool is not None:
@@ -87,6 +98,7 @@ async def init_pool() -> asyncpg.Pool:
         max_size=settings.DB_POOL_MAX,
         command_timeout=30,
         statement_cache_size=0,
+        init=_init_connection,
         server_settings={"application_name": "crusaderbot"},
     )
     logger.info("asyncpg pool initialised (max=%s)", settings.DB_POOL_MAX)
