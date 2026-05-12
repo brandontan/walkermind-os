@@ -1,7 +1,8 @@
-Last Updated : 2026-05-12 14:15
-Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strategy_type hotfix MERGED PR #995 (2026-05-12). WARP Auto Gate v1 MERGED PR #996 (2026-05-12). P1 user_id isolation hardening MERGED PR #997 (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 20:00
+Status       : Telegram inline UI regression fixed (issue #998). ConversationHandler fallback sets patched to match UX Overhaul menu. Paper autotrade path smoke verified. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
+- Telegram inline UI restore + paper autotrade smoke (issue #998). ConversationHandler fallback menu button sets patched in copy_trade.py and presets.py to match UX Overhaul layout; health.py job count corrected to 17; paper path smoke verified by code inspection; PR open for WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries; 22 hermetic tests green; issue #963 closed.
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 - Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). /chart PNG, chart period callbacks, /insights weekly breakdown, weekly_insights cron; 30 hermetic tests green.
@@ -29,6 +30,7 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strateg
 - Live execution path user_id guards: domain/execution/live.py has 4 position UPDATEs (lines 309, 328, 343, 361) missing AND user_id=$N. Deferred to WARP/live-execution-user-id-guards; required before ENABLE_LIVE_TRADING activation.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review and merge decision for issue #998 PR (WARP/telegram-paper-autotrade-readiness). Tier: STANDARD.
 - Continue closed beta observation / paper-mode runtime monitoring.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 - If preparing for live activation, start WARP/live-execution-user-id-guards before flipping any activation guard.

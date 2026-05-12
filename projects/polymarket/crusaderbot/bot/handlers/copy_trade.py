@@ -709,7 +709,7 @@ _DEFAULTS: dict[str, Decimal] = {
 }
 
 _MENU_BUTTONS = {"📊 Dashboard", "🐋 Copy Trade", "🤖 Auto-Trade",
-                 "📈 My Trades", "💰 Wallet", "🚨 Emergency"}
+                 "📈 My Trades", "⚙️ Settings", "🛑 Stop Bot"}
 
 
 # ---------------------------------------------------------------------------
@@ -1793,7 +1793,7 @@ def build_wizard_handler() -> ConversationHandler:
         fallbacks=[
             CommandHandler("menu", wizard_fallback_menu),
             MessageHandler(
-                filters.Regex(r"^(📊|🐋|🤖|📈|💰|🚨)"), wizard_menu_tap,
+                filters.Regex(r"^(📊|🐋|🤖|📈|⚙️|🛑)"), wizard_menu_tap,
             ),
             MessageHandler(
                 filters.TEXT & ~filters.COMMAND, wizard_fallback_text,
