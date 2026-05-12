@@ -1,467 +1,198 @@
 #!/usr/bin/env python3
-"""WARP Auto Gate v1 — stdlib-only PR gate enforcer.
-
-Checks AGENTS.md PR gate rules (Gates 1-8 + CI status) and posts an
-idempotent comment on the PR. Exits non-zero when P0/P1 blockers exist.
-
-Environment variables required:
-  GITHUB_TOKEN       — token with pull-requests:write and checks:read
-  GITHUB_REPOSITORY  — owner/repo (set automatically by GitHub Actions)
-  PR_NUMBER          — PR number (set explicitly for pull_request_target /
-                       workflow_dispatch events)
-  WR_HEAD_SHA        — commit SHA from workflow_run event (used to look up
-                       the PR when PR_NUMBER is not set)
-"""
-
+"""WARP Auto Gate v2: FORGE -> GATE -> CMD deputy router."""
 from __future__ import annotations
-
-import json
-import os
-import re
-import sys
-import urllib.error
-import urllib.request
+import json, os, re, sys, urllib.request
 from typing import Any
 
-GATE_COMMENT_MARKER = "<!-- WARP•GATE -->"
-API_BASE = "https://api.github.com"
+API="https://api.github.com"; MARK="<!-- WARP•GATE -->"; ROOT="projects/polymarket/crusaderbot"
+FIELDS=["Validation Tier","Claim Level","Validation Target","Not in Scope"]
 
-
-# ---------------------------------------------------------------------------
-# GitHub API helpers
-# ---------------------------------------------------------------------------
-
-def _headers(token: str) -> dict[str, str]:
-    return {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "WARP-Gate/1",
-    }
-
-
-def gh_get(path: str, token: str) -> Any:
-    req = urllib.request.Request(f"{API_BASE}{path}", headers=_headers(token))
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
-
-
-def gh_post(path: str, token: str, body: dict[str, Any]) -> Any:
-    data = json.dumps(body).encode("utf-8")
-    headers = {**_headers(token), "Content-Type": "application/json"}
-    req = urllib.request.Request(f"{API_BASE}{path}", data=data, headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
-
-
-def gh_patch(path: str, token: str, body: dict[str, Any]) -> Any:
-    data = json.dumps(body).encode("utf-8")
-    headers = {**_headers(token), "Content-Type": "application/json"}
-    req = urllib.request.Request(f"{API_BASE}{path}", data=data, headers=headers, method="PATCH")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
-
-
-def get_pr_files(repo: str, pr_number: int, token: str) -> list[dict[str, Any]]:
-    files: list[dict[str, Any]] = []
-    page = 1
+def h(tok:str)->dict[str,str]:
+    return {"Authorization":f"Bearer {tok}","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","User-Agent":"WARP-Gate/2"}
+def req(path:str,tok:str,body:dict[str,Any]|None=None,method:str|None=None)->Any:
+    data=None if body is None else json.dumps(body).encode()
+    hd=h(tok) if body is None else {**h(tok),"Content-Type":"application/json"}
+    r=urllib.request.Request(API+path,headers=hd,data=data,method=method)
+    with urllib.request.urlopen(r,timeout=30) as resp: return json.loads(resp.read())
+def get_files(repo:str,num:int,tok:str)->list[dict[str,Any]]:
+    out=[]; p=1
     while True:
-        batch: list[dict[str, Any]] = gh_get(
-            f"/repos/{repo}/pulls/{pr_number}/files?per_page=100&page={page}", token
-        )
-        if not batch:
-            break
-        files.extend(batch)
-        if len(batch) < 100:
-            break
-        page += 1
-    return files
-
-
-def get_check_runs(repo: str, ref: str, token: str) -> list[dict[str, Any]]:
-    result = gh_get(f"/repos/{repo}/commits/{ref}/check-runs?per_page=100", token)
-    return result.get("check_runs", [])
-
-
-def find_pr_by_sha(repo: str, sha: str, token: str) -> int | None:
-    prs: list[dict[str, Any]] = gh_get(
-        f"/repos/{repo}/pulls?state=open&per_page=100", token
-    )
-    for pr in prs:
-        if pr["head"]["sha"] == sha:
-            return int(pr["number"])
+        b=req(f"/repos/{repo}/pulls/{num}/files?per_page=100&page={p}",tok)
+        if not b: break
+        out+=b
+        if len(b)<100: break
+        p+=1
+    return out
+def checks(repo:str,sha:str,tok:str)->list[dict[str,Any]]:
+    return req(f"/repos/{repo}/commits/{sha}/check-runs?per_page=100",tok).get("check_runs",[])
+def pr_by_sha(repo:str,sha:str,tok:str)->int|None:
+    for pr in req(f"/repos/{repo}/pulls?state=open&per_page=100",tok):
+        if pr.get("head",{}).get("sha")==sha: return int(pr["number"])
     return None
-
-
-def find_existing_gate_comment(repo: str, pr_number: int, token: str) -> int | None:
-    page = 1
+def comment_id(repo:str,num:int,tok:str)->int|None:
+    p=1
     while True:
-        comments: list[dict[str, Any]] = gh_get(
-            f"/repos/{repo}/issues/{pr_number}/comments?per_page=100&page={page}", token
-        )
-        if not comments:
-            break
-        for comment in comments:
-            if GATE_COMMENT_MARKER in comment.get("body", ""):
-                return int(comment["id"])
-        if len(comments) < 100:
-            break
-        page += 1
-    return None
+        cs=req(f"/repos/{repo}/issues/{num}/comments?per_page=100&page={p}",tok)
+        if not cs: return None
+        for c in cs:
+            if MARK in (c.get("body") or ""): return int(c["id"])
+        if len(cs)<100: return None
+        p+=1
+def put_comment(repo:str,num:int,tok:str,body:str)->None:
+    cid=comment_id(repo,num,tok)
+    if cid: req(f"/repos/{repo}/issues/comments/{cid}",tok,{"body":body},"PATCH")
+    else: req(f"/repos/{repo}/issues/{num}/comments",tok,{"body":body},"POST")
 
+def names(fs:list[dict[str,Any]])->list[str]: return [str(f.get("filename","")) for f in fs]
+def runtime(n:str)->bool: return "/reports/" not in n and "/state/" not in n and n.endswith((".py",".ts",".tsx",".js",".sh",".yml",".yaml"))
+def field(body:str,k:str)->str:
+    m=re.search(rf"^{re.escape(k)}\s*[:\-]\s*(.+)$",body or "",re.I|re.M); return m.group(1).strip() if m else ""
+def tier(body:str)->str:
+    x=(field(body,"Validation Tier") or field(body,"Tier")).upper()
+    return "MAJOR" if "MAJOR" in x else "STANDARD" if "STANDARD" in x else "MINOR" if "MINOR" in x else "UNKNOWN"
+def claim(body:str)->str:
+    x=field(body,"Claim Level").upper()
+    return "FULL RUNTIME INTEGRATION" if "FULL RUNTIME INTEGRATION" in x else "NARROW INTEGRATION" if "NARROW INTEGRATION" in x else "FOUNDATION" if "FOUNDATION" in x else (field(body,"Claim Level") or "UNKNOWN")
+def slug(br:str)->str: return br.split("/",1)[1] if br.startswith("WARP/") else br.replace("/","-")
 
-def post_or_update_comment(repo: str, pr_number: int, token: str, body: str) -> None:
-    existing_id = find_existing_gate_comment(repo, pr_number, token)
-    if existing_id:
-        gh_patch(f"/repos/{repo}/issues/comments/{existing_id}", token, {"body": body})
-    else:
-        gh_post(f"/repos/{repo}/issues/{pr_number}/comments", token, {"body": body})
+def branch_findings(br:str)->list[str]:
+    # Non-blocking by design. CMD remains final; GATE asks FORGE to fix/replace branch.
+    f=[]
+    if not br.startswith("WARP/"): return [f"Branch `{br}` should be recreated/renamed under `WARP/{{feature}}` before CMD final merge review."]
+    s=slug(br)
+    if "/" in s: f.append(f"Branch `{br}` has nested slash.")
+    if "_" in s or "." in s: f.append(f"Branch `{br}` contains underscore/dot; use hyphen.")
+    if re.search(r"(?:20\d{6}|20\d{2}-\d{2}-\d{2})",s): f.append(f"Branch `{br}` looks date-suffixed.")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*",s): f.append(f"Branch `{br}` has invalid slug characters.")
+    return f
+def body_findings(body:str)->list[str]:
+    miss=[x for x in FIELDS if x not in (body or "")]
+    return ["PR body is missing all gate fields: Validation Tier, Claim Level, Validation Target, Not in Scope."] if len(miss)==4 else [f"PR body missing `{x}`." for x in miss]
+def report_findings(fs:list[dict[str,Any]],br:str)->tuple[list[str],str]:
+    ns=names(fs)
+    if not (any(runtime(n) for n in ns) or any("/reports/forge/" in n for n in ns)): return [],""
+    exp=f"{ROOT}/reports/forge/{slug(br)}.md"
+    reps=[n for n in ns if "/reports/forge/" in n and n.endswith(".md")]
+    if exp in ns: return [],exp
+    if reps: return [f"Forge report path should align with branch. Expected `{exp}`, found `{reps[0]}`."],reps[0]
+    return [f"Forge report missing. Expected `{exp}`."],exp
+def state_findings(fs:list[dict[str,Any]])->list[str]:
+    ns=names(fs)
+    return [f"`{ROOT}/state/PROJECT_STATE.md` not updated for code-bearing FORGE PR."] if any(runtime(n) for n in ns) and f"{ROOT}/state/PROJECT_STATE.md" not in ns else []
+def p0_findings(fs:list[dict[str,Any]])->list[str]:
+    out=[]; pats=[(r"(?:^|\s)import\s+threading\b|from\s+threading\s+import","threading import"),
+    (r"\bkelly_fraction\s*=\s*1\.0\b|\ba\s*=\s*1\.0\b.*[Kk]elly|[Kk]elly.*\ba\s*=\s*1\.0\b","full Kelly / a=1.0"),
+    (r"except\s*:\s*pass\b|except\s+Exception\s*:\s*(?:\n\s*)?pass\b","silent exception"),
+    (r"ENABLE_LIVE_TRADING\s*=\s*True\b(?!\s*#\s*overridden)","live trading guard hardcoded True")]
+    sec=re.compile(r"(?:api[_-]?key|secret[_-]?key|password|private[_-]?key|access[_-]?token)\s*[=:]\s*['\"][A-Za-z0-9+/=_\-]{12,}['\"]",re.I)
+    for fi in fs:
+        fn=str(fi.get("filename","")); patch=fi.get("patch","") or ""
+        add="\n".join(l[1:] for l in patch.splitlines() if l.startswith("+") and not l.startswith("+++"))
+        if re.search(r"(^|/)phase\d+[/_]",fn): out.append(f"P0: forbidden phase*/ folder introduced: `{fn}`.")
+        if sec.search(add): out.append(f"P0: potential hardcoded credential in `{fn}`.")
+        for p,lbl in pats:
+            if re.search(p,add,re.M|re.I): out.append(f"P0: {lbl} in `{fn}`.")
+    return out
+def drift_findings(fs:list[dict[str,Any]],br:str)->list[str]:
+    out=[]
+    for fi in fs:
+        fn=str(fi.get("filename",""))
+        if "/reports/forge/" not in fn: continue
+        for ref in re.findall(r"Branch\s*:\s*(WARP/[^\s`]+)",fi.get("patch","") or ""):
+            if ref!=br: out.append(f"Forge report branch reference `{ref}` should match PR head `{br}`.")
+    return out
+def ci_findings(crs:list[dict[str,Any]])->list[str]:
+    return [f"CI check `{r.get('name')}` completed with `{r.get('conclusion')}`." for r in crs if r.get("name")!="WARP Auto Gate" and r.get("status")=="completed" and r.get("conclusion") in {"failure","timed_out","cancelled"}]
+def sentinel_ready(t:str,body:str,rep:str,fix:list[str])->bool:
+    return t=="MAJOR" and bool(rep) and not fix and all(x in (body or "") for x in ["Report:","State:","Validation Tier:","Claim Level:"])
 
+def forge_task(br:str,t:str,c:str,fix:list[str])->str:
+    fixes="\n".join(f"- {x}" for x in fix)
+    return f"""WARP•FORGE TASK: Gate fix before CMD review
+============
+Repo      : https://github.com/bayuewalker/walkermind-os
+Project   : CrusaderBot
+Repo path : {ROOT}
+Branch    : {br}
 
-# ---------------------------------------------------------------------------
-# Gate checks — each returns a list of issue strings
-# ---------------------------------------------------------------------------
+ISSUE FOUND:
+WARP•GATE found actionable items before WARP🔹CMD merge review.
 
-_BRANCH_RE = re.compile(r"^WARP/[a-z0-9][a-z0-9\-]*$")
+FIX REQUIRED:
+{fixes}
 
+SCOPE:
+- Keep behavior unchanged unless the finding explicitly requires behavior correction.
+- Preserve PAPER ONLY posture. Do not enable live trading, real CLOB execution, capital, or risk guards.
 
-def check_gate1_branch(branch: str) -> list[str]:
-    """Gate 1 — Branch format (P0 if fail)."""
-    if branch.startswith("claude/"):
-        return [f"P0: Branch `{branch}` uses forbidden `claude/*` prefix."]
-    if branch.startswith("NWAP/"):
-        return [f"P0: Branch `{branch}` uses historical `NWAP/*` prefix — not valid for new work."]
-    if not _BRANCH_RE.match(branch):
-        return [
-            f"P0: Branch `{branch}` does not match required format "
-            "`WARP/{{feature-slug}}` (lowercase slug, no dots/underscores/dates)."
-        ]
-    return []
+VALIDATION:
+Validation Tier   : {t if t!="UNKNOWN" else "STANDARD"}
+Claim Level       : {c}
+Validation Target : Gate findings only
+Not in Scope      : New features, live trading activation, unrelated cleanup
 
+DONE CRITERIA:
+- [ ] Fix applied in same PR or replacement PR
+- [ ] Forge report/state references updated truthfully
+- [ ] CI/gate re-run clean or remaining items documented
 
-_REQUIRED_BODY_FIELDS = [
-    "Validation Tier",
-    "Claim Level",
-    "Validation Target",
-    "Not in Scope",
-]
+NEXT GATE:
+- WARP•GATE re-check -> WARP🔹CMD review
+"""
+def sentinel_task(br:str,c:str,rep:str)->str:
+    return f"""WARP•SENTINEL TASK: Validate MAJOR FORGE output
+=============
+Repo         : https://github.com/bayuewalker/walkermind-os
+Project      : CrusaderBot
+Repo path    : {ROOT}
+Branch       : {br}
+Tier         : MAJOR
+Claim Level  : {c}
+Source       : {rep}
 
+SENTINEL REQUIRED BECAUSE:
+Validation Tier is MAJOR and WARP•GATE found no pre-handoff fix blockers.
 
-def check_gate2_pr_body(pr_body: str) -> list[str]:
-    """Gate 2 — Required PR body declarations (P1 each, P0 if all missing)."""
-    missing = [f for f in _REQUIRED_BODY_FIELDS if f not in (pr_body or "")]
-    if len(missing) == len(_REQUIRED_BODY_FIELDS):
-        return ["P0: All 4 required PR body fields are missing (Validation Tier, Claim Level, Validation Target, Not in Scope)."]
-    return [f"P1: Missing required PR body field: `{f}`." for f in missing]
+REQUIRED CHECKS:
+- Verify claim against actual code, not report wording.
+- Verify runtime/test evidence for claimed behavior.
+- Verify risk / execution / state integrity if touched.
+- Verify PROJECT_STATE.md remains truthful.
+- Preserve PAPER ONLY posture.
 
+DELIVERABLES:
+- Sentinel report under {ROOT}/reports/sentinel/
+- Verdict: APPROVED / CONDITIONAL / BLOCKED
+- NEXT GATE: return to WARP🔹CMD
+"""
+def build_comment(br:str,num:int,route:str,p0:list[str],fix:list[str],info:list[str],sent:str,t:str,c:str)->str:
+    parts=[MARK,f"## WARP•GATE v2 — {route}","",f"**Branch:** `{br}` &nbsp; **PR:** #{num}",f"**Tier:** {t} &nbsp; **Claim:** {c}",""]
+    if p0: parts+=["### P0 — real blocker",""]+[f"- {x}" for x in p0]+[""]
+    if fix: parts+=["### Fix required","",forge_task(br,t,c,fix),""]
+    if sent: parts+=["### Sentinel required","",sent,""]
+    if info: parts+=["### Advisory",""]+[f"- {x}" for x in info]+[""]
+    if route=="READY_FOR_CMD": parts+=["Ready for WARP🔹CMD final review. WARP•GATE does not merge.",""]
+    parts+=["---","_WARP•GATE is deputy automation only. WARP🔹CMD remains final._"]
+    return "\n".join(parts)
 
-def _is_code_pr(filenames: list[str]) -> bool:
-    code_exts = {".py", ".yml", ".yaml", ".ts", ".tsx", ".js", ".sh"}
-    return any(
-        any(f.endswith(ext) for ext in code_exts)
-        and "/reports/" not in f
-        and "/state/" not in f
-        for f in filenames
-    )
-
-
-def check_gate3_forge_report(files: list[dict[str, Any]], branch: str) -> list[str]:
-    """Gate 3 — Forge report presence for code/state PRs (P1 if missing)."""
-    filenames = [f["filename"] for f in files]
-    if not _is_code_pr(filenames):
-        return []
-    feature = branch.removeprefix("WARP/") if branch.startswith("WARP/") else branch
-    expected = f"projects/polymarket/crusaderbot/reports/forge/{feature}.md"
-    forge_reports = [f for f in filenames if "/reports/forge/" in f and f.endswith(".md")]
-    if expected not in filenames and not forge_reports:
-        return [f"P1: Forge report not found. Expected `{expected}`."]
-    return []
-
-
-def check_gate4_project_state(files: list[dict[str, Any]]) -> list[str]:
-    """Gate 4 — PROJECT_STATE.md updated in PR (P1 if missing)."""
-    filenames = [f["filename"] for f in files]
-    if not _is_code_pr(filenames):
-        return []
-    if not any("state/PROJECT_STATE.md" in f for f in filenames):
-        return ["P1: `PROJECT_STATE.md` not updated in this PR."]
-    return []
-
-
-_HARD_STOP_PATTERNS: list[tuple[str, str]] = [
-    (
-        r"(?:^|\s)import\s+threading\b|from\s+threading\s+import",
-        "threading import (asyncio only)",
-    ),
-    (
-        r"\bkelly_fraction\s*=\s*1\.0\b|\ba\s*=\s*1\.0\b.*[Kk]elly|[Kk]elly.*\ba\s*=\s*1\.0\b",
-        "full Kelly fraction a=1.0",
-    ),
-    (
-        r"except\s*:\s*pass\b|except\s+Exception\s*:\s*\n?\s*pass\b",
-        "silent exception (except: pass)",
-    ),
-    (
-        r"ENABLE_LIVE_TRADING\s*=\s*[Tt]rue\b(?!\s*#\s*overridden)",
-        "ENABLE_LIVE_TRADING hardcoded True (activation guard bypass)",
-    ),
-]
-
-_SECRET_PATTERNS: list[tuple[str, str]] = [
-    (
-        r"(?:api[_-]?key|secret[_-]?key|password|private[_-]?key|access[_-]?token)"
-        r"\s*[=:]\s*['\"][A-Za-z0-9+/=_\-]{12,}['\"]",
-        "hardcoded credential",
-    ),
-]
-
-_PHASE_FOLDER_RE = re.compile(r"^phase\d+[/_]")
-
-
-def check_gate5_hard_stops(files: list[dict[str, Any]]) -> list[str]:
-    """Gate 5 — Hard stops in added lines (P0 if found)."""
-    issues: list[str] = []
-    for file_info in files:
-        filename = file_info["filename"]
-        patch = file_info.get("patch", "") or ""
-        added_lines = [
-            line[1:]
-            for line in patch.split("\n")
-            if line.startswith("+") and not line.startswith("+++")
-        ]
-        added_text = "\n".join(added_lines)
-
-        for pattern, label in _HARD_STOP_PATTERNS:
-            if re.search(pattern, added_text, re.MULTILINE):
-                issues.append(f"P0: Hard stop in `{filename}`: {label}.")
-
-        for pattern, label in _SECRET_PATTERNS:
-            if re.search(pattern, added_text, re.IGNORECASE):
-                issues.append(f"P0: Potential {label} in `{filename}`.")
-
-        if _PHASE_FOLDER_RE.match(filename):
-            issues.append(f"P0: phase*/ folder detected: `{filename}`.")
-
-    return issues
-
-
-def check_gate6_drift(files: list[dict[str, Any]], branch: str) -> list[str]:
-    """Gate 6 — Drift checks (P1 if found)."""
-    issues: list[str] = []
-    for file_info in files:
-        filename = file_info["filename"]
-        if "/reports/forge/" not in filename or not filename.endswith(".md"):
-            continue
-        patch = file_info.get("patch", "") or ""
-        branch_refs = re.findall(r"Branch\s*:\s*(WARP/[^\s`]+)", patch)
-        for ref in branch_refs:
-            if ref != branch:
-                issues.append(
-                    f"P1: Branch reference `{ref}` in forge report "
-                    f"`{filename}` does not match PR head branch `{branch}`."
-                )
-    return issues
-
-
-def check_gate7_merge_order(files: list[dict[str, Any]], pr_title: str) -> list[str]:
-    """Gate 7 — PR type and merge order (P1 if sentinel-only PR)."""
-    if pr_title.lower().startswith("sync:") or "post-merge sync" in pr_title.lower():
-        return []
-    filenames = [f["filename"] for f in files]
-    sentinel_reports = [f for f in filenames if "/reports/sentinel/" in f]
-    non_meta = [
-        f for f in filenames
-        if "/reports/sentinel/" not in f and "/state/" not in f and "/reports/forge/" not in f
-    ]
-    if sentinel_reports and not non_meta:
-        return [
-            "P1: This PR appears to contain only a WARP•SENTINEL report. "
-            "Ensure the corresponding WARP•FORGE PR is merged first."
-        ]
-    return []
-
-
-def check_gate8_major_flag(pr_body: str) -> list[str]:
-    """Gate 8 — MAJOR tier informational flag (P1 INFO)."""
-    if re.search(r"Validation\s+Tier\s*[:\-]\s*MAJOR|^Tier\s*[:\-]\s*MAJOR", pr_body or "", re.MULTILINE | re.IGNORECASE):
-        return ["P1 INFO: Validation Tier is MAJOR — WARP•SENTINEL audit required before merge."]
-    return []
-
-
-def check_ci_failures(check_runs: list[dict[str, Any]]) -> list[str]:
-    """Check for completed check-run failures (P1 each)."""
-    issues: list[str] = []
-    for run in check_runs:
-        name = run.get("name", "")
-        if name == "WARP Auto Gate":
-            continue
-        status = run.get("status", "")
-        conclusion = run.get("conclusion", "")
-        if status == "completed" and conclusion in ("failure", "timed_out", "cancelled"):
-            issues.append(f"P1: CI check `{name}` completed with status `{conclusion}`.")
-    return issues
-
-
-# ---------------------------------------------------------------------------
-# Comment builder
-# ---------------------------------------------------------------------------
-
-def build_comment(branch: str, pr_number: int, all_issues: list[tuple[str, list[str]]]) -> str:
-    p0 = [i for _, issues in all_issues for i in issues if i.startswith("P0")]
-    p1 = [i for _, issues in all_issues for i in issues if i.startswith("P1") and "INFO" not in i]
-    info = [i for _, issues in all_issues for i in issues if "P1 INFO" in i]
-
+def main()->int:
+    tok=os.getenv("GITHUB_TOKEN",""); repo=os.getenv("GITHUB_REPOSITORY",""); pn=os.getenv("PR_NUMBER","").strip(); sha=os.getenv("WR_HEAD_SHA","").strip()
+    if not tok or not repo: print("ERROR: missing GITHUB_TOKEN or GITHUB_REPOSITORY",file=sys.stderr); return 1
+    num=int(pn) if pn else pr_by_sha(repo,sha,tok)
+    if not num: print(f"No open PR found for SHA {sha} — nothing to gate."); return 0
+    pr=req(f"/repos/{repo}/pulls/{num}",tok); br=pr["head"]["ref"]; head=pr["head"]["sha"]; body=pr.get("body") or ""; title=pr.get("title") or ""
+    if title.lower().startswith("sync:") or "post-merge sync" in title.lower(): print(f"Skipping sync PR: {title!r}"); return 0
+    fs=get_files(repo,num,tok); cr=checks(repo,head,tok); t=tier(body); c=claim(body)
+    p0=p0_findings(fs)
+    repfix,rep=report_findings(fs,br)
+    fix=branch_findings(br)+body_findings(body)+repfix+state_findings(fs)+drift_findings(fs,br)+ci_findings(cr)
+    info=["MAJOR tier detected. WARP•SENTINEL is required before merge."] if t=="MAJOR" else []
+    sent=sentinel_task(br,c,rep) if sentinel_ready(t,body,rep,fix) and not p0 else ""
+    route="BLOCKED" if p0 else "SENTINEL_REQUIRED" if sent else "FIX_REQUIRED" if fix else "READY_FOR_CMD"
+    try: put_comment(repo,num,tok,build_comment(br,num,route,p0,fix,info,sent,t,c)); print("Gate comment posted/updated.")
+    except Exception as e: print(f"WARN: failed to post gate comment: {e}")
+    print(f"\nWARP Auto Gate v2 branch={br} pr=#{num}\nRoute: {route}\nP0 blockers: {len(p0)}\nFix items: {len(fix)}")
     if p0:
-        verdict = "\U0001f534 BLOCKED"
-    elif p1:
-        verdict = "\U0001f7e1 NEEDS FIX"
-    else:
-        verdict = "\U0001f7e2 PASS"
-
-    lines = [
-        GATE_COMMENT_MARKER,
-        f"## WARP•Gate v1 — {verdict}",
-        "",
-        f"**Branch:** `{branch}` &nbsp; **PR:** #{pr_number}",
-        "",
-    ]
-
-    if p0:
-        lines += ["### P0 — Block Merge", ""]
-        lines += [f"- {i}" for i in p0]
-        lines.append("")
-
-    if p1:
-        lines += ["### P1 — Must Fix Before Merge", ""]
-        lines += [f"- {i}" for i in p1]
-        lines.append("")
-
-    if info:
-        lines += ["### Informational", ""]
-        lines += [f"- {i}" for i in info]
-        lines.append("")
-
-    if not p0 and not p1:
-        lines.append("All gate checks passed. WARP\U0001f539CMD review required before merge.")
-        lines.append("")
-
-    lines += [
-        "---",
-        "_WARP•Gate v1 — repo automation only. No CrusaderBot runtime changes._",
-    ]
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-def main() -> int:
-    token = os.environ.get("GITHUB_TOKEN", "")
-    repo = os.environ.get("GITHUB_REPOSITORY", "")
-    pr_number_str = os.environ.get("PR_NUMBER", "").strip()
-    wr_head_sha = os.environ.get("WR_HEAD_SHA", "").strip()
-
-    if not token:
-        print("ERROR: GITHUB_TOKEN not set.", file=sys.stderr)
-        return 1
-    if not repo:
-        print("ERROR: GITHUB_REPOSITORY not set.", file=sys.stderr)
-        return 1
-
-    # Resolve PR number
-    pr_number: int | None = None
-    if pr_number_str:
-        try:
-            pr_number = int(pr_number_str)
-        except ValueError:
-            print(f"ERROR: PR_NUMBER not an integer: {pr_number_str!r}", file=sys.stderr)
-            return 1
-    elif wr_head_sha:
-        try:
-            pr_number = find_pr_by_sha(repo, wr_head_sha, token)
-        except urllib.error.HTTPError as exc:
-            print(f"WARN: Failed to search PRs by SHA: HTTP {exc.code}", file=sys.stderr)
-        if pr_number is None:
-            print(f"No open PR found for SHA {wr_head_sha} — nothing to gate.")
-            return 0
-    else:
-        print("ERROR: Neither PR_NUMBER nor WR_HEAD_SHA is set.", file=sys.stderr)
-        return 1
-
-    # Fetch PR metadata
-    try:
-        pr: dict[str, Any] = gh_get(f"/repos/{repo}/pulls/{pr_number}", token)
-    except urllib.error.HTTPError as exc:
-        print(f"ERROR: Failed to fetch PR #{pr_number}: HTTP {exc.code}", file=sys.stderr)
-        return 1
-
-    branch: str = pr["head"]["ref"]
-    pr_body: str = pr.get("body", "") or ""
-    pr_title: str = pr.get("title", "") or ""
-    head_sha: str = pr["head"]["sha"]
-
-    # Skip sync / post-merge commits
-    if pr_title.lower().startswith("sync:") or "post-merge sync" in pr_title.lower():
-        print(f"Skipping gate for sync PR: {pr_title!r}")
-        return 0
-
-    # Fetch PR files
-    try:
-        files = get_pr_files(repo, pr_number, token)
-    except urllib.error.HTTPError as exc:
-        print(f"WARN: Failed to fetch PR files: HTTP {exc.code}")
-        files = []
-
-    # Fetch check runs (best-effort)
-    try:
-        check_runs = get_check_runs(repo, head_sha, token)
-    except urllib.error.HTTPError as exc:
-        print(f"WARN: Failed to fetch check runs: HTTP {exc.code}")
-        check_runs = []
-
-    # Run all gates
-    all_issues: list[tuple[str, list[str]]] = [
-        ("Gate 1 — Branch Format", check_gate1_branch(branch)),
-        ("Gate 2 — PR Body Declarations", check_gate2_pr_body(pr_body)),
-        ("Gate 3 — Forge Report", check_gate3_forge_report(files, branch)),
-        ("Gate 4 — PROJECT_STATE.md", check_gate4_project_state(files)),
-        ("Gate 5 — Hard Stops", check_gate5_hard_stops(files)),
-        ("Gate 6 — Drift Checks", check_gate6_drift(files, branch)),
-        ("Gate 7 — Merge Order", check_gate7_merge_order(files, pr_title)),
-        ("Gate 8 — MAJOR Flag", check_gate8_major_flag(pr_body)),
-        ("CI Status", check_ci_failures(check_runs)),
-    ]
-
-    # Build and post comment (best-effort — gate result still surfaced in logs)
-    comment_body = build_comment(branch, pr_number, all_issues)
-    try:
-        post_or_update_comment(repo, pr_number, token, comment_body)
-        print("Gate comment posted/updated.")
-    except Exception as exc:  # noqa: BLE001
-        print(f"WARN: Failed to post gate comment: {exc}")
-
-    # Print summary
-    p0_count = sum(1 for _, issues in all_issues for i in issues if i.startswith("P0"))
-    p1_count = sum(1 for _, issues in all_issues for i in issues if i.startswith("P1") and "INFO" not in i)
-
-    print(f"\nWARP Auto Gate v1  branch={branch}  pr=#{pr_number}")
-    print(f"P0 blockers : {p0_count}")
-    print(f"P1 must-fix : {p1_count}")
-
-    for gate_name, issues in all_issues:
-        if issues:
-            print(f"\n{gate_name}:")
-            for issue in issues:
-                print(f"  {issue}")
-
-    if p0_count > 0 or p1_count > 0:
-        print("\nResult: FAILED — blockers present.")
-        return 1
-
-    print("\nResult: PASSED.")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+        print("\nResult: FAILED — real blocker present."); return 1
+    print("\nResult: PASSED — routed by WARP•GATE. WARP🔹CMD remains final."); return 0
+if __name__=="__main__": sys.exit(main())
