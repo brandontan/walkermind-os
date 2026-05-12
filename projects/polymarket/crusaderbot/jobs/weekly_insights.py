@@ -56,20 +56,22 @@ async def _fetch_weekly_stats(user_id: UUID) -> dict:
             user_id,
         )
 
-        # Signal (strategy_type) breakdown: total PnL per signal
+        # Signal (strategy_type) breakdown: total PnL per signal.
+        # strategy_type lives on orders, not positions — LEFT JOIN to reach it.
         sig_rows = await conn.fetch(
             """
             SELECT
-                COALESCE(strategy_type, 'unknown') AS signal,
+                COALESCE(o.strategy_type, 'unknown') AS signal,
                 COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE pnl_usdc > 0) AS wins,
-                COALESCE(SUM(pnl_usdc), 0) AS total_pnl
-            FROM positions
-            WHERE user_id = $1
-              AND status = 'closed'
-              AND mode = 'paper'
-              AND closed_at >= NOW() - INTERVAL '7 days'
-              AND pnl_usdc IS NOT NULL
+                COUNT(*) FILTER (WHERE p.pnl_usdc > 0) AS wins,
+                COALESCE(SUM(p.pnl_usdc), 0) AS total_pnl
+            FROM positions p
+            LEFT JOIN orders o ON o.id = p.order_id
+            WHERE p.user_id = $1
+              AND p.status = 'closed'
+              AND p.mode = 'paper'
+              AND p.closed_at >= NOW() - INTERVAL '7 days'
+              AND p.pnl_usdc IS NOT NULL
             GROUP BY 1
             HAVING COUNT(*) >= 1
             ORDER BY 1

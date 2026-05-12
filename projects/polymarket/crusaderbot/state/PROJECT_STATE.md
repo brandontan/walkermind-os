@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 08:16
-Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner, hourly_report, /health live on Fly.io (paper mode). Production PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 12:00
+Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner, hourly_report, /health live on Fly.io (paper mode). Production PAPER ONLY. Activation guards remain OFF. Hotfix DAWN-SNOWFLAKE-1729 /insights UndefinedColumnError: PR open on WARP/HOTFIX-INSIGHTS-STRATEGY-TYPE.
 
 [COMPLETED]
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries, _safe_md title escaping, best_pnl sign fix; 22 hermetic tests green; issue #963 closed.
@@ -14,6 +14,7 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_sca
 - Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner job (60s), hourly_report cron, /health operator command, migration 024 seeded demo feed/market/publication; WARP•SENTINEL APPROVED 90/100; MAJOR, FULL RUNTIME INTEGRATION.
 
 [IN PROGRESS]
+- Hotfix /insights UndefinedColumnError strategy_type: PR open on WARP/HOTFIX-INSIGHTS-STRATEGY-TYPE. MINOR. LEFT JOIN orders in signal breakdown query fixes DAWN-SNOWFLAKE-1729-10 and DAWN-SNOWFLAKE-1729-Z. Awaiting WARP🔹CMD review.
 - Hotfix SQL + emergency guard: PR open on WARP/HOTFIX-SIGNAL-SCAN-SQL. STANDARD, NARROW INTEGRATION. Fixed ABS(AVG()) FILTER SQL error in pnl_insights + added BadRequest guard in emergency_callback. Awaiting WARP🔹CMD review.
 - Hotfix legacy UX handler cleanup: PR open on WARP/HOTFIX-UX-OVERHAUL-HANDLERS. STANDARD, PRESENTATION. Removed legacy TP/SL and capital text prompts; STRATEGY_DISPLAY_NAMES applied. 99 hermetic tests green. Awaiting WARP🔹CMD review.
 - Track K Access Tiers + Admin Panel: PR open on WARP/CRUSADERBOT-FAST-ADMIN. STANDARD, FOUNDATION. 29 hermetic tests green. Awaiting WARP🔹CMD review.
@@ -33,6 +34,7 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_sca
 - Before-live hardening: add AND user_id=$N guard to position_id-only UPDATEs in domain/positions/registry.py (update_current_price line 200, record_close_failure line 215, reset_close_failure line 229, finalize_close_failed line 250) and domain/execution/paper.py close_position UPDATE line 114. Required before ENABLE_LIVE_TRADING activation; safe to defer for PAPER ONLY posture.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for Hotfix /insights strategy_type (ACTIVE Sentry crash). Source: projects/polymarket/crusaderbot/reports/forge/hotfix-insights-strategy-type.md. Tier: MINOR.
 - WARP🔹CMD review required for Hotfix SQL + emergency guard (ACTIVE Sentry bug). Source: projects/polymarket/crusaderbot/reports/forge/hotfix-signal-scan-sql.md. Tier: STANDARD.
 - WARP🔹CMD review required for Hotfix legacy UX handler cleanup. Source: projects/polymarket/crusaderbot/reports/forge/forge-hotfix-ux-handlers.md. Tier: STANDARD.
 - WARP🔹CMD review required for Track K Access Tiers + Admin Panel PR. Source: projects/polymarket/crusaderbot/reports/forge/access-tiers-admin-panel.md. Tier: STANDARD.
