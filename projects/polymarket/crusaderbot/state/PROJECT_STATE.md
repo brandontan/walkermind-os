@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 14:00
-Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strategy_type hotfix MERGED PR #995 (2026-05-12). WARP Auto Gate v1 MERGED PR #996 (2026-05-12). P1 user_id isolation hardening PR open (STANDARD). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 14:15
+Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strategy_type hotfix MERGED PR #995 (2026-05-12). WARP Auto Gate v1 MERGED PR #996 (2026-05-12). P1 user_id isolation hardening MERGED PR #997 (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Fast Track Premium PNL Insights UX MERGED PR #965 (2026-05-11). /insights command, insights_kb, dashboard:insights sub, my_trades nav update, mode=paper boundary on all queries; 22 hermetic tests green; issue #963 closed.
@@ -11,7 +11,7 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strateg
 - Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner, hourly_report, /health, migration 024; WARP•SENTINEL APPROVED 90/100; MAJOR, FULL RUNTIME INTEGRATION.
 - Hotfix /insights UndefinedColumnError strategy_type MERGED PR #995 (2026-05-12). LEFT JOIN orders in weekly_insights signal breakdown fixes DAWN-SNOWFLAKE-1729-10 and DAWN-SNOWFLAKE-1729-Z.
 - WARP Auto Gate v1 MERGED PR #996 (2026-05-12). warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; STANDARD, NARROW INTEGRATION.
-- P1 user_id isolation hardening PR open (WARP/P1-USER-ID-ISOLATION-HARDENING). AND user_id=$N added to 5 UPDATE statements: registry.py update_current_price, record_close_failure, reset_close_failure, finalize_close_failed; paper.py close_position. 3 exit_watcher.py call sites updated. STANDARD, NARROW INTEGRATION.
+- P1 user_id isolation hardening MERGED PR #997 (2026-05-12). AND user_id=$N added to 5 UPDATE statements: registry.py update_current_price, record_close_failure, reset_close_failure, finalize_close_failed; paper.py close_position. 3 exit_watcher.py call sites updated. STANDARD, NARROW INTEGRATION. WARP Auto Gate branch-casing failure was treated as cosmetic false-positive per owner decision; lint/test checks were green.
 
 [IN PROGRESS]
 - Observation / runtime monitoring remains active in paper mode.
@@ -29,9 +29,9 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strateg
 - Live execution path user_id guards: domain/execution/live.py has 4 position UPDATEs (lines 309, 328, 343, 361) missing AND user_id=$N. Deferred to WARP/live-execution-user-id-guards; required before ENABLE_LIVE_TRADING activation.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required. Source: projects/polymarket/crusaderbot/reports/forge/p1-user-id-isolation-hardening.md. Tier: STANDARD.
 - Continue closed beta observation / paper-mode runtime monitoring.
 - Keep production PAPER ONLY until explicit owner live activation decision.
+- If preparing for live activation, start WARP/live-execution-user-id-guards before flipping any activation guard.
 
 [KNOWN ISSUES]
 - /deposit has no tier gate; intentional and non-blocking.
@@ -40,5 +40,5 @@ Status       : Signal Scan Engine MERGED PR #991 (2026-05-12). /insights strateg
 - integrations/polymarket.py _build_clob_client() is dead in the live execution path after Phase 4B but still indirectly referenced by submit_live_redemption(); cleanup deferred to WARP/CRUSADERBOT-POLYMARKET-LEGACY-CLEANUP.
 - Activation guards remain NOT SET and must not be changed without explicit owner decision.
 - R13 backlog is post-MVP growth work and not required for current paper-safe runtime.
-- [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
+- [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scannner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
