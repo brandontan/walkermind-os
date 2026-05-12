@@ -1,7 +1,8 @@
-Last Updated : 2026-05-12 22:00
-Status       : Heisenberg API integration PR open (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 23:45
+Status       : Migration idempotency fix SENTINEL APPROVED PR #1003 (2026-05-12). Heisenberg API integration PR open. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
+- Migration idempotency fix SENTINEL APPROVED PR #1003 (2026-05-12). ON CONFLICT (id) → ON CONFLICT on signal_feeds seed INSERTs (024, 025); run_migrations() try/except hardening. Fixes DAWN-SNOWFLAKE-1729-2 & -3. MAJOR, NARROW INTEGRATION.
 - Heisenberg API integration PR open (2026-05-12). services/heisenberg.py client; jobs/market_sync.py agent-574 sync; market_signal_scanner live path (agents 568/575/585); migration 025 live feed; HEISENBERG_API_TOKEN env wiring. STANDARD, NARROW INTEGRATION.
 - Hotfix persistent reply keyboard restore PR open (2026-05-12). dashboard() reply_markup=main_menu(); _mode_cb paper path sends main_menu() on completion. STANDARD, PRESENTATION.
 - Telegram inline UI restore + paper autotrade smoke MERGED PR #999 (2026-05-12). ConversationHandler fallback menu button sets patched in copy_trade.py and presets.py to match UX Overhaul layout; health.py job count corrected to 17; paper path smoke verified by code inspection; issue #998 closed. STANDARD, NARROW INTEGRATION.
@@ -31,6 +32,7 @@ Status       : Heisenberg API integration PR open (2026-05-12). Production remai
 - Live execution path user_id guards: domain/execution/live.py has 4 position UPDATEs (lines 309, 328, 343, 361) missing AND user_id=$N. Deferred to WARP/live-execution-user-id-guards; required before ENABLE_LIVE_TRADING activation.
 
 [NEXT PRIORITY]
+- WARP🔹CMD merge decision required for PR #1003 (fix-migration-idempotency). SENTINEL APPROVED 95/100. Source: projects/polymarket/crusaderbot/reports/sentinel/fix-migration-idempotency.md. Post-merge: monitor Sentry DAWN-SNOWFLAKE-1729-2 & -3.
 - WARP🔹CMD review required for Heisenberg integration PR. Deploy HEISENBERG_API_TOKEN secret via fly secrets set, then apply migration 025. Source: projects/polymarket/crusaderbot/reports/forge/feat-heisenberg-signal-integration.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/HOTFIX-KEYBOARD-MISSING. Source: projects/polymarket/crusaderbot/reports/forge/hotfix-keyboard-missing.md. Tier: STANDARD.
 - Continue closed beta observation / paper-mode runtime monitoring.
