@@ -4,6 +4,7 @@ Status       : Migration idempotency fix PR open (2026-05-12). asyncpg resilienc
 [COMPLETED]
 - Heisenberg API integration PR open (2026-05-12). services/heisenberg.py client; jobs/market_sync.py agent-574 sync; market_signal_scanner live path (agents 568/575/585); migration 025 live feed; HEISENBERG_API_TOKEN env wiring. STANDARD, NARROW INTEGRATION.
 - Hotfix persistent reply keyboard restore PR open (2026-05-12). dashboard() reply_markup=main_menu(); _mode_cb paper path sends main_menu() on completion. STANDARD, PRESENTATION.
+- Migration idempotency fix MERGED PR #1003 (2026-05-12). ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3. MAJOR, NARROW INTEGRATION.
 - Telegram inline UI restore + paper autotrade smoke MERGED PR #999 (2026-05-12). ConversationHandler fallback menu button sets patched in copy_trade.py and presets.py to match UX Overhaul layout; health.py job count corrected to 17; paper path smoke verified by code inspection; issue #998 closed. STANDARD, NARROW INTEGRATION.
 - P1 user_id isolation hardening MERGED PR #997 (2026-05-12). AND user_id=$N added to 5 UPDATE statements across registry.py and paper.py; exit_watcher call sites updated. STANDARD, NARROW INTEGRATION.
 - WARP Auto Gate v1 MERGED PR #996 (2026-05-12). warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment. STANDARD, NARROW INTEGRATION.
