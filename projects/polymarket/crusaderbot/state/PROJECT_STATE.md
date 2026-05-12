@@ -1,4 +1,4 @@
-Last Updated : 2026-05-12 22:00
+Last Updated : 2026-05-13 01:16
 Status       : Heisenberg API integration PR open (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
@@ -16,6 +16,7 @@ Status       : Heisenberg API integration PR open (2026-05-12). Production remai
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
+- Realtime paper full-system validation harness added (2026-05-13). Entry script scripts/realtime_paper_system_validation.py + focused test test_realtime_paper_system_validation.py + forge report realtime-paper-system-validation.md. MAJOR, FULL RUNTIME INTEGRATION. Runtime evidence split enforced: PASSED/FAILED/NOT_VALIDATED.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.

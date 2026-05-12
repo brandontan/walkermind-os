@@ -1,12 +1,13 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-12 12:01
+**Last Updated:** 2026-05-13 01:16
 
 ---
 
 ## Right Now
 
+- [x] Realtime paper full-system validation harness lane scaffolded (2026-05-13): scripts/realtime_paper_system_validation.py + tests/test_realtime_paper_system_validation.py + forge report. MAJOR, FULL RUNTIME INTEGRATION claim pending realtime credentialed run evidence for SENTINEL.
 - Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner (60s), hourly_report cron, /health operator command, migration 024 deployed.
 - Hotfix /insights strategy_type MERGED PR #995 (2026-05-12). weekly_insights signal breakdown now joins orders for strategy_type.
 - Activation guards remain NOT SET.

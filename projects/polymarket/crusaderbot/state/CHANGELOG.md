@@ -47,3 +47,5 @@
 2026-05-12 08:16 | WARP/SIGNAL-SCAN-ENGINE | Signal Scan Engine MERGED PR #991 — market_signal_scanner (60s), hourly_report cron, /health operator command, migration 024; WARP•SENTINEL APPROVED 90/100; MAJOR, FULL RUNTIME INTEGRATION
 2026-05-12 09:07 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 FORGE (STANDARD, NARROW INTEGRATION): warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; no runtime code touched; PR open for WARP🔹CMD review
 2026-05-12 09:13 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 MERGED PR #996 — warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; STANDARD, NARROW INTEGRATION
+
+2026-05-13 01:16 | WARP/realtime-paper-system-validation | Realtime paper full-system validation harness FORGE (MAJOR, FULL RUNTIME INTEGRATION): added scripts/realtime_paper_system_validation.py (guard checks + DB smoke + optional signal scan + explicit NOT_VALIDATED reporting), added tests/test_realtime_paper_system_validation.py; forge report added; runtime credentialed execution still required for full realtime evidence prior to SENTINEL gate
