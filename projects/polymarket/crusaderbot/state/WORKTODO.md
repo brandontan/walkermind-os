@@ -1,13 +1,14 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-12 23:58
+**Last Updated:** 2026-05-13 06:01
 
 ---
 
 ## Right Now
 
-- GitHub queue synced: open PRs = 0, open issues = 0.
+- GitHub queue synced: open PRs = 0, open issues = 1 (issue #1012 open lane).
+- Active FORGE lane: WARP/live-execution-user-id-guards (issue #1012) to harden live position UPDATE user_id guards in domain/execution/live.py.
 - Focus remains closed beta observation and paper-mode runtime monitoring.
 - Production posture unchanged: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
 

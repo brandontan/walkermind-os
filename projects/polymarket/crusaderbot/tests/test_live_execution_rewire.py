@@ -67,6 +67,7 @@ class FakeConn:
         self.close_claim = close_claim
         self.close_finalize = close_finalize
         self.executed: list[tuple] = []
+        self.fetchval_calls: list[tuple[str, tuple[Any, ...]]] = []
         self._call = 0
 
     async def fetchrow(self, query: str, *args: Any) -> dict | None:
@@ -82,6 +83,7 @@ class FakeConn:
         return None
 
     async def fetchval(self, query: str, *args: Any) -> Any:
+        self.fetchval_calls.append((query, args))
         if "status='closing'" in query and "RETURNING id" in query:
             return self.close_claim
         if "status='closed'" in query and "RETURNING id" in query:
@@ -493,6 +495,22 @@ def _run_close(
 
 
 class TestClosePosition:
+    def test_close_updates_guard_by_position_and_user_id(self) -> None:
+        conn = FakeConn(close_claim=POSITION_ID, close_finalize=POSITION_ID)
+        s = _settings()
+        client = MockClobClient()
+        _run_close(conn, s, client)
+
+        claim_query, claim_args = conn.fetchval_calls[0]
+        finalize_query, finalize_args = conn.fetchval_calls[-1]
+        assert "WHERE id=$1 AND user_id=$2 AND status='open'" in claim_query
+        assert claim_args == (POSITION_ID, USER_ID)
+        assert "WHERE id=$1 AND user_id=$5 AND status='closing'" in finalize_query
+        assert finalize_args[0] == POSITION_ID
+        assert finalize_args[1] == "tp"
+        assert finalize_args[2] == 0.8
+        assert finalize_args[4] == USER_ID
+
     def test_close_submits_sell_via_clob_client(self) -> None:
         conn = FakeConn(
             close_claim=POSITION_ID,

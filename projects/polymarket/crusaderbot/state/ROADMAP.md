@@ -1,7 +1,7 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-12 23:58 Asia/Jakarta
+**Last Updated:** 2026-05-13 06:01 Asia/Jakarta
 
 ## Current Posture
 
@@ -56,6 +56,7 @@
 - Paper trading stability
 - Performance validation
 - No new feature lanes planned
+- Issue #1012 active hardening lane: live execution user_id guards (MAJOR, NARROW INTEGRATION)
 
 ## Non-Negotiable Rules
 
