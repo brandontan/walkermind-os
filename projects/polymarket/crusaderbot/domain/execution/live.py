@@ -307,8 +307,8 @@ async def close_position(
     async with pool.acquire() as conn:
         claimed = await conn.fetchval(
             "UPDATE positions SET status='closing' "
-            "WHERE id=$1 AND status='open' RETURNING id",
-            position["id"],
+            "WHERE id=$1 AND user_id=$2 AND status='open' RETURNING id",
+            position["id"], position["user_id"],
         )
     if claimed is None:
         logger.info("live close skip — position %s already closing/closed",
@@ -325,8 +325,8 @@ async def close_position(
     except (ClobConfigError, ClobAuthError) as exc:
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE positions SET status='open' WHERE id=$1",
-                position["id"],
+                "UPDATE positions SET status='open' WHERE id=$1 AND user_id=$2",
+                position["id"], position["user_id"],
             )
         raise RuntimeError(f"CLOB client error during close: {exc}") from exc
     try:
@@ -340,8 +340,8 @@ async def close_position(
     except Exception:
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE positions SET status='open' WHERE id=$1",
-                position["id"],
+                "UPDATE positions SET status='open' WHERE id=$1 AND user_id=$2",
+                position["id"], position["user_id"],
             )
         raise
 
@@ -360,8 +360,8 @@ async def close_position(
             updated = await conn.fetchval(
                 "UPDATE positions SET status='closed', exit_reason=$2, "
                 "current_price=$3, pnl_usdc=$4, closed_at=NOW() "
-                "WHERE id=$1 AND status='closing' RETURNING id",
-                position["id"], exit_reason, exit_price, pnl,
+                "WHERE id=$1 AND user_id=$2 AND status='closing' RETURNING id",
+                position["id"], position["user_id"], exit_reason, exit_price, pnl,
             )
             if updated is None:
                 # The claim was ours; status should still be 'closing'. If we

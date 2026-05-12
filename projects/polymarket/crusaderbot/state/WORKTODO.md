@@ -7,7 +7,7 @@
 
 ## Right Now
 
-- GitHub queue synced: open PRs = 0, open issues = 0.
+- GitHub queue synced: open PRs = 1 (PR #1013), open issues = 0.
 - Focus remains closed beta observation and paper-mode runtime monitoring.
 - Production posture unchanged: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
 

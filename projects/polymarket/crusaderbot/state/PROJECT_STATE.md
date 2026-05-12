@@ -1,5 +1,5 @@
 Last Updated : 2026-05-12 23:58
-Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub open PRs = 0, open issues = 0. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF / NOT SET.
+Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub open PRs = 1 (PR #1013), open issues = 0. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
 - Migration idempotency fix MERGED PR #1003 (2026-05-12). ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3. MAJOR, NARROW INTEGRATION.
@@ -15,7 +15,7 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- No open PR lanes in GitHub queue (open PRs = 0).
+- Open PR lane: PR #1013 live-execution-user-id-guards under WARP🔹CMD hold pending branch traceability fix and WARP•SENTINEL validation.
 - No open issue lanes in GitHub queue (open issues = 0).
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
@@ -33,7 +33,7 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 
 [NEXT PRIORITY]
 - Closed beta observation / paper-mode runtime monitoring is the active next priority.
-- Maintain zero-PR / zero-issue queue posture unless WARP🔹CMD opens a new lane.
+- Resolve PR #1013 branch traceability and complete WARP•SENTINEL validation before merge.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 - If preparing for live activation, start WARP/live-execution-user-id-guards before flipping any activation guard.
 
