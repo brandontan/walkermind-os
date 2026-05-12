@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 23:55
-Status       : asyncpg resilience PR open (2026-05-12). Migration idempotency fix MERGED PR #1003 (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-12 23:30
+Status       : Migration idempotency fix PR open (2026-05-12). asyncpg resilience PR open (2026-05-12). Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - Heisenberg API integration PR open (2026-05-12). services/heisenberg.py client; jobs/market_sync.py agent-574 sync; market_signal_scanner live path (agents 568/575/585); migration 025 live feed; HEISENBERG_API_TOKEN env wiring. STANDARD, NARROW INTEGRATION.
@@ -17,7 +17,8 @@ Status       : asyncpg resilience PR open (2026-05-12). Migration idempotency fi
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- asyncpg resilience PR open: WARP/fix-asyncpg-stmt-resilience. _init_connection warm-ping added to init_pool(); statement_cache_size=0 already in place since PR #985. MAJOR, NARROW INTEGRATION. Awaiting WARP•SENTINEL.
+- Migration idempotency fix PR open: WARP/fix-migration-idempotency. ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() error handling. MAJOR, NARROW INTEGRATION. Awaiting WARP•SENTINEL.
+- asyncpg resilience PR open: WARP/fix-asyncpg-stmt-resilience. init_connection warmup added; statement_cache_size=0 already in place. MAJOR, NARROW INTEGRATION. Awaiting WARP•SENTINEL.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -33,6 +34,7 @@ Status       : asyncpg resilience PR open (2026-05-12). Migration idempotency fi
 - Live execution path user_id guards: domain/execution/live.py has 4 position UPDATEs (lines 309, 328, 343, 361) missing AND user_id=$N. Deferred to WARP/live-execution-user-id-guards; required before ENABLE_LIVE_TRADING activation.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for WARP/fix-migration-idempotency before merge. Source: projects/polymarket/crusaderbot/reports/forge/fix-migration-idempotency.md. Tier: MAJOR.
 - WARP•SENTINEL validation required for WARP/fix-asyncpg-stmt-resilience before merge. Source: projects/polymarket/crusaderbot/reports/forge/fix-asyncpg-stmt-resilience.md. Tier: MAJOR.
 - WARP🔹CMD review required for Heisenberg integration PR. Deploy HEISENBERG_API_TOKEN secret via fly secrets set, then apply migration 025. Source: projects/polymarket/crusaderbot/reports/forge/feat-heisenberg-signal-integration.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/HOTFIX-KEYBOARD-MISSING. Source: projects/polymarket/crusaderbot/reports/forge/hotfix-keyboard-missing.md. Tier: STANDARD.

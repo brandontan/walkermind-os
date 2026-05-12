@@ -21,7 +21,7 @@ SELECT
 FROM users
 ORDER BY created_at ASC
 LIMIT 1
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- 2. Seed demo market (enables end-to-end test without waiting for market_sync)
 INSERT INTO markets (id, slug, question, category, status,
