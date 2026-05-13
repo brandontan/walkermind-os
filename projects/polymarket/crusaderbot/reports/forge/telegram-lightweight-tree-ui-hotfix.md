@@ -1,7 +1,7 @@
 # WARP•FORGE Report — telegram-lightweight-tree-ui-hotfix
 
 **Date:** 2026-05-13
-**Branch:** claude/telegram-lightweight-tree-ui-MNQ8w
+**Branch:** WARP/telegram-lightweight-tree-ui-hotfix
 **Validation Tier:** STANDARD
 **Claim Level:** NARROW INTEGRATION
 **Validation Target:** Telegram message formatting + keyboard persistence only
@@ -54,8 +54,7 @@ Modified (8 files):
   `_PAPER_COMPLETE_TEXT`: removed 3 standalone `│\n` lines; Commands block uses `├`/`└` items.
 
 - `projects/polymarket/crusaderbot/bot/keyboards/presets.py`
-  `preset_picker()`: added `nav_row("dashboard:main")` to the returned InlineKeyboardMarkup so users can navigate back from the Auto Trade preset picker without being trapped.
-  Import updated: `from . import grid_rows, nav_row`.
+  `preset_picker()`: added explicit `[⬅ Back, 🏠 Home]` row (both `dashboard:main`) to the returned InlineKeyboardMarkup so users can navigate back from the Auto Trade preset picker without being trapped. Uses only registered callbacks — `nav_row()` was intentionally avoided to prevent surfacing the unhandled `noop:refresh` callback in a new location.
 
 - `projects/polymarket/crusaderbot/bot/keyboards/__init__.py`
   No changes — `dashboard_kb()` already matches the required persistent keyboard layout.
@@ -69,7 +68,7 @@ Modified (8 files):
 - No `├──` or `└──` long-arm patterns remain in any user-facing string literal.
 - All `callback_data` values are unchanged — routing contract intact.
 - No new CallbackQueryHandler or CommandHandler registrations introduced.
-- `preset_picker()` now includes Back / Home / Refresh nav row, resolving the trapping regression.
+- `preset_picker()` now includes Back / Home nav row (both `dashboard:main`), resolving the trapping regression without surfacing the unhandled `noop:refresh` callback.
 - Dashboard, Portfolio, Auto Trade, Settings, Signal Feeds, and Onboarding screens all render with max one-level tree depth.
 - Persistent ReplyKeyboard (`main_menu()`) unaffected — all affected handlers send `InlineKeyboardMarkup` which does not displace the existing reply keyboard.
 
@@ -77,8 +76,8 @@ Modified (8 files):
 
 ## 5. Known issues
 
-- `noop:refresh` callback in `nav_row()` has no registered handler; it is pre-existing behaviour not introduced by this lane.
 - Onboarding parse_mode is MarkdownV2; `├` and `└` are not MarkdownV2 special characters and require no escaping — confirmed safe.
+- `noop:refresh` callback in `nav_row()` has no registered handler; it is pre-existing behaviour and is not used by any surface modified in this lane (`preset_picker()` uses an explicit 2-button row instead of `nav_row()`).
 
 ---
 

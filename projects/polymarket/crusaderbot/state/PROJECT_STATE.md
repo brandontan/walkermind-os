@@ -1,7 +1,9 @@
-Last Updated : 2026-05-13 20:30 WIB
-Status       : telegram-lightweight-tree-ui-hotfix lane complete; PR open. PR #1032 (compact hierarchy) and relax-branch-prefix-rule PR still pending WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-13 21:30 WIB
+Status       : telegram-lightweight-tree-ui-hotfix lane complete; PR #1034 open on WARP/telegram-lightweight-tree-ui-hotfix awaiting WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
+- live-execution-user-id-guards MERGED PR #1021. close_position() AND user_id=$N hardening; 5 isolation tests; MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
+- compact-hierarchy-readability-regression MERGED PR #1032 on warp/fix-telegram-mvp-ux-readability-regression. Compact hierarchy readability regression fix + traceability/state sync; STANDARD, NARROW INTEGRATION.
 - Premium UX v4 (Hybrid Luxury) — PR #1026 merged bd8fe42d
 - Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu (Dashboard/Portfolio/Auto Mode/Signals/Insights/Settings/Stop Bot), dashboard v3 with smart CTA, portfolio screen, signals tap-hub (inline feed toggle, no CLI), settings hub v3, onboarding v3, nav_row() helper, notifications.py utility. STANDARD, NARROW INTEGRATION.
 - Migration idempotency fix MERGED PR #1003 (2026-05-12). ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3. MAJOR, NARROW INTEGRATION.
@@ -17,10 +19,8 @@ Status       : telegram-lightweight-tree-ui-hotfix lane complete; PR open. PR #1
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- telegram-lightweight-tree-ui-hotfix: final lightweight tree UI replacement pass; PR open on claude/telegram-lightweight-tree-ui-MNQ8w; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
-- compact-hierarchy-readability-regression: PR #1032 open on warp/fix-telegram-mvp-ux-readability-regression for compact hierarchy readability regression fix and traceability/state sync. Source: projects/polymarket/crusaderbot/reports/forge/telegram-compact-hierarchy-ui.md
+- telegram-lightweight-tree-ui-hotfix: final lightweight tree UI replacement pass; PR #1034 open on WARP/telegram-lightweight-tree-ui-hotfix; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
 - relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
-- live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -35,10 +35,8 @@ Status       : telegram-lightweight-tree-ui-hotfix lane complete; PR open. PR #1
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for telegram-lightweight-tree-ui-hotfix PR on claude/telegram-lightweight-tree-ui-MNQ8w. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
-- WARP🔹CMD re-review required for PR #1032 (compact hierarchy readability regression fix) on warp/fix-telegram-mvp-ux-readability-regression. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/telegram-compact-hierarchy-ui.md
+- WARP🔹CMD review required for telegram-lightweight-tree-ui-hotfix PR #1034 on WARP/telegram-lightweight-tree-ui-hotfix. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
 - WARP🔹CMD review required for relax-branch-prefix-rule PR. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
-- WARP🔹CMD merge decision for live-execution-user-id-guards PR #1021. SENTINEL APPROVED 97/100. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - After merge: open WARP/notifications-paper-wire to wire notify_order_filled() into paper executor.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
@@ -52,6 +50,4 @@ Status       : telegram-lightweight-tree-ui-hotfix lane complete; PR open. PR #1
 - R13 backlog is post-MVP growth work and not required for current paper-safe runtime.
 - [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
-- [DEFERRED] CHANGELOG.md entry missing for WARP/live-execution-user-id-guards — append on post-merge sync.
-- [DEFERRED] NEXT PRIORITY 4 items in PR #1021 PROJECT_STATE.md (cap 3) — prune on post-merge sync.
 
