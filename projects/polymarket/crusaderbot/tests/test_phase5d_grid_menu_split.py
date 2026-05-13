@@ -1,16 +1,13 @@
-"""Phase 5D — 2-column grid + Copy/Auto Trade menu split.
+"""Phase 5D / UX-V3 — menu layout + route coverage.
 
-Hermetic tests. No DB, no Telegram API calls.
-
-Coverage:
-  * grid_rows helper: even, odd, single, empty
-  * main_menu: 6 buttons in 3 rows of 2 (ReplyKeyboard)
-  * Copy Trade / Auto-Trade separation in MAIN_MENU_ROUTES
-  * menu_copytrade_handler: renders placeholder, correct inline buttons
-  * dashboard_nav: 3 buttons in 2-col layout
-  * wallet_menu: 3 buttons in 2-col layout
-  * emergency_menu: 3 buttons in 2-col layout
-  * preset_picker: 2-col grid, 3 presets
+Updated for v3 7-button main menu (WARP/TELEGRAM-UX-V3).
+Preserves full coverage intent of original Phase 5D suite:
+  * grid_rows helper
+  * main_menu: 7 buttons in 4 rows (3x2 + 1x1)
+  * MAIN_MENU_ROUTES: all 7 v3 routes registered
+  * Copy Trade route accessible via settings/secondary nav (not root)
+  * menu_copytrade_handler: placeholder + inline buttons
+  * dashboard_nav, wallet_menu, emergency_menu, preset_picker 2-col layouts
 """
 from __future__ import annotations
 
@@ -54,74 +51,114 @@ def test_grid_rows_custom_cols():
     assert rows == [[0, 1, 2], [3, 4, 5]]
 
 
-# ---------- main_menu (ReplyKeyboard) ----------------------------------------
+# ---------- main_menu v3 (ReplyKeyboard) ------------------------------------
 
-def test_main_menu_has_six_buttons():
+V3_BUTTONS = {
+    "📊 Dashboard",
+    "💼 Portfolio",
+    "🤖 Auto Mode",
+    "🧠 Signals",
+    "📊 Insights",
+    "⚙️ Settings",
+    "🛑 Stop Bot",
+}
+
+
+def test_main_menu_has_seven_buttons():
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 6
+    assert len(all_buttons) == 7
 
 
-def test_main_menu_layout_three_rows_of_two():
+def test_main_menu_layout_four_rows():
+    """v3: 3 rows of 2 + 1 row of 1 = 4 rows total."""
     kb = main_menu()
-    assert len(kb.keyboard) == 3
-    for row in kb.keyboard:
+    assert len(kb.keyboard) == 4
+
+
+def test_main_menu_first_three_rows_are_pairs():
+    kb = main_menu()
+    for row in kb.keyboard[:3]:
         assert len(row) == 2
 
 
-def test_main_menu_contains_copy_trade_button():
+def test_main_menu_last_row_is_single():
+    kb = main_menu()
+    assert len(kb.keyboard[-1]) == 1
+
+
+def test_main_menu_expected_v3_buttons():
+    kb = main_menu()
+    labels = {btn.text for row in kb.keyboard for btn in row}
+    assert labels == V3_BUTTONS
+
+
+def test_main_menu_contains_signals_button():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "🐋 Copy Trade" in labels
+    assert "🧠 Signals" in labels
 
 
-def test_main_menu_contains_auto_trade_button():
+def test_main_menu_contains_portfolio_button():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "🤖 Auto-Trade" in labels
+    assert "💼 Portfolio" in labels
 
 
-def test_main_menu_expected_buttons():
+def test_main_menu_contains_insights_button():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert set(labels) == {
-        "📊 Dashboard",
-        "🐋 Copy Trade",
-        "🤖 Auto-Trade",
-        "📈 My Trades",
-        "⚙️ Settings",
-        "🛑 Stop Bot",
-    }
+    assert "📊 Insights" in labels
 
 
-# ---------- MAIN_MENU_ROUTES ------------------------------------------------
-
-def test_copy_trade_route_registered():
-    assert "🐋 Copy Trade" in MAIN_MENU_ROUTES
-
-
-def test_auto_trade_route_registered():
-    assert "🤖 Auto-Trade" in MAIN_MENU_ROUTES
+def test_main_menu_contains_stop_bot_button():
+    kb = main_menu()
+    labels = [btn.text for row in kb.keyboard for btn in row]
+    assert "🛑 Stop Bot" in labels
 
 
-def test_copy_trade_and_auto_trade_are_different_handlers():
-    copy_handler = MAIN_MENU_ROUTES["🐋 Copy Trade"]
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto-Trade"]
-    assert copy_handler is not auto_handler
+# ---------- MAIN_MENU_ROUTES v3 --------------------------------------------
+
+def test_signals_route_registered():
+    assert "🧠 Signals" in MAIN_MENU_ROUTES
 
 
-def test_all_six_main_menu_routes_present():
+def test_portfolio_route_registered():
+    assert "💼 Portfolio" in MAIN_MENU_ROUTES
+
+
+def test_insights_route_registered():
+    assert "📊 Insights" in MAIN_MENU_ROUTES
+
+
+def test_auto_mode_route_registered():
+    assert "🤖 Auto Mode" in MAIN_MENU_ROUTES
+
+
+def test_all_seven_main_menu_routes_present():
     expected = {
-        "📊 Dashboard", "🐋 Copy Trade", "🤖 Auto-Trade",
-        "📈 My Trades", "⚙️ Settings", "🛑 Stop Bot",
+        "📊 Dashboard", "💼 Portfolio", "🤖 Auto Mode",
+        "🧠 Signals", "📊 Insights", "⚙️ Settings", "🛑 Stop Bot",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 
 
-# ---------- menu_copytrade_handler ------------------------------------------
+def test_signals_and_portfolio_are_different_handlers():
+    signals_handler = MAIN_MENU_ROUTES["🧠 Signals"]
+    portfolio_handler = MAIN_MENU_ROUTES["💼 Portfolio"]
+    assert signals_handler is not portfolio_handler
+
+
+def test_auto_mode_and_dashboard_are_different_handlers():
+    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Mode"]
+    dash_handler = MAIN_MENU_ROUTES["📊 Dashboard"]
+    assert auto_handler is not dash_handler
+
+
+# ---------- menu_copytrade_handler (via settings/secondary nav) ------------
 
 def test_menu_copytrade_handler_sends_placeholder(monkeypatch):
-    """Phase 5E: dashboard shows empty-state text when user has no tasks."""
+    """Copy Trade is accessible; renders placeholder when no tasks."""
     from unittest.mock import patch, AsyncMock as _AsyncMock
     from projects.polymarket.crusaderbot.bot.handlers.copy_trade import (
         menu_copytrade_handler,
@@ -153,7 +190,7 @@ def test_menu_copytrade_handler_sends_placeholder(monkeypatch):
 
 
 def test_menu_copytrade_handler_inline_buttons(monkeypatch):
-    """Phase 5E: empty-state dashboard shows [Add Wallet] and [Discover] buttons."""
+    """Copy Trade empty-state shows [Add Wallet] and [Discover] buttons."""
     from unittest.mock import patch, AsyncMock as _AsyncMock
     from projects.polymarket.crusaderbot.bot.handlers.copy_trade import (
         menu_copytrade_handler,
@@ -188,7 +225,6 @@ def test_menu_copytrade_handler_inline_buttons(monkeypatch):
 
 def test_dashboard_nav_with_trades_is_two_col():
     kb = dashboard_nav(has_trades=True)
-    # 4 buttons (Auto-Trade, Trades, Wallet, Insights) → 2 rows of 2
     assert len(kb.inline_keyboard) == 2
     assert len(kb.inline_keyboard[0]) == 2
     assert len(kb.inline_keyboard[1]) == 2
@@ -196,14 +232,12 @@ def test_dashboard_nav_with_trades_is_two_col():
 
 def test_wallet_menu_is_two_col():
     kb = wallet_menu()
-    # 3 buttons → row 0 has 2, row 1 has 1
     assert len(kb.inline_keyboard[0]) == 2
     assert len(kb.inline_keyboard[1]) == 1
 
 
 def test_emergency_menu_is_two_col():
     kb = emergency_menu()
-    # 4 buttons → 2 rows of 2
     assert len(kb.inline_keyboard) == 2
     assert len(kb.inline_keyboard[0]) == 2
     assert len(kb.inline_keyboard[1]) == 2
@@ -211,7 +245,6 @@ def test_emergency_menu_is_two_col():
 
 def test_preset_picker_is_two_col():
     kb = preset_picker()
-    # 3 presets → row 0 has 2, row 1 has 1
     assert len(kb.inline_keyboard) == 2
     assert len(kb.inline_keyboard[0]) == 2
     assert len(kb.inline_keyboard[1]) == 1
