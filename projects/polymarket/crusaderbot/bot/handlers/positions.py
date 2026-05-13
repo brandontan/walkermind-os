@@ -190,7 +190,7 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         f"💰 Balance: ${bal:.2f}\n"
         f"📈 PnL: {_pnl_fmt(pnl_today)}\n"
         f"📋 Open Trades: {open_count}\n\n"
-        "No active trades." if open_count == 0 else "Active trades available."
+        + ("No active trades." if open_count == 0 else "Active trades available.")
     )
 
     if is_cb:

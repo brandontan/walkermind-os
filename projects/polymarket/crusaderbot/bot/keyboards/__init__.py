@@ -103,9 +103,9 @@ def _legacy_portfolio_kb() -> InlineKeyboardMarkup:
 def mvp_auto_trade_kb() -> InlineKeyboardMarkup:
     """MVP Auto Trade: Conservative/Balanced/Aggressive mapped to preset keys."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📡 Conservative", callback_data="preset:pick:conservative")],
-        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:balanced")],
-        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:aggressive")],
+        [InlineKeyboardButton("📡 Conservative", callback_data="preset:pick:signal_sniper")],
+        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:value_hunter")],
+        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:full_auto")],
         [
             InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
             InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
@@ -119,7 +119,7 @@ def mvp_risk_kb(current: str = "") -> InlineKeyboardMarkup:
         return ("✅ " if r == current else "") + r.title()
 
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📡 {mark('conservative')}", callback_data="set_risk:safe")],
+        [InlineKeyboardButton(f"📡 {mark('conservative')}", callback_data="set_risk:conservative")],
         [InlineKeyboardButton(f"🎯 {mark('balanced')}",     callback_data="set_risk:balanced")],
         [InlineKeyboardButton(f"🚀 {mark('aggressive')}",   callback_data="set_risk:aggressive")],
         [
@@ -182,7 +182,7 @@ def risk_picker(current: str) -> InlineKeyboardMarkup:
         return f"{'✅' if r == current else '◻️'} {r.title()}"
     buttons = [
         InlineKeyboardButton(mark("conservative"),
-                             callback_data="set_risk:safe"),
+                             callback_data="set_risk:conservative"),
         InlineKeyboardButton(mark("balanced"),  callback_data="set_risk:balanced"),
         InlineKeyboardButton(mark("aggressive"), callback_data="set_risk:aggressive"),
         InlineKeyboardButton("⬅️ Back", callback_data="setup:menu"),
