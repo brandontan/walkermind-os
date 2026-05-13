@@ -2,6 +2,7 @@ Last Updated : 2026-05-13 12:20 WIB
 Status       : Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashboard v3, signals tap-hub, portfolio screen, nav_row helper, notify_order_filled utility. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
+- Premium UX v4 (Hybrid Luxury) — PR #1026 merged bd8fe42d
 - Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu (Dashboard/Portfolio/Auto Mode/Signals/Insights/Settings/Stop Bot), dashboard v3 with smart CTA, portfolio screen, signals tap-hub (inline feed toggle, no CLI), settings hub v3, onboarding v3, nav_row() helper, notifications.py utility. STANDARD, NARROW INTEGRATION.
 - Migration idempotency fix MERGED PR #1003 (2026-05-12). ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3. MAJOR, NARROW INTEGRATION.
 - Telegram inline UI restore + paper autotrade smoke MERGED PR #999 (2026-05-12). ConversationHandler fallback menu button sets patched in copy_trade.py and presets.py to match UX Overhaul layout; health.py job count corrected to 17; paper path smoke verified by code inspection; issue #998 closed. STANDARD, NARROW INTEGRATION.
@@ -47,5 +48,6 @@ Status       : Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashb
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
 - [DEFERRED] CHANGELOG.md entry missing for WARP/live-execution-user-id-guards — append on post-merge sync.
 - [DEFERRED] NEXT PRIORITY 4 items in PR #1021 PROJECT_STATE.md (cap 3) — prune on post-merge sync.
+
 
 
