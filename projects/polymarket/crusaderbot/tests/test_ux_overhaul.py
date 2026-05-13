@@ -296,3 +296,156 @@ def test_insights_kb_has_refresh():
     kb = insights_kb()
     data = _cb_data(kb)
     assert "insights:refresh" in data
+
+
+# ---------------------------------------------------------------------------
+# Part 7 — Settings hub keyboard
+# ---------------------------------------------------------------------------
+
+
+def test_settings_hub_has_wallet():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:wallet" in data
+
+
+def test_settings_hub_has_profile():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:profile" in data
+
+
+def test_settings_hub_has_notifications():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:notifications" in data
+
+
+def test_settings_hub_has_risk():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:risk" in data
+
+
+def test_settings_hub_has_live_gate():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:live_gate" in data
+
+
+def test_settings_hub_has_back():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:back" in data
+
+
+# ---------------------------------------------------------------------------
+# Part 9 — My Trades keyboard (no Dashboard button)
+# ---------------------------------------------------------------------------
+
+from projects.polymarket.crusaderbot.bot.keyboards.my_trades import (
+    close_success_kb,
+    my_trades_main_kb,
+)
+
+
+def test_my_trades_main_kb_no_dashboard():
+    kb = my_trades_main_kb([])
+    data = _cb_data(kb)
+    assert "dashboard:main" not in data
+
+
+def test_my_trades_main_kb_has_history_and_insights():
+    kb = my_trades_main_kb([])
+    data = _cb_data(kb)
+    assert "mytrades:hist:0" in data
+    assert "insights:refresh" in data
+
+
+def test_close_success_kb_no_dashboard():
+    kb = close_success_kb()
+    data = _cb_data(kb)
+    assert "dashboard:main" not in data
+
+
+def test_close_success_kb_has_my_trades():
+    kb = close_success_kb()
+    data = _cb_data(kb)
+    assert "mytrades:back" in data
+
+
+# ---------------------------------------------------------------------------
+# Part 9 — My Trades text formatting
+# ---------------------------------------------------------------------------
+
+from projects.polymarket.crusaderbot.bot.handlers.my_trades import (
+    _build_main_text,
+    _format_positions_section,
+)
+
+
+def test_format_positions_with_tp_sl():
+    pos = [{
+        "question": "Will X win?",
+        "market_id": "mkt1",
+        "side": "yes",
+        "entry_price": "0.420",
+        "size_usdc": "10.00",
+    }]
+    marks = [0.48]
+    text = _format_positions_section(pos, marks, tp_pct=0.25, sl_pct=0.08)
+    assert "TP: +25%" in text
+    assert "SL: -8%" in text
+
+
+def test_format_positions_no_tp_sl_shows_dash():
+    pos = [{
+        "question": "Will Y happen?",
+        "market_id": "mkt2",
+        "side": "no",
+        "entry_price": "0.600",
+        "size_usdc": "5.00",
+    }]
+    marks = [None]
+    text = _format_positions_section(pos, marks, tp_pct=None, sl_pct=None)
+    assert "TP: —" in text
+    assert "SL: —" in text
+
+
+def test_my_trades_empty_state():
+    text = _build_main_text([], [], [])
+    assert "No open positions" in text
+
+
+def test_my_trades_header_emoji():
+    text = _build_main_text([], [], [])
+    assert "📈" in text
+
+
+# ---------------------------------------------------------------------------
+# Part 1 — Menu routes
+# ---------------------------------------------------------------------------
+
+from projects.polymarket.crusaderbot.bot.menus.main import MAIN_MENU_ROUTES, get_menu_route
+from projects.polymarket.crusaderbot.bot.handlers import settings as settings_handler
+from projects.polymarket.crusaderbot.bot.handlers import emergency
+
+
+def test_menu_routes_settings_registered():
+    handler = get_menu_route("⚙️ Settings")
+    assert handler is settings_handler.settings_hub_root
+
+
+def test_menu_routes_stop_bot_registered():
+    handler = get_menu_route("🛑 Stop Bot")
+    assert handler is emergency.emergency_root
+
+
+def test_menu_routes_wallet_not_registered():
+    handler = get_menu_route("💰 Wallet")
+    assert handler is None
+
+
+def test_menu_routes_emergency_not_registered():
+    handler = get_menu_route("🚨 Emergency")
+    assert handler is None

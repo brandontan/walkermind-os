@@ -124,7 +124,7 @@ _USAGE = (
 
 
 async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
-    """Build the Copy Wallet hub text and keyboard (hierarchy tree style)."""
+    """Build the signal feed hub text and keyboard (hierarchy tree style)."""
     from telegram import InlineKeyboardButton
     from ..keyboards import nav_row
 
@@ -154,7 +154,7 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
         avail_tree = "│   └── None available"
 
     text = (
-        "👥 Copy Wallet\n"
+        "📡 Signal Feeds\n"
         "│\n"
         "├── Status\n"
         f"│   └── {len(subs)} Following\n"

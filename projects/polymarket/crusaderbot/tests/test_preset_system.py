@@ -307,8 +307,8 @@ def test_show_preset_status_falls_back_to_picker_when_no_preset(monkeypatch):
     asyncio.run(presets_h.show_preset_status(
         update, ctx=SimpleNamespace(user_data={}),
     ))
-    # The picker text leads with "Auto-Trade Preset".
-    assert "AUTO MODE" in replies[0]  # updated: new premium UX header
+    # The picker text leads with "Auto Trade" (hierarchy tree header).
+    assert "Auto Trade" in replies[0]
 
 
 def test_show_preset_status_renders_running_card(monkeypatch):
@@ -323,10 +323,10 @@ def test_show_preset_status_renders_running_card(monkeypatch):
     ))
     text = replies[0]
     assert "Signal Sniper" in text
-    assert "RUNNING" in text
+    assert "Running" in text
     assert "$250.00" in text
     assert "$+12.50" in text
-    assert "Open positions : `2`" in text
+    assert "2 open" in text
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert "preset:pause" in cbs
@@ -342,7 +342,7 @@ def test_show_preset_status_renders_paused_card(monkeypatch):
     asyncio.run(presets_h.show_preset_status(
         update, ctx=SimpleNamespace(user_data={}),
     ))
-    assert "PAUSED" in replies[0]
+    assert "Paused" in replies[0]
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert "preset:resume" in cbs
@@ -506,7 +506,7 @@ def test_switch_yes_clears_preset_and_shows_picker(monkeypatch):
     set_auto.assert_awaited_once_with(uid, False)
     set_p.assert_awaited_once_with(uid, False)
     # Picker text was rendered after the switch.
-    assert any("AUTO MODE" in r for r in replies)  # updated: new premium UX header
+    assert any("Auto Trade" in r for r in replies)
 
 
 def test_stop_intent_shows_confirmation(monkeypatch):
