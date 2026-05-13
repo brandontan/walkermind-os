@@ -1,5 +1,5 @@
-Last Updated : 2026-05-12 23:58
-Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub open PRs = 0, open issues = 0. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-13 10:00
+Status       : WARP•FORGE live-execution-user-id-guards PR open. 4 position UPDATEs in close_position() hardened with AND user_id=$N. MAJOR tier — WARP•SENTINEL validation required before merge. Production PAPER ONLY.
 
 [COMPLETED]
 - Migration idempotency fix MERGED PR #1003 (2026-05-12). ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3. MAJOR, NARROW INTEGRATION.
@@ -15,8 +15,7 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- No open PR lanes in GitHub queue (open PRs = 0).
-- No open issue lanes in GitHub queue (open issues = 0).
+- live-execution-user-id-guards PR open. 4 position UPDATEs in close_position() hardened with AND user_id=$N. MAJOR, NARROW INTEGRATION. Awaiting WARP•SENTINEL validation.
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -29,13 +28,12 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 - Wire @require_access_tier('PREMIUM') onto trading command handlers as separate lane.
 - Seed boss user ADMIN tier row in user_tiers via /admin settier post-deploy.
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
-- Live execution path user_id guards: domain/execution/live.py has 4 position UPDATEs (lines 309, 328, 343, 361) missing AND user_id=$N. Deferred to WARP/live-execution-user-id-guards; required before ENABLE_LIVE_TRADING activation.
 
 [NEXT PRIORITY]
-- Closed beta observation / paper-mode runtime monitoring is the active next priority.
-- Maintain zero-PR / zero-issue queue posture unless WARP🔹CMD opens a new lane.
+- WARP•SENTINEL validation required for live-execution-user-id-guards before merge.
+- Source: projects/polymarket/crusaderbot/reports/forge/live-execution-user-id-guards.md
+- Tier: MAJOR
 - Keep production PAPER ONLY until explicit owner live activation decision.
-- If preparing for live activation, start WARP/live-execution-user-id-guards before flipping any activation guard.
 
 [KNOWN ISSUES]
 - /deposit has no tier gate; intentional and non-blocking.

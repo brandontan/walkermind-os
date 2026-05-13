@@ -1,3 +1,4 @@
+2026-05-13 10:00 | WARP/live-execution-user-id-guards | close_position() 4 position UPDATEs hardened with AND user_id=$N; TestUserIdGuards 5 tests; MAJOR, NARROW INTEGRATION; PR open awaiting WARP•SENTINEL
 2026-05-12 23:30 | WARP/fix-migration-idempotency | Fix migration crash loop: ON CONFLICT DO NOTHING for signal_feeds seeds (migrations 024/025); run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3; MAJOR, NARROW INTEGRATION; PR open awaiting WARP•SENTINEL
 2026-05-13 07:00 | WARP/FIX-SIGNAL-STALE-WINDOW | fix: SIGNAL_STALE_SECONDS 300→14400 — scanner dedup=2h vs staleness gate=300s caused all signals rejected stale_Ns; raise to 14400s (4h) matching SIGNAL_EXPIRY_HOURS; expires_at remains primary guard; MINOR, NARROW INTEGRATION; PR #1017 merged bfc34d066a01
 
