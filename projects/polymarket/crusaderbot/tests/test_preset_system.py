@@ -308,7 +308,7 @@ def test_show_preset_status_falls_back_to_picker_when_no_preset(monkeypatch):
         update, ctx=SimpleNamespace(user_data={}),
     ))
     # The picker text leads with "Auto-Trade Preset".
-    assert "Auto-Trade Preset" in replies[0]
+    assert "AUTO MODE" in replies[0]  # updated: new premium UX header
 
 
 def test_show_preset_status_renders_running_card(monkeypatch):
@@ -506,7 +506,7 @@ def test_switch_yes_clears_preset_and_shows_picker(monkeypatch):
     set_auto.assert_awaited_once_with(uid, False)
     set_p.assert_awaited_once_with(uid, False)
     # Picker text was rendered after the switch.
-    assert any("Auto-Trade Preset" in r for r in replies)
+    assert any("AUTO MODE" in r for r in replies)  # updated: new premium UX header
 
 
 def test_stop_intent_shows_confirmation(monkeypatch):

@@ -149,13 +149,16 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
     avail_block = "\n".join(avail_lines) if avail_lines else "No additional feeds available"
 
     text = (
-        "🧠 *Signals*\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        "📡 *Your Feeds*\n"
-        f"{sub_block}\n\n"
-        "📋 *Available Feeds*\n"
+        "📡 *SIGNALS*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"◈ *Active* · `{len(subs)}` feeds\n\n"
+        "▸ Subscribed\n"
+        f"{sub_block}\n"
+        "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n"
+        "▸ Available\n"
         f"{avail_block}\n\n"
-        f"ℹ️ Max {MAX_SUBSCRIPTIONS_PER_USER} active subscriptions"
+        f"Last sync: `now` WIB · Max `{MAX_SUBSCRIPTIONS_PER_USER}`\n"
+        "━━━━━━━━━━━━━━━━━━━━"
     )
 
     buttons: list[list[InlineKeyboardButton]] = []

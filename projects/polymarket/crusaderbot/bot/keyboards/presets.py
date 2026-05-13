@@ -11,7 +11,7 @@ def preset_picker() -> InlineKeyboardMarkup:
     """Render presets in a 2-column grid; recommended preset gets a ⭐ tag."""
     buttons = []
     for p in list_presets():
-        label = f"{p.emoji} {p.name}"
+        label = f"{p.emoji} {p.name} · {int(p.capital_pct * 100)}%"
         if p.key == RECOMMENDED_PRESET:
             label = f"{label} ⭐"
         buttons.append(InlineKeyboardButton(
