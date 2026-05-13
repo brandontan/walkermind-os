@@ -1,12 +1,12 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-13T14:16 WIB
+**Last Updated: 2026-05-13 17:10 WIB
 
 ---
 
 ## Right Now
-- WARP/CRUSADERBOT-MVP-UX-V1 PR open (2026-05-13). Hierarchy Tree Terminal UI rebuild — 11 files; awaiting WARP🔹CMD review.
+- WARP/CRUSADERBOT-MVP-UX-V1 PR open (2026-05-13). Hierarchy Tree Terminal UI rebuild + blocker fix pass (Signal Feeds contract restore, manual force-close hide, tests green); awaiting WARP🔹CMD re-review.
 - [x] crusaderbot-mvp-ux-v1 — Hierarchy Tree Terminal UI rebuild complete, PR open, STANDARD NARROW INTEGRATION
 - Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashboard v3, signals tap-hub, portfolio screen, nav_row, notifications utility.
 - [x] Telegram UX v3 MERGED PR #1024 — 7-button menu, dashboard v3, signals tap-hub, nav_row, notifications utility

@@ -411,7 +411,7 @@ CUSTOM_INPUT = 4
 
 _MENU_BUTTONS_CUSTOMIZE = {
     "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Trade",
-    "👥 Copy Wallet", "📊 Insights", "⚙️ Settings", "🛑 Stop Bot",
+    "📡 Signal Feeds", "📊 Insights", "⚙️ Settings", "🛑 Stop Bot",
 }
 
 

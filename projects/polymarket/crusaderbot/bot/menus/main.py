@@ -9,7 +9,7 @@ one-line change here.
 MVP UX v1 layout (hierarchy tree style):
 
   🏠 Dashboard   💼 Portfolio
-  🤖 Auto Trade  👥 Copy Wallet
+  🤖 Auto Trade  📡 Signal Feeds
   📊 Insights    ⚙️ Settings
   🛑 Stop Bot
 """
@@ -35,7 +35,7 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     "🏠 Dashboard":   dashboard.dashboard,
     "💼 Portfolio":   positions.show_portfolio,
     "🤖 Auto Trade":  presets.show_preset_picker,
-    "👥 Copy Wallet": signal_following.signals_command,
+    "📡 Signal Feeds": signal_following.signals_command,
     "📊 Insights":    pnl_insights_h.pnl_insights_command,
     "⚙️ Settings":    settings_handler.settings_hub_root,
     "🛑 Stop Bot":    emergency.emergency_root,

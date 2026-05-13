@@ -12,6 +12,7 @@ Rebuilt CrusaderBot Telegram UI from "Premium Hybrid Luxury" style (`━━━`,
 
 Scope: message template text + keyboard labels only. No callback_data values, routing logic, function signatures, DB queries, or execution paths were modified.
 
+11 handler/keyboard files changed (+ blocker follow-up relabel + force-close hide). 5 test files updated. 3 state files updated. 1 report created.
 11 handler/keyboard files changed. 5 test files updated to match new text/label assertions. 3 state files updated. 1 report created.
 
 ---
@@ -24,13 +25,13 @@ Telegram User
     ├── Reply Keyboard (ReplyKeyboardMarkup)
     │   └── bot/keyboards/__init__.py → main_menu()
     │       Labels: 🏠 Dashboard │ 💼 Portfolio │ 🤖 Auto Trade
-    │              👥 Copy Wallet │ 📊 Insights │ ⚙️ Settings │ 🛑 Stop Bot
+    │              📡 Signal Feeds │ 📊 Insights │ ⚙️ Settings │ 🛑 Stop Bot
     │
     ├── Message Handlers (bot/handlers/)
     │   ├── dashboard.py        → 🏠 Dashboard tree (Bot Status / Today / Auto Trade / Portfolio)
     │   ├── positions.py        → 💼 Portfolio + 📌 Open Positions tree
     │   ├── presets.py          → 🤖 Auto Trade wizard (picker/confirm/status/customize)
-    │   ├── signal_following.py → 👥 Copy Wallet menu entry; screen shows Signal Feeds hub
+    │   ├── signal_following.py → 📡 Signal Feeds menu entry; screen shows signal feed hub
     │   ├── settings.py         → ⚙️ Settings hub tree (Account / Mode / Tier)
     │   └── onboarding.py       → 🚀 Quick Start tree
     │
@@ -110,8 +111,8 @@ Pipeline layers (untouched): STRATEGY → RISK → EXECUTION → MONITORING.
 - `pnl_insights.py`, `copy_trade.py`, `portfolio_chart.py` still contain `━━━` — out of scope for this lane. Separate cleanup lane required.
 - Help (`/help`) and Markets screens deferred — adding them requires new callback routing registrations (not UI-only).
 - `_LIVE_REDIRECT_TEXT` in `onboarding.py` not updated (single-line redirect, no tree structure applicable).
-- `positions_list_kb()` retains existing `🛑 Force Close` buttons from original implementation. These are pre-existing safety/admin controls, not trade entry CTAs. No new manual execution CTA was added in this lane.
-- `👥 Copy Wallet` menu label applied per blueprint. Underlying screen (`_build_signals_screen`) displays signal feed subscriptions under the header "📡 Signal Feeds". Wallet address mirroring functionality is deferred to a separate lane and requires storage/routing changes outside this UI-only scope.
+- `positions_list_kb()` retains existing `🛑 Force Close` buttons from original implementation. These are pre-existing safety/admin controls, not trade entry CTAs. Manual force-close CTA is now hidden from portfolio keyboard in this lane; confirm callbacks remain internal/admin-capable.
+- Main menu/route label now uses `📡 Signal Feeds` to match actual signal-subscription behavior. Wallet address mirroring remains deferred to a separate lane requiring storage/routing changes.
 
 ---
 

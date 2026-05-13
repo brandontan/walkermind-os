@@ -1,5 +1,5 @@
-Last Updated : 2026-05-13 18:30 WIB
-Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — PR #1029 under WARP🔹CMD gate review, CI fixes in progress. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-13 17:10 WIB
+Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — PR #1029 blocker fixes pushed (Signal Feeds relabel + force-close hide + tests green), awaiting WARP🔹CMD re-review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
 - Premium UX v4 (Hybrid Luxury) — PR #1026 merged bd8fe42d
@@ -17,7 +17,7 @@ Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — PR #1029 under WARP�
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- crusaderbot-mvp-ux-v1: Hierarchy Tree Terminal UI rebuild; PR #1029 open, gate review NEEDS FIX — CI fixes pushed, awaiting re-review. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-ux-v1.md
+- crusaderbot-mvp-ux-v1: Hierarchy Tree Terminal UI rebuild; PR #1029 open, gate review blockers addressed — Signal Feeds route contract aligned, manual force-close surface hidden, targeted tests passing; awaiting re-review. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-ux-v1.md
 - relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Observation / runtime monitoring remains active in paper mode.
