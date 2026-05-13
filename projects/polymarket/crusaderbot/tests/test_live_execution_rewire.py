@@ -492,6 +492,99 @@ def _run_close(
         )
 
 
+class _TrackingConn(FakeConn):
+    """FakeConn that records all fetchval calls for SQL/param inspection."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.fetchval_calls: list[tuple[str, tuple]] = []
+
+    async def fetchval(self, query: str, *args: Any) -> Any:
+        self.fetchval_calls.append((query, args))
+        return await super().fetchval(query, *args)
+
+
+# ---------------------------------------------------------------------------
+# user_id guards
+# ---------------------------------------------------------------------------
+
+class TestUserIdGuards:
+    """All position UPDATE statements must bind user_id to block cross-user writes."""
+
+    def test_claim_sql_contains_user_id(self) -> None:
+        conn = _TrackingConn(close_claim=POSITION_ID, close_finalize=POSITION_ID)
+        s = _settings()
+        client = MockClobClient()
+        _run_close(conn, s, client)
+        claim_calls = [
+            (q, a) for q, a in conn.fetchval_calls
+            if "status='closing'" in q and "RETURNING" in q
+        ]
+        assert claim_calls, "claim fetchval not found"
+        query, args = claim_calls[0]
+        assert "user_id" in query
+        assert USER_ID in args
+
+    def test_finalize_sql_contains_user_id(self) -> None:
+        conn = _TrackingConn(close_claim=POSITION_ID, close_finalize=POSITION_ID)
+        s = _settings()
+        client = MockClobClient()
+        _run_close(conn, s, client)
+        finalize_calls = [
+            (q, a) for q, a in conn.fetchval_calls
+            if "status='closed'" in q and "RETURNING" in q
+        ]
+        assert finalize_calls, "finalize fetchval not found"
+        query, args = finalize_calls[0]
+        assert "user_id" in query
+        assert USER_ID in args
+
+    def test_rollback_on_submit_failure_contains_user_id(self) -> None:
+        conn = FakeConn(close_claim=POSITION_ID, close_finalize=POSITION_ID)
+        s = _settings()
+        bad_client = AsyncMock()
+        bad_client.post_order = AsyncMock(side_effect=RuntimeError("net fail"))
+        with pytest.raises(RuntimeError, match="net fail"):
+            _run_close(conn, s, bad_client)
+        rollback = [(q, a) for q, a in conn.executed if "status='open'" in q]
+        assert rollback, "rollback execute not found"
+        query, args = rollback[0]
+        assert "user_id" in query
+        assert USER_ID in args
+
+    def test_rollback_on_config_error_contains_user_id(self) -> None:
+        conn = FakeConn(close_claim=POSITION_ID, close_finalize=POSITION_ID)
+        s = _settings()
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.domain.execution.live.get_clob_client",
+                side_effect=ClobConfigError("missing creds"),
+            ),
+            pytest.raises(RuntimeError, match="CLOB client error during close"),
+        ):
+            _run_close(conn, s, client=None)
+        rollback = [(q, a) for q, a in conn.executed if "status='open'" in q]
+        assert rollback, "config-error rollback execute not found"
+        query, args = rollback[0]
+        assert "user_id" in query
+        assert USER_ID in args
+
+    def test_cross_user_claim_blocked_no_sell_submitted(self) -> None:
+        """DB user_id mismatch returns None from claim → no SELL submitted."""
+        other_user = uuid4()
+        cross_pos = {**_POSITION, "user_id": other_user}
+        conn = FakeConn(close_claim=None)
+        s = _settings()
+        client = MockClobClient()
+        result = _run_close(conn, s, client, position=cross_pos)
+        assert result["exit_reason"] == "already_closed"
+        assert client.open_orders() == []
+
+
+# ---------------------------------------------------------------------------
+# close_position
+# ---------------------------------------------------------------------------
+
 class TestClosePosition:
     def test_close_submits_sell_via_clob_client(self) -> None:
         conn = FakeConn(
