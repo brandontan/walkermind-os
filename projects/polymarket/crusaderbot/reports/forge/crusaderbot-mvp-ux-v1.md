@@ -12,7 +12,7 @@ Rebuilt CrusaderBot Telegram UI from "Premium Hybrid Luxury" style (`━━━`,
 
 Scope: message template text + keyboard labels only. No callback_data values, routing logic, function signatures, DB queries, or execution paths were modified.
 
-11 handler/keyboard files changed. 4 test files updated to match new text/label assertions. 3 state files updated. 1 report created.
+11 handler/keyboard files changed. 5 test files updated to match new text/label assertions. 3 state files updated. 1 report created.
 
 ---
 
@@ -65,7 +65,7 @@ Pipeline layers (untouched): STRATEGY → RISK → EXECUTION → MONITORING.
 | `projects/polymarket/crusaderbot/bot/keyboards/settings.py` | `↩️ Back to Settings` → `⬅ Back`; `Custom` → `✏️ Custom` |
 | `projects/polymarket/crusaderbot/bot/handlers/onboarding.py` | `_WELCOME_TEXT` + `_PAPER_COMPLETE_TEXT` → tree format |
 
-### Test files updated (4)
+### Test files updated (5)
 
 | File | Change |
 |------|--------|
@@ -74,6 +74,7 @@ Pipeline layers (untouched): STRATEGY → RISK → EXECUTION → MONITORING.
 | `projects/polymarket/crusaderbot/tests/test_phase5i_my_trades.py` | Route key updated |
 | `projects/polymarket/crusaderbot/tests/test_phase5h_onboarding.py` | Onboarding confirmation text updated |
 | `projects/polymarket/crusaderbot/tests/test_preset_system.py` | Status card assertions updated for tree format |
+| `projects/polymarket/crusaderbot/tests/test_positions_handler.py` | Portfolio keyboard coverage updated for Back/Home nav footer row |
 
 ### State / report files (4)
 
@@ -129,7 +130,7 @@ Pipeline layers (untouched): STRATEGY → RISK → EXECUTION → MONITORING.
 Validation Tier   : STANDARD
 Claim Level       : NARROW INTEGRATION — Telegram UI text + keyboard labels only
 Validation Target : bot/handlers/ and bot/keyboards/ message templates and keyboard labels (11 files)
-                    + test assertions updated to match new text format (4 test files)
+                    + test assertions updated to match new text format (5 test files)
 Not in Scope      : callback_data values, routing logic, DB, execution, risk, migrations, fly.toml,
                     pnl_insights.py, copy_trade.py, portfolio_chart.py (out-of-scope prohibited chars),
                     help.py, markets.py (deferred — require routing changes),
