@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 import re
 
-from telegram import Update
+from telegram import InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
@@ -123,38 +123,96 @@ _USAGE = (
 )
 
 
+async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
+    """Build the tap-based signals hub text and keyboard."""
+    from telegram import InlineKeyboardButton
+    from ..keyboards import nav_row
+
+    subs = await list_user_subscriptions(user_id)
+    all_feeds = await list_active_feeds()
+    subbed_slugs = {s["feed_slug"] for s in subs}
+
+    sub_lines: list[str] = []
+    for s in subs:
+        sub_lines.append(
+            f"✅ {_escape_md(s['feed_name'])} [{s['feed_slug']}]"
+        )
+
+    avail_lines: list[str] = []
+    for f in all_feeds:
+        if f["slug"] not in subbed_slugs:
+            avail_lines.append(
+                f"○ {_escape_md(f['name'])} — {f['subscriber_count']} subs"
+            )
+
+    sub_block = "\n".join(sub_lines) if sub_lines else "No active feeds yet"
+    avail_block = "\n".join(avail_lines) if avail_lines else "No additional feeds available"
+
+    text = (
+        "🧠 *Signals*\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "📡 *Your Feeds*\n"
+        f"{sub_block}\n\n"
+        "📋 *Available Feeds*\n"
+        f"{avail_block}\n\n"
+        f"ℹ️ Max {MAX_SUBSCRIPTIONS_PER_USER} active subscriptions"
+    )
+
+    buttons: list[list[InlineKeyboardButton]] = []
+    for f in all_feeds:
+        subscribed = f["slug"] in subbed_slugs
+        label = f"{'✅' if subscribed else '➕'} {f['name']}"
+        buttons.append([InlineKeyboardButton(
+            label, callback_data=f"signals:toggle:{f['slug']}"
+        )])
+    buttons.append(nav_row("dashboard:main"))
+    return text, InlineKeyboardMarkup(buttons)
+
+
 async def signals_command(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Top-level /signals dispatcher.
+    """Top-level /signals entry — tap-based inline UI.
 
-    Tier 2 gate runs once at the entry-point so every sub-command inherits it.
+    No-arg invocation (reply keyboard or /signals) renders the feed toggle
+    hub. Sub-command args (list / catalog / on / off) kept for backward compat.
     """
-    if update.message is None:
-        return
     user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
     if not ok or user is None:
         return
 
     args = ctx.args or []
-    if not args:
+
+    # Sub-command backward compat
+    if args:
+        if update.message is None:
+            return
+        sub = args[0].lower()
+        if sub == "list":
+            await _handle_list(update, user["id"])
+            return
+        if sub == "catalog":
+            await _handle_catalog(update)
+            return
+        if sub == "on":
+            await _handle_on(update, user["id"], args[1:])
+            return
+        if sub == "off":
+            await _handle_off(update, user["id"], args[1:])
+            return
         await update.message.reply_text(_USAGE, parse_mode=ParseMode.MARKDOWN)
         return
 
-    sub = args[0].lower()
-    if sub == "list":
-        await _handle_list(update, user["id"])
-        return
-    if sub == "catalog":
-        await _handle_catalog(update)
-        return
-    if sub == "on":
-        await _handle_on(update, user["id"], args[1:])
-        return
-    if sub == "off":
-        await _handle_off(update, user["id"], args[1:])
-        return
-    await update.message.reply_text(_USAGE, parse_mode=ParseMode.MARKDOWN)
+    # No args — render inline feed toggle hub
+    text, kb = await _build_signals_screen(user["id"])
+    if update.callback_query is not None:
+        await update.callback_query.message.reply_text(
+            text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb,
+        )
+    elif update.message is not None:
+        await update.message.reply_text(
+            text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -315,7 +373,7 @@ async def _handle_off(update: Update, user_id, args: list[str]) -> None:
 async def signals_callback(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Handle the [\U0001F6D1 Off] inline-keyboard button on the list view."""
+    """Handle all signals:* inline-keyboard callbacks."""
     q = update.callback_query
     if q is None:
         return
@@ -326,26 +384,67 @@ async def signals_callback(
 
     data = q.data or ""
     parts = data.split(":", 2)
-    if len(parts) != 3 or parts[1] != "off":
+
+    # signals:main / signals:catalog — re-render the hub
+    if len(parts) >= 2 and parts[1] in ("main", "catalog"):
+        text, kb = await _build_signals_screen(user["id"])
+        await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
         return
-    slug = _normalise_slug(parts[2])
-    if slug is None:
+
+    # signals:toggle:<slug> — subscribe/unsubscribe inline
+    if len(parts) == 3 and parts[1] == "toggle":
+        slug = _normalise_slug(parts[2])
+        if slug is None:
+            return
+        feed = await get_feed_by_slug(slug)
+        if feed is None:
+            await q.answer("Feed not found.", show_alert=True)
+            return
+        subs = await list_user_subscriptions(user["id"])
+        subbed_slugs = {s["feed_slug"] for s in subs}
+        if slug in subbed_slugs:
+            flipped = await unsubscribe(user_id=user["id"], feed_id=feed["id"])
+            if flipped:
+                await q.answer(f"Unsubscribed from {feed['name']}", show_alert=False)
+        else:
+            result = await subscribe(user_id=user["id"], feed_id=feed["id"])
+            if result == "cap_exceeded":
+                await q.answer(
+                    f"You have {MAX_SUBSCRIPTIONS_PER_USER} active feeds — "
+                    "turn one off before adding another.",
+                    show_alert=True,
+                )
+                return
+            elif result == "feed_inactive":
+                await q.answer("This feed is paused. Try another one.", show_alert=True)
+                return
+            else:
+                await q.answer(f"Subscribed to {feed['name']}", show_alert=False)
+        # Re-render hub inline after toggle
+        text, kb = await _build_signals_screen(user["id"])
+        await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
         return
-    feed = await get_feed_by_slug(slug)
-    if feed is None:
-        await q.message.reply_text(
-            f"No feed `{slug}`.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-    flipped = await unsubscribe(user_id=user["id"], feed_id=feed["id"])
-    if flipped:
-        await q.message.reply_text(
-            f"\U0001F6D1 Unsubscribed from `{slug}`.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    else:
-        await q.message.reply_text(
-            f"No active subscription to `{slug}`.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
+
+    # signals:off:<slug> — backward compat alias
+    if len(parts) == 3 and parts[1] == "off":
+        slug = _normalise_slug(parts[2])
+        if slug is None:
+            return
+        feed = await get_feed_by_slug(slug)
+        if feed is None:
+            await q.message.reply_text(
+                f"No feed `{slug}`.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        flipped = await unsubscribe(user_id=user["id"], feed_id=feed["id"])
+        if flipped:
+            await q.message.reply_text(
+                f"\U0001F6D1 Unsubscribed from `{slug}`.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        else:
+            await q.message.reply_text(
+                f"No active subscription to `{slug}`.",
+                parse_mode=ParseMode.MARKDOWN,
+            )

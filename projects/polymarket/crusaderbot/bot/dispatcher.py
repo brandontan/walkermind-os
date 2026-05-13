@@ -62,6 +62,13 @@ async def _text_router(update, ctx):
         return
 
 
+async def _noop_refresh_cb(update, ctx) -> None:
+    """noop:refresh — silently acknowledge; caller re-renders if needed."""
+    q = update.callback_query
+    if q:
+        await q.answer()
+
+
 async def _global_error_handler(update: object, ctx) -> None:
     logger.error("unhandled bot error: %s", ctx.error, exc_info=ctx.error)
 
@@ -193,6 +200,20 @@ def register(app: Application) -> None:
     # Onboarding polish — View Dashboard button after paper activation.
     app.add_handler(CallbackQueryHandler(onboarding.view_dashboard_cb,
                                          pattern=r"^onboard:view_dashboard$"))
+    # Onboarding v3 — Settings shortcut from welcome screen.
+    app.add_handler(CallbackQueryHandler(onboarding.onboard_settings_cb,
+                                         pattern=r"^onboard:settings$"))
+
+    # v3 — Portfolio surface callbacks.
+    app.add_handler(CallbackQueryHandler(positions.portfolio_callback,
+                                         pattern=r"^portfolio:"))
+
+    # v3 — My Trades trade-detail card (from fill notifications).
+    app.add_handler(CallbackQueryHandler(my_trades_h.trade_detail_cb,
+                                         pattern=r"^mytrades:open:"))
+
+    # v3 — noop:refresh — re-answers silently; screen stays as-is.
+    app.add_handler(CallbackQueryHandler(_noop_refresh_cb, pattern=r"^noop:"))
 
     # Free text — must be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))

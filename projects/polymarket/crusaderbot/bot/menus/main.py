@@ -6,15 +6,12 @@ text router consumes. Centralising the mapping keeps button registration
 and handler wiring in one place: adding a new top-level menu surface is a
 one-line change here.
 
-UX Overhaul layout:
+Premium UX v3 layout:
 
-  📊 Dashboard   📈 My Trades
-  🤖 Auto-Trade  🐋 Copy Trade
-  ⚙️ Settings    🛑 Stop Bot
-
-Settings = hub for Wallet + TP/SL + Capital + Risk + Notifications + Mode.
-Copy Trade promoted to top-level (was nested inside Auto-Trade in earlier phases).
-Emergency renamed to "🛑 Stop Bot".
+  📊 Dashboard   💼 Portfolio
+  🤖 Auto Mode   🧠 Signals
+  📊 Insights    ⚙️ Settings
+  🛑 Stop Bot
 """
 from __future__ import annotations
 
@@ -24,8 +21,10 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    copy_trade, dashboard, emergency, my_trades as my_trades_h,
-    settings as settings_handler, setup,
+    dashboard, emergency, positions,
+    pnl_insights as pnl_insights_h,
+    presets, settings as settings_handler,
+    signal_following,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
@@ -34,9 +33,10 @@ HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 # Order mirrors keyboards.main_menu() rows for easy diffing.
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     "📊 Dashboard":  dashboard.dashboard,
-    "📈 My Trades":  my_trades_h.my_trades,
-    "🤖 Auto-Trade": setup.setup_root,
-    "🐋 Copy Trade": copy_trade.menu_copytrade_handler,
+    "💼 Portfolio":  positions.show_portfolio,
+    "🤖 Auto Mode":  presets.show_preset_picker,
+    "🧠 Signals":    signal_following.signals_command,
+    "📊 Insights":   pnl_insights_h.pnl_insights_command,
     "⚙️ Settings":   settings_handler.settings_hub_root,
     "🛑 Stop Bot":   emergency.emergency_root,
 }

@@ -6,17 +6,33 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from . import grid_rows
 
 
-def settings_hub_kb() -> InlineKeyboardMarkup:
-    """Root Settings hub — replaces old auto-redeem-only surface."""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("💰 Wallet",              callback_data="settings:wallet")],
-        [InlineKeyboardButton("🎯 TP / SL",             callback_data="settings:tpsl")],
-        [InlineKeyboardButton("💵 Capital Allocation",  callback_data="settings:capital")],
-        [InlineKeyboardButton("⚖️ Risk Profile",        callback_data="settings:risk")],
-        [InlineKeyboardButton("🔔 Notifications",       callback_data="settings:notifications")],
-        [InlineKeyboardButton("📄 Mode (Paper/Live)",   callback_data="settings:mode")],
-        [InlineKeyboardButton("↩️ Back to Main Menu",   callback_data="settings:back")],
+def settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
+    """Root Settings hub v3 layout."""
+    rows = [
+        [
+            InlineKeyboardButton("👤 Profile",        callback_data="settings:profile"),
+            InlineKeyboardButton("🔔 Notifications",  callback_data="settings:notifications"),
+        ],
+        [
+            InlineKeyboardButton("🛡️ Risk",           callback_data="settings:risk"),
+            InlineKeyboardButton("👛 Wallet",          callback_data="settings:wallet"),
+        ],
+        [
+            InlineKeyboardButton("👑 Premium",         callback_data="settings:premium"),
+            InlineKeyboardButton("🎁 Referrals",       callback_data="settings:referrals"),
+        ],
+        [
+            InlineKeyboardButton("🏥 Health",          callback_data="settings:health"),
+            InlineKeyboardButton("🔐 Live Gate",       callback_data="settings:live_gate"),
+        ],
+    ]
+    if is_admin:
+        rows.append([InlineKeyboardButton("🧭 Admin", callback_data="settings:admin")])
+    rows.append([
+        InlineKeyboardButton("⬅️ Back", callback_data="settings:back"),
+        InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
     ])
+    return InlineKeyboardMarkup(rows)
 
 
 def tp_preset_kb(current_tp: float | None) -> InlineKeyboardMarkup:

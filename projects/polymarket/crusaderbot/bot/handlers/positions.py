@@ -37,9 +37,13 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
+from decimal import Decimal
+
 from ...database import get_pool
 from ...integrations.polymarket import get_book
-from ...users import upsert_user
+from ...users import get_settings_for, upsert_user
+from ...wallet.ledger import daily_pnl, get_balance
+from ..keyboards import main_menu, portfolio_kb
 from ..keyboards.positions import force_close_confirm_kb, positions_list_kb
 from ..tier import Tier, has_tier, tier_block_message
 from .emergency import mark_force_close_intent_for_position
@@ -153,6 +157,99 @@ async def _load_open_positions(user_id) -> list[dict]:
             user_id,
         )
     return [dict(r) for r in rows]
+
+
+def _pnl_fmt(val: Decimal) -> str:
+    sign = "+" if val >= 0 else ""
+    return f"{sign}${val:.2f}"
+
+
+async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Portfolio overview screen — handles both message and callback paths."""
+    is_cb = update.callback_query is not None
+    if is_cb:
+        q = update.callback_query
+        await q.answer()
+
+    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    if not ok:
+        return
+    if not is_cb and update.message is None:
+        return
+
+    from .dashboard import _fetch_stats
+    bal = await get_balance(user["id"])
+    pnl_today = await daily_pnl(user["id"])
+    st = await _fetch_stats(user["id"])
+    s = await get_settings_for(user["id"])
+
+    equity = bal + st["positions_value"]
+    max_pos_pct = float(s.get("capital_alloc_pct") or 0.1)
+    open_count = st["winning"] + st["losing"]
+    mode_label = "🔴 LIVE" if st["trading_mode"] == "live" else "🟡 PAPER"
+
+    text = (
+        "💼 *Portfolio*\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "🛡️ *Account*\n"
+        f"├── Mode: {mode_label}\n"
+        f"├── Cash: ${bal:.2f}\n"
+        f"├── Positions: ${st['positions_value']:.2f}\n"
+        f"└── Equity: ${equity:.2f}\n\n"
+        "💰 *Performance*\n"
+        f"├── Today: {_pnl_fmt(pnl_today)}\n"
+        f"├── 7D: {_pnl_fmt(st['pnl_7d'])}\n"
+        f"├── 30D: {_pnl_fmt(st['pnl_30d'])}\n"
+        f"└── All-Time: {_pnl_fmt(st['pnl_all'])}\n\n"
+        "📈 *Exposure*\n"
+        f"├── Open Trades: {open_count}\n"
+        f"├── Max Position: {max_pos_pct:.0%}\n"
+        "└── Risk Guard: 🟢 Active"
+    )
+
+    if is_cb:
+        await update.callback_query.message.reply_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=portfolio_kb(),
+        )
+    else:
+        await update.message.reply_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=portfolio_kb(),
+        )
+
+
+async def portfolio_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle portfolio:* callbacks from the Portfolio screen keyboard."""
+    q = update.callback_query
+    if q is None:
+        return
+    await q.answer()
+    sub = (q.data or "").split(":", 1)[-1]
+
+    if sub == "positions":
+        await show_positions(update, ctx)
+        return
+
+    if sub == "chart":
+        from .portfolio_chart import chart_command
+        await chart_command(update, ctx)
+        return
+
+    if sub == "insights":
+        from .pnl_insights import pnl_insights_command
+        await pnl_insights_command(update, ctx)
+        return
+
+    if sub == "trades":
+        from .my_trades import my_trades
+        await my_trades(update, ctx)
+        return
+
+    # portfolio:portfolio — fallback to portfolio screen itself
+    await show_portfolio(update, ctx)
 
 
 async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

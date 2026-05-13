@@ -33,6 +33,7 @@ from telegram.ext import ContextTypes
 
 from ...users import get_settings_for, update_settings, upsert_user
 from ...wallet.ledger import get_balance
+from ...config import get_settings as get_app_settings
 from ..keyboards import risk_picker, setup_menu
 from ..keyboards.settings import (
     autoredeem_settings_picker,
@@ -47,11 +48,18 @@ from ..tier import Tier, has_tier, tier_block_message
 
 logger = logging.getLogger(__name__)
 
-_HUB_TEXT = (
-    "*⚙️ Settings*\n"
-    "──────────────────\n"
-    "Configure your bot preferences."
-)
+def _hub_text(mode: str, tier: int) -> str:
+    mode_label = "🔴 LIVE" if mode == "live" else "🟡 PAPER"
+    tier_labels = {1: "Guest", 2: "Allowlisted", 3: "Funded", 4: "Premium"}
+    tier_label = tier_labels.get(tier, f"Tier {tier}")
+    return (
+        "*⚙️ Settings*\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "👤 *Profile*\n"
+        f"├── Mode: {mode_label}\n"
+        f"└── Tier: {tier_label}\n\n"
+        "Configure your trading preferences."
+    )
 
 
 def _tp_step_text(current_tp: float | None) -> str:
@@ -96,16 +104,34 @@ async def _ensure(update: Update) -> tuple[dict | None, bool]:
     return user, True
 
 
+async def _render_hub(update: Update, user: dict) -> None:
+    """Shared hub render — handles message and callback surfaces."""
+    s = await get_settings_for(user["id"])
+    mode = s.get("trading_mode", "paper")
+    tier = user.get("access_tier", 2)
+    operator_id = get_app_settings().OPERATOR_CHAT_ID
+    is_admin = (
+        update.effective_user is not None
+        and update.effective_user.id == operator_id
+    )
+    text = _hub_text(mode, tier)
+    kb = settings_hub_kb(is_admin=is_admin)
+    if update.callback_query is not None:
+        await update.callback_query.message.reply_text(
+            text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb,
+        )
+    elif update.message is not None:
+        await update.message.reply_text(
+            text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb,
+        )
+
+
 async def settings_hub_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """⚙️ Settings reply-keyboard button → render Settings hub."""
     user, ok = await _ensure(update)
-    if not ok or update.message is None:
+    if not ok:
         return
-    await update.message.reply_text(
-        _HUB_TEXT,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=settings_hub_kb(),
-    )
+    await _render_hub(update, user)
 
 
 async def settings_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -113,11 +139,7 @@ async def settings_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user, ok = await _ensure(update)
     if not ok or update.message is None:
         return
-    await update.message.reply_text(
-        _HUB_TEXT,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=settings_hub_kb(),
-    )
+    await _render_hub(update, user)
 
 
 async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -132,11 +154,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
 
     # --- Hub re-render ---
     if data in ("settings:hub", "settings:menu"):
-        await q.message.edit_text(
-            _HUB_TEXT,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=settings_hub_kb(),
-        )
+        await _render_hub(update, user)
         return
 
     # --- Back to main menu ---
@@ -145,6 +163,57 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         await q.message.reply_text(
             "Main menu:", reply_markup=main_menu()
         )
+        return
+
+    # --- Profile stub ---
+    if data == "settings:profile":
+        s = await get_settings_for(user["id"])
+        mode = s.get("trading_mode", "paper")
+        tier = user.get("access_tier", 2)
+        tier_labels = {1: "Guest", 2: "Allowlisted", 3: "Funded", 4: "Premium"}
+        await q.message.reply_text(
+            f"*👤 Profile*\n\nMode: {'🔴 LIVE' if mode == 'live' else '🟡 PAPER'}\n"
+            f"Tier: {tier_labels.get(tier, f'Tier {tier}')}",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=settings_hub_kb(),
+        )
+        return
+
+    # --- Premium stub ---
+    if data == "settings:premium":
+        await q.message.reply_text(
+            "*👑 Premium*\n\nPremium features coming soon.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=settings_hub_kb(),
+        )
+        return
+
+    # --- Referrals ---
+    if data == "settings:referrals":
+        from .referral import referral_command
+        await referral_command(update, ctx)
+        return
+
+    # --- Health ---
+    if data == "settings:health":
+        from .health import health_command
+        await health_command(update, ctx)
+        return
+
+    # --- Live Gate ---
+    if data == "settings:live_gate":
+        from .live_gate import enable_live_command
+        await enable_live_command(update, ctx)
+        return
+
+    # --- Admin (operator only) ---
+    if data == "settings:admin":
+        operator_id = get_app_settings().OPERATOR_CHAT_ID
+        if update.effective_user is None or update.effective_user.id != operator_id:
+            await q.answer("Admin access required.", show_alert=True)
+            return
+        from .admin import admin_root
+        await admin_root(update, ctx)
         return
 
     # --- Wallet surface ---

@@ -33,14 +33,17 @@ ONBOARD_WELCOME = 0
 ONBOARD_MODE = 1
 
 _WELCOME_TEXT = (
-    "⚔️ *Welcome to CrusaderBot*\n"
-    "Your autonomous Polymarket trading companion\\.\n"
-    "──────────────────\n"
-    "🔍 Scans markets 24/7\n"
-    "📊 Executes trades automatically\n"
-    "🛡️ Risk controls built\\-in\n"
-    "──────────────────\n"
-    "Let's get you set up\\."
+    "🛡️ *Welcome to CrusaderBot*\n"
+    "━━━━━━━━━━━━━━━━━━\n\n"
+    "Trade prediction markets with controlled risk\\.\n\n"
+    "🟡 *Current Mode*\n"
+    "├── PAPER only\n"
+    "├── \\$1,000 demo capital\n"
+    "└── Live trading locked\n\n"
+    "🚀 *Setup*\n"
+    "├── Choose risk preset\n"
+    "├── Enable paper auto\\-trade\n"
+    "└── Start signal following"
 )
 
 _MODE_TEXT = (
@@ -196,6 +199,16 @@ async def view_dashboard_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     await q.answer()
     from .dashboard import show_dashboard_for_cb
     await show_dashboard_for_cb(update, ctx)
+
+
+async def onboard_settings_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Route ⚙️ Settings button from onboarding welcome screen."""
+    q = update.callback_query
+    if q is None:
+        return
+    await q.answer()
+    from .settings import settings_hub_root
+    await settings_hub_root(update, ctx)
 
 
 # ---------------------------------------------------------------------------

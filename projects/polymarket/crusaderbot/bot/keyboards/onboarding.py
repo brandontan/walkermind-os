@@ -5,9 +5,11 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def get_started_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("🚀 Get Started", callback_data="onboard:get_started"),
-    ]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 Get Started",          callback_data="onboard:get_started")],
+        [InlineKeyboardButton("📊 View Demo Dashboard",  callback_data="onboard:view_dashboard")],
+        [InlineKeyboardButton("⚙️ Settings",             callback_data="onboard:settings")],
+    ])
 
 
 def mode_select_kb() -> InlineKeyboardMarkup:

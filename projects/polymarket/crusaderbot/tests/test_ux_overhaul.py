@@ -52,7 +52,7 @@ from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 def test_main_menu_button_count():
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 6
+    assert len(all_buttons) == 7
 
 
 def test_main_menu_has_settings_not_wallet():
@@ -69,12 +69,12 @@ def test_main_menu_has_stop_bot_not_emergency():
     assert "🚨 Emergency" not in labels
 
 
-def test_main_menu_copytrade_top_row():
+def test_main_menu_v3_second_row():
     kb = main_menu()
-    # Second row should have Auto-Trade and Copy Trade
+    # v3: second row is Auto Mode + Signals
     row2 = [btn.text for btn in kb.keyboard[1]]
-    assert "🤖 Auto-Trade" in row2
-    assert "🐋 Copy Trade" in row2
+    assert "🤖 Auto Mode" in row2
+    assert "🧠 Signals" in row2
 
 
 # ---------------------------------------------------------------------------
@@ -309,16 +309,16 @@ def test_settings_hub_has_wallet():
     assert "settings:wallet" in data
 
 
-def test_settings_hub_has_tpsl():
+def test_settings_hub_has_profile():
     kb = settings_hub_kb()
     data = _cb_data(kb)
-    assert "settings:tpsl" in data
+    assert "settings:profile" in data
 
 
-def test_settings_hub_has_capital():
+def test_settings_hub_has_notifications():
     kb = settings_hub_kb()
     data = _cb_data(kb)
-    assert "settings:capital" in data
+    assert "settings:notifications" in data
 
 
 def test_settings_hub_has_risk():
@@ -327,10 +327,10 @@ def test_settings_hub_has_risk():
     assert "settings:risk" in data
 
 
-def test_settings_hub_has_mode():
+def test_settings_hub_has_live_gate():
     kb = settings_hub_kb()
     data = _cb_data(kb)
-    assert "settings:mode" in data
+    assert "settings:live_gate" in data
 
 
 def test_settings_hub_has_back():
