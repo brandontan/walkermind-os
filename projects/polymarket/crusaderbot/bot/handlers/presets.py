@@ -71,9 +71,14 @@ async def _reply(update: Update, text: str, **kw) -> None:
 # ---------------------------------------------------------------------------
 
 def _preset_picker_text() -> str:
-    lines = ["*🤖 Auto-Trade Preset*\n",
-             "Pick a preset to bundle strategy + risk + sizing in one tap."
-             " ⭐ marks the recommended starting preset.\n"]
+    lines = ["🤖 *AUTO MODE*\n"
+             "━━━━━━━━━━━━━━━━━━━━\n"
+             "◈ *Strategy* Presets\n\n"
+             "Choose a preset to activate\n"
+             "autonomous trading execution.\n"
+             "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n"
+             "⚠️ Paper mode — no real capital\n"
+             "━━━━━━━━━━━━━━━━━━━━\n"]
     for p in list_presets():
         lines.append(
             f"{p.emoji} *{p.name}* ({p.badge.value})\n"

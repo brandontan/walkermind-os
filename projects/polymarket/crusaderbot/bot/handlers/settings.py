@@ -53,12 +53,15 @@ def _hub_text(mode: str, tier: int) -> str:
     tier_labels = {1: "Guest", 2: "Allowlisted", 3: "Funded", 4: "Premium"}
     tier_label = tier_labels.get(tier, f"Tier {tier}")
     return (
-        "*⚙️ Settings*\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        "👤 *Profile*\n"
-        f"├── Mode: {mode_label}\n"
-        f"└── Tier: {tier_label}\n\n"
-        "Configure your trading preferences."
+        "⚙️ *SETTINGS*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "◈ *Configure* CrusaderBot\n\n"
+        f"▸ Mode     `{mode_label}`\n"
+        f"▸ Tier     `{tier_label}`\n"
+        "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n"
+        "Manage preferences, risk controls,\n"
+        "and account setup.\n"
+        "━━━━━━━━━━━━━━━━━━━━"
     )
 
 
