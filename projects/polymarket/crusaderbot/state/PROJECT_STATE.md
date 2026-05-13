@@ -1,4 +1,4 @@
-Last Updated : 2026-05-13 09:33 WIB
+Last Updated : 2026-05-13 10:13 WIB
 Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub open PRs = 0, open issues = 0. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
@@ -15,8 +15,7 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- No open PR lanes in GitHub queue (open PRs = 0).
-- No open issue lanes in GitHub queue (open issues = 0).
+- live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -29,13 +28,10 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 - Wire @require_access_tier('PREMIUM') onto trading command handlers as separate lane.
 - Seed boss user ADMIN tier row in user_tiers via /admin settier post-deploy.
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
-- Live execution path user_id guards: domain/execution/live.py has 4 position UPDATEs (lines 309, 328, 343, 361) missing AND user_id=$N. Deferred to WARP/live-execution-user-id-guards; required before ENABLE_LIVE_TRADING activation.
 
 [NEXT PRIORITY]
-- Closed beta observation / paper-mode runtime monitoring is the active next priority.
-- Maintain zero-PR / zero-issue queue posture unless WARP🔹CMD opens a new lane.
+- WARP🔹CMD merge decision for live-execution-user-id-guards PR #1021. SENTINEL APPROVED 97/100. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Keep production PAPER ONLY until explicit owner live activation decision.
-- If preparing for live activation, start WARP/live-execution-user-id-guards before flipping any activation guard.
 
 [KNOWN ISSUES]
 - /deposit has no tier gate; intentional and non-blocking.
@@ -46,4 +42,6 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 - R13 backlog is post-MVP growth work and not required for current paper-safe runtime.
 - [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
+- [DEFERRED] CHANGELOG.md entry missing for WARP/live-execution-user-id-guards — append on post-merge sync.
+- [DEFERRED] NEXT PRIORITY 4 items in PR #1021 PROJECT_STATE.md (cap 3) — prune on post-merge sync.
 
