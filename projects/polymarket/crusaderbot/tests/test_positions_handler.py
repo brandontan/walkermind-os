@@ -137,7 +137,7 @@ def test_positions_list_kb_one_button_per_row():
     pids = [uuid4() for _ in range(3)]
     kb = positions_list_kb(pids)
     rows = kb.inline_keyboard
-    assert len(rows) == 3
+    assert len(rows) == 4  # 3 position rows + 1 nav footer (⬅ Back / 🏠 Home)
     for row, pid in zip(rows, pids):
         assert len(row) == 1
         assert row[0].callback_data == f"position:fc_ask:{pid}"
