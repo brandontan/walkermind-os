@@ -51,34 +51,32 @@ def test_grid_rows_custom_cols():
     assert rows == [[0, 1, 2], [3, 4, 5]]
 
 
-# ---------- main_menu v3 (ReplyKeyboard) ------------------------------------
+# ---------- main_menu MVP (ReplyKeyboard) ------------------------------------
 
-V3_BUTTONS = {
+MVP_BUTTONS = {
     "🏠 Dashboard",
     "💼 Portfolio",
     "🤖 Auto Trade",
-    "📡 Signal Feeds",
-    "📊 Insights",
     "⚙️ Settings",
     "🛑 Stop Bot",
 }
 
 
-def test_main_menu_has_seven_buttons():
+def test_main_menu_has_five_buttons():
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 7
+    assert len(all_buttons) == 5
 
 
-def test_main_menu_layout_four_rows():
-    """v3: 3 rows of 2 + 1 row of 1 = 4 rows total."""
+def test_main_menu_layout_three_rows():
+    """MVP: 2 rows of 2 + 1 row of 1 = 3 rows total."""
     kb = main_menu()
-    assert len(kb.keyboard) == 4
+    assert len(kb.keyboard) == 3
 
 
-def test_main_menu_first_three_rows_are_pairs():
+def test_main_menu_first_two_rows_are_pairs():
     kb = main_menu()
-    for row in kb.keyboard[:3]:
+    for row in kb.keyboard[:2]:
         assert len(row) == 2
 
 
@@ -87,16 +85,16 @@ def test_main_menu_last_row_is_single():
     assert len(kb.keyboard[-1]) == 1
 
 
-def test_main_menu_expected_v3_buttons():
+def test_main_menu_expected_mvp_buttons():
     kb = main_menu()
     labels = {btn.text for row in kb.keyboard for btn in row}
-    assert labels == V3_BUTTONS
+    assert labels == MVP_BUTTONS
 
 
-def test_main_menu_contains_signals_button():
+def test_main_menu_signals_removed():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "📡 Signal Feeds" in labels
+    assert "📡 Signal Feeds" not in labels
 
 
 def test_main_menu_contains_portfolio_button():
@@ -105,10 +103,10 @@ def test_main_menu_contains_portfolio_button():
     assert "💼 Portfolio" in labels
 
 
-def test_main_menu_contains_insights_button():
+def test_main_menu_insights_removed():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "📊 Insights" in labels
+    assert "📊 Insights" not in labels
 
 
 def test_main_menu_contains_stop_bot_button():
@@ -117,36 +115,36 @@ def test_main_menu_contains_stop_bot_button():
     assert "🛑 Stop Bot" in labels
 
 
-# ---------- MAIN_MENU_ROUTES v3 --------------------------------------------
+# ---------- MAIN_MENU_ROUTES MVP -------------------------------------------
 
-def test_signals_route_registered():
-    assert "📡 Signal Feeds" in MAIN_MENU_ROUTES
+def test_signals_route_removed():
+    assert "📡 Signal Feeds" not in MAIN_MENU_ROUTES
 
 
 def test_portfolio_route_registered():
     assert "💼 Portfolio" in MAIN_MENU_ROUTES
 
 
-def test_insights_route_registered():
-    assert "📊 Insights" in MAIN_MENU_ROUTES
+def test_insights_route_removed():
+    assert "📊 Insights" not in MAIN_MENU_ROUTES
 
 
 def test_auto_mode_route_registered():
     assert "🤖 Auto Trade" in MAIN_MENU_ROUTES
 
 
-def test_all_seven_main_menu_routes_present():
+def test_all_five_main_menu_routes_present():
     expected = {
         "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Trade",
-        "📡 Signal Feeds", "📊 Insights", "⚙️ Settings", "🛑 Stop Bot",
+        "⚙️ Settings", "🛑 Stop Bot",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 
 
-def test_signals_and_portfolio_are_different_handlers():
-    signals_handler = MAIN_MENU_ROUTES["📡 Signal Feeds"]
+def test_auto_trade_and_portfolio_are_different_handlers():
+    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Trade"]
     portfolio_handler = MAIN_MENU_ROUTES["💼 Portfolio"]
-    assert signals_handler is not portfolio_handler
+    assert auto_handler is not portfolio_handler
 
 
 def test_auto_mode_and_dashboard_are_different_handlers():

@@ -40,11 +40,9 @@ from projects.polymarket.crusaderbot.bot.keyboards.onboarding import (
 )
 import projects.polymarket.crusaderbot.bot.handlers.onboarding as ob_mod
 from projects.polymarket.crusaderbot.bot.handlers.onboarding import (
-    ONBOARD_MODE,
     ONBOARD_WELCOME,
     _entry,
     _get_started_cb,
-    _mode_cb,
     view_dashboard_cb,
     help_handler,
 )
@@ -215,63 +213,20 @@ def test_returning_browse_user_sees_welcome_back():
 
 
 # ---------------------------------------------------------------------------
-# 7: Get Started callback shows mode selection
+# 7: Get Started callback completes onboarding and routes to dashboard (MVP)
 # ---------------------------------------------------------------------------
 
-def test_get_started_shows_mode_selection():
+def test_get_started_completes_onboarding():
     update, replies = _make_cb_update("onboard:get_started")
     ctx = _ctx()
 
-    result = asyncio.run(_get_started_cb(update, ctx))
-
-    assert result == ONBOARD_MODE
-    assert any("Choose your trading mode" in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 8: Paper mode selected — marks complete, shows confirmation, END
-# ---------------------------------------------------------------------------
-
-def test_mode_paper_marks_complete_and_shows_confirmation():
-    uid = uuid4()
-    update, replies = _make_cb_update("onboard:mode_paper")
-    ctx = _ctx({"onboard_user_id": str(uid)})
-
-    set_mock = AsyncMock()
-    with patch.object(ob_mod, "set_onboarding_complete", set_mock):
-        result = asyncio.run(_mode_cb(update, ctx))
+    import projects.polymarket.crusaderbot.bot.handlers.dashboard as dash_mod
+    mock_show = AsyncMock()
+    with patch.object(dash_mod, "show_dashboard_for_cb", mock_show):
+        result = asyncio.run(_get_started_cb(update, ctx))
 
     assert result == ConversationHandler.END
-    set_mock.assert_awaited_once_with(uid)
-    assert any("Paper Mode Active" in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 9: Paper mode without user_id in ctx — still shows confirmation, END
-# ---------------------------------------------------------------------------
-
-def test_mode_paper_without_user_id_still_shows_confirmation():
-    update, replies = _make_cb_update("onboard:mode_paper")
-    ctx = _ctx()  # no onboard_user_id
-
-    result = asyncio.run(_mode_cb(update, ctx))
-
-    assert result == ConversationHandler.END
-    assert any("Paper Mode Active" in r[1] for r in replies)
-
-
-# ---------------------------------------------------------------------------
-# 10: Live mode selected — shows redirect, END
-# ---------------------------------------------------------------------------
-
-def test_mode_live_shows_redirect_and_ends():
-    update, replies = _make_cb_update("onboard:mode_live")
-    ctx = _ctx()
-
-    result = asyncio.run(_mode_cb(update, ctx))
-
-    assert result == ConversationHandler.END
-    assert any("enable_live" in r[1] or "Live Trading" in r[1] for r in replies)
+    mock_show.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
