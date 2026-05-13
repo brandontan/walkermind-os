@@ -23,7 +23,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def positions_list_kb(position_ids: Iterable[UUID | str]) -> InlineKeyboardMarkup:
-    """One [🛑 Force Close] button per open position."""
+    """One [🛑 Force Close] button per open position + Back/Home nav."""
     rows = [
         [
             InlineKeyboardButton(
@@ -33,6 +33,10 @@ def positions_list_kb(position_ids: Iterable[UUID | str]) -> InlineKeyboardMarku
         ]
         for pid in position_ids
     ]
+    rows.append([
+        InlineKeyboardButton("⬅ Back", callback_data="portfolio:portfolio"),
+        InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+    ])
     return InlineKeyboardMarkup(rows)
 
 

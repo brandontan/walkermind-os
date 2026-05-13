@@ -26,7 +26,7 @@ def _truncate_label(text: str, limit: int = 28) -> str:
 def signal_subs_list_kb(
     entries: Iterable[tuple[str, str]],
 ) -> InlineKeyboardMarkup:
-    """One [\U0001F6D1 Off] button per active subscription.
+    """One [⏸ Pause] button per active subscription.
 
     Args:
         entries: iterable of ``(feed_slug, feed_name)`` tuples. ``feed_slug``
@@ -36,7 +36,7 @@ def signal_subs_list_kb(
     rows = [
         [
             InlineKeyboardButton(
-                f"\U0001F6D1 Off {_truncate_label(name)}",
+                f"⏸ Pause {_truncate_label(name)}",
                 callback_data=f"signals:off:{slug}",
             )
         ]

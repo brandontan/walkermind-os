@@ -136,34 +136,39 @@ def _build_text(
     closed_total = st["wins"] + st["losses"]
     win_rate = int(st["wins"] / closed_total * 100) if closed_total else 0
 
-    auto_status = "🟢 ACTIVE" if auto_on else "⚪ INACTIVE"
+    status_label = "🟢 Running" if auto_on else "🔴 Disabled"
     strats = st["strategy_types"]
     strat_display = (
         ", ".join(STRATEGY_DISPLAY_NAMES.get(s, s.replace("_", " ").title()) for s in strats)
         if strats else "Not configured"
     )
     risk_icon = _risk_icon(st["risk_profile"])
-    risk_label = st["risk_profile"].title()
-    exec_label = "🔴 Live" if st["trading_mode"] == "live" else "📝 Paper"
+    exec_label = "💸 Live" if st["trading_mode"] == "live" else "📝 Paper"
+    pnl_icon = "📈" if pnl_today >= 0 else "📉"
+    pnl_str = f"{pnl_icon} {'+' if pnl_today >= 0 else ''}${pnl_today:.2f}"
 
-    mode_label = "🔴 `LIVE`" if st["trading_mode"] == "live" else "🟡 `PAPER`"
     return (
-        "⚔️ *CRUSADERBOT*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "◈ *Operator Console*\n\n"
-        f"▸ Mode      {mode_label}\n"
-        f"▸ Engine    {auto_status}\n"
-        f"▸ Risk      {risk_icon} `{risk_label}`\n"
-        f"▸ Strategy  `{strat_display}`\n"
-        "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n"
-        f"▸ Balance   `${bal:.2f}` USDC\n"
-        f"▸ Equity    `${equity:.2f}`\n"
-        f"▸ W/L       `{st['wins']}W` · `{st['losses']}L` · `{win_rate}%`\n"
-        "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n"
-        f"▸ Today     {_pnl_line(pnl_today, bal)}\n"
-        f"▸ 7D        {_pnl_line(st['pnl_7d'], bal)}\n"
-        f"▸ All-Time  {_pnl_line(st['pnl_all'])}\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "🏠 Dashboard\n"
+        "│\n"
+        "├── 🤖 Bot Status\n"
+        f"│   └── {status_label}\n"
+        "│\n"
+        "├── 💹 Today\n"
+        "│   ├── PnL\n"
+        f"│   │   └── {pnl_str}\n"
+        "│   └── W/L\n"
+        f"│       └── {st['wins']}W · {st['losses']}L · {win_rate}%\n"
+        "│\n"
+        "├── 🤖 Auto Trade\n"
+        f"│   ├── Strategy  {strat_display}\n"
+        f"│   └── Risk      {risk_icon} {st['risk_profile'].title()}\n"
+        "│\n"
+        "├── 💼 Portfolio\n"
+        f"│   ├── Balance   ${bal:.2f} USDC\n"
+        f"│   ├── Equity    ${equity:.2f}\n"
+        f"│   └── Mode      {exec_label}\n"
+        "│\n"
+        f"└── 7D P&L  {_pnl_line(st['pnl_7d'], bal)}"
     )
 
 

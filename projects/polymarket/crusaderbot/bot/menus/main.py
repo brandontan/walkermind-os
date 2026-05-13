@@ -6,10 +6,10 @@ text router consumes. Centralising the mapping keeps button registration
 and handler wiring in one place: adding a new top-level menu surface is a
 one-line change here.
 
-Premium UX v3 layout:
+MVP UX v1 layout (hierarchy tree style):
 
-  📊 Dashboard   💼 Portfolio
-  🤖 Auto Mode   🧠 Signals
+  🏠 Dashboard   💼 Portfolio
+  🤖 Auto Trade  👥 Copy Wallet
   📊 Insights    ⚙️ Settings
   🛑 Stop Bot
 """
@@ -32,13 +32,13 @@ HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 
 # Order mirrors keyboards.main_menu() rows for easy diffing.
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
-    "📊 Dashboard":  dashboard.dashboard,
-    "💼 Portfolio":  positions.show_portfolio,
-    "🤖 Auto Mode":  presets.show_preset_picker,
-    "🧠 Signals":    signal_following.signals_command,
-    "📊 Insights":   pnl_insights_h.pnl_insights_command,
-    "⚙️ Settings":   settings_handler.settings_hub_root,
-    "🛑 Stop Bot":   emergency.emergency_root,
+    "🏠 Dashboard":   dashboard.dashboard,
+    "💼 Portfolio":   positions.show_portfolio,
+    "🤖 Auto Trade":  presets.show_preset_picker,
+    "👥 Copy Wallet": signal_following.signals_command,
+    "📊 Insights":    pnl_insights_h.pnl_insights_command,
+    "⚙️ Settings":    settings_handler.settings_hub_root,
+    "🛑 Stop Bot":    emergency.emergency_root,
 }
 
 

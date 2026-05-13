@@ -49,19 +49,17 @@ from ..tier import Tier, has_tier, tier_block_message
 logger = logging.getLogger(__name__)
 
 def _hub_text(mode: str, tier: int) -> str:
-    mode_label = "🔴 LIVE" if mode == "live" else "🟡 PAPER"
+    mode_label = "💸 Live" if mode == "live" else "📝 Paper"
     tier_labels = {1: "Guest", 2: "Allowlisted", 3: "Funded", 4: "Premium"}
     tier_label = tier_labels.get(tier, f"Tier {tier}")
     return (
-        "⚙️ *SETTINGS*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "◈ *Configure* CrusaderBot\n\n"
-        f"▸ Mode     `{mode_label}`\n"
-        f"▸ Tier     `{tier_label}`\n"
-        "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n"
-        "Manage preferences, risk controls,\n"
-        "and account setup.\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "⚙️ Settings\n"
+        "│\n"
+        "├── Account\n"
+        f"│   ├── Mode   {mode_label}\n"
+        f"│   └── Tier   {tier_label}\n"
+        "│\n"
+        "└── Configure preferences, risk controls, and account setup."
     )
 
 
@@ -84,12 +82,13 @@ def _sl_step_text(current_sl: float | None) -> str:
 
 
 def _capital_text(balance: float, mode: str) -> str:
-    mode_label = "Live" if mode == "live" else "Paper"
+    mode_label = "💸 Live" if mode == "live" else "📝 Paper"
     return (
-        "💰 *Capital Allocation Per Trade*\n"
-        "──────────────────\n"
-        f"Balance: ${balance:.2f} ({mode_label})\n\n"
-        "⚠️ Max 95% — full allocation forbidden."
+        "💰 Capital Allocation Per Trade\n"
+        "│\n"
+        f"├── Balance   ${balance:.2f} ({mode_label})\n"
+        "│\n"
+        "└── ⚠ Max 95% — full allocation forbidden."
     )
 
 
@@ -175,7 +174,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         tier = user.get("access_tier", 2)
         tier_labels = {1: "Guest", 2: "Allowlisted", 3: "Funded", 4: "Premium"}
         await q.message.reply_text(
-            f"*👤 Profile*\n\nMode: {'🔴 LIVE' if mode == 'live' else '🟡 PAPER'}\n"
+            f"*👤 Profile*\n\nMode: {'💸 Live' if mode == 'live' else '📝 Paper'}\n"
             f"Tier: {tier_labels.get(tier, f'Tier {tier}')}",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=settings_hub_kb(),

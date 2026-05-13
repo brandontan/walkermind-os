@@ -71,35 +71,42 @@ async def _reply(update: Update, text: str, **kw) -> None:
 # ---------------------------------------------------------------------------
 
 def _preset_picker_text() -> str:
-    lines = ["🤖 *AUTO MODE*\n"
-             "━━━━━━━━━━━━━━━━━━━━\n"
-             "◈ *Strategy* Presets\n\n"
-             "Choose a preset to activate\n"
-             "autonomous trading execution.\n"
-             "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n"
-             "⚠️ Paper mode — no real capital\n"
-             "━━━━━━━━━━━━━━━━━━━━\n"]
-    for p in list_presets():
-        lines.append(
-            f"{p.emoji} *{p.name}* ({p.badge.value})\n"
-            f"   _{p.description}_"
-        )
-    return "\n\n".join(lines)
+    preset_lines = "\n".join(
+        f"│   ├── {p.emoji} {p.name}\n│   │   └── {p.description}"
+        for p in list_presets()
+    )
+    return (
+        "🤖 Auto Trade\n"
+        "│\n"
+        "├── Mode\n"
+        "│   └── 📝 Paper Trading\n"
+        "│\n"
+        "├── Available Presets\n"
+        f"{preset_lines}\n"
+        "│\n"
+        "└── Choose a strategy to activate:"
+    )
 
 
 def _preset_confirm_text(p: Preset) -> str:
     strategies = ", ".join(s.replace("_", " ").title() for s in p.strategies)
     return (
-        f"*{p.emoji} {p.name}* — {p.badge.value}\n\n"
-        f"_{p.description}_\n\n"
-        "*Configuration*\n"
-        f"├ Strategies     : `{strategies}`\n"
-        f"├ Capital        : `{p.capital_pct * 100:.0f}%` of balance\n"
-        f"├ Take-profit    : `+{p.tp_pct * 100:.0f}%`\n"
-        f"├ Stop-loss      : `-{p.sl_pct * 100:.0f}%`\n"
-        f"└ Max position   : `{p.max_position_pct * 100:.0f}%` per trade\n\n"
-        "Activate to apply these settings and turn auto-trade ON "
-        "(paper mode). Customize is coming in Phase 5D."
+        "🤖 Auto Trade / Configure / Review\n"
+        "│\n"
+        f"├── {p.emoji} Strategy\n"
+        f"│   ├── Name    {p.name}\n"
+        f"│   └── Type    {strategies}\n"
+        "│\n"
+        "├── Configuration\n"
+        f"│   ├── Capital     {p.capital_pct * 100:.0f}% of balance\n"
+        f"│   ├── Take Profit +{p.tp_pct * 100:.0f}%\n"
+        f"│   ├── Stop Loss   -{p.sl_pct * 100:.0f}%\n"
+        f"│   └── Max Size    {p.max_position_pct * 100:.0f}% per trade\n"
+        "│\n"
+        "├── Mode\n"
+        "│   └── 📝 Paper Trading\n"
+        "│\n"
+        "└── Looks good?"
     )
 
 
@@ -116,22 +123,28 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
     auto_on = bool(user["auto_trade_on"])
     paused = bool(user.get("paused"))
     if not auto_on:
-        state = "🛑 STOPPED"
+        state = "🔴 Disabled"
     elif paused:
-        state = "⏸ PAUSED"
+        state = "⏸ Paused"
     else:
-        state = "✅ RUNNING"
+        state = "🟢 Running"
+    pnl_icon = "📈" if float(pnl) >= 0 else "📉"
     return (
-        f"*{p.emoji} {p.name}* — {p.badge.value}\n"
-        f"State: *{state}*\n\n"
-        "*Live stats*\n"
-        f"├ Balance        : `${float(bal):.2f}`\n"
-        f"├ Today's P&L    : `${float(pnl):+.2f}`\n"
-        f"└ Open positions : `{int(open_count)}`\n\n"
-        "*Active config*\n"
-        f"├ Capital        : `{p.capital_pct * 100:.0f}%`\n"
-        f"├ TP / SL        : `+{p.tp_pct * 100:.0f}% / -{p.sl_pct * 100:.0f}%`\n"
-        f"└ Max position   : `{p.max_position_pct * 100:.0f}%`"
+        "📊 Auto Trade Status\n"
+        "│\n"
+        "├── Strategy\n"
+        f"│   ├── Name    {p.emoji} {p.name}\n"
+        f"│   └── State   {state}\n"
+        "│\n"
+        "├── Performance\n"
+        f"│   ├── Balance     ${float(bal):.2f} USDC\n"
+        f"│   ├── Today P&L   {pnl_icon} ${float(pnl):+.2f}\n"
+        f"│   └── Positions   {int(open_count)} open\n"
+        "│\n"
+        "└── Config\n"
+        f"    ├── Capital  {p.capital_pct * 100:.0f}%\n"
+        f"    ├── TP / SL  +{p.tp_pct * 100:.0f}% / -{p.sl_pct * 100:.0f}%\n"
+        "    └── Mode     📝 Paper"
     )
 
 
@@ -397,8 +410,8 @@ CUSTOM_REVIEW = 3
 CUSTOM_INPUT = 4
 
 _MENU_BUTTONS_CUSTOMIZE = {
-    "📊 Dashboard", "🐋 Copy Trade", "🤖 Auto-Trade",
-    "📈 My Trades", "⚙️ Settings", "🛑 Stop Bot",
+    "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Trade",
+    "👥 Copy Wallet", "📊 Insights", "⚙️ Settings", "🛑 Stop Bot",
 }
 
 
@@ -412,26 +425,27 @@ def _cwz(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
 
 def _step1_text(p: Preset) -> str:
     return (
-        f"*Step 1/5 — Capital Allocation*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Preset: {p.emoji} *{p.name}*\n\n"
-        "How much of your balance to deploy?"
+        "🤖 Auto Trade / Configure / Capital\n"
+        "│\n"
+        f"├── Preset   {p.emoji} {p.name}\n"
+        "│\n"
+        "└── Choose capital allocation:"
     )
 
 
 def _step2_text() -> str:
     return (
-        "*Step 2/5 — Take Profit*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Auto-close winning positions at:"
+        "🤖 Auto Trade / Configure / Take Profit\n"
+        "│\n"
+        "└── Auto-close winning positions at:"
     )
 
 
 def _step3_text() -> str:
     return (
-        "*Step 3/5 — Stop Loss*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Auto-close losing positions at:"
+        "🤖 Auto Trade / Configure / Stop Loss\n"
+        "│\n"
+        "└── Auto-close losing positions at:"
     )
 
 
@@ -440,14 +454,18 @@ def _step5_text(wz: dict, p: Preset) -> str:
     tp = round(wz["tp_pct"] * 100)
     sl = round(wz["sl_pct"] * 100)
     return (
-        "*Step 5/5 — Review*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"├ Preset         : {p.emoji} *{p.name}*\n"
-        f"├ Capital        : `{cap}%`\n"
-        f"├ Take Profit    : `+{tp}%`\n"
-        f"├ Stop Loss      : `-{sl}%`\n"
-        "└ Mode           : `Paper`\n\n"
-        "Tap *Save* to apply."
+        "🤖 Auto Trade / Configure / Review\n"
+        "│\n"
+        f"├── {p.emoji} Preset\n"
+        f"│   └── {p.name}\n"
+        "│\n"
+        "├── Configuration\n"
+        f"│   ├── Capital     {cap}%\n"
+        f"│   ├── Take Profit +{tp}%\n"
+        f"│   ├── Stop Loss   -{sl}%\n"
+        "│   └── Mode        📝 Paper\n"
+        "│\n"
+        "└── Looks good?"
     )
 
 
