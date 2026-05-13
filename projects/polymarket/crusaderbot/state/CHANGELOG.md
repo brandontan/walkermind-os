@@ -1,3 +1,4 @@
+2026-05-13 14:32 WIB | WARP/relax-branch-prefix-rule | AGENTS.md branch prefix relaxed — WARP/ and warp/ both accepted; GATE 1 and pre-flight updated; Closes #1018
 2026-05-13 12:20 WIB | PR #1024 MERGED | edceaa07 | Telegram UX v3 — 7-button menu, dashboard v3, portfolio screen, signals tap-hub, settings hub v3, onboarding v3, nav_row(), notify_order_filled() | STANDARD NARROW INTEGRATION | Closes #1020
 
 

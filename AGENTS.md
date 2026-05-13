@@ -952,22 +952,27 @@ Any code/report conflicting with these values = drift or critical violation.
 
 ## BRANCH NAMING (AUTHORITATIVE)
 
-Single authoritative format:
+Accepted formats:
 
 ```text
 WARP/{feature}
+warp/{feature}
 ```
 
+Both `WARP/` (uppercase) and `warp/` (lowercase) prefixes are accepted. Either is a valid WARP lane branch.
+
 Rules:
-- prefix is always `WARP/` — uppercase, lowercase, no exceptions
+- prefix must be `WARP/` or `warp/` — no other prefix is valid
 - `{feature}` is a short hyphen-separated slug (noun/adjective based, not a sentence)
 - no dots, no underscores, no date suffix
 - phase tokens use hyphens when needed: `phase6-5-3` (never `6.5.3`)
+- once a branch is created, use its exact string verbatim in all artifacts (traceability rule)
 
 Correct:
 - `WARP/wallet-state-read-boundary`
 - `WARP/risk-drawdown-circuit`
-- `WARP/briefer-phase9-summary`
+- `warp/relax-branch-prefix-rule`
+- `warp/briefer-phase9-summary`
 
 Wrong:
 - `WARP/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, dashed date, sentence)
@@ -1057,7 +1062,7 @@ Use the checklist matching the declared Validation Tier. Do not run MAJOR checkl
 [ ] Last Updated not earlier than previous value
 [ ] Repo-root relative paths in all outputs
 [ ] Branch name matches actual git branch (verified with git rev-parse)
-[ ] Branch format valid (WARP/{feature})
+[ ] Branch format valid (WARP/{feature} or warp/{feature})
 [ ] Forge report exists at correct path with required sections for this tier
 [ ] PROJECT_STATE.md updated to current truth
 [ ] Runner locale = C.UTF-8 or en_US.UTF-8 (verified with `locale`)
@@ -1556,8 +1561,9 @@ Codex acts as **WARP•GATE** — the automated pre-review quality gate for Walk
 Flag only P0 (block merge) and P1 (must fix before merge) issues. Skip P2 / style / cosmetic.
 
 ### GATE 1 — Branch format (P0 if fail)
-- PR head branch MUST match `WARP/{FEATURE-NAME}` — uppercase prefix, hyphen-separated slug
-- No underscores, no dots, no date suffix
+- PR head branch MUST use `WARP/` or `warp/` prefix followed by a hyphen-separated feature slug
+- Both `WARP/{feature}` and `warp/{feature}` are valid — lowercase prefix is NOT a blocking issue by itself
+- No underscores, no dots, no date suffix in the feature slug
 - `claude/*` branches = P0 BLOCK — forbidden per branch naming rules
 - `NWAP/*` branches = P0 BLOCK — historical only, not valid for new work
 - Codex worktree showing `work` = normal, do not block on this
