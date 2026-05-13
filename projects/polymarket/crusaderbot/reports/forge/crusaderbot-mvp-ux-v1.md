@@ -13,6 +13,7 @@ Rebuilt CrusaderBot Telegram UI from "Premium Hybrid Luxury" style (`━━━`,
 Scope: message template text + keyboard labels only. No callback_data values, routing logic, function signatures, DB queries, or execution paths were modified.
 
 11 handler/keyboard files changed (+ blocker follow-up relabel + force-close hide). 5 test files updated. 3 state files updated. 1 report created.
+11 handler/keyboard files changed. 5 test files updated to match new text/label assertions. 3 state files updated. 1 report created.
 
 ---
 
