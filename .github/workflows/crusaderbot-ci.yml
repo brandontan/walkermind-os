@@ -48,7 +48,7 @@ jobs:
       - name: Install lint and test tooling
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ruff pytest
+          python -m pip install ruff pytest cffi
 
       - name: Install runtime dependencies (from pyproject.toml)
         # Tests in tests/test_health.py import the monitoring package, which
