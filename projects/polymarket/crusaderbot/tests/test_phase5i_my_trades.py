@@ -342,7 +342,7 @@ def test_format_positions_section_hierarchy():
 def test_main_menu_routes_my_trades_registered():
     """v3: My Trades is accessed via Dashboard nav, not root menu.
     
-    In v3 main menu, top-level 📊 Dashboard leads to my_trades via
+    In v3 main menu, top-level 🏠 Dashboard leads to my_trades via
     dashboard:trades callback. Root menu no longer has a dedicated
     📈 My Trades button. This test verifies the handler exists and is
     importable (route coverage tested in test_ux_overhaul.py).
@@ -350,7 +350,7 @@ def test_main_menu_routes_my_trades_registered():
     # my_trades handler must be importable and callable
     assert callable(mt.my_trades)
     # Dashboard route must be registered (gateway to trades)
-    assert MAIN_MENU_ROUTES.get("📊 Dashboard") is not None
+    assert MAIN_MENU_ROUTES.get("🏠 Dashboard") is not None
 
 
 # ---------- Test 12: my_trades_main_kb 2-col close buttons -----------------
@@ -387,4 +387,3 @@ def test_close_confirm_kb_yes_no_pair():
     assert row[1].callback_data == f"mytrades:close_no:{pid}"
     assert "Confirm" in row[0].text
     assert "Cancel" in row[1].text
-

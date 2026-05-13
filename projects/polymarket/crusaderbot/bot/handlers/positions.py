@@ -186,21 +186,27 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     equity = bal + st["positions_value"]
     max_pos_pct = float(s.get("capital_alloc_pct") or 0.1)
     open_count = st["winning"] + st["losing"]
-    mode_label = "🔴 LIVE" if st["trading_mode"] == "live" else "🟡 PAPER"
+    mode_label = "💸 Live" if st["trading_mode"] == "live" else "📝 Paper"
+    pnl_icon = "📈" if pnl_today >= 0 else "📉"
 
     text = (
-        "💼 *PORTFOLIO*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "◈ *Positions* · Paper Mode\n\n"
-        f"▸ Active    `{open_count}` positions\n"
-        f"▸ P&L       `{_pnl_fmt(pnl_today)}` today\n"
-        f"▸ Exposure  `${st['positions_value']:.2f}` / `${bal:.2f}`\n"
-        f"▸ Win Rate  `{st['wins']}/{st['losses']}`\n"
-        "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n"
-        f"▸ Mode      `{mode_label}`\n"
-        f"▸ Equity    `${equity:.2f}`\n"
-        f"▸ Max Size  `{max_pos_pct:.0%}`\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "💼 Portfolio\n"
+        "│\n"
+        "├── 💰 Balance\n"
+        f"│   └── ${bal:.2f} USDC\n"
+        "│\n"
+        "├── 💹 Today\n"
+        f"│   ├── PnL       {pnl_icon} {_pnl_fmt(pnl_today)}\n"
+        f"│   └── Win/Loss  {st['wins']}W · {st['losses']}L\n"
+        "│\n"
+        "├── 📌 Positions\n"
+        f"│   ├── Open      {open_count}\n"
+        f"│   └── Exposure  ${st['positions_value']:.2f}\n"
+        "│\n"
+        "└── Account\n"
+        f"    ├── Equity    ${equity:.2f}\n"
+        f"    ├── Mode      {mode_label}\n"
+        f"    └── Max Size  {max_pos_pct:.0%}"
     )
 
     if is_cb:
@@ -270,8 +276,11 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return_exceptions=False,
     )
 
-    lines = ["*📈 Open positions*\n"]
-    for pos, mark in zip(positions, marks):
+    lines = ["📌 Open Positions\n│"]
+    n = len(positions)
+    for i, (pos, mark) in enumerate(zip(positions, marks)):
+        connector = "└──" if i == n - 1 else "├──"
+        branch = "    " if i == n - 1 else "│   "
         title = _truncate(pos["question"] or pos["market_id"], MARKET_TITLE_MAX)
         side = pos["side"].upper()
         entry = float(pos["entry_price"])
@@ -285,10 +294,10 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             mark_str = f"{mark:.3f}"
         tp_sl = _format_tp_sl(pos["applied_tp_pct"], pos["applied_sl_pct"])
         lines.append(
-            f"`{str(pos['id'])[:8]}` *{side}* — _{title}_\n"
-            f"  size ${size:.2f} · entry {entry:.3f} · mark {mark_str}\n"
-            f"  P&L {pnl_str}\n"
-            f"  {tp_sl}"
+            f"{connector} `{str(pos['id'])[:8]}` *{side}* — _{title}_\n"
+            f"{branch}├── size ${size:.2f} · entry {entry:.3f} · mark {mark_str}\n"
+            f"{branch}├── P&L {pnl_str}\n"
+            f"{branch}└── {tp_sl}"
         )
 
     await update.message.reply_text(

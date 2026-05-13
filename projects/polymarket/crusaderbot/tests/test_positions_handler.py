@@ -133,15 +133,13 @@ def test_fetch_mark_price_one_side_only():
 
 # ---------- Keyboard builders -----------------------------------------------
 
-def test_positions_list_kb_one_button_per_row():
+def test_positions_list_kb_nav_only_no_force_close_rows():
     pids = [uuid4() for _ in range(3)]
     kb = positions_list_kb(pids)
     rows = kb.inline_keyboard
-    assert len(rows) == 3
-    for row, pid in zip(rows, pids):
-        assert len(row) == 1
-        assert row[0].callback_data == f"position:fc_ask:{pid}"
-        assert "🛑" in row[0].text
+    assert len(rows) == 1
+    assert [btn.text for btn in rows[0]] == ["⬅ Back", "🏠 Home"]
+    assert [btn.callback_data for btn in rows[0]] == ["portfolio:portfolio", "dashboard:main"]
 
 
 def test_force_close_confirm_kb_yes_no_pair():

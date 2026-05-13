@@ -28,9 +28,9 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📊 Dashboard"),  KeyboardButton("💼 Portfolio")],
-            [KeyboardButton("🤖 Auto Mode"),  KeyboardButton("🧠 Signals")],
-            [KeyboardButton("📊 Insights"),   KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("🏠 Dashboard"),   KeyboardButton("💼 Portfolio")],
+            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("📡 Signal Feeds")],
+            [KeyboardButton("📊 Insights"),    KeyboardButton("⚙️ Settings")],
             [KeyboardButton("🛑 Stop Bot")],
         ],
         resize_keyboard=True,
@@ -38,22 +38,24 @@ def main_menu() -> ReplyKeyboardMarkup:
 
 
 def dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
-    """Dashboard v3 inline keyboard with smart contextual CTA."""
+    """Dashboard inline keyboard — hierarchy tree style, 2-col grid."""
     return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🤖 Auto Trade",  callback_data="dashboard:auto"),
+            InlineKeyboardButton("📡 Signal Feeds", callback_data="dashboard:signals"),
+        ],
+        [
+            InlineKeyboardButton("💼 Portfolio",   callback_data="dashboard:portfolio"),
+            InlineKeyboardButton("📊 Insights",    callback_data="dashboard:insights"),
+        ],
+        [
+            InlineKeyboardButton("⚙️ Settings",    callback_data="dashboard:settings"),
+            InlineKeyboardButton("🛑 Stop Bot",    callback_data="dashboard:stop"),
+        ],
+        [
+            InlineKeyboardButton("🔄 Refresh",     callback_data="dashboard:main"),
+        ],
         [cta_btn],
-        [
-            InlineKeyboardButton("💼 Portfolio", callback_data="dashboard:portfolio"),
-            InlineKeyboardButton("🧠 Signals",   callback_data="dashboard:signals"),
-        ],
-        [
-            InlineKeyboardButton("🤖 Auto Mode", callback_data="dashboard:auto"),
-            InlineKeyboardButton("📊 Insights",  callback_data="dashboard:insights"),
-        ],
-        [
-            InlineKeyboardButton("⚙️ Settings",  callback_data="dashboard:settings"),
-            InlineKeyboardButton("🛑 Stop Bot",  callback_data="dashboard:stop"),
-        ],
-        [InlineKeyboardButton("🔄 Refresh",      callback_data="dashboard:main")],
     ])
 
 

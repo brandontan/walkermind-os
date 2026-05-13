@@ -1,3 +1,5 @@
+2026-05-13 17:10 WIB | WARP/CRUSADERBOT-MVP-UX-V1 | PR #1029 blocker fix pass: relabeled misleading "👥 Copy Wallet" surfaces to "📡 Signal Feeds" across main menu/routes/dashboard, removed user-facing force-close buttons from portfolio keyboard (nav only), updated related tests; STANDARD, NARROW INTEGRATION
+2026-05-13 17:00 WIB | WARP/CRUSADERBOT-MVP-UX-V1 | Hierarchy Tree Terminal UI rebuild — 11 files; Premium Hybrid Luxury → tree format; blueprint emoji system; STANDARD, NARROW INTEGRATION; Closes #1028
 2026-05-13 14:32 WIB | WARP/relax-branch-prefix-rule | AGENTS.md branch prefix relaxed — WARP/ and warp/ both accepted; GATE 1 and pre-flight updated; Closes #1018
 2026-05-13 12:20 WIB | PR #1024 MERGED | edceaa07 | Telegram UX v3 — 7-button menu, dashboard v3, portfolio screen, signals tap-hub, settings hub v3, onboarding v3, nav_row(), notify_order_filled() | STANDARD NARROW INTEGRATION | Closes #1020
 

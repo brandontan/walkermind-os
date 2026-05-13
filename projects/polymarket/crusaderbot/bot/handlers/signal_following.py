@@ -124,7 +124,7 @@ _USAGE = (
 
 
 async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
-    """Build the tap-based signals hub text and keyboard."""
+    """Build the signal feed hub text and keyboard (hierarchy tree style)."""
     from telegram import InlineKeyboardButton
     from ..keyboards import nav_row
 
@@ -132,39 +132,46 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
     all_feeds = await list_active_feeds()
     subbed_slugs = {s["feed_slug"] for s in subs}
 
-    sub_lines: list[str] = []
-    for s in subs:
-        sub_lines.append(
-            f"✅ {_escape_md(s['feed_name'])} [{s['feed_slug']}]"
-        )
+    # Build tree lines for followed feeds
+    if subs:
+        sub_tree_lines = []
+        for i, s in enumerate(subs):
+            connector = "└──" if i == len(subs) - 1 else "├──"
+            sub_tree_lines.append(f"│   {connector} ✅ {_escape_md(s['feed_name'])}")
+        sub_tree = "\n".join(sub_tree_lines)
+    else:
+        sub_tree = "│   └── None yet"
 
-    avail_lines: list[str] = []
-    for f in all_feeds:
-        if f["slug"] not in subbed_slugs:
-            avail_lines.append(
-                f"○ {_escape_md(f['name'])} — {f['subscriber_count']} subs"
-            )
-
-    sub_block = "\n".join(sub_lines) if sub_lines else "No active feeds yet"
-    avail_block = "\n".join(avail_lines) if avail_lines else "No additional feeds available"
+    # Build tree lines for available feeds
+    avail = [f for f in all_feeds if f["slug"] not in subbed_slugs]
+    if avail:
+        avail_tree_lines = []
+        for i, f in enumerate(avail):
+            connector = "└──" if i == len(avail) - 1 else "├──"
+            avail_tree_lines.append(f"│   {connector} {_escape_md(f['name'])}")
+        avail_tree = "\n".join(avail_tree_lines)
+    else:
+        avail_tree = "│   └── None available"
 
     text = (
-        "📡 *SIGNALS*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"◈ *Active* · `{len(subs)}` feeds\n\n"
-        "▸ Subscribed\n"
-        f"{sub_block}\n"
-        "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n"
-        "▸ Available\n"
-        f"{avail_block}\n\n"
-        f"Last sync: `now` WIB · Max `{MAX_SUBSCRIPTIONS_PER_USER}`\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "📡 Signal Feeds\n"
+        "│\n"
+        "├── Status\n"
+        f"│   └── {len(subs)} Following\n"
+        "│\n"
+        "├── Following\n"
+        f"{sub_tree}\n"
+        "│\n"
+        "├── Available\n"
+        f"{avail_tree}\n"
+        "│\n"
+        f"└── Max {MAX_SUBSCRIPTIONS_PER_USER} active"
     )
 
     buttons: list[list[InlineKeyboardButton]] = []
     for f in all_feeds:
         subscribed = f["slug"] in subbed_slugs
-        label = f"{'✅' if subscribed else '➕'} {f['name']}"
+        label = f"{'✅ Following' if subscribed else '➕ Follow'} {f['name']}"
         buttons.append([InlineKeyboardButton(
             label, callback_data=f"signals:toggle:{f['slug']}"
         )])

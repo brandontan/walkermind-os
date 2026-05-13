@@ -71,10 +71,10 @@ def test_main_menu_has_stop_bot_not_emergency():
 
 def test_main_menu_v3_second_row():
     kb = main_menu()
-    # v3: second row is Auto Mode + Signals
+    # MVP v1: second row is Auto Trade + Signal Feeds
     row2 = [btn.text for btn in kb.keyboard[1]]
-    assert "🤖 Auto Mode" in row2
-    assert "🧠 Signals" in row2
+    assert "🤖 Auto Trade" in row2
+    assert "📡 Signal Feeds" in row2
 
 
 # ---------------------------------------------------------------------------

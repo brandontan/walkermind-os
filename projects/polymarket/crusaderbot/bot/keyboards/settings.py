@@ -46,10 +46,10 @@ def tp_preset_kb(current_tp: float | None) -> InlineKeyboardMarkup:
             InlineKeyboardButton("+15%", callback_data="tp_set:15"),
         ],
         [
-            InlineKeyboardButton("+25%",   callback_data="tp_set:25"),
-            InlineKeyboardButton("Custom", callback_data="tp_set:custom"),
+            InlineKeyboardButton("+25%",      callback_data="tp_set:25"),
+            InlineKeyboardButton("✏️ Custom", callback_data="tp_set:custom"),
         ],
-        [InlineKeyboardButton("↩️ Back to Settings", callback_data="settings:hub")],
+        [InlineKeyboardButton("⬅ Back", callback_data="settings:hub")],
     ])
 
 
@@ -63,17 +63,17 @@ def sl_preset_kb(current_sl: float | None) -> InlineKeyboardMarkup:
             InlineKeyboardButton("-10%", callback_data="sl_set:10"),
         ],
         [
-            InlineKeyboardButton("-15%",   callback_data="sl_set:15"),
-            InlineKeyboardButton("Custom", callback_data="sl_set:custom"),
+            InlineKeyboardButton("-15%",      callback_data="sl_set:15"),
+            InlineKeyboardButton("✏️ Custom", callback_data="sl_set:custom"),
         ],
-        [InlineKeyboardButton("↩️ Back to Settings", callback_data="settings:hub")],
+        [InlineKeyboardButton("⬅ Back", callback_data="settings:hub")],
     ])
 
 
 def tpsl_confirm_kb() -> InlineKeyboardMarkup:
     """Confirmation keyboard after TP+SL set."""
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("↩️ Back to Settings", callback_data="settings:hub"),
+        InlineKeyboardButton("⬅ Back", callback_data="settings:hub"),
     ]])
 
 
@@ -91,8 +91,8 @@ def capital_preset_kb(balance: float, mode: str) -> InlineKeyboardMarkup:
         [_btn(25)],
         [_btn(50)],
         [_btn(75)],
-        [InlineKeyboardButton("Custom", callback_data="cap_set:custom")],
-        [InlineKeyboardButton("↩️ Back to Settings", callback_data="settings:hub")],
+        [InlineKeyboardButton("✏️ Custom", callback_data="cap_set:custom")],
+        [InlineKeyboardButton("⬅ Back", callback_data="settings:hub")],
     ])
 
 
