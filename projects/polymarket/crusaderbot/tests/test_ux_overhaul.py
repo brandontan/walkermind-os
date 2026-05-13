@@ -1,68 +1,50 @@
-"""Hermetic tests for Premium-Grade UX Overhaul (PR #989).
+"""Hermetic tests for UX Overhaul (telegram-ux-overhaul).
 
-Parts covered:
-  Part 1 — Main-menu keyboard structure (reply keyboard)
-  Part 2 — TP/SL keyboards (callback_data fingerprint)
-  Part 3 — Capital-allocation preset keyboard
-  Part 4 — Settings hub keyboard (callback_data fingerprint)
-  Part 5 — Auto-trade card formatting (_build_autotrade_card)
-  Part 6 — Dashboard text structure (_build_main_text)
-  Part 7 — signal_following helpers (_normalise_slug, _escape_md)
+Parts tested:
+  Part 1 — Main Menu: 3 buttons, correct layout
+  Part 2 — TP/SL keyboards: preset buttons, custom, back
+  Part 3 — Capital keyboards: preset buttons with $ amounts, max guard
+  Part 4 — Strategy card keyboard: 4 cards + back, no internal names
+  Part 6 — Insights: empty-state threshold (< 3 closed), format
+  Part 7 — Settings hub keyboard: 6 items + back
   Part 8 — Auto-Trade: set_strategy_card backend mapping
   Part 9 — My Trades: formatting with TP/SL, no Dashboard button
 """
 from __future__ import annotations
 
-import importlib
-import sys
-import types
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
 
 # ---------------------------------------------------------------------------
-# Minimal stubs so heavy native extensions don't have to be installed.
+# Helpers
 # ---------------------------------------------------------------------------
 
-def _stub_module(name: str, **attrs):
-    mod = types.ModuleType(name)
-    for k, v in attrs.items():
-        setattr(mod, k, v)
-    sys.modules.setdefault(name, mod)
-    return mod
+def _cb_data(kb) -> list[str]:
+    """Extract all callback_data values from an InlineKeyboardMarkup."""
+    data = []
+    for row in kb.inline_keyboard:
+        for btn in row:
+            if hasattr(btn, "callback_data") and btn.callback_data:
+                data.append(btn.callback_data)
+    return data
 
 
-# telegram stubs
-tg = _stub_module("telegram")
-tg_ext = _stub_module("telegram.ext")
-tg_const = _stub_module("telegram.constants")
+def _btn_labels(kb) -> list[str]:
+    """Extract all button text values from an InlineKeyboardMarkup."""
+    labels = []
+    for row in kb.inline_keyboard:
+        for btn in row:
+            labels.append(btn.text)
+    return labels
 
 
-class _FakeBtn:
-    def __init__(self, text="", **kw):
-        self.text = text
-        for k, v in kw.items():
-            setattr(self, k, v)
-
-
-class _FakeKB:
-    def __init__(self, rows, **kw):
-        self.keyboard = rows
-        for k, v in kw.items():
-            setattr(self, k, v)
-
-
-class _FakeIKM:
-    def __init__(self, rows):
-        self.inline_keyboard = rows
-
-
-tg.KeyboardButton = _FakeBtn
-tg.ReplyKeyboardMarkup = _FakeKB
-tg.InlineKeyboardButton = _FakeBtn
-tg.InlineKeyboardMarkup = _FakeIKM
-tg_const.ParseMode = types.SimpleNamespace(MARKDOWN="Markdown")
-
+# ---------------------------------------------------------------------------
+# Part 1 — Main Menu layout
+# ---------------------------------------------------------------------------
 
 from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 
@@ -108,10 +90,6 @@ from projects.polymarket.crusaderbot.bot.keyboards.settings import (
 )
 
 
-def _cb_data(kb) -> list[str]:
-    return [btn.callback_data for row in kb.inline_keyboard for btn in row]
-
-
 def test_tp_preset_kb_has_four_presets_and_custom():
     kb = tp_preset_kb(None)
     data = _cb_data(kb)
@@ -144,11 +122,6 @@ def test_sl_preset_kb_has_back():
     assert "settings:hub" in data
 
 
-# ---------------------------------------------------------------------------
-# Part 3 — tpsl_confirm_kb
-# ---------------------------------------------------------------------------
-
-
 def test_tpsl_confirm_kb_has_back():
     kb = tpsl_confirm_kb()
     data = _cb_data(kb)
@@ -156,26 +129,27 @@ def test_tpsl_confirm_kb_has_back():
 
 
 # ---------------------------------------------------------------------------
-# Part 3b — Capital-allocation preset keyboard
+# Part 3 — Capital preset keyboard
 # ---------------------------------------------------------------------------
 
 
 def test_capital_preset_kb_has_four_presets_and_custom():
     kb = capital_preset_kb(1000.0, "paper")
     data = _cb_data(kb)
-    assert "capital_set:5" in data
-    assert "capital_set:10" in data
-    assert "capital_set:20" in data
-    assert "capital_set:50" in data
-    assert "capital_set:custom" in data
+    assert "cap_set:10" in data
+    assert "cap_set:25" in data
+    assert "cap_set:50" in data
+    assert "cap_set:75" in data
+    assert "cap_set:custom" in data
 
 
 def test_capital_preset_kb_dollar_amounts():
     kb = capital_preset_kb(1000.0, "paper")
-    labels = [btn.text for row in kb.inline_keyboard for btn in row]
-    # 5% of 1000 = $50, 10% = $100, 20% = $200, 50% = $500
-    assert any("$50" in lbl for lbl in labels)
+    labels = _btn_labels(kb)
+    # 10% of $1000 = $100
     assert any("$100" in lbl for lbl in labels)
+    # 25% of $1000 = $250
+    assert any("$250" in lbl for lbl in labels)
 
 
 def test_capital_preset_kb_has_back():
@@ -185,211 +159,262 @@ def test_capital_preset_kb_has_back():
 
 
 def test_capital_preset_kb_no_100_pct():
-    """100% preset deliberately excluded — Kelly guard."""
+    """100% allocation is forbidden — no cap_set:100."""
     kb = capital_preset_kb(1000.0, "paper")
     data = _cb_data(kb)
-    assert "capital_set:100" not in data
+    assert "cap_set:100" not in data
+    assert "cap_set:95" not in data  # max preset is 75
 
 
 # ---------------------------------------------------------------------------
-# Part 5 — Auto-trade card formatting
+# Part 4 — Strategy card keyboard
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.handlers.presets import _build_autotrade_card
+from projects.polymarket.crusaderbot.bot.keyboards import strategy_card_kb
 
 
-def test_autotrade_card_enabled():
-    card = _build_autotrade_card(True, "aggressive")
-    assert "🟢" in card
-    assert "aggressive" in card.lower()
+def test_strategy_card_kb_has_four_cards():
+    kb = strategy_card_kb()
+    data = _cb_data(kb)
+    assert "strategy:signal" in data
+    assert "strategy:edge_finder" in data
+    assert "strategy:momentum_reversal" in data
+    assert "strategy:all" in data
 
 
-def test_autotrade_card_disabled():
-    card = _build_autotrade_card(False, None)
-    assert "🔴" in card
+def test_strategy_card_kb_has_back():
+    kb = strategy_card_kb()
+    data = _cb_data(kb)
+    assert "strategy:back" in data
 
 
-def test_autotrade_card_unknown_strategy():
-    card = _build_autotrade_card(True, "unknown_strat")
-    assert "unknown_strat" in card or "Unknown" in card
+def test_strategy_card_kb_no_internal_names_exposed():
+    """User-facing labels must not show 'value', 'R6b+', or 'momentum_reversal'."""
+    kb = strategy_card_kb()
+    labels = _btn_labels(kb)
+    exposed = [lbl for lbl in labels if any(
+        bad in lbl for bad in ["R6b+", " value", "momentum_reversal"]
+    )]
+    assert not exposed, f"Internal names exposed: {exposed}"
+
+
+def test_strategy_card_kb_labels_user_friendly():
+    kb = strategy_card_kb()
+    labels = _btn_labels(kb)
+    assert any("Edge Finder" in lbl for lbl in labels)
+    assert any("Momentum" in lbl for lbl in labels)
+    assert any("Signal" in lbl for lbl in labels)
 
 
 # ---------------------------------------------------------------------------
-# Part 6 — Dashboard text (_build_main_text)
+# Part 4 — set_strategy_card backend mapping
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.handlers.dashboard import _build_main_text
+from projects.polymarket.crusaderbot.bot.handlers.setup import _CARD_TO_BACKEND
 
 
-def _stats():
-    from decimal import Decimal
-    return {
-        "pnl_today": Decimal("12.50"),
-        "pnl_7d":    Decimal("-5.00"),
-        "pnl_30d":   Decimal("80.00"),
-        "pnl_all":   Decimal("120.00"),
-        "total_trades": 10,
-        "winning": 6,
-        "losing": 4,
-        "positions_value": Decimal("250.00"),
-        "trading_mode": "paper",
-        "auto_trade_on": True,
-        "preset_name": "balanced",
+def test_edge_finder_maps_to_value():
+    assert _CARD_TO_BACKEND["edge_finder"] == ["value"]
+
+
+def test_momentum_reversal_maps_correctly():
+    assert _CARD_TO_BACKEND["momentum_reversal"] == ["momentum_reversal"]
+
+
+def test_all_strategy_maps_all_three():
+    result = _CARD_TO_BACKEND["all"]
+    assert "signal" in result
+    assert "value" in result
+    assert "momentum_reversal" in result
+    assert len(result) == 3
+
+
+# ---------------------------------------------------------------------------
+# Part 6 — Insights threshold
+# ---------------------------------------------------------------------------
+
+from projects.polymarket.crusaderbot.bot.handlers.pnl_insights import format_insights
+
+
+def _base_data(**overrides) -> dict:
+    defaults = {
+        "total_closed": 10,
+        "wins": 6,
+        "losses": 4,
+        "gross_wins": Decimal("30.00"),
+        "gross_losses": Decimal("12.00"),
+        "best_pnl": Decimal("8.50"),
+        "worst_pnl": Decimal("-4.20"),
+        "best_title": "Will Bitcoin hit 120K?",
+        "worst_title": "US election 2028?",
+        "avg_win": Decimal("5.00"),
+        "avg_loss": Decimal("3.00"),
+        "trades_7d": 3,
+        "pnl_7d": Decimal("6.30"),
+        "streak_dir": "win",
+        "streak_len": 3,
     }
+    defaults.update(overrides)
+    return defaults
 
 
-def test_dashboard_shows_paper_mode():
-    text = _build_main_text(_stats(), 1000.0)
-    assert "PAPER" in text
+def test_insights_empty_state_below_threshold():
+    text = format_insights(_base_data(total_closed=0))
+    assert "Not enough data" in text or "3 closed" in text.lower() or "0 closed" in text
 
 
-def test_dashboard_shows_balance():
-    text = _build_main_text(_stats(), 1234.56)
-    assert "1234.56" in text or "1,234.56" in text
+def test_insights_threshold_2_shows_not_enough():
+    text = format_insights(_base_data(total_closed=2))
+    assert "Not enough data" in text
 
 
-def test_dashboard_shows_pnl_today():
-    text = _build_main_text(_stats(), 1000.0)
-    assert "12.50" in text
+def test_insights_threshold_3_shows_content():
+    text = format_insights(_base_data(total_closed=3, wins=2, losses=1))
+    assert "Insights" in text
+    assert "Not enough data" not in text
 
 
-def test_dashboard_shows_win_loss():
-    text = _build_main_text(_stats(), 1000.0)
-    assert "6" in text  # winning trades
-    assert "4" in text  # losing trades
-
-
-def test_dashboard_shows_strategy_when_auto_on():
-    text = _build_main_text(_stats(), 1000.0)
-    assert "balanced" in text.lower()
-
-
-def test_dashboard_auto_off_shows_inactive():
-    st = _stats()
-    st["auto_trade_on"] = False
-    text = _build_main_text(st, 1000.0)
-    # Should indicate auto-trade is off
-    assert "off" in text.lower() or "inactive" in text.lower() or "🔴" in text
+def test_insights_threshold_shows_current_count():
+    text = format_insights(_base_data(total_closed=2))
+    assert "2" in text
 
 
 # ---------------------------------------------------------------------------
-# Part 7 — signal_following helpers
+# Part 6 — insights_kb has no Dashboard button
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.handlers.signal_following import (
-    _escape_md,
-    _normalise_slug,
-)
+from projects.polymarket.crusaderbot.bot.keyboards import insights_kb
 
 
-def test_normalise_slug_lower():
-    assert _normalise_slug("DEMO") == "demo"
+def test_insights_kb_no_dashboard_button():
+    kb = insights_kb()
+    labels = _btn_labels(kb)
+    assert not any("Dashboard" in lbl for lbl in labels)
 
 
-def test_normalise_slug_rejects_spaces():
-    assert _normalise_slug("demo feed") is None
-
-
-def test_normalise_slug_rejects_at():
-    assert _normalise_slug("@demo") is None
-
-
-def test_normalise_slug_accepts_hyphen():
-    assert _normalise_slug("demo-feed") == "demo-feed"
-
-
-def test_normalise_slug_accepts_underscore():
-    assert _normalise_slug("demo_feed") == "demo_feed"
-
-
-def test_escape_md_escapes_underscore():
-    assert "\\_" in _escape_md("hello_world")
-
-
-def test_escape_md_escapes_backtick():
-    assert "\\`" in _escape_md("`code`")
-
-
-def test_escape_md_empty():
-    assert _escape_md("") == ""
-    assert _escape_md(None) == ""
+def test_insights_kb_has_refresh():
+    kb = insights_kb()
+    data = _cb_data(kb)
+    assert "insights:refresh" in data
 
 
 # ---------------------------------------------------------------------------
-# Part 8 — set_strategy_card (backend mapping)
+# Part 7 — Settings hub keyboard
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.handlers.presets import _build_autotrade_card
+
+def test_settings_hub_has_wallet():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:wallet" in data
 
 
-def test_set_strategy_aggressive():
-    card = _build_autotrade_card(True, "aggressive")
-    assert "aggressive" in card.lower()
+def test_settings_hub_has_profile():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:profile" in data
 
 
-def test_set_strategy_conservative():
-    card = _build_autotrade_card(True, "conservative")
-    assert "conservative" in card.lower()
+def test_settings_hub_has_notifications():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:notifications" in data
+
+
+def test_settings_hub_has_risk():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:risk" in data
+
+
+def test_settings_hub_has_live_gate():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:live_gate" in data
+
+
+def test_settings_hub_has_back():
+    kb = settings_hub_kb()
+    data = _cb_data(kb)
+    assert "settings:back" in data
 
 
 # ---------------------------------------------------------------------------
 # Part 9 — My Trades keyboard (no Dashboard button)
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.keyboards.my_trades import my_trades_kb
+from projects.polymarket.crusaderbot.bot.keyboards.my_trades import (
+    close_success_kb,
+    my_trades_main_kb,
+)
 
 
-def test_my_trades_kb_no_dashboard_button():
-    kb = my_trades_kb()
+def test_my_trades_main_kb_no_dashboard():
+    kb = my_trades_main_kb([])
     data = _cb_data(kb)
     assert "dashboard:main" not in data
 
 
-def test_my_trades_kb_has_positions():
-    kb = my_trades_kb()
+def test_my_trades_main_kb_has_history_and_insights():
+    kb = my_trades_main_kb([])
     data = _cb_data(kb)
-    assert "positions:view" in data or "portfolio:positions" in data or any(
-        "position" in d for d in data
-    )
+    assert "mytrades:hist:0" in data
+    assert "insights:refresh" in data
+
+
+def test_close_success_kb_no_dashboard():
+    kb = close_success_kb()
+    data = _cb_data(kb)
+    assert "dashboard:main" not in data
+
+
+def test_close_success_kb_has_my_trades():
+    kb = close_success_kb()
+    data = _cb_data(kb)
+    assert "mytrades:back" in data
 
 
 # ---------------------------------------------------------------------------
-# Part 9b — My Trades text formatting
+# Part 9 — My Trades text formatting
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.handlers.my_trades import _build_main_text
+from projects.polymarket.crusaderbot.bot.handlers.my_trades import (
+    _build_main_text,
+    _format_positions_section,
+)
 
 
-def _fake_pos(side="yes", size=100.0, entry=0.6, mode="paper"):
-    import datetime
-    return {
-        "id": "aabbccdd-1234-5678-9012-abcdef012345",
-        "market_id": "mkt-1",
-        "side": side,
-        "size_usdc": size,
-        "entry_price": entry,
-        "mode": mode,
-        "opened_at": datetime.datetime(2026, 4, 1, 12, 0),
-        "question": "Will X happen?",
-        "applied_tp_pct": 0.15,
-        "applied_sl_pct": 0.08,
-        "current_price": 0.65,
-        "status": "open",
-    }
+def test_format_positions_with_tp_sl():
+    pos = [{
+        "question": "Will X win?",
+        "market_id": "mkt1",
+        "side": "yes",
+        "entry_price": "0.420",
+        "size_usdc": "10.00",
+    }]
+    marks = [0.48]
+    text = _format_positions_section(pos, marks, tp_pct=0.25, sl_pct=0.08)
+    assert "TP: +25%" in text
+    assert "SL: -8%" in text
 
 
-def _fake_ord(side="yes", size=50.0, price=0.55, status="filled"):
-    import datetime
-    return {
-        "market_id": "mkt-1",
-        "side": side,
-        "size_usdc": size,
-        "price": price,
-        "mode": "paper",
-        "status": status,
-        "created_at": datetime.datetime(2026, 4, 2, 9, 0),
-        "question": "Will X happen?",
-    }
+def test_format_positions_no_tp_sl_shows_dash():
+    pos = [{
+        "question": "Will Y happen?",
+        "market_id": "mkt2",
+        "side": "no",
+        "entry_price": "0.600",
+        "size_usdc": "5.00",
+    }]
+    marks = [None]
+    text = _format_positions_section(pos, marks, tp_pct=None, sl_pct=None)
+    assert "TP: —" in text
+    assert "SL: —" in text
+
+
+def test_my_trades_empty_state():
+    text = _build_main_text([], [], [])
+    assert "No open positions" in text
 
 
 def test_my_trades_header_emoji():
