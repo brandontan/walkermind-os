@@ -31,7 +31,7 @@ Status       : WARP/TELEGRAM-UX-V3 PR open — Premium UX v3 full implementation
 - Live execution path user_id guards: domain/execution/live.py has 4 position UPDATEs (lines 309, 328, 343, 361) missing AND user_id=$N. Deferred to WARP/live-execution-user-id-guards; required before ENABLE_LIVE_TRADING activation.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP/TELEGRAM-UX-V3 PR (STANDARD tier, telegram-ux-v3.md).
+- WARP🔹CMD review required for WARP/TELEGRAM-UX-V3 PR (STANDARD tier, TELEGRAM-UX-V3.md).
 - After merge: open WARP/notifications-paper-wire to wire notify_order_filled() into paper executor.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 - If preparing for live activation, start WARP/live-execution-user-id-guards before flipping any activation guard.
@@ -45,4 +45,3 @@ Status       : WARP/TELEGRAM-UX-V3 PR open — Premium UX v3 full implementation
 - R13 backlog is post-MVP growth work and not required for current paper-safe runtime.
 - [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
-

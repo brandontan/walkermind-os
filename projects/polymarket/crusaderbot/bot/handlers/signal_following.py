@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 import re
 
-from telegram import Update
+from telegram import InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
@@ -123,9 +123,9 @@ _USAGE = (
 )
 
 
-async def _build_signals_screen(user_id) -> tuple[str, "InlineKeyboardMarkup"]:
+async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
     """Build the tap-based signals hub text and keyboard."""
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from telegram import InlineKeyboardButton
     from ..keyboards import nav_row
 
     subs = await list_user_subscriptions(user_id)

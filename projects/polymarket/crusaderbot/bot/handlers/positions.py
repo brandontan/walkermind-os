@@ -37,6 +37,8 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
+from decimal import Decimal
+
 from ...database import get_pool
 from ...integrations.polymarket import get_book
 from ...users import get_settings_for, upsert_user
@@ -157,15 +159,13 @@ async def _load_open_positions(user_id) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def _pnl_fmt(val: "Decimal") -> str:
+def _pnl_fmt(val: Decimal) -> str:
     sign = "+" if val >= 0 else ""
     return f"{sign}${val:.2f}"
 
 
 async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Portfolio overview screen — handles both message and callback paths."""
-    from decimal import Decimal
-    # resolve via message or callback
     is_cb = update.callback_query is not None
     if is_cb:
         q = update.callback_query
