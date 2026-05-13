@@ -1,5 +1,5 @@
-Last Updated : 2026-05-13 12:20 WIB
-Status       : Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashboard v3, signals tap-hub, portfolio screen, nav_row helper, notify_order_filled utility. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-13 14:32 WIB
+Status       : relax-branch-prefix-rule STANDARD lane open — AGENTS.md updated to accept WARP/ and warp/ prefixes. PR pending WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
 - Premium UX v4 (Hybrid Luxury) — PR #1026 merged bd8fe42d
@@ -17,6 +17,7 @@ Status       : Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashb
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
+- relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
@@ -32,9 +33,9 @@ Status       : Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashb
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP/TELEGRAM-UX-V3 PR (STANDARD tier, TELEGRAM-UX-V3.md).
-- After merge: open WARP/notifications-paper-wire to wire notify_order_filled() into paper executor.
+- WARP🔹CMD review required for relax-branch-prefix-rule PR. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - WARP🔹CMD merge decision for live-execution-user-id-guards PR #1021. SENTINEL APPROVED 97/100. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
+- After merge: open WARP/notifications-paper-wire to wire notify_order_filled() into paper executor.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
 [KNOWN ISSUES]
