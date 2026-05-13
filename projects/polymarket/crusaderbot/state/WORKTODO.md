@@ -6,7 +6,8 @@
 ---
 
 ## Right Now
-- PR #1032 in progress on warp/fix-telegram-mvp-ux-readability-regression (2026-05-13). Compact hierarchy readability regression fix + traceability/state sync.
+- crusaderbot-mvp-reset-v1 lane complete (2026-05-14). Telegram MVP UX reset: 5-button nav, clean onboarding, MVP screens. PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review.
+- PR #1032 merged (warp/fix-telegram-mvp-ux-readability-regression, 2026-05-13). Compact hierarchy readability regression fix.
 - PR #1029 and PR #1031 merged. Blocker fixes absorbed into compact hierarchy lane; awaiting WARP🔹CMD re-review on PR #1032 only.
 - [x] crusaderbot-mvp-ux-v1 — Hierarchy Tree Terminal UI rebuild complete, PR open, STANDARD NARROW INTEGRATION
 - Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashboard v3, signals tap-hub, portfolio screen, nav_row, notifications utility.
