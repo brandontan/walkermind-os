@@ -1,11 +1,12 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-13T17:24 WIB
+**Last Updated: 2026-05-14 05:20 WIB
 
 ---
 
 ## Right Now
+- crusaderbot-telegram-redesign-v2 lane complete (2026-05-14). Telegram-native card UX v2 implemented; PR pending WARP🔹CMD review on WARP/crusaderbot-telegram-redesign-v2.
 - crusaderbot-mvp-reset-v1 lane complete (2026-05-14). Telegram MVP UX reset: 5-button nav, clean onboarding, MVP screens. PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review.
 - PR #1032 merged (warp/fix-telegram-mvp-ux-readability-regression, 2026-05-13). Compact hierarchy readability regression fix.
 - PR #1029 and PR #1031 merged. Blocker fixes absorbed into compact hierarchy lane; awaiting WARP🔹CMD re-review on PR #1032 only.

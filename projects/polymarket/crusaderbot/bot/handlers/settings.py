@@ -51,17 +51,12 @@ logger = logging.getLogger(__name__)
 def _hub_text(mode: str, tier: int) -> str:
     """MVP Settings hub: Profile + Notifications status."""
     mode_label = "💸 Live" if mode == "live" else "📑 Paper"
-    tier_labels = {1: "Sandbox", 2: "Sandbox", 3: "Funded", 4: "Premium"}
-    tier_label = tier_labels.get(tier, "Sandbox")
+    risk_label = "Balanced"
     return (
-        "⚙️ Settings\n"
-        "\n"
-        "Profile\n"
-        f"├ Mode: {mode_label}\n"
-        f"└ Tier: {tier_label}\n"
-        "\n"
-        "Notifications\n"
-        "└ 🟢 Enabled"
+        "⚙️ Settings\n\n"
+        f"📑 Mode: {mode_label.replace("💸 ","").replace("📑 ","")}\n"
+        "🔔 Notifications: ON\n"
+        f"⚖️ Risk: {risk_label}"
     )
 
 

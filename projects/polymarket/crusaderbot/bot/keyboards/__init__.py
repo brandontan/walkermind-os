@@ -26,19 +26,18 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
 
 
 def main_menu() -> ReplyKeyboardMarkup:
-    """MVP Global Navigation — 5 buttons. Signal Feeds and Insights removed."""
+    """Telegram UX v2 global nav keyboard."""
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("🏠 Dashboard"),   KeyboardButton("💼 Portfolio")],
-            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("⚙️ Settings")],
-            [KeyboardButton("🛑 Stop Bot")],
+            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("💼 Portfolio")],
+            [KeyboardButton("⚙️ Settings"),    KeyboardButton("🛑 Stop Bot")],
         ],
         resize_keyboard=True,
     )
 
 
 def dashboard_kb() -> InlineKeyboardMarkup:
-    """MVP Dashboard inline keyboard — 4 actions + Refresh."""
+    """Telegram UX v2 dashboard keyboard."""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🤖 Auto Trade", callback_data="dashboard:auto"),
@@ -48,8 +47,7 @@ def dashboard_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton("⚙️ Settings",   callback_data="dashboard:settings"),
             InlineKeyboardButton("🛑 Stop Bot",   callback_data="dashboard:stop"),
         ],
-        [InlineKeyboardButton("🔄 Refresh", callback_data="dashboard:main")],
-    ])
+            ])
 
 
 # MVP RESET V1 — deprecated UI flow
@@ -68,8 +66,7 @@ def _legacy_dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
             InlineKeyboardButton("⚙️ Settings",     callback_data="dashboard:settings"),
             InlineKeyboardButton("🛑 Stop Bot",     callback_data="dashboard:stop"),
         ],
-        [InlineKeyboardButton("🔄 Refresh", callback_data="dashboard:main")],
-        [cta_btn],
+                [cta_btn],
     ])
 
 
@@ -106,9 +103,9 @@ def _legacy_portfolio_kb() -> InlineKeyboardMarkup:
 def mvp_auto_trade_kb() -> InlineKeyboardMarkup:
     """MVP Auto Trade: Conservative/Balanced/Aggressive mapped to preset keys."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📡 Conservative", callback_data="preset:pick:signal_sniper")],
-        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:value_hunter")],
-        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:full_auto")],
+        [InlineKeyboardButton("📡 Conservative", callback_data="preset:pick:conservative")],
+        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:balanced")],
+        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:aggressive")],
         [
             InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
             InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
@@ -122,7 +119,7 @@ def mvp_risk_kb(current: str = "") -> InlineKeyboardMarkup:
         return ("✅ " if r == current else "") + r.title()
 
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📡 {mark('conservative')}", callback_data="set_risk:conservative")],
+        [InlineKeyboardButton(f"📡 {mark('conservative')}", callback_data="set_risk:safe")],
         [InlineKeyboardButton(f"🎯 {mark('balanced')}",     callback_data="set_risk:balanced")],
         [InlineKeyboardButton(f"🚀 {mark('aggressive')}",   callback_data="set_risk:aggressive")],
         [
@@ -185,7 +182,7 @@ def risk_picker(current: str) -> InlineKeyboardMarkup:
         return f"{'✅' if r == current else '◻️'} {r.title()}"
     buttons = [
         InlineKeyboardButton(mark("conservative"),
-                             callback_data="set_risk:conservative"),
+                             callback_data="set_risk:safe"),
         InlineKeyboardButton(mark("balanced"),  callback_data="set_risk:balanced"),
         InlineKeyboardButton(mark("aggressive"), callback_data="set_risk:aggressive"),
         InlineKeyboardButton("⬅️ Back", callback_data="setup:menu"),
