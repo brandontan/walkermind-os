@@ -1,11 +1,12 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-13 09:33 WIB
+**Last Updated: 2026-05-13 11:51 WIB
 
 ---
 
 ## Right Now
+- Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashboard v3, signals tap-hub, portfolio screen, nav_row, notifications utility.
 
 - GitHub queue synced: open PRs = 0, open issues = 0.
 - Focus remains closed beta observation and paper-mode runtime monitoring.
@@ -87,4 +88,3 @@ Done condition: P3 lanes merged, registry catalog populated at boot, scan loop w
 - [ ] services/* dead code (post-R12 cleanup, LOW).
 - [ ] /deposit no tier gate (intentional, non-blocking).
 - [ ] WARP/LIB-F401-CLEANUP (MINOR, deferred post-demo) -- shared-lib cross-project audit required before cleanup.
-
