@@ -255,7 +255,6 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 
     # --- auto mode (v3 new) ---
     if sub == "auto":
-        from ..keyboards.presets import preset_picker_kb
         from .presets import show_preset_picker
         await show_preset_picker(update, ctx)
         return
@@ -472,3 +471,4 @@ async def activity(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
     await update.message.reply_text("\n\n".join(lines),
                                     parse_mode=ParseMode.MARKDOWN)
+
