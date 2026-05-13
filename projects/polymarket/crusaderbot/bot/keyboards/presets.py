@@ -58,8 +58,8 @@ def preset_switch_confirm() -> InlineKeyboardMarkup:
 
 def preset_stop_confirm() -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton("❌ Cancel",    callback_data="preset:status"),
         InlineKeyboardButton("🛑 Yes, stop", callback_data="preset:stop_yes"),
+        InlineKeyboardButton("❌ Cancel",    callback_data="preset:status"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))
 
