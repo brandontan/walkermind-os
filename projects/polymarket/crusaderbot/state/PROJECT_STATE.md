@@ -1,5 +1,5 @@
-Last Updated : 2026-05-13 09:33 WIB
-Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub open PRs = 0, open issues = 0. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-13 10:00
+Status       : WARP•FORGE live-execution-user-id-guards PR open. 4 position UPDATEs in close_position() hardened with AND user_id=$N. MAJOR tier — WARP•SENTINEL validation required before merge. Production PAPER ONLY.
 
 [COMPLETED]
 - Migration idempotency fix MERGED PR #1003 (2026-05-12). ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3. MAJOR, NARROW INTEGRATION.
@@ -44,4 +44,3 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 - R13 backlog is post-MVP growth work and not required for current paper-safe runtime.
 - [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
-
