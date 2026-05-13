@@ -232,6 +232,7 @@ async def evaluate(ctx: GateContext) -> GateResult:
             return GateResult(False, "signal_stale", 9)
     await _log(ctx.user_id, ctx.market_id, 9, True, "ok")
 
+    await _log(ctx.user_id, ctx.market_id, 10, True, "entering_step10")  # diag
     # 10. Idempotency / dedup
     if await _idempotent_already_seen(ctx.idempotency_key):
         await _log(ctx.user_id, ctx.market_id, 10, False, "idempotent_dup")
@@ -308,3 +309,4 @@ async def evaluate(ctx: GateContext) -> GateResult:
 
     await _record_idempotency(ctx.user_id, ctx.idempotency_key)
     return GateResult(True, "approved", None, final_size, chosen_mode)
+
