@@ -34,7 +34,7 @@ from telegram.ext import ContextTypes
 from ...users import get_settings_for, update_settings, upsert_user
 from ...wallet.ledger import get_balance
 from ...config import get_settings as get_app_settings
-from ..keyboards import risk_picker, setup_menu
+from ..keyboards import mvp_risk_kb, risk_picker, setup_menu
 from ..keyboards.settings import (
     autoredeem_settings_picker,
     capital_preset_kb,
@@ -49,17 +49,19 @@ from ..tier import Tier, has_tier, tier_block_message
 logger = logging.getLogger(__name__)
 
 def _hub_text(mode: str, tier: int) -> str:
-    mode_label = "💸 Live" if mode == "live" else "📝 Paper"
-    tier_labels = {1: "Guest", 2: "Allowlisted", 3: "Funded", 4: "Premium"}
-    tier_label = tier_labels.get(tier, f"Tier {tier}")
+    """MVP Settings hub: Profile + Notifications status."""
+    mode_label = "💸 Live" if mode == "live" else "📑 Paper"
+    tier_labels = {1: "Sandbox", 2: "Sandbox", 3: "Funded", 4: "Premium"}
+    tier_label = tier_labels.get(tier, "Sandbox")
     return (
         "⚙️ Settings\n"
         "\n"
-        "Account\n"
+        "Profile\n"
         f"├ Mode: {mode_label}\n"
         f"└ Tier: {tier_label}\n"
         "\n"
-        "Configure preferences, risk controls, and account setup."
+        "Notifications\n"
+        "└ 🟢 Enabled"
     )
 
 
@@ -254,13 +256,24 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Risk profile ---
+    # --- Risk Profile (MVP) ---
     if data == "settings:risk":
         s = await get_settings_for(user["id"])
+        current_risk = s.get("risk_profile", "balanced")
         await q.message.reply_text(
-            "*⚖️ Risk Profile*\n\nSelect your risk level:",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=risk_picker(s["risk_profile"]),
+            "⚖️ Risk Profile\n"
+            "\n"
+            "Choose your risk level:\n"
+            "\n"
+            "📡 Conservative\n"
+            "Safer, smaller exposure\n"
+            "\n"
+            "🎯 Balanced\n"
+            "Recommended for most users\n"
+            "\n"
+            "🚀 Aggressive\n"
+            "Higher exposure",
+            reply_markup=mvp_risk_kb(current_risk),
         )
         return
 

@@ -104,11 +104,11 @@ def _legacy_portfolio_kb() -> InlineKeyboardMarkup:
 
 
 def mvp_auto_trade_kb() -> InlineKeyboardMarkup:
-    """MVP Auto Trade: Conservative / Balanced / Aggressive + nav."""
+    """MVP Auto Trade: Conservative/Balanced/Aggressive mapped to preset keys."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📡 Conservative", callback_data="preset:pick:conservative")],
-        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:balanced")],
-        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:aggressive")],
+        [InlineKeyboardButton("📡 Conservative", callback_data="preset:pick:signal_sniper")],
+        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:value_hunter")],
+        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:full_auto")],
         [
             InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
             InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),

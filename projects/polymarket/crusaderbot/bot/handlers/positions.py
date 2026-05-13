@@ -41,7 +41,7 @@ from decimal import Decimal
 
 from ...database import get_pool
 from ...integrations.polymarket import get_book
-from ...users import get_settings_for, upsert_user
+from ...users import upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
 from ..keyboards import main_menu, portfolio_kb
 from ..keyboards.positions import force_close_confirm_kb, positions_list_kb
@@ -181,32 +181,21 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     bal = await get_balance(user["id"])
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
-    s = await get_settings_for(user["id"])
 
-    equity = bal + st["positions_value"]
-    max_pos_pct = float(s.get("capital_alloc_pct") or 0.1)
     open_count = st["winning"] + st["losing"]
-    mode_label = "💸 Live" if st["trading_mode"] == "live" else "📝 Paper"
-    pnl_icon = "📈" if pnl_today >= 0 else "📉"
 
     text = (
         "💼 Portfolio\n"
         "\n"
-        "💰 Balance\n"
+        "Balance\n"
         f"└ ${bal:.2f} USDC\n"
         "\n"
-        "💹 Today\n"
-        f"├ PnL: {pnl_icon} {_pnl_fmt(pnl_today)}\n"
-        f"└ Win/Loss: {st['wins']}W · {st['losses']}L\n"
+        "Performance\n"
+        f"├ PnL: {_pnl_fmt(pnl_today)}\n"
+        f"└ Win/Loss: {st['wins']}W • {st['losses']}L\n"
         "\n"
-        "📌 Positions\n"
-        f"├ Open: {open_count}\n"
-        f"└ Exposure: ${st['positions_value']:.2f}\n"
-        "\n"
-        "Account\n"
-        f"├ Equity: ${equity:.2f}\n"
-        f"├ Mode: {mode_label}\n"
-        f"└ Max Size: {max_pos_pct:.0%}"
+        "Positions\n"
+        f"└ Open: {open_count}"
     )
 
     if is_cb:
