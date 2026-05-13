@@ -1,5 +1,5 @@
-Last Updated : 2026-05-13 10:00
-Status       : WARP•FORGE live-execution-user-id-guards PR open. 4 position UPDATEs in close_position() hardened with AND user_id=$N. MAJOR tier — WARP•SENTINEL validation required before merge. Production PAPER ONLY.
+Last Updated : 2026-05-13 10:13 WIB
+Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub open PRs = 0, open issues = 0. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
 - Migration idempotency fix MERGED PR #1003 (2026-05-12). ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3. MAJOR, NARROW INTEGRATION.
@@ -15,7 +15,7 @@ Status       : WARP•FORGE live-execution-user-id-guards PR open. 4 position UP
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- live-execution-user-id-guards PR open. 4 position UPDATEs in close_position() hardened with AND user_id=$N. MAJOR, NARROW INTEGRATION. Awaiting WARP•SENTINEL validation.
+- live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -30,9 +30,7 @@ Status       : WARP•FORGE live-execution-user-id-guards PR open. 4 position UP
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for live-execution-user-id-guards before merge.
-- Source: projects/polymarket/crusaderbot/reports/forge/live-execution-user-id-guards.md
-- Tier: MAJOR
+- WARP🔹CMD merge decision for live-execution-user-id-guards PR #1021. SENTINEL APPROVED 97/100. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
 [KNOWN ISSUES]
@@ -44,3 +42,6 @@ Status       : WARP•FORGE live-execution-user-id-guards PR open. 4 position UP
 - R13 backlog is post-MVP growth work and not required for current paper-safe runtime.
 - [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
+- [DEFERRED] CHANGELOG.md entry missing for WARP/live-execution-user-id-guards — append on post-merge sync.
+- [DEFERRED] NEXT PRIORITY 4 items in PR #1021 PROJECT_STATE.md (cap 3) — prune on post-merge sync.
+
