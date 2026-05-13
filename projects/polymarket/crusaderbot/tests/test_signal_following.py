@@ -1365,15 +1365,21 @@ def test_signals_command_blocked_for_tier_below_2():
     assert "Tier 2" in text
 
 
-def test_signals_command_no_args_shows_usage():
+def test_signals_command_no_args_renders_hub():
+    """v3: no-arg /signals renders the inline feed toggle hub, not CLI usage text."""
+    from telegram import InlineKeyboardMarkup
     update, reply = _fake_update_message()
     ctx = _fake_ctx()
     user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
-    with patch.object(sf_handler, "upsert_user", return_value=user_ok):
+    hub_text = "🧠 Signals\n━━━━━━━━━━━━━━━━━━"
+    hub_kb = InlineKeyboardMarkup([[]])
+    with patch.object(sf_handler, "upsert_user", return_value=user_ok), \
+         patch.object(sf_handler, "_build_signals_screen",
+                      return_value=(hub_text, hub_kb)):
         asyncio.run(sf_handler.signals_command(update, ctx))
     reply.assert_called_once()
-    assert "/signals" in reply.call_args[0][0]
-    assert str(MAX_SUBSCRIPTIONS_PER_USER) in reply.call_args[0][0]
+    call_text = reply.call_args[0][0]
+    assert "Signals" in call_text
 
 
 def test_signals_on_invalid_slug_message():
@@ -1475,3 +1481,4 @@ def test_signal_subs_list_kb_one_row_per_subscription():
 def test_signal_subs_list_kb_empty_when_no_entries():
     kb = signal_subs_list_kb([])
     assert list(kb.inline_keyboard) == []
+
