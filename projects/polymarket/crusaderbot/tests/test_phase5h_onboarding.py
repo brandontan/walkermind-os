@@ -243,7 +243,7 @@ def test_mode_paper_marks_complete_and_shows_confirmation():
 
     assert result == ConversationHandler.END
     set_mock.assert_awaited_once_with(uid)
-    assert any("Paper mode activated" in r[1] for r in replies)
+    assert any("Paper Mode Active" in r[1] for r in replies)
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +257,7 @@ def test_mode_paper_without_user_id_still_shows_confirmation():
     result = asyncio.run(_mode_cb(update, ctx))
 
     assert result == ConversationHandler.END
-    assert any("Paper mode activated" in r[1] for r in replies)
+    assert any("Paper Mode Active" in r[1] for r in replies)
 
 
 # ---------------------------------------------------------------------------
