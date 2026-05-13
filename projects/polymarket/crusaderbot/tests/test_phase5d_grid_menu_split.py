@@ -54,10 +54,10 @@ def test_grid_rows_custom_cols():
 # ---------- main_menu v3 (ReplyKeyboard) ------------------------------------
 
 V3_BUTTONS = {
-    "📊 Dashboard",
+    "🏠 Dashboard",
     "💼 Portfolio",
-    "🤖 Auto Mode",
-    "🧠 Signals",
+    "🤖 Auto Trade",
+    "👥 Copy Wallet",
     "📊 Insights",
     "⚙️ Settings",
     "🛑 Stop Bot",
@@ -96,7 +96,7 @@ def test_main_menu_expected_v3_buttons():
 def test_main_menu_contains_signals_button():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "🧠 Signals" in labels
+    assert "👥 Copy Wallet" in labels
 
 
 def test_main_menu_contains_portfolio_button():
@@ -120,7 +120,7 @@ def test_main_menu_contains_stop_bot_button():
 # ---------- MAIN_MENU_ROUTES v3 --------------------------------------------
 
 def test_signals_route_registered():
-    assert "🧠 Signals" in MAIN_MENU_ROUTES
+    assert "👥 Copy Wallet" in MAIN_MENU_ROUTES
 
 
 def test_portfolio_route_registered():
@@ -132,26 +132,26 @@ def test_insights_route_registered():
 
 
 def test_auto_mode_route_registered():
-    assert "🤖 Auto Mode" in MAIN_MENU_ROUTES
+    assert "🤖 Auto Trade" in MAIN_MENU_ROUTES
 
 
 def test_all_seven_main_menu_routes_present():
     expected = {
-        "📊 Dashboard", "💼 Portfolio", "🤖 Auto Mode",
-        "🧠 Signals", "📊 Insights", "⚙️ Settings", "🛑 Stop Bot",
+        "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Trade",
+        "👥 Copy Wallet", "📊 Insights", "⚙️ Settings", "🛑 Stop Bot",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 
 
 def test_signals_and_portfolio_are_different_handlers():
-    signals_handler = MAIN_MENU_ROUTES["🧠 Signals"]
+    signals_handler = MAIN_MENU_ROUTES["👥 Copy Wallet"]
     portfolio_handler = MAIN_MENU_ROUTES["💼 Portfolio"]
     assert signals_handler is not portfolio_handler
 
 
 def test_auto_mode_and_dashboard_are_different_handlers():
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Mode"]
-    dash_handler = MAIN_MENU_ROUTES["📊 Dashboard"]
+    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Trade"]
+    dash_handler = MAIN_MENU_ROUTES["🏠 Dashboard"]
     assert auto_handler is not dash_handler
 
 

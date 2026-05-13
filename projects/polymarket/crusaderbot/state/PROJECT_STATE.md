@@ -18,7 +18,7 @@ Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — Hierarchy Tree Termi
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- crusaderbot-mvp-ux-v1: Hierarchy Tree Terminal UI rebuild; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-ux-v1.md
+- crusaderbot-mvp-ux-v1: Hierarchy Tree Terminal UI rebuild; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/CRUSADERBOT-MVP-UX-V1.md
 - relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Observation / runtime monitoring remains active in paper mode.
@@ -35,7 +35,7 @@ Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — Hierarchy Tree Termi
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for crusaderbot-mvp-ux-v1 PR. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-ux-v1.md
+- WARP🔹CMD review required for crusaderbot-mvp-ux-v1 PR. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/CRUSADERBOT-MVP-UX-V1.md
 - WARP🔹CMD review required for relax-branch-prefix-rule PR. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - WARP🔹CMD merge decision for live-execution-user-id-guards PR #1021. SENTINEL APPROVED 97/100. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - After merge: open WARP/notifications-paper-wire to wire notify_order_filled() into paper executor.
