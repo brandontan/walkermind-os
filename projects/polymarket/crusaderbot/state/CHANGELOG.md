@@ -20,7 +20,6 @@ since initial P3d deployment. No trades were executed.
 **Result:** 4 paper orders filled (signal_following, YES, 10 USDC each). Bot
 fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 
-2026-05-13 10:00 | WARP/live-execution-user-id-guards | close_position() 4 position UPDATEs hardened with AND user_id=$N; TestUserIdGuards 5 tests; MAJOR, NARROW INTEGRATION; PR open awaiting WARP•SENTINEL
 2026-05-12 23:30 | WARP/fix-migration-idempotency | Fix migration crash loop: ON CONFLICT DO NOTHING for signal_feeds seeds (migrations 024/025); run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3; MAJOR, NARROW INTEGRATION; PR open awaiting WARP•SENTINEL
 2026-05-13 07:00 | WARP/FIX-SIGNAL-STALE-WINDOW | fix: SIGNAL_STALE_SECONDS 300→14400 — scanner dedup=2h vs staleness gate=300s caused all signals rejected stale_Ns; raise to 14400s (4h) matching SIGNAL_EXPIRY_HOURS; expires_at remains primary guard; MINOR, NARROW INTEGRATION; PR #1017 merged bfc34d066a01
 
@@ -78,3 +77,4 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 2026-05-12 09:07 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 FORGE (STANDARD, NARROW INTEGRATION): warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; no runtime code touched; PR open for WARP🔹CMD review.
 2026-05-12 09:13 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 MERGED PR #996 — warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; STANDARD, NARROW INTEGRATION
 2026-05-12 23:45 | claude/add-strategy-type-column-2slhz | Schema fix orders.strategy_type: migration 026 ADD COLUMN IF NOT EXISTS strategy_type VARCHAR(50); resolves DAWN-SNOWFLAKE-1729-10 and -Z root cause; STANDARD, NARROW INTEGRATION; PR open for WARP🔹CMD review
+

@@ -1,7 +1,7 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-13 00:56 UTC
+**Last Updated: 2026-05-13 09:33 WIB
 
 ---
 
@@ -87,3 +87,4 @@ Done condition: P3 lanes merged, registry catalog populated at boot, scan loop w
 - [ ] services/* dead code (post-R12 cleanup, LOW).
 - [ ] /deposit no tier gate (intentional, non-blocking).
 - [ ] WARP/LIB-F401-CLEANUP (MINOR, deferred post-demo) -- shared-lib cross-project audit required before cleanup.
+

@@ -126,8 +126,8 @@ async def _recent_dup_market_trade(user_id: UUID, market_id: str) -> bool:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT 1 FROM orders WHERE user_id=$1 AND market_id=$2 "
-            "AND created_at > NOW() - $3",
-            user_id, market_id, timedelta(seconds=K.DEDUP_WINDOW_SECONDS),
+            "AND created_at > NOW() - ($3 * INTERVAL '1 second')",
+            user_id, market_id, int(K.DEDUP_WINDOW_SECONDS),
         )
         return row is not None
 
@@ -308,6 +308,8 @@ async def evaluate(ctx: GateContext) -> GateResult:
 
     await _record_idempotency(ctx.user_id, ctx.idempotency_key)
     return GateResult(True, "approved", None, final_size, chosen_mode)
+
+
 
 
 
