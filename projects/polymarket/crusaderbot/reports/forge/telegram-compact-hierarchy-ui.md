@@ -1,6 +1,6 @@
 # WARP•FORGE Report — telegram-compact-hierarchy-ui
 
-- Branch: `WARP/telegram-compact-hierarchy-ui`
+- Branch: `warp/fix-telegram-mvp-ux-readability-regression`
 - Validation Tier: STANDARD
 - Claim Level: NARROW INTEGRATION
 - Project: `projects/polymarket/crusaderbot`

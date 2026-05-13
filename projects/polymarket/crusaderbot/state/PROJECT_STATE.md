@@ -1,5 +1,5 @@
-Last Updated : 2026-05-13 18:09 WIB
-Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — PR #1029 blocker fixes pushed (Signal Feeds relabel + force-close hide + tests green), awaiting WARP🔹CMD re-review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-13 19:00 WIB
+Status       : compact hierarchy traceability/state sync lane active for PR #1032 on warp/fix-telegram-mvp-ux-readability-regression. PR #1029 and #1031 merged. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
 - Premium UX v4 (Hybrid Luxury) — PR #1026 merged bd8fe42d
@@ -18,7 +18,7 @@ Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — PR #1029 blocker fix
 
 [IN PROGRESS]
 - telegram-compact-hierarchy-ui: compact hierarchy UI readability pass in handlers/keyboards; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-compact-hierarchy-ui.md
-- crusaderbot-mvp-ux-v1: Hierarchy Tree Terminal UI rebuild; PR #1029 open, gate review blockers addressed — Signal Feeds route contract aligned, manual force-close surface hidden, targeted tests passing; awaiting re-review. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-ux-v1.md
+- compact-hierarchy-readability-regression: PR #1032 open on warp/fix-telegram-mvp-ux-readability-regression for compact hierarchy readability regression fix and traceability/state sync. Source: projects/polymarket/crusaderbot/reports/forge/telegram-compact-hierarchy-ui.md
 - relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Observation / runtime monitoring remains active in paper mode.
@@ -35,7 +35,7 @@ Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — PR #1029 blocker fix
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for crusaderbot-mvp-ux-v1 PR #1029 after CI green. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-ux-v1.md
+- WARP🔹CMD re-review required for PR #1032 (compact hierarchy readability regression fix) on warp/fix-telegram-mvp-ux-readability-regression. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/telegram-compact-hierarchy-ui.md
 - WARP🔹CMD review required for relax-branch-prefix-rule PR. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - WARP🔹CMD merge decision for live-execution-user-id-guards PR #1021. SENTINEL APPROVED 97/100. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - After merge: open WARP/notifications-paper-wire to wire notify_order_filled() into paper executor.
