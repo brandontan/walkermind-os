@@ -29,7 +29,7 @@ def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
             [KeyboardButton("🏠 Dashboard"),   KeyboardButton("💼 Portfolio")],
-            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("👥 Copy Wallet")],
+            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("📡 Signal Feeds")],
             [KeyboardButton("📊 Insights"),    KeyboardButton("⚙️ Settings")],
             [KeyboardButton("🛑 Stop Bot")],
         ],
@@ -42,7 +42,7 @@ def dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🤖 Auto Trade",  callback_data="dashboard:auto"),
-            InlineKeyboardButton("👥 Copy Wallet", callback_data="dashboard:signals"),
+            InlineKeyboardButton("📡 Signal Feeds", callback_data="dashboard:signals"),
         ],
         [
             InlineKeyboardButton("💼 Portfolio",   callback_data="dashboard:portfolio"),

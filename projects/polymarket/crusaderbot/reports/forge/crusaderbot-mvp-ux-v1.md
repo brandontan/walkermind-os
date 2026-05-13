@@ -12,7 +12,7 @@ Rebuilt CrusaderBot Telegram UI from "Premium Hybrid Luxury" style (`━━━`,
 
 Scope: message template text + keyboard labels only. No callback_data values, routing logic, function signatures, DB queries, or execution paths were modified.
 
-11 handler/keyboard files changed. 4 test files updated to match new text/label assertions. 3 state files updated. 1 report created.
+11 handler/keyboard files changed (+ blocker follow-up relabel + force-close hide). 5 test files updated. 3 state files updated. 1 report created.
 
 ---
 
@@ -24,13 +24,13 @@ Telegram User
     ├── Reply Keyboard (ReplyKeyboardMarkup)
     │   └── bot/keyboards/__init__.py → main_menu()
     │       Labels: 🏠 Dashboard │ 💼 Portfolio │ 🤖 Auto Trade
-    │              👥 Copy Wallet │ 📊 Insights │ ⚙️ Settings │ 🛑 Stop Bot
+    │              📡 Signal Feeds │ 📊 Insights │ ⚙️ Settings │ 🛑 Stop Bot
     │
     ├── Message Handlers (bot/handlers/)
     │   ├── dashboard.py        → 🏠 Dashboard tree (Bot Status / Today / Auto Trade / Portfolio)
     │   ├── positions.py        → 💼 Portfolio + 📌 Open Positions tree
     │   ├── presets.py          → 🤖 Auto Trade wizard (picker/confirm/status/customize)
-    │   ├── signal_following.py → 👥 Copy Wallet menu entry; screen shows Signal Feeds hub
+    │   ├── signal_following.py → 📡 Signal Feeds menu entry; screen shows signal feed hub
     │   ├── settings.py         → ⚙️ Settings hub tree (Account / Mode / Tier)
     │   └── onboarding.py       → 🚀 Quick Start tree
     │
@@ -65,7 +65,7 @@ Pipeline layers (untouched): STRATEGY → RISK → EXECUTION → MONITORING.
 | `projects/polymarket/crusaderbot/bot/keyboards/settings.py` | `↩️ Back to Settings` → `⬅ Back`; `Custom` → `✏️ Custom` |
 | `projects/polymarket/crusaderbot/bot/handlers/onboarding.py` | `_WELCOME_TEXT` + `_PAPER_COMPLETE_TEXT` → tree format |
 
-### Test files updated (4)
+### Test files updated (5)
 
 | File | Change |
 |------|--------|
@@ -74,6 +74,7 @@ Pipeline layers (untouched): STRATEGY → RISK → EXECUTION → MONITORING.
 | `projects/polymarket/crusaderbot/tests/test_phase5i_my_trades.py` | Route key updated |
 | `projects/polymarket/crusaderbot/tests/test_phase5h_onboarding.py` | Onboarding confirmation text updated |
 | `projects/polymarket/crusaderbot/tests/test_preset_system.py` | Status card assertions updated for tree format |
+| `projects/polymarket/crusaderbot/tests/test_positions_handler.py` | Portfolio keyboard coverage updated for Back/Home nav footer row |
 
 ### State / report files (4)
 
@@ -109,8 +110,8 @@ Pipeline layers (untouched): STRATEGY → RISK → EXECUTION → MONITORING.
 - `pnl_insights.py`, `copy_trade.py`, `portfolio_chart.py` still contain `━━━` — out of scope for this lane. Separate cleanup lane required.
 - Help (`/help`) and Markets screens deferred — adding them requires new callback routing registrations (not UI-only).
 - `_LIVE_REDIRECT_TEXT` in `onboarding.py` not updated (single-line redirect, no tree structure applicable).
-- `positions_list_kb()` retains existing `🛑 Force Close` buttons from original implementation. These are pre-existing safety/admin controls, not trade entry CTAs. No new manual execution CTA was added in this lane.
-- `👥 Copy Wallet` menu label applied per blueprint. Underlying screen (`_build_signals_screen`) displays signal feed subscriptions under the header "📡 Signal Feeds". Wallet address mirroring functionality is deferred to a separate lane and requires storage/routing changes outside this UI-only scope.
+- `positions_list_kb()` retains existing `🛑 Force Close` buttons from original implementation. These are pre-existing safety/admin controls, not trade entry CTAs. Manual force-close CTA is now hidden from portfolio keyboard in this lane; confirm callbacks remain internal/admin-capable.
+- Main menu/route label now uses `📡 Signal Feeds` to match actual signal-subscription behavior. Wallet address mirroring remains deferred to a separate lane requiring storage/routing changes.
 
 ---
 
@@ -129,7 +130,7 @@ Pipeline layers (untouched): STRATEGY → RISK → EXECUTION → MONITORING.
 Validation Tier   : STANDARD
 Claim Level       : NARROW INTEGRATION — Telegram UI text + keyboard labels only
 Validation Target : bot/handlers/ and bot/keyboards/ message templates and keyboard labels (11 files)
-                    + test assertions updated to match new text format (4 test files)
+                    + test assertions updated to match new text format (5 test files)
 Not in Scope      : callback_data values, routing logic, DB, execution, risk, migrations, fly.toml,
                     pnl_insights.py, copy_trade.py, portfolio_chart.py (out-of-scope prohibited chars),
                     help.py, markets.py (deferred — require routing changes),
