@@ -29,6 +29,14 @@ jobs:
   warp-gate:
     name: WARP Auto Gate
     runs-on: ubuntu-latest
+    # Skip gate check when triggered by GATE direct commits to main.
+    # warp-gate[bot] commits (post-merge sync, fly.toml fixes, state sync)
+    # are NOT associated with any open PR — gate check would always fail.
+    if: |
+      github.event_name == 'pull_request_target' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.head_commit.author.name != 'warp-gate[bot]')
     steps:
       # Check out base-branch code (pull_request_target safety model).
       # The gate script fetches all PR data via API — no checkout of
