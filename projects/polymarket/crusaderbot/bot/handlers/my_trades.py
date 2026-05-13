@@ -33,6 +33,7 @@ Per-position close flow:
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import math
 from decimal import Decimal
@@ -48,6 +49,7 @@ from ...domain.trading import repository as repo
 from ...integrations.polymarket import get_book
 from ...monitoring import alerts as monitoring_alerts
 from ...users import get_settings_for, upsert_user
+from ..keyboards import nav_row
 from ..keyboards.my_trades import (
     close_confirm_kb,
     close_success_kb,
@@ -180,9 +182,17 @@ def _build_main_text(
 ) -> str:
     pos_section = _format_positions_section(positions, marks, tp_pct, sl_pct)
     act_section = _format_activity_section(activity)
+    today_count = len([a for a in activity if a.get("closed_at") and
+                       a["closed_at"].date() == datetime.date.today()])
+    today_pnl = sum(float(a.get("pnl_usdc", 0)) for a in activity
+                    if a.get("closed_at") and
+                    a["closed_at"].date() == datetime.date.today())
+    today_sign = "+" if today_pnl >= 0 else ""
+    today_line = f"Today: {today_count} trades · {today_sign}${abs(today_pnl):.2f}"
     return (
         f"*📈 My Trades*\n"
-        f"{_SEP}\n\n"
+        f"{_SEP}\n"
+        f"_{today_line}_\n\n"
         f"{pos_section}\n\n"
         f"{_SEP}\n\n"
         f"{act_section}"
@@ -404,6 +414,53 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
     await q.message.edit_text(
         text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+    )
+
+
+async def trade_detail_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle mytrades:open:<uuid> — show brief trade detail card."""
+    q = update.callback_query
+    if q is None:
+        return
+    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    if not ok:
+        return
+    await q.answer()
+
+    raw_id = (q.data or "").split(":", 2)[-1]
+    try:
+        position_id = UUID(raw_id)
+    except ValueError:
+        await q.message.reply_text("Invalid trade ID.")
+        return
+
+    pos = await repo.get_open_position_for_user(user["id"], position_id)
+    if pos is None:
+        from telegram import InlineKeyboardMarkup as _IKM2
+        await q.message.reply_text(
+            "Position closed or not found. Check 📋 Full History.",
+            reply_markup=_IKM2([nav_row("mytrades:back")]),
+        )
+        return
+
+    title = _truncate(pos["question"] or pos["market_id"], _MARKET_MAX)
+    entry = float(pos["entry_price"])
+    size = float(pos["size_usdc"])
+    token_id = pos["yes_token_id"] if pos["side"] == "yes" else pos["no_token_id"]
+    mark = await _fetch_mark(token_id)
+    pnl_str = _fmt_current(mark, pos["side"], entry, size)
+
+    from telegram import InlineKeyboardMarkup as _IKM
+    await q.message.reply_text(
+        f"*Trade Detail*\n"
+        f"_{title}_\n\n"
+        f"Side: *{pos['side'].upper()}*\n"
+        f"Size: ${size:.2f}\n"
+        f"Entry: ${entry:.3f}\n"
+        f"Current: {pnl_str}\n"
+        f"Mode: {pos.get('mode', 'paper').title()}",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=_IKM([nav_row("mytrades:back")]),
     )
 
 

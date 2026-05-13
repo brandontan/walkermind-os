@@ -16,15 +16,60 @@ def grid_rows(buttons: list, cols: int = 2) -> list[list]:
     return [buttons[i:i + cols] for i in range(0, len(buttons), cols)]
 
 
+def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
+    """Standard persistent bottom nav row — append to any inline keyboard."""
+    return [
+        InlineKeyboardButton("⬅️ Back",    callback_data=back_data),
+        InlineKeyboardButton("🏠 Home",    callback_data="dashboard:main"),
+        InlineKeyboardButton("🔄 Refresh", callback_data="noop:refresh"),
+    ]
+
+
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📊 Dashboard"),  KeyboardButton("📈 My Trades")],
-            [KeyboardButton("🤖 Auto-Trade"), KeyboardButton("🐋 Copy Trade")],
-            [KeyboardButton("⚙️ Settings"),   KeyboardButton("🛑 Stop Bot")],
+            [KeyboardButton("📊 Dashboard"),  KeyboardButton("💼 Portfolio")],
+            [KeyboardButton("🤖 Auto Mode"),  KeyboardButton("🧠 Signals")],
+            [KeyboardButton("📊 Insights"),   KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("🛑 Stop Bot")],
         ],
         resize_keyboard=True,
     )
+
+
+def dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
+    """Dashboard v3 inline keyboard with smart contextual CTA."""
+    return InlineKeyboardMarkup([
+        [cta_btn],
+        [
+            InlineKeyboardButton("💼 Portfolio", callback_data="dashboard:portfolio"),
+            InlineKeyboardButton("🧠 Signals",   callback_data="dashboard:signals"),
+        ],
+        [
+            InlineKeyboardButton("🤖 Auto Mode", callback_data="dashboard:auto"),
+            InlineKeyboardButton("📊 Insights",  callback_data="dashboard:insights"),
+        ],
+        [
+            InlineKeyboardButton("⚙️ Settings",  callback_data="dashboard:settings"),
+            InlineKeyboardButton("🛑 Stop Bot",  callback_data="dashboard:stop"),
+        ],
+        [InlineKeyboardButton("🔄 Refresh",      callback_data="dashboard:main")],
+    ])
+
+
+def portfolio_kb() -> InlineKeyboardMarkup:
+    """Portfolio screen keyboard with Back/Home nav."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📋 Open Positions", callback_data="portfolio:positions"),
+            InlineKeyboardButton("📈 Chart",           callback_data="portfolio:chart"),
+        ],
+        [
+            InlineKeyboardButton("📊 Insights",        callback_data="portfolio:insights"),
+            InlineKeyboardButton("📋 My Trades",       callback_data="portfolio:trades"),
+        ],
+        nav_row("dashboard:main"),
+    ])
 
 
 def wallet_menu() -> InlineKeyboardMarkup:

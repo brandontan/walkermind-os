@@ -1,4 +1,6 @@
 
+2026-05-13 14:30 | WARP/TELEGRAM-UX-V3 | Premium UX v3 full implementation — 7-button menu, dashboard v3, portfolio screen, signals tap-hub, settings v3, onboarding v3, nav_row, notifications utility, callback audit clean
+
 ## 2026-05-13
 
 ### GATE Fix — Gate Step-10 DataError (Commits fd84bb7f → 5fd9fbcf)

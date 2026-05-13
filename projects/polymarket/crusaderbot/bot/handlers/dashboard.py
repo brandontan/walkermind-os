@@ -12,7 +12,9 @@ from ...database import get_pool
 from ...users import get_settings_for, set_auto_trade, upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
 from ...wallet.vault import get_wallet
-from ..keyboards import autotrade_toggle, dashboard_nav, main_menu, setup_menu, wallet_menu
+from ..keyboards import (
+    autotrade_toggle, dashboard_kb, dashboard_nav, main_menu, setup_menu, wallet_menu,
+)
 from ..tier import Tier, has_tier, tier_block_message
 from .setup import STRATEGY_DISPLAY_NAMES
 
@@ -113,6 +115,17 @@ def _risk_icon(profile: str) -> str:
     return {"conservative": "🟢", "balanced": "🟡", "aggressive": "🔴"}.get(profile, "🟡")
 
 
+def _smart_cta(st: dict, auto_on: bool) -> "InlineKeyboardButton":
+    from telegram import InlineKeyboardButton as _Btn
+    if not auto_on:
+        return _Btn("🚀 Start Auto-Trade", callback_data="preset:picker")
+    if st["total_trades"] == 0 and st["positions_value"] == 0:
+        return _Btn("📡 Browse Signals",   callback_data="signals:catalog")
+    if st["positions_value"] > 0:
+        return _Btn("📋 View Positions",   callback_data="portfolio:positions")
+    return _Btn("🧠 Check Signals",        callback_data="signals:main")
+
+
 def _build_text(
     bal: Decimal,
     pnl_today: Decimal,
@@ -123,42 +136,43 @@ def _build_text(
     closed_total = st["wins"] + st["losses"]
     win_rate = int(st["wins"] / closed_total * 100) if closed_total else 0
 
-    pnl_all = st["pnl_all"]
-    pnl_all_str = f"+${pnl_all:.2f}" if pnl_all >= 0 else f"-${abs(pnl_all):.2f}"
-
     auto_status = "🟢 ACTIVE" if auto_on else "⚪ INACTIVE"
     strats = st["strategy_types"]
-    preset = (
+    strat_display = (
         ", ".join(STRATEGY_DISPLAY_NAMES.get(s, s.replace("_", " ").title()) for s in strats)
         if strats else "Not configured"
     )
     risk_icon = _risk_icon(st["risk_profile"])
     risk_label = st["risk_profile"].title()
-    mode_label = "🔴 Live" if st["trading_mode"] == "live" else "📝 Paper"
+    exec_label = "🔴 Live" if st["trading_mode"] == "live" else "📝 Paper"
 
     return (
         "📊 *CrusaderBot Dashboard*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "🛡️ *Status*\n"
+        f"├── Mode: {'🔴 LIVE' if st['trading_mode'] == 'live' else '🟡 PAPER'}\n"
+        f"├── Auto: {auto_status}\n"
+        f"├── Risk: {risk_icon} {risk_label}\n"
+        f"└── Strategy: {strat_display}\n\n"
         "💼 *Portfolio*\n"
-        f"├─ Balance: ${bal:.2f}\n"
-        f"├─ Positions Value: ${st['positions_value']:.2f}\n"
-        f"├─ Total Equity: ${equity:.2f}\n"
-        f"└─ Winning: {st['winning']} | Losing: {st['losing']}\n\n"
+        f"├── Balance: ${bal:.2f}\n"
+        f"├── Positions: ${st['positions_value']:.2f}\n"
+        f"├── Equity: ${equity:.2f}\n"
+        f"└── W/L: {st['wins']}W • {st['losses']}L\n\n"
         "💰 *Profit & Loss*\n"
-        f"├─ Today: {_pnl_line(pnl_today, bal)}\n"
-        f"├─ 7 Day: {_pnl_line(st['pnl_7d'], bal)}\n"
-        f"├─ 30 Day: {_pnl_line(st['pnl_30d'], bal)}\n"
-        f"└─ All-Time: {pnl_all_str}\n\n"
+        f"├── Today: {_pnl_line(pnl_today, bal)}\n"
+        f"├── 7D: {_pnl_line(st['pnl_7d'], bal)}\n"
+        f"├── 30D: {_pnl_line(st['pnl_30d'], bal)}\n"
+        f"└── All-Time: {_pnl_line(st['pnl_all'])}\n\n"
         "📈 *Trading Stats*\n"
-        f"├─ Total Trades: {st['total_trades']}\n"
-        f"├─ Win Rate: {win_rate}% ({st['wins']}W / {st['losses']}L)\n"
-        f"├─ Total Volume: ${st['total_volume']:.2f}\n"
-        f"└─ Markets Traded: {st['markets_traded']}\n\n"
+        f"├── Trades: {st['total_trades']}\n"
+        f"├── Win Rate: {win_rate}%\n"
+        f"├── Volume: ${st['total_volume']:.2f}\n"
+        f"└── Markets: {st['markets_traded']}\n\n"
         "🤖 *Auto-Trade*\n"
-        f"├─ Status: {auto_status}\n"
-        f"├─ Preset: {preset}\n"
-        f"├─ Risk: {risk_icon} {risk_label}\n"
-        f"└─ Mode: {mode_label}"
+        f"├── Status: {auto_status}\n"
+        f"├── Presets: {strat_display}\n"
+        f"└── Execution: {exec_label}"
     )
 
 
@@ -172,12 +186,12 @@ async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     st = await _fetch_stats(user["id"])
 
     text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-    has_trades = st["total_trades"] > 0 or (st["winning"] + st["losing"]) > 0
+    cta = _smart_cta(st, user["auto_trade_on"])
 
     await update.message.reply_text(
         text,
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=main_menu(),
+        reply_markup=dashboard_kb(cta),
     )
 
 
@@ -193,16 +207,16 @@ async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
     text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-    has_trades = st["total_trades"] > 0 or (st["winning"] + st["losing"]) > 0
+    cta = _smart_cta(st, user["auto_trade_on"])
     await q.message.reply_text(
         text,
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=dashboard_nav(has_trades),
+        reply_markup=dashboard_kb(cta),
     )
 
 
 async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handles dashboard inline nav: [🤖 Auto-Trade] [📈 Trades] [💰 Wallet] [📊 main]."""
+    """Handles all dashboard:* inline callbacks."""
     q = update.callback_query
     if q is None:
         return
@@ -213,19 +227,52 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     if not ok:
         return
 
-    if sub == "main":
+    # --- main / refresh ---
+    if sub in ("main", "refresh"):
         bal = await get_balance(user["id"])
         pnl_today = await daily_pnl(user["id"])
         st = await _fetch_stats(user["id"])
         text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-        has_trades = st["total_trades"] > 0 or (st["winning"] + st["losing"]) > 0
+        cta = _smart_cta(st, user["auto_trade_on"])
         await q.message.reply_text(
             text,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=dashboard_nav(has_trades),
+            reply_markup=dashboard_kb(cta),
         )
         return
 
+    # --- portfolio (v3 new) ---
+    if sub == "portfolio":
+        from .positions import show_portfolio
+        await show_portfolio(update, ctx)
+        return
+
+    # --- signals (v3 new) ---
+    if sub == "signals":
+        from .signal_following import signals_command
+        await signals_command(update, ctx)
+        return
+
+    # --- auto mode (v3 new) ---
+    if sub == "auto":
+        from ..keyboards.presets import preset_picker_kb
+        from .presets import show_preset_picker
+        await show_preset_picker(update, ctx)
+        return
+
+    # --- settings (v3 new) ---
+    if sub == "settings":
+        from .settings import settings_hub_root
+        await settings_hub_root(update, ctx)
+        return
+
+    # --- stop (v3 new) ---
+    if sub == "stop":
+        from .emergency import emergency_root
+        await emergency_root(update, ctx)
+        return
+
+    # --- autotrade (kept as alias) ---
     if sub == "autotrade":
         s = await get_settings_for(user["id"])
         text = (
@@ -238,6 +285,7 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
                                    reply_markup=setup_menu())
 
+    # --- trades (kept as alias) ---
     elif sub == "trades":
         pool = get_pool()
         async with pool.acquire() as conn:
@@ -255,7 +303,7 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             )
         if not rows:
             await q.message.reply_text(
-                "No trades yet. Tap 🤖 Auto-Trade to configure and start."
+                "No trades yet. Tap 🤖 Auto Mode to configure and start."
             )
             return
         lines = ["*📈 Recent Trades:*\n"]
@@ -273,6 +321,7 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             "\n\n".join(lines), parse_mode=ParseMode.MARKDOWN,
         )
 
+    # --- wallet (kept as alias) ---
     elif sub == "wallet":
         bal = await get_balance(user["id"])
         w = await get_wallet(user["id"])
@@ -283,6 +332,7 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             reply_markup=wallet_menu(),
         )
 
+    # --- insights (v3 + kept as alias) ---
     elif sub == "insights":
         from .pnl_insights import _fetch_insights, format_insights
         from ..keyboards import insights_kb
