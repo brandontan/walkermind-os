@@ -9,7 +9,7 @@ DAILY_LOSS_HARD_STOP = -2_000.0
 MAX_DRAWDOWN_HALT = 0.08
 MIN_LIQUIDITY = 10_000.0
 MIN_EDGE_BPS = 200
-SIGNAL_STALE_SECONDS = 300
+SIGNAL_STALE_SECONDS = 14400  # 4h: matches SIGNAL_EXPIRY_HOURS — gate uses expires_at as primary guard
 DEDUP_WINDOW_SECONDS = 300
 
 # Slippage / market-impact guardrails (gate step 14).
