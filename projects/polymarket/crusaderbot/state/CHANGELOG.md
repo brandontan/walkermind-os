@@ -20,6 +20,7 @@ since initial P3d deployment. No trades were executed.
 **Result:** 4 paper orders filled (signal_following, YES, 10 USDC each). Bot
 fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 
+2026-05-13 10:30 | WARP/live-execution-user-id-guards | WARP•SENTINEL BLOCKED: PR #1021 mergeable_state=dirty (merge conflict with main); CI green; py_compile PASS; FORGE rebase required before re-validation; MAJOR, NARROW INTEGRATION
 2026-05-12 23:30 | WARP/fix-migration-idempotency | Fix migration crash loop: ON CONFLICT DO NOTHING for signal_feeds seeds (migrations 024/025); run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3; MAJOR, NARROW INTEGRATION; PR open awaiting WARP•SENTINEL
 2026-05-13 07:00 | WARP/FIX-SIGNAL-STALE-WINDOW | fix: SIGNAL_STALE_SECONDS 300→14400 — scanner dedup=2h vs staleness gate=300s caused all signals rejected stale_Ns; raise to 14400s (4h) matching SIGNAL_EXPIRY_HOURS; expires_at remains primary guard; MINOR, NARROW INTEGRATION; PR #1017 merged bfc34d066a01
 
