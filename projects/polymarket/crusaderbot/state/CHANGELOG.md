@@ -1,3 +1,25 @@
+
+## 2026-05-13
+
+### GATE Fix — Gate Step-10 DataError (Commits fd84bb7f → 5fd9fbcf)
+
+**Root Cause:** `_recent_dup_market_trade()` in `gate.py` step 10 used
+`$3::interval` with a string parameter, causing `DataError: invalid input for
+query argument` on every evaluation. Followed by a second fix replacing
+`timedelta` with `$3 * INTERVAL '1 second'` after asyncpg operator mismatch.
+
+**Impact:** All `signal_following_scan` candidates silently failed gate step 10
+since initial P3d deployment. No trades were executed.
+
+**Resolution:**
+- Diag v1/v2/v3 patches identified exact failure point
+- Final fix: `int(K.DEDUP_WINDOW_SECONDS)` as `$3` with `$3 * INTERVAL '1 second'`
+- Soft fallback in v3 allowed first 4 paper orders to fill while fix deployed
+- Clean v4 deployed: commit 5fd9fbcf
+
+**Result:** 4 paper orders filled (signal_following, YES, 10 USDC each). Bot
+fully operational in paper mode on Fly.io IAD. Idempotency keys active.
+
 2026-05-12 23:30 | WARP/fix-migration-idempotency | Fix migration crash loop: ON CONFLICT DO NOTHING for signal_feeds seeds (migrations 024/025); run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3; MAJOR, NARROW INTEGRATION; PR open awaiting WARP•SENTINEL
 2026-05-13 07:00 | WARP/FIX-SIGNAL-STALE-WINDOW | fix: SIGNAL_STALE_SECONDS 300→14400 — scanner dedup=2h vs staleness gate=300s caused all signals rejected stale_Ns; raise to 14400s (4h) matching SIGNAL_EXPIRY_HOURS; expires_at remains primary guard; MINOR, NARROW INTEGRATION; PR #1017 merged bfc34d066a01
 
@@ -55,3 +77,4 @@
 2026-05-12 09:07 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 FORGE (STANDARD, NARROW INTEGRATION): warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; no runtime code touched; PR open for WARP🔹CMD review.
 2026-05-12 09:13 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 MERGED PR #996 — warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; STANDARD, NARROW INTEGRATION
 2026-05-12 23:45 | claude/add-strategy-type-column-2slhz | Schema fix orders.strategy_type: migration 026 ADD COLUMN IF NOT EXISTS strategy_type VARCHAR(50); resolves DAWN-SNOWFLAKE-1729-10 and -Z root cause; STANDARD, NARROW INTEGRATION; PR open for WARP🔹CMD review
+
