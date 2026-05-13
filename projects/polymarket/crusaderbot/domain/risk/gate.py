@@ -233,10 +233,21 @@ async def evaluate(ctx: GateContext) -> GateResult:
     await _log(ctx.user_id, ctx.market_id, 9, True, "ok")
 
     # 10. Idempotency / dedup
-    if await _idempotent_already_seen(ctx.idempotency_key):
+    await _log(ctx.user_id, ctx.market_id, 10, True, "entering")  # diag
+    try:
+        _idem_seen = await _idempotent_already_seen(ctx.idempotency_key)
+    except Exception as _e10a:
+        await _log(ctx.user_id, ctx.market_id, 10, False, f"idem_err:{type(_e10a).__name__}:{str(_e10a)[:60]}")
+        _idem_seen = False  # soft fallback: proceed
+    if _idem_seen:
         await _log(ctx.user_id, ctx.market_id, 10, False, "idempotent_dup")
         return GateResult(False, "idempotent_duplicate", 10)
-    if await _recent_dup_market_trade(ctx.user_id, ctx.market_id):
+    try:
+        _dup_active = await _recent_dup_market_trade(ctx.user_id, ctx.market_id)
+    except Exception as _e10b:
+        await _log(ctx.user_id, ctx.market_id, 10, False, f"dedup_err:{type(_e10b).__name__}:{str(_e10b)[:60]}")
+        _dup_active = False  # soft fallback: proceed
+    if _dup_active:
         await _log(ctx.user_id, ctx.market_id, 10, False, "dedup_window")
         return GateResult(False, "dedup_window_active", 10)
     await _log(ctx.user_id, ctx.market_id, 10, True, "ok")
@@ -308,6 +319,7 @@ async def evaluate(ctx: GateContext) -> GateResult:
 
     await _record_idempotency(ctx.user_id, ctx.idempotency_key)
     return GateResult(True, "approved", None, final_size, chosen_mode)
+
 
 
 
