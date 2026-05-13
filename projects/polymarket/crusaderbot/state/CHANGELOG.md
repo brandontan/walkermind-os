@@ -93,3 +93,5 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 2026-05-13 18:09 | WARP/telegram-compact-hierarchy-ui | Compact Telegram hierarchy UX pass: reduced tree-rail formatting in dashboard/settings/positions/onboarding/signal-following and aligned preset nav keyboard; STANDARD, NARROW INTEGRATION; Closes #1030
 
 2026-05-13 19:00 | warp/fix-telegram-mvp-ux-readability-regression | Traceability/state sync for PR #1032: aligned branch string across forge report/state artifacts and removed stale PR #1029-open references; STANDARD, NARROW INTEGRATION
+
+2026-05-13 20:30 | WARP/telegram-lightweight-tree-ui-hotfix | telegram-lightweight-tree-ui-hotfix: final lightweight tree UI pass — removed all standalone │ rails and ├──/└── heavy arms from dashboard/presets/positions/settings/signals/onboarding; added explicit Back/Home nav row to preset_picker (dashboard:main only, no noop:refresh); STANDARD, NARROW INTEGRATION

@@ -136,7 +136,7 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
     if subs:
         sub_tree_lines = []
         for i, s in enumerate(subs):
-            connector = "└──" if i == len(subs) - 1 else "├──"
+            connector = "└" if i == len(subs) - 1 else "├"
             sub_tree_lines.append(f"{connector} ✅ {_escape_md(s['feed_name'])}")
         sub_tree = "\n".join(sub_tree_lines)
     else:
@@ -147,7 +147,7 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
     if avail:
         avail_tree_lines = []
         for i, f in enumerate(avail):
-            connector = "└──" if i == len(avail) - 1 else "├──"
+            connector = "└" if i == len(avail) - 1 else "├"
             avail_tree_lines.append(f"{connector} {_escape_md(f['name'])}")
         avail_tree = "\n".join(avail_tree_lines)
     else:
@@ -155,17 +155,17 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
 
     text = (
         "📡 Signal Feeds\n"
-        "│\n"
+        "\n"
         "Status\n"
         f"└ {len(subs)} Following\n"
-        "│\n"
+        "\n"
         "Following\n"
         f"{sub_tree}\n"
-        "│\n"
+        "\n"
         "Available\n"
         f"{avail_tree}\n"
-        "│\n"
-        f"└ Max {MAX_SUBSCRIPTIONS_PER_USER} active"
+        "\n"
+        f"Max {MAX_SUBSCRIPTIONS_PER_USER} active"
     )
 
     buttons: list[list[InlineKeyboardButton]] = []

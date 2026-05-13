@@ -17,7 +17,10 @@ def preset_picker() -> InlineKeyboardMarkup:
         buttons.append(InlineKeyboardButton(
             label, callback_data=f"preset:pick:{p.key}",
         ))
-    return InlineKeyboardMarkup(grid_rows(buttons))
+    return InlineKeyboardMarkup(grid_rows(buttons) + [[
+        InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
+        InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+    ]])
 
 
 def preset_confirm(preset_key: str) -> InlineKeyboardMarkup:

@@ -113,10 +113,11 @@ def test_preset_validation_rejects_position_over_cap():
 
 def test_picker_keyboard_has_two_col_grid_layout():
     kb = preset_picker()
-    # 3 presets in 2-col grid → 2 rows (row 0 has 2, row 1 has 1)
-    assert len(kb.inline_keyboard) == 2
+    # 3 presets in 2-col grid → 2 preset rows + 1 Back/Home nav row
+    assert len(kb.inline_keyboard) == 3
     assert len(kb.inline_keyboard[0]) == 2
     assert len(kb.inline_keyboard[1]) == 1
+    assert len(kb.inline_keyboard[2]) == 2
 
 
 def test_picker_keyboard_recommended_marked_and_first():
@@ -129,7 +130,9 @@ def test_picker_keyboard_recommended_marked_and_first():
 
 def test_picker_keyboard_all_preset_callbacks_present():
     kb = preset_picker()
-    all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    # Preset callbacks only — exclude the nav row at the end
+    preset_rows = kb.inline_keyboard[:-1]
+    all_cbs = [b.callback_data for row in preset_rows for b in row]
     assert all_cbs == [f"preset:pick:{k}" for k in PRESET_ORDER]
 
 
