@@ -1,3 +1,4 @@
+2026-05-14 10:00 | WARP/crusaderbot-mvp-reset-v1 | PR #1035 MERGED — Telegram MVP UX reset + test suite update; 5-button nav, clean onboarding, MVP screens; 4 test files updated for MVP assertions; STANDARD, NARROW INTEGRATION
 2026-05-14 03:37 | WARP/crusaderbot-mvp-reset-v1 | Telegram MVP UX reset: 5-button main nav, clean onboarding (single CTA, no telemetry), MVP dashboard/auto-trade/portfolio/settings/risk screens, old UI archived; STANDARD, NARROW INTEGRATION
 2026-05-13 17:10 WIB | WARP/CRUSADERBOT-MVP-UX-V1 | PR #1029 blocker fix pass: relabeled misleading "👥 Copy Wallet" surfaces to "📡 Signal Feeds" across main menu/routes/dashboard, removed user-facing force-close buttons from portfolio keyboard (nav only), updated related tests; STANDARD, NARROW INTEGRATION
 2026-05-13 17:00 WIB | WARP/CRUSADERBOT-MVP-UX-V1 | Hierarchy Tree Terminal UI rebuild — 11 files; Premium Hybrid Luxury → tree format; blueprint emoji system; STANDARD, NARROW INTEGRATION; Closes #1028

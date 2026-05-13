@@ -1,7 +1,8 @@
-Last Updated : 2026-05-14 03:37
-Status       : crusaderbot-mvp-reset-v1 lane complete; PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-14 10:00
+Status       : crusaderbot-mvp-reset-v1 MERGED PR #1035. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
+- crusaderbot-mvp-reset-v1 MERGED PR #1035 (2026-05-14). Telegram MVP UX reset: 5-button nav, clean onboarding, simplified Dashboard/Portfolio/Auto Trade/Settings/Risk screens; test suite updated (4 files); STANDARD, NARROW INTEGRATION.
 - live-execution-user-id-guards MERGED PR #1021. close_position() AND user_id=$N hardening; 5 isolation tests; MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
 - compact-hierarchy-readability-regression MERGED PR #1032 on warp/fix-telegram-mvp-ux-readability-regression. Compact hierarchy readability regression fix + traceability/state sync; STANDARD, NARROW INTEGRATION.
 - Premium UX v4 (Hybrid Luxury) — PR #1026 merged bd8fe42d
@@ -19,7 +20,6 @@ Status       : crusaderbot-mvp-reset-v1 lane complete; PR open on WARP/crusaderb
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- crusaderbot-mvp-reset-v1: Telegram MVP UX reset complete; PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-reset-v1.md
 - telegram-lightweight-tree-ui-hotfix: final lightweight tree UI replacement pass; PR #1034 open on WARP/telegram-lightweight-tree-ui-hotfix; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
 - relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - Observation / runtime monitoring remains active in paper mode.
@@ -34,11 +34,12 @@ Status       : crusaderbot-mvp-reset-v1 lane complete; PR open on WARP/crusaderb
 - Wire @require_access_tier('PREMIUM') onto trading command handlers as separate lane.
 - Seed boss user ADMIN tier row in user_tiers via /admin settier post-deploy.
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
+- WARP/notifications-paper-wire: wire notify_order_filled() into paper executor (candidate next lane).
+- Legacy _legacy_* archived functions cleanup (MINOR lane, post-merge).
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for crusaderbot-mvp-reset-v1 PR on WARP/crusaderbot-mvp-reset-v1. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-reset-v1.md
 - WARP🔹CMD review required for telegram-lightweight-tree-ui-hotfix PR #1034 on WARP/telegram-lightweight-tree-ui-hotfix. STANDARD tier.
-- After merge: open WARP/notifications-paper-wire to wire notify_order_filled() into paper executor.
+- WARP🔹CMD review required for relax-branch-prefix-rule PR. MINOR tier.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
 [KNOWN ISSUES]
