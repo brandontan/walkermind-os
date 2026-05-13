@@ -1,3 +1,5 @@
+2026-05-13 12:20 WIB | PR #1024 MERGED | edceaa07 | Telegram UX v3 — 7-button menu, dashboard v3, portfolio screen, signals tap-hub, settings hub v3, onboarding v3, nav_row(), notify_order_filled() | STANDARD NARROW INTEGRATION | Closes #1020
+
 
 
 ## 2026-05-13
@@ -79,3 +81,4 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 2026-05-12 09:07 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 FORGE (STANDARD, NARROW INTEGRATION): warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; no runtime code touched; PR open for WARP🔹CMD review.
 2026-05-12 09:13 | claude/fix-forge-task-980-UHdNY | WARP Auto Gate v1 MERGED PR #996 — warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment; STANDARD, NARROW INTEGRATION
 2026-05-12 23:45 | claude/add-strategy-type-column-2slhz | Schema fix orders.strategy_type: migration 026 ADD COLUMN IF NOT EXISTS strategy_type VARCHAR(50); resolves DAWN-SNOWFLAKE-1729-10 and -Z root cause; STANDARD, NARROW INTEGRATION; PR open for WARP🔹CMD review
+
