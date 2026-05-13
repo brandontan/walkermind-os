@@ -1,7 +1,8 @@
-Last Updated : 2026-05-13 10:13 WIB
-Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub open PRs = 0, open issues = 0. Production remains Telegram + Fly.io live, PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-13 12:20 WIB
+Status       : Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashboard v3, signals tap-hub, portfolio screen, nav_row helper, notify_order_filled utility. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
+- Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu (Dashboard/Portfolio/Auto Mode/Signals/Insights/Settings/Stop Bot), dashboard v3 with smart CTA, portfolio screen, signals tap-hub (inline feed toggle, no CLI), settings hub v3, onboarding v3, nav_row() helper, notifications.py utility. STANDARD, NARROW INTEGRATION.
 - Migration idempotency fix MERGED PR #1003 (2026-05-12). ON CONFLICT DO NOTHING for signal_feeds seeds in migrations 024/025; run_migrations() per-file error logging; fixes DAWN-SNOWFLAKE-1729-2 and -3. MAJOR, NARROW INTEGRATION.
 - Telegram inline UI restore + paper autotrade smoke MERGED PR #999 (2026-05-12). ConversationHandler fallback menu button sets patched in copy_trade.py and presets.py to match UX Overhaul layout; health.py job count corrected to 17; paper path smoke verified by code inspection; issue #998 closed. STANDARD, NARROW INTEGRATION.
 - P1 user_id isolation hardening MERGED PR #997 (2026-05-12). AND user_id=$N added to 5 UPDATE statements across registry.py and paper.py; exit_watcher call sites updated. STANDARD, NARROW INTEGRATION.
@@ -15,7 +16,6 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- WARP/TELEGRAM-UX-V3 PR open — Premium UX v3 implementation, STANDARD tier, awaiting WARP🔹CMD review.
 - live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
@@ -47,4 +47,5 @@ Status       : Repo truth synced after PR/issue queue clear (2026-05-12): GitHub
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
 - [DEFERRED] CHANGELOG.md entry missing for WARP/live-execution-user-id-guards — append on post-merge sync.
 - [DEFERRED] NEXT PRIORITY 4 items in PR #1021 PROJECT_STATE.md (cap 3) — prune on post-merge sync.
+
 
