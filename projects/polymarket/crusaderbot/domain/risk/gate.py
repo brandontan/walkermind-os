@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -126,8 +126,8 @@ async def _recent_dup_market_trade(user_id: UUID, market_id: str) -> bool:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT 1 FROM orders WHERE user_id=$1 AND market_id=$2 "
-            "AND created_at > NOW() - $3::interval",
-            user_id, market_id, f"{K.DEDUP_WINDOW_SECONDS} seconds",
+            "AND created_at > NOW() - $3",
+            user_id, market_id, timedelta(seconds=K.DEDUP_WINDOW_SECONDS),
         )
         return row is not None
 
@@ -232,22 +232,11 @@ async def evaluate(ctx: GateContext) -> GateResult:
             return GateResult(False, "signal_stale", 9)
     await _log(ctx.user_id, ctx.market_id, 9, True, "ok")
 
-    await _log(ctx.user_id, ctx.market_id, 10, True, "entering_step10")  # diag
     # 10. Idempotency / dedup
-    try:
-        already_seen = await _idempotent_already_seen(ctx.idempotency_key)
-    except Exception as _exc10a:
-        await _log(ctx.user_id, ctx.market_id, 10, False, f"idem_check_err:{type(_exc10a).__name__}:{str(_exc10a)[:80]}")
-        raise
-    if already_seen:
+    if await _idempotent_already_seen(ctx.idempotency_key):
         await _log(ctx.user_id, ctx.market_id, 10, False, "idempotent_dup")
         return GateResult(False, "idempotent_duplicate", 10)
-    try:
-        dup_active = await _recent_dup_market_trade(ctx.user_id, ctx.market_id)
-    except Exception as _exc10b:
-        await _log(ctx.user_id, ctx.market_id, 10, False, f"dedup_check_err:{type(_exc10b).__name__}:{str(_exc10b)[:80]}")
-        raise
-    if dup_active:
+    if await _recent_dup_market_trade(ctx.user_id, ctx.market_id):
         await _log(ctx.user_id, ctx.market_id, 10, False, "dedup_window")
         return GateResult(False, "dedup_window_active", 10)
     await _log(ctx.user_id, ctx.market_id, 10, True, "ok")
@@ -319,5 +308,6 @@ async def evaluate(ctx: GateContext) -> GateResult:
 
     await _record_idempotency(ctx.user_id, ctx.idempotency_key)
     return GateResult(True, "approved", None, final_size, chosen_mode)
+
 
 
