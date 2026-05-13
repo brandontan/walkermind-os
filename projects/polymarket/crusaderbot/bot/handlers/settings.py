@@ -55,11 +55,11 @@ def _hub_text(mode: str, tier: int) -> str:
     return (
         "⚙️ Settings\n"
         "│\n"
-        "├── Account\n"
-        f"│   ├── Mode   {mode_label}\n"
-        f"│   └── Tier   {tier_label}\n"
+        "Account\n"
+        f"Mode   {mode_label}\n"
+        f"└ Tier   {tier_label}\n"
         "│\n"
-        "└── Configure preferences, risk controls, and account setup."
+        "└ Configure preferences, risk controls, and account setup."
     )
 
 
@@ -86,9 +86,9 @@ def _capital_text(balance: float, mode: str) -> str:
     return (
         "💰 Capital Allocation Per Trade\n"
         "│\n"
-        f"├── Balance   ${balance:.2f} ({mode_label})\n"
+        f"Balance   ${balance:.2f} ({mode_label})\n"
         "│\n"
-        "└── ⚠ Max 95% — full allocation forbidden."
+        "└ ⚠ Max 95% — full allocation forbidden."
     )
 
 

@@ -43,7 +43,8 @@ def preset_status(paused: bool) -> InlineKeyboardMarkup:
          InlineKeyboardButton("🔄 Switch", callback_data="preset:switch")],
         [pause_btn,
          InlineKeyboardButton("🛑 Stop",  callback_data="preset:stop")],
-        [InlineKeyboardButton("⬅ Back",   callback_data="dashboard:main")],
+        [InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
+         InlineKeyboardButton("🏠 Home", callback_data="dashboard:main")],
     ])
 
 
