@@ -28,6 +28,7 @@ from ...users import (
     get_settings_for, set_auto_trade, set_paused, update_settings, upsert_user,
 )
 from ...wallet.ledger import daily_pnl, get_balance
+from ..keyboards import mvp_auto_trade_kb
 from ..keyboards.presets import (
     preset_confirm, preset_picker, preset_status, preset_stop_confirm,
     preset_switch_confirm,
@@ -70,34 +71,49 @@ async def _reply(update: Update, text: str, **kw) -> None:
 # Card renderers
 # ---------------------------------------------------------------------------
 
-def _preset_picker_text() -> str:
-    presets = list_presets()
-    lines = []
-    for i, p in enumerate(presets):
-        connector = "└" if i == len(presets) - 1 else "├"
-        lines.append(f"{connector} {p.emoji} {p.name} · {int(p.capital_pct * 100)}%")
-    preset_block = "\n".join(lines)
+# Maps internal preset key → MVP display label
+_MVP_LABELS: dict[str, tuple[str, str]] = {
+    "signal_sniper": ("📡", "Conservative"),
+    "value_hunter":  ("🎯", "Balanced"),
+    "full_auto":     ("🚀", "Aggressive"),
+}
+
+_MVP_DESCRIPTIONS: dict[str, str] = {
+    "signal_sniper": "Lower risk, fewer trades",
+    "value_hunter":  "Recommended for most users",
+    "full_auto":     "Higher frequency, higher risk",
+}
+
+
+def _preset_picker_text(active_preset_key: str | None = None) -> str:
+    """MVP Auto Trade screen — simple Conservative/Balanced/Aggressive."""
+    strategy_line = "Not selected"
+    if active_preset_key and active_preset_key in _MVP_LABELS:
+        emoji, label = _MVP_LABELS[active_preset_key]
+        strategy_line = f"{emoji} {label}"
     return (
         "🤖 Auto Trade\n"
         "\n"
-        "Mode\n"
-        "└ 📝 Paper Trading\n"
+        "Status\n"
+        "└ 🟢 Ready\n"
         "\n"
-        "📦 Presets\n"
-        f"{preset_block}\n"
+        "Strategy\n"
+        f"└ {strategy_line}\n"
         "\n"
-        "Choose a strategy:"
+        "Choose trading style:"
     )
 
 
 def _preset_confirm_text(p: Preset) -> str:
-    strategies = ", ".join(s.replace("_", " ").title() for s in p.strategies)
+    """MVP confirmation card — uses simplified labels."""
+    mvp_emoji, mvp_label = _MVP_LABELS.get(p.key, (p.emoji, p.name))
+    mvp_desc = _MVP_DESCRIPTIONS.get(p.key, "")
     return (
-        f"🤖 Auto Trade / {p.emoji} {p.name}\n"
+        f"🤖 Auto Trade / {mvp_emoji} {mvp_label}\n"
         "\n"
         "Strategy\n"
-        f"├ Name: {p.name}\n"
-        f"└ Type: {strategies}\n"
+        f"├ Style: {mvp_label}\n"
+        f"└ {mvp_desc}\n"
         "\n"
         "Configuration\n"
         f"├ Capital: {p.capital_pct * 100:.0f}% of balance\n"
@@ -106,7 +122,7 @@ def _preset_confirm_text(p: Preset) -> str:
         f"└ Max Size: {p.max_position_pct * 100:.0f}% per trade\n"
         "\n"
         "Mode\n"
-        "└ 📝 Paper Trading\n"
+        "└ 📑 Paper\n"
         "\n"
         "Looks good?"
     )
@@ -156,17 +172,17 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
 
 async def show_preset_picker(update: Update,
                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Render the preset picker card."""
+    """Render the MVP Auto Trade screen."""
     user, ok = await _ensure_tier2(update)
     if not ok:
         return
-    # Clear any half-finished setup prompt so the picker isn't fighting an
-    # awaiting capital_pct / tpsl input from the legacy flow.
     if ctx.user_data:
         ctx.user_data.pop("awaiting", None)
+    s = await get_settings_for(user["id"])
+    active_preset = s.get("active_preset")
     await _reply(
-        update, _preset_picker_text(),
-        parse_mode=ParseMode.MARKDOWN, reply_markup=preset_picker(),
+        update, _preset_picker_text(active_preset),
+        reply_markup=mvp_auto_trade_kb(),
     )
 
 
@@ -411,9 +427,10 @@ CUSTOM_SL = 2
 CUSTOM_REVIEW = 3
 CUSTOM_INPUT = 4
 
+# MVP Reset V1 — Signal Feeds and Insights removed from main navigation
 _MENU_BUTTONS_CUSTOMIZE = {
     "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Trade",
-    "📡 Signal Feeds", "📊 Insights", "⚙️ Settings", "🛑 Stop Bot",
+    "⚙️ Settings", "🛑 Stop Bot",
 }
 
 

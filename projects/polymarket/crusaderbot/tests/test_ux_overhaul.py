@@ -52,7 +52,7 @@ from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 def test_main_menu_button_count():
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 7
+    assert len(all_buttons) == 5
 
 
 def test_main_menu_has_settings_not_wallet():
@@ -71,10 +71,11 @@ def test_main_menu_has_stop_bot_not_emergency():
 
 def test_main_menu_v3_second_row():
     kb = main_menu()
-    # MVP v1: second row is Auto Trade + Signal Feeds
+    # MVP reset: second row is Auto Trade + Settings (Signal Feeds removed)
     row2 = [btn.text for btn in kb.keyboard[1]]
     assert "🤖 Auto Trade" in row2
-    assert "📡 Signal Feeds" in row2
+    assert "⚙️ Settings" in row2
+    assert "📡 Signal Feeds" not in row2
 
 
 # ---------------------------------------------------------------------------
@@ -303,16 +304,16 @@ def test_insights_kb_has_refresh():
 # ---------------------------------------------------------------------------
 
 
-def test_settings_hub_has_wallet():
+def test_settings_hub_wallet_removed():
     kb = settings_hub_kb()
     data = _cb_data(kb)
-    assert "settings:wallet" in data
+    assert "settings:wallet" not in data
 
 
-def test_settings_hub_has_profile():
+def test_settings_hub_profile_removed():
     kb = settings_hub_kb()
     data = _cb_data(kb)
-    assert "settings:profile" in data
+    assert "settings:profile" not in data
 
 
 def test_settings_hub_has_notifications():
@@ -327,10 +328,10 @@ def test_settings_hub_has_risk():
     assert "settings:risk" in data
 
 
-def test_settings_hub_has_live_gate():
+def test_settings_hub_live_gate_removed():
     kb = settings_hub_kb()
     data = _cb_data(kb)
-    assert "settings:live_gate" in data
+    assert "settings:live_gate" not in data
 
 
 def test_settings_hub_has_back():

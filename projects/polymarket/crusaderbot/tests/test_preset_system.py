@@ -278,22 +278,27 @@ def _patch_pool(monkeypatch, open_count=0):
 def test_show_preset_picker_renders_all_three(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
+    _patch_settings(monkeypatch, {"active_preset": None})
     update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(presets_h.show_preset_picker(
         update, ctx=SimpleNamespace(user_data={}),
     ))
     assert len(replies) == 1
     text = replies[0]
-    for p in list_presets():
-        assert p.name in text
-    # Recommended marker in first button of first row.
+    assert "Auto Trade" in text
+    assert "Choose trading style" in text
+    # MVP keyboard: Conservative / Balanced / Aggressive
     kb = kws[0]["reply_markup"]
-    assert "⭐" in kb.inline_keyboard[0][0].text
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    assert any("Conservative" in lbl for lbl in labels)
+    assert any("Balanced" in lbl for lbl in labels)
+    assert any("Aggressive" in lbl for lbl in labels)
 
 
 def test_show_preset_picker_clears_awaiting(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
+    _patch_settings(monkeypatch, {"active_preset": None})
     update, _replies, _kws = _make_update(message_text="🤖 Auto-Trade")
     ctx = SimpleNamespace(user_data={"awaiting": "capital_pct"})
     asyncio.run(presets_h.show_preset_picker(update, ctx=ctx))
@@ -360,8 +365,7 @@ def test_pick_renders_confirmation_with_all_values(monkeypatch):
     ctx = SimpleNamespace(user_data={})
     asyncio.run(presets_h.preset_callback(update, ctx))
     text = replies[0]
-    p = get_preset("value_hunter")
-    assert p.name in text
+    assert "Balanced" in text
     assert "40%" in text  # capital
     assert "+25%" in text  # TP
     assert "-12%" in text  # SL
@@ -498,6 +502,7 @@ def test_stop_yes_clears_preset_and_stops(monkeypatch):
 def test_switch_yes_clears_preset_and_shows_picker(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=False)
+    _patch_settings(monkeypatch, {"active_preset": None})
     upd_settings, set_auto, set_p = _patch_writes(monkeypatch)
     update, replies, _kws = _make_update(callback_data="preset:switch_yes")
     asyncio.run(presets_h.preset_callback(

@@ -2,16 +2,15 @@
 
 The reply-keyboard layout itself lives in ``bot.keyboards.main_menu`` —
 this module owns the *button-text → handler* mapping that the dispatcher
-text router consumes. Centralising the mapping keeps button registration
-and handler wiring in one place: adding a new top-level menu surface is a
-one-line change here.
+text router consumes.
 
-MVP UX v1 layout (hierarchy tree style):
+MVP Reset V1 layout (5 buttons):
 
   🏠 Dashboard   💼 Portfolio
-  🤖 Auto Trade  📡 Signal Feeds
-  📊 Insights    ⚙️ Settings
+  🤖 Auto Trade  ⚙️ Settings
   🛑 Stop Bot
+
+Signal Feeds and Insights removed from main navigation.
 """
 from __future__ import annotations
 
@@ -22,9 +21,7 @@ from telegram.ext import ContextTypes
 
 from ..handlers import (
     dashboard, emergency, positions,
-    pnl_insights as pnl_insights_h,
     presets, settings as settings_handler,
-    signal_following,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
@@ -35,11 +32,13 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     "🏠 Dashboard":   dashboard.dashboard,
     "💼 Portfolio":   positions.show_portfolio,
     "🤖 Auto Trade":  presets.show_preset_picker,
-    "📡 Signal Feeds": signal_following.signals_command,
-    "📊 Insights":    pnl_insights_h.pnl_insights_command,
     "⚙️ Settings":    settings_handler.settings_hub_root,
     "🛑 Stop Bot":    emergency.emergency_root,
 }
+
+# MVP RESET V1 — deprecated UI flow
+# "📡 Signal Feeds" and "📊 Insights" removed from main navigation.
+# Handlers remain reachable via direct callbacks but not via reply keyboard.
 
 
 def get_menu_route(text: str) -> HandlerFn | None:

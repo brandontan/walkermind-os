@@ -13,7 +13,8 @@ from ...users import get_settings_for, set_auto_trade, upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
 from ...wallet.vault import get_wallet
 from ..keyboards import (
-    autotrade_toggle, dashboard_kb, dashboard_nav, main_menu, setup_menu, wallet_menu,
+    autotrade_toggle, dashboard_kb, dashboard_nav, insights_kb,
+    main_menu, setup_menu, wallet_menu,
 )
 from ..tier import Tier, has_tier, tier_block_message
 from .setup import STRATEGY_DISPLAY_NAMES
@@ -115,56 +116,33 @@ def _risk_icon(profile: str) -> str:
     return {"conservative": "🟢", "balanced": "🟡", "aggressive": "🔴"}.get(profile, "🟡")
 
 
-def _smart_cta(st: dict, auto_on: bool) -> "InlineKeyboardButton":
-    from telegram import InlineKeyboardButton as _Btn
-    if not auto_on:
-        return _Btn("🚀 Start Auto-Trade", callback_data="preset:picker")
-    if st["total_trades"] == 0 and st["positions_value"] == 0:
-        return _Btn("📡 Browse Signals",   callback_data="signals:catalog")
-    if st["positions_value"] > 0:
-        return _Btn("📋 View Positions",   callback_data="portfolio:positions")
-    return _Btn("🧠 Check Signals",        callback_data="signals:main")
-
-
 def _build_text(
     bal: Decimal,
     pnl_today: Decimal,
     st: dict,
     auto_on: bool,
 ) -> str:
+    """MVP Dashboard: Bot status, Account, Today's PnL."""
     equity = bal + st["positions_value"]
-    closed_total = st["wins"] + st["losses"]
-    win_rate = int(st["wins"] / closed_total * 100) if closed_total else 0
-
     status_label = "🟢 Running" if auto_on else "🔴 Disabled"
-    strats = st["strategy_types"]
-    strat_display = (
-        ", ".join(STRATEGY_DISPLAY_NAMES.get(s, s.replace("_", " ").title()) for s in strats)
-        if strats else "Not configured"
-    )
-    risk_icon = _risk_icon(st["risk_profile"])
-    exec_label = "💸 Live" if st["trading_mode"] == "live" else "📝 Paper"
-    pnl_icon = "📈" if pnl_today >= 0 else "📉"
-    pnl_str = f"{pnl_icon} {'+' if pnl_today >= 0 else ''}${pnl_today:.2f}"
+    exec_label = "💸 Live" if st["trading_mode"] == "live" else "📑 Paper"
+    pnl_sign = "+" if pnl_today >= 0 else ""
+    pnl_str = f"{pnl_sign}${pnl_today:.2f}"
 
     return (
         "🏠 Dashboard\n"
         "\n"
-        "🤖 Bot Status\n"
+        "🤖 Bot\n"
         f"└ {status_label}\n"
         "\n"
-        "💹 Today\n"
-        f"├ {pnl_str}\n"
-        f"└ 🎯 {st['wins']}W · {st['losses']}L · {win_rate}%\n"
-        "\n"
-        "🤖 Auto Trade\n"
-        f"├ Strategy: {strat_display}\n"
-        f"└ Risk: {risk_icon} {st['risk_profile'].title()}\n"
-        "\n"
-        "💼 Portfolio\n"
+        "💰 Account\n"
         f"├ Balance: ${bal:.2f} USDC\n"
         f"├ Equity: ${equity:.2f}\n"
-        f"└ Mode: {exec_label}"
+        f"└ Mode: {exec_label}\n"
+        "\n"
+        "📈 Today\n"
+        f"├ PnL: {pnl_str}\n"
+        f"└ W/L: {st['wins']}W • {st['losses']}L"
     )
 
 
@@ -178,12 +156,10 @@ async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     st = await _fetch_stats(user["id"])
 
     text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-    cta = _smart_cta(st, user["auto_trade_on"])
 
     await update.message.reply_text(
         text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=dashboard_kb(cta),
+        reply_markup=dashboard_kb(),
     )
 
 
@@ -199,11 +175,9 @@ async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
     text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-    cta = _smart_cta(st, user["auto_trade_on"])
     await q.message.reply_text(
         text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=dashboard_kb(cta),
+        reply_markup=dashboard_kb(),
     )
 
 
@@ -225,11 +199,9 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         pnl_today = await daily_pnl(user["id"])
         st = await _fetch_stats(user["id"])
         text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-        cta = _smart_cta(st, user["auto_trade_on"])
         await q.message.reply_text(
             text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=dashboard_kb(cta),
+            reply_markup=dashboard_kb(),
         )
         return
 
@@ -323,10 +295,9 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             reply_markup=wallet_menu(),
         )
 
-    # --- insights (v3 + kept as alias) ---
+    # --- insights (kept as alias — not in MVP main nav) ---
     elif sub == "insights":
         from .pnl_insights import _fetch_insights, format_insights
-        from ..keyboards import insights_kb
         data = await _fetch_insights(user["id"])
         await q.message.reply_text(
             format_insights(data),

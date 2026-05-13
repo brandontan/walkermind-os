@@ -26,41 +26,70 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
 
 
 def main_menu() -> ReplyKeyboardMarkup:
+    """MVP Global Navigation — 5 buttons. Signal Feeds and Insights removed."""
     return ReplyKeyboardMarkup(
         [
             [KeyboardButton("🏠 Dashboard"),   KeyboardButton("💼 Portfolio")],
-            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("📡 Signal Feeds")],
-            [KeyboardButton("📊 Insights"),    KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("⚙️ Settings")],
             [KeyboardButton("🛑 Stop Bot")],
         ],
         resize_keyboard=True,
     )
 
 
-def dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
-    """Dashboard inline keyboard — hierarchy tree style, 2-col grid."""
+def dashboard_kb() -> InlineKeyboardMarkup:
+    """MVP Dashboard inline keyboard — 4 actions + Refresh."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🤖 Auto Trade",  callback_data="dashboard:auto"),
+            InlineKeyboardButton("🤖 Auto Trade", callback_data="dashboard:auto"),
+            InlineKeyboardButton("💼 Portfolio",  callback_data="dashboard:portfolio"),
+        ],
+        [
+            InlineKeyboardButton("⚙️ Settings",   callback_data="dashboard:settings"),
+            InlineKeyboardButton("🛑 Stop Bot",   callback_data="dashboard:stop"),
+        ],
+        [InlineKeyboardButton("🔄 Refresh", callback_data="dashboard:main")],
+    ])
+
+
+# MVP RESET V1 — deprecated UI flow
+def _legacy_dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
+    """Legacy 7-button dashboard — archived, not reachable from main flow."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🤖 Auto Trade",   callback_data="dashboard:auto"),
             InlineKeyboardButton("📡 Signal Feeds", callback_data="dashboard:signals"),
         ],
         [
-            InlineKeyboardButton("💼 Portfolio",   callback_data="dashboard:portfolio"),
-            InlineKeyboardButton("📊 Insights",    callback_data="dashboard:insights"),
+            InlineKeyboardButton("💼 Portfolio",    callback_data="dashboard:portfolio"),
+            InlineKeyboardButton("📊 Insights",     callback_data="dashboard:insights"),
         ],
         [
-            InlineKeyboardButton("⚙️ Settings",    callback_data="dashboard:settings"),
-            InlineKeyboardButton("🛑 Stop Bot",    callback_data="dashboard:stop"),
+            InlineKeyboardButton("⚙️ Settings",     callback_data="dashboard:settings"),
+            InlineKeyboardButton("🛑 Stop Bot",     callback_data="dashboard:stop"),
         ],
-        [
-            InlineKeyboardButton("🔄 Refresh",     callback_data="dashboard:main"),
-        ],
+        [InlineKeyboardButton("🔄 Refresh", callback_data="dashboard:main")],
         [cta_btn],
     ])
 
 
 def portfolio_kb() -> InlineKeyboardMarkup:
-    """Portfolio screen keyboard with Back/Home nav."""
+    """MVP Portfolio screen — Positions + Refresh + Back/Home."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📋 Positions", callback_data="portfolio:positions"),
+            InlineKeyboardButton("🔄 Refresh",   callback_data="dashboard:portfolio"),
+        ],
+        [
+            InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
+            InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+        ],
+    ])
+
+
+# MVP RESET V1 — deprecated UI flow
+def _legacy_portfolio_kb() -> InlineKeyboardMarkup:
+    """Legacy portfolio keyboard with Chart/Insights/Trades — archived."""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("📋 Open Positions", callback_data="portfolio:positions"),
@@ -71,6 +100,35 @@ def portfolio_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📋 My Trades",       callback_data="portfolio:trades"),
         ],
         nav_row("dashboard:main"),
+    ])
+
+
+def mvp_auto_trade_kb() -> InlineKeyboardMarkup:
+    """MVP Auto Trade: Conservative/Balanced/Aggressive mapped to preset keys."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📡 Conservative", callback_data="preset:pick:signal_sniper")],
+        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:value_hunter")],
+        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:full_auto")],
+        [
+            InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
+            InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+        ],
+    ])
+
+
+def mvp_risk_kb(current: str = "") -> InlineKeyboardMarkup:
+    """MVP Risk Profile: choose risk level — uses existing set_risk callbacks."""
+    def mark(r: str) -> str:
+        return ("✅ " if r == current else "") + r.title()
+
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"📡 {mark('conservative')}", callback_data="set_risk:conservative")],
+        [InlineKeyboardButton(f"🎯 {mark('balanced')}",     callback_data="set_risk:balanced")],
+        [InlineKeyboardButton(f"🚀 {mark('aggressive')}",   callback_data="set_risk:aggressive")],
+        [
+            InlineKeyboardButton("⬅ Back", callback_data="settings:hub"),
+            InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+        ],
     ])
 
 

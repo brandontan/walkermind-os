@@ -1,4 +1,9 @@
-"""First-time onboarding flow + returning-user /start routing."""
+"""First-time onboarding flow + returning-user /start routing — MVP Reset V1.
+
+MVP flow:
+  New user    → /start → welcome bubble → Get Started → dashboard
+  Return user → /start → dashboard (if ALLOWLISTED) or waitlist message
+"""
 from __future__ import annotations
 
 import logging
@@ -23,55 +28,30 @@ from ...services.referral.referral_service import (
 from ...users import get_user_by_telegram_id, set_onboarding_complete, upsert_user
 from ...wallet.vault import get_wallet
 from ..keyboards import main_menu
-from ..keyboards.onboarding import get_started_kb, mode_select_kb, paper_complete_kb
+from ..keyboards.onboarding import get_started_kb
 from ..tier import Tier, has_tier
 
 logger = logging.getLogger(__name__)
 
-# ConversationHandler state constants
+# ConversationHandler state constant
 ONBOARD_WELCOME = 0
-ONBOARD_MODE = 1
 
 _WELCOME_TEXT = (
-    "🚀 Quick Start\n"
-    "\n"
     "🛡 Welcome to CrusaderBot\n"
-    "└ Trade prediction markets with controlled risk\\.\n"
     "\n"
-    "🟡 Current Mode\n"
-    "├ 📝 Paper Trading\n"
-    "├ \\$1,000 demo capital\n"
-    "└ Live trading locked\n"
+    "Your autonomous Polymarket trading copilot.\n"
     "\n"
-    "Setup\n"
-    "├ Choose risk preset\n"
-    "├ Enable paper auto\\-trade\n"
-    "└ Start signal following"
-)
-
-_MODE_TEXT = (
-    "Choose your trading mode:\n\n"
-    "📄 *Paper Trading* — Practice with virtual funds\\. Zero risk\\.\n"
-    "💰 *Live Trading* — Real money\\. Requires setup\\."
-)
-
-_PAPER_COMPLETE_TEXT = (
-    "✅ Paper Mode Active\\!\n"
+    "📑 PAPER MODE\n"
     "\n"
-    "Balance: \\$10,000 virtual\n"
+    "System Status\n"
+    "├ Mode: Paper\n"
+    "├ Capital: Sandbox\n"
+    "├ Engine: Online\n"
+    "└ Status: 🟢 Ready\n"
     "\n"
-    "Commands\n"
-    "├ /scan — scan for opportunities\n"
-    "├ /positions — view open trades\n"
-    "├ /pnl — view performance\n"
-    "└ /help — all commands\n"
+    "Trade automatically with curated strategies.\n"
     "\n"
-    "🟢 Ready"
-)
-
-_LIVE_REDIRECT_TEXT = (
-    "🔒 *Live Trading Setup*\n\n"
-    "Use /enable\\_live to begin the live trading setup process\\."
+    "Press Get Started to begin."
 )
 
 
@@ -112,36 +92,30 @@ async def _entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         logger.warning("onboarding.referral_code_create_failed user_id=%s error=%s", user_id, exc)
 
     if not is_new_user:
-        # Returning user — wallet should already exist but ensure safety
-        wallet = await get_wallet(user_id)
-        if wallet is None:
-            pass  # wallet created on demand when live trading is enabled
-
+        # Returning user — route to dashboard
         if has_tier(user["access_tier"], Tier.ALLOWLISTED):
             from .dashboard import dashboard
             await dashboard(update, ctx)
         else:
             await update.message.reply_text(
-                "⚔️ *Welcome back to CrusaderBot\\!*\n\n"
-                "Mode: 📝 Paper\n"
-                "You're on the waitlist — your invite is on its way\\!",
-                parse_mode=ParseMode.MARKDOWN_V2,
+                "⚔️ Welcome back to CrusaderBot!\n\n"
+                "Mode: 📑 Paper\n"
+                "You're on the waitlist — your invite is on its way!",
                 reply_markup=main_menu(),
             )
         return ConversationHandler.END
 
-    # New user — begin onboarding
+    # New user — show MVP welcome
     ctx.user_data["onboard_user_id"] = str(user_id)
     await update.message.reply_text(
         _WELCOME_TEXT,
-        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=get_started_kb(),
     )
     return ONBOARD_WELCOME
 
 
 # ---------------------------------------------------------------------------
-# Step 1 — Get Started callback
+# Get Started callback — completes onboarding → dashboard
 # ---------------------------------------------------------------------------
 
 async def _get_started_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -149,56 +123,29 @@ async def _get_started_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
     if q is None:
         return ONBOARD_WELCOME
     await q.answer()
-    await q.message.reply_text(
-        _MODE_TEXT,
-        parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=mode_select_kb(),
-    )
-    return ONBOARD_MODE
 
-
-# ---------------------------------------------------------------------------
-# Step 2 — Mode selection callbacks
-# ---------------------------------------------------------------------------
-
-async def _mode_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    q = update.callback_query
-    if q is None:
-        return ONBOARD_MODE
-    await q.answer()
-
-    action = (q.data or "").split(":", 1)[-1]
-
-    if action == "mode_live":
-        await q.message.reply_text(
-            _LIVE_REDIRECT_TEXT,
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
-        return ConversationHandler.END
-
-    # Paper mode
     user_id_str = ctx.user_data.get("onboard_user_id")
     if user_id_str:
         try:
             await set_onboarding_complete(UUID(user_id_str))
         except Exception as exc:
-            logger.warning("onboarding.set_complete_failed user_id=%s error=%s",
-                           user_id_str, exc)
+            logger.warning(
+                "onboarding.set_complete_failed user_id=%s error=%s",
+                user_id_str, exc,
+            )
 
-    await q.message.reply_text(
-        _PAPER_COMPLETE_TEXT,
-        parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=paper_complete_kb(),
-    )
-    await q.message.reply_text("Main menu:", reply_markup=main_menu())
+    from .dashboard import show_dashboard_for_cb
+    await show_dashboard_for_cb(update, ctx)
     return ConversationHandler.END
 
 
 # ---------------------------------------------------------------------------
-# Standalone view-dashboard callback (outside ConversationHandler)
+# Archived standalone callbacks — MVP RESET V1 deprecated UI flow
+# Buttons removed from onboarding; callbacks kept for in-flight safety only.
 # ---------------------------------------------------------------------------
 
 async def view_dashboard_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """MVP RESET V1 — deprecated. Was: onboard:view_dashboard."""
     q = update.callback_query
     if q is None:
         return
@@ -208,7 +155,7 @@ async def view_dashboard_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def onboard_settings_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Route ⚙️ Settings button from onboarding welcome screen."""
+    """MVP RESET V1 — deprecated. Was: onboard:settings."""
     q = update.callback_query
     if q is None:
         return
@@ -229,12 +176,6 @@ def build_onboard_handler() -> ConversationHandler:
                 CallbackQueryHandler(
                     _get_started_cb,
                     pattern=r"^onboard:get_started$",
-                ),
-            ],
-            ONBOARD_MODE: [
-                CallbackQueryHandler(
-                    _mode_cb,
-                    pattern=r"^onboard:mode_(paper|live)$",
                 ),
             ],
         },

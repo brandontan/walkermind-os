@@ -1,5 +1,5 @@
-Last Updated : 2026-05-13 21:30 WIB
-Status       : telegram-lightweight-tree-ui-hotfix lane complete; PR #1034 open on WARP/telegram-lightweight-tree-ui-hotfix awaiting WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-14 03:37
+Status       : crusaderbot-mvp-reset-v1 lane complete; PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
 - live-execution-user-id-guards MERGED PR #1021. close_position() AND user_id=$N hardening; 5 isolation tests; MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
@@ -19,6 +19,7 @@ Status       : telegram-lightweight-tree-ui-hotfix lane complete; PR #1034 open 
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
+- crusaderbot-mvp-reset-v1: Telegram MVP UX reset complete; PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-reset-v1.md
 - telegram-lightweight-tree-ui-hotfix: final lightweight tree UI replacement pass; PR #1034 open on WARP/telegram-lightweight-tree-ui-hotfix; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
 - relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - Observation / runtime monitoring remains active in paper mode.
@@ -35,8 +36,8 @@ Status       : telegram-lightweight-tree-ui-hotfix lane complete; PR #1034 open 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for telegram-lightweight-tree-ui-hotfix PR #1034 on WARP/telegram-lightweight-tree-ui-hotfix. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
-- WARP🔹CMD review required for relax-branch-prefix-rule PR. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
+- WARP🔹CMD review required for crusaderbot-mvp-reset-v1 PR on WARP/crusaderbot-mvp-reset-v1. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-reset-v1.md
+- WARP🔹CMD review required for telegram-lightweight-tree-ui-hotfix PR #1034 on WARP/telegram-lightweight-tree-ui-hotfix. STANDARD tier.
 - After merge: open WARP/notifications-paper-wire to wire notify_order_filled() into paper executor.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
