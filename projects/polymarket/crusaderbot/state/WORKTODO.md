@@ -87,4 +87,3 @@ Done condition: P3 lanes merged, registry catalog populated at boot, scan loop w
 - [ ] services/* dead code (post-R12 cleanup, LOW).
 - [ ] /deposit no tier gate (intentional, non-blocking).
 - [ ] WARP/LIB-F401-CLEANUP (MINOR, deferred post-demo) -- shared-lib cross-project audit required before cleanup.
-

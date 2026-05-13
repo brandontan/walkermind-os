@@ -281,15 +281,6 @@ async def evaluate(ctx: GateContext) -> GateResult:
     if ctx.trading_mode == "live" and chosen_mode == "paper":
         await _log(ctx.user_id, ctx.market_id, 13, True,
                    "live_requested_but_guards_failed_falling_back_to_paper")
-        # R12 live-to-paper: when the user is configured for live but the
-        # global activation guards (ENABLE_LIVE_TRADING / EXECUTION_PATH_VALIDATED
-        # / CAPITAL_MODE_CONFIRMED) or Tier 4 are not satisfied, the gate
-        # silently downgrades the chosen mode to paper. Without this
-        # trigger the user's ``user_settings.trading_mode`` would remain
-        # 'live' and re-enabling the global flags later would silently
-        # resume live routing without forcing /live_checklist + CONFIRM.
-        # The fallback is idempotent so firing every signal scan during a
-        # guard-down window is safe (first call flips, rest are no-ops).
         try:
             await live_fallback.trigger_for_live_guard_unset(ctx.user_id)
         except Exception as fb_exc:  # noqa: BLE001
