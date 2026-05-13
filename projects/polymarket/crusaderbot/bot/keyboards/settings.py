@@ -1,4 +1,4 @@
-"""Settings hub keyboards — UX Overhaul."""
+"""Settings hub keyboards — MVP Reset V1."""
 from __future__ import annotations
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -7,7 +7,25 @@ from . import grid_rows
 
 
 def settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
-    """Root Settings hub v3 layout."""
+    """MVP Settings hub — Notifications + Risk only."""
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton("🔔 Notifications", callback_data="settings:notifications"),
+            InlineKeyboardButton("⚖️ Risk",           callback_data="settings:risk"),
+        ],
+    ]
+    if is_admin:
+        rows.append([InlineKeyboardButton("🧭 Admin", callback_data="settings:admin")])
+    rows.append([
+        InlineKeyboardButton("⬅ Back", callback_data="settings:back"),
+        InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+# MVP RESET V1 — deprecated UI flow
+def _legacy_settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
+    """Legacy 8-item settings hub — archived, not reachable from main flow."""
     rows = [
         [
             InlineKeyboardButton("👤 Profile",        callback_data="settings:profile"),
