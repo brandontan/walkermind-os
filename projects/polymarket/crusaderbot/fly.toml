@@ -1,38 +1,22 @@
 # fly.toml — CrusaderBot on Fly.io
-# Adjust app name before first deploy: `fly launch --name <your-app-name>`
+# Fly.io apps v2 format (flyctl v0.2+)
 #
 # Secrets (TELEGRAM_BOT_TOKEN, DATABASE_URL, REDIS_URL, ALCHEMY_POLYGON_*,
 # WALLET_ENCRYPTION_KEY, OPERATOR_CHAT_ID, ...) are NOT defined here.
 # Set them via `fly secrets set KEY=VALUE -a crusaderbot` before deploying.
 
 app = "crusaderbot"
-primary_region = "iad"       # Ashburn — matches deployed machine region (CMD ratified 2026-05-08)
+primary_region = "iad"
 kill_signal = "SIGTERM"
 kill_timeout = "30s"
 
 [build]
   dockerfile = "Dockerfile"
 
-# Release-time hook. Runs after build, before the new release becomes the
-# primary. The Fly image installs the project as the top-level package
-# ``crusaderbot`` (see Dockerfile + pyproject.toml ``packages.find`` glob
-# ``crusaderbot*``), so the dotted module path here is the installed
-# ``crusaderbot.scripts.seed_operator_tier`` — NOT the repo-root
-# ``projects.polymarket.crusaderbot.scripts.seed_operator_tier`` path used
-# in dev. The seeder always exits 0 even on warn / error paths so Fly
-# never aborts a release on a missing ADMIN_USER_IDS / DATABASE_URL or a
-# transient DB blip (schema may not exist yet on the very first deploy —
-# run_migrations() runs in the app lifespan, AFTER release_command).
 [deploy]
   release_command = "python -m crusaderbot.scripts.seed_operator_tier"
-  # Give the app 90s to start before Fly marks the deploy as failed.
-  # Startup includes: DB pool init, run_migrations(), init_cache(),
-  # bootstrap_strategies(), bot init + webhook set — typically 15-30s on
-  # a warm deploy but can spike to 60s+ on cold starts / migration runs.
   strategy = "rolling"
 
-# Non-secret env only. Activation guards default to OFF — flip via
-# `fly secrets set` after WARP🔹CMD owner gate + SENTINEL approval.
 [env]
   APP_ENV                       = "production"
   PORT                          = "8080"
@@ -49,30 +33,17 @@ kill_timeout = "30s"
   AUTO_REDEEM_ENABLED           = "false"
   HEISENBERG_API_TOKEN          = ""
 
-[[services]]
-  protocol      = "tcp"
+[http_service]
   internal_port = 8080
+  force_https   = true
+  auto_stop_machines  = false
+  auto_start_machines = true
+  min_machines_running = 1
 
-  [[services.ports]]
-    port     = 80
-    handlers = ["http"]
-
-  [[services.ports]]
-    port     = 443
-    handlers = ["tls", "http"]
-
-  [services.concurrency]
+  [http_service.concurrency]
     type       = "requests"
     soft_limit = 50
     hard_limit = 100
-
-  [[services.http_checks]]
-    interval     = "15s"
-    timeout      = "10s"
-    grace_period = "60s"
-    method       = "GET"
-    path         = "/health"
-    protocol     = "http"
 
 [[vm]]
   size   = "shared-cpu-1x"
@@ -81,3 +52,11 @@ kill_timeout = "30s"
 [metrics]
   port = 8080
   path = "/metrics"
+
+[[http_service.checks]]
+  interval     = "15s"
+  timeout      = "10s"
+  grace_period = "60s"
+  method       = "GET"
+  path         = "/health"
+  protocol     = "http"
