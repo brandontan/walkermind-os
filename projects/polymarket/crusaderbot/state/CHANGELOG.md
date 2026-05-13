@@ -89,3 +89,5 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 
 
 
+
+2026-05-13 18:09 | WARP/telegram-compact-hierarchy-ui | Compact Telegram hierarchy UX pass: reduced tree-rail formatting in dashboard/settings/positions/onboarding/signal-following and aligned preset nav keyboard; STANDARD, NARROW INTEGRATION; Closes #1030

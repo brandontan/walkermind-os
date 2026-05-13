@@ -1,4 +1,4 @@
-Last Updated : 2026-05-13 17:10 WIB
+Last Updated : 2026-05-13 18:09 WIB
 Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — PR #1029 blocker fixes pushed (Signal Feeds relabel + force-close hide + tests green), awaiting WARP🔹CMD re-review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
@@ -17,6 +17,7 @@ Status       : crusaderbot-mvp-ux-v1 STANDARD lane open — PR #1029 blocker fix
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
+- telegram-compact-hierarchy-ui: compact hierarchy UI readability pass in handlers/keyboards; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-compact-hierarchy-ui.md
 - crusaderbot-mvp-ux-v1: Hierarchy Tree Terminal UI rebuild; PR #1029 open, gate review blockers addressed — Signal Feeds route contract aligned, manual force-close surface hidden, targeted tests passing; awaiting re-review. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-ux-v1.md
 - relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md

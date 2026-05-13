@@ -6,6 +6,7 @@
 ---
 
 ## Right Now
+- WARP/telegram-compact-hierarchy-ui in progress (2026-05-13). Compact hierarchy UI pass for Telegram readability + keyboard consistency.
 - WARP/CRUSADERBOT-MVP-UX-V1 PR open (2026-05-13). Hierarchy Tree Terminal UI rebuild + blocker fix pass (Signal Feeds contract restore, manual force-close hide, tests green); awaiting WARP🔹CMD re-review.
 - [x] crusaderbot-mvp-ux-v1 — Hierarchy Tree Terminal UI rebuild complete, PR open, STANDARD NARROW INTEGRATION
 - Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashboard v3, signals tap-hub, portfolio screen, nav_row, notifications utility.
