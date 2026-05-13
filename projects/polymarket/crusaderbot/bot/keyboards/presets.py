@@ -4,7 +4,7 @@ from __future__ import annotations
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ...domain.preset import RECOMMENDED_PRESET, list_presets
-from . import grid_rows
+from . import grid_rows, nav_row
 
 
 def preset_picker() -> InlineKeyboardMarkup:
@@ -17,7 +17,7 @@ def preset_picker() -> InlineKeyboardMarkup:
         buttons.append(InlineKeyboardButton(
             label, callback_data=f"preset:pick:{p.key}",
         ))
-    return InlineKeyboardMarkup(grid_rows(buttons))
+    return InlineKeyboardMarkup(grid_rows(buttons) + [nav_row("dashboard:main")])
 
 
 def preset_confirm(preset_key: str) -> InlineKeyboardMarkup:

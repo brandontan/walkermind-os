@@ -191,22 +191,22 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     text = (
         "💼 Portfolio\n"
-        "│\n"
+        "\n"
         "💰 Balance\n"
         f"└ ${bal:.2f} USDC\n"
-        "│\n"
+        "\n"
         "💹 Today\n"
-        f"PnL       {pnl_icon} {_pnl_fmt(pnl_today)}\n"
-        f"└ Win/Loss  {st['wins']}W · {st['losses']}L\n"
-        "│\n"
+        f"├ PnL: {pnl_icon} {_pnl_fmt(pnl_today)}\n"
+        f"└ Win/Loss: {st['wins']}W · {st['losses']}L\n"
+        "\n"
         "📌 Positions\n"
-        f"Open      {open_count}\n"
-        f"└ Exposure  ${st['positions_value']:.2f}\n"
-        "│\n"
-        "└ Account\n"
-        f"    Equity    ${equity:.2f}\n"
-        f"    Mode      {mode_label}\n"
-        f"    └ Max Size  {max_pos_pct:.0%}"
+        f"├ Open: {open_count}\n"
+        f"└ Exposure: ${st['positions_value']:.2f}\n"
+        "\n"
+        "Account\n"
+        f"├ Equity: ${equity:.2f}\n"
+        f"├ Mode: {mode_label}\n"
+        f"└ Max Size: {max_pos_pct:.0%}"
     )
 
     if is_cb:
@@ -276,11 +276,10 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return_exceptions=False,
     )
 
-    lines = ["📌 Open Positions\n│"]
+    lines = ["📌 Open Positions\n"]
     n = len(positions)
     for i, (pos, mark) in enumerate(zip(positions, marks)):
-        connector = "└──" if i == n - 1 else "├──"
-        branch = "    " if i == n - 1 else ""
+        connector = "└" if i == n - 1 else "├"
         title = _truncate(pos["question"] or pos["market_id"], MARKET_TITLE_MAX)
         side = pos["side"].upper()
         entry = float(pos["entry_price"])
@@ -295,9 +294,8 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         tp_sl = _format_tp_sl(pos["applied_tp_pct"], pos["applied_sl_pct"])
         lines.append(
             f"{connector} `{str(pos['id'])[:8]}` *{side}* — _{title}_\n"
-            f"{branch}size ${size:.2f} · entry {entry:.3f} · mark {mark_str}\n"
-            f"{branch}P&L {pnl_str}\n"
-            f"{branch}└ {tp_sl}"
+            f"  size ${size:.2f} · entry {entry:.3f} · mark {mark_str}\n"
+            f"  P&L {pnl_str} · {tp_sl}"
         )
 
     await update.message.reply_text(

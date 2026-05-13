@@ -34,19 +34,19 @@ ONBOARD_MODE = 1
 
 _WELCOME_TEXT = (
     "🚀 Quick Start\n"
-    "│\n"
+    "\n"
     "🛡 Welcome to CrusaderBot\n"
     "└ Trade prediction markets with controlled risk\\.\n"
-    "│\n"
+    "\n"
     "🟡 Current Mode\n"
-    "📝 Paper Trading\n"
-    "\\$1,000 demo capital\n"
+    "├ 📝 Paper Trading\n"
+    "├ \\$1,000 demo capital\n"
     "└ Live trading locked\n"
-    "│\n"
-    "└ Setup\n"
-    "    Choose risk preset\n"
-    "    Enable paper auto\\-trade\n"
-    "    └ Start signal following"
+    "\n"
+    "Setup\n"
+    "├ Choose risk preset\n"
+    "├ Enable paper auto\\-trade\n"
+    "└ Start signal following"
 )
 
 _MODE_TEXT = (
@@ -57,16 +57,16 @@ _MODE_TEXT = (
 
 _PAPER_COMPLETE_TEXT = (
     "✅ Paper Mode Active\\!\n"
-    "│\n"
-    "Balance   \\$10,000 virtual\n"
-    "│\n"
+    "\n"
+    "Balance: \\$10,000 virtual\n"
+    "\n"
     "Commands\n"
-    "/scan — scan for opportunities\n"
-    "/positions — view open trades\n"
-    "/pnl — view performance\n"
+    "├ /scan — scan for opportunities\n"
+    "├ /positions — view open trades\n"
+    "├ /pnl — view performance\n"
     "└ /help — all commands\n"
-    "│\n"
-    "└ 🟢 Ready"
+    "\n"
+    "🟢 Ready"
 )
 
 _LIVE_REDIRECT_TEXT = (

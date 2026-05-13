@@ -1,5 +1,5 @@
-Last Updated : 2026-05-13 19:00 WIB
-Status       : compact hierarchy traceability/state sync lane active for PR #1032 on warp/fix-telegram-mvp-ux-readability-regression. PR #1029 and #1031 merged. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-13 20:30 WIB
+Status       : telegram-lightweight-tree-ui-hotfix lane complete; PR open. PR #1032 (compact hierarchy) and relax-branch-prefix-rule PR still pending WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
 - Premium UX v4 (Hybrid Luxury) — PR #1026 merged bd8fe42d
@@ -17,7 +17,7 @@ Status       : compact hierarchy traceability/state sync lane active for PR #103
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- telegram-compact-hierarchy-ui: compact hierarchy UI readability pass in handlers/keyboards; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-compact-hierarchy-ui.md
+- telegram-lightweight-tree-ui-hotfix: final lightweight tree UI replacement pass; PR open on claude/telegram-lightweight-tree-ui-MNQ8w; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
 - compact-hierarchy-readability-regression: PR #1032 open on warp/fix-telegram-mvp-ux-readability-regression for compact hierarchy readability regression fix and traceability/state sync. Source: projects/polymarket/crusaderbot/reports/forge/telegram-compact-hierarchy-ui.md
 - relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - live-execution-user-id-guards: WARP•SENTINEL APPROVED 97/100. PR #1021 open. Awaiting WARP🔹CMD merge decision. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
@@ -35,6 +35,7 @@ Status       : compact hierarchy traceability/state sync lane active for PR #103
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for telegram-lightweight-tree-ui-hotfix PR on claude/telegram-lightweight-tree-ui-MNQ8w. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
 - WARP🔹CMD re-review required for PR #1032 (compact hierarchy readability regression fix) on warp/fix-telegram-mvp-ux-readability-regression. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/telegram-compact-hierarchy-ui.md
 - WARP🔹CMD review required for relax-branch-prefix-rule PR. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
 - WARP🔹CMD merge decision for live-execution-user-id-guards PR #1021. SENTINEL APPROVED 97/100. Source: projects/polymarket/crusaderbot/reports/sentinel/live-execution-user-id-guards.md
