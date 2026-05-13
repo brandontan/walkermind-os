@@ -61,7 +61,7 @@ jobs:
           import subprocess, sys, tomllib
           with open("pyproject.toml", "rb") as f:
               deps = tomllib.load(f)["project"]["dependencies"]
-          subprocess.check_call([sys.executable, "-m", "pip", "install", *deps])
+          subprocess.check_call([sys.executable, "-m", "pip", "install", "--ignore-installed", *deps])
           PY
 
       - name: Lint (ruff)

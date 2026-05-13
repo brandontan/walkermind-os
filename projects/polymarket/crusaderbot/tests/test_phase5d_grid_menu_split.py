@@ -245,6 +245,11 @@ def test_emergency_menu_is_two_col():
 
 def test_preset_picker_is_two_col():
     kb = preset_picker()
-    assert len(kb.inline_keyboard) == 2
+    # 2 preset grid rows + 1 Back/Home nav row
+    assert len(kb.inline_keyboard) == 3
     assert len(kb.inline_keyboard[0]) == 2
     assert len(kb.inline_keyboard[1]) == 1
+    # Nav row: Back and Home both use dashboard:main (no dead noop:refresh)
+    nav = kb.inline_keyboard[2]
+    assert len(nav) == 2
+    assert all(btn.callback_data == "dashboard:main" for btn in nav)
