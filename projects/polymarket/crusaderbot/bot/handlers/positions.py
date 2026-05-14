@@ -184,14 +184,14 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     open_count = int(st["winning"]) + int(st["losing"])
 
-    text = (
-        "💼 Portfolio\n"
-        "\n"
+    stats = (
+        f"💼 Portfolio\n\n"
         f"💰 Balance: ${bal:.2f}\n"
         f"📈 PnL: {_pnl_fmt(pnl_today)}\n"
         f"📋 Open Trades: {open_count}\n\n"
-        + ("No active trades." if open_count == 0 else "Active trades available.")
     )
+    footer = "No active trades." if open_count == 0 else "Active trades available."
+    text = stats + footer
 
     if is_cb:
         await update.callback_query.message.reply_text(

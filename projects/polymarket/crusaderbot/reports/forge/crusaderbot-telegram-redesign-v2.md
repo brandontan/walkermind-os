@@ -1,7 +1,7 @@
 # WARP•FORGE Report — crusaderbot-telegram-redesign-v2
 
-Branch: WARP/crusaderbot-telegram-redesign-v2
-Date: 2026-05-14 06:20
+Branch: warp/redesign-telegram-ux-for-crusaderbot
+Date: 2026-05-14 09:03
 Validation Tier: STANDARD
 Claim Level: NARROW INTEGRATION
 Validation Target: Telegram UX v2 only (onboarding, dashboard, auto trade, portfolio, settings, risk profile, persistent keyboard)
@@ -28,7 +28,8 @@ Not in Scope: Copy Wallet, Insights, advanced analytics, web dashboard, trading 
 - CHANGELOG.md updated
 
 
-## PR #1036 Fix Task
-- Restored Auto Trade preset callback IDs to canonical keys (`signal_sniper`, `value_hunter`, `full_auto`).
-- Restored conservative risk callback token to `set_risk:conservative`.
-- Fixed portfolio message construction so summary lines remain visible when open trades exist.
+## PR #1036 Gate Fixes (2026-05-14)
+- Auto Trade preset callbacks already correct (`preset:pick:signal_sniper/value_hunter/full_auto`) — review comment outdated.
+- Risk token already correct (`set_risk:conservative/balanced/aggressive`) — review comment outdated.
+- Fixed portfolio message construction in `bot/handlers/positions.py`: separated stats string from footer ternary so stats always render when open trades exist.
+- Fixed f-string quote reuse in `bot/handlers/settings.py:57` — extracted `mode_clean` variable; compatible with Python 3.11 (ruff lint: PASS).

@@ -1,5 +1,5 @@
-Last Updated : 2026-05-14 06:20
-Status       : crusaderbot-mvp-reset-v1 lane complete; PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
+Last Updated : 2026-05-14 09:03
+Status       : crusaderbot-telegram-redesign-v2 gate fixes applied (positions.py stats, settings.py lint); PR #1036 open on warp/redesign-telegram-ux-for-crusaderbot awaiting WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
 - live-execution-user-id-guards MERGED PR #1021. close_position() AND user_id=$N hardening; 5 isolation tests; MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
@@ -19,7 +19,7 @@ Status       : crusaderbot-mvp-reset-v1 lane complete; PR open on WARP/crusaderb
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- crusaderbot-telegram-redesign-v2: Telegram-native card UX v2 implemented on WARP/crusaderbot-telegram-redesign-v2; pending WARP🔹CMD review; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-telegram-redesign-v2.md
+- crusaderbot-telegram-redesign-v2: Gate fixes applied — positions.py stats clarity fix, settings.py Python 3.11 f-string lint fix; PR #1036 on warp/redesign-telegram-ux-for-crusaderbot; ruff PASS; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-telegram-redesign-v2.md
 - crusaderbot-mvp-reset-v1: Telegram MVP UX reset complete; PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-reset-v1.md
 - telegram-lightweight-tree-ui-hotfix: final lightweight tree UI replacement pass; PR #1034 open on WARP/telegram-lightweight-tree-ui-hotfix; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
 - relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
@@ -37,8 +37,8 @@ Status       : crusaderbot-mvp-reset-v1 lane complete; PR open on WARP/crusaderb
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for PR #1036 on warp/redesign-telegram-ux-for-crusaderbot. STANDARD tier. Gate fixes applied. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-telegram-redesign-v2.md
 - WARP🔹CMD review required for crusaderbot-mvp-reset-v1 PR on WARP/crusaderbot-mvp-reset-v1. STANDARD tier. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-reset-v1.md
-- WARP🔹CMD review required for telegram-lightweight-tree-ui-hotfix PR #1034 on WARP/telegram-lightweight-tree-ui-hotfix. STANDARD tier.
 - After merge: open WARP/notifications-paper-wire to wire notify_order_filled() into paper executor.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
@@ -52,4 +52,3 @@ Status       : crusaderbot-mvp-reset-v1 lane complete; PR open on WARP/crusaderb
 - R13 backlog is post-MVP growth work and not required for current paper-safe runtime.
 - [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
-

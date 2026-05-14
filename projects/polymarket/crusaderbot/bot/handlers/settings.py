@@ -51,10 +51,11 @@ logger = logging.getLogger(__name__)
 def _hub_text(mode: str, tier: int) -> str:
     """MVP Settings hub: Profile + Notifications status."""
     mode_label = "💸 Live" if mode == "live" else "📑 Paper"
+    mode_clean = mode_label.replace("💸 ", "").replace("📑 ", "")
     risk_label = "Balanced"
     return (
         "⚙️ Settings\n\n"
-        f"📑 Mode: {mode_label.replace("💸 ","").replace("📑 ","")}\n"
+        f"📑 Mode: {mode_clean}\n"
         "🔔 Notifications: ON\n"
         f"⚖️ Risk: {risk_label}"
     )
