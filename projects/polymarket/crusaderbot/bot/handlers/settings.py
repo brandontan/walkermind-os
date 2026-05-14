@@ -126,7 +126,6 @@ async def _render_hub(update: Update, user: dict) -> None:
 
 
 async def settings_hub_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh: bool = False) -> None:
-    """⚙️ Settings reply-keyboard button → render Settings hub."""
     user, ok = await _ensure(update)
     if not ok:
         return
@@ -134,7 +133,6 @@ async def settings_hub_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refr
 
 
 async def settings_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """/settings command — routes to hub, tier-gated same as main-menu entry."""
     user, ok = await _ensure(update)
     if not ok or update.message is None:
         return
@@ -151,22 +149,16 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
     data = q.data or ""
 
-    # --- Hub re-render ---
     if data in ("settings:hub", "settings:menu"):
         await _render_hub(update, user)
         return
 
-    # --- Back to main menu ---
     if data == "settings:back":
         from ..keyboards import main_menu
-        await q.message.reply_text(
-            "Main menu:", reply_markup=main_menu()
-        )
+        await q.message.reply_text("Main menu:", reply_markup=main_menu())
         return
 
-    # --- Profile stub (no longer a menu item — kept for backward compat callbacks only) ---
     if data == "settings:profile":
-        # Do not re-open settings (was causing a loop); just show a simple profile card
         s = await get_settings_for(user["id"])
         mode = s.get("trading_mode", "paper")
         mode_label = "💸 Live" if mode == "live" else "📑 Paper"
@@ -176,18 +168,16 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Premium stub (removed from hub; kept for legacy deep-links) ---
     if data == "settings:premium":
         await q.answer("Premium features are not available yet.", show_alert=True)
         return
 
-    # --- Referrals stub (accessible via /referral command) ---
     if data == "settings:referrals":
         from ...services.referral.referral_service import get_or_create_referral_code
         try:
             code = await get_or_create_referral_code(user["id"])
             ref_link = f"https://t.me/{(await q.get_bot()).username}?start=ref_{code}"
-        except Exception:
+        except Exception:  # noqa: BLE001
             ref_link = "(unavailable)"
         await q.message.reply_text(
             f"🎁 Referrals\n\nYour referral link:\n{ref_link}",
@@ -195,7 +185,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Health — show actual bot status ---
     if data == "settings:health":
         import datetime
         now = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
@@ -212,7 +201,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
                 )
             else:
                 job_summary = "└ No recent jobs"
-        except Exception:
+        except Exception:  # noqa: BLE001
             job_summary = "└ Jobs: nominal"
         await q.message.reply_text(
             f"🏥 Health\n\n"
@@ -223,7 +212,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Live Gate stub ---
     if data == "settings:live_gate":
         await q.message.reply_text(
             "*🔐 Live Gate*\n\nLive trading gate remains locked by policy.\n\nSoon: guided readiness checks and activation timeline.",
@@ -232,7 +220,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Admin — operator only, routes to /admin ---
     if data == "settings:admin":
         operator_id = get_app_settings().OPERATOR_CHAT_ID
         if update.effective_user is None or update.effective_user.id != operator_id:
@@ -242,7 +229,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         await admin_root(update, ctx)
         return
 
-    # --- Wallet surface ---
     if data == "settings:wallet":
         from ...wallet.vault import get_wallet
         w = await get_wallet(user["id"])
@@ -256,7 +242,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- TP/SL step 1 ---
     if data == "settings:tpsl":
         s = await get_settings_for(user["id"])
         current_tp = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
@@ -267,7 +252,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Capital allocation ---
     if data == "settings:capital":
         s = await get_settings_for(user["id"])
         bal = float(await get_balance(user["id"]))
@@ -279,7 +263,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Risk Profile (MVP) ---
     if data == "settings:risk":
         s = await get_settings_for(user["id"])
         current_risk = s.get("risk_profile", "balanced")
@@ -300,7 +283,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Notifications — show current state ---
     if data == "settings:notifications":
         s = await get_settings_for(user["id"])
         notifs_on = s.get("notifications_on", True)
@@ -309,7 +291,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         toggle_cb = "settings:notif_off" if notifs_on else "settings:notif_on"
         toggle_label = "Turn OFF" if notifs_on else "Turn ON"
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"{'🔕' if notifs_on else '🔔'} {toggle_label}", callback_data=toggle_cb)],
+            [InlineKeyboardButton(f"{'\U0001f515' if notifs_on else '\U0001f514'} {toggle_label}", callback_data=toggle_cb)],
             [
                 InlineKeyboardButton("⬅ Back", callback_data="settings:hub"),
                 InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
@@ -325,14 +307,13 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         new_val = data == "settings:notif_on"
         try:
             await update_settings(user["id"], notifications_on=new_val)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("notifications_on update failed: %s", exc)
         status = "🟢 ON" if new_val else "🔴 OFF"
         await q.answer(f"Notifications {status}", show_alert=False)
         await _render_hub(update, user)
         return
 
-    # --- Mode (Paper/Live) ---
     if data == "settings:mode":
         from ..keyboards.settings import settings_mode_picker
         s = await get_settings_for(user["id"])
@@ -343,7 +324,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Legacy auto-redeem ---
     if data == "settings:redeem":
         s = await get_settings_for(user["id"])
         await q.message.reply_text(
@@ -371,7 +351,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def tp_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle tp_set:<N> and tp_set:custom callbacks."""
     q = update.callback_query
     if q is None or update.effective_user is None:
         return
@@ -397,7 +376,6 @@ async def tp_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         await q.answer("Invalid TP value.", show_alert=True)
         return
 
-    # Store TP in user_data; wait for SL selection before saving to DB.
     if ctx.user_data is not None:
         ctx.user_data["pending_tp"] = tp_pct
 
@@ -411,7 +389,6 @@ async def tp_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def sl_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle sl_set:<N> and sl_set:custom callbacks."""
     q = update.callback_query
     if q is None or update.effective_user is None:
         return
@@ -439,7 +416,6 @@ async def sl_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     pending_tp = (ctx.user_data or {}).get("pending_tp")
     if pending_tp is None:
-        # SL tapped without TP step (edge case: direct deep-link)
         s = await get_settings_for(user["id"])
         tp_pct_raw = s.get("tp_pct")
         pending_tp = int(float(tp_pct_raw) * 100) if tp_pct_raw is not None else 25
@@ -459,7 +435,6 @@ async def sl_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def cap_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle cap_set:<N> and cap_set:custom callbacks."""
     q = update.callback_query
     if q is None or update.effective_user is None:
         return
@@ -495,10 +470,7 @@ async def cap_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def settings_text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Handle awaiting text inputs for tpsl_tp, tpsl_sl flows.
-
-    Returns True if consumed. capital_pct is handled by setup.text_input.
-    """
+    """Handle awaiting text inputs for tpsl_tp, tpsl_sl flows."""
     if update.message is None or update.effective_user is None:
         return False
     awaiting = (ctx.user_data or {}).get("awaiting")
