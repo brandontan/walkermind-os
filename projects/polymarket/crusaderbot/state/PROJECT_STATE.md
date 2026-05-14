@@ -1,5 +1,5 @@
-Last Updated : 2026-05-14 22:45
-Status       : V5 "AUTOBOT" UI Overhaul merged and active. Dashboard pulse and monospaced ledger rendering confirmed. Production PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-14 23:55
+Status       : V6 Telegram UX redesign in review (PR #1048 WARP/EMRGT). Concierge onboarding, binary role system, state-driven dashboard, V6 5-button menu. Awaiting WARP•SENTINEL MAJOR validation before merge. Production PAPER ONLY.
 
 [COMPLETED]
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. Dashboard pulse, monospaced financials, 6-button menu, English localization. STANDARD, NARROW INTEGRATION.
@@ -20,12 +20,8 @@ Status       : V5 "AUTOBOT" UI Overhaul merged and active. Dashboard pulse and m
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- telegram-premium-polish: Hybrid Luxury premium polish for telegram templates/keyboards + settings placeholder stubs + noop refresh rerender; PR open on warp/polish-telegram-bot-templates-and-keyboards-07rpb4; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/warp-polish-telegram-bot-templates-and-keyboards-07rpb4.md
-- telegram-ux-polish: UX cleanup — Dashboard button main menu, edit vs reply nav, dashboard text W/L clarity, keyboard nav dedup, activity nav keyboard, settings risk display fix; PR open on WARP/telegram-ux-polish; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-polish.md
-- crusaderbot-telegram-redesign-v2: Gate fixes applied — positions.py stats clarity fix, settings.py Python 3.11 f-string lint fix; PR #1036 on warp/redesign-telegram-ux-for-crusaderbot; ruff PASS; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-telegram-redesign-v2.md
-- crusaderbot-mvp-reset-v1: Telegram MVP UX reset complete; PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-reset-v1.md
-- telegram-lightweight-tree-ui-hotfix: final lightweight tree UI replacement pass; PR #1034 open on WARP/telegram-lightweight-tree-ui-hotfix; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-lightweight-tree-ui-hotfix.md
-- relax-branch-prefix-rule: AGENTS.md updated; PR open, awaiting WARP🔹CMD review. Source: projects/polymarket/crusaderbot/reports/forge/relax-branch-prefix-rule.md
+- crusaderbot-mvp-runtime-v1: V6 UX redesign — Concierge onboarding, binary role system, state-driven dashboard, V6 5-button menu, monospaced ledger; PR #1048 WARP/EMRGT; critical bugs fixed (exposed secrets removed, if-not-True bug, is_admin_full UUID fix, notifications_on migration 027); awaiting WARP•SENTINEL MAJOR validation. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-v1.md
+- telegram-premium-polish: Hybrid Luxury premium polish for telegram templates/keyboards + settings placeholder stubs + noop refresh rerender; PR open on warp/polish-telegram-bot-templates-and-keyboards-07rpb4; STANDARD, NARROW INTEGRATION. To be absorbed into crusaderbot-mvp-runtime-v1. Source: projects/polymarket/crusaderbot/reports/forge/warp-polish-telegram-bot-templates-and-keyboards-07rpb4.md
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -40,10 +36,13 @@ Status       : V5 "AUTOBOT" UI Overhaul merged and active. Dashboard pulse and m
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for warp/polish-telegram-bot-templates-and-keyboards-07rpb4. STANDARD tier. Premium copy polish, placeholder stubs, refresh rerender callback. Source: projects/polymarket/crusaderbot/reports/forge/warp-polish-telegram-bot-templates-and-keyboards-07rpb4.md
+- WARP•SENTINEL validation required for crusaderbot-mvp-runtime-v1 before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-v1.md. Tier: MAJOR.
+- WARP🔹CMD decision: absorb and close PRs #1036, #1034, crusaderbot-mvp-reset-v1, telegram-ux-polish per master task spec before or after WARP•SENTINEL completes.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
 [KNOWN ISSUES]
+- crusaderbot-mvp-runtime-v1 (PR #1048) awaiting WARP•SENTINEL MAJOR validation before merge — do not merge without SENTINEL APPROVED verdict.
+- migration 027 (notifications_on) must be applied before deploying PR #1048 changes.
 - pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-ux-v1; separate cleanup lane required.
 - /deposit has no tier gate; intentional and non-blocking.
 - check_alchemy_ws is TCP-only and does not perform a full WebSocket handshake; low-priority follow-up.
