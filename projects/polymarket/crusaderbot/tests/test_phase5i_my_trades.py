@@ -123,7 +123,7 @@ def _make_callback_update(data: str, replies: list[str]) -> SimpleNamespace:
 def _patch_tier_ok(user_id: UUID | None = None):
     uid = user_id or uuid4()
     return patch.object(
-        mt, "_ensure_tier", AsyncMock(return_value=({"id": uid}, True))
+        mt, "_ensure_user", AsyncMock(return_value=({"id": uid}, True))
     )
 
 
@@ -286,7 +286,7 @@ def test_close_confirm_yes_calls_paper_close():
 
     mock_result = {"pnl_usdc": Decimal("0.71"), "exit_price": 0.48}
 
-    with patch.object(mt, "_ensure_tier",
+    with patch.object(mt, "_ensure_user",
                       AsyncMock(return_value=({"id": user_id}, True))), \
          patch.object(mt.repo, "get_open_position_for_user",
                       AsyncMock(return_value=pos)), \
@@ -341,7 +341,7 @@ def test_format_positions_section_hierarchy():
 
 def test_main_menu_routes_my_trades_registered():
     """v3: My Trades is accessed via Dashboard nav, not root menu.
-    
+
     In v3 main menu, top-level 🏠 Dashboard leads to my_trades via
     dashboard:trades callback. Root menu no longer has a dedicated
     📈 My Trades button. This test verifies the handler exists and is
