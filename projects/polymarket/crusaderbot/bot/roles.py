@@ -23,7 +23,7 @@ async def is_admin_full(user: dict) -> bool:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT tier FROM user_tiers WHERE user_id = $1",
-            int(user.get("telegram_user_id", 0)),
+            user.get("id"),
         )
     return row is not None and row["tier"] == "ADMIN"
 
