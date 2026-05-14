@@ -137,6 +137,11 @@ async def lifespan(_: FastAPI):
         )
         log.info("live_gate_opened audit event written (all operator guards enabled)")
 
+    _guards_msg = (
+        "✅ operator guards OPEN — Tier 4 users can trade live"
+        if all_guards_ready
+        else "\U0001f512 operator guards LOCKED — all trades route to paper"
+    )
     await notifications.send(
         settings.OPERATOR_CHAT_ID,
         f"\U0001f7e2 CrusaderBot up\nenv: {settings.APP_ENV}\n"
@@ -144,7 +149,7 @@ async def lifespan(_: FastAPI):
         f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
         f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
         f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
-        f"{'✅ operator guards OPEN — Tier 4 users can trade live' if all_guards_ready else '\U0001f512 operator guards LOCKED — all trades route to paper'}",
+        f"{_guards_msg}",
         parse_mode=None,
     )
 
