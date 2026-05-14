@@ -48,16 +48,20 @@ from ..tier import Tier, has_tier, tier_block_message
 
 logger = logging.getLogger(__name__)
 
-def _hub_text(mode: str, tier: int) -> str:
+def _hub_text(mode: str, tier: int, risk_profile: str = "balanced") -> str:
     """MVP Settings hub: Profile + Notifications status."""
     mode_label = "💸 Live" if mode == "live" else "📑 Paper"
     mode_clean = mode_label.replace("💸 ", "").replace("📑 ", "")
-    risk_label = "Balanced"
+    risk_display = {
+        "conservative": "Conservative",
+        "balanced": "Balanced",
+        "aggressive": "Aggressive",
+    }.get(risk_profile, risk_profile.title())
     return (
         "⚙️ Settings\n\n"
         f"📑 Mode: {mode_clean}\n"
         "🔔 Notifications: ON\n"
-        f"⚖️ Risk: {risk_label}"
+        f"⚖️ Risk: {risk_display}"
     )
 
 
@@ -108,12 +112,13 @@ async def _render_hub(update: Update, user: dict) -> None:
     s = await get_settings_for(user["id"])
     mode = s.get("trading_mode", "paper")
     tier = user.get("access_tier", 2)
+    risk_profile = s.get("risk_profile", "balanced")
     operator_id = get_app_settings().OPERATOR_CHAT_ID
     is_admin = (
         update.effective_user is not None
         and update.effective_user.id == operator_id
     )
-    text = _hub_text(mode, tier)
+    text = _hub_text(mode, tier, risk_profile)
     kb = settings_hub_kb(is_admin=is_admin)
     if update.callback_query is not None:
         await update.callback_query.message.reply_text(

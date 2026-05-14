@@ -54,6 +54,7 @@ def test_grid_rows_custom_cols():
 # ---------- main_menu MVP (ReplyKeyboard) ------------------------------------
 
 MVP_BUTTONS = {
+    "🏠 Dashboard",
     "💼 Portfolio",
     "🤖 Auto Trade",
     "⚙️ Settings",
@@ -62,21 +63,22 @@ MVP_BUTTONS = {
 
 
 def test_main_menu_has_five_buttons():
-    # UX v2: 4 buttons (Dashboard removed from keyboard, still in routes)
+    # UX v2+: 5 buttons — Dashboard top row, Auto Trade + Portfolio, Settings + Stop Bot
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 4
+    assert len(all_buttons) == 5
 
 
 def test_main_menu_layout_three_rows():
-    # UX v2: 2 rows of 2
+    # UX v2+: 3 rows (Dashboard single, Auto Trade+Portfolio, Settings+Stop Bot)
     kb = main_menu()
-    assert len(kb.keyboard) == 2
+    assert len(kb.keyboard) == 3
 
 
 def test_main_menu_first_two_rows_are_pairs():
     kb = main_menu()
-    for row in kb.keyboard[:2]:
+    # Row 0 is single Dashboard; rows 1 and 2 are pairs
+    for row in kb.keyboard[1:]:
         assert len(row) == 2
 
 
