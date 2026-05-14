@@ -10,15 +10,11 @@ def settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
     """Hybrid Luxury settings hub — premium stub surfaces included."""
     rows: list[list[InlineKeyboardButton]] = [
         [
-            InlineKeyboardButton("👤 Profile",       callback_data="settings:profile"),
             InlineKeyboardButton("👑 Premium",       callback_data="settings:premium"),
-        ],
-        [
             InlineKeyboardButton("🎁 Referrals",     callback_data="settings:referrals"),
-            InlineKeyboardButton("🏥 Health",        callback_data="settings:health"),
         ],
         [
-            InlineKeyboardButton("🔐 Live Gate",     callback_data="settings:live_gate"),
+            InlineKeyboardButton("🏥 Health",        callback_data="settings:health"),
             InlineKeyboardButton("⚖️ Risk",          callback_data="settings:risk"),
         ],
         [InlineKeyboardButton("🔔 Notifications", callback_data="settings:notifications")],
