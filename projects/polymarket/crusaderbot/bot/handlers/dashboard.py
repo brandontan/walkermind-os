@@ -130,7 +130,7 @@ def _build_text(
     pnl_str = f"{pnl_sign}${pnl_today:.2f}"
 
     return (
-        "🏠 Dashboard\n"
+        "🏠 CrusaderBot\n"
         "\n"
         "🤖 Bot\n"
         f"└ {status_label}\n"

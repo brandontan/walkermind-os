@@ -26,19 +26,18 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
 
 
 def main_menu() -> ReplyKeyboardMarkup:
-    """MVP Global Navigation — 5 buttons. Signal Feeds and Insights removed."""
+    """Telegram UX v2 global nav keyboard."""
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("🏠 Dashboard"),   KeyboardButton("💼 Portfolio")],
-            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("⚙️ Settings")],
-            [KeyboardButton("🛑 Stop Bot")],
+            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("💼 Portfolio")],
+            [KeyboardButton("⚙️ Settings"),    KeyboardButton("🛑 Stop Bot")],
         ],
         resize_keyboard=True,
     )
 
 
 def dashboard_kb() -> InlineKeyboardMarkup:
-    """MVP Dashboard inline keyboard — 4 actions + Refresh."""
+    """Telegram UX v2 dashboard keyboard."""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🤖 Auto Trade", callback_data="dashboard:auto"),
@@ -48,8 +47,7 @@ def dashboard_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton("⚙️ Settings",   callback_data="dashboard:settings"),
             InlineKeyboardButton("🛑 Stop Bot",   callback_data="dashboard:stop"),
         ],
-        [InlineKeyboardButton("🔄 Refresh", callback_data="dashboard:main")],
-    ])
+            ])
 
 
 # MVP RESET V1 — deprecated UI flow
@@ -68,8 +66,7 @@ def _legacy_dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
             InlineKeyboardButton("⚙️ Settings",     callback_data="dashboard:settings"),
             InlineKeyboardButton("🛑 Stop Bot",     callback_data="dashboard:stop"),
         ],
-        [InlineKeyboardButton("🔄 Refresh", callback_data="dashboard:main")],
-        [cta_btn],
+                [cta_btn],
     ])
 
 

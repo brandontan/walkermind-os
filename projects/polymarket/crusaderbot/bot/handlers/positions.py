@@ -182,21 +182,16 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
 
-    open_count = st["winning"] + st["losing"]
+    open_count = int(st["winning"]) + int(st["losing"])
 
-    text = (
-        "💼 Portfolio\n"
-        "\n"
-        "Balance\n"
-        f"└ ${bal:.2f} USDC\n"
-        "\n"
-        "Performance\n"
-        f"├ PnL: {_pnl_fmt(pnl_today)}\n"
-        f"└ Win/Loss: {st['wins']}W • {st['losses']}L\n"
-        "\n"
-        "Positions\n"
-        f"└ Open: {open_count}"
+    stats = (
+        f"💼 Portfolio\n\n"
+        f"💰 Balance: ${bal:.2f}\n"
+        f"📈 PnL: {_pnl_fmt(pnl_today)}\n"
+        f"📋 Open Trades: {open_count}\n\n"
     )
+    footer = "No active trades." if open_count == 0 else "Active trades available."
+    text = stats + footer
 
     if is_cb:
         await update.callback_query.message.reply_text(

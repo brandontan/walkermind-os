@@ -43,15 +43,9 @@ _WELCOME_TEXT = (
     "\n"
     "📑 PAPER MODE\n"
     "\n"
-    "System Status\n"
-    "├ Mode: Paper\n"
-    "├ Capital: Sandbox\n"
-    "├ Engine: Online\n"
-    "└ Status: 🟢 Ready\n"
+    "Safe sandbox trading enabled.\n"
     "\n"
-    "Trade automatically with curated strategies.\n"
-    "\n"
-    "Press Get Started to begin."
+    "Ready to start?"
 )
 
 

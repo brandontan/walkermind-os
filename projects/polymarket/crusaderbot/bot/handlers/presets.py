@@ -73,15 +73,15 @@ async def _reply(update: Update, text: str, **kw) -> None:
 
 # Maps internal preset key → MVP display label
 _MVP_LABELS: dict[str, tuple[str, str]] = {
-    "signal_sniper": ("📡", "Conservative"),
-    "value_hunter":  ("🎯", "Balanced"),
-    "full_auto":     ("🚀", "Aggressive"),
+    "conservative": ("📡", "Conservative"),
+    "balanced":  ("🎯", "Balanced"),
+    "aggressive":     ("🚀", "Aggressive"),
 }
 
 _MVP_DESCRIPTIONS: dict[str, str] = {
-    "signal_sniper": "Lower risk, fewer trades",
-    "value_hunter":  "Recommended for most users",
-    "full_auto":     "Higher frequency, higher risk",
+    "conservative": "Lower risk • fewer trades",
+    "balanced":  "Recommended",
+    "aggressive":     "Higher activity",
 }
 
 
@@ -94,13 +94,10 @@ def _preset_picker_text(active_preset_key: str | None = None) -> str:
     return (
         "🤖 Auto Trade\n"
         "\n"
-        "Status\n"
-        "└ 🟢 Ready\n"
+        "Current Strategy\n"
+        f"{strategy_line}\n"
         "\n"
-        "Strategy\n"
-        f"└ {strategy_line}\n"
-        "\n"
-        "Choose trading style:"
+        "Choose your trading style."
     )
 
 
@@ -109,22 +106,9 @@ def _preset_confirm_text(p: Preset) -> str:
     mvp_emoji, mvp_label = _MVP_LABELS.get(p.key, (p.emoji, p.name))
     mvp_desc = _MVP_DESCRIPTIONS.get(p.key, "")
     return (
-        f"🤖 Auto Trade / {mvp_emoji} {mvp_label}\n"
-        "\n"
-        "Strategy\n"
-        f"├ Style: {mvp_label}\n"
-        f"└ {mvp_desc}\n"
-        "\n"
-        "Configuration\n"
-        f"├ Capital: {p.capital_pct * 100:.0f}% of balance\n"
-        f"├ Take Profit: +{p.tp_pct * 100:.0f}%\n"
-        f"├ Stop Loss: -{p.sl_pct * 100:.0f}%\n"
-        f"└ Max Size: {p.max_position_pct * 100:.0f}% per trade\n"
-        "\n"
-        "Mode\n"
-        "└ 📑 Paper\n"
-        "\n"
-        "Looks good?"
+        "✅ Strategy Updated\n\n"
+        f"{mvp_emoji} {mvp_label}\n\n"
+        f"{mvp_desc}."
     )
 
 
