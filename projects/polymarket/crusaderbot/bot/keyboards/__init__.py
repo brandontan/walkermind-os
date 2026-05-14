@@ -26,29 +26,29 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
 
 
 def main_menu() -> ReplyKeyboardMarkup:
-    """Telegram UX v2 global nav keyboard."""
+    """V5 AUTOBOT — 6-button global nav keyboard, 2-column layout."""
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("🏠 Dashboard")],
-            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("💼 Portfolio")],
-            [KeyboardButton("⚙️ Settings"),    KeyboardButton("🛑 Stop Bot")],
+            [KeyboardButton("🏠 Dashboard"),  KeyboardButton("💼 Portfolio")],
+            [KeyboardButton("🤖 Auto Mode"),  KeyboardButton("👥 Referrals")],
+            [KeyboardButton("⚙️ Settings"),   KeyboardButton("❓ Help")],
         ],
         resize_keyboard=True,
     )
 
 
 def dashboard_kb() -> InlineKeyboardMarkup:
-    """Telegram UX v2 dashboard keyboard."""
+    """V5 AUTOBOT dashboard inline keyboard — 2-column layout."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🤖 Auto Trade", callback_data="dashboard:auto"),
-            InlineKeyboardButton("💼 Portfolio",  callback_data="dashboard:portfolio"),
+            InlineKeyboardButton("🤖 Auto Mode",  callback_data="dashboard:auto"),
+            InlineKeyboardButton("💼 Portfolio",   callback_data="dashboard:portfolio"),
         ],
         [
             InlineKeyboardButton("⚙️ Settings",   callback_data="dashboard:settings"),
             InlineKeyboardButton("🛑 Stop Bot",   callback_data="dashboard:stop"),
         ],
-            ])
+    ])
 
 
 # MVP RESET V1 — deprecated UI flow

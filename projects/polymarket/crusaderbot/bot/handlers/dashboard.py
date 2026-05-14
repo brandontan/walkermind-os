@@ -116,32 +116,56 @@ def _risk_icon(profile: str) -> str:
     return {"conservative": "🟢", "balanced": "🟡", "aggressive": "🔴"}.get(profile, "🟡")
 
 
+async def _fetch_pulse(user_id: "UUID") -> str:
+    """Return last trade action string, or scanning fallback if no trades."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT side, status, size_usdc
+            FROM positions
+            WHERE user_id = $1
+            ORDER BY COALESCE(closed_at, opened_at) DESC
+            LIMIT 1
+            """,
+            user_id,
+        )
+    if row is None:
+        return "└ 📡 Scanning Polymarket liquidity..."
+    action = "Closed" if row["status"] != "open" else "Bought"
+    return f"└ {action} {row['side'].upper()} ${float(row['size_usdc']):.2f}"
+
+
 def _build_text(
     bal: Decimal,
     pnl_today: Decimal,
     st: dict,
     auto_on: bool,
+    pulse: str,
 ) -> str:
-    """MVP Dashboard: Bot status, Account, Today's PnL."""
+    """V5 AUTOBOT Dashboard: branding, pulse, HTML code-wrapped financials."""
     equity = bal + st["positions_value"]
     status_label = "🟢 Running" if auto_on else "🔴 Disabled"
     exec_label = "💸 Live" if st["trading_mode"] == "live" else "📑 Paper"
     pnl_sign = "+" if pnl_today >= 0 else ""
-    pnl_str = f"{pnl_sign}${pnl_today:.2f}"
 
     return (
-        "🏛️ CrusaderBot — Premium Desk\n"
+        "𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧\n"
         "\n"
         "🤖 Bot\n"
         f"└ {status_label}\n"
         "\n"
+        "⚡ Pulse\n"
+        f"{pulse}\n"
+        "\n"
         "💰 Account\n"
-        f"├ Balance: ${bal:.2f} USDC\n"
-        f"├ Equity: ${equity:.2f}\n"
+        f"├ Equity:   <code>${equity:.2f}</code>\n"
+        f"├ Balance:  <code>${bal:.2f} USDC</code>\n"
+        f"├ Exposure: <code>${st['positions_value']:.2f}</code>\n"
         f"└ Mode: {exec_label}\n"
         "\n"
         "📈 Today\n"
-        f"└ PnL: {pnl_str}\n"
+        f"└ PnL: <code>{pnl_sign}${pnl_today:.2f}</code>\n"
         "\n"
         "📊 Stats\n"
         f"└ W/L: {st['wins']}W • {st['losses']}L"
@@ -156,11 +180,13 @@ async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     bal = await get_balance(user["id"])
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
+    pulse = await _fetch_pulse(user["id"])
 
-    text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
+    text = _build_text(bal, pnl_today, st, user["auto_trade_on"], pulse)
 
     await update.message.reply_text(
         text,
+        parse_mode=ParseMode.HTML,
         reply_markup=dashboard_kb(),
     )
 
@@ -176,11 +202,12 @@ async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
     bal = await get_balance(user["id"])
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
-    text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
+    pulse = await _fetch_pulse(user["id"])
+    text = _build_text(bal, pnl_today, st, user["auto_trade_on"], pulse)
     try:
-        await q.edit_message_text(text, reply_markup=dashboard_kb())
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=dashboard_kb())
     except Exception:
-        await q.message.reply_text(text, reply_markup=dashboard_kb())
+        await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=dashboard_kb())
 
 
 async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -200,11 +227,12 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         bal = await get_balance(user["id"])
         pnl_today = await daily_pnl(user["id"])
         st = await _fetch_stats(user["id"])
-        text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
+        pulse = await _fetch_pulse(user["id"])
+        text = _build_text(bal, pnl_today, st, user["auto_trade_on"], pulse)
         try:
-            await q.edit_message_text(text, reply_markup=dashboard_kb())
+            await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=dashboard_kb())
         except Exception:
-            await q.message.reply_text(text, reply_markup=dashboard_kb())
+            await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=dashboard_kb())
         return
 
     # --- portfolio (v3 new) ---

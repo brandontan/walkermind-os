@@ -4,13 +4,11 @@ The reply-keyboard layout itself lives in ``bot.keyboards.main_menu`` —
 this module owns the *button-text → handler* mapping that the dispatcher
 text router consumes.
 
-MVP Reset V1 layout (5 buttons):
+V5 AUTOBOT layout (6 buttons, 2-column):
 
   🏠 Dashboard   💼 Portfolio
-  🤖 Auto Trade  ⚙️ Settings
-  🛑 Stop Bot
-
-Signal Feeds and Insights removed from main navigation.
+  🤖 Auto Mode   👥 Referrals
+  ⚙️ Settings    ❓ Help
 """
 from __future__ import annotations
 
@@ -20,8 +18,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    dashboard, emergency, positions,
-    presets, settings as settings_handler,
+    dashboard, onboarding, positions,
+    presets, referral, settings as settings_handler,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
@@ -29,16 +27,13 @@ HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 
 # Order mirrors keyboards.main_menu() rows for easy diffing.
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
-    "🏠 Dashboard":   dashboard.dashboard,
-    "💼 Portfolio":   positions.show_portfolio,
-    "🤖 Auto Trade":  presets.show_preset_picker,
-    "⚙️ Settings":    settings_handler.settings_hub_root,
-    "🛑 Stop Bot":    emergency.emergency_root,
+    "🏠 Dashboard":  dashboard.dashboard,
+    "💼 Portfolio":  positions.show_portfolio,
+    "🤖 Auto Mode":  presets.show_preset_picker,
+    "👥 Referrals":  referral.referral_command,
+    "⚙️ Settings":   settings_handler.settings_hub_root,
+    "❓ Help":        onboarding.help_handler,
 }
-
-# MVP RESET V1 — deprecated UI flow
-# "📡 Signal Feeds" and "📊 Insights" removed from main navigation.
-# Handlers remain reachable via direct callbacks but not via reply keyboard.
 
 
 def get_menu_route(text: str) -> HandlerFn | None:

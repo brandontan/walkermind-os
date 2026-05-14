@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 ONBOARD_WELCOME = 0
 
 _WELCOME_TEXT = (
-    "🛡 Welcome to CrusaderBot\n"
+    "𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧\n"
     "\n"
     "Your autonomous Polymarket trading copilot.\n"
     "\n"
@@ -92,7 +92,7 @@ async def _entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
             await dashboard(update, ctx)
         else:
             await update.message.reply_text(
-                "⚔️ Welcome back to CrusaderBot!\n\n"
+                "⚔️ Welcome back to CRUSADER | AUTOBOT!\n\n"
                 "Mode: 📑 Paper\n"
                 "You're on the waitlist — your invite is on its way!",
                 reply_markup=main_menu(),
