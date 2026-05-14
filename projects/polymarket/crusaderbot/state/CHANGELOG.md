@@ -101,4 +101,4 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 
 2026-05-13 20:30 | WARP/telegram-lightweight-tree-ui-hotfix | telegram-lightweight-tree-ui-hotfix: final lightweight tree UI pass — removed all standalone │ rails and ├──/└── heavy arms from dashboard/presets/positions/settings/signals/onboarding; added explicit Back/Home nav row to preset_picker (dashboard:main only, no noop:refresh); STANDARD, NARROW INTEGRATION
 
-2026-05-14 11:56 | WARP/public-status-landing-page | Public `/` status landing page (HTML dark mobile-first cards) + targeted route tests; `/health` contract preserved; STANDARD, NARROW INTEGRATION
+2026-05-14 11:56 | warp/build-public-status-landing-page | Public `/` status landing page (HTML dark mobile-first cards) + targeted route tests; `/health` contract preserved; STANDARD, NARROW INTEGRATION
