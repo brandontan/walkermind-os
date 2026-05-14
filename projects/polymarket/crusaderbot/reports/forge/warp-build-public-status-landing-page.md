@@ -10,7 +10,7 @@
 - Replaced root `/` response in `main.py` from JSON heartbeat to read-only public HTML landing page.
 - Landing page renders dark mobile-first card layout with Server Status, Health, Runtime, Activation Guards.
 - Added `/health` link CTA and paper-trading/not-financial-advice disclaimer.
-- Health data is sourced from existing `api.health` route contract; unavailable values render as N/A.
+- Landing page renders static posture values only; no live dependency probes are triggered on `GET /`. `/health` remains the sole machine-readable probe endpoint.
 - Added targeted tests for `/` HTML contract and `/health` machine-readable JSON contract.
 
 ## Validation
