@@ -61,7 +61,7 @@ Modified:
   - `build_customize_handler()` fallback regex — updated first-char set to match V5 menu icons
 
 Created:
-- `projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-autobot.md` — this report
+- `projects/polymarket/crusaderbot/reports/forge/claude-forge-task-1044-V5D08.md` — this report
 
 ---
 
@@ -97,4 +97,4 @@ Validation Tier   : STANDARD
 Claim Level       : NARROW INTEGRATION
 Validation Target : V5 Dashboard rendering (HTML code blocks, pulse line, AUTOBOT header) and Main Menu 6-button routing
 Not in Scope      : Dispatcher wiring verification, referral handler internals, emergency handler, live session smoke test, WARP•SENTINEL validation
-Suggested Next    : WARP🔹CMD review required. Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-autobot.md. Tier: STANDARD
+Suggested Next    : WARP🔹CMD review required. Source: projects/polymarket/crusaderbot/reports/forge/claude-forge-task-1044-V5D08.md. Tier: STANDARD

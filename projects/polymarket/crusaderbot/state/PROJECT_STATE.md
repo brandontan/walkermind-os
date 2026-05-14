@@ -19,7 +19,7 @@ Status       : telegram-ux-v5-autobot V5 AUTOBOT UI overhaul built; PR open on c
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- telegram-ux-v5-autobot: V5 AUTOBOT UI overhaul — CRUSADER|AUTOBOT branding, pulse line, HTML code-wrapped financials, 6-button main menu, routing sync, onboarding branding, preset wizard label sync; PR open on claude/forge-task-1044-V5D08; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-autobot.md
+- telegram-ux-v5-autobot: V5 AUTOBOT UI overhaul — CRUSADER|AUTOBOT branding, pulse line, HTML code-wrapped financials, 6-button main menu, routing sync, onboarding branding, preset wizard label sync; PR open on claude/forge-task-1044-V5D08; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/claude-forge-task-1044-V5D08.md
 - telegram-premium-polish: Hybrid Luxury premium polish for telegram templates/keyboards + settings placeholder stubs + noop refresh rerender; PR open on warp/polish-telegram-bot-templates-and-keyboards-07rpb4; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/warp-polish-telegram-bot-templates-and-keyboards-07rpb4.md
 - telegram-ux-polish: UX cleanup — Dashboard button main menu, edit vs reply nav, dashboard text W/L clarity, keyboard nav dedup, activity nav keyboard, settings risk display fix; PR open on WARP/telegram-ux-polish; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-polish.md
 - crusaderbot-telegram-redesign-v2: Gate fixes applied — positions.py stats clarity fix, settings.py Python 3.11 f-string lint fix; PR #1036 on warp/redesign-telegram-ux-for-crusaderbot; ruff PASS; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-telegram-redesign-v2.md
@@ -40,7 +40,7 @@ Status       : telegram-ux-v5-autobot V5 AUTOBOT UI overhaul built; PR open on c
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for claude/forge-task-1044-V5D08. STANDARD tier. V5 AUTOBOT branding, pulse line, HTML financials, 6-button menu, routing sync. Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-autobot.md
+- WARP🔹CMD review required for claude/forge-task-1044-V5D08. STANDARD tier. V5 AUTOBOT branding, pulse line, HTML financials, 6-button menu, routing sync. Source: projects/polymarket/crusaderbot/reports/forge/claude-forge-task-1044-V5D08.md
 - WARP🔹CMD review required for warp/polish-telegram-bot-templates-and-keyboards-07rpb4. STANDARD tier. Premium copy polish, placeholder stubs, refresh rerender callback. Source: projects/polymarket/crusaderbot/reports/forge/warp-polish-telegram-bot-templates-and-keyboards-07rpb4.md
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
