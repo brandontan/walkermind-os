@@ -2,7 +2,7 @@
 
 No real DB, no Telegram API, no network. All external calls are mocked.
 
-Coverage (15 tests):
+Coverage (12 tests):
   Keyboards (no async):
     1  get_started_kb    — has Get Started button
     2  mode_select_kb    — has Paper Trading and Live Trading buttons
@@ -10,19 +10,16 @@ Coverage (15 tests):
 
   Handler flows (mocked DB + mock Update):
     4  New user /start   — shows welcome text, returns ONBOARD_WELCOME
-    5  Existing user /start (ALLOWLISTED) — routes to dashboard, returns END
-    6  Returning BROWSE user /start — shows welcome back, returns END
-    7  Get Started callback — shows mode selection, returns ONBOARD_MODE
-    8  Paper mode selected — marks onboarding_complete, shows paper confirmation, END
-    9  Paper mode selected without user_id in ctx — still shows confirmation, END
-   10  Live mode selected  — shows live redirect text, END
-   11  view_dashboard_cb   — delegates to dashboard handler
+    5  Returning user /start (onboarding_complete) — routes to dashboard, returns END
+    6  Returning user /start any tier — goes to dashboard, returns END
+    7  Get Started callback — seeds wallet, shows wallet text, returns ONBOARD_WALLET
+    8  view_dashboard_cb — delegates to dashboard handler
 
-  /help (mocked operator check):
-   12  /help non-operator — shows TRADING, PORTFOLIO, SETTINGS; no ADMIN section
-   13  /help operator     — shows TRADING, PORTFOLIO, SETTINGS, ADMIN section
-   14  /help TRADING category — contains /scan, /positions, /close, /pnl
-   15  /help PORTFOLIO category — contains /chart, /insights, /trades
+  /help (V6 static help message):
+    9  /help shows navigation items (Auto Trade, Portfolio, Settings, Insights)
+   10  /help shows Stop Bot item
+   11  /help shows /start hint
+   12  /help static text (no operator distinction in V6)
 """
 from __future__ import annotations
 
@@ -41,8 +38,9 @@ from projects.polymarket.crusaderbot.bot.keyboards.onboarding import (
 import projects.polymarket.crusaderbot.bot.handlers.onboarding as ob_mod
 from projects.polymarket.crusaderbot.bot.handlers.onboarding import (
     ONBOARD_WELCOME,
+    ONBOARD_WALLET,
     _entry,
-    _get_started_cb,
+    _start_cb,
     view_dashboard_cb,
     help_handler,
 )
@@ -95,6 +93,7 @@ def _make_cb_update(callback_data: str, tg_user_id=12345, username="testuser"):
         data=callback_data,
         answer=AsyncMock(),
         message=msg,
+        from_user=SimpleNamespace(id=tg_user_id, username=username),
     )
     tg_user = SimpleNamespace(id=tg_user_id, username=username, first_name="Test")
     return SimpleNamespace(
@@ -158,14 +157,14 @@ def test_new_user_start_shows_welcome():
 
     assert result == ONBOARD_WELCOME
     assert any("Polymarket trading copilot" in r[1] for r in replies)
-    assert ctx.user_data.get("onboard_user_id") == str(user["id"])
 
 
 # ---------------------------------------------------------------------------
-# 5: Existing user /start (ALLOWLISTED) → dashboard
+# 5: Returning user /start (onboarding_complete) → dashboard
 # ---------------------------------------------------------------------------
 
 def test_existing_user_start_routes_to_dashboard():
+    """V6: any returning user (onboarding_complete=True) goes to dashboard."""
     user = _make_user(onboarding_complete=True, access_tier=2)
     update, replies = _make_cmd_update()
     ctx = _ctx()
@@ -176,153 +175,114 @@ def test_existing_user_start_routes_to_dashboard():
     with (
         patch.object(ob_mod, "upsert_user", AsyncMock(return_value=user)),
         patch.object(ob_mod, "audit") as mock_audit,
-        patch.object(ob_mod, "get_wallet", AsyncMock(return_value=None)),
         patch.object(ob_mod, "get_or_create_referral_code", AsyncMock()),
         patch.object(ob_mod, "parse_ref_param", return_value=None),
-        patch.object(ob_mod, "has_tier", return_value=True),
         patch.object(dash_mod, "dashboard", mock_dashboard),
     ):
         mock_audit.write = AsyncMock()
         result = asyncio.run(_entry(update, ctx))
 
     assert result == ConversationHandler.END
+    mock_dashboard.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
-# 6: Returning BROWSE user /start shows welcome back
+# 6: Returning user any tier /start — also goes to dashboard
 # ---------------------------------------------------------------------------
 
-def test_returning_browse_user_sees_welcome_back():
+def test_returning_any_tier_user_routes_to_dashboard():
+    """V6: tier is not checked — all returning users go directly to dashboard."""
     user = _make_user(onboarding_complete=True, access_tier=1)
     update, replies = _make_cmd_update()
     ctx = _ctx()
 
+    mock_dashboard = AsyncMock()
+    import projects.polymarket.crusaderbot.bot.handlers.dashboard as dash_mod
+
     with (
         patch.object(ob_mod, "upsert_user", AsyncMock(return_value=user)),
         patch.object(ob_mod, "audit") as mock_audit,
-        patch.object(ob_mod, "get_wallet", AsyncMock(return_value=None)),
         patch.object(ob_mod, "get_or_create_referral_code", AsyncMock()),
         patch.object(ob_mod, "parse_ref_param", return_value=None),
-        patch.object(ob_mod, "has_tier", return_value=False),
+        patch.object(dash_mod, "dashboard", mock_dashboard),
     ):
         mock_audit.write = AsyncMock()
         result = asyncio.run(_entry(update, ctx))
 
     assert result == ConversationHandler.END
-    assert any("Welcome back" in r[1] for r in replies)
+    mock_dashboard.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
-# 7: Get Started callback completes onboarding and routes to dashboard (MVP)
+# 7: Get Started callback — seeds wallet, shows wallet text, returns ONBOARD_WALLET
 # ---------------------------------------------------------------------------
 
-def test_get_started_completes_onboarding():
+def test_get_started_moves_to_wallet_step():
+    """V6: _start_cb handles onboard:get_started, shows wallet text, returns ONBOARD_WALLET."""
     update, replies = _make_cb_update("onboard:get_started")
     ctx = _ctx()
+    mock_user = _make_user()
 
-    import projects.polymarket.crusaderbot.bot.handlers.dashboard as dash_mod
-    mock_show = AsyncMock()
-    with patch.object(dash_mod, "show_dashboard_for_cb", mock_show):
-        result = asyncio.run(_get_started_cb(update, ctx))
+    with patch.object(ob_mod, "upsert_user", AsyncMock(return_value=mock_user)):
+        result = asyncio.run(_start_cb(update, ctx))
 
-    assert result == ConversationHandler.END
-    mock_show.assert_awaited_once()
+    assert result == ONBOARD_WALLET
+    assert len(replies) == 1
 
 
 # ---------------------------------------------------------------------------
-# 11: view_dashboard_cb delegates to dashboard handler
+# 8: view_dashboard_cb delegates to dashboard handler
 # ---------------------------------------------------------------------------
 
-def test_view_dashboard_cb_calls_show_dashboard_for_cb():
+def test_view_dashboard_cb_calls_dashboard():
+    """V6: view_dashboard_cb calls dashboard() (not show_dashboard_for_cb)."""
     update, replies = _make_cb_update("onboard:view_dashboard")
     ctx = _ctx()
 
-    mock_show = AsyncMock()
+    mock_dashboard = AsyncMock()
     import projects.polymarket.crusaderbot.bot.handlers.dashboard as dash_mod
 
-    with patch.object(dash_mod, "show_dashboard_for_cb", mock_show):
+    with patch.object(dash_mod, "dashboard", mock_dashboard):
         asyncio.run(view_dashboard_cb(update, ctx))
 
-    mock_show.assert_awaited_once()
+    mock_dashboard.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
-# 12: /help non-operator — no ADMIN section
+# 9–12: /help — V6 static navigation message (no operator distinction)
 # ---------------------------------------------------------------------------
 
-def test_help_non_operator_hides_admin():
-    update, replies = _make_cmd_update(tg_user_id=99999)
-    ctx = _ctx()
-
-    mock_settings = MagicMock()
-    mock_settings.OPERATOR_CHAT_ID = 11111  # different from tg_user_id
-
-    with patch.object(ob_mod, "get_settings", return_value=mock_settings):
-        asyncio.run(help_handler(update, ctx))
-
-    text = " ".join(r[1] for r in replies)
-    assert "TRADING" in text
-    assert "PORTFOLIO" in text
-    assert "SETTINGS" in text
-    assert "ADMIN" not in text
-
-
-# ---------------------------------------------------------------------------
-# 13: /help operator — shows ADMIN section
-# ---------------------------------------------------------------------------
-
-def test_help_operator_shows_admin():
-    op_id = 11111
-    update, replies = _make_cmd_update(tg_user_id=op_id)
-    ctx = _ctx()
-
-    mock_settings = MagicMock()
-    mock_settings.OPERATOR_CHAT_ID = op_id
-
-    with patch.object(ob_mod, "get_settings", return_value=mock_settings):
-        asyncio.run(help_handler(update, ctx))
-
-    text = " ".join(r[1] for r in replies)
-    assert "ADMIN" in text
-    assert "/admin" in text
-
-
-# ---------------------------------------------------------------------------
-# 14: /help TRADING category contains expected commands
-# ---------------------------------------------------------------------------
-
-def test_help_trading_category_commands():
+def test_help_shows_navigation_items():
+    """V6 help_handler shows navigation button labels, no operator distinction."""
     update, replies = _make_cmd_update()
     ctx = _ctx()
-
-    mock_settings = MagicMock()
-    mock_settings.OPERATOR_CHAT_ID = 99999  # non-operator
-
-    with patch.object(ob_mod, "get_settings", return_value=mock_settings):
-        asyncio.run(help_handler(update, ctx))
-
+    asyncio.run(help_handler(update, ctx))
     text = " ".join(r[1] for r in replies)
-    assert "/scan" in text
-    assert "/positions" in text
-    assert "/close" in text
-    assert "/pnl" in text
+    assert "Auto Trade" in text
+    assert "Portfolio" in text
+    assert "Settings" in text
+    assert "Insights" in text
 
 
-# ---------------------------------------------------------------------------
-# 15: /help PORTFOLIO category contains expected commands
-# ---------------------------------------------------------------------------
-
-def test_help_portfolio_category_commands():
+def test_help_shows_stop_bot_item():
     update, replies = _make_cmd_update()
     ctx = _ctx()
-
-    mock_settings = MagicMock()
-    mock_settings.OPERATOR_CHAT_ID = 99999
-
-    with patch.object(ob_mod, "get_settings", return_value=mock_settings):
-        asyncio.run(help_handler(update, ctx))
-
+    asyncio.run(help_handler(update, ctx))
     text = " ".join(r[1] for r in replies)
-    assert "/chart" in text
-    assert "/insights" in text
-    assert "/trades" in text
+    assert "Stop Bot" in text
+
+
+def test_help_shows_start_hint():
+    update, replies = _make_cmd_update()
+    ctx = _ctx()
+    asyncio.run(help_handler(update, ctx))
+    text = " ".join(r[1] for r in replies)
+    assert "/start" in text
+
+
+def test_help_sends_exactly_one_message():
+    """V6 help_handler is a single static reply."""
+    update, replies = _make_cmd_update()
+    ctx = _ctx()
+    asyncio.run(help_handler(update, ctx))
+    assert len(replies) == 1
