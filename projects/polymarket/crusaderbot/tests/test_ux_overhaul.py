@@ -52,7 +52,7 @@ from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 def test_main_menu_button_count():
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 4
+    assert len(all_buttons) == 5
 
 
 def test_main_menu_has_settings_not_wallet():
@@ -71,9 +71,9 @@ def test_main_menu_has_stop_bot_not_emergency():
 
 def test_main_menu_v3_second_row():
     kb = main_menu()
-    # UX v2: row1 = [Auto Trade, Portfolio], row2 = [Settings, Stop Bot]
-    row1 = [btn.text for btn in kb.keyboard[0]]
-    row2 = [btn.text for btn in kb.keyboard[1]]
+    # UX v2+: row0=[Dashboard], row1=[Auto Trade, Portfolio], row2=[Settings, Stop Bot]
+    row1 = [btn.text for btn in kb.keyboard[1]]
+    row2 = [btn.text for btn in kb.keyboard[2]]
     assert "🤖 Auto Trade" in row1
     assert "⚙️ Settings" in row2
     assert "📡 Signal Feeds" not in row2
