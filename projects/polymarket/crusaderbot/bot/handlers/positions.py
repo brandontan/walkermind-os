@@ -164,7 +164,7 @@ def _pnl_fmt(val: Decimal) -> str:
     return f"{sign}${val:.2f}"
 
 
-async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh: bool = False) -> None:
     """Portfolio overview screen — handles both message and callback paths."""
     is_cb = update.callback_query is not None
     if is_cb:
@@ -190,7 +190,7 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         f"📈 PnL: {_pnl_fmt(pnl_today)}\n"
         f"📋 Open Trades: {open_count}\n\n"
     )
-    footer = "No active trades." if open_count == 0 else "Active trades available."
+    footer = "No active trades yet — premium monitoring is standing by." if open_count == 0 else "Active trades available. Tap Positions for full detail."
     text = stats + footer
 
     if is_cb:

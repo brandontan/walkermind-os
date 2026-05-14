@@ -63,10 +63,22 @@ async def _text_router(update, ctx):
 
 
 async def _noop_refresh_cb(update, ctx) -> None:
-    """noop:refresh — silently acknowledge; caller re-renders if needed."""
+    """noop:refresh — re-render the current surface when detectable."""
     q = update.callback_query
-    if q:
-        await q.answer()
+    if not q:
+        return
+    await q.answer()
+    text = (q.message.text or "") if q.message else ""
+    if "💼 Portfolio" in text:
+        await positions.show_portfolio(update, ctx)
+        return
+    if "⚙️ Settings" in text:
+        await settings_handler.settings_hub_root(update, ctx, refresh=True)
+        return
+    if "Signal Feeds" in text or "/signals" in text:
+        await signal_following.signals_command(update, ctx, refresh=True)
+        return
+    await dashboard.show_dashboard_for_cb(update, ctx, refresh=True)
 
 
 async def _global_error_handler(update: object, ctx) -> None:

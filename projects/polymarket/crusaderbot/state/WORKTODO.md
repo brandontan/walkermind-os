@@ -1,7 +1,7 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-14 06:20 WIB
+**Last Updated: 2026-05-14 14:44 WIB
 
 ---
 
@@ -15,6 +15,7 @@
 - [x] Telegram UX v3 MERGED PR #1024 — 7-button menu, dashboard v3, signals tap-hub, nav_row, notifications utility
 
 - GitHub queue synced: open PRs = 0, open issues = 0.
+- [x] telegram-premium-polish lane complete (2026-05-14). Premium-copy/stub polish + refresh rerender callback implemented; pending WARP🔹CMD review on WARP/telegram-premium-polish.
 - Focus remains closed beta observation and paper-mode runtime monitoring.
 - Production posture unchanged: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
 

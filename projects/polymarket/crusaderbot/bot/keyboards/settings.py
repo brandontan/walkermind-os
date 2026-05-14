@@ -7,12 +7,21 @@ from . import grid_rows
 
 
 def settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
-    """MVP Settings hub — Notifications + Risk only."""
+    """Hybrid Luxury settings hub — premium stub surfaces included."""
     rows: list[list[InlineKeyboardButton]] = [
         [
-            InlineKeyboardButton("🔔 Notifications", callback_data="settings:notifications"),
-            InlineKeyboardButton("⚖️ Risk",           callback_data="settings:risk"),
+            InlineKeyboardButton("👤 Profile",       callback_data="settings:profile"),
+            InlineKeyboardButton("👑 Premium",       callback_data="settings:premium"),
         ],
+        [
+            InlineKeyboardButton("🎁 Referrals",     callback_data="settings:referrals"),
+            InlineKeyboardButton("🏥 Health",        callback_data="settings:health"),
+        ],
+        [
+            InlineKeyboardButton("🔐 Live Gate",     callback_data="settings:live_gate"),
+            InlineKeyboardButton("⚖️ Risk",          callback_data="settings:risk"),
+        ],
+        [InlineKeyboardButton("🔔 Notifications", callback_data="settings:notifications")],
     ]
     if is_admin:
         rows.append([InlineKeyboardButton("🧭 Admin", callback_data="settings:admin")])
@@ -43,6 +52,15 @@ def _legacy_settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton("🏥 Health",          callback_data="settings:health"),
             InlineKeyboardButton("🔐 Live Gate",       callback_data="settings:live_gate"),
         ],
+        [
+            InlineKeyboardButton("🎁 Referrals",     callback_data="settings:referrals"),
+            InlineKeyboardButton("🏥 Health",        callback_data="settings:health"),
+        ],
+        [
+            InlineKeyboardButton("🔐 Live Gate",     callback_data="settings:live_gate"),
+            InlineKeyboardButton("⚖️ Risk",          callback_data="settings:risk"),
+        ],
+        [InlineKeyboardButton("🔔 Notifications", callback_data="settings:notifications")],
     ]
     if is_admin:
         rows.append([InlineKeyboardButton("🧭 Admin", callback_data="settings:admin")])
