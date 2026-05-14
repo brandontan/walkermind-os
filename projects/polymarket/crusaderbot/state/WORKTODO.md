@@ -15,7 +15,7 @@
 - [x] Telegram UX v3 MERGED PR #1024 — 7-button menu, dashboard v3, signals tap-hub, nav_row, notifications utility
 
 - GitHub queue synced: open PRs = 0, open issues = 0.
-- [x] telegram-premium-polish lane complete (2026-05-14). Premium-copy/stub polish + refresh rerender callback implemented; pending WARP🔹CMD review on WARP/telegram-premium-polish.
+- [x] telegram-premium-polish lane complete (2026-05-14). Premium-copy/stub polish + refresh rerender callback implemented; pending WARP🔹CMD review on warp/polish-telegram-bot-templates-and-keyboards-07rpb4.
 - Focus remains closed beta observation and paper-mode runtime monitoring.
 - Production posture unchanged: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
 

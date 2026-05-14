@@ -1,6 +1,6 @@
-# WARP•FORGE Report — telegram-premium-polish
+# WARP•FORGE Report — warp-polish-telegram-bot-templates-and-keyboards-07rpb4
 
-Branch: WARP/telegram-premium-polish
+Branch: WARP/warp-polish-telegram-bot-templates-and-keyboards-07rpb4
 Date: 2026-05-14 14:44
 Validation Tier: STANDARD
 Claim Level: NARROW INTEGRATION

@@ -52,15 +52,6 @@ def _legacy_settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton("🏥 Health",          callback_data="settings:health"),
             InlineKeyboardButton("🔐 Live Gate",       callback_data="settings:live_gate"),
         ],
-        [
-            InlineKeyboardButton("🎁 Referrals",     callback_data="settings:referrals"),
-            InlineKeyboardButton("🏥 Health",        callback_data="settings:health"),
-        ],
-        [
-            InlineKeyboardButton("🔐 Live Gate",     callback_data="settings:live_gate"),
-            InlineKeyboardButton("⚖️ Risk",          callback_data="settings:risk"),
-        ],
-        [InlineKeyboardButton("🔔 Notifications", callback_data="settings:notifications")],
     ]
     if is_admin:
         rows.append([InlineKeyboardButton("🧭 Admin", callback_data="settings:admin")])

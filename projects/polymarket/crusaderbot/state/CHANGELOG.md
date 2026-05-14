@@ -101,4 +101,4 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 
 2026-05-13 20:30 | WARP/telegram-lightweight-tree-ui-hotfix | telegram-lightweight-tree-ui-hotfix: final lightweight tree UI pass — removed all standalone │ rails and ├──/└── heavy arms from dashboard/presets/positions/settings/signals/onboarding; added explicit Back/Home nav row to preset_picker (dashboard:main only, no noop:refresh); STANDARD, NARROW INTEGRATION
 
-2026-05-14 14:44 | WARP/telegram-premium-polish | Telegram premium polish: hybrid-luxury copy pass, settings placeholder stubs (profile/premium/referrals/health/live-gate/admin), refresh callback now rerenders detected surfaces with fallback dashboard refresh; STANDARD, NARROW INTEGRATION
+2026-05-14 14:44 | warp/polish-telegram-bot-templates-and-keyboards-07rpb4 | Telegram premium polish: hybrid-luxury copy pass, settings placeholder stubs (profile/premium/referrals/health/live-gate/admin), refresh callback now rerenders detected surfaces with fallback dashboard refresh; STANDARD, NARROW INTEGRATION
