@@ -53,45 +53,45 @@ def test_grid_rows_custom_cols():
 
 # ---------- main_menu MVP (ReplyKeyboard) ------------------------------------
 
-MVP_BUTTONS = {
+V5_BUTTONS = {
     "🏠 Dashboard",
     "💼 Portfolio",
-    "🤖 Auto Trade",
+    "🤖 Auto Mode",
+    "👥 Referrals",
     "⚙️ Settings",
-    "🛑 Stop Bot",
+    "❓ Help",
 }
 
 
-def test_main_menu_has_five_buttons():
-    # UX v2+: 5 buttons — Dashboard top row, Auto Trade + Portfolio, Settings + Stop Bot
+def test_main_menu_has_six_buttons():
+    # V5 AUTOBOT: 6 buttons in 2-column, 3-row layout
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 5
+    assert len(all_buttons) == 6
 
 
 def test_main_menu_layout_three_rows():
-    # UX v2+: 3 rows (Dashboard single, Auto Trade+Portfolio, Settings+Stop Bot)
+    # V5: 3 rows of 2 buttons each
     kb = main_menu()
     assert len(kb.keyboard) == 3
 
 
-def test_main_menu_first_two_rows_are_pairs():
+def test_main_menu_all_rows_are_pairs():
     kb = main_menu()
-    # Row 0 is single Dashboard; rows 1 and 2 are pairs
-    for row in kb.keyboard[1:]:
+    for row in kb.keyboard:
         assert len(row) == 2
 
 
-def test_main_menu_last_row_is_single():
-    # UX v2: last row is [Settings, Stop Bot] — 2 buttons
+def test_main_menu_last_row_is_pair():
+    # V5: last row is [Settings, Help] — 2 buttons
     kb = main_menu()
     assert len(kb.keyboard[-1]) == 2
 
 
-def test_main_menu_expected_mvp_buttons():
+def test_main_menu_expected_v5_buttons():
     kb = main_menu()
     labels = {btn.text for row in kb.keyboard for btn in row}
-    assert labels == MVP_BUTTONS
+    assert labels == V5_BUTTONS
 
 
 def test_main_menu_signals_removed():
@@ -112,13 +112,13 @@ def test_main_menu_insights_removed():
     assert "📊 Insights" not in labels
 
 
-def test_main_menu_contains_stop_bot_button():
+def test_main_menu_contains_help_button():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "🛑 Stop Bot" in labels
+    assert "❓ Help" in labels
 
 
-# ---------- MAIN_MENU_ROUTES MVP -------------------------------------------
+# ---------- MAIN_MENU_ROUTES V5 -------------------------------------------
 
 def test_signals_route_removed():
     assert "📡 Signal Feeds" not in MAIN_MENU_ROUTES
@@ -133,25 +133,25 @@ def test_insights_route_removed():
 
 
 def test_auto_mode_route_registered():
-    assert "🤖 Auto Trade" in MAIN_MENU_ROUTES
+    assert "🤖 Auto Mode" in MAIN_MENU_ROUTES
 
 
-def test_all_five_main_menu_routes_present():
+def test_all_six_main_menu_routes_present():
     expected = {
-        "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Trade",
-        "⚙️ Settings", "🛑 Stop Bot",
+        "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Mode",
+        "👥 Referrals", "⚙️ Settings", "❓ Help",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 
 
-def test_auto_trade_and_portfolio_are_different_handlers():
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Trade"]
+def test_auto_mode_and_portfolio_are_different_handlers():
+    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Mode"]
     portfolio_handler = MAIN_MENU_ROUTES["💼 Portfolio"]
     assert auto_handler is not portfolio_handler
 
 
 def test_auto_mode_and_dashboard_are_different_handlers():
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Trade"]
+    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Mode"]
     dash_handler = MAIN_MENU_ROUTES["🏠 Dashboard"]
     assert auto_handler is not dash_handler
 

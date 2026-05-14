@@ -411,10 +411,10 @@ CUSTOM_SL = 2
 CUSTOM_REVIEW = 3
 CUSTOM_INPUT = 4
 
-# MVP Reset V1 — Signal Feeds and Insights removed from main navigation
+# V5 AUTOBOT — 6-button main menu labels for wizard exit detection
 _MENU_BUTTONS_CUSTOMIZE = {
-    "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Trade",
-    "⚙️ Settings", "🛑 Stop Bot",
+    "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Mode",
+    "👥 Referrals", "⚙️ Settings", "❓ Help",
 }
 
 
@@ -974,7 +974,7 @@ def build_customize_handler() -> ConversationHandler:
         fallbacks=[
             CommandHandler("menu", wizard_fallback_menu),
             MessageHandler(
-                filters.Regex(r"^(📊|🐋|🤖|📈|⚙️|🛑)"), wizard_menu_tap,
+                filters.Regex(r"^(🏠|💼|🤖|👥|⚙️|❓)"), wizard_menu_tap,
             ),
             MessageHandler(
                 filters.TEXT & ~filters.COMMAND, wizard_fallback_text,

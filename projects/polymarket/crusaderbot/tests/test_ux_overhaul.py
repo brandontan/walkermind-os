@@ -52,7 +52,7 @@ from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 def test_main_menu_button_count():
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 5
+    assert len(all_buttons) == 6
 
 
 def test_main_menu_has_settings_not_wallet():
@@ -62,19 +62,19 @@ def test_main_menu_has_settings_not_wallet():
     assert "💰 Wallet" not in labels
 
 
-def test_main_menu_has_stop_bot_not_emergency():
+def test_main_menu_has_help_not_emergency():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "🛑 Stop Bot" in labels
+    assert "❓ Help" in labels
     assert "🚨 Emergency" not in labels
 
 
-def test_main_menu_v3_second_row():
+def test_main_menu_v5_layout():
     kb = main_menu()
-    # UX v2+: row0=[Dashboard], row1=[Auto Trade, Portfolio], row2=[Settings, Stop Bot]
+    # V5 AUTOBOT: row0=[Dashboard, Portfolio], row1=[Auto Mode, Referrals], row2=[Settings, Help]
     row1 = [btn.text for btn in kb.keyboard[1]]
     row2 = [btn.text for btn in kb.keyboard[2]]
-    assert "🤖 Auto Trade" in row1
+    assert "🤖 Auto Mode" in row1
     assert "⚙️ Settings" in row2
     assert "📡 Signal Feeds" not in row2
 
@@ -438,9 +438,10 @@ def test_menu_routes_settings_registered():
     assert handler is settings_handler.settings_hub_root
 
 
-def test_menu_routes_stop_bot_registered():
-    handler = get_menu_route("🛑 Stop Bot")
-    assert handler is emergency.emergency_root
+def test_menu_routes_auto_mode_registered():
+    from projects.polymarket.crusaderbot.bot.handlers import presets
+    handler = get_menu_route("🤖 Auto Mode")
+    assert handler is presets.show_preset_picker
 
 
 def test_menu_routes_wallet_not_registered():
