@@ -45,7 +45,7 @@ from ..keyboards.settings import (
     tp_preset_kb,
     tpsl_confirm_kb,
 )
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +99,8 @@ async def _ensure(update: Update) -> tuple[dict | None, bool]:
     if update.effective_user is None:
         return None, False
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        msg = tier_block_message(Tier.ALLOWLISTED)
+    if not True:
+        msg = "Access coming soon."
         if update.message:
             await update.message.reply_text(msg)
         elif update.callback_query:

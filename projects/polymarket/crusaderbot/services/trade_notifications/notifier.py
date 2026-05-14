@@ -109,6 +109,16 @@ def _fmt_pnl(pnl_usdc: float) -> str:
     return f"{sign}${abs(pnl_usdc):.2f}"
 
 
+_SEP = "━━━━━━━━━━━━━━━━━━━━"
+
+_STRAT_LABELS = {
+    "signal_sniper": "📡 Conservative",
+    "value_hunter":  "⚡ Balanced",
+    "full_auto":     "🚀 Aggressive",
+    "manual":        "Manual",
+}
+
+
 class TradeNotifier:
     """Stateless notification dispatcher for paper-mode trade lifecycle events.
 
@@ -129,25 +139,29 @@ class TradeNotifier:
         mode: str = "paper",
         strategy_type: Optional[str] = None,
     ) -> None:
-        """Send ENTRY notification when a paper position is opened."""
+        """Send trade OPEN receipt card."""
         label = _market_label(market_question, market_id)
-        tag = _mode_tag(mode)
-        icon = "\U0001f4c8" if side.lower() == "yes" else "\U0001f4c9"
+        strat = _STRAT_LABELS.get(strategy_type or "", strategy_type or "Auto")
         side_upper = side.upper()
 
-        lines = [
-            f"{icon} *{tag} ENTRY — {side_upper}*",
-            label,
-            f"Size: ${size_usdc:.2f} | Price: {price:.3f}",
-            f"TP: {_fmt_tp(tp_pct)} | SL: {_fmt_sl(sl_pct)}",
-            "Paper mode",
-        ]
-        if strategy_type and strategy_type != "manual":
-            lines.append(f"Strategy: {strategy_type}")
-
+        text = (
+            f"{_SEP}\n"
+            "📋  TRADE OPENED\n"
+            f"{_SEP}\n"
+            "```\n"
+            f"Market  │ {label[:28]}\n"
+            f"Side    │ {side_upper}\n"
+            f"Size    │ ${size_usdc:.2f}\n"
+            f"Entry   │ ${price:.4f}\n"
+            f"TP      │ {_fmt_tp(tp_pct)}\n"
+            f"SL      │ {_fmt_sl(sl_pct)}\n"
+            "```\n"
+            f"{_SEP}\n"
+            f"Strategy: {strat}\n"
+            f"{_SEP}"
+        )
         await self._send(
-            telegram_user_id,
-            "\n".join(lines),
+            telegram_user_id, text,
             event=NotificationEvent.ENTRY,
             market_id=market_id,
         )
@@ -229,17 +243,19 @@ class TradeNotifier:
         trade_id: Optional[str] = None,
         reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
-        """Send TP_HIT notification when take-profit threshold is breached.
-
-        When pnl_usdc > 0 and trade_id is provided, callers should pass
-        share_trade_kb(trade_id) as reply_markup to show [Share] button.
-        """
         label = _market_label(market_question, market_id)
-        tag = _mode_tag(mode)
+        pnl_sign = "+" if pnl_usdc >= 0 else ""
         text = (
-            f"\U0001f3af *{tag} TP HIT — {side.upper()}*\n"
-            f"{label}\n"
-            f"Exit: {exit_price:.3f} | P&L: *{_fmt_pnl(pnl_usdc)}*"
+            f"{_SEP}\n"
+            "🎯  TAKE-PROFIT HIT\n"
+            f"{_SEP}\n"
+            "```\n"
+            f"Market  │ {label[:28]}\n"
+            f"Side    │ {side.upper()}\n"
+            f"Exit    │ ${exit_price:.4f}\n"
+            f"P&L     │ {pnl_sign}${abs(pnl_usdc):.2f}\n"
+            "```\n"
+            f"{_SEP}"
         )
         await self._send(
             telegram_user_id, text,
@@ -259,13 +275,19 @@ class TradeNotifier:
         mode: str = "paper",
         reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
-        """Send SL_HIT notification when stop-loss threshold is breached."""
         label = _market_label(market_question, market_id)
-        tag = _mode_tag(mode)
+        pnl_sign = "+" if pnl_usdc >= 0 else ""
         text = (
-            f"\U0001f6d1 *{tag} SL HIT — {side.upper()}*\n"
-            f"{label}\n"
-            f"Exit: {exit_price:.3f} | P&L: *{_fmt_pnl(pnl_usdc)}*"
+            f"{_SEP}\n"
+            "🛑  STOP-LOSS HIT\n"
+            f"{_SEP}\n"
+            "```\n"
+            f"Market  │ {label[:28]}\n"
+            f"Side    │ {side.upper()}\n"
+            f"Exit    │ ${exit_price:.4f}\n"
+            f"P&L     │ {pnl_sign}${abs(pnl_usdc):.2f}\n"
+            "```\n"
+            f"{_SEP}"
         )
         await self._send(
             telegram_user_id, text,

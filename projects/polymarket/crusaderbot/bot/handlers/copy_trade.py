@@ -68,7 +68,7 @@ from ..keyboards.copy_trade import (
     wizard_step3_kb,
     wizard_success_kb,
 )
-from ..tier import Tier, has_tier, tier_block_message
+from ..keyboards import main_menu
 from ...domain.copy_trade import repository as repo
 from ...domain.copy_trade.models import CopyTradeTask
 from ...services.copy_trade.wallet_stats import (
@@ -103,20 +103,11 @@ def _normalise_wallet(raw: str) -> str | None:
     return candidate.lower()
 
 
-async def _resolve_user(update: Update, min_tier: int = Tier.ALLOWLISTED):
-    """Upsert user and check tier. Returns (user, ok) tuple."""
+async def _resolve_user(update: Update, _min_tier: int = 0):
+    """All registered users pass — no tier gate. Calls local upsert_user for testability."""
     if update.effective_user is None:
         return None, False
-    user = await upsert_user(
-        update.effective_user.id, update.effective_user.username,
-    )
-    if not has_tier(user["access_tier"], min_tier):
-        msg = tier_block_message(min_tier)
-        if update.callback_query is not None:
-            await update.callback_query.answer(msg, show_alert=True)
-        elif update.message is not None:
-            await update.message.reply_text(msg)
-        return None, False
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
     return user, True
 
 

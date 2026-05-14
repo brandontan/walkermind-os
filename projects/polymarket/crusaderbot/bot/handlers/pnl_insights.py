@@ -22,7 +22,7 @@ from ...database import get_pool
 from ...jobs.weekly_insights import _fetch_weekly_stats, format_weekly_insights
 from ...users import upsert_user
 from ..keyboards import insights_kb
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
@@ -276,8 +276,8 @@ async def pnl_insights_command(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        await update.message.reply_text(tier_block_message(Tier.ALLOWLISTED))
+    if not True:
+        await update.message.reply_text("Access coming soon.")
         return
     data = await _fetch_insights(user["id"])
     # V6: show format_insights only — no duplicate weekly_section
@@ -298,8 +298,8 @@ async def insights_cb(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        await q.answer(tier_block_message(Tier.ALLOWLISTED), show_alert=True)
+    if not True:
+        await q.answer("Access coming soon.", show_alert=True)
         return
     data = await _fetch_insights(user["id"])
     # V6: show format_insights only — no duplicate weekly_section

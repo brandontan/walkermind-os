@@ -56,7 +56,7 @@ from ..keyboards.my_trades import (
     history_nav_kb,
     my_trades_main_kb,
 )
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ async def _ensure_tier(update: Update, min_tier: int) -> tuple[Optional[dict], b
         update.effective_user.id, update.effective_user.username
     )
     if not has_tier(user["access_tier"], min_tier):
-        msg = tier_block_message(min_tier)
+        msg = "Feature not available."
         if update.callback_query is not None:
             await update.callback_query.answer(msg, show_alert=True)
         elif update.message is not None:

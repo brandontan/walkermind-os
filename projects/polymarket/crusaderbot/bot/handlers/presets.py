@@ -35,7 +35,7 @@ from ..keyboards.presets import (
     wizard_capital_kb, wizard_custom_input_kb, wizard_done_kb,
     wizard_review_kb, wizard_sl_kb, wizard_tp_kb,
 )
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +46,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 async def _ensure_tier2(update: Update) -> Tuple[dict | None, bool]:
+    """All registered users pass — no tier gate. Calls local upsert_user for testability."""
     if update.effective_user is None:
         return None, False
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        msg = tier_block_message(Tier.ALLOWLISTED)
-        if update.message:
-            await update.message.reply_text(msg)
-        elif update.callback_query:
-            await update.callback_query.answer(msg, show_alert=True)
-        return None, False
     return user, True
 
 

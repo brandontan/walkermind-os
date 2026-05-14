@@ -3,15 +3,25 @@
 ## Telegram Bot
 Token: 8795145097:AAGQW9yIOswG3GMmvTByfLpHPnLWU08DOk8
 
-## Bot Access
-- The bot runs on Telegram
-- Use /start to begin onboarding
-- OPERATOR_CHAT_ID: configured in crusaderbot config (see config.py)
+## Admin Identity
+Operator Chat ID: 5642722297
+Admin check: telegram_user_id == OPERATOR_CHAT_ID OR user_tiers.tier = 'ADMIN'
 
-## Test User Flow
-1. /start → welcome with 5-button reply keyboard
-2. Tap "🤖 Auto Trade" → shows Conservative/Balanced/Aggressive picker with descriptions
-3. Tap "💼 Portfolio" → shows Balance, Today PnL, Open positions
-4. Tap "⚙️ Settings" → shows Settings hub (Trading: Risk/Mode, Account: Wallet/Notifications, System: Health)
-5. Tap "📊 Insights" → shows trade stats (or "Need 3 trades" message)
-6. Tap "🛑 Stop Bot" → shows emergency/stop options
+## Local PostgreSQL
+DATABASE_URL: postgresql://postgres:crusader123@localhost:5432/crusaderbot
+
+## APIs
+HEISENBERG_API_TOKEN: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ALCHEMY_POLYGON_RPC: https://polygon-mainnet.g.alchemy.com/v2/kp6pwdRDVIL-rP-7oR9S-
+
+## Test User Flow (Concierge Onboarding)
+1. /start → Welcome card → tap [🚀 Get Started]
+2. Wallet Init → $1,000 credited → tap [Continue →]
+3. Risk Profile → choose strategy
+4. Done → Dashboard V5 with state-driven keyboard
+
+## Bot Commands
+/start  - Start or reset onboarding
+/help   - Show help
+/menu   - Show persistent keyboard
+/admin  - Admin panel (operator only)

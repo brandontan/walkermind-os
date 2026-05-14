@@ -43,7 +43,7 @@ from ...services.signal_feed import (
 )
 from ...users import upsert_user
 from ..keyboards.signal_following import signal_subs_list_kb
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ async def _ensure_tier(update: Update, min_tier: int) -> tuple[dict | None, bool
         update.effective_user.id, update.effective_user.username,
     )
     if not has_tier(user["access_tier"], min_tier):
-        msg = tier_block_message(min_tier)
+        msg = "Feature not available."
         if update.callback_query is not None:
             await update.callback_query.answer(msg, show_alert=True)
         elif update.message is not None:

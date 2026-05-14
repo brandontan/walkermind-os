@@ -27,7 +27,7 @@ from ...services.tiers import (
 from ...users import force_set_tier, get_user_by_username
 from ..keyboards import admin_menu
 from ..keyboards.admin import ops_dashboard_keyboard
-from ..tier import Tier
+from ..roles import is_admin
 
 logger = logging.getLogger(__name__)
 
@@ -308,7 +308,7 @@ async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
     target = args[0]
-    tier = int(args[1]) if len(args) > 1 else Tier.ALLOWLISTED
+    tier = int(args[1]) if len(args) > 1 else 2  # default: standard user
     user = None
     if target.startswith("@"):
         user = await get_user_by_username(target)
