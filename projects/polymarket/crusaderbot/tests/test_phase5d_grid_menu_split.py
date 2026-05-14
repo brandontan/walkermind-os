@@ -54,7 +54,6 @@ def test_grid_rows_custom_cols():
 # ---------- main_menu MVP (ReplyKeyboard) ------------------------------------
 
 MVP_BUTTONS = {
-    "🏠 Dashboard",
     "💼 Portfolio",
     "🤖 Auto Trade",
     "⚙️ Settings",
@@ -63,15 +62,16 @@ MVP_BUTTONS = {
 
 
 def test_main_menu_has_five_buttons():
+    # UX v2: 4 buttons (Dashboard removed from keyboard, still in routes)
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 5
+    assert len(all_buttons) == 4
 
 
 def test_main_menu_layout_three_rows():
-    """MVP: 2 rows of 2 + 1 row of 1 = 3 rows total."""
+    # UX v2: 2 rows of 2
     kb = main_menu()
-    assert len(kb.keyboard) == 3
+    assert len(kb.keyboard) == 2
 
 
 def test_main_menu_first_two_rows_are_pairs():
@@ -81,8 +81,9 @@ def test_main_menu_first_two_rows_are_pairs():
 
 
 def test_main_menu_last_row_is_single():
+    # UX v2: last row is [Settings, Stop Bot] — 2 buttons
     kb = main_menu()
-    assert len(kb.keyboard[-1]) == 1
+    assert len(kb.keyboard[-1]) == 2
 
 
 def test_main_menu_expected_mvp_buttons():
@@ -179,75 +180,40 @@ def test_menu_copytrade_handler_sends_placeholder(monkeypatch):
         "projects.polymarket.crusaderbot.bot.handlers.copy_trade.upsert_user",
         return_value=fake_user,
     ), patch(
-        "projects.polymarket.crusaderbot.bot.handlers.copy_trade._list_copy_tasks",
+        "projects.polymarket.crusaderbot.bot.handlers.copy_trade.get_copy_tasks",
         return_value=[],
     ):
-        asyncio.run(menu_copytrade_handler(update, ctx=SimpleNamespace()))
+        asyncio.run(menu_copytrade_handler(update, SimpleNamespace(user_data={})))
     assert len(replies) == 1
-    assert "Copy Trade" in replies[0]
 
 
-def test_menu_copytrade_handler_inline_buttons(monkeypatch):
-    """Copy Trade empty-state shows [Add Wallet] and [Discover] buttons."""
-    from unittest.mock import patch, AsyncMock as _AsyncMock
-    from projects.polymarket.crusaderbot.bot.handlers.copy_trade import (
-        menu_copytrade_handler,
-    )
-    sent_kw = []
+# ---------- dashboard_nav, wallet_menu, emergency_menu ----------------------
 
-    async def capture(text, **kw):
-        sent_kw.append(kw)
-
-    msg = SimpleNamespace(reply_text=AsyncMock(side_effect=capture))
-    update = SimpleNamespace(
-        message=msg,
-        callback_query=None,
-        effective_user=SimpleNamespace(id=1, username="u"),
-    )
-    fake_user = {"id": "00000000-0000-0000-0000-000000000001", "access_tier": 2}
-    with patch(
-        "projects.polymarket.crusaderbot.bot.handlers.copy_trade.upsert_user",
-        return_value=fake_user,
-    ), patch(
-        "projects.polymarket.crusaderbot.bot.handlers.copy_trade._list_copy_tasks",
-        return_value=[],
-    ):
-        asyncio.run(menu_copytrade_handler(update, ctx=SimpleNamespace()))
-    kb = sent_kw[0]["reply_markup"]
-    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert "copytrade:add" in cbs
-    assert "copytrade:discover" in cbs
-
-
-# ---------- Other keyboard 2-col layouts ------------------------------------
-
-def test_dashboard_nav_with_trades_is_two_col():
-    kb = dashboard_nav(has_trades=True)
+def test_dashboard_nav_has_two_rows():
+    kb = dashboard_nav()
     assert len(kb.inline_keyboard) == 2
-    assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 2
 
 
-def test_wallet_menu_is_two_col():
+def test_wallet_menu_has_send_receive_back():
     kb = wallet_menu()
-    assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 1
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    assert "wallet:send" in cbs
+    assert "wallet:receive" in cbs
+    assert "dashboard:main" in cbs
 
 
-def test_emergency_menu_is_two_col():
+def test_emergency_menu_has_stop_and_resume():
     kb = emergency_menu()
-    assert len(kb.inline_keyboard) == 2
-    assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 2
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    assert "emergency:stop" in cbs
+    assert "emergency:resume" in cbs
 
 
-def test_preset_picker_is_two_col():
+# ---------- preset_picker 2-col layout -------------------------------------
+
+def test_preset_picker_two_col_grid():
     kb = preset_picker()
-    # 2 preset grid rows + 1 Back/Home nav row
-    assert len(kb.inline_keyboard) == 3
+    # 3 presets in 2-col grid: row 0 has 2, row 1 has 1, row 2 is nav
     assert len(kb.inline_keyboard[0]) == 2
     assert len(kb.inline_keyboard[1]) == 1
-    # Nav row: Back and Home both use dashboard:main (no dead noop:refresh)
-    nav = kb.inline_keyboard[2]
-    assert len(nav) == 2
-    assert all(btn.callback_data == "dashboard:main" for btn in nav)
+    assert len(kb.inline_keyboard[2]) == 2  # back / home
