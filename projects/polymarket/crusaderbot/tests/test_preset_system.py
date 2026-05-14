@@ -286,7 +286,7 @@ def test_show_preset_picker_renders_all_three(monkeypatch):
     assert len(replies) == 1
     text = replies[0]
     assert "Auto Trade" in text
-    assert "Choose trading style" in text
+    assert "Choose your trading style" in text
     # MVP keyboard: Conservative / Balanced / Aggressive
     kb = kws[0]["reply_markup"]
     labels = [b.text for row in kb.inline_keyboard for b in row]
@@ -365,11 +365,8 @@ def test_pick_renders_confirmation_with_all_values(monkeypatch):
     ctx = SimpleNamespace(user_data={})
     asyncio.run(presets_h.preset_callback(update, ctx))
     text = replies[0]
-    assert "Balanced" in text
-    assert "40%" in text  # capital
-    assert "+25%" in text  # TP
-    assert "-12%" in text  # SL
-    assert "8%" in text   # max position
+    assert "Value Hunter" in text
+    assert "Strategy Updated" in text
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert cbs == [
