@@ -54,7 +54,7 @@ def _hub_text(mode: str, tier: int, risk_profile: str = "balanced") -> str:
     mode_label = "💸 Live" if mode == "live" else "📑 Paper"
     risk_display = {
         "conservative": "📡 Conservative",
-        "balanced": "🎯 Balanced",
+        "balanced": "⚡ Balanced",
         "aggressive": "🚀 Aggressive",
     }.get(risk_profile, risk_profile.title())
     return (
@@ -86,7 +86,7 @@ def _sl_step_text(current_sl: float | None) -> str:
 
 
 def _capital_text(balance: float, mode: str) -> str:
-    mode_label = "💸 Live" if mode == "live" else "📝 Paper"
+    mode_label = "💸 Live" if mode == "live" else "📙 Paper"
     return (
         "💰 Capital Allocation Per Trade\n"
         "\n"
@@ -99,13 +99,6 @@ async def _ensure(update: Update) -> tuple[dict | None, bool]:
     if update.effective_user is None:
         return None, False
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    if not True:
-        msg = "Access coming soon."
-        if update.message:
-            await update.message.reply_text(msg)
-        elif update.callback_query:
-            await update.callback_query.answer(msg, show_alert=True)
-        return None, False
     return user, True
 
 
@@ -298,7 +291,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
             "📡 Conservative\n"
             "Safer, smaller exposure\n"
             "\n"
-            "🎯 Balanced\n"
+            "⚡ Balanced\n"
             "Recommended for most users\n"
             "\n"
             "🚀 Aggressive\n"
@@ -344,7 +337,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         from ..keyboards.settings import settings_mode_picker
         s = await get_settings_for(user["id"])
         await q.message.reply_text(
-            "*📄 Mode*\n\nPaper: safe virtual trading. Live: real capital (Tier 4 required).",
+            "*📔 Mode*\n\nPaper: safe virtual trading. Live: real capital (Tier 4 required).",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=settings_mode_picker(s["trading_mode"]),
         )
