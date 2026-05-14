@@ -74,6 +74,8 @@ def test_health_contract_remains_machine_readable(monkeypatch):
         }
 
     monkeypatch.setattr(api_health, "run_health_checks", _fake_checks)
+    monkeypatch.setattr(api_health, "_resolve_version", lambda: "test")
+    monkeypatch.setattr(api_health, "_resolve_mode", lambda: "paper")
 
     client = TestClient(_build_app())
     r = client.get("/health")
