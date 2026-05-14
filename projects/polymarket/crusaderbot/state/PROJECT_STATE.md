@@ -1,5 +1,5 @@
-Last Updated : 2026-05-14 22:45
-Status       : V5 "AUTOBOT" UI Overhaul merged and active. Dashboard pulse and monospaced ledger rendering confirmed. Production PAPER ONLY. Activation guards remain OFF.
+Last Updated : 2026-05-15 00:37
+Status       : V5 "AUTOBOT" UI Overhaul merged. V5 polish lane open — startup spam silenced, dashboard full-width bubble and monospaced financials upgraded. Production PAPER ONLY. Activation guards remain OFF.
 
 [COMPLETED]
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. Dashboard pulse, monospaced financials, 6-button menu, English localization. STANDARD, NARROW INTEGRATION.
@@ -20,6 +20,7 @@ Status       : V5 "AUTOBOT" UI Overhaul merged and active. Dashboard pulse and m
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
+- v5-polish-spam-fix: Startup spam silenced (main.py + alert_startup()), Dashboard V5 full-width bubble + monospaced financials + bold caps headers; PR open on WARP/v5-polish-spam-fix; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/v5-polish-spam-fix.md
 - telegram-premium-polish: Hybrid Luxury premium polish for telegram templates/keyboards + settings placeholder stubs + noop refresh rerender; PR open on warp/polish-telegram-bot-templates-and-keyboards-07rpb4; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/warp-polish-telegram-bot-templates-and-keyboards-07rpb4.md
 - telegram-ux-polish: UX cleanup — Dashboard button main menu, edit vs reply nav, dashboard text W/L clarity, keyboard nav dedup, activity nav keyboard, settings risk display fix; PR open on WARP/telegram-ux-polish; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-polish.md
 - crusaderbot-telegram-redesign-v2: Gate fixes applied — positions.py stats clarity fix, settings.py Python 3.11 f-string lint fix; PR #1036 on warp/redesign-telegram-ux-for-crusaderbot; ruff PASS; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-telegram-redesign-v2.md
@@ -40,6 +41,7 @@ Status       : V5 "AUTOBOT" UI Overhaul merged and active. Dashboard pulse and m
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP/v5-polish-spam-fix. STANDARD tier. Startup spam silence + Dashboard V5 full-width polish. Source: projects/polymarket/crusaderbot/reports/forge/v5-polish-spam-fix.md
 - WARP🔹CMD review required for warp/polish-telegram-bot-templates-and-keyboards-07rpb4. STANDARD tier. Premium copy polish, placeholder stubs, refresh rerender callback. Source: projects/polymarket/crusaderbot/reports/forge/warp-polish-telegram-bot-templates-and-keyboards-07rpb4.md
 - Keep production PAPER ONLY until explicit owner live activation decision.
 

@@ -103,3 +103,5 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 
 2026-05-14 14:44 | warp/polish-telegram-bot-templates-and-keyboards-07rpb4 | Telegram premium polish: hybrid-luxury copy pass, settings placeholder stubs (profile/premium/referrals/health/live-gate/admin), refresh callback now rerenders detected surfaces with fallback dashboard refresh; STANDARD, NARROW INTEGRATION
 2026-05-14 22:16 | claude/forge-task-1044-V5D08 | V5 AUTOBOT UI overhaul: CRUSADER|AUTOBOT branding, pulse line, HTML code-wrapped financials, 6-button main menu, onboarding sync, preset wizard label sync; STANDARD, NARROW INTEGRATION
+
+2026-05-15 00:37 | WARP/v5-polish-spam-fix | Startup spam silenced (main.py + alert_startup()), Dashboard V5 full-width bubble + monospaced <pre> financials + bold caps headers; STANDARD, NARROW INTEGRATION

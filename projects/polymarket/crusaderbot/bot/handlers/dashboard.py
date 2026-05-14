@@ -143,32 +143,41 @@ def _build_text(
     auto_on: bool,
     pulse: str,
 ) -> str:
-    """V5 AUTOBOT Dashboard: branding, pulse, HTML code-wrapped financials."""
+    """V5 dashboard: full-width bubble, monospaced financials, bold caps headers."""
     equity = bal + st["positions_value"]
     status_label = "🟢 Running" if auto_on else "🔴 Disabled"
     exec_label = "💸 Live" if st["trading_mode"] == "live" else "📑 Paper"
-    pnl_sign = "+" if pnl_today >= 0 else ""
+    sep = "━" * 32
+
+    # Monospaced ledger — $ signs and decimal points column-aligned
+    ledger = (
+        f"Equity    ${equity:>10.2f}\n"
+        f"Balance   ${bal:>10.2f} USDC\n"
+        f"Exposure  ${st['positions_value']:>10.2f}"
+    )
+    pnl_sign = "+" if pnl_today >= 0 else "-"
+    pnl_block = f"PnL Today {pnl_sign}${abs(pnl_today):.2f}"
 
     return (
-        "𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧\n"
+        f"<b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        f"{sep}\n"
         "\n"
-        "🤖 Bot\n"
+        "🤖 <b>BOT STATUS</b>\n"
         f"└ {status_label}\n"
         "\n"
-        "⚡ Pulse\n"
+        "⚡ <b>PULSE</b>\n"
         f"{pulse}\n"
         "\n"
-        "💰 Account\n"
-        f"├ Equity:   <code>${equity:.2f}</code>\n"
-        f"├ Balance:  <code>${bal:.2f} USDC</code>\n"
-        f"├ Exposure: <code>${st['positions_value']:.2f}</code>\n"
+        "💰 <b>ACCOUNT SUMMARY</b>\n"
+        f"<pre>{ledger}</pre>\n"
         f"└ Mode: {exec_label}\n"
         "\n"
-        "📈 Today\n"
-        f"└ PnL: <code>{pnl_sign}${pnl_today:.2f}</code>\n"
+        "📈 <b>TODAY'S PNL</b>\n"
+        f"<pre>{pnl_block}</pre>\n"
         "\n"
-        "📊 Stats\n"
-        f"└ W/L: {st['wins']}W • {st['losses']}L"
+        "📊 <b>STATS</b>\n"
+        f"└ W/L: {st['wins']}W  •  {st['losses']}L\n"
+        f"{sep}"
     )
 
 

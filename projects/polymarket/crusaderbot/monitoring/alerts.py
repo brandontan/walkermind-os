@@ -96,13 +96,8 @@ async def _dispatch(alert_type: str, key: str, body: str) -> bool:
 
 
 async def alert_startup(restart_detected: bool = True) -> None:
-    """Notify the operator that the process has just started (Fly machine boot)."""
-    body = (
-        f"[CrusaderBot][admin] startup event\n"
-        f"time: {_now_iso()}\n"
-        f"event: {'restart' if restart_detected else 'cold_start'}"
-    )
-    await _dispatch("startup", "boot", body)
+    """Startup alert silenced — operator spam prevention (issue #1046)."""
+    return
 
 
 async def alert_dependency_unreachable(check_name: str, reason: str) -> None:
