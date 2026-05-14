@@ -1,4 +1,4 @@
-Last Updated : 2026-05-14 12:00
+Last Updated : 2026-05-14 11:56
 Status       : telegram-ux-polish UX cleanup complete (edit nav, dashboard text, keyboard cleanup, settings risk fix); PR open on WARP/telegram-ux-polish awaiting WARP🔹CMD review. Production PAPER ONLY. Activation guards remain OFF / NOT SET.
 
 [COMPLETED]
@@ -19,6 +19,7 @@ Status       : telegram-ux-polish UX cleanup complete (edit nav, dashboard text,
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
+- public-status-landing-page: root `/` public status landing page shipped (HTML cards, paper posture, activation guards, /health link) + targeted tests; branch WARP/public-status-landing-page; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/public-status-landing-page.md
 - telegram-ux-polish: UX cleanup — Dashboard button main menu, edit vs reply nav, dashboard text W/L clarity, keyboard nav dedup, activity nav keyboard, settings risk display fix; PR open on WARP/telegram-ux-polish; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-polish.md
 - crusaderbot-telegram-redesign-v2: Gate fixes applied — positions.py stats clarity fix, settings.py Python 3.11 f-string lint fix; PR #1036 on warp/redesign-telegram-ux-for-crusaderbot; ruff PASS; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-telegram-redesign-v2.md
 - crusaderbot-mvp-reset-v1: Telegram MVP UX reset complete; PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review; STANDARD, NARROW INTEGRATION. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-reset-v1.md

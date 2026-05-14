@@ -7,6 +7,7 @@ import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse
 from telegram import Update
 from telegram.ext import Application
 
@@ -221,7 +222,41 @@ app.include_router(api_ops.router)
 
 @app.get("/")
 async def root():
-    return {"service": "crusaderbot", "status": "running"}
+    settings = get_settings()
+
+    def _pill(value: str) -> str:
+        lowered = value.lower()
+        if lowered in {"ok", "online", "running"}:
+            cls = "ok"
+        elif lowered in {"degraded", "warn", "warning"}:
+            cls = "warn"
+        else:
+            cls = "fail"
+        return f'<span class="pill {cls}">{value}</span>'
+
+    guards_msg = "OFF / NOT SET"
+    body = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrusaderBot Status</title>
+<style>
+body{{margin:0;background:#0b1020;color:#d6deff;font-family:Inter,system-ui,sans-serif}} .wrap{{max-width:980px;margin:0 auto;padding:20px}}
+.grid{{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}} .card{{background:#141a31;border:1px solid #283153;border-radius:12px;padding:14px}}
+.pill{{padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}} .ok{{background:#10361f;color:#7cf0a0}} .warn{{background:#3a2c0a;color:#ffd36d}} .fail{{background:#3d1320;color:#ff8ca7}}
+a.btn{{display:inline-block;padding:10px 14px;background:#253463;color:#d6deff;text-decoration:none;border-radius:10px}}
+h1{{margin:0 0 6px}} .muted{{color:#9fabd2;font-size:14px}}
+</style></head>
+<body><div class="wrap"><h1>CrusaderBot</h1>
+<p class="muted">Public status landing page for production posture and service health.</p>
+<div class="grid">
+<section class="card"><h3>Server Status</h3><p>App reachable: {_pill('online')}</p><p>Environment: Fly.io</p><p>Timestamp: N/A (public-safe view)</p></section>
+<section class="card"><h3>Health</h3><p>Overall: {_pill('N/A')}</p><p>Database: {_pill('N/A')}</p><p>Telegram: {_pill('N/A')}</p><p class="muted">Use <a href="/health">/health</a> for machine-readable probe status.</p></section>
+<section class="card"><h3>Runtime</h3><p>Service: CrusaderBot</p><p>Mode: PAPER ONLY ({settings.APP_ENV.upper()})</p><p>Live trading: Disabled unless explicitly enabled by owner decision.</p></section>
+<section class="card"><h3>Activation Guards</h3>
+<p>ENABLE_LIVE_TRADING: {guards_msg}</p><p>EXECUTION_PATH_VALIDATED: {guards_msg}</p><p>CAPITAL_MODE_CONFIRMED: {guards_msg}</p><p>RISK_CONTROLS_VALIDATED: {guards_msg}</p></section>
+</div>
+<p style="margin-top:14px"><a class="btn" href="/health">Open /health</a></p>
+<p class="muted">Disclaimer: Not financial advice. Paper trading only.</p></div></body></html>"""
+    return HTMLResponse(content=body, status_code=200)
 
 
 @app.post("/telegram/webhook")

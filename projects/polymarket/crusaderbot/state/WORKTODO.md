@@ -1,11 +1,12 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-14 06:20 WIB
+**Last Updated: 2026-05-14 11:56 WIB
 
 ---
 
 ## Right Now
+- public-status-landing-page lane complete (2026-05-14). Root `/` now serves public status landing page with health/runtime/guard cards; targeted route tests added; `/health` contract preserved.
 - crusaderbot-telegram-redesign-v2 lane complete (2026-05-14). Telegram-native card UX v2 implemented; PR pending WARP🔹CMD review on WARP/crusaderbot-telegram-redesign-v2.
 - crusaderbot-mvp-reset-v1 lane complete (2026-05-14). Telegram MVP UX reset: 5-button nav, clean onboarding, MVP screens. PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review.
 - PR #1032 merged (warp/fix-telegram-mvp-ux-readability-regression, 2026-05-13). Compact hierarchy readability regression fix.

@@ -1,3 +1,4 @@
+2026-05-14 15:41 | WARP/public-status-landing-page | PR #1038 HOLD fix: removed alerting health-route call from public `/`; landing now renders public-safe static health values and keeps `/health` as machine-readable probe endpoint; STANDARD, NARROW INTEGRATION
 2026-05-14 12:00 | WARP/telegram-ux-polish | Telegram UX polish: Dashboard button main reply keyboard, edit_message_text nav (no message spam), W/L moved to Stats section (clarity), portfolio/auto-trade keyboard dedup Back+Home, activity_nav_kb(), empty state action buttons, settings hub real risk profile; STANDARD, NARROW INTEGRATION
 2026-05-14 09:03 | warp/redesign-telegram-ux-for-crusaderbot | PR #1036 gate fix: positions.py portfolio stats always visible (split stats/footer), settings.py f-string Python 3.11 compat (mode_clean var), branch traceability drift fixed; ruff PASS
 2026-05-14 06:20 | WARP/crusaderbot-telegram-redesign-v2 | PR #1036 fix task: restored canonical preset callback IDs, fixed conservative risk callback token, fixed portfolio summary ternary output; STANDARD, NARROW INTEGRATION
@@ -100,3 +101,5 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 2026-05-13 19:00 | warp/fix-telegram-mvp-ux-readability-regression | Traceability/state sync for PR #1032: aligned branch string across forge report/state artifacts and removed stale PR #1029-open references; STANDARD, NARROW INTEGRATION
 
 2026-05-13 20:30 | WARP/telegram-lightweight-tree-ui-hotfix | telegram-lightweight-tree-ui-hotfix: final lightweight tree UI pass — removed all standalone │ rails and ├──/└── heavy arms from dashboard/presets/positions/settings/signals/onboarding; added explicit Back/Home nav row to preset_picker (dashboard:main only, no noop:refresh); STANDARD, NARROW INTEGRATION
+
+2026-05-14 11:56 | WARP/public-status-landing-page | Public `/` status landing page (HTML dark mobile-first cards) + targeted route tests; `/health` contract preserved; STANDARD, NARROW INTEGRATION
