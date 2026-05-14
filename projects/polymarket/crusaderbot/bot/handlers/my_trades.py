@@ -75,19 +75,12 @@ def _truncate(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
-async def _ensure_tier(update: Update, min_tier: int) -> tuple[Optional[dict], bool]:
+async def _ensure_user(update: Update) -> tuple[Optional[dict], bool]:
     if update.effective_user is None:
         return None, False
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], min_tier):
-        msg = "Feature not available."
-        if update.callback_query is not None:
-            await update.callback_query.answer(msg, show_alert=True)
-        elif update.message is not None:
-            await update.message.reply_text(msg)
-        return None, False
     return user, True
 
 
@@ -224,8 +217,8 @@ def _format_history_page(rows: list[dict], page: int, total: int) -> str:
 
 
 async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Combined My Trades view (Tier 2+): open positions + recent activity."""
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    """Combined My Trades view: open positions + recent activity."""
+    user, ok = await _ensure_user(update)
     if not ok or update.message is None:
         return
 
@@ -252,11 +245,11 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """First tap on [Close N] — show confirmation dialog (Tier 2+)."""
+    """First tap on [Close N] — show confirmation dialog."""
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     await q.answer()
@@ -302,7 +295,7 @@ async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle [Confirm Close] / [Cancel] (Tier 2+)."""
+    """Handle [Confirm Close] / [Cancel]."""
     q = update.callback_query
     if q is None:
         return
@@ -324,7 +317,7 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     # action == "close_yes"
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     await q.answer("Closing…")
@@ -365,7 +358,6 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         reply_markup=close_success_kb(),
     )
 
-    # Only notify on a real state transition; skip if position was already closed.
     if result.get("exit_reason") != "already_closed":
         try:
             await monitoring_alerts.alert_user_manual_close(
@@ -386,7 +378,7 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     await q.answer()
@@ -402,7 +394,6 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
     total_pages = max(1, math.ceil(total / _HISTORY_PER_PAGE))
     page = min(page, total_pages - 1)
-    # Re-fetch if the original request was out of range (stale/crafted callback).
     if not rows and total > 0:
         rows, _ = await repo.get_activity_page(user["id"], page, _HISTORY_PER_PAGE)
 
@@ -422,7 +413,7 @@ async def trade_detail_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     await q.answer()
@@ -469,7 +460,7 @@ async def back_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     await q.answer()
