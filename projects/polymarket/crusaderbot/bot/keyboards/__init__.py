@@ -29,6 +29,7 @@ def main_menu() -> ReplyKeyboardMarkup:
     """Telegram UX v2 global nav keyboard."""
     return ReplyKeyboardMarkup(
         [
+            [KeyboardButton("🏠 Dashboard")],
             [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("💼 Portfolio")],
             [KeyboardButton("⚙️ Settings"),    KeyboardButton("🛑 Stop Bot")],
         ],
@@ -71,16 +72,13 @@ def _legacy_dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
 
 
 def portfolio_kb() -> InlineKeyboardMarkup:
-    """MVP Portfolio screen — Positions + Refresh + Back/Home."""
+    """MVP Portfolio screen — Positions + Refresh + Home."""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("📋 Positions", callback_data="portfolio:positions"),
             InlineKeyboardButton("🔄 Refresh",   callback_data="dashboard:portfolio"),
         ],
-        [
-            InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
-            InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
-        ],
+        [InlineKeyboardButton("🏠 Home", callback_data="dashboard:main")],
     ])
 
 
@@ -104,13 +102,18 @@ def mvp_auto_trade_kb() -> InlineKeyboardMarkup:
     """MVP Auto Trade: Conservative/Balanced/Aggressive mapped to preset keys."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📡 Conservative", callback_data="preset:pick:signal_sniper")],
-        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:value_hunter")],
-        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:full_auto")],
-        [
-            InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
-            InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
-        ],
+        [InlineKeyboardButton("🎯 Balanced",     callback_data="preset:pick:value_hunter")],
+        [InlineKeyboardButton("🚀 Aggressive",   callback_data="preset:pick:full_auto")],
+        [InlineKeyboardButton("🏠 Home",         callback_data="dashboard:main")],
     ])
+
+
+def activity_nav_kb() -> InlineKeyboardMarkup:
+    """Nav keyboard for the activity / recent-trades screen."""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("💼 Portfolio", callback_data="dashboard:portfolio"),
+        InlineKeyboardButton("🏠 Home",      callback_data="dashboard:main"),
+    ]])
 
 
 def mvp_risk_kb(current: str = "") -> InlineKeyboardMarkup:

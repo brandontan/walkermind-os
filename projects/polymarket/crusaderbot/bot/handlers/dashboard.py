@@ -13,7 +13,7 @@ from ...users import get_settings_for, set_auto_trade, upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
 from ...wallet.vault import get_wallet
 from ..keyboards import (
-    autotrade_toggle, dashboard_kb, dashboard_nav, insights_kb,
+    activity_nav_kb, autotrade_toggle, dashboard_kb, dashboard_nav, insights_kb,
     main_menu, setup_menu, wallet_menu,
 )
 from ..tier import Tier, has_tier, tier_block_message
@@ -141,7 +141,9 @@ def _build_text(
         f"└ Mode: {exec_label}\n"
         "\n"
         "📈 Today\n"
-        f"├ PnL: {pnl_str}\n"
+        f"└ PnL: {pnl_str}\n"
+        "\n"
+        "📊 Stats\n"
         f"└ W/L: {st['wins']}W • {st['losses']}L"
     )
 
@@ -175,10 +177,10 @@ async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
     text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-    await q.message.reply_text(
-        text,
-        reply_markup=dashboard_kb(),
-    )
+    try:
+        await q.edit_message_text(text, reply_markup=dashboard_kb())
+    except Exception:
+        await q.message.reply_text(text, reply_markup=dashboard_kb())
 
 
 async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -199,10 +201,10 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         pnl_today = await daily_pnl(user["id"])
         st = await _fetch_stats(user["id"])
         text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-        await q.message.reply_text(
-            text,
-            reply_markup=dashboard_kb(),
-        )
+        try:
+            await q.edit_message_text(text, reply_markup=dashboard_kb())
+        except Exception:
+            await q.message.reply_text(text, reply_markup=dashboard_kb())
         return
 
     # --- portfolio (v3 new) ---
@@ -347,7 +349,12 @@ async def positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             user["id"],
         )
     if not rows:
-        await update.message.reply_text("No open positions.")
+        await update.message.reply_text(
+            "No open positions.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🤖 Auto Trade", callback_data="dashboard:auto"),
+            ]]),
+        )
         return
     lines = ["*📈 Open positions:*\n"]
     buttons = []
@@ -422,7 +429,12 @@ async def activity(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             user["id"],
         )
     if not rows:
-        await update.message.reply_text("No activity yet.")
+        await update.message.reply_text(
+            "No activity yet.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🤖 Auto Trade", callback_data="dashboard:auto"),
+            ]]),
+        )
         return
     lines = ["*📋 Last 10 trades:*\n"]
     for r in rows:
@@ -432,6 +444,9 @@ async def activity(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"*{r['side'].upper()}* @ {float(r['price']):.3f} · "
             f"${float(r['size_usdc']):.2f} [{r['mode']}/{r['status']}]\n_{q}_"
         )
-    await update.message.reply_text("\n\n".join(lines),
-                                    parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(
+        "\n\n".join(lines),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=activity_nav_kb(),
+    )
 
