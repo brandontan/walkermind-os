@@ -1,6 +1,6 @@
 # Forge Report — public-status-landing-page
 
-- Branch: WARP/public-status-landing-page
+- Branch: warp/build-public-status-landing-page
 - Validation Tier: STANDARD
 - Claim Level: NARROW INTEGRATION
 - Validation Target: Public landing/status page on `/` and `/health` contract stability.
