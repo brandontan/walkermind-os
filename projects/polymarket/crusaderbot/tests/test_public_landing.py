@@ -18,24 +18,7 @@ def _build_app() -> FastAPI:
     return app
 
 
-def test_public_landing_page_contract(monkeypatch):
-    async def _fake_health(_response):
-        return {
-            "status": "ok",
-            "uptime_seconds": 120,
-            "version": "test",
-            "mode": "paper",
-            "timestamp": "2026-05-14T12:00:00Z",
-            "service": "CrusaderBot",
-            "checks": {
-                "database": "ok",
-                "telegram": "ok",
-            },
-            "ready": True,
-        }
-
-    monkeypatch.setattr(app_main.api_health, "health", _fake_health)
-
+def test_public_landing_page_contract():
     client = TestClient(_build_app())
     r = client.get("/")
     assert r.status_code == 200

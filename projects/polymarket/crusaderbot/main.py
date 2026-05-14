@@ -139,12 +139,12 @@ async def lifespan(_: FastAPI):
 
     await notifications.send(
         settings.OPERATOR_CHAT_ID,
-        f"🟢 CrusaderBot up\nenv: {settings.APP_ENV}\n"
+        f"\U0001f7e2 CrusaderBot up\nenv: {settings.APP_ENV}\n"
         f"mode: {'webhook' if use_webhook else 'polling'}\n"
         f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
         f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
         f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
-        f"{'✅ operator guards OPEN — Tier 4 users can trade live' if all_guards_ready else '🔒 operator guards LOCKED — all trades route to paper'}",
+        f"{'✅ operator guards OPEN — Tier 4 users can trade live' if all_guards_ready else '\U0001f512 operator guards LOCKED — all trades route to paper'}",
         parse_mode=None,
     )
 
@@ -222,8 +222,8 @@ app.include_router(api_ops.router)
 
 @app.get("/")
 async def root():
-    health = await api_health.health(Response())
-    checks = health.get("checks", {}) if isinstance(health, dict) else {}
+    from datetime import datetime, timezone
+    server_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
     def _pill(value: str) -> str:
         lowered = value.lower()
@@ -235,9 +235,6 @@ async def root():
             cls = "fail"
         return f'<span class="pill {cls}">{value}</span>'
 
-    server_ts = str(health.get("timestamp", "N/A"))
-    status = str(health.get("status", "N/A"))
-    mode = str(health.get("mode", "paper")).upper()
     body = f"""<!doctype html>
 <html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
 <title>CrusaderBot Status</title>
@@ -252,8 +249,8 @@ h1{{margin:0 0 6px}} .muted{{color:#9fabd2;font-size:14px}}
 <p class=\"muted\">Public status landing page for production posture and service health.</p>
 <div class=\"grid\">
 <section class=\"card\"><h3>Server Status</h3><p>App reachable: {_pill('online')}</p><p>Environment: Fly.io</p><p>Timestamp: {server_ts}</p></section>
-<section class=\"card\"><h3>Health</h3><p>Overall: {_pill(status)}</p><p>Database: {_pill(str(checks.get('database', 'N/A')))}</p><p>Telegram: {_pill(str(checks.get('telegram', 'N/A')))}</p></section>
-<section class=\"card\"><h3>Runtime</h3><p>Service: CrusaderBot</p><p>Mode: PAPER ONLY ({mode})</p><p>Live trading: Disabled unless explicitly enabled by owner decision.</p></section>
+<section class=\"card\"><h3>Health</h3><p>Server: {_pill('online')}</p><p>Live dependency probe: <a href=\"/health\">/health</a></p></section>
+<section class=\"card\"><h3>Runtime</h3><p>Service: CrusaderBot</p><p>Mode: PAPER ONLY</p><p>Live trading: Disabled unless explicitly enabled by owner decision.</p></section>
 <section class=\"card\"><h3>Activation Guards</h3>
 <p>ENABLE_LIVE_TRADING: OFF / NOT SET</p><p>EXECUTION_PATH_VALIDATED: OFF / NOT SET</p><p>CAPITAL_MODE_CONFIRMED: OFF / NOT SET</p><p>RISK_CONTROLS_VALIDATED: OFF / NOT SET</p></section>
 </div>
