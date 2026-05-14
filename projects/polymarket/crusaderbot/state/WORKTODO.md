@@ -1,13 +1,11 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-14 14:44 WIB
+**Last Updated: 2026-05-14 22:45 WIB
 
 ---
 
 ## Right Now
-- crusaderbot-telegram-redesign-v2 lane complete (2026-05-14). Telegram-native card UX v2 implemented; PR pending WARP🔹CMD review on WARP/crusaderbot-telegram-redesign-v2.
-- crusaderbot-mvp-reset-v1 lane complete (2026-05-14). Telegram MVP UX reset: 5-button nav, clean onboarding, MVP screens. PR open on WARP/crusaderbot-mvp-reset-v1 awaiting WARP🔹CMD review.
 - PR #1032 merged (warp/fix-telegram-mvp-ux-readability-regression, 2026-05-13). Compact hierarchy readability regression fix.
 - PR #1029 and PR #1031 merged. Blocker fixes absorbed into compact hierarchy lane; awaiting WARP🔹CMD re-review on PR #1032 only.
 - [x] crusaderbot-mvp-ux-v1 — Hierarchy Tree Terminal UI rebuild complete, PR open, STANDARD NARROW INTEGRATION
@@ -47,7 +45,7 @@ Done condition: WARP🔹CMD merge decision on each lane; activation guards remai
 - [x] Track B -- Copy Trade Execution -- MERGED PR #948 (2026-05-11), MAJOR. CopyTradeMonitor.run_once(), 020 migration, 25 hermetic tests green; P1 fixes applied.
 - [x] Track C -- Trade Notifications -- MERGED PR #951 (2026-05-11), STANDARD. TradeNotifier service layer; 16 hermetic tests green; already_closed guard P2 fix.
 - [x] Track D -- Live Gate Hardening -- MERGED PR #954 (2026-05-11), MAJOR. WARP•SENTINEL APPROVED 92/100; 35 tests green.
-- [x] Track E -- Daily P&L Report -- MERGED PR #962 (2026-05-11), STANDARD, NARROW INTEGRATION. Paper-mode daily Telegram P&L summary; 26 daily_pnl_summary tests green; issue #960 closed.
+- [x] Track E -- Daily P&L Report -- MERGED PR #962 (2026-05-11), STANDARD, NARROW INTEGRATION. Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed.
 
 Done condition: Track A-E merged and SENTINEL-approved where MAJOR; activation guards remain OFF.
 
