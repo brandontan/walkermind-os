@@ -130,7 +130,7 @@ def _build_text(
     pnl_str = f"{pnl_sign}${pnl_today:.2f}"
 
     return (
-        "🏠 CrusaderBot\n"
+        "🏛️ CrusaderBot — Premium Desk\n"
         "\n"
         "🤖 Bot\n"
         f"└ {status_label}\n"
@@ -165,7 +165,7 @@ async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh: bool = False) -> None:
     """Render the dashboard in response to a callback query (q.message path)."""
     q = update.callback_query
     if q is None:

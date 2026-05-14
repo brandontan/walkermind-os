@@ -130,7 +130,7 @@ async def _render_hub(update: Update, user: dict) -> None:
         )
 
 
-async def settings_hub_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def settings_hub_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh: bool = False) -> None:
     """⚙️ Settings reply-keyboard button → render Settings hub."""
     user, ok = await _ensure(update)
     if not ok:
@@ -192,32 +192,44 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Referrals ---
+    # --- Referrals stub ---
     if data == "settings:referrals":
-        from .referral import referral_command
-        await referral_command(update, ctx)
+        await q.message.reply_text(
+            "*🎁 Referrals*\n\nYour referral studio is being polished for launch.\n\nSoon: invite links, rewards dashboard, and payout history.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=settings_hub_kb(),
+        )
         return
 
-    # --- Health ---
+    # --- Health stub ---
     if data == "settings:health":
-        from .health import health_command
-        await health_command(update, ctx)
+        await q.message.reply_text(
+            "*🏥 Health*\n\nSystem health panel is in premium preview.\n\nSoon: runtime heartbeat, latency, and job status snapshots.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=settings_hub_kb(),
+        )
         return
 
-    # --- Live Gate ---
+    # --- Live Gate stub ---
     if data == "settings:live_gate":
-        from .live_gate import enable_live_command
-        await enable_live_command(update, ctx)
+        await q.message.reply_text(
+            "*🔐 Live Gate*\n\nLive trading gate remains locked by policy.\n\nSoon: guided readiness checks and activation timeline.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=settings_hub_kb(),
+        )
         return
 
-    # --- Admin (operator only) ---
+    # --- Admin stub (operator only) ---
     if data == "settings:admin":
         operator_id = get_app_settings().OPERATOR_CHAT_ID
         if update.effective_user is None or update.effective_user.id != operator_id:
             await q.answer("Admin access required.", show_alert=True)
             return
-        from .admin import admin_root
-        await admin_root(update, ctx)
+        await q.message.reply_text(
+            "*🧭 Admin*\n\nOperator command center is available via /admin.\n\nThis in-hub admin panel is a premium stub for now.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=settings_hub_kb(is_admin=True),
+        )
         return
 
     # --- Wallet surface ---
