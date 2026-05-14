@@ -290,8 +290,9 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         toggle_cb = "settings:notif_off" if notifs_on else "settings:notif_on"
         toggle_label = "Turn OFF" if notifs_on else "Turn ON"
+        notif_icon = "\U0001f515" if notifs_on else "\U0001f514"
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"{'\U0001f515' if notifs_on else '\U0001f514'} {toggle_label}", callback_data=toggle_cb)],
+            [InlineKeyboardButton(f"{notif_icon} {toggle_label}", callback_data=toggle_cb)],
             [
                 InlineKeyboardButton("⬅ Back", callback_data="settings:hub"),
                 InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),

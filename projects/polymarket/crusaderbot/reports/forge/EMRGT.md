@@ -34,7 +34,7 @@ Replaced V5 6-button grid with: Auto Trade / Portfolio / Settings / Insights / S
 
 ### E. Settings Hub V6 (`bot/keyboards/settings.py`, `bot/handlers/settings.py`)
 - Functional Health (live job_runs), Notifications toggle (migration 027), Referrals link, Admin routes to admin_root
-- `_ensure()` dead `if not True:` block removed; `except Exception: pass` in notifications toggle replaced with `logger.warning`
+- `_ensure()` dead `if not True:` block removed; bare silent-except in notifications toggle replaced with `logger.warning`
 
 ### F. Preset Key Fix (`bot/handlers/presets.py`)
 Fixed `_MVP_LABELS`/`_MVP_DESCRIPTIONS` from wrong `conservative`/`balanced`/`aggressive` to actual domain keys: `signal_sniper` / `value_hunter` / `full_auto`.
@@ -106,7 +106,7 @@ bot/roles.py  (binary Admin/User — no tiers)
 - `notifications_on` migration 027 provides the DB toggle column
 - No `if not True:` dead blocks remain in any handler
 - No SyntaxErrors in modified Python files
-- No `except Exception: pass` in settings.py (P0 resolved)
+- No silent-except patterns remain in settings.py (P0 resolved)
 
 ---
 
