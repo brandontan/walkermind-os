@@ -157,7 +157,7 @@ def test_new_user_start_shows_welcome():
         result = asyncio.run(_entry(update, ctx))
 
     assert result == ONBOARD_WELCOME
-    assert any("Welcome to CrusaderBot" in r[1] for r in replies)
+    assert any("Polymarket trading copilot" in r[1] for r in replies)
     assert ctx.user_data.get("onboard_user_id") == str(user["id"])
 
 
