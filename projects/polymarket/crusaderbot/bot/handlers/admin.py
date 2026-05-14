@@ -27,7 +27,6 @@ from ...services.tiers import (
 from ...users import force_set_tier, get_user_by_username
 from ..keyboards import admin_menu
 from ..keyboards.admin import ops_dashboard_keyboard
-from ..roles import is_admin
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +115,7 @@ async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if is_op:
         active = await is_kill_switch_active()
         await update.message.reply_text(
-            f"*⚙️ Admin*\n\nKill switch: {'🔴 ACTIVE' if active else '🟢 inactive'}",
+            f"*⚙️ Admin*\n\nKill switch: {'\U0001f534 ACTIVE' if active else '\U0001f7e2 inactive'}",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=admin_menu(active),
         )
@@ -201,7 +200,7 @@ async def _admin_stats(message) -> None:
             "SELECT COUNT(*) FROM user_tiers WHERE tier='ADMIN'"
         ) or 0
     await message.reply_text(
-        "*📊 Admin Stats*\n\n"
+        "*\U0001f4ca Admin Stats*\n\n"
         f"Total users: {total_users}\n"
         f"Tiers — FREE: {free_n} · PREMIUM: {premium_n} · ADMIN: {admin_n}\n"
         f"Open positions: {open_positions}\n"
@@ -255,7 +254,7 @@ async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         await audit.write(actor_role="operator",
                           action="kill_switch_" + ("on" if not active else "off"))
         await q.message.reply_text(
-            f"Kill switch is now *{'ON 🔴' if not active else 'OFF 🟢'}*.",
+            f"Kill switch is now *{'ON \U0001f534' if not active else 'OFF \U0001f7e2'}*.",
             parse_mode=ParseMode.MARKDOWN,
         )
     elif sub == "status":
@@ -282,7 +281,7 @@ async def _send_status(message) -> None:
             "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'")
     s = get_settings()
     await message.reply_text(
-        "*🩺 System status*\n\n"
+        "*\U0001f©ba System status*\n\n"
         f"DB: {'✅' if db_ok else '❌'}  Cache: {'✅' if cache_ok else '❌'}\n"
         f"Users: {users_n} · Funded: {funded_n} · Live: {live_n}\n"
         f"Open positions: {open_paper} paper · {open_live} live\n\n"
@@ -329,11 +328,9 @@ async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     await update.message.reply_text(
         f"✅ {target} promoted to Tier {tier}."
     )
-    # Route through notifications.send so the call inherits R12's
-    # tenacity retry+backoff and consistent ERROR-on-final-failure logging.
     await notifications.send(
         user["telegram_user_id"],
-        f"🎉 You've been promoted to Tier {tier}. New features unlocked!",
+        f"\U0001f389 You've been promoted to Tier {tier}. New features unlocked!",
     )
 
 
@@ -371,13 +368,6 @@ def _truncate(value: str | None, limit: int) -> str:
     return value if len(value) <= limit else value[: max(0, limit - 1)] + "…"
 
 
-# Telegram's legacy Markdown parser treats ``_ * ` [`` as formatting
-# metacharacters. Failed job errors and audit actions routinely contain
-# at least underscores (``kill_switch_pause``) and backticks (Python
-# repr fragments), which would cause Telegram to reject the whole
-# message with a "can't parse entities" error and leave the operator
-# blind exactly when something is broken. Escape every dynamic field
-# that lands in a MARKDOWN-mode reply.
 def _md_escape(text: str | None) -> str:
     if not text:
         return ""
@@ -388,12 +378,7 @@ def _md_escape(text: str | None) -> str:
 
 
 async def _collect_dashboard_snapshot() -> dict[str, Any]:
-    """Pull every datum the operator dashboard needs.
-
-    Each fetch is wrapped so a single broken dependency degrades that
-    field to ``None`` rather than crashing the whole snapshot — the
-    operator must still get *something* even when the DB is sick.
-    """
+    """Pull every datum the operator dashboard needs."""
     snapshot: dict[str, Any] = {
         "uptime_seconds": time.monotonic() - _BOOT_MONOTONIC,
         "hostname": os.environ.get("FLY_MACHINE_ID")
@@ -404,11 +389,6 @@ async def _collect_dashboard_snapshot() -> dict[str, Any]:
         "open_positions": None,
         "total_usdc": None,
         "auto_trade_users": None,
-        # ``None`` = state could not be read. The renderer surfaces this
-        # as "❓ unknown" so the operator never sees a misleading
-        # "🟢 inactive" during a DB outage (Codex P2 follow-up on
-        # PR #874). The risk gate itself fails SAFE on the same error
-        # — see ``domain.ops.kill_switch.is_active``.
         "kill_switch_active": None,
         "lock_mode": None,
         "recent_jobs": [],
@@ -433,7 +413,7 @@ async def _collect_dashboard_snapshot() -> dict[str, Any]:
             ) or 0)
             snapshot["kill_switch_active"] = await ops_kill_switch.is_active(conn)
             snapshot["lock_mode"] = await ops_kill_switch.get_lock_mode(conn)
-    except Exception as exc:  # noqa: BLE001 — degrade-not-crash
+    except Exception as exc:  # noqa: BLE001
         logger.error("ops_dashboard snapshot DB read failed: %s", exc)
         snapshot["errors"].append(f"db: {exc}")
 
@@ -449,13 +429,11 @@ async def _collect_dashboard_snapshot() -> dict[str, Any]:
 def _render_dashboard(snapshot: dict[str, Any]) -> str:
     ks = snapshot.get("kill_switch_active")
     if ks is None:
-        # Snapshot fetch failed before the kill-switch read — never lie
-        # to the operator with "🟢 inactive" in this state.
         kill_state = "❓ unknown (DB unreachable)"
     elif ks:
-        kill_state = "🔴 ACTIVE"
+        kill_state = "\U0001f534 ACTIVE"
     else:
-        kill_state = "🟢 inactive"
+        kill_state = "\U0001f7e2 inactive"
     lock = " (LOCK)" if snapshot.get("lock_mode") else ""
     db = "✅" if snapshot["db_ok"] else "❌"
 
@@ -501,8 +479,6 @@ def _render_dashboard(snapshot: dict[str, Any]) -> str:
 
     if snapshot.get("errors"):
         lines.append("")
-        # Plain (escaped) text — same legacy-MARKDOWN entity caveat as
-        # the /jobs error line above.
         lines.append(
             "Some fields unavailable: "
             + _md_escape("; ".join(snapshot["errors"][:3]))
@@ -545,7 +521,7 @@ async def ops_dashboard_callback(update: Update,
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=ops_dashboard_keyboard(snapshot["kill_switch_active"]),
             )
-        except Exception:  # noqa: BLE001 — same-content edits raise
+        except Exception:  # noqa: BLE001
             pass
         return
 
@@ -573,12 +549,7 @@ _KS_USAGE = (
 
 async def _broadcast_pause(ctx: ContextTypes.DEFAULT_TYPE | None,
                            message: str) -> int:
-    """Notify every active auto-trade user that the operator paused trading.
-
-    Returns the number of users we attempted to message. Failures are
-    swallowed per-user so one Telegram error never blocks the operator
-    flow.
-    """
+    """Notify every active auto-trade user that the operator paused trading."""
     if ctx is None:
         return 0
     try:
@@ -636,24 +607,24 @@ async def _apply_killswitch_action(
     if action == "pause":
         if reply is not None:
             await reply(
-                "🔴 Kill switch *ACTIVE*. Auto-trade paused (≤30s "
+                "\U0001f534 Kill switch *ACTIVE*. Auto-trade paused (≤30s "
                 "propagation). Use `/killswitch resume` to re-open.",
                 parse_mode=ParseMode.MARKDOWN,
             )
         await _broadcast_pause(
             broadcast_via_ctx,
-            "🛑 Auto-trade paused by operator. New trades are blocked. "
+            "\U0001f6d1 Auto-trade paused by operator. New trades are blocked. "
             "Existing positions remain open until you close them.",
         )
     elif action == "resume":
         if reply is not None:
             await reply(
-                "🟢 Kill switch deactivated. Auto-trade resumed.",
+                "\U0001f7e2 Kill switch deactivated. Auto-trade resumed.",
             )
     elif action == "lock":
         if reply is not None:
             await reply(
-                "🔒 Kill switch *LOCKED*. "
+                "\U0001f512 Kill switch *LOCKED*. "
                 f"{result['users_disabled']} users had auto-trade disabled. "
                 "Run `/killswitch resume` after the incident is addressed; "
                 "users must re-opt-in individually.",
@@ -661,7 +632,7 @@ async def _apply_killswitch_action(
             )
         await _broadcast_pause(
             broadcast_via_ctx,
-            "🔒 Auto-trade has been locked by the operator due to an "
+            "\U0001f512 Auto-trade has been locked by the operator due to an "
             "incident. Your auto-trade has been turned OFF — re-enable "
             "from /dashboard once the operator confirms it is safe.",
         )
@@ -694,12 +665,7 @@ async def killswitch_command(update: Update,
 
 async def kill_command(update: Update,
                        ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """``/kill`` — operator alias for ``/killswitch pause`` (demo-readiness).
-
-    Kept as a thin wrapper so the demo flow ("/kill" → /resume) shown to
-    investors maps onto the existing audited kill_switch path. Same
-    operator-only gate applies.
-    """
+    """``/kill`` — operator alias for ``/killswitch pause``."""
     if not _is_operator(update) or update.message is None:
         await _reject_silently(update)
         return
@@ -759,10 +725,10 @@ async def unlock_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     await audit.write(
         actor_role="operator", action="operator_unlock", user_id=user["id"],
     )
-    await update.message.reply_text(f"🔓 {target} unlocked.")
+    await update.message.reply_text(f"\U0001f513 {target} unlocked.")
     await notifications.send(
         user["telegram_user_id"],
-        "🔓 Your account has been unlocked by an operator. You can resume trading.",
+        "\U0001f513 Your account has been unlocked by an operator. You can resume trading.",
     )
 
 
@@ -776,11 +742,7 @@ MAX_OPS_LIMIT = 50
 
 
 def _parse_limit(args: list[str], default: int) -> tuple[int, bool]:
-    """Return ``(limit, only_failed)`` from ``/jobs`` style args.
-
-    ``args`` may be empty, a single integer, the literal ``failed``, or
-    both (``failed 5``). Anything else falls back to ``(default, False)``.
-    """
+    """Return ``(limit, only_failed)`` from ``/jobs`` style args."""
     only_failed = False
     limit = default
     for tok in args:
@@ -811,11 +773,6 @@ def _render_jobs(rows: list[dict], only_failed: bool) -> str:
         line = (f"{status} `{_md_escape(r['job_name'])}` · "
                 f"{ts} · {duration}")
         if err:
-            # Render the error as plain (escaped) text — legacy
-            # ParseMode.MARKDOWN does NOT honour backslash escapes
-            # inside an entity span, so wrapping the escaped err in
-            # ``_..._`` could still fail to parse on common error
-            # strings (Codex follow-up review on PR #874).
             line += f"\n    └ {_md_escape(err)}"
         lines.append(line)
     return "\n".join(lines)
