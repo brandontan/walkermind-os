@@ -73,42 +73,67 @@ async def _reply(update: Update, text: str, **kw) -> None:
 
 # Maps internal preset key → MVP display label
 _MVP_LABELS: dict[str, tuple[str, str]] = {
-    "conservative": ("📡", "Conservative"),
-    "balanced":  ("🎯", "Balanced"),
-    "aggressive":     ("🚀", "Aggressive"),
+    "signal_sniper": ("📡", "Conservative"),
+    "value_hunter":  ("🎯", "Balanced"),
+    "full_auto":     ("🚀", "Aggressive"),
 }
 
+# V6: Beginner-friendly descriptions keyed by preset key (signal_sniper, value_hunter, full_auto)
 _MVP_DESCRIPTIONS: dict[str, str] = {
-    "conservative": "Lower risk • fewer trades",
-    "balanced":  "Recommended",
-    "aggressive":     "Higher activity",
+    "signal_sniper": (
+        "📡 Conservative\n"
+        "Risk: Low\n"
+        "Capital: up to 50%\n"
+        "Fewer trades, higher conviction signals.\n"
+        "Best for cautious, steady growth."
+    ),
+    "value_hunter": (
+        "🎯 Balanced\n"
+        "Risk: Medium\n"
+        "Capital: up to 40%\n"
+        "Steady trades from value signals.\n"
+        "Best for daily automated trading."
+    ),
+    "full_auto": (
+        "🚀 Aggressive\n"
+        "Risk: High\n"
+        "Capital: up to 80%\n"
+        "All signals active, max opportunities.\n"
+        "Best for experienced traders."
+    ),
 }
 
 
 def _preset_picker_text(active_preset_key: str | None = None) -> str:
-    """MVP Auto Trade screen — simple Conservative/Balanced/Aggressive."""
-    strategy_line = "Not selected"
+    """V6 Auto Trade screen — beginner-friendly picker with full descriptions."""
+    active_label = "None selected"
     if active_preset_key and active_preset_key in _MVP_LABELS:
         emoji, label = _MVP_LABELS[active_preset_key]
-        strategy_line = f"{emoji} {label}"
-    return (
-        "🤖 Auto Trade\n"
-        "\n"
-        "Current Strategy\n"
-        f"{strategy_line}\n"
-        "\n"
-        "Choose your trading style."
-    )
+        active_label = f"{emoji} {label}"
+
+    lines = [
+        "🤖 Auto Trade",
+        "",
+        f"Active: {active_label}",
+        "",
+    ]
+    for p in list_presets():
+        desc = _MVP_DESCRIPTIONS.get(p.key, "")
+        lines.append(desc)
+        lines.append("")
+
+    lines.append("Choose your strategy below.")
+    return "\n".join(lines)
 
 
 def _preset_confirm_text(p: Preset) -> str:
-    """MVP confirmation card — uses simplified labels."""
-    mvp_emoji, mvp_label = _MVP_LABELS.get(p.key, (p.emoji, p.name))
-    mvp_desc = _MVP_DESCRIPTIONS.get(p.key, "")
+    """V6 confirmation card — shows what was activated."""
+    emoji, label = _MVP_LABELS.get(p.key, (p.emoji, p.name))
+    desc = _MVP_DESCRIPTIONS.get(p.key, "")
     return (
-        "✅ Strategy Updated\n\n"
-        f"{mvp_emoji} {mvp_label}\n\n"
-        f"{mvp_desc}."
+        f"✅ {label} activated\n\n"
+        f"{desc}\n\n"
+        "Auto trading is now active."
     )
 
 
@@ -411,10 +436,10 @@ CUSTOM_SL = 2
 CUSTOM_REVIEW = 3
 CUSTOM_INPUT = 4
 
-# V5 AUTOBOT — 6-button main menu labels for wizard exit detection
+# V6 — 5-button main menu labels for wizard exit detection
 _MENU_BUTTONS_CUSTOMIZE = {
-    "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Mode",
-    "👥 Referrals", "⚙️ Settings", "❓ Help",
+    "🤖 Auto Trade", "💼 Portfolio", "⚙️ Settings",
+    "📊 Insights", "🛑 Stop Bot",
 }
 
 
@@ -974,7 +999,7 @@ def build_customize_handler() -> ConversationHandler:
         fallbacks=[
             CommandHandler("menu", wizard_fallback_menu),
             MessageHandler(
-                filters.Regex(r"^(🏠|💼|🤖|👥|⚙️|❓)"), wizard_menu_tap,
+                filters.Regex(r"^(🤖|💼|⚙️|📊|🛑)"), wizard_menu_tap,
             ),
             MessageHandler(
                 filters.TEXT & ~filters.COMMAND, wizard_fallback_text,

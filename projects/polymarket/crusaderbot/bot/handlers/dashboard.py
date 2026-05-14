@@ -42,6 +42,7 @@ async def _fetch_stats(user_id: UUID) -> dict:
             """
             SELECT
                 COALESCE(SUM(size_usdc), 0) AS positions_value,
+                COUNT(*)                    AS open_count,
                 COUNT(*) FILTER (WHERE current_price IS NOT NULL
                                    AND current_price > entry_price) AS winning,
                 COUNT(*) FILTER (WHERE current_price IS NOT NULL
@@ -88,6 +89,7 @@ async def _fetch_stats(user_id: UUID) -> dict:
         )
     return {
         "positions_value": Decimal(str(pos["positions_value"])),
+        "open_positions":  int(pos["open_count"]),
         "winning":         int(pos["winning"]),
         "losing":          int(pos["losing"]),
         "total_trades":    int(trades["total_trades"]),
@@ -141,34 +143,21 @@ def _build_text(
     pnl_today: Decimal,
     st: dict,
     auto_on: bool,
-    pulse: str,
 ) -> str:
-    """V5 AUTOBOT Dashboard: branding, pulse, HTML code-wrapped financials."""
-    equity = bal + st["positions_value"]
+    """V6 Dashboard — short, clear, beginner-friendly."""
     status_label = "🟢 Running" if auto_on else "🔴 Disabled"
-    exec_label = "💸 Live" if st["trading_mode"] == "live" else "📑 Paper"
+    mode_label = "💸 Live" if st["trading_mode"] == "live" else "📑 Paper"
     pnl_sign = "+" if pnl_today >= 0 else ""
+    open_count = st.get("open_positions", 0)
 
     return (
-        "𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧\n"
+        "📊 Dashboard\n"
         "\n"
-        "🤖 Bot\n"
-        f"└ {status_label}\n"
-        "\n"
-        "⚡ Pulse\n"
-        f"{pulse}\n"
-        "\n"
-        "💰 Account\n"
-        f"├ Equity:   <code>${equity:.2f}</code>\n"
-        f"├ Balance:  <code>${bal:.2f} USDC</code>\n"
-        f"├ Exposure: <code>${st['positions_value']:.2f}</code>\n"
-        f"└ Mode: {exec_label}\n"
-        "\n"
-        "📈 Today\n"
-        f"└ PnL: <code>{pnl_sign}${pnl_today:.2f}</code>\n"
-        "\n"
-        "📊 Stats\n"
-        f"└ W/L: {st['wins']}W • {st['losses']}L"
+        f"🤖 Bot: {status_label}\n"
+        f"💰 Balance: <code>${bal:.2f} USDC</code>\n"
+        f"📑 Mode: {mode_label}\n"
+        f"📈 Today: <code>{pnl_sign}${pnl_today:.2f}</code>\n"
+        f"📋 Positions: {open_count} open"
     )
 
 
@@ -180,9 +169,8 @@ async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     bal = await get_balance(user["id"])
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
-    pulse = await _fetch_pulse(user["id"])
 
-    text = _build_text(bal, pnl_today, st, user["auto_trade_on"], pulse)
+    text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
 
     await update.message.reply_text(
         text,
@@ -202,8 +190,7 @@ async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
     bal = await get_balance(user["id"])
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
-    pulse = await _fetch_pulse(user["id"])
-    text = _build_text(bal, pnl_today, st, user["auto_trade_on"], pulse)
+    text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
     try:
         await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=dashboard_kb())
     except Exception:
@@ -227,8 +214,7 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         bal = await get_balance(user["id"])
         pnl_today = await daily_pnl(user["id"])
         st = await _fetch_stats(user["id"])
-        pulse = await _fetch_pulse(user["id"])
-        text = _build_text(bal, pnl_today, st, user["auto_trade_on"], pulse)
+        text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
         try:
             await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=dashboard_kb())
         except Exception:
@@ -296,7 +282,7 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             )
         if not rows:
             await q.message.reply_text(
-                "No trades yet. Tap 🤖 Auto Mode to configure and start."
+                "No trades yet. Tap 🤖 Auto Trade to start."
             )
             return
         lines = ["*📈 Recent Trades:*\n"]

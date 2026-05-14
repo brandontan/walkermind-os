@@ -53,45 +53,45 @@ def test_grid_rows_custom_cols():
 
 # ---------- main_menu MVP (ReplyKeyboard) ------------------------------------
 
-V5_BUTTONS = {
-    "🏠 Dashboard",
+V6_BUTTONS = {
+    "🤖 Auto Trade",
     "💼 Portfolio",
-    "🤖 Auto Mode",
-    "👥 Referrals",
     "⚙️ Settings",
-    "❓ Help",
+    "📊 Insights",
+    "🛑 Stop Bot",
 }
 
 
-def test_main_menu_has_six_buttons():
-    # V5 AUTOBOT: 6 buttons in 2-column, 3-row layout
+def test_main_menu_has_five_buttons():
+    # V6: 5 buttons in 2+2+1 layout
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 6
+    assert len(all_buttons) == 5
 
 
 def test_main_menu_layout_three_rows():
-    # V5: 3 rows of 2 buttons each
+    # V6: 3 rows (2+2+1)
     kb = main_menu()
     assert len(kb.keyboard) == 3
 
 
-def test_main_menu_all_rows_are_pairs():
+def test_main_menu_first_two_rows_are_pairs():
     kb = main_menu()
-    for row in kb.keyboard:
-        assert len(row) == 2
+    assert len(kb.keyboard[0]) == 2
+    assert len(kb.keyboard[1]) == 2
 
 
-def test_main_menu_last_row_is_pair():
-    # V5: last row is [Settings, Help] — 2 buttons
+def test_main_menu_last_row_has_stop_bot():
+    # V6: last row is [Stop Bot] — single button
     kb = main_menu()
-    assert len(kb.keyboard[-1]) == 2
+    assert len(kb.keyboard[-1]) == 1
+    assert kb.keyboard[-1][0].text == "🛑 Stop Bot"
 
 
-def test_main_menu_expected_v5_buttons():
+def test_main_menu_expected_v6_buttons():
     kb = main_menu()
     labels = {btn.text for row in kb.keyboard for btn in row}
-    assert labels == V5_BUTTONS
+    assert labels == V6_BUTTONS
 
 
 def test_main_menu_signals_removed():
@@ -106,16 +106,17 @@ def test_main_menu_contains_portfolio_button():
     assert "💼 Portfolio" in labels
 
 
-def test_main_menu_insights_removed():
+def test_main_menu_contains_insights():
+    # V6: Insights IS in the main menu
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "📊 Insights" not in labels
+    assert "📊 Insights" in labels
 
 
-def test_main_menu_contains_help_button():
+def test_main_menu_contains_stop_bot():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "❓ Help" in labels
+    assert "🛑 Stop Bot" in labels
 
 
 # ---------- MAIN_MENU_ROUTES V5 -------------------------------------------
@@ -128,32 +129,37 @@ def test_portfolio_route_registered():
     assert "💼 Portfolio" in MAIN_MENU_ROUTES
 
 
-def test_insights_route_removed():
-    assert "📊 Insights" not in MAIN_MENU_ROUTES
+def test_insights_route_registered():
+    # V6: Insights IS a main menu route
+    assert "📊 Insights" in MAIN_MENU_ROUTES
 
 
-def test_auto_mode_route_registered():
-    assert "🤖 Auto Mode" in MAIN_MENU_ROUTES
+def test_auto_trade_route_registered():
+    assert "🤖 Auto Trade" in MAIN_MENU_ROUTES
 
 
-def test_all_six_main_menu_routes_present():
+def test_stop_bot_route_registered():
+    assert "🛑 Stop Bot" in MAIN_MENU_ROUTES
+
+
+def test_all_five_main_menu_routes_present():
     expected = {
-        "🏠 Dashboard", "💼 Portfolio", "🤖 Auto Mode",
-        "👥 Referrals", "⚙️ Settings", "❓ Help",
+        "🤖 Auto Trade", "💼 Portfolio", "⚙️ Settings",
+        "📊 Insights", "🛑 Stop Bot",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 
 
-def test_auto_mode_and_portfolio_are_different_handlers():
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Mode"]
+def test_auto_trade_and_portfolio_are_different_handlers():
+    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Trade"]
     portfolio_handler = MAIN_MENU_ROUTES["💼 Portfolio"]
     assert auto_handler is not portfolio_handler
 
 
-def test_auto_mode_and_dashboard_are_different_handlers():
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Mode"]
-    dash_handler = MAIN_MENU_ROUTES["🏠 Dashboard"]
-    assert auto_handler is not dash_handler
+def test_auto_trade_and_settings_are_different_handlers():
+    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Trade"]
+    settings_handler = MAIN_MENU_ROUTES["⚙️ Settings"]
+    assert auto_handler is not settings_handler
 
 
 # ---------- menu_copytrade_handler (via settings/secondary nav) ------------

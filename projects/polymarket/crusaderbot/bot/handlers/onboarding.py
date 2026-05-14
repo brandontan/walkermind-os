@@ -1,8 +1,14 @@
-"""First-time onboarding flow + returning-user /start routing — MVP Reset V1.
+"""First-time onboarding flow + returning-user /start routing — V6 UX Redesign.
 
-MVP flow:
-  New user    → /start → welcome bubble → Get Started → dashboard
+V6 flow:
+  New user    → /start → clean welcome bubble + persistent reply keyboard
   Return user → /start → dashboard (if ALLOWLISTED) or waitlist message
+
+Design principles:
+  - Single clean message for welcome
+  - Persistent reply keyboard established on first /start
+  - No "Get Started" friction step
+  - No debug logs, no restart messages
 """
 from __future__ import annotations
 
@@ -33,20 +39,25 @@ from ..tier import Tier, has_tier
 
 logger = logging.getLogger(__name__)
 
-# ConversationHandler state constant
+# ConversationHandler state constant (kept for legacy callback compat)
 ONBOARD_WELCOME = 0
 
-_WELCOME_TEXT = (
-    "𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧\n"
-    "\n"
-    "Your autonomous Polymarket trading copilot.\n"
-    "\n"
-    "📑 PAPER MODE\n"
-    "\n"
-    "Safe sandbox trading enabled.\n"
-    "\n"
-    "Ready to start?"
-)
+
+def _build_welcome_text(bal: float = 0.0, auto_trade_on: bool = False) -> str:
+    """Build clean welcome text per V6 UX spec."""
+    trading_status = "Active" if auto_trade_on else "Disabled"
+    return (
+        "🚀 Welcome to CrusaderBot\n"
+        "\n"
+        "📑 Mode: PAPER\n"
+        "🟢 Status: Ready\n"
+        "\n"
+        "├ Engine: Active\n"
+        f"├ Capital: ${bal:,.2f}\n"
+        f"└ Trading: {trading_status}\n"
+        "\n"
+        "Choose an action below."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -92,20 +103,39 @@ async def _entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
             await dashboard(update, ctx)
         else:
             await update.message.reply_text(
-                "⚔️ Welcome back to CRUSADER | AUTOBOT!\n\n"
-                "Mode: 📑 Paper\n"
+                "📑 Mode: PAPER\n"
+                "🟢 Status: Ready\n\n"
                 "You're on the waitlist — your invite is on its way!",
                 reply_markup=main_menu(),
             )
         return ConversationHandler.END
 
-    # New user — show MVP welcome
-    ctx.user_data["onboard_user_id"] = str(user_id)
+    # New user — V6: complete onboarding immediately, show clean welcome + menu
+    try:
+        await set_onboarding_complete(user_id)
+    except Exception as exc:
+        logger.warning(
+            "onboarding.set_complete_failed user_id=%s error=%s", user_id, exc,
+        )
+
+    # Fetch paper balance for welcome text
+    bal = 0.0
+    try:
+        from ...wallet.ledger import get_balance
+        raw = await get_balance(user_id)
+        bal = float(raw) if raw is not None else 0.0
+    except Exception as exc:
+        logger.debug("onboarding.balance_fetch_failed user_id=%s error=%s", user_id, exc)
+
+    auto_trade_on = bool(user.get("auto_trade_on", False))
+    welcome = _build_welcome_text(bal, auto_trade_on)
+
+    # Send welcome with persistent reply keyboard (establishes keyboard for all future sessions)
     await update.message.reply_text(
-        _WELCOME_TEXT,
-        reply_markup=get_started_kb(),
+        welcome,
+        reply_markup=main_menu(),
     )
-    return ONBOARD_WELCOME
+    return ConversationHandler.END
 
 
 # ---------------------------------------------------------------------------

@@ -52,7 +52,7 @@ from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 def test_main_menu_button_count():
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 6
+    assert len(all_buttons) == 5
 
 
 def test_main_menu_has_settings_not_wallet():
@@ -62,21 +62,22 @@ def test_main_menu_has_settings_not_wallet():
     assert "💰 Wallet" not in labels
 
 
-def test_main_menu_has_help_not_emergency():
+def test_main_menu_has_stop_bot_not_help():
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "❓ Help" in labels
-    assert "🚨 Emergency" not in labels
+    assert "🛑 Stop Bot" in labels
+    assert "❓ Help" not in labels
 
 
-def test_main_menu_v5_layout():
+def test_main_menu_v6_layout():
     kb = main_menu()
-    # V5 AUTOBOT: row0=[Dashboard, Portfolio], row1=[Auto Mode, Referrals], row2=[Settings, Help]
+    # V6: row0=[Auto Trade, Portfolio], row1=[Settings, Insights], row2=[Stop Bot]
+    row0 = [btn.text for btn in kb.keyboard[0]]
     row1 = [btn.text for btn in kb.keyboard[1]]
-    row2 = [btn.text for btn in kb.keyboard[2]]
-    assert "🤖 Auto Mode" in row1
-    assert "⚙️ Settings" in row2
-    assert "📡 Signal Feeds" not in row2
+    assert "🤖 Auto Trade" in row0
+    assert "💼 Portfolio" in row0
+    assert "⚙️ Settings" in row1
+    assert "📊 Insights" in row1
 
 
 # ---------------------------------------------------------------------------
@@ -305,10 +306,11 @@ def test_insights_kb_has_refresh():
 # ---------------------------------------------------------------------------
 
 
-def test_settings_hub_wallet_removed():
+def test_settings_hub_wallet_present():
+    """V6: Wallet IS in the settings hub (moved from standalone)."""
     kb = settings_hub_kb()
     data = _cb_data(kb)
-    assert "settings:wallet" not in data
+    assert "settings:wallet" in data
 
 
 def test_settings_hub_profile_removed():
@@ -438,9 +440,9 @@ def test_menu_routes_settings_registered():
     assert handler is settings_handler.settings_hub_root
 
 
-def test_menu_routes_auto_mode_registered():
+def test_menu_routes_auto_trade_registered():
     from projects.polymarket.crusaderbot.bot.handlers import presets
-    handler = get_menu_route("🤖 Auto Mode")
+    handler = get_menu_route("🤖 Auto Trade")
     assert handler is presets.show_preset_picker
 
 

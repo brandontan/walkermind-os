@@ -182,26 +182,30 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
 
-    open_count = int(st["winning"]) + int(st["losing"])
+    open_count = st.get("open_positions", 0)
+
+    if open_count == 0:
+        footer = "No open positions. Use Auto Trade to start."
+    else:
+        footer = "Tap Positions for full details."
 
     stats = (
         f"💼 Portfolio\n\n"
-        f"💰 Balance: ${bal:.2f}\n"
-        f"📈 PnL: {_pnl_fmt(pnl_today)}\n"
-        f"📋 Open Trades: {open_count}\n\n"
+        f"💰 Balance: ${bal:.2f} USDC\n"
+        f"📈 Today: {_pnl_fmt(pnl_today)}\n"
+        f"📋 Open: {open_count}\n\n"
+        f"{footer}"
     )
-    footer = "No active trades yet — premium monitoring is standing by." if open_count == 0 else "Active trades available. Tap Positions for full detail."
-    text = stats + footer
 
     if is_cb:
         await update.callback_query.message.reply_text(
-            text,
+            stats,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=portfolio_kb(),
         )
     else:
         await update.message.reply_text(
-            text,
+            stats,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=portfolio_kb(),
         )

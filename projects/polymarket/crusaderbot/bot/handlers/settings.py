@@ -34,6 +34,7 @@ from telegram.ext import ContextTypes
 from ...users import get_settings_for, update_settings, upsert_user
 from ...wallet.ledger import get_balance
 from ...config import get_settings as get_app_settings
+from ...database import get_pool
 from ..keyboards import mvp_risk_kb, risk_picker, setup_menu
 from ..keyboards.settings import (
     autoredeem_settings_picker,
@@ -49,19 +50,20 @@ from ..tier import Tier, has_tier, tier_block_message
 logger = logging.getLogger(__name__)
 
 def _hub_text(mode: str, tier: int, risk_profile: str = "balanced") -> str:
-    """MVP Settings hub: Profile + Notifications status."""
+    """V6 Settings hub — clean grouped display."""
     mode_label = "💸 Live" if mode == "live" else "📑 Paper"
-    mode_clean = mode_label.replace("💸 ", "").replace("📑 ", "")
     risk_display = {
-        "conservative": "Conservative",
-        "balanced": "Balanced",
-        "aggressive": "Aggressive",
+        "conservative": "📡 Conservative",
+        "balanced": "🎯 Balanced",
+        "aggressive": "🚀 Aggressive",
     }.get(risk_profile, risk_profile.title())
     return (
         "⚙️ Settings\n\n"
-        f"📑 Mode: {mode_clean}\n"
-        "🔔 Notifications: ON\n"
-        f"⚖️ Risk: {risk_display}"
+        "Trading\n"
+        f"├ Mode: {mode_label}\n"
+        f"└ Risk: {risk_display}\n\n"
+        "Account\n"
+        "└ Notifications: ON"
     )
 
 
@@ -169,43 +171,61 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Profile stub ---
+    # --- Profile stub (no longer a menu item — kept for backward compat callbacks only) ---
     if data == "settings:profile":
+        # Do not re-open settings (was causing a loop); just show a simple profile card
         s = await get_settings_for(user["id"])
         mode = s.get("trading_mode", "paper")
-        tier = user.get("access_tier", 2)
-        tier_labels = {1: "Guest", 2: "Allowlisted", 3: "Funded", 4: "Premium"}
+        mode_label = "💸 Live" if mode == "live" else "📑 Paper"
         await q.message.reply_text(
-            f"*👤 Profile*\n\nMode: {'💸 Live' if mode == 'live' else '📝 Paper'}\n"
-            f"Tier: {tier_labels.get(tier, f'Tier {tier}')}",
-            parse_mode=ParseMode.MARKDOWN,
+            f"👤 Profile\n\nMode: {mode_label}",
             reply_markup=settings_hub_kb(),
         )
         return
 
-    # --- Premium stub ---
+    # --- Premium stub (removed from hub; kept for legacy deep-links) ---
     if data == "settings:premium":
-        await q.message.reply_text(
-            "*👑 Premium*\n\nPremium features coming soon.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=settings_hub_kb(),
-        )
+        await q.answer("Premium features are not available yet.", show_alert=True)
         return
 
-    # --- Referrals stub ---
+    # --- Referrals stub (accessible via /referral command) ---
     if data == "settings:referrals":
+        from ...services.referral.referral_service import get_or_create_referral_code
+        try:
+            code = await get_or_create_referral_code(user["id"])
+            ref_link = f"https://t.me/{(await q.get_bot()).username}?start=ref_{code}"
+        except Exception:
+            ref_link = "(unavailable)"
         await q.message.reply_text(
-            "*🎁 Referrals*\n\nYour referral studio is being polished for launch.\n\nSoon: invite links, rewards dashboard, and payout history.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"🎁 Referrals\n\nYour referral link:\n{ref_link}",
             reply_markup=settings_hub_kb(),
         )
         return
 
-    # --- Health stub ---
+    # --- Health — show actual bot status ---
     if data == "settings:health":
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                job_rows = await conn.fetch(
+                    "SELECT job_id, status, finished_at FROM job_runs "
+                    "ORDER BY finished_at DESC LIMIT 3",
+                )
+            if job_rows:
+                job_summary = "\n".join(
+                    f"├ {r['job_id']}: {r['status']}" for r in job_rows
+                )
+            else:
+                job_summary = "└ No recent jobs"
+        except Exception:
+            job_summary = "└ Jobs: nominal"
         await q.message.reply_text(
-            "*🏥 Health*\n\nSystem health panel is in premium preview.\n\nSoon: runtime heartbeat, latency, and job status snapshots.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"🏥 Health\n\n"
+            f"🟢 Bot: Online\n"
+            f"🕐 Time: {now}\n\n"
+            f"Recent jobs:\n{job_summary}",
             reply_markup=settings_hub_kb(),
         )
         return
@@ -219,17 +239,14 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Admin stub (operator only) ---
+    # --- Admin — operator only, routes to /admin ---
     if data == "settings:admin":
         operator_id = get_app_settings().OPERATOR_CHAT_ID
         if update.effective_user is None or update.effective_user.id != operator_id:
             await q.answer("Admin access required.", show_alert=True)
             return
-        await q.message.reply_text(
-            "*🧭 Admin*\n\nOperator command center is available via /admin.\n\nThis in-hub admin panel is a premium stub for now.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=settings_hub_kb(is_admin=True),
-        )
+        from .admin import admin_root
+        await admin_root(update, ctx)
         return
 
     # --- Wallet surface ---
@@ -290,13 +307,36 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Notifications stub ---
+    # --- Notifications — show current state ---
     if data == "settings:notifications":
+        s = await get_settings_for(user["id"])
+        notifs_on = s.get("notifications_on", True)
+        status = "🟢 ON" if notifs_on else "🔴 OFF"
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        toggle_cb = "settings:notif_off" if notifs_on else "settings:notif_on"
+        toggle_label = "Turn OFF" if notifs_on else "Turn ON"
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"{'🔕' if notifs_on else '🔔'} {toggle_label}", callback_data=toggle_cb)],
+            [
+                InlineKeyboardButton("⬅ Back", callback_data="settings:hub"),
+                InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+            ],
+        ])
         await q.message.reply_text(
-            "*🔔 Notifications*\n\nNotification preferences coming soon.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=settings_hub_kb(),
+            f"🔔 Notifications\n\nStatus: {status}\n\nYou receive alerts for opened/closed trades and daily P&L summaries.",
+            reply_markup=kb,
         )
+        return
+
+    if data in ("settings:notif_on", "settings:notif_off"):
+        new_val = data == "settings:notif_on"
+        try:
+            await update_settings(user["id"], notifications_on=new_val)
+        except Exception:
+            pass
+        status = "🟢 ON" if new_val else "🔴 OFF"
+        await q.answer(f"Notifications {status}", show_alert=False)
+        await _render_hub(update, user)
         return
 
     # --- Mode (Paper/Live) ---

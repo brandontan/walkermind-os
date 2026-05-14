@@ -280,11 +280,9 @@ async def pnl_insights_command(
         await update.message.reply_text(tier_block_message(Tier.ALLOWLISTED))
         return
     data = await _fetch_insights(user["id"])
-    weekly_data = await _fetch_weekly_stats(user["id"])
-    weekly_section = format_weekly_insights(weekly_data)
-    full_text = format_insights(data) + "\n\n" + weekly_section
+    # V6: show format_insights only — no duplicate weekly_section
     await update.message.reply_text(
-        full_text,
+        format_insights(data),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=insights_kb(),
     )
@@ -304,11 +302,9 @@ async def insights_cb(
         await q.answer(tier_block_message(Tier.ALLOWLISTED), show_alert=True)
         return
     data = await _fetch_insights(user["id"])
-    weekly_data = await _fetch_weekly_stats(user["id"])
-    weekly_section = format_weekly_insights(weekly_data)
-    full_text = format_insights(data) + "\n\n" + weekly_section
+    # V6: show format_insights only — no duplicate weekly_section
     await q.message.reply_text(
-        full_text,
+        format_insights(data),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=insights_kb(),
     )

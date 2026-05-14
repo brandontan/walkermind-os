@@ -138,7 +138,7 @@ def wizard_custom_input_kb(back_target: str) -> InlineKeyboardMarkup:
 def wizard_done_kb() -> InlineKeyboardMarkup:
     """Success screen navigation."""
     buttons = [
-        InlineKeyboardButton("🏠 Dashboard",   callback_data="dashboard:main"),
+        InlineKeyboardButton("🏠 Home",          callback_data="dashboard:main"),
         InlineKeyboardButton("📊 Auto Trade Status", callback_data="preset:status"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))
