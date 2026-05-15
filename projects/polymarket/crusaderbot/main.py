@@ -128,13 +128,13 @@ async def lifespan(_: FastAPI):
                 "CAPITAL_MODE_CONFIRMED": settings.CAPITAL_MODE_CONFIRMED,
                 "APP_ENV": settings.APP_ENV,
                 "note": (
-                    "All three operator guards are True at startup. "
+                    "All three activation guards are True at startup. "
                     "Tier 4 users who have switched to live mode will now "
                     "route real orders to the Polymarket CLOB."
                 ),
             },
         )
-        log.info("live_gate_opened audit event written (all operator guards enabled)")
+        log.info("live_gate_opened audit event written (all activation guards enabled)")
 
     # Operator-only boot alert — must NEVER target a regular user's chat_id.
     # Guard ensures the send is skipped rather than misdirected when
@@ -147,7 +147,7 @@ async def lifespan(_: FastAPI):
             f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
             f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
             f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
-            f"{'✅ operator guards OPEN — Tier 4 users can trade live' if all_guards_ready else '🔒 operator guards LOCKED — all trades route to paper'}",
+            f"{'✅ activation guards OPEN — live trading enabled' if all_guards_ready else '🔒 activation guards LOCKED — all trades route to paper'}",
             parse_mode=None,
         )
 

@@ -129,9 +129,9 @@ async def live_gate_status(authorization: str | None = Header(default=None)):
         },
         "activation_history": activation_history,
         "summary": (
-            "✅ operator guards OPEN — Tier 4 users who set live mode will trade live"
+            "✅ activation guards OPEN — live trading enabled"
             if operator_guards_open
-            else "🔒 operator guards LOCKED — all trades route to paper regardless of user mode"
+            else "🔒 activation guards LOCKED — all trades route to paper"
         ),
     }
 

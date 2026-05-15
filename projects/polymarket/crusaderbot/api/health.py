@@ -49,7 +49,7 @@ def _resolve_mode() -> str:
     """Return ``"paper"`` unless every operator activation guard is open.
 
     Mirrors the contract documented in the issue brief: the runtime
-    advertises ``paper`` whenever any of the three operator guards
+    advertises ``paper`` whenever any of the three activation guards
     (ENABLE_LIVE_TRADING, EXECUTION_PATH_VALIDATED, CAPITAL_MODE_CONFIRMED)
     is unset. Live mode requires ALL three explicitly True.
     """
