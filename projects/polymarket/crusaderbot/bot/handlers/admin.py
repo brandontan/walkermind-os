@@ -252,7 +252,7 @@ async def resetonboard_command(update: Update,
         return
     await set_onboarding_complete(user["id"], False)
     await set_auto_trade(user["id"], False)
-    await update_settings(user["id"], active_preset=None, strategy_types=None)
+    await update_settings(user["id"], active_preset=None, strategy_types=[])
     uname = html.escape(user.get("username") or str(tg_uid))
     await update.message.reply_text(
         f"Onboarding reset for @{uname} (tg:{tg_uid}). "

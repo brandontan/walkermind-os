@@ -192,14 +192,15 @@ def test_compute_streak_breakeven_counts_as_loss():
 def test_insights_kb_structure():
     kb = insights_kb()
     rows = kb.inline_keyboard
-    assert len(rows) == 1
-    btns = rows[0]
-    assert len(btns) == 2
-    callbacks = {b.callback_data for b in btns}
-    assert "insights:refresh" in callbacks
-    # Dashboard button removed from insights per UX overhaul (Part 6).
-    assert "dashboard:main" not in callbacks
-    assert "insights:full_report" in callbacks
+    # Row 0: action buttons (Refresh + Full Report)
+    # Row 1: nav_row (Back + Home + Refresh)
+    assert len(rows) == 2
+    action_callbacks = {b.callback_data for b in rows[0]}
+    assert "insights:refresh" in action_callbacks
+    assert "insights:full_report" in action_callbacks
+    # Nav row added to prevent dead-end (BUG 1C fix)
+    nav_callbacks = {b.callback_data for b in rows[1]}
+    assert "dashboard:main" in nav_callbacks
 
 
 # ---------- 13. dashboard_nav includes Insights button when has_trades ---------
