@@ -166,10 +166,10 @@ def test_dashboard_with_tasks_shows_pause_button():
     assert f"copytrade:pause:{_FAKE_TASK['id']}" in cbs
 
 
-def test_dashboard_escapes_markdown_special_chars():
-    """Task names with _, *, [ must not break Markdown rendering."""
+def test_dashboard_renders_task_name_with_special_chars():
+    """Task names with _, *, [ render literally in HTML mode (not HTML-special)."""
     replies, _ = _run_dashboard([_TASK_WITH_SPECIAL_CHARS])
-    assert "\\_" in replies[0]
+    assert "My_Trade*[test]" in replies[0]
 
 
 # ---------- Paste flow -------------------------------------------------------

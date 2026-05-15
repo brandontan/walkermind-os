@@ -131,7 +131,7 @@ def test_status_paper_mode_banner_when_guards_off():
     ):
         _run(demo_polish.status_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    assert "📄 *PAPER MODE*" in body
+    assert "📄 <b>PAPER MODE</b>" in body
     assert "no real capital at risk" in body
     assert "abc1234" in body
     assert "2m" in body  # 125s == 2m
@@ -157,7 +157,7 @@ def test_status_live_mode_banner_when_all_guards_on():
     ):
         _run(demo_polish.status_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    assert "⚡ *LIVE MODE*" in body
+    assert "⚡ <b>LIVE MODE</b>" in body
     assert "2d 4h 30m" in body
 
 
@@ -183,13 +183,11 @@ def test_status_degraded_status_renders_yellow():
     assert "alchemy_rpc" in body
 
 
-def test_status_escapes_markdown_metacharacters_in_check_state():
+def test_status_escapes_html_special_chars_in_check_state():
     """``state`` may be a free-form ``error: ...`` string from
-    ``monitoring.health._with_timeout`` containing underscores or other
-    Markdown V1 metacharacters. Without escaping, an unbalanced ``_`` in
-    a degraded state would make Telegram reject the entire /status
-    message, leaving operators blind during the very incident the
-    command is meant to surface.
+    ``monitoring.health._with_timeout`` containing HTML special characters.
+    html.escape() is applied so ``<``, ``>``, ``&`` are safely encoded.
+    Underscores and asterisks are safe in HTML mode and pass through literally.
     """
     update = _make_update(message_text="/status")
     payload = {
@@ -216,10 +214,10 @@ def test_status_escapes_markdown_metacharacters_in_check_state():
     ):
         _run(demo_polish.status_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    # State string with underscores + asterisks must arrive escaped.
-    assert "ws\\_handshake\\_failed\\_\\*hot\\*" in body
-    # Check name stays inside its backtick code wrapper (literal underscore).
-    assert "`alchemy_ws`" in body
+    # Underscores and asterisks are safe in HTML mode — pass through literally.
+    assert "ws_handshake_failed_*hot*" in body
+    # Check name is wrapped in a <code> tag.
+    assert "<code>alchemy_ws</code>" in body
 
 
 def test_status_health_check_failure_is_handled_gracefully():
@@ -312,7 +310,7 @@ def test_demo_renders_top_three_signals_with_confidence():
     body = update.message.reply_text.call_args.args[0]
     # Top 3 visible + confidences
     assert "Will it rain in Jakarta tomorrow?" in body
-    assert "BTC > $100k by year end?" in body
+    assert "BTC &gt; $100k by year end?" in body
     assert "78%" in body
     assert "55%" in body
     # Empty payload renders as em-dash, not invented data.

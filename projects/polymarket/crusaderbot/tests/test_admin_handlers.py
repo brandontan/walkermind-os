@@ -129,12 +129,12 @@ def test_render_dashboard_kill_switch_inactive():
         "errors": [],
     }
     out = admin._render_dashboard(snapshot)
-    assert "Operator Dashboard" in out
+    assert "Admin Dashboard" in out
     assert "🟢 inactive" in out
     assert "1m" in out  # uptime
     assert "$1,234.50" in out
-    # Job name underscores are escaped for Telegram MARKDOWN safety.
-    assert "market\\_sync" in out
+    # Job names are wrapped in <code> tags in HTML mode.
+    assert "market_sync" in out
     assert "(LOCK)" not in out
 
 
@@ -155,7 +155,7 @@ def test_render_dashboard_kill_switch_locked():
     out = admin._render_dashboard(snapshot)
     assert "🔴 ACTIVE" in out
     assert "(LOCK)" in out
-    assert "_No recent job runs recorded._" in out
+    assert "<i>No recent job runs recorded.</i>" in out
 
 
 def test_render_dashboard_handles_missing_fields():
@@ -187,11 +187,11 @@ def test_render_dashboard_handles_missing_fields():
 
 
 def test_render_jobs_empty_default():
-    assert "_No job runs recorded yet._" in admin._render_jobs([], False)
+    assert "<i>No job runs recorded yet.</i>" in admin._render_jobs([], False)
 
 
 def test_render_jobs_empty_failed_filter_message():
-    assert "_No matching job runs._" in admin._render_jobs([], True)
+    assert "<i>No matching job runs.</i>" in admin._render_jobs([], True)
 
 
 def test_render_jobs_truncates_long_errors():
@@ -205,7 +205,7 @@ def test_render_jobs_truncates_long_errors():
 
 
 def test_render_auditlog_empty():
-    assert "_Audit log is empty._" in admin._render_auditlog([])
+    assert "<i>Audit log is empty.</i>" in admin._render_auditlog([])
 
 
 def test_render_auditlog_truncates_user_id():
@@ -217,47 +217,20 @@ def test_render_auditlog_truncates_user_id():
     }]
     out = admin._render_auditlog(rows)
     assert "operator" in out
-    # Action contains underscores — must be escaped so Telegram MARKDOWN
-    # parses cleanly (Codex P2 fix).
-    assert "kill\\_switch\\_pause" in out
-    assert "kill_switch_pause" not in out
+    # Action rendered as plain text in HTML mode — no underscore escaping.
+    assert "kill_switch_pause" in out
     # user_id truncated to 8 chars + ellipsis = 8 chars
     assert "abcdefg…" in out
 
 
-# ---------- Markdown escape ------------------------------------------------
-
-
-def test_md_escape_escapes_metacharacters():
-    out = admin._md_escape("a_b*c`d[e")
-    assert out == "a\\_b\\*c\\`d\\[e"
-
-
-def test_md_escape_handles_none_and_empty():
-    assert admin._md_escape(None) == ""
-    assert admin._md_escape("") == ""
-
-
-def test_md_escape_doubles_backslashes_first():
-    # The order matters: backslash must be doubled BEFORE escaping the
-    # other metacharacters, otherwise an _md_escape("_") produces ``\\_``
-    # which then becomes ``\\\\_`` on a re-escape pass.
-    out = admin._md_escape("\\_")
-    assert out == "\\\\\\_"
-
-
-def test_render_jobs_escapes_error_metacharacters():
-    # Failed job error contains underscores, backticks, and brackets —
-    # raw injection would break Telegram MARKDOWN parsing.
+def test_render_jobs_error_text_plain():
+    # Failed job error rendered as plain text in HTML mode — no Markdown escaping.
     err = "ValueError: bad_value `xyz` at [step 2]"
     rows = [_job_row("redeem", "failed", error=err)]
     out = admin._render_jobs(rows, only_failed=True)
-    assert "bad\\_value" in out
-    assert "\\`xyz\\`" in out
-    assert "\\[step 2]" in out
-    # The error must be rendered as plain (escaped) text, NOT wrapped
-    # in an italic span — legacy MARKDOWN rejects escapes inside
-    # entities, so a `_..._` wrap would still fail on common errors.
+    assert "bad_value" in out
+    assert "`xyz`" in out
+    assert "[step 2]" in out
     assert "└ ValueError" in out
     assert "_ValueError" not in out
 
@@ -338,7 +311,7 @@ def test_ops_dashboard_renders_for_operator():
         asyncio.run(admin.ops_dashboard_command(update, ctx))
     update.message.reply_text.assert_awaited_once()
     args, kwargs = update.message.reply_text.call_args
-    assert "Operator Dashboard" in args[0]
+    assert "Admin Dashboard" in args[0]
     assert kwargs["reply_markup"] is not None
 
 
@@ -448,5 +421,5 @@ def test_auditlog_default_limit():
         asyncio.run(admin.auditlog_command(update, ctx))
     fetch.assert_awaited_once_with(admin.DEFAULT_AUDIT_LIMIT)
     args, _ = update.message.reply_text.call_args
-    # Action underscores escaped for Telegram MARKDOWN safety.
-    assert "kill\\_switch\\_pause" in args[0]
+    # Action rendered as plain text in HTML mode — no underscore escaping.
+    assert "kill_switch_pause" in args[0]

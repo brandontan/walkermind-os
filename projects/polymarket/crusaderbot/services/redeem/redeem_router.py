@@ -26,6 +26,7 @@ guard is off the functions log INFO and return without touching state.
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 from decimal import Decimal
 from typing import Any
@@ -280,8 +281,8 @@ async def settle_winning_position(p: dict) -> None:
                                "shares": str(shares),
                                "payoff": str(payoff)})
     if p.get("telegram_user_id"):
-        msg = (f"🏆 *Redeemed* — winning side `{p['side']}`\n"
-               f"Payoff: *${float(payoff):+.2f}*")
+        msg = (f"🏆 <b>Redeemed</b> — winning side <code>{html.escape(p['side'])}</code>\n"
+               f"Payoff: <b>${float(payoff):+.2f}</b>")
         await notifications.send(p["telegram_user_id"], msg)
 
 
@@ -337,8 +338,8 @@ async def settle_losing_position(p: dict) -> None:
                                "size_usdc": str(p["size_usdc"]),
                                "pnl_usdc": str(pnl)})
     if p.get("telegram_user_id"):
-        msg = (f"❌ *Market resolved* — your position closed at a loss.\n"
-               f"Side: `{p['side']}` · P&L: *${float(pnl):+.2f}*")
+        msg = (f"❌ <b>Market resolved</b> — your position closed at a loss.\n"
+               f"Side: <code>{html.escape(p['side'])}</code> · P&amp;L: <b>${float(pnl):+.2f}</b>")
         await notifications.send(p["telegram_user_id"], msg)
 
 
