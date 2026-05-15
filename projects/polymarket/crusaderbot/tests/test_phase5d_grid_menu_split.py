@@ -53,18 +53,19 @@ def test_grid_rows_custom_cols():
 
 # ---------- main_menu MVP (ReplyKeyboard) ------------------------------------
 
-V6_BUTTONS = {
-    "🤖 Auto Trade",
+# MVP state-driven main_menu — "running bot" state labels
+MVP_RUNNING_BUTTONS = {
+    "📊 Dashboard",
+    "🤖 Auto-Trade",
     "💼 Portfolio",
-    "⚙️ Settings",
-    "📊 Insights",
-    "🛑 Stop Bot",
+    "📈 My Trades",
+    "🚨 Emergency",
 }
 
 
 def test_main_menu_has_five_buttons():
-    # V6: 5 buttons in 2+2+1 layout
-    kb = main_menu()
+    # Running state: 5 buttons in 2+2+1 layout
+    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     all_buttons = [btn for row in kb.keyboard for btn in row]
     assert len(all_buttons) == 5
 
@@ -76,22 +77,23 @@ def test_main_menu_layout_three_rows():
 
 
 def test_main_menu_first_two_rows_are_pairs():
-    kb = main_menu()
+    # Running state: row0=[Dashboard, Auto-Trade], row1=[Portfolio, My Trades]
+    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     assert len(kb.keyboard[0]) == 2
     assert len(kb.keyboard[1]) == 2
 
 
-def test_main_menu_last_row_has_stop_bot():
-    # V6: last row is [Stop Bot] — single button
+def test_main_menu_last_row_has_emergency():
+    # All states: last row is [🚨 Emergency]
     kb = main_menu()
     assert len(kb.keyboard[-1]) == 1
-    assert kb.keyboard[-1][0].text == "🛑 Stop Bot"
+    assert kb.keyboard[-1][0].text == "🚨 Emergency"
 
 
-def test_main_menu_expected_v6_buttons():
-    kb = main_menu()
+def test_main_menu_expected_running_buttons():
+    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     labels = {btn.text for row in kb.keyboard for btn in row}
-    assert labels == V6_BUTTONS
+    assert labels == MVP_RUNNING_BUTTONS
 
 
 def test_main_menu_signals_removed():
@@ -106,17 +108,18 @@ def test_main_menu_contains_portfolio_button():
     assert "💼 Portfolio" in labels
 
 
-def test_main_menu_contains_insights():
-    # V6: Insights IS in the main menu
-    kb = main_menu()
+def test_main_menu_contains_my_trades_when_running():
+    # Running state: My Trades replaces Insights in main menu
+    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "📊 Insights" in labels
+    assert "📈 My Trades" in labels
 
 
-def test_main_menu_contains_stop_bot():
+def test_main_menu_contains_emergency():
+    # All states: Emergency is always present in last row
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "🛑 Stop Bot" in labels
+    assert "🚨 Emergency" in labels
 
 
 # ---------- MAIN_MENU_ROUTES V5 -------------------------------------------
@@ -129,35 +132,37 @@ def test_portfolio_route_registered():
     assert "💼 Portfolio" in MAIN_MENU_ROUTES
 
 
-def test_insights_route_registered():
-    # V6: Insights IS a main menu route
-    assert "📊 Insights" in MAIN_MENU_ROUTES
+def test_dashboard_route_registered():
+    # Dashboard replaces Insights as a top-level route
+    assert "📊 Dashboard" in MAIN_MENU_ROUTES
 
 
 def test_auto_trade_route_registered():
-    assert "🤖 Auto Trade" in MAIN_MENU_ROUTES
+    # Label is now hyphenated: "🤖 Auto-Trade"
+    assert "🤖 Auto-Trade" in MAIN_MENU_ROUTES
 
 
-def test_stop_bot_route_registered():
-    assert "🛑 Stop Bot" in MAIN_MENU_ROUTES
+def test_emergency_route_registered():
+    # Emergency IS a route in the MVP state-driven menu
+    assert "🚨 Emergency" in MAIN_MENU_ROUTES
 
 
-def test_all_five_main_menu_routes_present():
+def test_all_main_menu_routes_present():
     expected = {
-        "🤖 Auto Trade", "💼 Portfolio", "⚙️ Settings",
-        "📊 Insights", "🛑 Stop Bot",
+        "🤖 Auto-Trade", "💼 Portfolio", "⚙️ Settings",
+        "📊 Dashboard", "🚨 Emergency",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 
 
 def test_auto_trade_and_portfolio_are_different_handlers():
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Trade"]
+    auto_handler = MAIN_MENU_ROUTES["🤖 Auto-Trade"]
     portfolio_handler = MAIN_MENU_ROUTES["💼 Portfolio"]
     assert auto_handler is not portfolio_handler
 
 
 def test_auto_trade_and_settings_are_different_handlers():
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto Trade"]
+    auto_handler = MAIN_MENU_ROUTES["🤖 Auto-Trade"]
     settings_handler = MAIN_MENU_ROUTES["⚙️ Settings"]
     assert auto_handler is not settings_handler
 
@@ -252,11 +257,12 @@ def test_emergency_menu_is_two_col():
 
 def test_preset_picker_is_two_col():
     kb = preset_picker()
-    # 2 preset grid rows + 1 Back/Home nav row
-    assert len(kb.inline_keyboard) == 3
+    # 5 presets → 3 preset grid rows + 1 Back/Home nav row = 4 total
+    assert len(kb.inline_keyboard) == 4
     assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 1
-    # Nav row: Back and Home both use dashboard:main (no dead noop:refresh)
-    nav = kb.inline_keyboard[2]
+    assert len(kb.inline_keyboard[1]) == 2
+    assert len(kb.inline_keyboard[2]) == 1  # 5th preset alone
+    # Nav row: Back and Home both use dashboard:main
+    nav = kb.inline_keyboard[3]
     assert len(nav) == 2
     assert all(btn.callback_data == "dashboard:main" for btn in nav)

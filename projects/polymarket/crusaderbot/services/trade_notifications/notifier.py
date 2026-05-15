@@ -112,11 +112,41 @@ def _fmt_pnl(pnl_usdc: float) -> str:
 _SEP = "━━━━━━━━━━━━━━━━━━━━"
 
 _STRAT_LABELS = {
-    "signal_sniper": "📡 Conservative",
-    "value_hunter":  "⚡ Balanced",
-    "full_auto":     "🚀 Aggressive",
+    "whale_mirror":  "🐋 Whale Mirror",
+    "signal_sniper": "📡 Signal Sniper",
+    "hybrid":        "🐋📡 Hybrid",
+    "value_hunter":  "🎯 Value Hunter",
+    "full_auto":     "🚀 Full Auto",
+    "copy_trade":    "🐋 Copy Trade",
+    "signal":        "📡 Signal",
+    "value":         "🎯 Value",
     "manual":        "Manual",
 }
+
+# Human-readable reasoning labels for signal_reason values
+_SIGNAL_REASON_LABELS: dict[str, str] = {
+    "yes_edge":        "Strong YES momentum signal",
+    "no_edge":         "Strong NO momentum signal",
+    "value_misprice":  "Mispriced market detected",
+    "whale_entry":     "Whale wallet entry observed",
+    "momentum":        "Momentum breakout",
+}
+
+
+def _build_reasoning(
+    signal_reason: Optional[str],
+    copy_wallet: Optional[str],
+    copy_win_rate: Optional[float],
+) -> str:
+    """Build reasoning block string (with trailing newline) or empty string."""
+    if copy_wallet:
+        short = f"{copy_wallet[:6]}…{copy_wallet[-4:]}" if len(copy_wallet) > 10 else copy_wallet
+        wr = f" · Win rate {copy_win_rate:.0f}%" if copy_win_rate is not None else ""
+        return f"💡 Copying {short}{wr}\n"
+    if signal_reason:
+        label = _SIGNAL_REASON_LABELS.get(signal_reason, signal_reason)
+        return f"💡 Reasoning: {label}\n"
+    return ""
 
 
 class TradeNotifier:
@@ -138,11 +168,16 @@ class TradeNotifier:
         sl_pct: Optional[float],
         mode: str = "paper",
         strategy_type: Optional[str] = None,
+        signal_reason: Optional[str] = None,
+        copy_wallet: Optional[str] = None,
+        copy_win_rate: Optional[float] = None,
     ) -> None:
-        """Send trade OPEN receipt card."""
+        """Send trade OPEN receipt card with optional reasoning block."""
         label = _market_label(market_question, market_id)
         strat = _STRAT_LABELS.get(strategy_type or "", strategy_type or "Auto")
         side_upper = side.upper()
+
+        reasoning = _build_reasoning(signal_reason, copy_wallet, copy_win_rate)
 
         text = (
             f"{_SEP}\n"
@@ -158,6 +193,7 @@ class TradeNotifier:
             "```\n"
             f"{_SEP}\n"
             f"Strategy: {strat}\n"
+            f"{reasoning}"
             f"{_SEP}"
         )
         await self._send(
@@ -179,6 +215,9 @@ class TradeNotifier:
         sl_pct: Optional[float],
         mode: str = "paper",
         strategy_type: Optional[str] = None,
+        signal_reason: Optional[str] = None,
+        copy_wallet: Optional[str] = None,
+        copy_win_rate: Optional[float] = None,
     ) -> None:
         """4-step animated trade execution sequence via in-place message edits.
 
@@ -201,6 +240,9 @@ class TradeNotifier:
                 sl_pct=sl_pct,
                 mode=mode,
                 strategy_type=strategy_type,
+                signal_reason=signal_reason,
+                copy_wallet=copy_wallet,
+                copy_win_rate=copy_win_rate,
             )
             return
 

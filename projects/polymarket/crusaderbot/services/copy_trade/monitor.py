@@ -46,6 +46,7 @@ from ...domain.copy_trade.models import CopyTradeTask
 from ...domain.copy_trade.repository import list_active_tasks
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ..trade_engine import TradeEngine, TradeSignal
+from ..trade_notifications import TradeNotifier
 from .scaler import MIN_TRADE_SIZE_USDC, mirror_size_direct, scale_size
 from .wallet_watcher import WalletWatcherUnavailable, fetch_recent_wallet_trades
 
@@ -54,8 +55,9 @@ logger = structlog.get_logger(__name__)
 _STRATEGY_TYPE = "copy_trade"
 # How many recent leader trades to fetch per wallet per tick
 _LEADER_FETCH_LIMIT = 20
-# Module-level TradeEngine singleton — stateless; safe to share across ticks
+# Module-level singletons — stateless; safe to share across ticks
 _engine: TradeEngine = TradeEngine()
+_notifier: TradeNotifier = TradeNotifier()
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +293,8 @@ async def _process_one(
             # Record spend and persist idempotency row
             actual_size = float(result.final_size_usdc) if result.final_size_usdc else copy_size
             await _record_spend(task.user_id, task.id, actual_size)
+            # Note: paper.py already calls notify_entry() for every paper fill.
+            # Do NOT call it again here — that would send a duplicate Telegram message.
         await _mark_processed(task.user_id, task.id, leader_trade_id)
     else:
         log.info(

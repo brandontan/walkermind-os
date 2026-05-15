@@ -25,10 +25,7 @@ from ...services.tiers import TIER_ADMIN, TIER_PREMIUM, get_user_tier, meets_tie
 log = structlog.get_logger(__name__)
 
 _UPGRADE_MESSAGES: dict[str, str] = {
-    TIER_PREMIUM: (
-        "🔒 This feature requires *PREMIUM* access.\n"
-        "Contact the admin to upgrade your account."
-    ),
+    TIER_PREMIUM: "🔒 This feature is not available yet.",
     TIER_ADMIN: "⛔ Admin access required.",
 }
 

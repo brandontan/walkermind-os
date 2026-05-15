@@ -30,14 +30,14 @@ next tick and drives the close pipeline via the priority chain
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
+from decimal import Decimal
 from typing import Optional
 
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
-
-from decimal import Decimal
 
 from ...database import get_pool
 from ...integrations.polymarket import get_book
@@ -179,24 +179,27 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh
     else:
         footer = "Tap Positions for full details."
 
+    pnl_today_str = _pnl_fmt(pnl_today)
     stats = (
-        f"💼 Portfolio\n\n"
-        f"💰 Balance: ${bal:.2f} USDC\n"
-        f"📈 Today: {_pnl_fmt(pnl_today)}\n"
-        f"📋 Open: {open_count}\n\n"
-        f"{footer}"
+        "<b>💼 Portfolio</b>\n\n"
+        "<blockquote>"
+        f"Balance   ${bal:.2f} USDC\n"
+        f"Today     {html.escape(pnl_today_str)}\n"
+        f"Open      {open_count} position{'s' if open_count != 1 else ''}"
+        "</blockquote>\n\n"
+        f"{html.escape(footer)}"
     )
 
     if is_cb:
         await update.callback_query.message.reply_text(
             stats,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=portfolio_kb(),
         )
     else:
         await update.message.reply_text(
             stats,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=portfolio_kb(),
         )
 
@@ -254,12 +257,12 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return_exceptions=False,
     )
 
-    lines = ["📌 Open Positions\n"]
+    lines = ["<b>📌 Open Positions</b>\n"]
     n = len(positions)
     for i, (pos, mark) in enumerate(zip(positions, marks)):
-        connector = "└" if i == n - 1 else "├"
-        title = _truncate(pos["question"] or pos["market_id"], MARKET_TITLE_MAX)
-        side = pos["side"].upper()
+        connector = "└─" if i == n - 1 else "├─"
+        title = html.escape(_truncate(pos["question"] or pos["market_id"], MARKET_TITLE_MAX))
+        side = html.escape(pos["side"].upper())
         entry = float(pos["entry_price"])
         size = float(pos["size_usdc"])
         if mark is None:
@@ -267,18 +270,18 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             mark_str = "N/A"
         else:
             pnl, pct = _unrealized_pnl(pos["side"], entry, mark, size)
-            pnl_str = _format_pnl(pnl, pct)
+            pnl_str = html.escape(_format_pnl(pnl, pct))
             mark_str = f"{mark:.3f}"
-        tp_sl = _format_tp_sl(pos["applied_tp_pct"], pos["applied_sl_pct"])
+        tp_sl = html.escape(_format_tp_sl(pos["applied_tp_pct"], pos["applied_sl_pct"]))
         lines.append(
-            f"{connector} `{str(pos['id'])[:8]}` *{side}* — _{title}_\n"
+            f"{connector} <code>{str(pos['id'])[:8]}</code> <b>{side}</b> — <i>{title}</i>\n"
             f"  size ${size:.2f} · entry {entry:.3f} · mark {mark_str}\n"
-            f"  P&L {pnl_str} · {tp_sl}"
+            f"  P&amp;L {pnl_str} · {tp_sl}"
         )
 
     await update.message.reply_text(
         "\n\n".join(lines),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=positions_list_kb([p["id"] for p in positions]),
     )
 
@@ -321,31 +324,31 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
     lines: list[str] = []
     if pos_rows:
-        lines.append(f"*📈 Open Positions ({len(pos_rows)}):*\n")
+        lines.append(f"<b>📈 Open Positions ({len(pos_rows)})</b>\n")
         for r in pos_rows:
-            title = _truncate(r["question"] or r["market_id"], MARKET_TITLE_MAX)
+            title = html.escape(_truncate(r["question"] or r["market_id"], MARKET_TITLE_MAX))
             lines.append(
-                f"`{str(r['id'])[:8]}` *{r['side'].upper()}* @ "
+                f"<code>{str(r['id'])[:8]}</code> <b>{html.escape(r['side'].upper())}</b> @ "
                 f"{float(r['entry_price']):.3f} · ${float(r['size_usdc']):.2f} "
-                f"[{r['mode']}]\n_{title}_"
+                f"[{html.escape(r['mode'])}]\n<i>{title}</i>"
             )
-        lines.append("\n_/positions for live P\\&L + force\\-close._")
+        lines.append("\n<i>/positions for live P&amp;L + force-close.</i>")
     else:
-        lines.append("*📈 Positions:* No open positions.")
+        lines.append("<b>📈 Positions:</b> No open positions.")
     lines.append("")
     if ord_rows:
-        lines.append("*📋 Recent Activity:*\n")
+        lines.append("<b>📋 Recent Activity</b>\n")
         for r in ord_rows:
-            title = _truncate(r["question"] or r["market_id"], 40)
+            title = html.escape(_truncate(r["question"] or r["market_id"], 40))
             lines.append(
                 f"{r['created_at'].strftime('%m-%d %H:%M')} · "
-                f"*{r['side'].upper()}* @ {float(r['price']):.3f} · "
-                f"${float(r['size_usdc']):.2f} [{r['mode']}/{r['status']}]\n_{title}_"
+                f"<b>{html.escape(r['side'].upper())}</b> @ {float(r['price']):.3f} · "
+                f"${float(r['size_usdc']):.2f} [{html.escape(r['mode'])}/{html.escape(r['status'])}]\n<i>{title}</i>"
             )
     else:
-        lines.append("*📋 Recent Activity:* No activity yet.")
+        lines.append("<b>📋 Recent Activity:</b> No activity yet.")
     await update.message.reply_text(
-        "\n\n".join(lines), parse_mode=ParseMode.MARKDOWN,
+        "\n\n".join(lines), parse_mode=ParseMode.HTML,
     )
 
 
@@ -382,10 +385,10 @@ async def force_close_ask(update: Update,
     if row is None:
         await q.message.reply_text("Position not found or already closed.")
         return
-    title = _truncate(row["question"] or row["market_id"], MARKET_TITLE_MAX)
+    title = html.escape(_truncate(row["question"] or row["market_id"], MARKET_TITLE_MAX))
     await q.message.reply_text(
-        f"Close *{title}*?\nThis cannot be undone.",
-        parse_mode=ParseMode.MARKDOWN,
+        f"Close <b>{title}</b>?\nThis cannot be undone.",
+        parse_mode=ParseMode.HTML,
         reply_markup=force_close_confirm_kb(position_id),
     )
 

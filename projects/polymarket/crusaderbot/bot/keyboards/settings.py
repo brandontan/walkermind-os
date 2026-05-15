@@ -119,7 +119,7 @@ def settings_mode_picker(current: str) -> InlineKeyboardMarkup:
         return f"{'✅' if m == current else '◻️'} {m.title()}"
     buttons = [
         InlineKeyboardButton(mark("paper"), callback_data="set_mode:paper"),
-        InlineKeyboardButton(mark("live") + " (Tier 4)", callback_data="set_mode:live"),
+        InlineKeyboardButton(mark("live"), callback_data="set_mode:live"),
         InlineKeyboardButton("⬅️ Back", callback_data="settings:hub"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))

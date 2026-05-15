@@ -206,7 +206,8 @@ def test_require_access_tier_blocks_when_below():
     assert called == []
     upd.effective_message.reply_text.assert_awaited_once()
     call_kwargs = upd.effective_message.reply_text.await_args[0][0]
-    assert "PREMIUM" in call_kwargs
+    # Tier wording is hidden from users (Chunk N cleanup); message says "not available"
+    assert "not available" in call_kwargs
 
 
 def test_require_access_tier_admin_blocks_premium():

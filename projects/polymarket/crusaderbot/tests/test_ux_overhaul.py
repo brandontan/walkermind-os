@@ -50,9 +50,13 @@ from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 
 
 def test_main_menu_button_count():
+    # No-strategy state: 4 buttons (Configure Strategy, Portfolio, Settings, Emergency)
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 5
+    assert len(all_buttons) == 4
+    # Running state: 5 buttons (Dashboard, Auto-Trade, Portfolio, My Trades, Emergency)
+    kb2 = main_menu(strategy_key="signal_sniper", auto_on=True)
+    assert len([btn for row in kb2.keyboard for btn in row]) == 5
 
 
 def test_main_menu_has_settings_not_wallet():
@@ -62,22 +66,26 @@ def test_main_menu_has_settings_not_wallet():
     assert "💰 Wallet" not in labels
 
 
-def test_main_menu_has_stop_bot_not_help():
+def test_main_menu_has_emergency_not_help():
+    # MVP UX: Emergency replaces Stop Bot; Help removed
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "🛑 Stop Bot" in labels
+    assert "🚨 Emergency" in labels
     assert "❓ Help" not in labels
+    assert "🛑 Stop Bot" not in labels
 
 
-def test_main_menu_v6_layout():
-    kb = main_menu()
-    # V6: row0=[Auto Trade, Portfolio], row1=[Settings, Insights], row2=[Stop Bot]
+def test_main_menu_mvp_layout():
+    # Running state: row0=[Dashboard, Auto-Trade], row1=[Portfolio, My Trades], row2=[Emergency]
+    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     row0 = [btn.text for btn in kb.keyboard[0]]
     row1 = [btn.text for btn in kb.keyboard[1]]
-    assert "🤖 Auto Trade" in row0
-    assert "💼 Portfolio" in row0
-    assert "⚙️ Settings" in row1
-    assert "📊 Insights" in row1
+    row2 = [btn.text for btn in kb.keyboard[2]]
+    assert "📊 Dashboard" in row0
+    assert "🤖 Auto-Trade" in row0
+    assert "💼 Portfolio" in row1
+    assert "📈 My Trades" in row1
+    assert "🚨 Emergency" in row2
 
 
 # ---------------------------------------------------------------------------
@@ -441,8 +449,9 @@ def test_menu_routes_settings_registered():
 
 
 def test_menu_routes_auto_trade_registered():
+    # Label is now "🤖 Auto-Trade" (hyphenated) in MVP UX
     from projects.polymarket.crusaderbot.bot.handlers import presets
-    handler = get_menu_route("🤖 Auto Trade")
+    handler = get_menu_route("🤖 Auto-Trade")
     assert handler is presets.show_preset_picker
 
 
@@ -451,6 +460,7 @@ def test_menu_routes_wallet_not_registered():
     assert handler is None
 
 
-def test_menu_routes_emergency_not_registered():
+def test_menu_routes_emergency_registered():
+    # Emergency IS a route in MVP UX (was not in V6)
     handler = get_menu_route("🚨 Emergency")
-    assert handler is None
+    assert handler is not None

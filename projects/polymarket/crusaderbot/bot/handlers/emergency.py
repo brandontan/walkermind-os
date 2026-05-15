@@ -47,28 +47,28 @@ async def _safe_edit(q, text: str, **kwargs) -> None:
 
 
 _EMERGENCY_INTRO = (
-    "*🚨 Emergency Controls*\n"
-    "_These actions take effect immediately._\n\n"
-    "⏸ *Pause Auto-Trade* — Stop new trades. Keep open positions.\n"
-    "🛑 *Pause + Close All* — Stop trading AND close every position at market.\n"
-    "🔒 *Lock Account* — Freeze everything. Requires operator unlock."
+    "<b>🚨 Emergency Controls</b>\n"
+    "<i>These actions take effect immediately.</i>\n\n"
+    "⏸ <b>Pause Auto-Trade</b> — Stop new trades. Keep open positions.\n"
+    "🛑 <b>Pause + Close All</b> — Stop trading AND close every position at market.\n"
+    "🔒 <b>Lock Account</b> — Freeze everything. Requires support to unlock."
 )
 
 _CONFIRM_TEXT: dict[str, str] = {
     "pause": (
-        "*Confirm: Pause Auto-Trade?*\n"
+        "<b>Confirm: Pause Auto-Trade?</b>\n"
         "This will stop all new trades immediately.\n"
         "Open positions will remain active."
     ),
     "pause_close": (
-        "*Confirm: Pause + Close All?*\n"
+        "<b>Confirm: Pause + Close All?</b>\n"
         "This will stop trading AND mark every open position for force-close.\n"
         "Positions close at market on the next exit watcher tick."
     ),
     "lock": (
-        "*Confirm: Lock Account?*\n"
+        "<b>Confirm: Lock Account?</b>\n"
         "This will freeze all trading immediately.\n"
-        "Your account must be unlocked by an operator to resume."
+        "Your account must be unlocked to resume."
     ),
 }
 
@@ -80,7 +80,7 @@ _FEEDBACK_TEXT: dict[str, str] = {
     ),
     "lock": (
         "🔒 Account locked.\n"
-        "All trading is frozen. Contact an operator to unlock."
+        "All trading is frozen. Contact support to unlock."
     ),
 }
 
@@ -122,7 +122,19 @@ async def emergency_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
     await update.message.reply_text(
         _EMERGENCY_INTRO,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
+        reply_markup=emergency_menu(),
+    )
+
+
+async def emergency_root_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback-query-compatible entry point for the emergency surface."""
+    q = update.callback_query
+    if q is None or q.message is None:
+        return
+    await q.message.reply_text(
+        _EMERGENCY_INTRO,
+        parse_mode=ParseMode.HTML,
         reply_markup=emergency_menu(),
     )
 
@@ -140,7 +152,7 @@ async def emergency_callback(update: Update,
         await _safe_edit(
             q,
             _CONFIRM_TEXT[sub],
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=emergency_confirm(sub),
         )
         return
@@ -150,7 +162,7 @@ async def emergency_callback(update: Update,
         await _safe_edit(
             q,
             _EMERGENCY_INTRO,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=emergency_menu(),
         )
         return

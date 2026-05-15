@@ -11,7 +11,30 @@ emit a SignalCandidate from it.
 """
 from __future__ import annotations
 
+from ...domain.preset.presets import capital_for_risk_profile
+
 MIN_TRADE_SIZE_USDC: float = 1.0
+
+
+def copy_size_for_risk_profile(
+    leader_size: float,
+    user_balance: float,
+    risk_profile: str,
+    max_position_pct: float = 0.10,
+) -> float:
+    """Return copy size in USDC based on the follower's risk profile capital allocation.
+
+    The effective per-trade budget is `user_balance * capital_for_risk_profile(risk_profile)`,
+    capped at `max_position_pct` of balance. Falls back to `mirror_size_direct` when
+    leader_size is unavailable (returns 0.0 to skip).
+    """
+    capital_pct = capital_for_risk_profile(risk_profile)
+    user_available = user_balance * capital_pct
+    return mirror_size_direct(
+        leader_size=leader_size,
+        user_available=user_available,
+        max_position_pct=max_position_pct,
+    )
 
 
 def scale_size(
@@ -89,4 +112,4 @@ def mirror_size_direct(
     return capped
 
 
-__all__ = ["scale_size", "mirror_size_direct", "MIN_TRADE_SIZE_USDC"]
+__all__ = ["scale_size", "mirror_size_direct", "copy_size_for_risk_profile", "MIN_TRADE_SIZE_USDC"]

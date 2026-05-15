@@ -329,6 +329,9 @@ def _build_candidate(
     }
     if target_price is not None:
         metadata["target_price"] = float(target_price)
+    signal_reason = payload.get("signal_reason")
+    if signal_reason:
+        metadata["signal_reason"] = str(signal_reason)
 
     return SignalCandidate(
         market_id=market_id,

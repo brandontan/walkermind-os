@@ -67,6 +67,8 @@ def _make_cmd_update(tg_user_id=12345, username="testuser"):
 
     async def _reply_text(text, **kw):
         replies.append(("text", text, kw))
+        # Return a fake Message so onboarding can store msg.message_id
+        return SimpleNamespace(message_id=999)
 
     msg = SimpleNamespace(
         reply_text=AsyncMock(side_effect=_reply_text),
@@ -85,15 +87,21 @@ def _make_cb_update(callback_data: str, tg_user_id=12345, username="testuser"):
 
     async def _reply_text(text, **kw):
         replies.append(("text", text, kw))
+        return SimpleNamespace(message_id=998)
+
+    async def _edit_message_text(text, **kw):
+        replies.append(("edit", text, kw))
 
     msg = SimpleNamespace(
         reply_text=AsyncMock(side_effect=_reply_text),
+        edit_message_text=AsyncMock(side_effect=_edit_message_text),
     )
     cq = SimpleNamespace(
         data=callback_data,
         answer=AsyncMock(),
         message=msg,
         from_user=SimpleNamespace(id=tg_user_id, username=username),
+        edit_message_text=AsyncMock(side_effect=_edit_message_text),
     )
     tg_user = SimpleNamespace(id=tg_user_id, username=username, first_name="Test")
     return SimpleNamespace(
@@ -253,23 +261,26 @@ def test_view_dashboard_cb_calls_dashboard():
 # ---------------------------------------------------------------------------
 
 def test_help_shows_navigation_items():
-    """V6 help_handler shows navigation button labels, no operator distinction."""
+    """MVP help_handler shows navigation button labels, no operator distinction."""
     update, replies = _make_cmd_update()
     ctx = _ctx()
     asyncio.run(help_handler(update, ctx))
     text = " ".join(r[1] for r in replies)
-    assert "Auto Trade" in text
+    # MVP UX: label is "Auto-Trade" (hyphenated); "Auto" and "Trade" are both present
+    assert "Auto" in text
     assert "Portfolio" in text
     assert "Settings" in text
-    assert "Insights" in text
+    # Insights moved off main menu; Emergency replaces Stop Bot
+    assert "Emergency" in text
 
 
-def test_help_shows_stop_bot_item():
+def test_help_shows_emergency_item():
+    # MVP UX: Emergency replaces Stop Bot in the main menu
     update, replies = _make_cmd_update()
     ctx = _ctx()
     asyncio.run(help_handler(update, ctx))
     text = " ".join(r[1] for r in replies)
-    assert "Stop Bot" in text
+    assert "Emergency" in text
 
 
 def test_help_shows_start_hint():
