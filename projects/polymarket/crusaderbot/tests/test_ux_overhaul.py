@@ -290,22 +290,23 @@ def test_insights_threshold_shows_current_count():
 
 
 # ---------------------------------------------------------------------------
-# Part 6 — insights_kb has no Dashboard button
+# Part 6 — insights_kb structure
 # ---------------------------------------------------------------------------
 
 from projects.polymarket.crusaderbot.bot.keyboards import insights_kb
-
-
-def test_insights_kb_no_dashboard_button():
-    kb = insights_kb()
-    labels = _btn_labels(kb)
-    assert not any("Dashboard" in lbl for lbl in labels)
 
 
 def test_insights_kb_has_refresh():
     kb = insights_kb()
     data = _cb_data(kb)
     assert "insights:refresh" in data
+
+
+def test_insights_kb_has_nav_row():
+    # BUG 1C fix: nav_row added to prevent dead-end on the insights surface.
+    kb = insights_kb()
+    data = _cb_data(kb)
+    assert "dashboard:main" in data
 
 
 # ---------------------------------------------------------------------------

@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import html
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Optional
@@ -48,6 +49,9 @@ CLOSE_FAILURE_OPERATOR_THRESHOLD: int = 2
 _last_alert_at: dict[tuple[str, str], float] = {}
 # Consecutive-failure counter per check name, used by ``record_health_result``.
 _consecutive_failures: dict[str, int] = {}
+
+_STARTUP_LOCK = "/tmp/.crusaderbot_last_startup_alert"
+_STARTUP_COOLDOWN = 10 * 60  # 10 minutes — suppress within same machine instance
 
 
 def _now_iso() -> str:
@@ -97,13 +101,34 @@ async def _dispatch(alert_type: str, key: str, body: str) -> bool:
 
 
 async def alert_startup(restart_detected: bool = True) -> None:
-    """Notify the operator that the process has just started (Fly machine boot)."""
+    """Notify the operator that the process has just started (Fly machine boot).
+
+    Suppressed if a startup alert was dispatched within _STARTUP_COOLDOWN seconds
+    on this machine instance (/tmp persists within instance, not across deploys).
+    """
+    try:
+        if os.path.exists(_STARTUP_LOCK):
+            with open(_STARTUP_LOCK) as f:
+                last_ts = float(f.read().strip())
+            if (time.time() - last_ts) < _STARTUP_COOLDOWN:
+                logger.debug("startup alert suppressed by /tmp lock (cooldown active)")
+                return
+    except Exception as exc:
+        logger.warning("startup lock read failed — proceeding without cooldown: %s", exc)
+
     body = (
         f"[CrusaderBot][admin] startup event\n"
         f"time: {_now_iso()}\n"
         f"event: {'restart' if restart_detected else 'cold_start'}"
     )
-    await _dispatch("startup", "boot", body)
+    dispatched = await _dispatch("startup", "boot", body)
+
+    if dispatched:
+        try:
+            with open(_STARTUP_LOCK, "w") as f:
+                f.write(str(time.time()))
+        except Exception as exc:
+            logger.warning("startup lock write failed — next restart will alert again: %s", exc)
 
 
 async def alert_dependency_unreachable(check_name: str, reason: str) -> None:

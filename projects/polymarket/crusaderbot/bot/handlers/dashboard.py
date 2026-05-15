@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import html
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -19,7 +20,7 @@ from ...wallet.ledger import daily_pnl, get_balance
 from ...wallet.vault import get_wallet
 from ..keyboards import (
     activity_nav_kb, autotrade_toggle, dashboard_kb, dashboard_nav, insights_kb,
-    main_menu, setup_menu, wallet_menu,
+    main_menu, nav_row, setup_menu, wallet_menu,
 )
 from ..roles import is_admin, _get_user
 from .setup import STRATEGY_DISPLAY_NAMES
@@ -257,6 +258,43 @@ async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
                                    reply_markup=_state_kb(user["auto_trade_on"], strat_key))
 
 
+async def _build_monitor_text(user: dict) -> str:
+    from ...jobs.market_signal_scanner import get_scanner_state
+    state = get_scanner_state()
+    scanned   = state.get("scanned", 0)
+    published = state.get("published", 0)
+    last_tick = state.get("last_tick_ts")
+    tick_str  = (
+        datetime.fromtimestamp(last_tick).strftime("%H:%M:%S")
+        if last_tick else "—"
+    )
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        pos_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='open'",
+            user["id"],
+        )
+        today_pnl = await conn.fetchval(
+            """SELECT COALESCE(SUM(pnl_usdc),0) FROM positions
+               WHERE user_id=$1 AND status='closed'
+               AND closed_at >= CURRENT_DATE""",
+            user["id"],
+        ) or 0
+    engine = "🟢 Running" if user.get("auto_trade_on") else "🔴 Stopped"
+    return (
+        "<b>📊 ACTIVE MONITOR</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "<b>Engine</b>\n"
+        f"<blockquote>Status    {engine}\n"
+        f"Scanner   {scanned} scanned / {published} signals\n"
+        f"Last tick {tick_str}</blockquote>\n\n"
+        "<b>Portfolio</b>\n"
+        f"<blockquote>Open      {pos_count} positions\n"
+        f"Today PnL ${float(today_pnl):+.2f}</blockquote>\n\n"
+        "📡 Live data — tap Refresh to update."
+    )
+
+
 async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles all dashboard:* inline callbacks."""
     q = update.callback_query
@@ -294,15 +332,19 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
                                        reply_markup=_state_kb(True, strat_key))
         return
 
-    # --- monitor: just refresh while bot is ON ---
+    # --- monitor: dedicated scanner + portfolio view ---
     if sub == "monitor":
-        text, strat_key = await _build_dashboard_text_for(user)
+        text = await _build_monitor_text(user)
+        monitor_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Refresh", callback_data="dashboard:monitor")],
+            nav_row("dashboard:main"),
+        ])
         try:
             await q.edit_message_text(text, parse_mode=ParseMode.HTML,
-                                      reply_markup=_state_kb(user["auto_trade_on"], strat_key))
+                                      reply_markup=monitor_kb)
         except Exception:
             await q.message.reply_text(text, parse_mode=ParseMode.HTML,
-                                       reply_markup=_state_kb(user["auto_trade_on"], strat_key))
+                                       reply_markup=monitor_kb)
         return
 
     # --- portfolio (v3 new) ---
@@ -369,7 +411,8 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             )
         if not rows:
             await q.message.reply_text(
-                "No trades yet. Tap 🤖 Auto Trade to start."
+                "No trades yet. Tap 🤖 Auto Trade to start.",
+                reply_markup=InlineKeyboardMarkup([nav_row("dashboard:portfolio")]),
             )
             return
         lines = ["<b>📈 Recent Trades</b>\n"]
@@ -385,6 +428,7 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             )
         await q.message.reply_text(
             "\n\n".join(lines), parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([nav_row("dashboard:portfolio")]),
         )
 
     # --- wallet (kept as alias) ---
@@ -426,10 +470,14 @@ async def autotrade_toggle_cb(update: Update,
     if await autotrade_toggle_pending_confirm(update, ctx):
         return
     await set_auto_trade(user["id"], new_state)
-    await q.message.reply_text(
-        f"Auto-trade is now *{'ON' if new_state else 'OFF'}*.",
-        parse_mode=ParseMode.HTML,
-    )
+    user["auto_trade_on"] = new_state
+    text, strat_key = await _build_dashboard_text_for(user)
+    try:
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML,
+                                  reply_markup=_state_kb(new_state, strat_key))
+    except Exception:
+        await q.message.reply_text(text, parse_mode=ParseMode.HTML,
+                                   reply_markup=_state_kb(new_state, strat_key))
 
 
 async def positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
