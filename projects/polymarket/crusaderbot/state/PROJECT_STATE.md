@@ -3,6 +3,11 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (2
 
 [COMPLETED]
 - crusaderbot-mvp-runtime-ux MERGED PR #1049 (2026-05-15). 5-preset system (whale_mirror+hybrid added), capital decoupling via capital_for_risk_profile(), state-driven main_menu() 3-layout, HTML blockquote UX throughout, copy-trade pipeline completion, scanner state exposure, tier wording cleanup. Closes #1036, #1034. MAJOR, FULL RUNTIME INTEGRATION. 1405 tests green.
+Last Updated : 2026-05-15 12:20
+Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (14 phases A–N). 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Production PAPER ONLY.
+
+[COMPLETED]
+- crusaderbot-mvp-runtime-ux MERGED PR #1049 (2026-05-15). MVP Runtime + Telegram UX Redesign — 14 phases A–N. 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state exposure, tier wording cleanup; 58 hermetic tests green; MAJOR, FULL RUNTIME INTEGRATION + UX REDESIGN. Issues #1036 and #1034 closed.
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. Dashboard pulse, monospaced financials, 6-button menu, English localization. STANDARD, NARROW INTEGRATION.
 - live-execution-user-id-guards MERGED PR #1021. close_position() AND user_id=$N hardening; 5 isolation tests; MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
 - compact-hierarchy-readability-regression MERGED PR #1032 on warp/fix-telegram-mvp-ux-readability-regression. Compact hierarchy readability regression fix + traceability/state sync; STANDARD, NARROW INTEGRATION.
@@ -22,6 +27,9 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (2
 
 [IN PROGRESS]
 - Closed beta observation / paper-mode runtime monitoring active.
+
+[IN PROGRESS]
+- Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -43,6 +51,13 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (2
 [KNOWN ISSUES]
 - migration 027 (notifications_on) must be applied before deploying this lane.
 - pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-runtime-ux; separate cleanup lane required.
+- Deploy migration 027 (notifications_on) to production before activating PR #1049 code on Fly.io.
+- WARP🔹CMD to verify Fly.io production deploy of PR #1049 changes (24 source files).
+- Keep production PAPER ONLY until explicit owner live activation decision.
+
+[KNOWN ISSUES]
+- migration 027 (notifications_on) must be applied before deploying PR #1049 code on Fly.io.
+- pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-ux-v1; separate cleanup lane required.
 - /deposit has no tier gate; intentional and non-blocking.
 - check_alchemy_ws is TCP-only and does not perform a full WebSocket handshake; low-priority follow-up.
 - ENABLE_LIVE_TRADING code default in config.py is True (legacy); fly.toml [env] overrides to false so production posture is correct. Code default alignment remains deferred to WARP/config-guard-default-alignment.
