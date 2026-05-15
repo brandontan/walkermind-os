@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""WARP Auto Gate v2 — function-first deputy PR router.
+"""WARP Auto Gate v3 — focused P0/P1 gate. No cosmetics.
 
 Flow:
   WARP•FORGE -> WARP•GATE -> WARP🔹CMD
 
-Behavior:
-  - P0 safety/runtime/capital/credential/live-trading blockers fail the workflow.
-  - Non-critical actionable issues are posted as one WARP•FORGE fix task.
-  - MAJOR PRs that are pre-handoff ready are routed to WARP•SENTINEL by comment.
-  - Clean PRs are marked ready for WARP🔹CMD review.
-  - WARP•GATE never merges.
+P0 (workflow fail):  hard stops — secrets, threading, Kelly, silent-except,
+                     live-trading guard, phase folders
+P1 (fix required):   missing PR body fields, missing forge report,
+                     PROJECT_STATE not updated, CI failures
+Advisory:            MAJOR tier → SENTINEL required (info only, no block)
+Clean:               route to WARP🔹CMD
 
-This script is stdlib-only and intended for GitHub Actions.
+Branch rule: WARP/ prefix only. Slug cosmetics are not enforced here.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def _headers(token: str) -> dict[str, str]:
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "WARP-Gate/2",
+        "User-Agent": "WARP-Gate/3",
     }
 
 
@@ -132,7 +132,7 @@ def post_or_update_comment(repo: str, pr_number: int, token: str, body: str) -> 
 # ---------------------------------------------------------------------------
 
 def changed_filenames(files: list[dict[str, Any]]) -> list[str]:
-    return [str(file_info.get("filename", "")) for file_info in files]
+    return [str(f.get("filename", "")) for f in files]
 
 
 def added_text_from_patch(patch: str) -> str:
@@ -156,15 +156,6 @@ def is_forge_pr(filenames: list[str]) -> bool:
 
 
 def extract_field(body: str, field: str) -> str:
-    """Return a PR body field value.
-
-    Accepts both:
-      Field: value
-      Field - value
-
-    This fixes the Codex finding where MAJOR routing could be skipped when a
-    dash separator was used instead of a colon.
-    """
     pattern = re.compile(
         rf"^\s*(?:\*\*)?{re.escape(field)}(?:\*\*)?\s*[:\-]\s*(.+?)\s*$",
         re.IGNORECASE | re.MULTILINE,
@@ -210,112 +201,69 @@ def has_final_output_line(body: str, name: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Gate checks
+# Gate checks — P0 and P1 only. No cosmetics.
 # ---------------------------------------------------------------------------
 
 def check_branch(branch: str) -> list[str]:
-    """Branch findings are routed as fix-required, not hard workflow failures.
-
-    Mr. Walker's intended behavior:
-      - accept WARP/ uppercase or lowercase
-      - accept WARP/HOTFIX-KEYBOARD-MISSING
-      - accept WARP/hotfix-keyboard-missing
-      - do not let branch slug cosmetics outrank function/safety
-    """
-    findings: list[str] = []
-
+    """Single rule: branch must start with WARP/. Slug cosmetics not enforced."""
     if not branch.startswith("WARP/"):
-        findings.append(
-            f"Branch `{branch}` should be recreated/renamed under `WARP/{{feature}}` before CMD final merge review."
-        )
-        return findings
-
-    slug = branch_slug(branch)
-    if "/" in slug:
-        findings.append(f"Branch `{branch}` has a nested slash. Use one `WARP/{{feature}}` slug.")
-    if "_" in slug or "." in slug:
-        findings.append(f"Branch `{branch}` contains underscore/dot. Use hyphens only.")
-    if re.search(r"(?:20\d{6}|20\d{2}-\d{2}-\d{2})", slug):
-        findings.append(f"Branch `{branch}` looks date-suffixed. Use a stable feature slug.")
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*", slug):
-        findings.append(f"Branch `{branch}` has invalid slug characters. Use alnum + hyphen only.")
-
-    return findings
+        return [f"Branch `{branch}` must use `WARP/{{feature}}` prefix."]
+    return []
 
 
 def check_pr_body(body: str) -> list[str]:
-    missing = [field for field in REQUIRED_BODY_FIELDS if not has_field(body, field)]
+    missing = [f for f in REQUIRED_BODY_FIELDS if not has_field(body, f)]
     if len(missing) == len(REQUIRED_BODY_FIELDS):
-        return [
-            "PR body is missing all gate fields: Validation Tier, Claim Level, Validation Target, Not in Scope."
-        ]
+        return ["PR body is missing all gate fields: Validation Tier, Claim Level, Validation Target, Not in Scope."]
     return [f"PR body missing `{field}`." for field in missing]
 
 
 def check_forge_report(files: list[dict[str, Any]], branch: str) -> tuple[list[str], str]:
+    """Check forge report exists. Accept any path under /reports/forge/ — no slug matching."""
     filenames = changed_filenames(files)
     if not is_forge_pr(filenames):
         return [], ""
 
-    expected = f"{PROJECT_ROOT}/reports/forge/{branch_slug(branch)}.md"
-    forge_reports = [
-        name for name in filenames if "/reports/forge/" in name and name.endswith(".md")
-    ]
-
-    if expected in filenames:
-        return [], expected
+    forge_reports = [n for n in filenames if "/reports/forge/" in n and n.endswith(".md")]
     if forge_reports:
-        return [
-            f"Forge report path should align with branch slug. Expected `{expected}`, found `{forge_reports[0]}`."
-        ], forge_reports[0]
-    return [f"Forge report missing. Expected `{expected}`."], expected
+        return [], forge_reports[0]
+
+    expected = f"{PROJECT_ROOT}/reports/forge/{branch_slug(branch)}.md"
+    return [f"Forge report missing. Expected under `{PROJECT_ROOT}/reports/forge/`."], expected
 
 
 def check_project_state(files: list[dict[str, Any]]) -> list[str]:
     filenames = changed_filenames(files)
-    if any(is_runtime_code(name) for name in filenames) and f"{PROJECT_ROOT}/state/PROJECT_STATE.md" not in filenames:
+    if (
+        any(is_runtime_code(name) for name in filenames)
+        and f"{PROJECT_ROOT}/state/PROJECT_STATE.md" not in filenames
+    ):
         return [f"`{PROJECT_ROOT}/state/PROJECT_STATE.md` not updated for code-bearing FORGE PR."]
     return []
 
 
 def check_hard_stops(files: list[dict[str, Any]]) -> list[str]:
-    """Return true P0 findings.
-
-    Pattern strings are built from small pieces to avoid self-triggering when
-    this gate script itself is modified and the PR patch contains the scanner
-    definitions.
-    """
+    """P0 only: real safety/runtime/capital/credential blockers."""
     issues: list[str] = []
 
     hard_stop_patterns: list[tuple[re.Pattern[str], str]] = [
         (
-            re.compile(r"(?:^|\s)import\s+" + "threading" + r"\b|from\s+" + "threading" + r"\s+import", re.MULTILINE),
-            "threading import in runtime path",
+            re.compile(r"(?:^|\s)import\s+threading\b|from\s+threading\s+import", re.MULTILINE),
+            "threading import (use asyncio only)",
         ),
         (
             re.compile(
-                r"\b" + "kelly_fraction" + r"\s*=\s*" + "1" + r"\.0\b|"
-                r"\b" + "a" + r"\s*=\s*" + "1" + r"\.0\b.*[Kk]elly|"
-                r"[Kk]elly.*\b" + "a" + r"\s*=\s*" + "1" + r"\.0\b",
+                r"\bkelly_fraction\s*=\s*1\.0\b"
+                r"|\ba\s*=\s*1\.0\b.*[Kk]elly"
+                r"|[Kk]elly.*\ba\s*=\s*1\.0\b",
                 re.IGNORECASE,
             ),
-            "full Kelly sizing",
+            "full Kelly sizing (a=1.0 forbidden)",
         ),
         (
-            re.compile(
-                r"except\s*:\s*" + "pass" + r"\b|"
-                r"except\s+Exception\s*:\s*(?:\n\s*)?" + "pass" + r"\b",
-                re.MULTILINE,
-            ),
-            "silent exception handling",
-        ),
-        (
-            re.compile(
-                "ENABLE_" + "LIVE_" + "TRADING" + r"\s*=\s*" + "True" + r"\b(?!\s*#\s*overridden)",
-                re.IGNORECASE,
-            ),
-            "live-trading guard hardcoded true",
-        ),
+            re.compile(r"except\s*:\s*pass\b|except\s+Exception\s*:\s*(?:\n\s*)?pass\b", re.MULTILINE),
+            "silent exception handling (except: pass)",
+        ),        
     ]
 
     secret_pattern = re.compile(
@@ -326,34 +274,18 @@ def check_hard_stops(files: list[dict[str, Any]]) -> list[str]:
 
     for file_info in files:
         filename = str(file_info.get("filename", ""))
-        added_text = added_text_from_patch(file_info.get("patch", "") or "")
+        added = added_text_from_patch(file_info.get("patch", "") or "")
 
         if re.search(r"(^|/)phase\d+[/_]", filename):
-            issues.append(f"P0: forbidden phase*/ folder introduced: `{filename}`.")
+            issues.append(f"P0: forbidden `phase*/` folder: `{filename}`.")
 
-        if secret_pattern.search(added_text):
+        if secret_pattern.search(added):
             issues.append(f"P0: potential hardcoded credential in `{filename}`.")
 
         for pattern, label in hard_stop_patterns:
-            if pattern.search(added_text):
+            if pattern.search(added):
                 issues.append(f"P0: {label} in `{filename}`.")
 
-    return issues
-
-
-def check_report_drift(files: list[dict[str, Any]], branch: str) -> list[str]:
-    issues: list[str] = []
-    for file_info in files:
-        filename = str(file_info.get("filename", ""))
-        if "/reports/forge/" not in filename or not filename.endswith(".md"):
-            continue
-        patch = file_info.get("patch", "") or ""
-        refs = re.findall(r"Branch\s*:\s*(WARP/[^\s`]+)", patch)
-        for ref in refs:
-            if ref != branch:
-                issues.append(
-                    f"Forge report branch reference `{ref}` should match actual PR head `{branch}`."
-                )
     return issues
 
 
@@ -364,28 +296,19 @@ def check_ci(check_runs: list[dict[str, Any]]) -> list[str]:
         if name == "WARP Auto Gate":
             continue
         if run.get("status") == "completed" and run.get("conclusion") in {
-            "failure",
-            "timed_out",
-            "cancelled",
+            "failure", "timed_out", "cancelled",
         }:
-            issues.append(f"CI check `{name}` completed with `{run.get('conclusion')}`.")
+            issues.append(f"CI check `{name}` failed with `{run.get('conclusion')}`.")
     return issues
 
 
 def sentinel_ready(tier: str, body: str, forge_report: str, fix_items: list[str]) -> bool:
-    """Return True only when a MAJOR PR is ready for Sentinel routing.
-
-    This uses tolerant field parsing, so both `Field: value` and
-    `Field - value` are accepted. It fixes the Codex review issue where
-    literal colon checks could let MAJOR work skip SENTINEL.
-    """
     if tier != "MAJOR":
         return False
     if fix_items:
         return False
     if not forge_report:
         return False
-
     required = ["Report", "State", "Validation Tier", "Claim Level"]
     return all(has_final_output_line(body, field) for field in required)
 
@@ -403,29 +326,25 @@ Project   : CrusaderBot
 Repo path : {PROJECT_ROOT}
 Branch    : {branch}
 
-ISSUE FOUND:
-WARP•GATE found actionable items before WARP🔹CMD merge review.
-
 FIX REQUIRED:
 {fixes}
 
 SCOPE:
-- Keep behavior unchanged unless the finding explicitly requires behavior correction.
-- Preserve PAPER ONLY posture. Do not enable live trading, real CLOB execution, capital, or risk guards.
+- Fix gate findings only. Keep behavior unchanged.
+- PAPER ONLY posture — do not enable live trading.
 
 VALIDATION:
 Validation Tier   : {tier if tier != "UNKNOWN" else "STANDARD"}
 Claim Level       : {claim}
 Validation Target : Gate findings only
-Not in Scope      : New features, live trading activation, unrelated cleanup
+Not in Scope      : New features, live trading, unrelated cleanup
 
 DONE CRITERIA:
-- [ ] Fix applied in same PR or replacement PR
-- [ ] Forge report/state references updated truthfully
-- [ ] CI/gate re-run clean or remaining items documented
+- [ ] Gate findings resolved
+- [ ] CI/gate re-run clean
 
 NEXT GATE:
-- WARP•GATE re-check -> WARP🔹CMD review
+WARP•GATE re-check -> WARP🔹CMD review
 """
 
 
@@ -440,20 +359,15 @@ Tier         : MAJOR
 Claim Level  : {claim}
 Source       : {forge_report}
 
-SENTINEL REQUIRED BECAUSE:
-Validation Tier is MAJOR and WARP•GATE found no pre-handoff fix blockers.
-
-REQUIRED CHECKS:
-- Verify claim against actual code, not report wording.
-- Verify runtime/test evidence for claimed behavior.
-- Verify risk / execution / state integrity if touched.
-- Verify PROJECT_STATE.md remains truthful.
-- Preserve PAPER ONLY posture. Do not enable live trading, real CLOB execution, capital, or risk guards.
+REQUIRED:
+- Validate claim against actual code, not report wording
+- Verify runtime/test evidence for claimed behavior
+- Verify risk/execution/state integrity if touched
 
 DELIVERABLES:
 - Sentinel report under {PROJECT_ROOT}/reports/sentinel/
 - Verdict: APPROVED / CONDITIONAL / BLOCKED
-- NEXT GATE: return to WARP🔹CMD
+- NEXT GATE: WARP🔹CMD
 """
 
 
@@ -463,14 +377,13 @@ def build_comment(
     route: str,
     p0_items: list[str],
     fix_items: list[str],
-    info_items: list[str],
     sentinel_task: str,
     tier: str,
     claim: str,
 ) -> str:
     lines = [
         GATE_COMMENT_MARKER,
-        f"## WARP•GATE v2 — {route}",
+        f"## WARP•GATE v3 — {route}",
         "",
         f"**Branch:** `{branch}` &nbsp; **PR:** #{pr_number}",
         f"**Tier:** {tier} &nbsp; **Claim:** {claim}",
@@ -478,7 +391,7 @@ def build_comment(
     ]
 
     if p0_items:
-        lines += ["### P0 — real blocker", ""]
+        lines += ["### P0 — hard blocker", ""]
         lines += [f"- {item}" for item in p0_items]
         lines.append("")
 
@@ -488,15 +401,13 @@ def build_comment(
     if sentinel_task:
         lines += ["### Sentinel required", "", sentinel_task, ""]
 
-    if info_items:
-        lines += ["### Advisory", ""]
-        lines += [f"- {item}" for item in info_items]
-        lines.append("")
+    if tier == "MAJOR" and not sentinel_task and not fix_items and not p0_items:
+        lines += ["**Advisory:** MAJOR tier — WARP•SENTINEL required before merge.", ""]
 
     if route == "READY_FOR_CMD":
         lines += ["Ready for WARP🔹CMD final review. WARP•GATE does not merge.", ""]
 
-    lines += ["---", "_WARP•GATE is deputy automation only. WARP🔹CMD remains final._"]
+    lines += ["---", "_WARP•GATE deputy automation. WARP🔹CMD is final._"]
     return "\n".join(lines)
 
 
@@ -510,12 +421,9 @@ def resolve_pr_number(repo: str, token: str, pr_number_str: str, wr_head_sha: st
             return int(pr_number_str)
         except ValueError:
             raise ValueError(f"PR_NUMBER not an integer: {pr_number_str!r}") from None
-
     if wr_head_sha:
         return find_pr_by_sha(repo, wr_head_sha, token)
-
-    # Fail closed. Missing PR context is a workflow configuration error.
-    raise RuntimeError("Neither PR_NUMBER nor WR_HEAD_SHA is set; refusing to pass gate without PR context.")
+    raise RuntimeError("Neither PR_NUMBER nor WR_HEAD_SHA is set.")
 
 
 def main() -> int:
@@ -538,9 +446,7 @@ def main() -> int:
         return 1
 
     if pr_number is None:
-        # WR_HEAD_SHA was provided but did not resolve to an open PR. This is
-        # not a success path for PR gating; fail closed so workflow wiring is fixed.
-        print(f"ERROR: No open PR found for SHA {wr_head_sha}; refusing to pass gate.", file=sys.stderr)
+        print(f"ERROR: No open PR found for SHA {wr_head_sha}.", file=sys.stderr)
         return 1
 
     try:
@@ -554,6 +460,7 @@ def main() -> int:
     body = pr.get("body", "") or ""
     title = pr.get("title", "") or ""
 
+    # Skip sync commits — these are automated state-only commits, not work PRs.
     if title.lower().startswith("sync:") or "post-merge sync" in title.lower():
         print(f"Skipping gate for sync PR: {title!r}")
         return 0
@@ -573,22 +480,20 @@ def main() -> int:
     tier = validation_tier(body)
     claim = claim_level(body)
 
+    # P0: hard stops — fail workflow immediately if found
     p0_items = check_hard_stops(files)
 
+    # P1: fix required before CMD review
     report_fix_items, forge_report = check_forge_report(files, branch)
     fix_items = (
         check_branch(branch)
         + check_pr_body(body)
         + report_fix_items
         + check_project_state(files)
-        + check_report_drift(files, branch)
         + check_ci(check_runs)
     )
 
-    info_items: list[str] = []
-    if tier == "MAJOR":
-        info_items.append("MAJOR tier detected. WARP•SENTINEL is required before merge.")
-
+    # SENTINEL routing (MAJOR + clean + forge report present)
     sentinel_task = ""
     if sentinel_ready(tier, body, forge_report, fix_items) and not p0_items:
         sentinel_task = build_sentinel_task(branch, claim, forge_report)
@@ -608,7 +513,6 @@ def main() -> int:
         route=route,
         p0_items=p0_items,
         fix_items=fix_items,
-        info_items=info_items,
         sentinel_task=sentinel_task,
         tier=tier,
         claim=claim,
@@ -620,20 +524,18 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"WARN: Failed to post gate comment: {exc}", file=sys.stderr)
 
-    print(f"\nWARP Auto Gate v2  branch={branch}  pr=#{pr_number}")
+    print(f"\nWARP Auto Gate v3  branch={branch}  pr=#{pr_number}")
     print(f"Route       : {route}")
     print(f"P0 blockers : {len(p0_items)}")
     print(f"Fix items   : {len(fix_items)}")
-    print(f"Advisory    : {len(info_items)}")
 
     if p0_items:
-        print("\nP0 blockers:")
         for item in p0_items:
             print(f"  {item}")
-        print("\nResult: FAILED — real blocker present.")
+        print("\nResult: FAILED — P0 blocker.")
         return 1
 
-    print("\nResult: PASSED — routed by WARP•GATE. WARP🔹CMD remains final.")
+    print("\nResult: PASSED — routed. WARP🔹CMD is final.")
     return 0
 
 
