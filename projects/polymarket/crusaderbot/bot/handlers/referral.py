@@ -1,6 +1,7 @@
 """/referral command handler — show user's referral code, link, and stats."""
 from __future__ import annotations
 
+import html
 import logging
 from uuid import UUID
 
@@ -48,21 +49,21 @@ async def referral_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     total_earnings = stats["total_earnings"]
 
     earnings_line = (
-        f"💰 Total earnings: ${total_earnings:.2f} \\(payouts coming soon\\)"
+        f"💰 Total earnings: ${total_earnings:.2f} (payouts coming soon)"
         if total_earnings == 0.0
-        else f"💰 Total earnings: *${total_earnings:.2f}*"
+        else f"💰 Total earnings: <b>${total_earnings:.2f}</b>"
     )
 
     text = (
-        "🔗 *Your Referral Code*\n\n"
-        f"Code: `{code}`\n"
-        f"Link: `{deep_link}`\n\n"
-        f"👥 Total referrals: *{total_referrals}*\n"
+        "🔗 <b>Your Referral Code</b>\n\n"
+        f"Code: <code>{html.escape(code)}</code>\n"
+        f"Link: <code>{html.escape(deep_link)}</code>\n\n"
+        f"👥 Total referrals: <b>{total_referrals}</b>\n"
         f"{earnings_line}\n\n"
-        "Share your link and earn rewards when friends join CrusaderBot\\!"
+        "Share your link and earn rewards when friends join CrusaderBot!"
     )
 
     await update.message.reply_text(
         text,
-        parse_mode=ParseMode.MARKDOWN_V2,
+        parse_mode=ParseMode.HTML,
     )

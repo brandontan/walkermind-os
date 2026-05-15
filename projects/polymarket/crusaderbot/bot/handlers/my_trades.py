@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import html
 import logging
 import math
 from decimal import Decimal
@@ -140,11 +141,11 @@ def _format_positions_section(
     sl_str = f"-{sl_pct * 100:.0f}%" if sl_pct is not None else "—"
     lines = [f"Open Positions ({count})\n"]
     for i, (pos, mark) in enumerate(zip(positions, marks), start=1):
-        title = _truncate(pos["question"] or pos["market_id"], _MARKET_MAX)
+        title = html.escape(_truncate(pos["question"] or pos["market_id"], _MARKET_MAX))
         entry = float(pos["entry_price"])
         size = float(pos["size_usdc"])
-        side_label = pos["side"].upper()
-        current_str = _fmt_current(mark, pos["side"], entry, size)
+        side_label = html.escape(pos["side"].upper())
+        current_str = html.escape(_fmt_current(mark, pos["side"], entry, size))
         lines.append(
             f"{i}. {title}\n"
             f"   {side_label} @ ${entry:.3f} → {current_str}\n"
@@ -158,7 +159,7 @@ def _format_activity_section(activity: list[dict]) -> str:
         return "Recent Activity (last 5)\n\nNo closed positions yet."
     lines = [f"Recent Activity (last {len(activity)})\n"]
     for row in activity:
-        title = _truncate(row["question"] or row["market_id"], _MARKET_MAX)
+        title = html.escape(_truncate(row["question"] or row["market_id"], _MARKET_MAX))
         pnl = float(row["pnl_usdc"])
         emoji = "✅" if pnl >= 0 else "❌"
         sign = "+" if pnl >= 0 else ""
@@ -183,9 +184,9 @@ def _build_main_text(
     today_sign = "+" if today_pnl >= 0 else ""
     today_line = f"Today: {today_count} trades · {today_sign}${abs(today_pnl):.2f}"
     return (
-        f"*📈 My Trades*\n"
+        f"<b>📈 My Trades</b>\n"
         f"{_SEP}\n"
-        f"_{today_line}_\n\n"
+        f"<i>{html.escape(today_line)}</i>\n\n"
         f"{pos_section}\n\n"
         f"{_SEP}\n\n"
         f"{act_section}"
@@ -196,10 +197,10 @@ def _format_history_page(rows: list[dict], page: int, total: int) -> str:
     per_page = _HISTORY_PER_PAGE
     total_pages = max(1, math.ceil(total / per_page))
     if not rows:
-        return "*Full History*\n\nNo closed positions yet."
-    lines = [f"*Full History* — page {page + 1}/{total_pages}\n"]
+        return "<b>Full History</b>\n\nNo closed positions yet."
+    lines = [f"<b>Full History</b> — page {page + 1}/{total_pages}\n"]
     for row in rows:
-        title = _truncate(row["question"] or row["market_id"], _MARKET_MAX)
+        title = html.escape(_truncate(row["question"] or row["market_id"], _MARKET_MAX))
         pnl = float(row["pnl_usdc"])
         emoji = "✅" if pnl >= 0 else "❌"
         sign = "+" if pnl >= 0 else ""
@@ -240,7 +241,7 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     text = _build_main_text(positions, marks, activity, tp_pct, sl_pct)
     kb = my_trades_main_kb([p["id"] for p in positions])
     await update.message.reply_text(
-        text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+        text, parse_mode=ParseMode.HTML, reply_markup=kb
     )
 
 
@@ -268,7 +269,7 @@ async def my_trades_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     text = _build_main_text(positions, marks, activity, tp_pct, sl_pct)
     kb = my_trades_main_kb([p["id"] for p in positions])
-    await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+    await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 
 async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -293,10 +294,10 @@ async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await q.message.reply_text("Position not found or already closed.")
         return
 
-    title = _truncate(pos["question"] or pos["market_id"], _MARKET_MAX)
+    title = html.escape(_truncate(pos["question"] or pos["market_id"], _MARKET_MAX))
     entry = float(pos["entry_price"])
     size = float(pos["size_usdc"])
-    side_label = pos["side"].upper()
+    side_label = html.escape(pos["side"].upper())
 
     token_id = (
         pos["yes_token_id"] if pos["side"] == "yes" else pos["no_token_id"]
@@ -310,13 +311,13 @@ async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         pnl_str = "N/A"
 
     confirm_text = (
-        f"*Close position:* {title}\n"
-        f"Side: {side_label}, Size: ${size:.2f}, Current PnL: {pnl_str}\n"
-        f"This will sell at market price."
+        f"<b>Close position:</b> {title}\n"
+        f"Side: {side_label}, Size: ${size:.2f}, Current PnL: {html.escape(pnl_str)}\n"
+        "This will sell at market price."
     )
     await q.message.reply_text(
         confirm_text,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=close_confirm_kb(position_id),
     )
 
@@ -431,7 +432,7 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         has_next=(page + 1) < total_pages,
     )
     await q.message.edit_text(
-        text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+        text, parse_mode=ParseMode.HTML, reply_markup=kb
     )
 
 
@@ -461,23 +462,23 @@ async def trade_detail_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         )
         return
 
-    title = _truncate(pos["question"] or pos["market_id"], _MARKET_MAX)
+    title = html.escape(_truncate(pos["question"] or pos["market_id"], _MARKET_MAX))
     entry = float(pos["entry_price"])
     size = float(pos["size_usdc"])
     token_id = pos["yes_token_id"] if pos["side"] == "yes" else pos["no_token_id"]
     mark = await _fetch_mark(token_id)
-    pnl_str = _fmt_current(mark, pos["side"], entry, size)
+    pnl_str = html.escape(_fmt_current(mark, pos["side"], entry, size))
 
     from telegram import InlineKeyboardMarkup as _IKM
     await q.message.reply_text(
-        f"*Trade Detail*\n"
-        f"_{title}_\n\n"
-        f"Side: *{pos['side'].upper()}*\n"
+        f"<b>Trade Detail</b>\n"
+        f"<i>{title}</i>\n\n"
+        f"Side: <b>{html.escape(pos['side'].upper())}</b>\n"
         f"Size: ${size:.2f}\n"
         f"Entry: ${entry:.3f}\n"
         f"Current: {pnl_str}\n"
-        f"Mode: {pos.get('mode', 'paper').title()}",
-        parse_mode=ParseMode.MARKDOWN,
+        f"Mode: {html.escape(pos.get('mode', 'paper').title())}",
+        parse_mode=ParseMode.HTML,
         reply_markup=_IKM([nav_row("mytrades:back")]),
     )
 
@@ -510,5 +511,5 @@ async def back_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     text = _build_main_text(positions, marks, activity, tp_pct, sl_pct)
     kb = my_trades_main_kb([p["id"] for p in positions])
     await q.message.reply_text(
-        text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+        text, parse_mode=ParseMode.HTML, reply_markup=kb
     )

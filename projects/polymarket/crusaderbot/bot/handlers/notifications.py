@@ -11,6 +11,7 @@ The dispatcher registers mytrades:open: → my_trades_h.trade_detail_cb.
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
@@ -38,9 +39,9 @@ async def notify_order_filled(
         (market.get("question") or order.get("market_id") or "")[:45]
     )
     text = (
-        f"{mode_icon} *Trade filled*\n"
-        f"{side} ${size:.2f} @ {price:.2f}\n"
-        f"_{question}_"
+        f"{mode_icon} <b>Trade filled</b>\n"
+        f"{html.escape(side)} ${size:.2f} @ {price:.2f}\n"
+        f"<i>{html.escape(question)}</i>"
     )
     kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("📋 View",  callback_data=f"mytrades:open:{order['id']}"),
@@ -50,7 +51,7 @@ async def notify_order_filled(
         await bot.send_message(
             tg_user_id,
             text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=kb,
         )
     except Exception as exc:

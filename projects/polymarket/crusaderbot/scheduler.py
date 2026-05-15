@@ -1,6 +1,7 @@
 """APScheduler jobs — single async loop, all background work."""
 from __future__ import annotations
 
+import html
 import logging
 from datetime import datetime
 from decimal import Decimal
@@ -228,8 +229,8 @@ async def watch_deposits() -> None:
             )
         await notifications.send(
             tg_id,
-            f"✅ *Deposit confirmed:* ${float(amt):.2f} USDC\n"
-            f"`{tx}`\n{tail}",
+            f"✅ <b>Deposit confirmed:</b> ${float(amt):.2f} USDC\n"
+            f"<code>{html.escape(tx)}</code>\n{html.escape(tail)}",
         )
 
 

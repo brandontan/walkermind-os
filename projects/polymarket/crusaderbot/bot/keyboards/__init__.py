@@ -67,26 +67,6 @@ def dashboard_kb() -> InlineKeyboardMarkup:
     ])
 
 
-# MVP RESET V1 — deprecated UI flow
-def _legacy_dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
-    """Legacy 7-button dashboard — archived, not reachable from main flow."""
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🤖 Auto Trade",   callback_data="dashboard:auto"),
-            InlineKeyboardButton("📡 Signal Feeds", callback_data="dashboard:signals"),
-        ],
-        [
-            InlineKeyboardButton("💼 Portfolio",    callback_data="dashboard:portfolio"),
-            InlineKeyboardButton("📊 Insights",     callback_data="dashboard:insights"),
-        ],
-        [
-            InlineKeyboardButton("⚙️ Settings",     callback_data="dashboard:settings"),
-            InlineKeyboardButton("🛑 Stop Bot",     callback_data="dashboard:stop"),
-        ],
-                [cta_btn],
-    ])
-
-
 def portfolio_kb() -> InlineKeyboardMarkup:
     """V6 Portfolio screen — Positions + Refresh + Home. No chart button."""
     return InlineKeyboardMarkup([
@@ -98,22 +78,6 @@ def portfolio_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🔄 Refresh",   callback_data="dashboard:portfolio"),
             InlineKeyboardButton("🏠 Home",      callback_data="dashboard:main"),
         ],
-    ])
-
-
-# MVP RESET V1 — deprecated UI flow
-def _legacy_portfolio_kb() -> InlineKeyboardMarkup:
-    """Legacy portfolio keyboard with Chart/Insights/Trades — archived."""
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("📋 Open Positions", callback_data="portfolio:positions"),
-            InlineKeyboardButton("📈 Chart",           callback_data="portfolio:chart"),
-        ],
-        [
-            InlineKeyboardButton("📊 Insights",        callback_data="portfolio:insights"),
-            InlineKeyboardButton("📋 My Trades",       callback_data="portfolio:trades"),
-        ],
-        nav_row("dashboard:main"),
     ])
 
 

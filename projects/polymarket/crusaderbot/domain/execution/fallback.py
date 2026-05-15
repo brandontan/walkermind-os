@@ -20,6 +20,7 @@ re-engages.
 """
 from __future__ import annotations
 
+import html
 import logging
 from typing import Optional
 from uuid import UUID
@@ -125,11 +126,11 @@ async def trigger(user_id: UUID, reason: str) -> dict:
         try:
             await notifications.send(
                 int(telegram_id),
-                "⚠️ *Auto-trade switched to paper mode.*\n"
-                f"{_user_copy(reason)}\n"
+                "⚠️ <b>Auto-trade switched to paper mode.</b>\n"
+                f"{html.escape(_user_copy(reason))}\n"
                 "No new live orders will be placed. Existing positions are "
                 "unaffected — exits will continue to execute.\n\n"
-                "Re-run /live\\_checklist and toggle auto-trade again to "
+                "Re-run /live_checklist and toggle auto-trade again to "
                 "return to live mode.",
             )
         except Exception as exc:  # noqa: BLE001
@@ -186,8 +187,8 @@ async def trigger_all_live_users(reason: str) -> dict:
             try:
                 await notifications.send(
                     int(r["telegram_user_id"]),
-                    "⚠️ *Auto-trade switched to paper mode.*\n"
-                    f"{_user_copy(reason)}\n"
+                    "⚠️ <b>Auto-trade switched to paper mode.</b>\n"
+                    f"{html.escape(_user_copy(reason))}\n"
                     "No new live orders will be placed. Existing positions "
                     "are unaffected.",
                 )

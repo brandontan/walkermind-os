@@ -1,6 +1,7 @@
 """Rich market card handler — /market {slug} command and inline callbacks."""
 from __future__ import annotations
 
+import html
 import logging
 from typing import Optional
 
@@ -14,14 +15,6 @@ from ..keyboards.market_card import market_card_kb
 logger = logging.getLogger(__name__)
 
 _SEP = "──────────────────"
-_MD_METACHAR = ("_", "*", "`", "[")
-
-
-def _escape_md(text: str) -> str:
-    out = text.replace("\\", "\\\\")
-    for ch in _MD_METACHAR:
-        out = out.replace(ch, "\\" + ch)
-    return out
 
 
 def _fmt_price(p: Optional[float]) -> str:
@@ -56,7 +49,7 @@ def _build_market_card(
     confidence_pct: Optional[float] = None,
 ) -> str:
     raw_title = (market.get("question") or market.get("title") or "Unknown")[:80]
-    title = _escape_md(raw_title)
+    title = html.escape(raw_title)
 
     yes_price: Optional[float] = None
     no_price: Optional[float] = None
@@ -76,9 +69,9 @@ def _build_market_card(
     end_date = _fmt_date(market.get("end_date_iso") or market.get("endDateIso"))
 
     lines = [
-        f"*{title}*",
+        f"<b>{title}</b>",
         _SEP,
-        "*Price*",
+        "<b>Price</b>",
         f"· YES: {_fmt_price(yes_price)}",
         f"· NO:  {_fmt_price(no_price)}",
         "",
@@ -90,8 +83,8 @@ def _build_market_card(
     if signal_type or strategy_name or confidence_pct is not None:
         lines.append("")
         if signal_type:
-            strat_str = f" ({_escape_md(strategy_name)})" if strategy_name else ""
-            lines.append(f"Signal: {_escape_md(signal_type)}{strat_str}")
+            strat_str = f" ({html.escape(strategy_name)})" if strategy_name else ""
+            lines.append(f"Signal: {html.escape(signal_type)}{strat_str}")
         if confidence_pct is not None:
             lines.append(f"Confidence: {confidence_pct:.0f}%")
 
@@ -110,8 +103,8 @@ async def market_command(
     args = ctx.args or []
     if not args:
         await update.message.reply_text(
-            "Usage: `/market <slug>`\nExample: `/market will-trump-win-2024`",
-            parse_mode=ParseMode.MARKDOWN,
+            "Usage: <code>/market &lt;slug&gt;</code>\nExample: <code>/market will-trump-win-2024</code>",
+            parse_mode=ParseMode.HTML,
         )
         return
 
@@ -121,15 +114,15 @@ async def market_command(
     market = await get_market_by_slug(slug)
     if market is None:
         await status_msg.edit_text(
-            f"❌ Market `{slug}` not found. Check the slug and try again.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"❌ Market <code>{html.escape(slug)}</code> not found. Check the slug and try again.",
+            parse_mode=ParseMode.HTML,
         )
         return
 
     card = _build_market_card(market)
     await status_msg.edit_text(
         card,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=market_card_kb(slug),
     )
 

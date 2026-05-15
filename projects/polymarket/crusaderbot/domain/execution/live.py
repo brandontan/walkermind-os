@@ -17,6 +17,7 @@ without submitting real orders.
 """
 from __future__ import annotations
 
+import html
 import logging
 from decimal import Decimal
 from uuid import UUID
@@ -254,10 +255,10 @@ async def execute(
                                "polymarket_order_id": str(polymarket_order_id),
                                "size_usdc": str(size_usdc),
                                "price": price})
-    label = market_question or market_id
+    label = html.escape(market_question or market_id)
     await notifications.send(
         telegram_user_id,
-        f"📈 *[LIVE] Opened*\n{label}\n*{side.upper()}* @ {price:.3f}\n"
+        f"📈 <b>[LIVE] Opened</b>\n{label}\n<b>{html.escape(side.upper())}</b> @ {price:.3f}\n"
         f"Size: ${size_usdc:.2f}",
     )
     return {"order_id": order_id, "position_id": position_id, "mode": "live"}

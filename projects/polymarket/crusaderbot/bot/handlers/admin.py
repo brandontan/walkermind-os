@@ -1,6 +1,7 @@
 """Operator-only admin commands. Requires update.effective_user.id == OPERATOR_CHAT_ID."""
 from __future__ import annotations
 
+import html
 import logging
 import os
 import socket
@@ -49,10 +50,10 @@ async def _reject_silently(update: Update) -> None:
 
 
 _ADMIN_HELP = (
-    "*⚙️ Admin panel*\n\n"
+    "<b>⚙️ Admin panel</b>\n\n"
     "Commands:\n"
     "  /admin users — list all users + tiers\n"
-    "  /admin settier {user\\_id} {tier} — change tier (FREE/PREMIUM/ADMIN)\n"
+    "  /admin settier {user_id} {tier} — change tier (FREE/PREMIUM/ADMIN)\n"
     "  /admin stats — totals and paper PNL\n"
     "  /admin broadcast {message} — send to all users"
 )
@@ -93,7 +94,7 @@ async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await _admin_broadcast(update.message, args[1:], ctx)
         else:
             await update.message.reply_text(
-                _ADMIN_HELP, parse_mode=ParseMode.MARKDOWN
+                _ADMIN_HELP, parse_mode=ParseMode.HTML
             )
         return
 
@@ -101,47 +102,49 @@ async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         active = await is_kill_switch_active()
         ks_label = "🔴 ACTIVE" if active else "🟢 inactive"
         await update.message.reply_text(
-            f"*⚙️ Admin*\n\nKill switch: {ks_label}",
-            parse_mode=ParseMode.MARKDOWN,
+            f"<b>⚙️ Admin</b>\n\nKill switch: {ks_label}",
+            parse_mode=ParseMode.HTML,
             reply_markup=admin_menu(active),
         )
     else:
         await update.message.reply_text(
-            _ADMIN_HELP, parse_mode=ParseMode.MARKDOWN
+            _ADMIN_HELP, parse_mode=ParseMode.HTML
         )
 
 
 async def _admin_users(message) -> None:
     rows = await list_all_user_tiers(limit=50)
     if not rows:
-        await message.reply_text("No users in user\\_tiers table yet.",
-                                 parse_mode=ParseMode.MARKDOWN)
+        await message.reply_text("No users in user_tiers table yet.",
+                                 parse_mode=ParseMode.HTML)
         return
-    lines = ["*Users + Tiers* (most recent first)\n"]
+    lines = ["<b>Users + Tiers</b> (most recent first)\n"]
     for r in rows:
         ts = r["assigned_at"].strftime("%m-%d %H:%M") if r.get("assigned_at") else "—"
-        lines.append(f"`{r['user_id']}` — *{r['tier']}* (set {ts})")
-    await message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+        lines.append(f"<code>{r['user_id']}</code> — <b>{r['tier']}</b> (set {ts})")
+    await message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
 async def _admin_settier(message, args: list[str], actor_id: int) -> None:
     if len(args) < 2:
         await message.reply_text(
-            "Usage: `/admin settier {user\\_id} {FREE|PREMIUM|ADMIN}`",
-            parse_mode=ParseMode.MARKDOWN,
+            "Usage: <code>/admin settier {user_id} {FREE|PREMIUM|ADMIN}</code>",
+            parse_mode=ParseMode.HTML,
         )
         return
     raw_uid, raw_tier = args[0], args[1].upper()
     try:
         target_uid = int(raw_uid)
     except ValueError:
-        await message.reply_text(f"Invalid user\\_id: `{raw_uid}`",
-                                 parse_mode=ParseMode.MARKDOWN)
+        await message.reply_text(
+            f"Invalid user_id: <code>{html.escape(raw_uid)}</code>",
+            parse_mode=ParseMode.HTML,
+        )
         return
     if raw_tier not in VALID_TIERS:
         await message.reply_text(
-            f"Invalid tier `{raw_tier}`. Valid: FREE, PREMIUM, ADMIN",
-            parse_mode=ParseMode.MARKDOWN,
+            f"Invalid tier <code>{html.escape(raw_tier)}</code>. Valid: FREE, PREMIUM, ADMIN",
+            parse_mode=ParseMode.HTML,
         )
         return
     await set_user_tier(target_uid, raw_tier, assigned_by=actor_id)
@@ -152,8 +155,8 @@ async def _admin_settier(message, args: list[str], actor_id: int) -> None:
                  "assigned_by": actor_id},
     )
     await message.reply_text(
-        f"✅ User `{target_uid}` set to *{raw_tier}*.",
-        parse_mode=ParseMode.MARKDOWN,
+        f"✅ User <code>{target_uid}</code> set to <b>{html.escape(raw_tier)}</b>.",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -179,20 +182,20 @@ async def _admin_stats(message) -> None:
             "SELECT COUNT(*) FROM user_tiers WHERE tier='ADMIN'"
         ) or 0
     await message.reply_text(
-        "*📊 Admin Stats*\n\n"
+        "<b>📊 Admin Stats</b>\n\n"
         f"Total users: {total_users}\n"
         f"Tiers — FREE: {free_n} · PREMIUM: {premium_n} · ADMIN: {admin_n}\n"
         f"Open positions: {open_positions}\n"
         f"Paper PNL (all time): ${float(paper_pnl):+,.2f}",
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
     )
 
 
 async def _admin_broadcast(message, args: list[str], ctx) -> None:
     if not args:
         await message.reply_text(
-            "Usage: `/admin broadcast {message}`",
-            parse_mode=ParseMode.MARKDOWN,
+            "Usage: <code>/admin broadcast {message}</code>",
+            parse_mode=ParseMode.HTML,
         )
         return
     text = " ".join(args)
@@ -221,7 +224,7 @@ async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     q = update.callback_query
     if q is None or not _is_operator(update):
         if q:
-            await q.answer("Operator only.", show_alert=True)
+            await q.answer("Admin access required.", show_alert=True)
         return
     await q.answer()
     sub = (q.data or "").split(":", 1)[-1]
@@ -234,8 +237,8 @@ async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                           action="kill_switch_" + ("on" if not active else "off"))
         ks_now = "ON 🔴" if not active else "OFF 🟢"
         await q.message.reply_text(
-            f"Kill switch is now *{ks_now}*.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"Kill switch is now <b>{ks_now}</b>.",
+            parse_mode=ParseMode.HTML,
         )
     elif sub == "status":
         await _send_status(q.message)
@@ -261,7 +264,7 @@ async def _send_status(message) -> None:
             "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'")
     s = get_settings()
     await message.reply_text(
-        "*🩺 System status*\n\n"
+        "<b>🩺 System status</b>\n\n"
         f"DB: {'✅' if db_ok else '❌'}  Cache: {'✅' if cache_ok else '❌'}\n"
         f"Users: {users_n} · Funded: {funded_n} · Live: {live_n}\n"
         f"Open positions: {open_paper} paper · {open_live} live\n\n"
@@ -270,20 +273,21 @@ async def _send_status(message) -> None:
         f"  EXECUTION_PATH_VALIDATED={s.EXECUTION_PATH_VALIDATED}\n"
         f"  CAPITAL_MODE_CONFIRMED={s.CAPITAL_MODE_CONFIRMED}\n"
         f"  AUTO_REDEEM_ENABLED={s.AUTO_REDEEM_ENABLED}\n",
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
     )
 
 
 async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_operator(update) or update.message is None:
         if update.message:
-            await update.message.reply_text("⛔ Operator only.")
+            await update.message.reply_text("⛔ Admin access required.")
         return
     args = ctx.args or []
     if not args:
         await update.message.reply_text(
-            "Usage: `/allowlist @username` or `/allowlist <telegram_user_id> [tier]`",
-            parse_mode=ParseMode.MARKDOWN,
+            "Usage: <code>/allowlist @username</code> or "
+            "<code>/allowlist &lt;telegram_user_id&gt; [tier]</code>",
+            parse_mode=ParseMode.HTML,
         )
         return
     target = args[0]
@@ -344,15 +348,6 @@ def _truncate(value: str | None, limit: int) -> str:
     if not value:
         return ""
     return value if len(value) <= limit else value[: max(0, limit - 1)] + "…"
-
-
-def _md_escape(text: str | None) -> str:
-    if not text:
-        return ""
-    out = text.replace("\\", "\\\\")
-    for ch in ("_", "*", "`", "["):
-        out = out.replace(ch, "\\" + ch)
-    return out
 
 
 async def _collect_dashboard_snapshot() -> dict[str, Any]:
@@ -425,13 +420,13 @@ def _render_dashboard(snapshot: dict[str, Any]) -> str:
             return default
 
     lines = [
-        "*⚙️ Operator Dashboard*",
+        "<b>⚙️ Admin Dashboard</b>",
         "",
         f"Uptime: {_format_uptime(snapshot['uptime_seconds'])}",
-        f"Host:   `{_md_escape(snapshot['hostname'])}`",
+        f"Host:   <code>{html.escape(snapshot['hostname'])}</code>",
         f"DB:     {db}",
         "",
-        f"Active users (Tier 2+): {_val('active_users')}",
+        f"Active users: {_val('active_users')}",
         f"Open positions:         {_val('open_positions')}",
         f"Total USDC in pool:     "
         f"{_val('total_usdc', lambda v: f'${v:,.2f}')}",
@@ -443,23 +438,23 @@ def _render_dashboard(snapshot: dict[str, Any]) -> str:
     jobs = snapshot.get("recent_jobs") or []
     if jobs:
         lines.append("")
-        lines.append("*Recent jobs (last 3):*")
+        lines.append("<b>Recent jobs (last 3):</b>")
         for j in jobs:
             status = "✅" if j["status"] == "success" else "❌"
             duration = _format_duration_ms(j.get("started_at"),
                                            j.get("finished_at"))
             lines.append(
-                f"  {status} `{_md_escape(j['job_name'])}` · {duration}"
+                f"  {status} <code>{html.escape(j['job_name'])}</code> · {duration}"
             )
     else:
         lines.append("")
-        lines.append("_No recent job runs recorded._")
+        lines.append("<i>No recent job runs recorded.</i>")
 
     if snapshot.get("errors"):
         lines.append("")
         lines.append(
             "Some fields unavailable: "
-            + _md_escape("; ".join(snapshot["errors"][:3]))
+            + html.escape("; ".join(snapshot["errors"][:3]))
         )
     return "\n".join(lines)
 
@@ -473,7 +468,7 @@ async def ops_dashboard_command(update: Update,
     snapshot = await _collect_dashboard_snapshot()
     await update.message.reply_text(
         _render_dashboard(snapshot),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=ops_dashboard_keyboard(snapshot["kill_switch_active"]),
     )
 
@@ -496,7 +491,7 @@ async def ops_dashboard_callback(update: Update,
         try:
             await q.edit_message_text(
                 _render_dashboard(snapshot),
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=ops_dashboard_keyboard(snapshot["kill_switch_active"]),
             )
         except Exception:  # noqa: BLE001
@@ -514,7 +509,7 @@ async def ops_dashboard_callback(update: Update,
 
 
 _KS_USAGE = (
-    "Usage: `/killswitch <pause|resume|lock>`\n"
+    "Usage: <code>/killswitch &lt;pause|resume|lock&gt;</code>\n"
     "  pause  — block all new trades (cached 30s before risk gate sees it)\n"
     "  resume — re-open trade flow (clears lock mode)\n"
     "  lock   — pause + force every user's auto_trade_on=false"
@@ -580,13 +575,13 @@ async def _apply_killswitch_action(
     if action == "pause":
         if reply is not None:
             await reply(
-                "🔴 Kill switch *ACTIVE*. Auto-trade paused (≤30s "
-                "propagation). Use `/killswitch resume` to re-open.",
-                parse_mode=ParseMode.MARKDOWN,
+                "🔴 Kill switch <b>ACTIVE</b>. Auto-trade paused (≤30s "
+                "propagation). Use <code>/killswitch resume</code> to re-open.",
+                parse_mode=ParseMode.HTML,
             )
         await _broadcast_pause(
             broadcast_via_ctx,
-            "🛑 Auto-trade paused by operator. New trades are blocked. "
+            "🛑 Auto-trade paused by admin. New trades are blocked. "
             "Existing positions remain open until you close them.",
         )
     elif action == "resume":
@@ -595,17 +590,17 @@ async def _apply_killswitch_action(
     elif action == "lock":
         if reply is not None:
             await reply(
-                f"🔒 Kill switch *LOCKED*. "
+                f"🔒 Kill switch <b>LOCKED</b>. "
                 f"{result['users_disabled']} users had auto-trade disabled. "
-                "Run `/killswitch resume` after the incident is addressed; "
+                "Run <code>/killswitch resume</code> after the incident is addressed; "
                 "users must re-opt-in individually.",
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
             )
         await _broadcast_pause(
             broadcast_via_ctx,
-            "🔒 Auto-trade has been locked by the operator due to an "
+            "🔒 Auto-trade has been locked by admin due to an "
             "incident. Your auto-trade has been turned OFF — re-enable "
-            "from /dashboard once the operator confirms it is safe.",
+            "from /dashboard once confirmed safe.",
         )
 
 
@@ -618,11 +613,11 @@ async def killswitch_command(update: Update,
     args: Iterable[str] = ctx.args or []
     args_list = list(args)
     if not args_list:
-        await update.message.reply_text(_KS_USAGE, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(_KS_USAGE, parse_mode=ParseMode.HTML)
         return
     action = args_list[0].strip().lower()
     if action not in {"pause", "resume", "lock"}:
-        await update.message.reply_text(_KS_USAGE, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(_KS_USAGE, parse_mode=ParseMode.HTML)
         return
     await _apply_killswitch_action(
         action,
@@ -668,8 +663,9 @@ async def unlock_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     args = ctx.args or []
     if not args:
         await update.message.reply_text(
-            "Usage: `/unlock @username` or `/unlock <telegram_user_id>`",
-            parse_mode=ParseMode.MARKDOWN,
+            "Usage: <code>/unlock @username</code> or "
+            "<code>/unlock &lt;telegram_user_id&gt;</code>",
+            parse_mode=ParseMode.HTML,
         )
         return
     target = args[0]
@@ -693,7 +689,7 @@ async def unlock_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     await update.message.reply_text(f"🔓 {target} unlocked.")
     await notifications.send(
         user["telegram_user_id"],
-        "🔓 Your account has been unlocked by an operator. You can resume trading.",
+        "🔓 Your account has been unlocked. You can resume trading.",
     )
 
 
@@ -719,9 +715,9 @@ def _parse_limit(args: list[str], default: int) -> tuple[int, bool]:
 
 def _render_jobs(rows: list[dict], only_failed: bool) -> str:
     if not rows:
-        return ("_No matching job runs._" if only_failed
-                else "_No job runs recorded yet._")
-    head = "*Recent failed job runs*" if only_failed else "*Recent job runs*"
+        return ("<i>No matching job runs.</i>" if only_failed
+                else "<i>No job runs recorded yet.</i>")
+    head = "<b>Recent failed job runs</b>" if only_failed else "<b>Recent job runs</b>"
     lines = [head, ""]
     for r in rows:
         status = "✅" if r["status"] == "success" else "❌"
@@ -729,9 +725,9 @@ def _render_jobs(rows: list[dict], only_failed: bool) -> str:
             if r.get("started_at") else "—"
         duration = _format_duration_ms(r.get("started_at"), r.get("finished_at"))
         err = _truncate(r.get("error"), 80)
-        line = f"{status} `{_md_escape(r['job_name'])}` · {ts} · {duration}"
+        line = f"{status} <code>{html.escape(r['job_name'])}</code> · {ts} · {duration}"
         if err:
-            line += f"\n    └ {_md_escape(err)}"
+            line += f"\n    └ {html.escape(err)}"
         lines.append(line)
     return "\n".join(lines)
 
@@ -750,7 +746,7 @@ async def jobs_command(update: Update,
         await update.message.reply_text(f"❌ /jobs query failed: {exc}")
         return
     await update.message.reply_text(
-        _render_jobs(rows, only_failed), parse_mode=ParseMode.MARKDOWN,
+        _render_jobs(rows, only_failed), parse_mode=ParseMode.HTML,
     )
 
 
@@ -767,8 +763,8 @@ async def _fetch_audit_tail(limit: int) -> list[dict]:
 
 def _render_auditlog(rows: list[dict]) -> str:
     if not rows:
-        return "_Audit log is empty._"
-    lines = ["*Audit log (most recent first)*", ""]
+        return "<i>Audit log is empty.</i>"
+    lines = ["<b>Audit log (most recent first)</b>", ""]
     for r in rows:
         ts = (r["ts"].astimezone(timezone.utc).strftime("%m-%d %H:%M:%S")
               if r.get("ts") else "—")
@@ -776,8 +772,8 @@ def _render_auditlog(rows: list[dict]) -> str:
         actor = r.get("actor_role") or "?"
         action = _truncate(r.get("action"), 40)
         lines.append(
-            f"`{ts}` · {_md_escape(actor)} · {_md_escape(action)} · "
-            f"{_md_escape(user) or '—'}"
+            f"<code>{html.escape(ts)}</code> · {html.escape(actor)} · "
+            f"{html.escape(action)} · {html.escape(user) or '—'}"
         )
     return "\n".join(lines)
 
@@ -796,5 +792,5 @@ async def auditlog_command(update: Update,
         await update.message.reply_text(f"❌ /auditlog query failed: {exc}")
         return
     await update.message.reply_text(
-        _render_auditlog(rows), parse_mode=ParseMode.MARKDOWN,
+        _render_auditlog(rows), parse_mode=ParseMode.HTML,
     )

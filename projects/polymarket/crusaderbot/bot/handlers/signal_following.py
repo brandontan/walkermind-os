@@ -19,6 +19,7 @@ Hard cap:
 """
 from __future__ import annotations
 
+import html
 import logging
 import re
 
@@ -57,19 +58,6 @@ def _normalise_slug(raw: str) -> str | None:
     return candidate
 
 
-_MARKDOWN_METACHARS = ("_", "*", "`", "[")
-
-
-def _escape_md(text: str | None) -> str:
-    """Escape Telegram Markdown V1 metacharacters in operator-supplied text."""
-    if not text:
-        return ""
-    out = text.replace("\\", "\\\\")
-    for ch in _MARKDOWN_METACHARS:
-        out = out.replace(ch, "\\" + ch)
-    return out
-
-
 async def _ensure_user(update: Update) -> tuple[dict | None, bool]:
     if update.effective_user is None:
         return None, False
@@ -85,11 +73,11 @@ async def _ensure_user(update: Update) -> tuple[dict | None, bool]:
 
 
 _USAGE = (
-    "*/signals* commands:\n"
-    "`/signals list`\n"
-    "`/signals catalog`\n"
-    "`/signals on <feed_slug>`\n"
-    "`/signals off <feed_slug>`\n\n"
+    "<b>/signals</b> commands:\n"
+    "<code>/signals list</code>\n"
+    "<code>/signals catalog</code>\n"
+    "<code>/signals on &lt;feed_slug&gt;</code>\n"
+    "<code>/signals off &lt;feed_slug&gt;</code>\n\n"
     f"Max {MAX_SUBSCRIPTIONS_PER_USER} active subscriptions per account."
 )
 
@@ -107,7 +95,7 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
         sub_tree_lines = []
         for i, s in enumerate(subs):
             connector = "└" if i == len(subs) - 1 else "├"
-            sub_tree_lines.append(f"{connector} ✅ {_escape_md(s['feed_name'])}")
+            sub_tree_lines.append(f"{connector} ✅ {html.escape(s['feed_name'])}")
         sub_tree = "\n".join(sub_tree_lines)
     else:
         sub_tree = "└ None yet"
@@ -117,7 +105,7 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
         avail_tree_lines = []
         for i, f in enumerate(avail):
             connector = "└" if i == len(avail) - 1 else "├"
-            avail_tree_lines.append(f"{connector} {_escape_md(f['name'])}")
+            avail_tree_lines.append(f"{connector} {html.escape(f['name'])}")
         avail_tree = "\n".join(avail_tree_lines)
     else:
         avail_tree = "└ None available"
@@ -174,17 +162,17 @@ async def signals_command(
         if sub == "off":
             await _handle_off(update, user["id"], args[1:])
             return
-        await update.message.reply_text(_USAGE, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(_USAGE, parse_mode=ParseMode.HTML)
         return
 
     text, kb = await _build_signals_screen(user["id"])
     if update.callback_query is not None:
         await update.callback_query.message.reply_text(
-            text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb,
+            text, parse_mode=ParseMode.HTML, reply_markup=kb,
         )
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb,
+            text, parse_mode=ParseMode.HTML, reply_markup=kb,
         )
 
 
@@ -200,22 +188,22 @@ async def _handle_list(update: Update, user_id) -> None:
     if not subs:
         await update.message.reply_text(
             "No active signal subscriptions. Browse with "
-            "`/signals catalog` and subscribe via "
-            "`/signals on <feed_slug>`.",
-            parse_mode=ParseMode.MARKDOWN,
+            "<code>/signals catalog</code> and subscribe via "
+            "<code>/signals on &lt;feed_slug&gt;</code>.",
+            parse_mode=ParseMode.HTML,
         )
         return
 
-    lines = ["*Active signal subscriptions*\n"]
+    lines = ["<b>Active signal subscriptions</b>\n"]
     for s in subs:
-        slug = s["feed_slug"]
-        name = _escape_md(s["feed_name"])
-        added = s["subscribed_at"].strftime("%Y-%m-%d")
-        lines.append(f"`{slug}` · {name} · added {added}")
+        slug = html.escape(s["feed_slug"])
+        name = html.escape(s["feed_name"])
+        added = html.escape(s["subscribed_at"].strftime("%Y-%m-%d"))
+        lines.append(f"<code>{slug}</code> · {name} · added {added}")
 
     await update.message.reply_text(
         "\n".join(lines),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=signal_subs_list_kb(
             [(s["feed_slug"], s["feed_name"]) for s in subs],
         ),
@@ -231,18 +219,18 @@ async def _handle_catalog(update: Update) -> None:
             "No active signal feeds available right now.",
         )
         return
-    lines = ["*Available signal feeds*\n"]
+    lines = ["<b>Available signal feeds</b>\n"]
     for f in feeds:
-        desc = _escape_md(f.get("description") or "")
+        desc = html.escape(f.get("description") or "")
         suffix = f" — {desc}" if desc else ""
         lines.append(
-            f"`{f['slug']}` · {_escape_md(f['name'])} · "
+            f"<code>{html.escape(f['slug'])}</code> · {html.escape(f['name'])} · "
             f"{f['subscriber_count']} subs{suffix}"
         )
-    lines.append("\nSubscribe with `/signals on <feed_slug>`.")
+    lines.append("\nSubscribe with <code>/signals on &lt;feed_slug&gt;</code>.")
     await update.message.reply_text(
         "\n".join(lines),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -251,24 +239,24 @@ async def _handle_on(update: Update, user_id, args: list[str]) -> None:
         return
     if len(args) != 1:
         await update.message.reply_text(
-            "Usage: `/signals on <feed_slug>`",
-            parse_mode=ParseMode.MARKDOWN,
+            "Usage: <code>/signals on &lt;feed_slug&gt;</code>",
+            parse_mode=ParseMode.HTML,
         )
         return
     slug = _normalise_slug(args[0])
     if slug is None:
         await update.message.reply_text(
             "❌ Invalid feed slug. Use lowercase letters, digits, "
-            "`_`, or `-`.",
-            parse_mode=ParseMode.MARKDOWN,
+            "<code>_</code>, or <code>-</code>.",
+            parse_mode=ParseMode.HTML,
         )
         return
 
     feed = await get_feed_by_slug(slug)
     if feed is None:
         await update.message.reply_text(
-            f"❌ No feed `{slug}`. Run `/signals catalog`.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"❌ No feed <code>{html.escape(slug)}</code>. Run <code>/signals catalog</code>.",
+            parse_mode=ParseMode.HTML,
         )
         return
 
@@ -281,25 +269,25 @@ async def _handle_on(update: Update, user_id, args: list[str]) -> None:
         return
     if result == "exists":
         await update.message.reply_text(
-            f"Already subscribed to `{slug}`.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"Already subscribed to <code>{html.escape(slug)}</code>.",
+            parse_mode=ParseMode.HTML,
         )
         return
     if result == "feed_inactive":
         await update.message.reply_text(
-            f"Feed `{slug}` is not currently active.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"Feed <code>{html.escape(slug)}</code> is not currently active.",
+            parse_mode=ParseMode.HTML,
         )
         return
     if result == "unknown_feed":
         await update.message.reply_text(
-            f"❌ No feed `{slug}`. Run `/signals catalog`.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"❌ No feed <code>{html.escape(slug)}</code>. Run <code>/signals catalog</code>.",
+            parse_mode=ParseMode.HTML,
         )
         return
     await update.message.reply_text(
-        f"✅ Subscribed to `{slug}`.",
-        parse_mode=ParseMode.MARKDOWN,
+        f"✅ Subscribed to <code>{html.escape(slug)}</code>.",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -308,8 +296,8 @@ async def _handle_off(update: Update, user_id, args: list[str]) -> None:
         return
     if len(args) != 1:
         await update.message.reply_text(
-            "Usage: `/signals off <feed_slug>`",
-            parse_mode=ParseMode.MARKDOWN,
+            "Usage: <code>/signals off &lt;feed_slug&gt;</code>",
+            parse_mode=ParseMode.HTML,
         )
         return
     slug = _normalise_slug(args[0])
@@ -321,20 +309,20 @@ async def _handle_off(update: Update, user_id, args: list[str]) -> None:
     feed = await get_feed_by_slug(slug)
     if feed is None:
         await update.message.reply_text(
-            f"No feed `{slug}`.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"No feed <code>{html.escape(slug)}</code>.",
+            parse_mode=ParseMode.HTML,
         )
         return
     flipped = await unsubscribe(user_id=user_id, feed_id=feed["id"])
     if not flipped:
         await update.message.reply_text(
-            f"No active subscription to `{slug}`.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"No active subscription to <code>{html.escape(slug)}</code>.",
+            parse_mode=ParseMode.HTML,
         )
         return
     await update.message.reply_text(
-        f"\U0001F6D1 Unsubscribed from `{slug}`.",
-        parse_mode=ParseMode.MARKDOWN,
+        f"\U0001F6D1 Unsubscribed from <code>{html.escape(slug)}</code>.",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -360,7 +348,7 @@ async def signals_callback(
 
     if len(parts) >= 2 and parts[1] in ("main", "catalog"):
         text, kb = await _build_signals_screen(user["id"])
-        await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
         return
 
     if len(parts) == 3 and parts[1] == "toggle":
@@ -392,7 +380,7 @@ async def signals_callback(
             else:
                 await q.answer(f"Subscribed to {feed['name']}", show_alert=False)
         text, kb = await _build_signals_screen(user["id"])
-        await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
         return
 
     if len(parts) == 3 and parts[1] == "off":
@@ -402,18 +390,18 @@ async def signals_callback(
         feed = await get_feed_by_slug(slug)
         if feed is None:
             await q.message.reply_text(
-                f"No feed `{slug}`.",
-                parse_mode=ParseMode.MARKDOWN,
+                f"No feed <code>{html.escape(slug)}</code>.",
+                parse_mode=ParseMode.HTML,
             )
             return
         flipped = await unsubscribe(user_id=user["id"], feed_id=feed["id"])
         if flipped:
             await q.message.reply_text(
-                f"\U0001F6D1 Unsubscribed from `{slug}`.",
-                parse_mode=ParseMode.MARKDOWN,
+                f"\U0001F6D1 Unsubscribed from <code>{html.escape(slug)}</code>.",
+                parse_mode=ParseMode.HTML,
             )
         else:
             await q.message.reply_text(
-                f"No active subscription to `{slug}`.",
-                parse_mode=ParseMode.MARKDOWN,
+                f"No active subscription to <code>{html.escape(slug)}</code>.",
+                parse_mode=ParseMode.HTML,
             )

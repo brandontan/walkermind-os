@@ -131,7 +131,7 @@ def test_status_paper_mode_banner_when_guards_off():
     ):
         _run(demo_polish.status_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    assert "📄 *PAPER MODE*" in body
+    assert "📄 <b>PAPER MODE</b>" in body
     assert "no real capital at risk" in body
     assert "abc1234" in body
     assert "2m" in body  # 125s == 2m
@@ -157,7 +157,7 @@ def test_status_live_mode_banner_when_all_guards_on():
     ):
         _run(demo_polish.status_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    assert "⚡ *LIVE MODE*" in body
+    assert "⚡ <b>LIVE MODE</b>" in body
     assert "2d 4h 30m" in body
 
 
@@ -183,13 +183,11 @@ def test_status_degraded_status_renders_yellow():
     assert "alchemy_rpc" in body
 
 
-def test_status_escapes_markdown_metacharacters_in_check_state():
+def test_status_escapes_html_special_chars_in_check_state():
     """``state`` may be a free-form ``error: ...`` string from
-    ``monitoring.health._with_timeout`` containing underscores or other
-    Markdown V1 metacharacters. Without escaping, an unbalanced ``_`` in
-    a degraded state would make Telegram reject the entire /status
-    message, leaving operators blind during the very incident the
-    command is meant to surface.
+    ``monitoring.health._with_timeout`` containing HTML special characters.
+    html.escape() is applied so ``<``, ``>``, ``&`` are safely encoded.
+    Underscores and asterisks are safe in HTML mode and pass through literally.
     """
     update = _make_update(message_text="/status")
     payload = {
@@ -216,10 +214,10 @@ def test_status_escapes_markdown_metacharacters_in_check_state():
     ):
         _run(demo_polish.status_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    # State string with underscores + asterisks must arrive escaped.
-    assert "ws\\_handshake\\_failed\\_\\*hot\\*" in body
-    # Check name stays inside its backtick code wrapper (literal underscore).
-    assert "`alchemy_ws`" in body
+    # Underscores and asterisks are safe in HTML mode — pass through literally.
+    assert "ws_handshake_failed_*hot*" in body
+    # Check name is wrapped in a <code> tag.
+    assert "<code>alchemy_ws</code>" in body
 
 
 def test_status_health_check_failure_is_handled_gracefully():
@@ -312,7 +310,7 @@ def test_demo_renders_top_three_signals_with_confidence():
     body = update.message.reply_text.call_args.args[0]
     # Top 3 visible + confidences
     assert "Will it rain in Jakarta tomorrow?" in body
-    assert "BTC > $100k by year end?" in body
+    assert "BTC &gt; $100k by year end?" in body
     assert "78%" in body
     assert "55%" in body
     # Empty payload renders as em-dash, not invented data.
@@ -468,27 +466,6 @@ def test_payload_dict_returns_empty_for_garbage():
     assert demo_polish._payload_dict(42) == {}
 
 
-def test_escape_md_passes_safe_text_through():
-    assert demo_polish._escape_md("plain text") == "plain text"
-    assert demo_polish._escape_md("") == ""
-    assert demo_polish._escape_md(None) == ""
-
-
-def test_escape_md_escapes_v1_metacharacters():
-    r"""``_ * \` [`` must be backslash-escaped before Markdown V1 interp."""
-    assert demo_polish._escape_md("under_score") == "under\\_score"
-    assert demo_polish._escape_md("a*b") == "a\\*b"
-    assert demo_polish._escape_md("`code`") == "\\`code\\`"
-    assert demo_polish._escape_md("[link]") == "\\[link]"
-
-
-def test_escape_md_escapes_backslash_first():
-    """Backslashes must be escaped first so the metachar loop does not
-    double-escape what it just inserted.
-    """
-    assert demo_polish._escape_md("a\\b") == "a\\\\b"
-
-
 def test_demo_renders_real_jsonb_string_payload_with_confidence():
     """End-to-end: asyncpg-style JSONB-as-string must render correctly."""
     update = _make_update(user_id=77, message_text="/demo")
@@ -511,7 +488,7 @@ def test_demo_renders_real_jsonb_string_payload_with_confidence():
         _run(demo_polish.demo_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
     assert "81%" in body, "confidence must be parsed from JSON-string payload"
-    assert "—" not in body.split("Confidence: *")[1].split("*")[0]
+    assert "—" not in body.split("Confidence: <b>")[1].split("</b>")[0]
 
 
 def test_demo_sql_excludes_signals_with_separate_exit_rows():
@@ -537,21 +514,21 @@ def test_demo_sql_excludes_signals_with_separate_exit_rows():
     assert "sf.status = 'active'" in sql
 
 
-def test_demo_escapes_markdown_metacharacters_in_db_strings():
-    """Operator-supplied feed names + market questions must be escaped
-    before flowing into a ``ParseMode.MARKDOWN`` reply, otherwise Telegram
-    can reject the message or alter formatting.
+def test_demo_escapes_html_special_chars_in_db_strings():
+    """Operator-supplied feed names + market questions must be HTML-escaped
+    before flowing into a ``ParseMode.HTML`` reply, otherwise Telegram
+    can reject the message or render it incorrectly.
     """
     update = _make_update(user_id=88, message_text="/demo")
     rows = [
         {
-            "feed_name": "alpha_feed*v1",
+            "feed_name": "alpha & beta <feed>",
             "market_id": "m1",
             "side": "yes",
             "target_price": 0.62,
             "payload": {"confidence": 0.5},
             "published_at": datetime(2026, 5, 8, 11, 0, tzinfo=timezone.utc),
-            "market_question": "Will BTC > $100k by `Q4`? [poll]",
+            "market_question": "Will BTC > $100k & ETH < $10k?",
         },
     ]
     pool = _make_pool_with_rows(rows)
@@ -561,11 +538,10 @@ def test_demo_escapes_markdown_metacharacters_in_db_strings():
     ):
         _run(demo_polish.demo_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    # Underscores, asterisks, backticks, opening brackets in DB-supplied
-    # text must arrive escaped — otherwise Telegram parsing breaks.
-    assert "alpha\\_feed\\*v1" in body
-    assert "\\`Q4\\`" in body
-    assert "\\[poll]" in body
+    # HTML special characters in DB-supplied text must be entity-escaped.
+    assert "&amp;" in body, "& must be escaped to &amp;"
+    assert "&gt;" in body, "> must be escaped to &gt;"
+    assert "&lt;" in body, "< must be escaped to &lt;"
 
 
 def test_truncate_short_string_passthrough():
