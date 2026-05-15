@@ -1,7 +1,8 @@
-Last Updated : 2026-05-15 15:30
-Status       : MVP post-merge hygiene cleanup complete (WARP/CRUSADERBOT-MVP-CLEANUP). ParseMode HTML migration, operator→admin purge, 24 .bak files deleted, dead keyboard functions removed. Production PAPER ONLY.
+Last Updated : 2026-05-15 23:58
+Status       : operator-hotfix string replacement complete (WARP/crusaderbot-operator-hotfix). "operator guards" → "activation guards" in 3 files. MINOR, FOUNDATION. Production PAPER ONLY.
 
 [COMPLETED]
+- crusaderbot-operator-hotfix complete (2026-05-15). Replaced 6 "operator guards" occurrences with "activation guards" across main.py, api/admin.py, api/health.py. Display strings + log + docstring. Validation grep → zero hits. MINOR, FOUNDATION.
 - mvp-cleanup complete (2026-05-15). ParseMode.MARKDOWN/V2 → HTML across 17 handler files + notifier + domain/activation. html.escape() on all external variables. operator→admin in 5 files. 24 .bak files deleted. 3 dead legacy keyboard functions removed. ruff+compileall clean. STANDARD, NARROW INTEGRATION.
 - crusaderbot-ux-patch-1 PR open (2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout fix (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-ux MERGED PR #1049 (2026-05-15). 5-preset system (whale_mirror+hybrid added), capital decoupling via capital_for_risk_profile(), state-driven main_menu() 3-layout, HTML blockquote UX throughout, copy-trade pipeline completion, scanner state exposure, tier wording cleanup. Closes #1036, #1034. MAJOR, FULL RUNTIME INTEGRATION. 1405 tests green.
@@ -47,6 +48,7 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (1
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required: WARP/crusaderbot-operator-hotfix PR #1053 (MINOR, no SENTINEL required). Report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-operator-hotfix.md.
 - WARP🔹CMD review required: WARP/CRUSADERBOT-MVP-CLEANUP PR (STANDARD, no SENTINEL required). Report: projects/polymarket/crusaderbot/reports/forge/mvp-cleanup.md.
 - WARP🔹CMD decision: mode_select_kb() + paper_complete_kb() — delete with tests or retain (flagged in PR).
 - WARP🔹CMD decision: tier gate wiring — wire require_access_tier() to handlers or remove tier middleware (Lane D audit in PR description).
