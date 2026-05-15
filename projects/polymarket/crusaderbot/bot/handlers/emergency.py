@@ -6,13 +6,15 @@ force_close_intent=true on each open position via position registry.
 from __future__ import annotations
 
 import logging
+from uuid import UUID
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ... import audit
+from ...database import get_pool
 from ...users import set_locked, set_paused, upsert_user
 from ..keyboards import emergency_confirm_p5_kb, emergency_done_p5_kb, emergency_p5_kb
 from ..messages import EMERGENCY_TEXT, emergency_confirm_text, emergency_feedback_text
@@ -116,8 +118,9 @@ async def _execute_action(
             await audit.write(actor_role="user", action="emergency_pause_close_all", user_id=user["id"])
 
         elif action == "lock":
+            await set_paused(user["id"], True)
             await set_locked(user["id"], True)
-            await audit.write(actor_role="user", action="emergency_lock", user_id=user["id"])
+            await audit.write(actor_role="user", action="self_lock_account", user_id=user["id"])
 
     except Exception as exc:
         logger.error("emergency action=%s failed: %s", action, exc)
@@ -148,15 +151,60 @@ async def _handle_legacy_emergency(
 
     if sub in ("pause", "pause_close", "lock"):
         text = emergency_confirm_text(sub)
+        # Use legacy callback data so legacy tests and any existing keyboards keep working
+        legacy_kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Confirm", callback_data=f"emergency:confirm:{sub}"),
+                InlineKeyboardButton("← Cancel",  callback_data="emergency:cancel"),
+            ],
+        ])
         if q is not None and q.message is not None:
-            await _safe_edit(
-                q, text,
-                parse_mode=ParseMode.HTML,
-                reply_markup=emergency_confirm_p5_kb(sub),
-            )
+            await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=legacy_kb)
     elif sub.startswith("confirm:"):
         action = sub[len("confirm:"):]
         await _execute_action(update, ctx, action)
     elif sub in ("back", "cancel"):
-        from .dashboard import show_dashboard_for_cb
-        await show_dashboard_for_cb(update, ctx)
+        # Legacy callers expect emergency:pause / emergency:back in the returned menu
+        legacy_menu_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⏸ Pause Auto-Trade",    callback_data="emergency:pause")],
+            [InlineKeyboardButton("⏸🛑 Pause + Close All", callback_data="emergency:pause_close")],
+            [InlineKeyboardButton("🔒 Lock Account",        callback_data="emergency:lock")],
+            [InlineKeyboardButton("← Back",                 callback_data="emergency:back")],
+        ])
+        if q is not None and q.message is not None:
+            await _safe_edit(
+                q, EMERGENCY_TEXT,
+                parse_mode=ParseMode.HTML, reply_markup=legacy_menu_kb,
+            )
+
+
+async def mark_force_close_intent_for_position(
+    position_id: UUID | str,
+    user_id: UUID | str,
+) -> int:
+    """Set force_close_intent=TRUE on a single open position owned by user_id.
+
+    Returns 1 if newly flagged, 0 if already flagged, missing, closed, or
+    owned by a different user. Imported by positions.py for per-position
+    force-close button. Same priority chain as the pause+close-all path.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        marked = await conn.fetchval(
+            "WITH upd AS ("
+            "  UPDATE positions SET force_close_intent = TRUE"
+            "   WHERE id = $1 AND user_id = $2 AND status = 'open'"
+            "     AND force_close_intent = FALSE"
+            "   RETURNING 1"
+            ") SELECT COUNT(*) FROM upd",
+            position_id, user_id,
+        )
+    flipped = int(marked or 0)
+    if flipped:
+        await audit.write(
+            actor_role="user",
+            action="self_force_close_position",
+            user_id=user_id,
+            payload={"position_id": str(position_id)},
+        )
+    return flipped

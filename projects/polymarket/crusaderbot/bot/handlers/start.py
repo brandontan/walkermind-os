@@ -136,6 +136,8 @@ async def back_to_welcome_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def copy_address_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show address as alert. Returns the current onboarding state so the user
+    stays in whichever step (wallet_ready or deposit) they were on."""
     q = update.callback_query
     if q is None:
         return ConversationHandler.END
@@ -145,7 +147,8 @@ async def copy_address_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
         await q.answer(f"Address: {address}", show_alert=True)
     else:
         await q.answer("Address not available yet.", show_alert=True)
-    return _WALLET_READY
+    # Stay in whichever state brought us here; use flag set by wallet_next_cb / preset_selected_in_onboard_cb
+    return _DEPOSIT if ctx.user_data.get("_onboard_at_deposit") else _WALLET_READY
 
 
 async def wallet_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -162,6 +165,7 @@ async def wallet_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         reply_markup=preset_picker_kb(),
     )
     ctx.user_data["onboard_in_preset_step"] = True
+    ctx.user_data["_onboard_at_deposit"] = False  # still on preset picker, not deposit yet
     return _DEPOSIT
 
 
@@ -179,6 +183,7 @@ async def preset_selected_in_onboard_cb(
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
     address = ctx.user_data.get("onboard_address") or await _get_address(user["id"])
 
+    ctx.user_data["_onboard_at_deposit"] = True  # now on deposit prompt; copy_address stays in _DEPOSIT
     await q.edit_message_text(
         deposit_prompt_text(address),
         parse_mode=ParseMode.HTML,

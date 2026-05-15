@@ -85,8 +85,8 @@ async def _fetch_stats(user_id) -> dict:
         "pnl_7d":          Decimal(str(pnl["pnl_7d"])),
         "pnl_30d":         Decimal(str(pnl["pnl_30d"])),
         "pnl_all":         Decimal(str(pnl["pnl_all"])),
-        "active_preset":   sett["active_preset"] if sett else None,
-        "risk_profile":    sett["risk_profile"] if sett else "balanced",
+        "active_preset":   dict(sett).get("active_preset") if sett else None,
+        "risk_profile":    dict(sett).get("risk_profile", "balanced") if sett else "balanced",
     }
 
 

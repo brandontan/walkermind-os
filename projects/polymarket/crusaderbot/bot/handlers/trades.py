@@ -74,12 +74,27 @@ async def show_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     # Build the main trades text
     text = trades_text(open_pos, recent_closed)
 
-    # Add close buttons as separate messages for each position
+    # Build keyboard: per-position [🛑 Close] rows + nav row
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    rows = []
+    for pos in open_pos:
+        pos_id = str(pos.get("id", ""))
+        q_text = (pos.get("market_question") or "Position")[:40]
+        rows.append([InlineKeyboardButton(
+            f"🛑 Close: {q_text}",
+            callback_data=f"close_position:{pos_id}",
+        )])
+    rows.append([
+        InlineKeyboardButton("📋 Full History", callback_data="p5:trades:history"),
+        InlineKeyboardButton("📊 Dashboard",    callback_data="menu:dashboard"),
+    ])
+    kb = InlineKeyboardMarkup(rows)
+
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=trades_kb())
+        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=kb)
     elif update.message is not None:
-        await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=trades_kb())
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 
 async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

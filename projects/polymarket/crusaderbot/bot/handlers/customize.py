@@ -346,7 +346,10 @@ async def _text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
 def build_customize_handler() -> ConversationHandler:
     return ConversationHandler(
-        entry_points=[],  # Entered programmatically via start_customize_wizard()
+        entry_points=[
+            CallbackQueryHandler(start_customize_wizard, pattern=r"^p5:confirm:customize$"),
+            CallbackQueryHandler(start_customize_wizard, pattern=r"^p5:active:edit$"),
+        ],
         states={
             _CAP: [
                 CallbackQueryHandler(cap_cb, pattern=r"^p5:customize:cap:"),
