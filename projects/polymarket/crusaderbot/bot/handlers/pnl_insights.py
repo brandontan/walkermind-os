@@ -42,6 +42,20 @@ def _fmt_signed_usdc(value: Decimal | None) -> str:
     return f"{sign}${abs(value):.2f}"
 
 
+def _safe_md(s: str) -> str:
+    """Strip legacy Markdown reserved characters from dynamic strings.
+
+    Kept for backward compatibility — callers and tests that imported this
+    function before the HTML migration continue to work. The HTML render path
+    uses html.escape() instead.
+    """
+    return (
+        s.replace("\\", "")
+         .replace("_", " ")
+         .replace("*", "")
+         .replace("`", "")
+         .replace("[", "")
+    )
 
 
 def _compute_streak(pnl_values: list[Decimal]) -> tuple[str, int]:

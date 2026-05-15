@@ -9,7 +9,11 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
+import logging
+
 from ...database import get_pool
+
+logger = logging.getLogger(__name__)
 from ...users import get_settings_for, set_auto_trade, upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
 from ...wallet.vault import get_wallet
@@ -123,7 +127,7 @@ async def _fetch_pulse(user_id: "UUID") -> str:
         if scanned:
             return f"💤 Monitoring {scanned} markets…"
     except Exception:
-        pass
+        logger.debug("dashboard._fetch_pulse: scanner state unavailable", exc_info=True)
 
     pool = get_pool()
     async with pool.acquire() as conn:

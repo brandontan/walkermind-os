@@ -293,22 +293,8 @@ async def _process_one(
             # Record spend and persist idempotency row
             actual_size = float(result.final_size_usdc) if result.final_size_usdc else copy_size
             await _record_spend(task.user_id, task.id, actual_size)
-            # Send trade receipt notification to the follower
-            try:
-                await _notifier.notify_entry(
-                    telegram_user_id=user_ctx["telegram_user_id"],
-                    market_id=market_id,
-                    market_question=market_question,
-                    side=side,
-                    size_usdc=result.final_size_usdc or Decimal(str(round(copy_size, 6))),
-                    price=price,
-                    tp_pct=float(task.tp_pct) if task.tp_pct else None,
-                    sl_pct=float(task.sl_pct) if task.sl_pct else None,
-                    mode=user_ctx.get("trading_mode", "paper"),
-                    strategy_type=_STRATEGY_TYPE,
-                )
-            except Exception:
-                log.exception("copy_trade_monitor: notify_entry failed (swallowed)")
+            # Note: paper.py already calls notify_entry() for every paper fill.
+            # Do NOT call it again here — that would send a duplicate Telegram message.
         await _mark_processed(task.user_id, task.id, leader_trade_id)
     else:
         log.info(

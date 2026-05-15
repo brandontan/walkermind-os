@@ -153,7 +153,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         from ..keyboards import main_menu
         s = await get_settings_for(user["id"])
         strategy_key = s.get("active_preset")
-        auto_on = s.get("autobot_enabled", False)
+        auto_on = bool(user.get("auto_trade_on", False))
         await q.message.reply_text(
             "Main menu:", reply_markup=main_menu(strategy_key=strategy_key, auto_on=auto_on),
         )

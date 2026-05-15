@@ -34,22 +34,22 @@ from projects.polymarket.crusaderbot.domain.risk.constants import MAX_POSITION_P
 
 # ---------- Preset definitions ----------------------------------------------
 
-def test_three_presets_defined():
-    assert len(PRESETS) == 3
+def test_five_presets_defined():
+    assert len(PRESETS) == 5
     assert set(PRESET_ORDER) == set(PRESETS.keys())
 
 
 def test_preset_order_matches_spec():
-    assert PRESET_ORDER == ("signal_sniper", "value_hunter", "full_auto")
+    assert PRESET_ORDER == ("whale_mirror", "signal_sniper", "hybrid", "value_hunter", "full_auto")
 
 
-def test_recommended_is_signal_sniper():
-    assert RECOMMENDED_PRESET == "signal_sniper"
+def test_recommended_is_whale_mirror():
+    assert RECOMMENDED_PRESET == "whale_mirror"
 
 
-def test_whale_mirror_and_hybrid_removed():
-    assert "whale_mirror" not in PRESETS
-    assert "hybrid" not in PRESETS
+def test_whale_mirror_and_hybrid_present():
+    assert "whale_mirror" in PRESETS
+    assert "hybrid" in PRESETS
 
 
 def test_presets_obey_hard_position_cap():
@@ -67,8 +67,6 @@ def test_presets_capital_under_full_kelly():
 def test_get_preset_unknown_returns_none():
     assert get_preset("nope") is None
     assert get_preset("") is None
-    assert get_preset("whale_mirror") is None
-    assert get_preset("hybrid") is None
 
 
 def test_preset_strategies_use_canonical_keys():
@@ -77,11 +75,13 @@ def test_preset_strategies_use_canonical_keys():
         assert set(p.strategies) <= allowed, p.key
 
 
-def test_full_auto_excludes_copy_trade_strategy():
-    # Phase 5D: copy_trade strategy belongs to Copy Trade surface, not Auto-Trade.
+def test_full_auto_includes_all_strategies():
+    # Full Auto uses all three strategies: copy_trade, signal, value.
     p = get_preset("full_auto")
     assert p is not None
-    assert "copy_trade" not in p.strategies
+    assert "copy_trade" in p.strategies
+    assert "signal" in p.strategies
+    assert "value" in p.strategies
 
 
 def test_preset_validation_rejects_oversize_capital():
@@ -113,19 +113,20 @@ def test_preset_validation_rejects_position_over_cap():
 
 def test_picker_keyboard_has_two_col_grid_layout():
     kb = preset_picker()
-    # 3 presets in 2-col grid → 2 preset rows + 1 Back/Home nav row
-    assert len(kb.inline_keyboard) == 3
+    # 5 presets in 2-col grid → 3 preset rows + 1 Back/Home nav row = 4 total
+    assert len(kb.inline_keyboard) == 4
     assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 1
-    assert len(kb.inline_keyboard[2]) == 2
+    assert len(kb.inline_keyboard[1]) == 2
+    assert len(kb.inline_keyboard[2]) == 1
+    assert len(kb.inline_keyboard[3]) == 2
 
 
 def test_picker_keyboard_recommended_marked_and_first():
     kb = preset_picker()
-    # Signal Sniper is recommended — first button in first row has ⭐
+    # Whale Mirror is recommended — first button in first row has ⭐
     first_btn = kb.inline_keyboard[0][0]
     assert "⭐" in first_btn.text
-    assert first_btn.callback_data == "preset:pick:signal_sniper"
+    assert first_btn.callback_data == "preset:pick:whale_mirror"
 
 
 def test_picker_keyboard_all_preset_callbacks_present():
@@ -286,13 +287,10 @@ def test_show_preset_picker_renders_all_three(monkeypatch):
     assert len(replies) == 1
     text = replies[0]
     assert "Auto Trade" in text
-    assert "Choose your strategy below" in text
-    # MVP keyboard: Conservative / Balanced / Aggressive
+    # MVP keyboard: "Choose Strategy" CTA → directs user to preset:picker
     kb = kws[0]["reply_markup"]
-    labels = [b.text for row in kb.inline_keyboard for b in row]
-    assert any("Conservative" in lbl for lbl in labels)
-    assert any("Balanced" in lbl for lbl in labels)
-    assert any("Aggressive" in lbl for lbl in labels)
+    all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    assert "preset:picker" in all_cbs
 
 
 def test_show_preset_picker_clears_awaiting(monkeypatch):
@@ -365,9 +363,9 @@ def test_pick_renders_confirmation_with_all_values(monkeypatch):
     ctx = SimpleNamespace(user_data={})
     asyncio.run(presets_h.preset_callback(update, ctx))
     text = replies[0]
-    # V6: confirmation uses friendly label "Balanced activated" not internal name
-    assert "Balanced activated" in text or "Balanced" in text
-    assert "activated" in text  # V6: "Balanced activated" replaces "Strategy Updated"
+    # Confirmation shows the preset name (Value Hunter for value_hunter preset)
+    assert "Value Hunter" in text or "value_hunter" in text.lower()
+    assert "activate" in text.lower()  # "Start Auto Trade" or "Tap ... to activate"
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert cbs == [
@@ -381,16 +379,6 @@ def test_pick_unknown_preset_replies_error(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
     update, replies, _kws = _make_update(callback_data="preset:pick:nope")
-    asyncio.run(presets_h.preset_callback(
-        update, ctx=SimpleNamespace(user_data={}),
-    ))
-    assert "Unknown preset" in replies[0]
-
-
-def test_pick_whale_mirror_returns_error(monkeypatch):
-    uid = uuid4()
-    _patch_tier(monkeypatch, uid)
-    update, replies, _kws = _make_update(callback_data="preset:pick:whale_mirror")
     asyncio.run(presets_h.preset_callback(
         update, ctx=SimpleNamespace(user_data={}),
     ))

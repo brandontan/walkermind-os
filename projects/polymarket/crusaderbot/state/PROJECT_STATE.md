@@ -20,7 +20,7 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign complete (14 phase
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- crusaderbot-mvp-runtime-ux: MVP Runtime + UX Redesign — 14 phases A–N complete; 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline completion, scanner state exposure, tier wording cleanup; branch WARP/CRUSADERBOT-MVP-RUNTIME-UX; PR pending; awaiting WARP•SENTINEL MAJOR validation. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-ux.md
+- crusaderbot-mvp-runtime-ux: MVP Runtime + UX Redesign — 14 phases A–N complete; 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline completion, scanner state exposure, tier wording cleanup; branch WARP/CRUSADERBOT-MVP-RUNTIME-UX; PR pending; awaiting WARP•SENTINEL MAJOR validation. Source: projects/polymarket/crusaderbot/reports/forge/CRUSADERBOT-MVP-RUNTIME-UX.md
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -35,7 +35,7 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign complete (14 phase
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for crusaderbot-mvp-runtime-ux before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-ux.md. Tier: MAJOR.
+- WARP•SENTINEL validation required for crusaderbot-mvp-runtime-ux before merge. Source: projects/polymarket/crusaderbot/reports/forge/CRUSADERBOT-MVP-RUNTIME-UX.md. Tier: MAJOR.
 - WARP🔹CMD merge decision: PR body must reference and CLOSE #1036, #1034, branch crusaderbot-mvp-reset-v1, branch telegram-ux-polish.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
