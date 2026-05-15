@@ -1,7 +1,8 @@
-Last Updated : 2026-05-15 12:00
-Status       : CrusaderBot MVP Runtime + Telegram UX Redesign complete (14 phases A–N). Branch WARP/CRUSADERBOT-MVP-RUNTIME-UX ready for PR. Awaiting WARP•SENTINEL MAJOR validation before merge. Production PAPER ONLY.
+Last Updated : 2026-05-15 13:00
+Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (2026-05-15). 14 phases A–N complete. Production PAPER ONLY. Closed beta observation phase.
 
 [COMPLETED]
+- crusaderbot-mvp-runtime-ux MERGED PR #1049 (2026-05-15). 5-preset system (whale_mirror+hybrid added), capital decoupling via capital_for_risk_profile(), state-driven main_menu() 3-layout, HTML blockquote UX throughout, copy-trade pipeline completion, scanner state exposure, tier wording cleanup. Closes #1036, #1034. MAJOR, FULL RUNTIME INTEGRATION. 1405 tests green.
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. Dashboard pulse, monospaced financials, 6-button menu, English localization. STANDARD, NARROW INTEGRATION.
 - live-execution-user-id-guards MERGED PR #1021. close_position() AND user_id=$N hardening; 5 isolation tests; MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
 - compact-hierarchy-readability-regression MERGED PR #1032 on warp/fix-telegram-mvp-ux-readability-regression. Compact hierarchy readability regression fix + traceability/state sync; STANDARD, NARROW INTEGRATION.
@@ -11,22 +12,22 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign complete (14 phase
 - Telegram inline UI restore + paper autotrade smoke MERGED PR #999 (2026-05-12). ConversationHandler fallback menu button sets patched in copy_trade.py and presets.py to match UX Overhaul layout; health.py job count corrected to 17; paper path smoke verified by code inspection; issue #998 closed. STANDARD, NARROW INTEGRATION.
 - P1 user_id isolation hardening MERGED PR #997 (2026-05-12). AND user_id=$N added to 5 UPDATE statements across registry.py and paper.py; exit_watcher call sites updated. STANDARD, NARROW INTEGRATION.
 - WARP Auto Gate v1 MERGED PR #996 (2026-05-12). warp-auto-gate.yml + warp_auto_gate.py; Gates 1-8 + CI status; idempotent PR comment. STANDARD, NARROW INTEGRATION.
-- Hotfix /insights UndefinedColumnError strategy_type MERGED PR #995 (2026-05-12). LEFT JOIN orders in weekly_insights signal breakddown fixes DAWN-SNOWFLAKE-1729-10 and DAWN-SNOWFLAKE-1729-Z.
+- Hotfix /insights UndefinedColumnError strategy_type MERGED PR #995 (2026-05-12). LEFT JOIN orders in weekly_insights signal breakdown fixes DAWN-SNOWFLAKE-1729-10 and DAWN-SNOWFLAKE-1729-Z.
 - Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner, hourly_report, /health, migration 024; WARP•SENTINEL APPROVED 90/100; MAJOR, FULL RUNTIME INTEGRATION.
 - UX Overhaul Premium Grade MERGED PR #989 (2026-05-12). Telegram UX redesign; 45 hermetic tests green; STANDARD, PRESENTATION.
 - Track J Multi-User Isolation Audit MERGED PR #988 (2026-05-12). WARP•SENTINEL APPROVED 98/100; zero critical isolation issues.
-- Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). /chart PNG, chart period callbacks, /insights weekly breakddown, weekly_insights cron; 30 hermetic tests green.
+- Track H Portfolio Charts + Insights MERGED PR #979 (2026-05-12). /chart PNG, chart period callbacks, /insights weekly breakdown, weekly_insights cron; 30 hermetic tests green.
 - MomentumReversalStrategy adapter MERGED PR #978 (2026-05-11). Strategy registry bootstrap and STRATEGY_AVAILABILITY updated; 50 hermetic tests green.
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- crusaderbot-mvp-runtime-ux: MVP Runtime + UX Redesign — 14 phases A–N complete; 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline completion, scanner state exposure, tier wording cleanup; branch WARP/CRUSADERBOT-MVP-RUNTIME-UX; PR pending; awaiting WARP•SENTINEL MAJOR validation. Source: projects/polymarket/crusaderbot/reports/forge/CRUSADERBOT-MVP-RUNTIME-UX.md
-- Observation / runtime monitoring remains active in paper mode.
+- Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
+- migration 027 (notifications_on) must be applied before deploying crusaderbot-mvp-runtime-ux to production.
 - Wire share_trade_kb into trade close call sites when PNL > 0; surface ready, wiring deferred.
 - Referral payout activation: separate lane, requires WARP🔹CMD decision.
 - Fee collection activation: separate lane, requires WARP🔹CMD decision.
@@ -35,14 +36,13 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign complete (14 phase
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for crusaderbot-mvp-runtime-ux before merge. Source: projects/polymarket/crusaderbot/reports/forge/CRUSADERBOT-MVP-RUNTIME-UX.md. Tier: MAJOR.
-- WARP🔹CMD merge decision: PR body must reference and CLOSE #1036, #1034, branch crusaderbot-mvp-reset-v1, branch telegram-ux-polish.
+- Apply migration 027 (notifications_on) to production before deploying PR #1049 changes.
+- WARP🔹CMD: deploy PR #1049 changes to Fly.io production (PAPER ONLY — activation guards remain OFF).
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
 [KNOWN ISSUES]
-- crusaderbot-mvp-runtime-ux (WARP/CRUSADERBOT-MVP-RUNTIME-UX) awaiting WARP•SENTINEL MAJOR validation before merge — do not merge without SENTINEL APPROVED verdict.
 - migration 027 (notifications_on) must be applied before deploying this lane.
-- pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-ux-v1; separate cleanup lane required.
+- pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-runtime-ux; separate cleanup lane required.
 - /deposit has no tier gate; intentional and non-blocking.
 - check_alchemy_ws is TCP-only and does not perform a full WebSocket handshake; low-priority follow-up.
 - ENABLE_LIVE_TRADING code default in config.py is True (legacy); fly.toml [env] overrides to false so production posture is correct. Code default alignment remains deferred to WARP/config-guard-default-alignment.

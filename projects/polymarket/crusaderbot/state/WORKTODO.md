@@ -1,15 +1,14 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-14 22:45 WIB
+**Last Updated: 2026-05-15 13:00 WIB
 
 ---
 
 ## Right Now
-- [x] crusaderbot-mvp-runtime-ux — 14 phases A–N complete (2026-05-15). MVP Runtime + Telegram UX Redesign: 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Branch WARP/CRUSADERBOT-MVP-RUNTIME-UX. PR pending WARP•SENTINEL MAJOR validation.
-- WARP•SENTINEL MAJOR validation required before merge. Source: projects/polymarket/crusaderbot/reports/forge/CRUSADERBOT-MVP-RUNTIME-UX.md
-- WARP🔹CMD merge decision needed: PR must CLOSE #1036, #1034, branches crusaderbot-mvp-reset-v1 and telegram-ux-polish.
-- Production posture unchanged: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
+- [x] crusaderbot-mvp-runtime-ux — MERGED PR #1049 (2026-05-15). 14 phases A–N complete. 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Closes #1036, #1034. 1405 tests green. MAJOR, FULL RUNTIME INTEGRATION.
+- Production posture: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
+- NEXT: Apply migration 027 before production deploy. WARP🔹CMD deployment decision.
 
 
 - Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner (60s), hourly_report cron, /health operator command, migration 024 deployed.
