@@ -154,6 +154,7 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("jobs", admin.jobs_command))
     app.add_handler(CommandHandler("auditlog", admin.auditlog_command))
     app.add_handler(CommandHandler("unlock", admin.unlock_command))
+    app.add_handler(CommandHandler("resetonboard", admin.resetonboard_command))
     # Copy-trade strategy command surface.
     app.add_handler(CommandHandler("copytrade", copy_trade.copy_trade_command))
     # P3c signal-following strategy command surface.

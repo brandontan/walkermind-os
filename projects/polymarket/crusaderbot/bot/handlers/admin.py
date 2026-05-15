@@ -25,7 +25,10 @@ from ...services.tiers import (
     list_all_user_tiers,
     set_user_tier,
 )
-from ...users import force_set_tier, get_user_by_username
+from ...users import (
+    force_set_tier, get_user_by_telegram_id, get_user_by_username,
+    set_auto_trade, set_onboarding_complete, update_settings,
+)
 from ..keyboards import admin_menu
 from ..keyboards.admin import ops_dashboard_keyboard
 
@@ -55,7 +58,8 @@ _ADMIN_HELP = (
     "  /admin users — list all users + tiers\n"
     "  /admin settier {user_id} {tier} — change tier (FREE/PREMIUM/ADMIN)\n"
     "  /admin stats — totals and paper PNL\n"
-    "  /admin broadcast {message} — send to all users"
+    "  /admin broadcast {message} — send to all users\n"
+    "  /resetonboard {telegram_user_id} — reset onboarding for testing"
 )
 
 
@@ -220,6 +224,48 @@ async def _admin_broadcast(message, args: list[str], ctx) -> None:
     )
 
 
+async def resetonboard_command(update: Update,
+                               ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reset onboarding state for a user. Admin/operator only."""
+    if update.message is None:
+        return
+    if not await _is_admin_user(update):
+        await update.message.reply_text("⛔ Admin access required.")
+        return
+    args = ctx.args or []
+    if not args:
+        await update.message.reply_text(
+            "Usage: <code>/resetonboard {telegram_user_id}</code>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    try:
+        tg_uid = int(args[0])
+    except ValueError:
+        await update.message.reply_text(
+            "Invalid telegram_user_id — must be an integer."
+        )
+        return
+    user = await get_user_by_telegram_id(tg_uid)
+    if user is None:
+        await update.message.reply_text("User not found.")
+        return
+    await set_onboarding_complete(user["id"], False)
+    await set_auto_trade(user["id"], False)
+    await update_settings(user["id"], active_preset=None, strategy_types=None)
+    uname = html.escape(user.get("username") or str(tg_uid))
+    await update.message.reply_text(
+        f"Onboarding reset for @{uname} (tg:{tg_uid}). "
+        "Next /start triggers full concierge flow.",
+        parse_mode=ParseMode.HTML,
+    )
+    await audit.write(
+        actor_role="admin",
+        action="resetonboard",
+        payload={"target_tg_id": tg_uid},
+    )
+
+
 async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if q is None or not _is_operator(update):
@@ -246,6 +292,12 @@ async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         from ...scheduler import redeem_hourly
         await redeem_hourly()
         await q.message.reply_text("✅ Force-redeem run dispatched.")
+    elif sub == "resetonboard_prompt":
+        await q.message.reply_text(
+            "To reset onboarding, use:\n"
+            "<code>/resetonboard {telegram_user_id}</code>",
+            parse_mode=ParseMode.HTML,
+        )
 
 
 async def _send_status(message) -> None:

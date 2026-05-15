@@ -242,10 +242,12 @@ def emergency_feedback() -> InlineKeyboardMarkup:
 def admin_menu(kill_active: bool) -> InlineKeyboardMarkup:
     label = "🟢 Disable kill switch" if kill_active else "🔴 Activate kill switch"
     buttons = [
-        InlineKeyboardButton(label,             callback_data="admin:kill"),
+        InlineKeyboardButton(label,              callback_data="admin:kill"),
         InlineKeyboardButton("📊 System status", callback_data="admin:status"),
         InlineKeyboardButton("🔁 Force redeem pending",
                              callback_data="admin:force_redeem"),
+        InlineKeyboardButton("🔄 Reset Onboarding",
+                             callback_data="admin:resetonboard_prompt"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))
 
@@ -266,10 +268,13 @@ def dashboard_nav(has_trades: bool) -> InlineKeyboardMarkup:
 
 def insights_kb() -> InlineKeyboardMarkup:
     """Keyboard attached to the PNL Insights message."""
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("🔄 Refresh",       callback_data="insights:refresh"),
-        InlineKeyboardButton("📋 Full Report",   callback_data="insights:full_report"),
-    ]])
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔄 Refresh",     callback_data="insights:refresh"),
+            InlineKeyboardButton("📋 Full Report", callback_data="insights:full_report"),
+        ],
+        nav_row("dashboard:main"),
+    ])
 
 
 def chart_kb(current_days: int | str) -> InlineKeyboardMarkup:
