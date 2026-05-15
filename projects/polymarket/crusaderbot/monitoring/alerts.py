@@ -113,8 +113,8 @@ async def alert_startup(restart_detected: bool = True) -> None:
             if (time.time() - last_ts) < _STARTUP_COOLDOWN:
                 logger.debug("startup alert suppressed by /tmp lock (cooldown active)")
                 return
-    except Exception:
-        pass  # unreadable lock → proceed normally
+    except Exception as exc:
+        logger.warning("startup lock read failed — proceeding without cooldown: %s", exc)
 
     body = (
         f"[CrusaderBot][admin] startup event\n"
@@ -127,8 +127,8 @@ async def alert_startup(restart_detected: bool = True) -> None:
         try:
             with open(_STARTUP_LOCK, "w") as f:
                 f.write(str(time.time()))
-        except Exception:
-            pass  # best-effort; next restart will alert again if lock unwritable
+        except Exception as exc:
+            logger.warning("startup lock write failed — next restart will alert again: %s", exc)
 
 
 async def alert_dependency_unreachable(check_name: str, reason: str) -> None:
