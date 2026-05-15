@@ -699,8 +699,8 @@ _DEFAULTS: dict[str, Decimal] = {
     "min_trade_size": Decimal("0.50"),
 }
 
-_MENU_BUTTONS = {"🤖 Auto Trade", "💼 Portfolio", "⚙️ Settings",
-                 "📊 Insights", "🛑 Stop Bot"}
+_MENU_BUTTONS = {"📊 Active Monitor", "💼 Portfolio", "⚙️ Settings",
+                 "🚨 Emergency", "🚀 Start Autobot", "⚙️ Configure Strategy"}
 
 
 # ---------------------------------------------------------------------------

@@ -54,9 +54,9 @@ def test_main_menu_button_count():
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
     assert len(all_buttons) == 4
-    # Running state: 5 buttons (Dashboard, Auto-Trade, Portfolio, My Trades, Emergency)
+    # Running state: 4 buttons (Active Monitor, Portfolio, Settings, Emergency)
     kb2 = main_menu(strategy_key="signal_sniper", auto_on=True)
-    assert len([btn for row in kb2.keyboard for btn in row]) == 5
+    assert len([btn for row in kb2.keyboard for btn in row]) == 4
 
 
 def test_main_menu_has_settings_not_wallet():
@@ -76,15 +76,14 @@ def test_main_menu_has_emergency_not_help():
 
 
 def test_main_menu_mvp_layout():
-    # Running state: row0=[Dashboard, Auto-Trade], row1=[Portfolio, My Trades], row2=[Emergency]
+    # Running state: row0=[Active Monitor], row1=[Portfolio, Settings], row2=[Emergency]
     kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     row0 = [btn.text for btn in kb.keyboard[0]]
     row1 = [btn.text for btn in kb.keyboard[1]]
     row2 = [btn.text for btn in kb.keyboard[2]]
-    assert "📊 Dashboard" in row0
-    assert "🤖 Auto-Trade" in row0
+    assert row0 == ["📊 Active Monitor"]
     assert "💼 Portfolio" in row1
-    assert "📈 My Trades" in row1
+    assert "⚙️ Settings" in row1
     assert "🚨 Emergency" in row2
 
 
@@ -448,11 +447,17 @@ def test_menu_routes_settings_registered():
     assert handler is settings_handler.settings_hub_root
 
 
-def test_menu_routes_auto_trade_registered():
-    # Label is now "🤖 Auto-Trade" (hyphenated) in MVP UX
-    from projects.polymarket.crusaderbot.bot.handlers import presets
+def test_menu_routes_active_monitor_registered():
+    # Bot-running state: "📊 Active Monitor" routes to dashboard
+    from projects.polymarket.crusaderbot.bot.handlers import dashboard as dashboard_h
+    handler = get_menu_route("📊 Active Monitor")
+    assert handler is dashboard_h.dashboard
+
+
+def test_menu_routes_auto_trade_not_registered():
+    # Auto-Trade is an inline button only — NOT a reply-keyboard route
     handler = get_menu_route("🤖 Auto-Trade")
-    assert handler is presets.show_preset_picker
+    assert handler is None
 
 
 def test_menu_routes_wallet_not_registered():

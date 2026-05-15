@@ -1,7 +1,8 @@
-Last Updated : 2026-05-15 13:00
-Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (2026-05-15). 14 phases A–N complete. Production PAPER ONLY. Closed beta observation phase.
+Last Updated : 2026-05-15 13:30
+Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (2026-05-15). UX Patch 1 (WARP/CRUSADERBOT-UX-PATCH-1) in review — startup message guard + bot-ON keyboard layout fix. Production PAPER ONLY.
 
 [COMPLETED]
+- crusaderbot-ux-patch-1 PR open (2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout fix (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-ux MERGED PR #1049 (2026-05-15). 5-preset system (whale_mirror+hybrid added), capital decoupling via capital_for_risk_profile(), state-driven main_menu() 3-layout, HTML blockquote UX throughout, copy-trade pipeline completion, scanner state exposure, tier wording cleanup. Closes #1036, #1034. MAJOR, FULL RUNTIME INTEGRATION. 1405 tests green.
 Last Updated : 2026-05-15 12:20
 Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (14 phases A–N). 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Production PAPER ONLY.
@@ -27,6 +28,7 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (1
 
 [IN PROGRESS]
 - Closed beta observation / paper-mode runtime monitoring active.
+- WARP/CRUSADERBOT-UX-PATCH-1 PR open — awaiting WARP🔹CMD review and merge.
 
 [IN PROGRESS]
 - Observation / runtime monitoring remains active in paper mode.
@@ -44,8 +46,9 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (1
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Apply migration 027 (notifications_on) to production before deploying PR #1049 changes.
-- WARP🔹CMD: deploy PR #1049 changes to Fly.io production (PAPER ONLY — activation guards remain OFF).
+- WARP🔹CMD: review and merge WARP/CRUSADERBOT-UX-PATCH-1 (MINOR, no SENTINEL required).
+- Apply migration 027 (notifications_on) to production before deploying to Fly.io.
+- Deploy merged changes to Fly.io production (PAPER ONLY — activation guards remain OFF).
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
 [KNOWN ISSUES]

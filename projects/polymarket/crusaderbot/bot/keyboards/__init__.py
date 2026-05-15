@@ -30,12 +30,12 @@ def main_menu(strategy_key: str | None = None, auto_on: bool = False) -> ReplyKe
 
     No strategy configured  → single CTA to configure, then secondary nav.
     Strategy set, bot OFF   → single CTA to start, then secondary nav.
-    Bot running             → full nav: Dashboard, Auto-Trade, Portfolio, My Trades, Emergency.
+    Bot running             → Active Monitor CTA, Portfolio + Settings, Emergency.
     """
     if auto_on:
         rows = [
-            [KeyboardButton("📊 Dashboard"),     KeyboardButton("🤖 Auto-Trade")],
-            [KeyboardButton("💼 Portfolio"),      KeyboardButton("📈 My Trades")],
+            [KeyboardButton("📊 Active Monitor")],
+            [KeyboardButton("💼 Portfolio"),      KeyboardButton("⚙️ Settings")],
             [KeyboardButton("🚨 Emergency")],
         ]
     elif strategy_key:
