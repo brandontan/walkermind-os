@@ -1,26 +1,11 @@
-"""Emergency menu — pause / pause+close-all / lock (per-user).
+"""Phase 5 UX Rebuild — Emergency menu (always accessible from any state).
 
-Per spec: emergency close uses the FORCE-CLOSE MARKER FLOW rather than
-liquidating directly. We set `force_close_intent=true` on each open position
-via the position registry and then trigger the exit watcher inline so the
-priority chain (force_close_intent > tp_hit > sl_hit > strategy_exit > hold)
-drives the close.
-
-R12d extension: ``mark_force_close_intent_for_position`` exposes the same
-marker flow scoped to a single position UUID so the live position monitor
-can offer a per-row [🛑 Force Close] button without touching every other
-open position. Mirrors the user-wide variant in domain.positions.registry —
-idempotent (already-set rows return 0) and ownership-checked at the SQL layer
-(``user_id = $2``) so a leaked or stale callback cannot mark someone else's
-position.
-
-Phase 5J: redesigned with action descriptions, per-action confirmation dialogs,
-and post-action feedback with nav buttons.
+Per spec: emergency close uses the FORCE-CLOSE MARKER FLOW — sets
+force_close_intent=true on each open position via position registry.
 """
 from __future__ import annotations
 
 import logging
-from uuid import UUID
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -28,193 +13,150 @@ from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ... import audit
-from ...database import get_pool
-from ...domain.positions import registry as position_registry
 from ...users import set_locked, set_paused, upsert_user
-from ..keyboards import emergency_confirm, emergency_feedback, emergency_menu
+from ..keyboards import emergency_confirm_p5_kb, emergency_done_p5_kb, emergency_p5_kb
+from ..messages import EMERGENCY_TEXT, emergency_confirm_text, emergency_feedback_text
 
 logger = logging.getLogger(__name__)
 
 
 async def _safe_edit(q, text: str, **kwargs) -> None:
-    """Edit a callback query message, ignoring no-op edits."""
     try:
         await q.edit_message_text(text, **kwargs)
     except BadRequest as exc:
-        if "Message is not modified" in str(exc):
-            return
-        raise
+        if "Message is not modified" not in str(exc):
+            await q.message.reply_text(text, **kwargs)
 
 
-_EMERGENCY_INTRO = (
-    "<b>🚨 Emergency Controls</b>\n"
-    "<i>These actions take effect immediately.</i>\n\n"
-    "⏸ <b>Pause Auto-Trade</b> — Stop new trades. Keep open positions.\n"
-    "🛑 <b>Pause + Close All</b> — Stop trading AND close every position at market.\n"
-    "🔒 <b>Lock Account</b> — Freeze everything. Requires support to unlock."
-)
-
-_CONFIRM_TEXT: dict[str, str] = {
-    "pause": (
-        "<b>Confirm: Pause Auto-Trade?</b>\n"
-        "This will stop all new trades immediately.\n"
-        "Open positions will remain active."
-    ),
-    "pause_close": (
-        "<b>Confirm: Pause + Close All?</b>\n"
-        "This will stop trading AND mark every open position for force-close.\n"
-        "Positions close at market on the next exit watcher tick."
-    ),
-    "lock": (
-        "<b>Confirm: Lock Account?</b>\n"
-        "This will freeze all trading immediately.\n"
-        "Your account must be unlocked to resume."
-    ),
-}
-
-_FEEDBACK_TEXT: dict[str, str] = {
-    "pause": (
-        "⏸ Auto-Trade paused.\n"
-        "Open positions are still active.\n"
-        "Resume anytime from Auto-Trade menu."
-    ),
-    "lock": (
-        "🔒 Account locked.\n"
-        "All trading is frozen. Contact support to unlock."
-    ),
-}
-
-
-async def mark_force_close_intent_for_position(
-    position_id: UUID | str,
-    user_id: UUID | str,
-) -> int:
-    """Set ``force_close_intent = TRUE`` on a single open position.
-
-    Returns 1 if newly flagged, 0 if the row was already flagged, missing,
-    closed, or owned by a different user. The exit watcher consumes the
-    flag on its next tick — same priority chain as the pause+close-all path.
-    """
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        marked = await conn.fetchval(
-            "WITH upd AS ("
-            "  UPDATE positions SET force_close_intent = TRUE"
-            "   WHERE id = $1 AND user_id = $2 AND status = 'open'"
-            "     AND force_close_intent = FALSE"
-            "   RETURNING 1"
-            ") SELECT COUNT(*) FROM upd",
-            position_id, user_id,
+async def _render_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    if q is not None and q.message is not None:
+        await _safe_edit(
+            q, EMERGENCY_TEXT,
+            parse_mode=ParseMode.HTML, reply_markup=emergency_p5_kb(),
         )
-    flipped = int(marked or 0)
-    if flipped:
-        await audit.write(
-            actor_role="user",
-            action="self_force_close_position",
-            user_id=user_id,
-            payload={"position_id": str(position_id)},
+    elif update.message is not None:
+        await update.message.reply_text(
+            EMERGENCY_TEXT, parse_mode=ParseMode.HTML, reply_markup=emergency_p5_kb(),
         )
-    return flipped
 
 
 async def emergency_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message is None:
-        return
-    await update.message.reply_text(
-        _EMERGENCY_INTRO,
-        parse_mode=ParseMode.HTML,
-        reply_markup=emergency_menu(),
-    )
+    """Command handler /emergency."""
+    await _render_menu(update, ctx)
 
 
 async def emergency_root_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Callback-query-compatible entry point for the emergency surface."""
+    """Callback handler — menu:emergency."""
     q = update.callback_query
-    if q is None or q.message is None:
-        return
-    await q.message.reply_text(
-        _EMERGENCY_INTRO,
-        parse_mode=ParseMode.HTML,
-        reply_markup=emergency_menu(),
-    )
+    if q is not None:
+        await q.answer()
+    await _render_menu(update, ctx)
 
 
-async def emergency_callback(update: Update,
-                             ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def emergency_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Routes all p5:emergency:* callbacks."""
     q = update.callback_query
     if q is None or update.effective_user is None:
         return
     await q.answer()
-    sub = (q.data or "").split(":", 1)[-1]
+    data = q.data or ""
 
-    # Step 1 — show confirmation dialog
-    if sub in ("pause", "pause_close", "lock"):
+    if data.startswith("p5:emergency:ask:"):
+        action = data[len("p5:emergency:ask:"):]
+        text = emergency_confirm_text(action)
         await _safe_edit(
-            q,
-            _CONFIRM_TEXT[sub],
+            q, text,
             parse_mode=ParseMode.HTML,
-            reply_markup=emergency_confirm(sub),
+            reply_markup=emergency_confirm_p5_kb(action),
         )
         return
 
-    # Back / cancel — return to intro menu
-    if sub in ("cancel", "back"):
-        await _safe_edit(
-            q,
-            _EMERGENCY_INTRO,
-            parse_mode=ParseMode.HTML,
-            reply_markup=emergency_menu(),
-        )
+    if data.startswith("p5:emergency:confirm:"):
+        action = data[len("p5:emergency:confirm:"):]
+        await _execute_action(update, ctx, action)
         return
 
-    # Step 2 — confirmed; execute action
-    if sub.startswith("confirm:"):
-        action = sub.split(":", 1)[-1]
-        user = await upsert_user(
-            update.effective_user.id, update.effective_user.username,
-        )
+    # Legacy emergency:* pattern callbacks (backward compat)
+    if data.startswith("emergency:"):
+        await _handle_legacy_emergency(update, ctx, data)
+        return
 
+
+async def _execute_action(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE, action: str,
+) -> None:
+    q = update.callback_query
+    if update.effective_user is None:
+        return
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+
+    try:
         if action == "pause":
             await set_paused(user["id"], True)
-            await audit.write(
-                actor_role="user", action="self_pause", user_id=user["id"],
-            )
-            await _safe_edit(
-                q,
-                _FEEDBACK_TEXT["pause"],
-                reply_markup=emergency_feedback(),
-            )
+            await audit.write(actor_role="user", action="emergency_pause", user_id=user["id"])
 
         elif action == "pause_close":
             await set_paused(user["id"], True)
-            marked = await position_registry.mark_force_close_intent_for_user(
-                user["id"],
-            )
-            await audit.write(
-                actor_role="user", action="self_pause_close",
-                user_id=user["id"],
-                payload={"marked_force_close_intent": marked},
-            )
             try:
-                from ...scheduler import check_exits
-                await check_exits()
+                from ...domain.positions import registry as position_registry
+                from ...database import get_pool
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    pos_ids = await conn.fetch(
+                        "SELECT id FROM positions WHERE user_id=$1 AND status='open'",
+                        user["id"],
+                    )
+                for row in pos_ids:
+                    await position_registry.mark_force_close_intent_for_position(
+                        row["id"], user["id"],
+                    )
             except Exception as exc:
-                logger.error("emergency inline check_exits failed: %s", exc)
-            await _safe_edit(
-                q,
-                f"🛑 Paused + flagged {marked} position(s) for force-close.\n"
-                "Exit watcher just ran — see your dashboard for results.",
-                reply_markup=emergency_feedback(),
-            )
+                logger.error("pause_close position marking failed: %s", exc)
+            await audit.write(actor_role="user", action="emergency_pause_close_all", user_id=user["id"])
 
         elif action == "lock":
-            await set_paused(user["id"], True)
             await set_locked(user["id"], True)
-            await audit.write(
-                actor_role="user", action="self_lock_account", user_id=user["id"],
-            )
+            await audit.write(actor_role="user", action="emergency_lock", user_id=user["id"])
+
+    except Exception as exc:
+        logger.error("emergency action=%s failed: %s", action, exc)
+        if q is not None and q.message is not None:
             await _safe_edit(
-                q,
-                _FEEDBACK_TEXT["lock"],
-                reply_markup=emergency_feedback(),
+                q, "⚠️ Action failed. Please try again.",
+                parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
             )
+        return
+
+    text = emergency_feedback_text(action)
+    if q is not None and q.message is not None:
+        await _safe_edit(
+            q, text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+        )
+    elif update.message is not None:
+        await update.message.reply_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+        )
+
+
+async def _handle_legacy_emergency(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE, data: str,
+) -> None:
+    """Backward compat for legacy emergency:pause / emergency:pause_close / emergency:lock."""
+    q = update.callback_query
+    sub = data.split(":", 1)[-1]
+
+    if sub in ("pause", "pause_close", "lock"):
+        text = emergency_confirm_text(sub)
+        if q is not None and q.message is not None:
+            await _safe_edit(
+                q, text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=emergency_confirm_p5_kb(sub),
+            )
+    elif sub.startswith("confirm:"):
+        action = sub[len("confirm:"):]
+        await _execute_action(update, ctx, action)
+    elif sub in ("back", "cancel"):
+        from .dashboard import show_dashboard_for_cb
+        await show_dashboard_for_cb(update, ctx)

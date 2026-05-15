@@ -295,3 +295,196 @@ def confirm(action_key: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton("✅ Yes", callback_data=f"confirm:{action_key}:yes"),
         InlineKeyboardButton("❌ No",  callback_data=f"confirm:{action_key}:no"),
     ]])
+
+
+# ── Phase 5 UX Rebuild keyboards ───────────────────────────────────────────────
+
+def welcome_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 Get Started", callback_data="start:get_started")],
+        [InlineKeyboardButton("ℹ️ Learn More",  callback_data="start:learn_more")],
+    ])
+
+
+def welcome_back_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("⬅️ Back", callback_data="start:welcome"),
+    ]])
+
+
+def wallet_ready_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 Copy Address", callback_data="start:copy_address")],
+        [InlineKeyboardButton("Next →",          callback_data="start:wallet_next")],
+    ])
+
+
+def deposit_prompt_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 Copy Address", callback_data="start:copy_address")],
+        [InlineKeyboardButton("Skip for now",    callback_data="start:skip_deposit")],
+    ])
+
+
+def p5_dashboard_kb(has_preset: bool = False) -> InlineKeyboardMarkup:
+    if not has_preset:
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("🤖 Get Started", callback_data="menu:autotrade")],
+        ])
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🤖 Edit Preset", callback_data="menu:autotrade"),
+            InlineKeyboardButton("📈 My Trades",   callback_data="menu:trades"),
+        ],
+        [InlineKeyboardButton("💰 Wallet",         callback_data="menu:wallet")],
+    ])
+
+
+def preset_picker_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🐋 Whale Mirror",  callback_data="p5:preset:whale_mirror")],
+        [InlineKeyboardButton("📡 Signal Sniper", callback_data="p5:preset:signal_sniper")],
+        [InlineKeyboardButton("🐋📡 Hybrid",      callback_data="p5:preset:hybrid")],
+        [InlineKeyboardButton("🎯 Value Hunter",  callback_data="p5:preset:value_hunter")],
+        [InlineKeyboardButton("🚀 Full Auto",     callback_data="p5:preset:full_auto")],
+        [InlineKeyboardButton("← Back",           callback_data="menu:dashboard")],
+    ])
+
+
+def preset_confirm_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Activate",   callback_data="p5:confirm:activate"),
+            InlineKeyboardButton("✏️ Customize",  callback_data="p5:confirm:customize"),
+        ],
+        [InlineKeyboardButton("← Back",           callback_data="p5:confirm:back")],
+    ])
+
+
+def preset_active_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✏️ Edit Config",   callback_data="p5:active:edit"),
+            InlineKeyboardButton("🔄 Switch Preset", callback_data="p5:active:switch"),
+        ],
+        [
+            InlineKeyboardButton("⏸ Pause",  callback_data="p5:active:pause"),
+            InlineKeyboardButton("🛑 Stop",  callback_data="p5:active:stop"),
+        ],
+    ])
+
+
+def trades_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📋 Full History", callback_data="p5:trades:history"),
+            InlineKeyboardButton("📊 Dashboard",    callback_data="menu:dashboard"),
+        ],
+    ])
+
+
+def trades_empty_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 Set Up Auto-Trade", callback_data="menu:autotrade")],
+        [InlineKeyboardButton("📊 Dashboard",          callback_data="menu:dashboard")],
+    ])
+
+
+def close_position_kb(position_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🛑 Close", callback_data=f"close_position:{position_id}"),
+    ]])
+
+
+def close_confirm_kb(position_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Confirm Close", callback_data=f"close_position:confirm:{position_id}"),
+            InlineKeyboardButton("← Cancel",         callback_data="p5:trades:cancel_close"),
+        ],
+    ])
+
+
+def wallet_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 Copy Address", callback_data="p5:wallet:copy")],
+        [InlineKeyboardButton("📊 Dashboard",    callback_data="menu:dashboard")],
+    ])
+
+
+def emergency_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⏸ Pause Auto-Trade",    callback_data="p5:emergency:ask:pause")],
+        [InlineKeyboardButton("⏸🛑 Pause + Close All", callback_data="p5:emergency:ask:pause_close")],
+        [InlineKeyboardButton("🔒 Lock Account",        callback_data="p5:emergency:ask:lock")],
+        [InlineKeyboardButton("← Back",                 callback_data="menu:dashboard")],
+    ])
+
+
+def emergency_confirm_p5_kb(action: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Confirm", callback_data=f"p5:emergency:confirm:{action}"),
+            InlineKeyboardButton("← Cancel",  callback_data="menu:emergency"),
+        ],
+    ])
+
+
+def emergency_done_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📊 Dashboard",   callback_data="menu:dashboard"),
+            InlineKeyboardButton("🤖 Auto-Trade",  callback_data="menu:autotrade"),
+        ],
+    ])
+
+
+def customize_capital_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("25%",  callback_data="p5:customize:cap:25"),
+            InlineKeyboardButton("50%",  callback_data="p5:customize:cap:50"),
+            InlineKeyboardButton("75%",  callback_data="p5:customize:cap:75"),
+            InlineKeyboardButton("100%", callback_data="p5:customize:cap:100"),
+        ],
+    ])
+
+
+def customize_tp_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("+10%",   callback_data="p5:customize:tp:10"),
+            InlineKeyboardButton("+15%",   callback_data="p5:customize:tp:15"),
+            InlineKeyboardButton("+20%",   callback_data="p5:customize:tp:20"),
+            InlineKeyboardButton("+30%",   callback_data="p5:customize:tp:30"),
+        ],
+        [InlineKeyboardButton("Custom",    callback_data="p5:customize:tp:custom")],
+    ])
+
+
+def customize_sl_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("-5%",    callback_data="p5:customize:sl:5"),
+            InlineKeyboardButton("-8%",    callback_data="p5:customize:sl:8"),
+            InlineKeyboardButton("-10%",   callback_data="p5:customize:sl:10"),
+            InlineKeyboardButton("-15%",   callback_data="p5:customize:sl:15"),
+        ],
+        [InlineKeyboardButton("Custom",    callback_data="p5:customize:sl:custom")],
+    ])
+
+
+def customize_targets_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🐋 Browse Top Wallets", callback_data="p5:customize:targets:browse")],
+        [InlineKeyboardButton("Skip",                   callback_data="p5:customize:targets:skip")],
+    ])
+
+
+def customize_review_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Save",  callback_data="p5:customize:save"),
+            InlineKeyboardButton("← Back",  callback_data="p5:customize:back"),
+        ],
+    ])
