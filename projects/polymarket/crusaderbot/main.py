@@ -136,16 +136,20 @@ async def lifespan(_: FastAPI):
         )
         log.info("live_gate_opened audit event written (all operator guards enabled)")
 
-    await notifications.send(
-        settings.OPERATOR_CHAT_ID,
-        f"🟢 CrusaderBot up\nenv: {settings.APP_ENV}\n"
-        f"mode: {'webhook' if use_webhook else 'polling'}\n"
-        f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
-        f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
-        f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
-        f"{'✅ operator guards OPEN — Tier 4 users can trade live' if all_guards_ready else '🔒 operator guards LOCKED — all trades route to paper'}",
-        parse_mode=None,
-    )
+    # Operator-only boot alert — must NEVER target a regular user's chat_id.
+    # Guard ensures the send is skipped rather than misdirected when
+    # OPERATOR_CHAT_ID is not yet configured.
+    if settings.OPERATOR_CHAT_ID:
+        await notifications.send(
+            settings.OPERATOR_CHAT_ID,
+            f"🟢 CrusaderBot up\nenv: {settings.APP_ENV}\n"
+            f"mode: {'webhook' if use_webhook else 'polling'}\n"
+            f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
+            f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
+            f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
+            f"{'✅ operator guards OPEN — Tier 4 users can trade live' if all_guards_ready else '🔒 operator guards LOCKED — all trades route to paper'}",
+            parse_mode=None,
+        )
 
     # --- observability: startup alert + dependency probe ---
     # Fly.io starts a fresh machine on every deploy or VM restart, so a boot

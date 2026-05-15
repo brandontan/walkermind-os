@@ -6,6 +6,7 @@
 ---
 
 ## Right Now
+- [ ] crusaderbot-ux-patch-1 — PR open (WARP/CRUSADERBOT-UX-PATCH-1, 2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION. Awaiting WARP🔹CMD review and merge.
 - [x] crusaderbot-mvp-runtime-ux — MERGED PR #1049 (2026-05-15). 14 phases A–N complete. 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Closes #1036, #1034. 1405 tests green. MAJOR, FULL RUNTIME INTEGRATION.
 - Production posture: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
 - NEXT: Apply migration 027 before production deploy. WARP🔹CMD deployment decision.

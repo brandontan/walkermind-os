@@ -55,31 +55,32 @@ def test_grid_rows_custom_cols():
 
 # MVP state-driven main_menu — "running bot" state labels
 MVP_RUNNING_BUTTONS = {
-    "📊 Dashboard",
-    "🤖 Auto-Trade",
+    "📊 Active Monitor",
     "💼 Portfolio",
-    "📈 My Trades",
+    "⚙️ Settings",
     "🚨 Emergency",
 }
 
 
-def test_main_menu_has_five_buttons():
-    # Running state: 5 buttons in 2+2+1 layout
+def test_main_menu_has_four_buttons():
+    # Running state: 4 buttons in 1+2+1 layout
     kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 5
+    assert len(all_buttons) == 4
 
 
 def test_main_menu_layout_three_rows():
-    # V6: 3 rows (2+2+1)
+    # All states: 3 rows
     kb = main_menu()
     assert len(kb.keyboard) == 3
 
 
-def test_main_menu_first_two_rows_are_pairs():
-    # Running state: row0=[Dashboard, Auto-Trade], row1=[Portfolio, My Trades]
+def test_main_menu_running_row0_is_single_active_monitor():
+    # Running state: row0=[Active Monitor] (single CTA)
     kb = main_menu(strategy_key="signal_sniper", auto_on=True)
-    assert len(kb.keyboard[0]) == 2
+    assert len(kb.keyboard[0]) == 1
+    assert kb.keyboard[0][0].text == "📊 Active Monitor"
+    # row1=[Portfolio, Settings] (pair)
     assert len(kb.keyboard[1]) == 2
 
 
@@ -108,11 +109,13 @@ def test_main_menu_contains_portfolio_button():
     assert "💼 Portfolio" in labels
 
 
-def test_main_menu_contains_my_trades_when_running():
-    # Running state: My Trades replaces Insights in main menu
+def test_main_menu_running_has_settings_not_my_trades():
+    # Running state: Settings is present; My Trades and Auto-Trade are NOT on main menu
     kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "📈 My Trades" in labels
+    assert "⚙️ Settings" in labels
+    assert "📈 My Trades" not in labels
+    assert "🤖 Auto-Trade" not in labels
 
 
 def test_main_menu_contains_emergency():
@@ -132,14 +135,19 @@ def test_portfolio_route_registered():
     assert "💼 Portfolio" in MAIN_MENU_ROUTES
 
 
-def test_dashboard_route_registered():
-    # Dashboard replaces Insights as a top-level route
-    assert "📊 Dashboard" in MAIN_MENU_ROUTES
+def test_active_monitor_route_registered():
+    # Bot-running state: Active Monitor routes to dashboard
+    assert "📊 Active Monitor" in MAIN_MENU_ROUTES
 
 
-def test_auto_trade_route_registered():
-    # Label is now hyphenated: "🤖 Auto-Trade"
-    assert "🤖 Auto-Trade" in MAIN_MENU_ROUTES
+def test_dashboard_label_not_a_route():
+    # "📊 Dashboard" is no longer a reply-keyboard button in any state
+    assert "📊 Dashboard" not in MAIN_MENU_ROUTES
+
+
+def test_auto_trade_not_a_route():
+    # Auto-Trade lives in the inline dashboard keyboard, not the reply keyboard
+    assert "🤖 Auto-Trade" not in MAIN_MENU_ROUTES
 
 
 def test_emergency_route_registered():
@@ -149,22 +157,22 @@ def test_emergency_route_registered():
 
 def test_all_main_menu_routes_present():
     expected = {
-        "🤖 Auto-Trade", "💼 Portfolio", "⚙️ Settings",
-        "📊 Dashboard", "🚨 Emergency",
+        "📊 Active Monitor", "💼 Portfolio", "⚙️ Settings",
+        "🚨 Emergency", "🚀 Start Autobot", "⚙️ Configure Strategy",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 
 
-def test_auto_trade_and_portfolio_are_different_handlers():
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto-Trade"]
+def test_active_monitor_and_portfolio_are_different_handlers():
+    monitor_handler = MAIN_MENU_ROUTES["📊 Active Monitor"]
     portfolio_handler = MAIN_MENU_ROUTES["💼 Portfolio"]
-    assert auto_handler is not portfolio_handler
+    assert monitor_handler is not portfolio_handler
 
 
-def test_auto_trade_and_settings_are_different_handlers():
-    auto_handler = MAIN_MENU_ROUTES["🤖 Auto-Trade"]
+def test_active_monitor_and_settings_are_different_handlers():
+    monitor_handler = MAIN_MENU_ROUTES["📊 Active Monitor"]
     settings_handler = MAIN_MENU_ROUTES["⚙️ Settings"]
-    assert auto_handler is not settings_handler
+    assert monitor_handler is not settings_handler
 
 
 # ---------- menu_copytrade_handler (via settings/secondary nav) ------------
