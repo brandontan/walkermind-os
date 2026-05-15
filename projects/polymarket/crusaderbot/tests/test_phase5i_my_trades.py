@@ -123,7 +123,7 @@ def _make_callback_update(data: str, replies: list[str]) -> SimpleNamespace:
 def _patch_tier_ok(user_id: UUID | None = None):
     uid = user_id or uuid4()
     return patch.object(
-        mt, "_ensure_tier", AsyncMock(return_value=({"id": uid}, True))
+        mt, "_ensure_user", AsyncMock(return_value=({"id": uid}, True))
     )
 
 
@@ -286,7 +286,7 @@ def test_close_confirm_yes_calls_paper_close():
 
     mock_result = {"pnl_usdc": Decimal("0.71"), "exit_price": 0.48}
 
-    with patch.object(mt, "_ensure_tier",
+    with patch.object(mt, "_ensure_user",
                       AsyncMock(return_value=({"id": user_id}, True))), \
          patch.object(mt.repo, "get_open_position_for_user",
                       AsyncMock(return_value=pos)), \
@@ -340,17 +340,16 @@ def test_format_positions_section_hierarchy():
 
 
 def test_main_menu_routes_my_trades_registered():
-    """v3: My Trades is accessed via Dashboard nav, not root menu.
-    
-    In v3 main menu, top-level 🏠 Dashboard leads to my_trades via
-    dashboard:trades callback. Root menu no longer has a dedicated
-    📈 My Trades button. This test verifies the handler exists and is
-    importable (route coverage tested in test_ux_overhaul.py).
+    """V6: My Trades is accessed via Portfolio nav, not a dedicated root button.
+
+    In V6 main menu, 💼 Portfolio is the entry point to trades/positions.
+    This test verifies the handler exists and is importable, and that the
+    portfolio entry point is registered in MAIN_MENU_ROUTES.
     """
     # my_trades handler must be importable and callable
     assert callable(mt.my_trades)
-    # Dashboard route must be registered (gateway to trades)
-    assert MAIN_MENU_ROUTES.get("🏠 Dashboard") is not None
+    # Portfolio route must be registered (V6 gateway to trades)
+    assert MAIN_MENU_ROUTES.get("💼 Portfolio") is not None
 
 
 # ---------- Test 12: my_trades_main_kb 2-col close buttons -----------------

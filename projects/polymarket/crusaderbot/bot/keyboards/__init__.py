@@ -26,27 +26,27 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
 
 
 def main_menu() -> ReplyKeyboardMarkup:
-    """V5 AUTOBOT — 6-button global nav keyboard, 2-column layout."""
+    """V6 — 5-button persistent nav keyboard. Auto Trade, Portfolio, Settings, Insights, Stop Bot."""
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("🏠 Dashboard"),  KeyboardButton("💼 Portfolio")],
-            [KeyboardButton("🤖 Auto Mode"),  KeyboardButton("👥 Referrals")],
-            [KeyboardButton("⚙️ Settings"),   KeyboardButton("❓ Help")],
+            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("💼 Portfolio")],
+            [KeyboardButton("⚙️ Settings"),    KeyboardButton("📊 Insights")],
+            [KeyboardButton("🛑 Stop Bot")],
         ],
         resize_keyboard=True,
     )
 
 
 def dashboard_kb() -> InlineKeyboardMarkup:
-    """V5 AUTOBOT dashboard inline keyboard — 2-column layout."""
+    """V6 dashboard inline keyboard — Auto Trade, Portfolio, Settings, Stop Bot."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🤖 Auto Mode",  callback_data="dashboard:auto"),
-            InlineKeyboardButton("💼 Portfolio",   callback_data="dashboard:portfolio"),
+            InlineKeyboardButton("🤖 Auto Trade", callback_data="dashboard:auto"),
+            InlineKeyboardButton("💼 Portfolio",  callback_data="dashboard:portfolio"),
         ],
         [
-            InlineKeyboardButton("⚙️ Settings",   callback_data="dashboard:settings"),
-            InlineKeyboardButton("🛑 Stop Bot",   callback_data="dashboard:stop"),
+            InlineKeyboardButton("⚙️ Settings",  callback_data="dashboard:settings"),
+            InlineKeyboardButton("🛑 Stop Bot",  callback_data="dashboard:stop"),
         ],
     ])
 
@@ -72,13 +72,16 @@ def _legacy_dashboard_kb(cta_btn: InlineKeyboardButton) -> InlineKeyboardMarkup:
 
 
 def portfolio_kb() -> InlineKeyboardMarkup:
-    """MVP Portfolio screen — Positions + Refresh + Home."""
+    """V6 Portfolio screen — Positions + Refresh + Home. No chart button."""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("📋 Positions", callback_data="portfolio:positions"),
-            InlineKeyboardButton("🔄 Refresh",   callback_data="dashboard:portfolio"),
+            InlineKeyboardButton("📋 Trades",    callback_data="portfolio:trades"),
         ],
-        [InlineKeyboardButton("🏠 Home", callback_data="dashboard:main")],
+        [
+            InlineKeyboardButton("🔄 Refresh",   callback_data="dashboard:portfolio"),
+            InlineKeyboardButton("🏠 Home",      callback_data="dashboard:main"),
+        ],
     ])
 
 
@@ -99,12 +102,12 @@ def _legacy_portfolio_kb() -> InlineKeyboardMarkup:
 
 
 def mvp_auto_trade_kb() -> InlineKeyboardMarkup:
-    """MVP Auto Trade: Conservative/Balanced/Aggressive mapped to preset keys."""
+    """V6 Auto Trade: 3 presets with [Select] per row."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📡 Conservative", callback_data="preset:pick:signal_sniper")],
-        [InlineKeyboardButton("🎯 Balanced",     callback_data="preset:pick:value_hunter")],
-        [InlineKeyboardButton("🚀 Aggressive",   callback_data="preset:pick:full_auto")],
-        [InlineKeyboardButton("🏠 Home",         callback_data="dashboard:main")],
+        [InlineKeyboardButton("📡 Conservative",  callback_data="preset:pick:signal_sniper")],
+        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:value_hunter")],
+        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:full_auto")],
+        [InlineKeyboardButton("🏠 Home",          callback_data="dashboard:main")],
     ])
 
 

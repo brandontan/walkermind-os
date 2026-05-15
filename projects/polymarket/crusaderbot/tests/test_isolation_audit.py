@@ -306,6 +306,7 @@ class TestRuntimeIsolation:
                     if "positions_value" in sql:
                         return {
                             "positions_value": Decimal("0"),
+                            "open_count": 0,
                             "winning": 0,
                             "losing": 0,
                         }

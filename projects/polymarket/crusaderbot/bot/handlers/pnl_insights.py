@@ -22,7 +22,7 @@ from ...database import get_pool
 from ...jobs.weekly_insights import _fetch_weekly_stats, format_weekly_insights
 from ...users import upsert_user
 from ..keyboards import insights_kb
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +200,7 @@ def format_insights(data: dict) -> str:
     """Render insights data as a Telegram Markdown message."""
     if data["total_closed"] < 3:
         return (
-            "📊 *Weekly Insights*\n"
+            "\U0001f4ca *Weekly Insights*\n"
             "──────────────────\n"
             "Not enough data yet.\n"
             "Need at least 3 closed trades.\n"
@@ -276,15 +276,9 @@ async def pnl_insights_command(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        await update.message.reply_text(tier_block_message(Tier.ALLOWLISTED))
-        return
     data = await _fetch_insights(user["id"])
-    weekly_data = await _fetch_weekly_stats(user["id"])
-    weekly_section = format_weekly_insights(weekly_data)
-    full_text = format_insights(data) + "\n\n" + weekly_section
     await update.message.reply_text(
-        full_text,
+        format_insights(data),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=insights_kb(),
     )
@@ -300,15 +294,9 @@ async def insights_cb(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        await q.answer(tier_block_message(Tier.ALLOWLISTED), show_alert=True)
-        return
     data = await _fetch_insights(user["id"])
-    weekly_data = await _fetch_weekly_stats(user["id"])
-    weekly_section = format_weekly_insights(weekly_data)
-    full_text = format_insights(data) + "\n\n" + weekly_section
     await q.message.reply_text(
-        full_text,
+        format_insights(data),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=insights_kb(),
     )

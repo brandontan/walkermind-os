@@ -45,7 +45,7 @@ from ...users import upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
 from ..keyboards import main_menu, portfolio_kb
 from ..keyboards.positions import force_close_confirm_kb, positions_list_kb
-from ..tier import Tier, has_tier, tier_block_message
+
 from .emergency import mark_force_close_intent_for_position
 
 logger = logging.getLogger(__name__)
@@ -54,21 +54,11 @@ PRICE_FETCH_TIMEOUT_SEC = 3.0
 MARKET_TITLE_MAX = 40
 
 
-async def _ensure_tier(update: Update, min_tier: int) -> tuple[Optional[dict], bool]:
-    """Resolve the user, enforce the minimum tier, route the rejection text
-    onto whichever surface the update came in on (message vs callback)."""
+async def _ensure_tier(update: Update, _min_tier: int = 0) -> tuple[Optional[dict], bool]:
+    """All registered users pass — no tier gate. Calls local upsert_user for testability."""
     if update.effective_user is None:
         return None, False
-    user = await upsert_user(
-        update.effective_user.id, update.effective_user.username
-    )
-    if not has_tier(user["access_tier"], min_tier):
-        msg = tier_block_message(min_tier)
-        if update.callback_query is not None:
-            await update.callback_query.answer(msg, show_alert=True)
-        elif update.message is not None:
-            await update.message.reply_text(msg)
-        return None, False
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
     return user, True
 
 
@@ -171,7 +161,7 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh
         q = update.callback_query
         await q.answer()
 
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_tier(update)
     if not ok:
         return
     if not is_cb and update.message is None:
@@ -182,26 +172,30 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
 
-    open_count = int(st["winning"]) + int(st["losing"])
+    open_count = st.get("open_positions", 0)
+
+    if open_count == 0:
+        footer = "No open positions. Use Auto Trade to start."
+    else:
+        footer = "Tap Positions for full details."
 
     stats = (
         f"💼 Portfolio\n\n"
-        f"💰 Balance: ${bal:.2f}\n"
-        f"📈 PnL: {_pnl_fmt(pnl_today)}\n"
-        f"📋 Open Trades: {open_count}\n\n"
+        f"💰 Balance: ${bal:.2f} USDC\n"
+        f"📈 Today: {_pnl_fmt(pnl_today)}\n"
+        f"📋 Open: {open_count}\n\n"
+        f"{footer}"
     )
-    footer = "No active trades yet — premium monitoring is standing by." if open_count == 0 else "Active trades available. Tap Positions for full detail."
-    text = stats + footer
 
     if is_cb:
         await update.callback_query.message.reply_text(
-            text,
+            stats,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=portfolio_kb(),
         )
     else:
         await update.message.reply_text(
-            text,
+            stats,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=portfolio_kb(),
         )
@@ -240,7 +234,7 @@ async def portfolio_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
 
 async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Render the live position monitor (Tier 2+)."""
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_tier(update)
     if not ok or update.message is None:
         return
 
@@ -296,7 +290,7 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     5 closed/filled orders. Users who need live P&L or force-close can reach
     the full view via /positions.
     """
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_tier(update)
     if not ok or update.message is None:
         return
     pool = get_pool()
@@ -379,7 +373,7 @@ async def force_close_ask(update: Update,
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.FUNDED)
+    user, ok = await _ensure_tier(update)
     if not ok:
         return
     await q.answer()
@@ -416,7 +410,7 @@ async def force_close_confirm(update: Update,
         return
 
     # action == "fc_yes" past this point
-    user, ok = await _ensure_tier(update, Tier.FUNDED)
+    user, ok = await _ensure_tier(update)
     if not ok:
         return
     await q.answer("Queueing…")

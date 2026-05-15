@@ -10,12 +10,6 @@ Sub-commands:
 Callback queries:
     signals:off:<feed_slug>        - keyboard "\U0001F6D1 Off" handler
 
-Tier gate:
-    Tier 2 (ALLOWLISTED) is the floor for every sub-command. The strategy
-    plane never executes orders — even at Tier 2 the user is configuring a
-    signal source, not committing capital. Capital deployment remains gated
-    on Tier 3 (FUNDED) at the execution layer (P3d scope).
-
 Hard cap:
     A user may have at most ``MAX_SUBSCRIPTIONS_PER_USER = 5`` active
     user_signal_subscriptions rows. The cap is enforced inside
@@ -43,14 +37,10 @@ from ...services.signal_feed import (
 )
 from ...users import upsert_user
 from ..keyboards.signal_following import signal_subs_list_kb
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
-# Reuse the service-layer slug contract so the handler accepts exactly
-# what create_feed admits — single source of truth. The 50-char ASCII cap
-# also keeps the inline-keyboard callback_data ("signals:off:<slug>" —
-# 12-byte prefix) under Telegram's 64-byte ceiling.
 _SLUG_RE = re.compile(SLUG_PATTERN)
 
 
@@ -71,40 +61,21 @@ _MARKDOWN_METACHARS = ("_", "*", "`", "[")
 
 
 def _escape_md(text: str | None) -> str:
-    """Escape Telegram Markdown V1 metacharacters in operator-supplied text.
-
-    Operator-controlled fields (feed name, description) flow through
-    `ParseMode.MARKDOWN` replies. An unbalanced underscore or stray
-    backtick causes Telegram to reject the entire message, so escape the
-    legacy V1 metacharacter set (``_ * ` [``) before interpolation. Slugs
-    are NOT routed through this helper because the slug validator already
-    forbids every Markdown metacharacter.
-    """
+    """Escape Telegram Markdown V1 metacharacters in operator-supplied text."""
     if not text:
         return ""
-    # Backslash first so the metacharacter loop does not double-escape.
     out = text.replace("\\", "\\\\")
     for ch in _MARKDOWN_METACHARS:
         out = out.replace(ch, "\\" + ch)
     return out
 
 
-async def _ensure_tier(update: Update, min_tier: int) -> tuple[dict | None, bool]:
-    """Resolve the Telegram user, enforce ``min_tier``, route the rejection
-    onto whichever surface the update arrived on (message vs. callback).
-    """
+async def _ensure_user(update: Update) -> tuple[dict | None, bool]:
     if update.effective_user is None:
         return None, False
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username,
     )
-    if not has_tier(user["access_tier"], min_tier):
-        msg = tier_block_message(min_tier)
-        if update.callback_query is not None:
-            await update.callback_query.answer(msg, show_alert=True)
-        elif update.message is not None:
-            await update.message.reply_text(msg)
-        return None, False
     return user, True
 
 
@@ -132,7 +103,6 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
     all_feeds = await list_active_feeds()
     subbed_slugs = {s["feed_slug"] for s in subs}
 
-    # Build tree lines for followed feeds
     if subs:
         sub_tree_lines = []
         for i, s in enumerate(subs):
@@ -142,7 +112,6 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
     else:
         sub_tree = "└ None yet"
 
-    # Build tree lines for available feeds
     avail = [f for f in all_feeds if f["slug"] not in subbed_slugs]
     if avail:
         avail_tree_lines = []
@@ -182,18 +151,13 @@ async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
 async def signals_command(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Top-level /signals entry — tap-based inline UI.
-
-    No-arg invocation (reply keyboard or /signals) renders the feed toggle
-    hub. Sub-command args (list / catalog / on / off) kept for backward compat.
-    """
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    """Top-level /signals entry — tap-based inline UI."""
+    user, ok = await _ensure_user(update)
     if not ok or user is None:
         return
 
     args = ctx.args or []
 
-    # Sub-command backward compat
     if args:
         if update.message is None:
             return
@@ -213,7 +177,6 @@ async def signals_command(
         await update.message.reply_text(_USAGE, parse_mode=ParseMode.MARKDOWN)
         return
 
-    # No args — render inline feed toggle hub
     text, kb = await _build_signals_screen(user["id"])
     if update.callback_query is not None:
         await update.callback_query.message.reply_text(
@@ -387,7 +350,7 @@ async def signals_callback(
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok or user is None:
         return
     await q.answer()
@@ -395,13 +358,11 @@ async def signals_callback(
     data = q.data or ""
     parts = data.split(":", 2)
 
-    # signals:main / signals:catalog — re-render the hub
     if len(parts) >= 2 and parts[1] in ("main", "catalog"):
         text, kb = await _build_signals_screen(user["id"])
         await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
         return
 
-    # signals:toggle:<slug> — subscribe/unsubscribe inline
     if len(parts) == 3 and parts[1] == "toggle":
         slug = _normalise_slug(parts[2])
         if slug is None:
@@ -430,12 +391,10 @@ async def signals_callback(
                 return
             else:
                 await q.answer(f"Subscribed to {feed['name']}", show_alert=False)
-        # Re-render hub inline after toggle
         text, kb = await _build_signals_screen(user["id"])
         await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
         return
 
-    # signals:off:<slug> — backward compat alias
     if len(parts) == 3 and parts[1] == "off":
         slug = _normalise_slug(parts[2])
         if slug is None:

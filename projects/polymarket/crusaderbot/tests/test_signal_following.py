@@ -1353,16 +1353,19 @@ def test_signals_list_escapes_feed_name():
     assert r"Alpha\_Beta" in text
 
 
-def test_signals_command_blocked_for_tier_below_2():
+def test_signals_command_accessible_for_any_registered_user():
+    """V6: tier gate removed — any registered user can access /signals."""
+    from telegram import InlineKeyboardMarkup
     update, reply = _fake_update_message()
     ctx = _fake_ctx()
-    user_below = {"id": uuid4(), "access_tier": Tier.BROWSE}
-    with patch.object(sf_handler, "upsert_user",
-                       return_value=user_below):
+    user_any = {"id": uuid4(), "access_tier": Tier.BROWSE}
+    hub_text = "📡 Signal Feeds\n"
+    hub_kb = InlineKeyboardMarkup([[]])
+    with patch.object(sf_handler, "upsert_user", return_value=user_any), \
+         patch.object(sf_handler, "_build_signals_screen",
+                      return_value=(hub_text, hub_kb)):
         asyncio.run(sf_handler.signals_command(update, ctx))
     reply.assert_called_once()
-    text = reply.call_args[0][0]
-    assert "Tier 2" in text
 
 
 def test_signals_command_no_args_renders_hub():
@@ -1481,4 +1484,3 @@ def test_signal_subs_list_kb_one_row_per_subscription():
 def test_signal_subs_list_kb_empty_when_no_entries():
     kb = signal_subs_list_kb([])
     assert list(kb.inline_keyboard) == []
-

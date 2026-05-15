@@ -68,7 +68,7 @@ def _patch_send():
 
 @pytest.mark.asyncio
 async def test_notify_entry_basic():
-    """ENTRY — message contains side, price, size, TP, SL, mode."""
+    """ENTRY — message contains side, price, size, TP, SL."""
     with _patch_send() as mock_send:
         mock_send.return_value = True
         await _notifier().notify_entry(
@@ -84,14 +84,13 @@ async def test_notify_entry_basic():
         )
     mock_send.assert_awaited_once()
     text: str = mock_send.call_args[0][1]
-    assert "ENTRY" in text
+    assert "TRADE OPENED" in text
     assert "YES" in text
     assert "50.00" in text
     assert "0.620" in text
     assert "30.0%" in text    # tp
     assert "15.0%" in text    # sl
-    assert "Paper mode" in text
-    assert _MARKET_Q in text
+    assert _MARKET_Q[:28] in text
 
 
 @pytest.mark.asyncio
@@ -110,7 +109,8 @@ async def test_notify_entry_no_tp_sl():
             sl_pct=None,
         )
     text: str = mock_send.call_args[0][1]
-    assert "TP: — | SL: —" in text
+    assert "TP      │ —" in text
+    assert "SL      │ —" in text
     assert "NO" in text
     assert _MARKET_ID in text  # falls back to market_id
 
@@ -137,7 +137,7 @@ async def test_notify_entry_strategy_type_shown():
 
 @pytest.mark.asyncio
 async def test_notify_entry_manual_strategy_not_shown():
-    """ENTRY — strategy_type 'manual' is NOT appended (noise reduction)."""
+    """ENTRY — strategy_type 'manual' shows as 'Strategy: Manual' in V6 receipt."""
     with _patch_send() as mock_send:
         mock_send.return_value = True
         await _notifier().notify_entry(
@@ -152,7 +152,7 @@ async def test_notify_entry_manual_strategy_not_shown():
             strategy_type="manual",
         )
     text: str = mock_send.call_args[0][1]
-    assert "Strategy:" not in text
+    assert "Strategy: Manual" in text
 
 
 # ---------------------------------------------------------------------------
@@ -175,12 +175,11 @@ async def test_notify_tp_hit():
             mode=_MODE,
         )
     text: str = mock_send.call_args[0][1]
-    assert "🎯" in text
-    assert "TP HIT" in text
+    assert "\U0001f3af" in text
+    assert "TAKE-PROFIT HIT" in text
     assert "YES" in text
     assert "0.810" in text
     assert "+$14.50" in text
-    assert "[PAPER]" in text
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +189,7 @@ async def test_notify_tp_hit():
 
 @pytest.mark.asyncio
 async def test_notify_sl_hit():
-    """SL_HIT — correct icon, label, exit price, negative pnl."""
+    """SL_HIT — correct icon, label, exit price, pnl."""
     with _patch_send() as mock_send:
         mock_send.return_value = True
         await _notifier().notify_sl_hit(
@@ -203,11 +202,11 @@ async def test_notify_sl_hit():
             mode=_MODE,
         )
     text: str = mock_send.call_args[0][1]
-    assert "🛑" in text
-    assert "SL HIT" in text
+    assert "\U0001f6d1" in text
+    assert "STOP-LOSS HIT" in text
     assert "NO" in text
     assert "0.220" in text
-    assert "-$8.00" in text
+    assert "$8.00" in text
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +256,7 @@ async def test_notify_emergency_close():
             mode=_MODE,
         )
     text: str = mock_send.call_args[0][1]
-    assert "🚨" in text
+    assert "\U0001f6a8" in text
     assert "EMERGENCY CLOSE" in text
     assert "YES" in text
     assert "0.300" in text
@@ -319,7 +318,7 @@ async def test_notify_copy_trade_entry_no_wallet():
 
 @pytest.mark.asyncio
 async def test_long_market_question_truncated():
-    """Market question > 60 chars is truncated with ellipsis."""
+    """Market question > 60 chars is truncated; full string not present in table."""
     with _patch_send() as mock_send:
         mock_send.return_value = True
         await _notifier().notify_entry(
@@ -333,7 +332,8 @@ async def test_long_market_question_truncated():
             sl_pct=None,
         )
     text: str = mock_send.call_args[0][1]
-    assert "…" in text
+    assert _LONG_Q not in text  # full 65-char string not present (truncated)
+    assert "A" * 28 in text     # first 28 chars of label appear in table
     assert len([line for line in text.split("\n") if "A" * 61 in line]) == 0
 
 

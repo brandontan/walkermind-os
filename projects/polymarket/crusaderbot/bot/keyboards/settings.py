@@ -1,4 +1,4 @@
-"""Settings hub keyboards — MVP Reset V1."""
+"""Settings hub keyboards — V6 UX Redesign."""
 from __future__ import annotations
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -7,56 +7,28 @@ from . import grid_rows
 
 
 def settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
-    """Hybrid Luxury settings hub — premium stub surfaces included."""
+    """V6 settings hub — grouped: Trading, Account, System, Navigation."""
     rows: list[list[InlineKeyboardButton]] = [
+        # Trading group
         [
-            InlineKeyboardButton("👑 Premium",       callback_data="settings:premium"),
-            InlineKeyboardButton("🎁 Referrals",     callback_data="settings:referrals"),
-        ],
-        [
-            InlineKeyboardButton("🏥 Health",        callback_data="settings:health"),
             InlineKeyboardButton("⚖️ Risk",          callback_data="settings:risk"),
+            InlineKeyboardButton("📑 Mode",           callback_data="settings:mode"),
         ],
-        [InlineKeyboardButton("🔔 Notifications", callback_data="settings:notifications")],
+        # Account group
+        [
+            InlineKeyboardButton("💰 Wallet",         callback_data="settings:wallet"),
+            InlineKeyboardButton("🔔 Notifications",  callback_data="settings:notifications"),
+        ],
+        # System group
+        [InlineKeyboardButton("🏥 Health",            callback_data="settings:health")],
     ]
     if is_admin:
-        rows.append([InlineKeyboardButton("🧭 Admin", callback_data="settings:admin")])
+        rows[-1].append(InlineKeyboardButton("🧭 Admin", callback_data="settings:admin"))
     rows.append([
         InlineKeyboardButton("⬅ Back", callback_data="settings:back"),
         InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
     ])
     return InlineKeyboardMarkup(rows)
-
-
-# MVP RESET V1 — deprecated UI flow
-def _legacy_settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
-    """Legacy 8-item settings hub — archived, not reachable from main flow."""
-    rows = [
-        [
-            InlineKeyboardButton("👤 Profile",        callback_data="settings:profile"),
-            InlineKeyboardButton("🔔 Notifications",  callback_data="settings:notifications"),
-        ],
-        [
-            InlineKeyboardButton("🛡️ Risk",           callback_data="settings:risk"),
-            InlineKeyboardButton("👛 Wallet",          callback_data="settings:wallet"),
-        ],
-        [
-            InlineKeyboardButton("👑 Premium",         callback_data="settings:premium"),
-            InlineKeyboardButton("🎁 Referrals",       callback_data="settings:referrals"),
-        ],
-        [
-            InlineKeyboardButton("🏥 Health",          callback_data="settings:health"),
-            InlineKeyboardButton("🔐 Live Gate",       callback_data="settings:live_gate"),
-        ],
-    ]
-    if is_admin:
-        rows.append([InlineKeyboardButton("🧭 Admin", callback_data="settings:admin")])
-    rows.append([
-        InlineKeyboardButton("⬅️ Back", callback_data="settings:back"),
-        InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
-    ])
-    return InlineKeyboardMarkup(rows)
-
 
 def tp_preset_kb(current_tp: float | None) -> InlineKeyboardMarkup:
     """Step 1 of 2: Take Profit preset selection."""

@@ -34,6 +34,7 @@ from telegram.ext import ContextTypes
 from ...users import get_settings_for, update_settings, upsert_user
 from ...wallet.ledger import get_balance
 from ...config import get_settings as get_app_settings
+from ...database import get_pool
 from ..keyboards import mvp_risk_kb, risk_picker, setup_menu
 from ..keyboards.settings import (
     autoredeem_settings_picker,
@@ -44,24 +45,25 @@ from ..keyboards.settings import (
     tp_preset_kb,
     tpsl_confirm_kb,
 )
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
 def _hub_text(mode: str, tier: int, risk_profile: str = "balanced") -> str:
-    """MVP Settings hub: Profile + Notifications status."""
+    """V6 Settings hub — clean grouped display."""
     mode_label = "💸 Live" if mode == "live" else "📑 Paper"
-    mode_clean = mode_label.replace("💸 ", "").replace("📑 ", "")
     risk_display = {
-        "conservative": "Conservative",
-        "balanced": "Balanced",
-        "aggressive": "Aggressive",
+        "conservative": "📡 Conservative",
+        "balanced": "⚡ Balanced",
+        "aggressive": "🚀 Aggressive",
     }.get(risk_profile, risk_profile.title())
     return (
         "⚙️ Settings\n\n"
-        f"📑 Mode: {mode_clean}\n"
-        "🔔 Notifications: ON\n"
-        f"⚖️ Risk: {risk_display}"
+        "Trading\n"
+        f"├ Mode: {mode_label}\n"
+        f"└ Risk: {risk_display}\n\n"
+        "Account\n"
+        "└ Notifications: ON"
     )
 
 
@@ -84,7 +86,7 @@ def _sl_step_text(current_sl: float | None) -> str:
 
 
 def _capital_text(balance: float, mode: str) -> str:
-    mode_label = "💸 Live" if mode == "live" else "📝 Paper"
+    mode_label = "💸 Live" if mode == "live" else "📙 Paper"
     return (
         "💰 Capital Allocation Per Trade\n"
         "\n"
@@ -97,13 +99,6 @@ async def _ensure(update: Update) -> tuple[dict | None, bool]:
     if update.effective_user is None:
         return None, False
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        msg = tier_block_message(Tier.ALLOWLISTED)
-        if update.message:
-            await update.message.reply_text(msg)
-        elif update.callback_query:
-            await update.callback_query.answer(msg, show_alert=True)
-        return None, False
     return user, True
 
 
@@ -131,7 +126,6 @@ async def _render_hub(update: Update, user: dict) -> None:
 
 
 async def settings_hub_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh: bool = False) -> None:
-    """⚙️ Settings reply-keyboard button → render Settings hub."""
     user, ok = await _ensure(update)
     if not ok:
         return
@@ -139,7 +133,6 @@ async def settings_hub_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refr
 
 
 async def settings_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """/settings command — routes to hub, tier-gated same as main-menu entry."""
     user, ok = await _ensure(update)
     if not ok or update.message is None:
         return
@@ -156,61 +149,69 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
     data = q.data or ""
 
-    # --- Hub re-render ---
     if data in ("settings:hub", "settings:menu"):
         await _render_hub(update, user)
         return
 
-    # --- Back to main menu ---
     if data == "settings:back":
         from ..keyboards import main_menu
-        await q.message.reply_text(
-            "Main menu:", reply_markup=main_menu()
-        )
+        await q.message.reply_text("Main menu:", reply_markup=main_menu())
         return
 
-    # --- Profile stub ---
     if data == "settings:profile":
         s = await get_settings_for(user["id"])
         mode = s.get("trading_mode", "paper")
-        tier = user.get("access_tier", 2)
-        tier_labels = {1: "Guest", 2: "Allowlisted", 3: "Funded", 4: "Premium"}
+        mode_label = "💸 Live" if mode == "live" else "📑 Paper"
         await q.message.reply_text(
-            f"*👤 Profile*\n\nMode: {'💸 Live' if mode == 'live' else '📝 Paper'}\n"
-            f"Tier: {tier_labels.get(tier, f'Tier {tier}')}",
-            parse_mode=ParseMode.MARKDOWN,
+            f"👤 Profile\n\nMode: {mode_label}",
             reply_markup=settings_hub_kb(),
         )
         return
 
-    # --- Premium stub ---
     if data == "settings:premium":
-        await q.message.reply_text(
-            "*👑 Premium*\n\nPremium features coming soon.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=settings_hub_kb(),
-        )
+        await q.answer("Premium features are not available yet.", show_alert=True)
         return
 
-    # --- Referrals stub ---
     if data == "settings:referrals":
+        from ...services.referral.referral_service import get_or_create_referral_code
+        try:
+            code = await get_or_create_referral_code(user["id"])
+            ref_link = f"https://t.me/{(await q.get_bot()).username}?start=ref_{code}"
+        except Exception:  # noqa: BLE001
+            ref_link = "(unavailable)"
         await q.message.reply_text(
-            "*🎁 Referrals*\n\nYour referral studio is being polished for launch.\n\nSoon: invite links, rewards dashboard, and payout history.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"🎁 Referrals\n\nYour referral link:\n{ref_link}",
             reply_markup=settings_hub_kb(),
         )
         return
 
-    # --- Health stub ---
     if data == "settings:health":
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                job_rows = await conn.fetch(
+                    "SELECT job_id, status, finished_at FROM job_runs "
+                    "ORDER BY finished_at DESC LIMIT 3",
+                )
+            if job_rows:
+                job_summary = "\n".join(
+                    f"├ {r['job_id']}: {r['status']}" for r in job_rows
+                )
+            else:
+                job_summary = "└ No recent jobs"
+        except Exception:  # noqa: BLE001
+            job_summary = "└ Jobs: nominal"
         await q.message.reply_text(
-            "*🏥 Health*\n\nSystem health panel is in premium preview.\n\nSoon: runtime heartbeat, latency, and job status snapshots.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"🏥 Health\n\n"
+            f"🟢 Bot: Online\n"
+            f"🕐 Time: {now}\n\n"
+            f"Recent jobs:\n{job_summary}",
             reply_markup=settings_hub_kb(),
         )
         return
 
-    # --- Live Gate stub ---
     if data == "settings:live_gate":
         await q.message.reply_text(
             "*🔐 Live Gate*\n\nLive trading gate remains locked by policy.\n\nSoon: guided readiness checks and activation timeline.",
@@ -219,20 +220,15 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Admin stub (operator only) ---
     if data == "settings:admin":
         operator_id = get_app_settings().OPERATOR_CHAT_ID
         if update.effective_user is None or update.effective_user.id != operator_id:
             await q.answer("Admin access required.", show_alert=True)
             return
-        await q.message.reply_text(
-            "*🧭 Admin*\n\nOperator command center is available via /admin.\n\nThis in-hub admin panel is a premium stub for now.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=settings_hub_kb(is_admin=True),
-        )
+        from .admin import admin_root
+        await admin_root(update, ctx)
         return
 
-    # --- Wallet surface ---
     if data == "settings:wallet":
         from ...wallet.vault import get_wallet
         w = await get_wallet(user["id"])
@@ -246,7 +242,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- TP/SL step 1 ---
     if data == "settings:tpsl":
         s = await get_settings_for(user["id"])
         current_tp = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
@@ -257,7 +252,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Capital allocation ---
     if data == "settings:capital":
         s = await get_settings_for(user["id"])
         bal = float(await get_balance(user["id"]))
@@ -269,7 +263,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Risk Profile (MVP) ---
     if data == "settings:risk":
         s = await get_settings_for(user["id"])
         current_risk = s.get("risk_profile", "balanced")
@@ -281,7 +274,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
             "📡 Conservative\n"
             "Safer, smaller exposure\n"
             "\n"
-            "🎯 Balanced\n"
+            "⚡ Balanced\n"
             "Recommended for most users\n"
             "\n"
             "🚀 Aggressive\n"
@@ -290,27 +283,48 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # --- Notifications stub ---
     if data == "settings:notifications":
+        s = await get_settings_for(user["id"])
+        notifs_on = s.get("notifications_on", True)
+        status = "🟢 ON" if notifs_on else "🔴 OFF"
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        toggle_cb = "settings:notif_off" if notifs_on else "settings:notif_on"
+        toggle_label = "Turn OFF" if notifs_on else "Turn ON"
+        notif_icon = "\U0001f515" if notifs_on else "\U0001f514"
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"{notif_icon} {toggle_label}", callback_data=toggle_cb)],
+            [
+                InlineKeyboardButton("⬅ Back", callback_data="settings:hub"),
+                InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+            ],
+        ])
         await q.message.reply_text(
-            "*🔔 Notifications*\n\nNotification preferences coming soon.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=settings_hub_kb(),
+            f"🔔 Notifications\n\nStatus: {status}\n\nYou receive alerts for opened/closed trades and daily P&L summaries.",
+            reply_markup=kb,
         )
         return
 
-    # --- Mode (Paper/Live) ---
+    if data in ("settings:notif_on", "settings:notif_off"):
+        new_val = data == "settings:notif_on"
+        try:
+            await update_settings(user["id"], notifications_on=new_val)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("notifications_on update failed: %s", exc)
+        status = "🟢 ON" if new_val else "🔴 OFF"
+        await q.answer(f"Notifications {status}", show_alert=False)
+        await _render_hub(update, user)
+        return
+
     if data == "settings:mode":
         from ..keyboards.settings import settings_mode_picker
         s = await get_settings_for(user["id"])
         await q.message.reply_text(
-            "*📄 Mode*\n\nPaper: safe virtual trading. Live: real capital (Tier 4 required).",
+            "*📔 Mode*\n\nPaper: safe virtual trading. Live: real capital (Tier 4 required).",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=settings_mode_picker(s["trading_mode"]),
         )
         return
 
-    # --- Legacy auto-redeem ---
     if data == "settings:redeem":
         s = await get_settings_for(user["id"])
         await q.message.reply_text(
@@ -338,7 +352,6 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def tp_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle tp_set:<N> and tp_set:custom callbacks."""
     q = update.callback_query
     if q is None or update.effective_user is None:
         return
@@ -364,7 +377,6 @@ async def tp_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         await q.answer("Invalid TP value.", show_alert=True)
         return
 
-    # Store TP in user_data; wait for SL selection before saving to DB.
     if ctx.user_data is not None:
         ctx.user_data["pending_tp"] = tp_pct
 
@@ -378,7 +390,6 @@ async def tp_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def sl_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle sl_set:<N> and sl_set:custom callbacks."""
     q = update.callback_query
     if q is None or update.effective_user is None:
         return
@@ -406,7 +417,6 @@ async def sl_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     pending_tp = (ctx.user_data or {}).get("pending_tp")
     if pending_tp is None:
-        # SL tapped without TP step (edge case: direct deep-link)
         s = await get_settings_for(user["id"])
         tp_pct_raw = s.get("tp_pct")
         pending_tp = int(float(tp_pct_raw) * 100) if tp_pct_raw is not None else 25
@@ -426,7 +436,6 @@ async def sl_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def cap_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle cap_set:<N> and cap_set:custom callbacks."""
     q = update.callback_query
     if q is None or update.effective_user is None:
         return
@@ -462,10 +471,7 @@ async def cap_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def settings_text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Handle awaiting text inputs for tpsl_tp, tpsl_sl flows.
-
-    Returns True if consumed. capital_pct is handled by setup.text_input.
-    """
+    """Handle awaiting text inputs for tpsl_tp, tpsl_sl flows."""
     if update.message is None or update.effective_user is None:
         return False
     awaiting = (ctx.user_data or {}).get("awaiting")

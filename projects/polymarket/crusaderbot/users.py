@@ -15,21 +15,37 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
                 "SELECT * FROM users WHERE telegram_user_id=$1", telegram_user_id,
             )
             if row is None:
+                # New user — create with access_tier=2 (active by default, no allowlist)
                 row = await conn.fetchrow(
-                    "INSERT INTO users (telegram_user_id, username) "
-                    "VALUES ($1, $2) RETURNING *",
+                    "INSERT INTO users (telegram_user_id, username, access_tier) "
+                    "VALUES ($1, $2, 2) RETURNING *",
                     telegram_user_id, username,
                 )
-                # Default settings row
                 await conn.execute(
                     "INSERT INTO user_settings (user_id) VALUES ($1) "
                     "ON CONFLICT (user_id) DO NOTHING",
                     row["id"],
                 )
-            elif username and username != row["username"]:
+                # Ensure wallet row exists (Concierge will seed the $1,000 balance)
                 await conn.execute(
-                    "UPDATE users SET username=$1 WHERE id=$2",
-                    username, row["id"],
+                    "INSERT INTO wallets (user_id) VALUES ($1) "
+                    "ON CONFLICT (user_id) DO NOTHING",
+                    row["id"],
+                )
+            else:
+                # Existing user — silently upgrade legacy tier-1 users to tier-2
+                if row["access_tier"] < 2:
+                    await conn.execute(
+                        "UPDATE users SET access_tier=2 WHERE id=$1", row["id"],
+                    )
+                if username and username != row["username"]:
+                    await conn.execute(
+                        "UPDATE users SET username=$1 WHERE id=$2",
+                        username, row["id"],
+                    )
+                # Re-fetch to pick up any updates
+                row = await conn.fetchrow(
+                    "SELECT * FROM users WHERE id=$1", row["id"],
                 )
     return dict(row)
 
