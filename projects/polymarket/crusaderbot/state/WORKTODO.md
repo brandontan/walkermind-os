@@ -6,9 +6,8 @@
 ---
 
 ## Right Now
-- [x] crusaderbot-mvp-runtime-ux — 14 phases A–N complete (2026-05-15). MVP Runtime + Telegram UX Redesign: 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Branch WARP/CRUSADERBOT-MVP-RUNTIME-UX. PR pending WARP•SENTINEL MAJOR validation.
-- WARP•SENTINEL MAJOR validation required before merge. Source: projects/polymarket/crusaderbot/reports/forge/CRUSADERBOT-MVP-RUNTIME-UX.md
-- WARP🔹CMD merge decision needed: PR must CLOSE #1036, #1034, branches crusaderbot-mvp-reset-v1 and telegram-ux-polish.
+- [x] crusaderbot-mvp-runtime-ux — MERGED PR #1049 (2026-05-15). MVP Runtime + Telegram UX Redesign: 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup; 58 hermetic tests green; MAJOR, FULL RUNTIME INTEGRATION + UX REDESIGN. Issues #1036 and #1034 closed.
+- Deploy migration 027 (notifications_on) before activating PR #1049 code on Fly.io.
 - Production posture unchanged: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
 
 
