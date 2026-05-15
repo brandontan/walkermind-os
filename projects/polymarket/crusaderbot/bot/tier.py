@@ -10,9 +10,9 @@ class Tier:
 
 
 TIER_MSG = {
-    2: "⏳ This feature requires Tier 2 (allowlist). Ask the operator to grant access.",
-    3: "💰 Deposit USDC to unlock this feature (Tier 3).",
-    4: "🔒 Live trading requires operator approval (Tier 4) and all activation guards.",
+    2: "⏳ This feature is not available yet.",
+    3: "💰 Deposit USDC to unlock this feature.",
+    4: "🔒 This feature is not available yet.",
 }
 
 

@@ -25,16 +25,32 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
     ]
 
 
-def main_menu() -> ReplyKeyboardMarkup:
-    """V6 — 5-button persistent nav keyboard. Auto Trade, Portfolio, Settings, Insights, Stop Bot."""
-    return ReplyKeyboardMarkup(
-        [
-            [KeyboardButton("🤖 Auto Trade"),  KeyboardButton("💼 Portfolio")],
-            [KeyboardButton("⚙️ Settings"),    KeyboardButton("📊 Insights")],
-            [KeyboardButton("🛑 Stop Bot")],
-        ],
-        resize_keyboard=True,
-    )
+def main_menu(strategy_key: str | None = None, auto_on: bool = False) -> ReplyKeyboardMarkup:
+    """State-driven persistent nav keyboard.
+
+    No strategy configured  → single CTA to configure, then secondary nav.
+    Strategy set, bot OFF   → single CTA to start, then secondary nav.
+    Bot running             → full nav: Dashboard, Auto-Trade, Portfolio, My Trades, Emergency.
+    """
+    if auto_on:
+        rows = [
+            [KeyboardButton("📊 Dashboard"),     KeyboardButton("🤖 Auto-Trade")],
+            [KeyboardButton("💼 Portfolio"),      KeyboardButton("📈 My Trades")],
+            [KeyboardButton("🚨 Emergency")],
+        ]
+    elif strategy_key:
+        rows = [
+            [KeyboardButton("🚀 Start Autobot")],
+            [KeyboardButton("💼 Portfolio"),      KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("🚨 Emergency")],
+        ]
+    else:
+        rows = [
+            [KeyboardButton("⚙️ Configure Strategy")],
+            [KeyboardButton("💼 Portfolio"),      KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("🚨 Emergency")],
+        ]
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
 def dashboard_kb() -> InlineKeyboardMarkup:
@@ -102,12 +118,10 @@ def _legacy_portfolio_kb() -> InlineKeyboardMarkup:
 
 
 def mvp_auto_trade_kb() -> InlineKeyboardMarkup:
-    """V6 Auto Trade: 3 presets with [Select] per row."""
+    """Auto Trade entry: route directly to the 5-preset picker."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📡 Conservative",  callback_data="preset:pick:signal_sniper")],
-        [InlineKeyboardButton("🎯 Balanced",      callback_data="preset:pick:value_hunter")],
-        [InlineKeyboardButton("🚀 Aggressive",    callback_data="preset:pick:full_auto")],
-        [InlineKeyboardButton("🏠 Home",          callback_data="dashboard:main")],
+        [InlineKeyboardButton("⚙️ Choose Strategy", callback_data="preset:picker")],
+        [InlineKeyboardButton("🏠 Home",             callback_data="dashboard:main")],
     ])
 
 
@@ -212,8 +226,7 @@ def mode_picker(current: str) -> InlineKeyboardMarkup:
         return f"{'✅' if m == current else '◻️'} {m.title()}"
     buttons = [
         InlineKeyboardButton(mark("paper"),  callback_data="set_mode:paper"),
-        InlineKeyboardButton(mark("live") + " (Tier 4)",
-                             callback_data="set_mode:live"),
+        InlineKeyboardButton(mark("live"),   callback_data="set_mode:live"),
         InlineKeyboardButton("⬅️ Back", callback_data="setup:menu"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))

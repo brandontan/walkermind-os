@@ -153,8 +153,7 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         )
     elif sub == "mode":
         await q.message.reply_text(
-            "Pick trading mode. *Paper* is the safe default; *Live* requires Tier 4 "
-            "+ all activation guards.",
+            "Pick trading mode. *Paper* is the safe default; *Live* requires all activation guards.",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=mode_picker(s["trading_mode"]),
         )

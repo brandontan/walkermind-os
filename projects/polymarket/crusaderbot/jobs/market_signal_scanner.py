@@ -47,6 +47,21 @@ _AGENT_SOCIAL = 585
 
 JOB_ID = "market_signal_scanner"
 
+_scanner_state: dict = {
+    "scanned": 0,
+    "published": 0,
+    "last_tick_ts": None,  # float | None — UTC epoch
+}
+
+
+def get_scanner_state() -> dict:
+    """Return a snapshot of the last scanner tick state.
+
+    Module-level singleton — adequate for single-instance MVP.
+    Multi-worker deployments should move this to Redis.
+    """
+    return dict(_scanner_state)
+
 
 # ---- Shared DB helpers ----
 
@@ -387,7 +402,10 @@ async def run_job() -> tuple[int, int]:
         "demo_scanned=%d live_scanned=%d published=%d",
         demo_scanned, live_scanned, total_published,
     )
+    _scanner_state["scanned"] = total_scanned
+    _scanner_state["published"] = total_published
+    _scanner_state["last_tick_ts"] = time.time()
     return total_scanned, total_published
 
 
-__all__ = ["run_job", "JOB_ID", "DEMO_FEED_ID", "LIVE_FEED_ID"]
+__all__ = ["run_job", "get_scanner_state", "JOB_ID", "DEMO_FEED_ID", "LIVE_FEED_ID"]

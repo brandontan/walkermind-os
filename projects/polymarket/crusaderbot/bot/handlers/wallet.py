@@ -26,6 +26,22 @@ async def wallet_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def wallet_root_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback-query-compatible entry point for the wallet surface."""
+    q = update.callback_query
+    if q is None or q.message is None or update.effective_user is None:
+        return
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    w = await get_wallet(user["id"])
+    addr = w["deposit_address"] if w else "(not set)"
+    await q.message.reply_text(
+        f"*💰 Wallet*\n\nDeposit address (Polygon USDC):\n`{addr}`\n\n"
+        "Tap an option below.",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=wallet_menu(),
+    )
+
+
 async def wallet_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if q is None or update.effective_user is None:

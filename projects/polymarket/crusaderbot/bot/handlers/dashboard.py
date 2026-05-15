@@ -1,6 +1,7 @@
 """Dashboard / Positions / Activity views — V6 UX MVP Runtime."""
 from __future__ import annotations
 
+import html
 from decimal import Decimal
 from uuid import UUID
 
@@ -110,7 +111,20 @@ def _risk_icon(profile: str) -> str:
 
 
 async def _fetch_pulse(user_id: "UUID") -> str:
-    """Return last trade action string, or scanning fallback if no trades."""
+    """Return scanner pulse line or last trade action."""
+    import time as _time
+    try:
+        from ...jobs.market_signal_scanner import get_scanner_state
+        state = get_scanner_state()
+        ts = state.get("last_tick_ts")
+        scanned = state.get("scanned", 0)
+        if ts is not None and (_time.time() - ts) < 300:
+            return f"📡 Scanning {scanned} markets…"
+        if scanned:
+            return f"💤 Monitoring {scanned} markets…"
+    except Exception:
+        pass
+
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -129,7 +143,13 @@ async def _fetch_pulse(user_id: "UUID") -> str:
     return f"{action} {row['side'].upper()} · ${float(row['size_usdc']):.2f}"
 
 
-_SEP = "━━━━━━━━━━━━━━━━━━━━"
+_STRAT_LABELS: dict[str, str] = {
+    "whale_mirror":  "🐋 Whale Mirror",
+    "signal_sniper": "📡 Signal Sniper",
+    "hybrid":        "🐋📡 Hybrid",
+    "value_hunter":  "🎯 Value Hunter",
+    "full_auto":     "🚀 Full Auto",
+}
 
 
 def _build_text(
@@ -140,44 +160,31 @@ def _build_text(
     strategy_key: str | None = None,
     pulse: str = "📡 Scanning Polymarket liquidity...",
 ) -> str:
-    """Dashboard V5 — monospaced ledger, state labels, pulse line."""
+    """Dashboard — HTML blockquote for WALLET, tree lines for AUTOBOT."""
     mode_label   = "📑 Paper" if st["trading_mode"] != "live" else "💸 Live"
     engine_label = "🟢 Running" if auto_on else "🔴 Idle"
     equity       = bal + Decimal(str(st.get("positions_value", 0)))
     pnl_sign     = "+" if pnl_today >= 0 else ""
     open_count   = st.get("open_positions", 0)
-
-    _STRAT_LABELS = {
-        "signal_sniper": "📡 Conservative",
-        "value_hunter":  "⚡ Balanced",
-        "full_auto":     "🚀 Aggressive",
-    }
-    strat_label = _STRAT_LABELS.get(strategy_key or "", "Not configured")
+    strat_label  = html.escape(_STRAT_LABELS.get(strategy_key or "", "Not configured"))
+    pulse_esc    = html.escape(pulse)
 
     return (
-        f"{_SEP}\n"
-        "📊  CRUSADERBOT\n"
-        f"{_SEP}\n"
-        f"```\n"
-        f"Mode     │ {mode_label}\n"
-        f"Engine   │ {engine_label}\n"
-        f"```\n"
-        f"{_SEP}\n"
-        "WALLET\n"
-        f"```\n"
-        f"Balance  │ ${bal:>10,.2f}\n"
-        f"Equity   │ ${equity:>10,.2f}\n"
-        f"Today P&L│ {pnl_sign}${abs(pnl_today):>9,.2f}\n"
-        f"```\n"
-        f"{_SEP}\n"
-        "AUTOBOT\n"
-        f"```\n"
-        f"Strategy │ {strat_label}\n"
-        f"Open     │ {open_count} position{'s' if open_count != 1 else ''}\n"
-        f"```\n"
-        f"{_SEP}\n"
-        f"{pulse}\n"
-        f"{_SEP}"
+        "<b>📊 CRUSADERBOT</b>\n\n"
+        "<blockquote>"
+        f"Mode     {mode_label}\n"
+        f"Engine   {engine_label}"
+        "</blockquote>\n\n"
+        "<b>WALLET</b>\n"
+        "<blockquote>"
+        f"Balance    ${bal:>10,.2f}\n"
+        f"Equity     ${equity:>10,.2f}\n"
+        f"Today P&amp;L  {pnl_sign}${abs(pnl_today):>9,.2f}"
+        "</blockquote>\n\n"
+        "<b>AUTOBOT</b>\n"
+        f"├─ Strategy: {strat_label}\n"
+        f"└─ Open: {open_count} position{'s' if open_count != 1 else ''}\n\n"
+        f"{pulse_esc}"
     )
 
 
@@ -224,7 +231,7 @@ async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     text, strat_key = await _build_dashboard_text_for(user)
     await update.message.reply_text(
         text,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=_state_kb(user["auto_trade_on"], strat_key),
     )
 
@@ -239,10 +246,10 @@ async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
         return
     text, strat_key = await _build_dashboard_text_for(user)
     try:
-        await q.edit_message_text(text, parse_mode=ParseMode.MARKDOWN,
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML,
                                   reply_markup=_state_kb(user["auto_trade_on"], strat_key))
     except Exception:
-        await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
+        await q.message.reply_text(text, parse_mode=ParseMode.HTML,
                                    reply_markup=_state_kb(user["auto_trade_on"], strat_key))
 
 
@@ -262,10 +269,10 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     if sub in ("main", "refresh"):
         text, strat_key = await _build_dashboard_text_for(user)
         try:
-            await q.edit_message_text(text, parse_mode=ParseMode.MARKDOWN,
+            await q.edit_message_text(text, parse_mode=ParseMode.HTML,
                                       reply_markup=_state_kb(user["auto_trade_on"], strat_key))
         except Exception:
-            await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
+            await q.message.reply_text(text, parse_mode=ParseMode.HTML,
                                        reply_markup=_state_kb(user["auto_trade_on"], strat_key))
         return
 
@@ -276,10 +283,10 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         user["auto_trade_on"] = True
         text, strat_key = await _build_dashboard_text_for(user)
         try:
-            await q.edit_message_text(text, parse_mode=ParseMode.MARKDOWN,
+            await q.edit_message_text(text, parse_mode=ParseMode.HTML,
                                       reply_markup=_state_kb(True, strat_key))
         except Exception:
-            await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
+            await q.message.reply_text(text, parse_mode=ParseMode.HTML,
                                        reply_markup=_state_kb(True, strat_key))
         return
 
@@ -287,10 +294,10 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     if sub == "monitor":
         text, strat_key = await _build_dashboard_text_for(user)
         try:
-            await q.edit_message_text(text, parse_mode=ParseMode.MARKDOWN,
+            await q.edit_message_text(text, parse_mode=ParseMode.HTML,
                                       reply_markup=_state_kb(user["auto_trade_on"], strat_key))
         except Exception:
-            await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
+            await q.message.reply_text(text, parse_mode=ParseMode.HTML,
                                        reply_markup=_state_kb(user["auto_trade_on"], strat_key))
         return
 
@@ -327,14 +334,17 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     # --- autotrade (kept as alias) ---
     if sub == "autotrade":
         s = await get_settings_for(user["id"])
-        text = (
-            "*🤖 Auto-Trade Setup*\n\n"
-            f"Strategy: `{', '.join(STRATEGY_DISPLAY_NAMES.get(t, t) for t in (s['strategy_types'] or []))}`\n"
-            f"Risk profile: `{s['risk_profile']}`\n"
-            f"Capital alloc: `{float(s['capital_alloc_pct']) * 100:.0f}%`\n"
-            f"Mode: `{s['trading_mode']}`\n"
+        strats = html.escape(
+            ", ".join(STRATEGY_DISPLAY_NAMES.get(t, t) for t in (s["strategy_types"] or []))
         )
-        await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
+        text = (
+            "<b>🤖 Auto-Trade Setup</b>\n\n"
+            f"Strategy: <code>{strats}</code>\n"
+            f"Risk profile: <code>{html.escape(s['risk_profile'])}</code>\n"
+            f"Capital alloc: <code>{float(s['capital_alloc_pct']) * 100:.0f}%</code>\n"
+            f"Mode: <code>{html.escape(s['trading_mode'])}</code>\n"
+        )
+        await q.message.reply_text(text, parse_mode=ParseMode.HTML,
                                    reply_markup=setup_menu())
 
     # --- trades (kept as alias) ---
@@ -358,29 +368,29 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
                 "No trades yet. Tap 🤖 Auto Trade to start."
             )
             return
-        lines = ["*📈 Recent Trades:*\n"]
+        lines = ["<b>📈 Recent Trades</b>\n"]
         for r in rows:
-            title = (r["question"] or r["market_id"])[:40]
+            title = html.escape((r["question"] or r["market_id"])[:40])
             pnl = (
-                f" P&L: *${float(r['pnl_usdc']):+.2f}*"
+                f" P&amp;L: <b>${float(r['pnl_usdc']):+.2f}</b>"
                 if r["pnl_usdc"] is not None else ""
             )
             lines.append(
-                f"*{r['side'].upper()}* ${float(r['size_usdc']):.2f} "
-                f"[{r['status']}]{pnl}\n_{title}_"
+                f"<b>{html.escape(r['side'].upper())}</b> ${float(r['size_usdc']):.2f} "
+                f"[{html.escape(r['status'])}]{pnl}\n<i>{title}</i>"
             )
         await q.message.reply_text(
-            "\n\n".join(lines), parse_mode=ParseMode.MARKDOWN,
+            "\n\n".join(lines), parse_mode=ParseMode.HTML,
         )
 
     # --- wallet (kept as alias) ---
     elif sub == "wallet":
         bal = await get_balance(user["id"])
         w = await get_wallet(user["id"])
-        addr = w["deposit_address"] if w else "(not set)"
+        addr = html.escape(w["deposit_address"] if w else "(not set)")
         await q.message.reply_text(
-            f"*💰 Wallet*\n\nBalance: *${bal:.2f}* USDC\n\nDeposit address (Polygon):\n`{addr}`",
-            parse_mode=ParseMode.MARKDOWN,
+            f"<b>💰 Wallet</b>\n\nBalance: <b>${bal:.2f}</b> USDC\n\nDeposit address (Polygon):\n<code>{addr}</code>",
+            parse_mode=ParseMode.HTML,
             reply_markup=wallet_menu(),
         )
 
@@ -390,7 +400,7 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         data = await _fetch_insights(user["id"])
         await q.message.reply_text(
             format_insights(data),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=insights_kb(),
         )
 
@@ -414,7 +424,7 @@ async def autotrade_toggle_cb(update: Update,
     await set_auto_trade(user["id"], new_state)
     await q.message.reply_text(
         f"Auto-trade is now *{'ON' if new_state else 'OFF'}*.",
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -443,21 +453,21 @@ async def positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             ]]),
         )
         return
-    lines = ["*📈 Open positions:*\n"]
+    lines = ["<b>📈 Open positions</b>\n"]
     buttons = []
     for r in rows:
-        q = (r["question"] or r["market_id"])[:48]
+        q = html.escape((r["question"] or r["market_id"])[:48])
         lines.append(
-            f"`{str(r['id'])[:8]}` *{r['side'].upper()}* @ "
+            f"<code>{str(r['id'])[:8]}</code> <b>{html.escape(r['side'].upper())}</b> @ "
             f"{float(r['entry_price']):.3f} · ${float(r['size_usdc']):.2f} "
-            f"[{r['mode']}]\n_{q}_"
+            f"[{html.escape(r['mode'])}]\n<i>{q}</i>"
         )
         buttons.append([InlineKeyboardButton(
             f"🛑 Close {str(r['id'])[:6]}",
             callback_data=f"position:close:{r['id']}",
         )])
     await update.message.reply_text(
-        "\n\n".join(lines), parse_mode=ParseMode.MARKDOWN,
+        "\n\n".join(lines), parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(buttons),
     )
 
@@ -492,9 +502,9 @@ async def close_position_cb(update: Update,
     res = await close(position=dict(row), exit_price=exit_price,
                       exit_reason="user_close")
     await q.message.reply_text(
-        f"📉 *Closed* `{str(pos_id)[:8]}` @ {exit_price:.3f}\n"
-        f"P&L: *${float(res['pnl_usdc']):+.2f}*",
-        parse_mode=ParseMode.MARKDOWN,
+        f"📉 <b>Closed</b> <code>{str(pos_id)[:8]}</code> @ {exit_price:.3f}\n"
+        f"P&amp;L: <b>${float(res['pnl_usdc']):+.2f}</b>",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -523,17 +533,17 @@ async def activity(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             ]]),
         )
         return
-    lines = ["*📋 Last 10 trades:*\n"]
+    lines = ["<b>📋 Last 10 trades</b>\n"]
     for r in rows:
-        q = (r["question"] or r["market_id"])[:40]
+        q = html.escape((r["question"] or r["market_id"])[:40])
         lines.append(
             f"{r['created_at'].strftime('%m-%d %H:%M')} · "
-            f"*{r['side'].upper()}* @ {float(r['price']):.3f} · "
-            f"${float(r['size_usdc']):.2f} [{r['mode']}/{r['status']}]\n_{q}_"
+            f"<b>{html.escape(r['side'].upper())}</b> @ {float(r['price']):.3f} · "
+            f"${float(r['size_usdc']):.2f} [{html.escape(r['mode'])}/{html.escape(r['status'])}]\n<i>{q}</i>"
         )
     await update.message.reply_text(
         "\n\n".join(lines),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=activity_nav_kb(),
     )
 

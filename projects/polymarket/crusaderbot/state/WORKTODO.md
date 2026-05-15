@@ -6,15 +6,9 @@
 ---
 
 ## Right Now
-- PR #1032 merged (warp/fix-telegram-mvp-ux-readability-regression, 2026-05-13). Compact hierarchy readability regression fix.
-- PR #1029 and PR #1031 merged. Blocker fixes absorbed into compact hierarchy lane; awaiting WARP🔹CMD re-review on PR #1032 only.
-- [x] crusaderbot-mvp-ux-v1 — Hierarchy Tree Terminal UI rebuild complete, PR open, STANDARD NARROW INTEGRATION
-- Telegram UX v3 MERGED PR #1024 (2026-05-13). 7-button menu, dashboard v3, signals tap-hub, portfolio screen, nav_row, notifications utility.
-- [x] Telegram UX v3 MERGED PR #1024 — 7-button menu, dashboard v3, signals tap-hub, nav_row, notifications utility
-
-- GitHub queue synced: open PRs = 0, open issues = 0.
-- [x] telegram-premium-polish lane complete (2026-05-14). Premium-copy/stub polish + refresh rerender callback implemented; pending WARP🔹CMD review on warp/polish-telegram-bot-templates-and-keyboards-07rpb4.
-- Focus remains closed beta observation and paper-mode runtime monitoring.
+- [x] crusaderbot-mvp-runtime-ux — 14 phases A–N complete (2026-05-15). MVP Runtime + Telegram UX Redesign: 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Branch WARP/CRUSADERBOT-MVP-RUNTIME-UX. PR pending WARP•SENTINEL MAJOR validation.
+- WARP•SENTINEL MAJOR validation required before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-ux.md
+- WARP🔹CMD merge decision needed: PR must CLOSE #1036, #1034, branches crusaderbot-mvp-reset-v1 and telegram-ux-polish.
 - Production posture unchanged: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
 
 

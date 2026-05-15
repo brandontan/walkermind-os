@@ -46,6 +46,7 @@ from ...domain.copy_trade.models import CopyTradeTask
 from ...domain.copy_trade.repository import list_active_tasks
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ..trade_engine import TradeEngine, TradeSignal
+from ..trade_notifications import TradeNotifier
 from .scaler import MIN_TRADE_SIZE_USDC, mirror_size_direct, scale_size
 from .wallet_watcher import WalletWatcherUnavailable, fetch_recent_wallet_trades
 
@@ -54,8 +55,9 @@ logger = structlog.get_logger(__name__)
 _STRATEGY_TYPE = "copy_trade"
 # How many recent leader trades to fetch per wallet per tick
 _LEADER_FETCH_LIMIT = 20
-# Module-level TradeEngine singleton — stateless; safe to share across ticks
+# Module-level singletons — stateless; safe to share across ticks
 _engine: TradeEngine = TradeEngine()
+_notifier: TradeNotifier = TradeNotifier()
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +293,22 @@ async def _process_one(
             # Record spend and persist idempotency row
             actual_size = float(result.final_size_usdc) if result.final_size_usdc else copy_size
             await _record_spend(task.user_id, task.id, actual_size)
+            # Send trade receipt notification to the follower
+            try:
+                await _notifier.notify_entry(
+                    telegram_user_id=user_ctx["telegram_user_id"],
+                    market_id=market_id,
+                    market_question=market_question,
+                    side=side,
+                    size_usdc=result.final_size_usdc or Decimal(str(round(copy_size, 6))),
+                    price=price,
+                    tp_pct=float(task.tp_pct) if task.tp_pct else None,
+                    sl_pct=float(task.sl_pct) if task.sl_pct else None,
+                    mode=user_ctx.get("trading_mode", "paper"),
+                    strategy_type=_STRATEGY_TYPE,
+                )
+            except Exception:
+                log.exception("copy_trade_monitor: notify_entry failed (swallowed)")
         await _mark_processed(task.user_id, task.id, leader_trade_id)
     else:
         log.info(

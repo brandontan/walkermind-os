@@ -1,5 +1,5 @@
-Last Updated : 2026-05-14 23:55
-Status       : V6 Telegram UX redesign in review (PR #1048 WARP/EMRGT). Concierge onboarding, binary role system, state-driven dashboard, V6 5-button menu. Awaiting WARP•SENTINEL MAJOR validation before merge. Production PAPER ONLY.
+Last Updated : 2026-05-15 12:00
+Status       : CrusaderBot MVP Runtime + Telegram UX Redesign complete (14 phases A–N). Branch WARP/CRUSADERBOT-MVP-RUNTIME-UX ready for PR. Awaiting WARP•SENTINEL MAJOR validation before merge. Production PAPER ONLY.
 
 [COMPLETED]
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. Dashboard pulse, monospaced financials, 6-button menu, English localization. STANDARD, NARROW INTEGRATION.
@@ -20,8 +20,7 @@ Status       : V6 Telegram UX redesign in review (PR #1048 WARP/EMRGT). Concierg
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
-- crusaderbot-mvp-runtime-v1: V6 UX redesign — Concierge onboarding, binary role system, state-driven dashboard, V6 5-button menu, monospaced ledger; PR #1048 WARP/EMRGT; critical bugs fixed (exposed secrets removed, if-not-True bug, is_admin_full UUID fix, notifications_on migration 027); awaiting WARP•SENTINEL MAJOR validation. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-v1.md
-- telegram-premium-polish: Hybrid Luxury premium polish for telegram templates/keyboards + settings placeholder stubs + noop refresh rerender; PR open on warp/polish-telegram-bot-templates-and-keyboards-07rpb4; STANDARD, NARROW INTEGRATION. To be absorbed into crusaderbot-mvp-runtime-v1. Source: projects/polymarket/crusaderbot/reports/forge/warp-polish-telegram-bot-templates-and-keyboards-07rpb4.md
+- crusaderbot-mvp-runtime-ux: MVP Runtime + UX Redesign — 14 phases A–N complete; 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline completion, scanner state exposure, tier wording cleanup; branch WARP/CRUSADERBOT-MVP-RUNTIME-UX; PR pending; awaiting WARP•SENTINEL MAJOR validation. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-ux.md
 - Observation / runtime monitoring remains active in paper mode.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -36,13 +35,13 @@ Status       : V6 Telegram UX redesign in review (PR #1048 WARP/EMRGT). Concierg
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for crusaderbot-mvp-runtime-v1 before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-v1.md. Tier: MAJOR.
-- WARP🔹CMD decision: absorb and close PRs #1036, #1034, crusaderbot-mvp-reset-v1, telegram-ux-polish per master task spec before or after WARP•SENTINEL completes.
+- WARP•SENTINEL validation required for crusaderbot-mvp-runtime-ux before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-ux.md. Tier: MAJOR.
+- WARP🔹CMD merge decision: PR body must reference and CLOSE #1036, #1034, branch crusaderbot-mvp-reset-v1, branch telegram-ux-polish.
 - Keep production PAPER ONLY until explicit owner live activation decision.
 
 [KNOWN ISSUES]
-- crusaderbot-mvp-runtime-v1 (PR #1048) awaiting WARP•SENTINEL MAJOR validation before merge — do not merge without SENTINEL APPROVED verdict.
-- migration 027 (notifications_on) must be applied before deploying PR #1048 changes.
+- crusaderbot-mvp-runtime-ux (WARP/CRUSADERBOT-MVP-RUNTIME-UX) awaiting WARP•SENTINEL MAJOR validation before merge — do not merge without SENTINEL APPROVED verdict.
+- migration 027 (notifications_on) must be applied before deploying this lane.
 - pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-ux-v1; separate cleanup lane required.
 - /deposit has no tier gate; intentional and non-blocking.
 - check_alchemy_ws is TCP-only and does not perform a full WebSocket handshake; low-priority follow-up.

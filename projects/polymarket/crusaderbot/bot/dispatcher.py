@@ -85,7 +85,41 @@ async def _global_error_handler(update: object, ctx) -> None:
     logger.error("unhandled bot error: %s", ctx.error, exc_info=ctx.error)
 
 
+async def _menu_nav_cb(update, ctx) -> None:
+    """group=-1 primary nav handler — fires before ConversationHandler states.
+
+    Routes menu:* callback_data to the correct surface so that tapping a
+    primary nav button from inside any wizard or ConversationHandler state
+    always works without producing "Couldn't parse that".
+    """
+    q = update.callback_query
+    if q is None:
+        return
+    await q.answer()
+    sub = (q.data or "").split(":", 1)[-1]
+    if sub == "dashboard":
+        await dashboard.show_dashboard_for_cb(update, ctx)
+    elif sub == "autotrade":
+        await presets.show_preset_picker(update, ctx)
+    elif sub == "wallet":
+        await wallet.wallet_root_cb(update, ctx)
+    elif sub == "trades":
+        await my_trades_h.my_trades_cb(update, ctx)
+    elif sub == "emergency":
+        await emergency.emergency_root_cb(update, ctx)
+    elif sub == "settings":
+        await settings_handler.settings_hub_root(update, ctx)
+
+
 def register(app: Application) -> None:
+    # group=-1: primary nav callbacks fire BEFORE ConversationHandler states,
+    # resolving the intercept bug where menu taps inside wizard states produced
+    # "Couldn't parse that". Must be registered before all other handlers.
+    app.add_handler(
+        CallbackQueryHandler(_menu_nav_cb, pattern=r"^menu:"),
+        group=-1,
+    )
+
     # Onboarding ConversationHandler — must be first so /start is intercepted
     # before any standalone CommandHandler("start", ...) could match.
     app.add_handler(onboarding.build_onboard_handler())

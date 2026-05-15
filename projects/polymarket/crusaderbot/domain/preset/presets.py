@@ -1,15 +1,18 @@
-"""The 3 named Auto-Trade strategy presets (Phase 5D).
+"""Named Auto-Trade strategy presets for CrusaderBot MVP.
 
-Each preset bundles strategy selection, capital allocation, TP, SL, and
-per-position cap. Values are stored as fractions (0.50 = 50%) so they map
-directly to the existing user_settings columns.
+5 presets covering the full strategy spectrum. Each preset defines:
+  - strategy routing (which execution strategies the engine activates)
+  - TP / SL / max-position-per-trade sizing
+  - a sensible capital_pct DEFAULT for the customize wizard UI
+
+IMPORTANT: capital_pct is the wizard UI default only.
+Actual capital applied at activation comes from the user's risk profile:
+  Conservative → 20% | Balanced → 40% | Aggressive → 60%
+Use capital_for_risk_profile() as the authoritative source at activation time.
 
 Hard ceilings remain enforced by domain/risk/constants.py — preset values
-must never exceed the system constants. Validation is performed at module
-import time so a misconfigured preset fails the test suite, not production.
-
-Phase 5D removes whale_mirror and hybrid — Copy Trade wallet-following is
-now its own separate surface (🐋 Copy Trade menu, Phase 5E/5F).
+must never exceed system constants. Validation runs at module import so
+a misconfigured preset fails the test suite, not production.
 """
 from __future__ import annotations
 
@@ -33,14 +36,14 @@ class Preset:
     """A named strategy + risk + sizing bundle.
 
     All percentage fields are stored as fractions (0.50 = 50%). Strategy
-    keys must match the values understood by ``user_settings.strategy_types``
-    and the strategy registry: ``copy_trade``, ``signal``, ``value``.
+    keys must match values understood by user_settings.strategy_types
+    and the strategy registry: copy_trade, signal, value.
     """
     key: str
     emoji: str
     name: str
     strategies: Tuple[str, ...]
-    capital_pct: float          # fraction of bankroll (0 < x < 1)
+    capital_pct: float          # wizard UI default only — NOT used at activation
     tp_pct: float               # take-profit fraction (e.g. 0.20 = +20%)
     sl_pct: float               # stop-loss fraction (e.g. 0.10 = -10%)
     max_position_pct: float     # per-trade position cap (fraction)
@@ -71,29 +74,72 @@ class Preset:
 
 
 # ---------------------------------------------------------------------------
-# Preset definitions — locked, owner-approved values from CrusaderBot Phase 5C
-# spec. Changing any number here requires a new lane and SENTINEL audit.
+# Risk-profile capital allocation — authoritative source used at activation
+# ---------------------------------------------------------------------------
+
+_CAPITAL_BY_PROFILE: dict[str, float] = {
+    "conservative": 0.20,
+    "balanced":     0.40,
+    "aggressive":   0.60,
+}
+
+
+def capital_for_risk_profile(profile: str) -> float:
+    """Return capital fraction for the given risk profile.
+
+    Conservative → 0.20 | Balanced → 0.40 | Aggressive → 0.60
+    Defaults to balanced if profile is unrecognised.
+    """
+    return _CAPITAL_BY_PROFILE.get((profile or "balanced").lower(), 0.40)
+
+
+# ---------------------------------------------------------------------------
+# Preset definitions — 5 presets covering full strategy spectrum
 # ---------------------------------------------------------------------------
 
 PRESETS: Dict[str, Preset] = {
+    "whale_mirror": Preset(
+        key="whale_mirror",
+        emoji="🐋",
+        name="Whale Mirror",
+        strategies=("copy_trade",),
+        capital_pct=0.40,           # wizard default; activation uses risk profile
+        tp_pct=0.20,
+        sl_pct=0.10,
+        max_position_pct=0.05,
+        badge=PresetBadge.BALANCED,
+        description="Follow proven Polymarket wallets. Low effort, steady returns.",
+    ),
     "signal_sniper": Preset(
         key="signal_sniper",
         emoji="📡",
         name="Signal Sniper",
         strategies=("signal",),
-        capital_pct=0.50,
+        capital_pct=0.40,           # wizard default; activation uses risk profile
         tp_pct=0.15,
         sl_pct=0.08,
         max_position_pct=0.05,
         badge=PresetBadge.SAFE,
         description="Auto-trade from curated signal feeds. Lower frequency, higher conviction.",
     ),
+    "hybrid": Preset(
+        key="hybrid",
+        emoji="🐋📡",
+        name="Hybrid",
+        strategies=("copy_trade", "signal"),
+        capital_pct=0.40,           # wizard default; activation uses risk profile
+        tp_pct=0.15,
+        sl_pct=0.10,
+        max_position_pct=0.05,
+        badge=PresetBadge.BALANCED,
+        description="Whale Mirror + Signal Sniper combined. More opportunities.",
+    ),
     "value_hunter": Preset(
         key="value_hunter",
         emoji="🎯",
         name="Value Hunter",
         strategies=("value",),
-        capital_pct=0.40,
+        capital_pct=0.40,           # wizard default; activation uses risk profile
         tp_pct=0.25,
         sl_pct=0.12,
         max_position_pct=0.08,
@@ -104,25 +150,26 @@ PRESETS: Dict[str, Preset] = {
         key="full_auto",
         emoji="🚀",
         name="Full Auto",
-        strategies=("signal", "value"),
-        capital_pct=0.80,
+        strategies=("copy_trade", "signal", "value"),
+        capital_pct=0.40,           # wizard default; activation uses risk profile
         tp_pct=0.20,
         sl_pct=0.15,
         max_position_pct=0.10,
         badge=PresetBadge.AGGRESSIVE,
-        description="All signal + value strategies active. Max exposure. For experienced traders.",
+        description="All strategies active. Max exposure. For experienced traders.",
     ),
 }
 
-# Display order — picker renders this top-to-bottom.
-# Signal Sniper leads as the recommended starting point for new users.
+# Display order — picker renders top-to-bottom.
 PRESET_ORDER: Tuple[str, ...] = (
+    "whale_mirror",
     "signal_sniper",
+    "hybrid",
     "value_hunter",
     "full_auto",
 )
 
-RECOMMENDED_PRESET: str = "signal_sniper"
+RECOMMENDED_PRESET: str = "whale_mirror"
 
 
 def get_preset(key: str) -> Preset | None:

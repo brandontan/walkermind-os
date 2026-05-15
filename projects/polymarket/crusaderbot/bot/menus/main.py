@@ -4,11 +4,19 @@ The reply-keyboard layout itself lives in ``bot.keyboards.main_menu`` —
 this module owns the *button-text → handler* mapping that the dispatcher
 text router consumes.
 
-V6 layout (5 buttons, clean Telegram-native):
+State-driven layout (3 states):
 
-  🤖 Auto Trade   💼 Portfolio
-  ⚙️ Settings     📊 Insights
-  🛑 Stop Bot
+  No strategy:     ⚙️ Configure Strategy
+                   💼 Portfolio   ⚙️ Settings
+                   🚨 Emergency
+
+  Strategy set:    🚀 Start Autobot
+                   💼 Portfolio   ⚙️ Settings
+                   🚨 Emergency
+
+  Bot running:     📊 Dashboard   🤖 Auto-Trade
+                   💼 Portfolio   📈 My Trades
+                   🚨 Emergency
 """
 from __future__ import annotations
 
@@ -18,22 +26,28 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    dashboard, onboarding, positions,
+    dashboard, emergency,
+    my_trades as my_trades_h,
+    positions,
     presets, settings as settings_handler,
-    pnl_insights as pnl_insights_h,
-    emergency,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 
 
-# Order mirrors keyboards.main_menu() rows for easy diffing.
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
-    "🤖 Auto Trade":  presets.show_preset_picker,
-    "💼 Portfolio":   positions.show_portfolio,
-    "⚙️ Settings":    settings_handler.settings_hub_root,
-    "📊 Insights":    pnl_insights_h.pnl_insights_command,
-    "🛑 Stop Bot":    emergency.emergency_root,
+    # Bot running state
+    "📊 Dashboard":          dashboard.dashboard,
+    "🤖 Auto-Trade":         presets.show_preset_picker,
+    "💼 Portfolio":          positions.show_portfolio,
+    "📈 My Trades":          my_trades_h.my_trades,
+    "🚨 Emergency":          emergency.emergency_root,
+    # Strategy set, bot OFF state
+    "🚀 Start Autobot":      presets.show_preset_picker,
+    # No strategy state
+    "⚙️ Configure Strategy": presets.show_preset_picker,
+    # Secondary nav (shared across states)
+    "⚙️ Settings":           settings_handler.settings_hub_root,
 }
 
 

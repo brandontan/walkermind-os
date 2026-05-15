@@ -1,17 +1,16 @@
 """The Concierge Onboarding — progressive multi-step guided flow.
 
 Flow for new users:
-  WELCOME     → Show branded welcome card + [🚀 Get Started]
-  WALLET_INIT → Credit $1,000 paper balance + show confirmation + [Continue →]
-  RISK_PROFILE→ Conservative / Balanced / Aggressive picker
-  DONE        → Activate scanner, show Dashboard V5
+  WELCOME      → Show branded welcome card + [🚀 Get Started]
+  WALLET_INIT  → Credit $1,000 paper balance, edit card + [Continue →]
+  RISK_PROFILE → Conservative / Balanced / Aggressive picker, edit card
+  DONE         → Mark complete, show main menu + reply keyboard
 
 Returning users go directly to Dashboard.
-
-Reuses existing wallet initialization and database logic.
 """
 from __future__ import annotations
 
+import html
 import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -26,6 +25,7 @@ from telegram.ext import (
 )
 
 from ... import audit
+from ...domain.preset.presets import capital_for_risk_profile
 from ...services.referral.referral_service import (
     get_or_create_referral_code,
     parse_ref_param,
@@ -43,8 +43,6 @@ ONBOARD_WELCOME  = 0
 ONBOARD_WALLET   = 1
 ONBOARD_RISK     = 2
 ONBOARD_DONE     = 3
-
-_SEP = "━━━━━━━━━━━━━━━━━━━━"
 
 
 # ── Step keyboards ────────────────────────────────────────────────────────────
@@ -64,81 +62,72 @@ def _wallet_kb() -> InlineKeyboardMarkup:
 def _risk_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📡 Conservative",
-                              callback_data="onboard:risk:signal_sniper")],
+                              callback_data="onboard:risk:conservative")],
         [InlineKeyboardButton("⚡ Balanced  ⭐ Recommended",
-                              callback_data="onboard:risk:value_hunter")],
+                              callback_data="onboard:risk:balanced")],
         [InlineKeyboardButton("🚀 Aggressive",
-                              callback_data="onboard:risk:full_auto")],
+                              callback_data="onboard:risk:aggressive")],
     ])
 
 
 # ── Step texts ────────────────────────────────────────────────────────────────
 
 _WELCOME_TEXT = (
-    f"{_SEP}\n"
-    "🤖  CRUSADERBOT\n"
-    f"{_SEP}\n"
+    "<b>🤖 CRUSADERBOT</b>\n"
     "Your autonomous Polymarket trading copilot.\n\n"
-    "📑 Mode: Paper  •  🟢 Status: Ready\n\n"
+    "<blockquote>📑 Mode: Paper  •  🟢 Status: Ready</blockquote>\n\n"
     "Paper trading lets you test strategies with virtual capital — no real money, no risk.\n\n"
     "Tap below to set up your account."
 )
 
 _WALLET_TEXT = (
-    f"{_SEP}\n"
-    "💰  PAPER WALLET INITIALIZED\n"
-    f"{_SEP}\n"
-    "```\n"
-    "Balance  │  $1,000.00 USDC\n"
-    "Mode     │  Paper (Safe)\n"
-    "```\n"
-    f"{_SEP}\n"
+    "<b>💰 PAPER WALLET INITIALIZED</b>\n\n"
+    "<blockquote>"
+    "Balance  $1,000.00 USDC\n"
+    "Mode     Paper (Safe)"
+    "</blockquote>\n\n"
     "Your paper wallet has been credited with $1,000.\n"
     "All trades are simulated — zero financial risk."
 )
 
 _RISK_TEXT = (
-    f"{_SEP}\n"
-    "⚖️  CHOOSE YOUR TRADING PROFILE\n"
-    f"{_SEP}\n"
-    "```\n"
+    "<b>⚖️ CHOOSE YOUR TRADING PROFILE</b>\n\n"
+    "<blockquote>"
     "📡 Conservative\n"
-    "  Risk: Low  •  Capital: up to 50%\n"
-    "  Fewer trades, higher conviction.\n"
+    "Risk: Low  •  Capital: 20%\n"
+    "Fewer trades, higher conviction.\n"
     "\n"
     "⚡ Balanced\n"
-    "  Risk: Medium  •  Capital: up to 40%\n"
-    "  Steady daily trades — most popular.\n"
+    "Risk: Medium  •  Capital: 40%\n"
+    "Steady daily trades — most popular.\n"
     "\n"
     "🚀 Aggressive\n"
-    "  Risk: High  •  Capital: up to 80%\n"
-    "  All signals active, max opportunities.\n"
-    "```\n"
-    f"{_SEP}\n"
+    "Risk: High  •  Capital: 60%\n"
+    "All signals active, max opportunities."
+    "</blockquote>\n\n"
     "Choose how you want the bot to trade:"
 )
 
 _RISK_LABELS = {
-    "signal_sniper": "📡 Conservative",
-    "value_hunter":  "⚡ Balanced",
-    "full_auto":     "🚀 Aggressive",
+    "conservative": "📡 Conservative",
+    "balanced":     "⚡ Balanced",
+    "aggressive":   "🚀 Aggressive",
 }
 
 
-async def _done_text(user_id, risk_key: str) -> str:
+async def _done_text(user_id, risk_profile: str) -> str:
     bal = await get_balance(user_id)
-    label = _RISK_LABELS.get(risk_key, risk_key)
+    label = html.escape(_RISK_LABELS.get(risk_profile, risk_profile))
+    capital_pct = int(capital_for_risk_profile(risk_profile) * 100)
     return (
-        f"{_SEP}\n"
-        "✅  ALL SET — CONCIERGE COMPLETE\n"
-        f"{_SEP}\n"
-        "```\n"
-        f"Profile  │ {label}\n"
-        f"Balance  │ ${float(bal):,.2f} USDC\n"
-        "Scanner  │ 🟢 Active\n"
-        "```\n"
-        f"{_SEP}\n"
-        "📡 Scanning Polymarket for opportunities...\n\n"
+        "<b>✅ ALL SET — CONCIERGE COMPLETE</b>\n\n"
+        "<blockquote>"
+        f"Profile  {label}\n"
+        f"Capital  {capital_pct}% per trade\n"
+        f"Balance  ${float(bal):,.2f} USDC\n"
+        "Scanner  🟢 Active"
+        "</blockquote>\n\n"
+        "📡 Scanning Polymarket for opportunities…\n\n"
         "Use the menu below to navigate."
     )
 
@@ -178,12 +167,13 @@ async def _entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         await dashboard(update, ctx)
         return ConversationHandler.END
 
-    # ── New user → Concierge Step 1: Welcome ─────────────────────────────
-    await update.message.reply_text(
+    # ── New user → Step 1: Welcome ────────────────────────────────────────
+    msg = await update.message.reply_text(
         _WELCOME_TEXT,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=_welcome_kb(),
     )
+    ctx.user_data["onboard_msg_id"] = msg.message_id
     return ONBOARD_WELCOME
 
 
@@ -221,9 +211,9 @@ async def _start_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     except Exception as exc:
         logger.warning("wallet_seed_failed user=%s err=%s", user["id"], exc)
 
-    await q.message.reply_text(
+    await q.edit_message_text(
         _WALLET_TEXT,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=_wallet_kb(),
     )
     return ONBOARD_WALLET
@@ -236,9 +226,9 @@ async def _wallet_done_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
     if q is None:
         return ONBOARD_WALLET
     await q.answer()
-    await q.message.reply_text(
+    await q.edit_message_text(
         _RISK_TEXT,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=_risk_kb(),
     )
     return ONBOARD_RISK
@@ -252,24 +242,31 @@ async def _risk_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         return ONBOARD_RISK
     await q.answer()
 
-    risk_key = (q.data or "").split(":")[-1]   # signal_sniper | value_hunter | full_auto
+    risk_profile = (q.data or "").split(":")[-1]   # conservative | balanced | aggressive
 
     user = await upsert_user(q.from_user.id, q.from_user.username)
 
-    # Persist the chosen preset
+    # Persist risk profile and capital allocation
     try:
         from ...users import update_settings
-        await update_settings(user["id"], active_preset=risk_key)
+        capital_pct = capital_for_risk_profile(risk_profile)
+        await update_settings(
+            user["id"],
+            risk_profile=risk_profile,
+            capital_alloc_pct=capital_pct,
+        )
     except Exception as exc:
-        logger.warning("preset_set_failed user=%s err=%s", user["id"], exc)
+        logger.warning("risk_profile_set_failed user=%s err=%s", user["id"], exc)
 
-    # Mark onboarding complete
     await set_onboarding_complete(user["id"])
 
-    done_msg = await _done_text(user["id"], risk_key)
-    await q.message.reply_text(
+    done_msg = await _done_text(user["id"], risk_profile)
+    await q.edit_message_text(
         done_msg,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
+    )
+    await q.message.reply_text(
+        "Use the buttons below to navigate.",
         reply_markup=main_menu(),
     )
     return ConversationHandler.END
@@ -319,14 +316,16 @@ async def help_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
         return
     await update.message.reply_text(
-        "📖 CrusaderBot Help\n\n"
+        "<b>📖 CrusaderBot Help</b>\n\n"
         "Use the menu below to navigate:\n"
-        "🤖 Auto Trade — configure your trading strategy\n"
-        "💼 Portfolio  — view balance and open positions\n"
-        "⚙️ Settings   — risk, mode, wallet, notifications\n"
-        "📊 Insights   — your performance stats\n"
-        "🛑 Stop Bot   — pause all automated trading\n\n"
+        "📊 Dashboard   — account overview and status\n"
+        "🤖 Auto-Trade  — configure your trading strategy\n"
+        "💼 Portfolio   — view balance and open positions\n"
+        "📈 My Trades   — open positions and trade history\n"
+        "⚙️ Settings    — risk, mode, wallet, notifications\n"
+        "🚨 Emergency   — pause or lock trading immediately\n\n"
         "Type /start to re-run setup at any time.",
+        parse_mode=ParseMode.HTML,
         reply_markup=main_menu(),
     )
 
@@ -349,7 +348,7 @@ def build_onboard_handler() -> ConversationHandler:
         },
         fallbacks=[
             CommandHandler("start", _entry),
-            MessageHandler(filters.Regex(r"^(🤖|💼|⚙️|📊|🛑)"), _menu_tap_fallback),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, _menu_tap_fallback),
         ],
         per_message=False,
         allow_reentry=True,

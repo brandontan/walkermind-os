@@ -244,6 +244,33 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def my_trades_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback-query-compatible entry point for the My Trades surface."""
+    q = update.callback_query
+    if q is None or q.message is None or update.effective_user is None:
+        return
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+
+    positions = await repo.get_open_positions(user["id"])
+    activity = await repo.get_recent_activity(user["id"], limit=5)
+    s = await get_settings_for(user["id"])
+
+    tp_pct = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+    sl_pct = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
+
+    token_ids: list[Optional[str]] = [
+        (p["yes_token_id"] if p["side"] == "yes" else p["no_token_id"])
+        for p in positions
+    ]
+    marks: list[Optional[float]] = list(
+        await asyncio.gather(*(_fetch_mark(tid) for tid in token_ids))
+    ) if token_ids else []
+
+    text = _build_main_text(positions, marks, activity, tp_pct, sl_pct)
+    kb = my_trades_main_kb([p["id"] for p in positions])
+    await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+
+
 async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """First tap on [Close N] — show confirmation dialog."""
     q = update.callback_query
