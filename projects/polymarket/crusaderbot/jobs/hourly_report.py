@@ -8,6 +8,7 @@ A single Telegram send failure for one user does NOT abort the batch.
 """
 from __future__ import annotations
 
+import html
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -100,7 +101,7 @@ async def run_job() -> None:
         return
 
     msg = (
-        f"⚔️ *HOURLY REPORT — {time_str}*\n"
+        f"⚔️ <b>HOURLY REPORT — {html.escape(time_str)}</b>\n"
         "──────────────────\n"
         f"Scans:    {stats['scans']} completed\n"
         f"Signals:  {stats['signals']} found\n"

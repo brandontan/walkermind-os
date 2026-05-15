@@ -14,6 +14,7 @@ Cron:   Monday 08:00 Asia/Jakarta
 """
 from __future__ import annotations
 
+import html
 import logging
 from decimal import Decimal
 from uuid import UUID
@@ -144,17 +145,11 @@ def _fmt_pnl(v: Decimal) -> str:
 
 
 def _safe(s: str) -> str:
-    return (
-        s.replace("_", " ")
-         .replace("*", "")
-         .replace("`", "")
-         .replace("[", "")
-         .replace("\\", "")
-    )
+    return html.escape(s.replace("_", " "))
 
 
 def format_weekly_insights(data: dict) -> str:
-    """Render weekly insights as a Telegram Markdown message."""
+    """Render weekly insights as a Telegram HTML message."""
     total = data["total_trades"]
     wins = data["total_wins"]
     total_pnl = data["total_pnl"]
@@ -163,7 +158,7 @@ def format_weekly_insights(data: dict) -> str:
 
     if total == 0:
         return (
-            "\U0001f4ca *Weekly Insights*\n"
+            "\U0001f4ca <b>Weekly Insights</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "No closed paper trades in the last 7 days."
         )
@@ -172,13 +167,13 @@ def format_weekly_insights(data: dict) -> str:
     pnl_str = _fmt_pnl(total_pnl)
 
     lines: list[str] = [
-        "\U0001f4ca *Weekly Insights — Last 7 Days*",
+        "\U0001f4ca <b>Weekly Insights — Last 7 Days</b>",
         "━━━━━━━━━━━━━━━━━━━━━━━━",
         "",
-        "\U0001f3c6 *Summary*",
+        "\U0001f3c6 <b>Summary</b>",
         f"├─ Trades: {total} ({wins}W / {total - wins}L)",
         f"├─ Win Rate: {win_rate}%",
-        f"└─ Net P&L: {pnl_str}",
+        f"└─ Net P&amp;L: {pnl_str}",
         "",
     ]
 
@@ -188,11 +183,11 @@ def format_weekly_insights(data: dict) -> str:
         worst_cat = min(categories, key=lambda c: c["win_rate"])
 
         lines += [
-            "\U0001f3f7 *By Category*",
-            f"├─ Best:  *{_safe(best_cat['name'])}*"
+            "\U0001f3f7 <b>By Category</b>",
+            f"├─ Best:  <b>{_safe(best_cat['name'])}</b>"
             f" — {int(best_cat['win_rate'] * 100)}% WR"
             f" ({best_cat['wins']}/{best_cat['total']})",
-            f"└─ Worst: *{_safe(worst_cat['name'])}*"
+            f"└─ Worst: <b>{_safe(worst_cat['name'])}</b>"
             f" — {int(worst_cat['win_rate'] * 100)}% WR"
             f" ({worst_cat['wins']}/{worst_cat['total']})",
             "",
@@ -204,10 +199,10 @@ def format_weekly_insights(data: dict) -> str:
         worst_sig = min(signals, key=lambda s: s["total_pnl"])
 
         lines += [
-            "\U0001f4e1 *By Signal*",
-            f"├─ Top:   *{_safe(best_sig['name'])}*"
+            "\U0001f4e1 <b>By Signal</b>",
+            f"├─ Top:   <b>{_safe(best_sig['name'])}</b>"
             f" — {_fmt_pnl(best_sig['total_pnl'])}",
-            f"└─ Worst: *{_safe(worst_sig['name'])}*"
+            f"└─ Worst: <b>{_safe(worst_sig['name'])}</b>"
             f" — {_fmt_pnl(worst_sig['total_pnl'])}",
         ]
 
