@@ -52,13 +52,13 @@ def _step3_keyboard() -> InlineKeyboardMarkup:
 
 async def _reply_text(update: Update, text: str) -> None:
     if update.message is not None:
-        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
     elif (
         update.callback_query is not None
         and update.callback_query.message is not None
     ):
         await update.callback_query.message.reply_text(
-            text, parse_mode=ParseMode.MARKDOWN,
+            text, parse_mode=ParseMode.HTML,
         )
 
 
@@ -75,8 +75,8 @@ async def enable_live_command(
     guard_result = check_activation_guards()
     if not guard_result.all_set:
         await update.message.reply_text(
-            "🔒 Live trading not available\\. Prerequisites not met\\.",
-            parse_mode=ParseMode.MARKDOWN_V2,
+            "🔒 Live trading not available. Prerequisites not met.",
+            parse_mode=ParseMode.HTML,
         )
         return
 
@@ -85,10 +85,10 @@ async def enable_live_command(
         ctx.user_data.pop(GATE_TS_KEY, None)
 
     await update.message.reply_text(
-        "⚠️ *You are about to enable LIVE trading.*\n\n"
-        "Real money will be used\\. Losses are possible\\.\n\n"
-        "Type *CONFIRM* to proceed\\.",
-        parse_mode=ParseMode.MARKDOWN_V2,
+        "⚠️ <b>You are about to enable LIVE trading.</b>\n\n"
+        "Real money will be used. Losses are possible.\n\n"
+        "Type <b>CONFIRM</b> to proceed.",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -116,8 +116,8 @@ async def text_input(
 
     if text != "CONFIRM":
         await update.message.reply_text(
-            "Cancelled\\. Live mode activation aborted\\.",
-            parse_mode=ParseMode.MARKDOWN_V2,
+            "Cancelled. Live mode activation aborted.",
+            parse_mode=ParseMode.HTML,
         )
         return True
 
@@ -127,8 +127,8 @@ async def text_input(
         ctx.user_data[GATE_TS_KEY] = time.monotonic()
 
     await update.message.reply_text(
-        "Are you absolutely sure\\? This cannot be undone automatically\\.",
-        parse_mode=ParseMode.MARKDOWN_V2,
+        "Are you absolutely sure? This cannot be undone automatically.",
+        parse_mode=ParseMode.HTML,
         reply_markup=_step3_keyboard(),
     )
     return True
@@ -151,8 +151,8 @@ async def live_gate_callback(
     if awaiting != AWAITING_STEP2:
         if query.message:
             await query.message.reply_text(
-                "No active confirmation\\. Use /enable\\_live to start\\.",
-                parse_mode=ParseMode.MARKDOWN_V2,
+                "No active confirmation. Use /enable_live to start.",
+                parse_mode=ParseMode.HTML,
             )
         return
 
@@ -164,8 +164,8 @@ async def live_gate_callback(
     if action == "cancel":
         if query.message:
             await query.message.reply_text(
-                "Cancelled\\. Live mode not enabled\\.",
-                parse_mode=ParseMode.MARKDOWN_V2,
+                "Cancelled. Live mode not enabled.",
+                parse_mode=ParseMode.HTML,
             )
         return
 
@@ -177,9 +177,9 @@ async def live_gate_callback(
         if elapsed > CONFIRMATION_TIMEOUT_SECONDS:
             if query.message:
                 await query.message.reply_text(
-                    "⏱ Confirmation window expired \\(10 seconds\\)\\. "
-                    "Use /enable\\_live to restart\\.",
-                    parse_mode=ParseMode.MARKDOWN_V2,
+                    "⏱ Confirmation window expired (10 seconds). "
+                    "Use /enable_live to restart.",
+                    parse_mode=ParseMode.HTML,
                 )
             return
 
@@ -194,7 +194,7 @@ async def live_gate_callback(
             if query.message:
                 await query.message.reply_text(
                     live_checklist.render_telegram(checklist_result),
-                    parse_mode="Markdown",
+                    parse_mode=ParseMode.HTML,
                 )
             return
 
@@ -211,9 +211,9 @@ async def live_gate_callback(
 
         if query.message:
             await query.message.reply_text(
-                "🟢 *LIVE trading mode enabled\\.* "
-                "All risk gates remain active on every signal\\.",
-                parse_mode=ParseMode.MARKDOWN_V2,
+                "🟢 <b>LIVE trading mode enabled.</b> "
+                "All risk gates remain active on every signal.",
+                parse_mode=ParseMode.HTML,
             )
         return
 

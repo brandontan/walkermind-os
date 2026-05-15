@@ -1,11 +1,12 @@
 # CrusaderBot -- WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-15 13:00 WIB
+**Last Updated: 2026-05-15 15:30 WIB
 
 ---
 
 ## Right Now
+- [x] mvp-cleanup — WARP/CRUSADERBOT-MVP-CLEANUP (2026-05-15). ParseMode HTML migration (17 handlers + notifier + domain/activation), operator→admin purge, 24 .bak files deleted, 3 dead keyboard functions removed. ruff+compileall clean. STANDARD, NARROW INTEGRATION. PR open — awaiting WARP🔹CMD review.
 - [ ] crusaderbot-ux-patch-1 — PR open (WARP/CRUSADERBOT-UX-PATCH-1, 2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION. Awaiting WARP🔹CMD review and merge.
 - [x] crusaderbot-mvp-runtime-ux — MERGED PR #1049 (2026-05-15). 14 phases A–N complete. 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Closes #1036, #1034. 1405 tests green. MAJOR, FULL RUNTIME INTEGRATION.
 - Production posture: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.

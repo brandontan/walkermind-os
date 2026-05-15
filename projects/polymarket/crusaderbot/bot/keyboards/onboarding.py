@@ -12,16 +12,6 @@ def get_started_kb() -> InlineKeyboardMarkup:
 
 
 # MVP RESET V1 — deprecated UI flow
-def _legacy_get_started_kb() -> InlineKeyboardMarkup:
-    """Legacy 3-button onboarding keyboard — archived, not shown to users."""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Get Started",          callback_data="onboard:get_started")],
-        [InlineKeyboardButton("📊 View Demo Dashboard",  callback_data="onboard:view_dashboard")],
-        [InlineKeyboardButton("⚙️ Settings",             callback_data="onboard:settings")],
-    ])
-
-
-# MVP RESET V1 — deprecated UI flow
 def mode_select_kb() -> InlineKeyboardMarkup:
     """Legacy mode selection keyboard — archived, not part of MVP flow."""
     return InlineKeyboardMarkup([

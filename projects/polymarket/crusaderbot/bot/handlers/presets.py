@@ -309,7 +309,7 @@ async def _on_pick(update: Update, preset_key: str) -> None:
 async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
                        user: dict, preset_key: str) -> None:
     if user.get("locked", False):
-        await _reply(update, "🔒 Account locked. Contact an operator to unlock.")
+        await _reply(update, "🔒 Account locked. Contact admin.")
         return
     p = get_preset(preset_key)
     if p is None:
@@ -391,7 +391,7 @@ async def _on_switch_yes(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 
 async def _on_pause(update: Update, user: dict, *, paused: bool) -> None:
     if not paused and user.get("locked", False):
-        await _reply(update, "🔒 Account locked. Contact an operator to unlock.")
+        await _reply(update, "🔒 Account locked. Contact admin.")
         return
     await set_paused(user["id"], paused)
     logger.info("preset.pause user=%s paused=%s", user["id"], paused)
@@ -784,7 +784,7 @@ async def step_save(
         if user.get("locked", False):
             if q.message:
                 await q.message.reply_text(
-                    "🔒 Account locked. Contact an operator to unlock.",
+                    "🔒 Account locked. Contact admin.",
                 )
             return ConversationHandler.END
         s = await get_settings_for(user["id"])

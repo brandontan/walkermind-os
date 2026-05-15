@@ -468,27 +468,6 @@ def test_payload_dict_returns_empty_for_garbage():
     assert demo_polish._payload_dict(42) == {}
 
 
-def test_escape_md_passes_safe_text_through():
-    assert demo_polish._escape_md("plain text") == "plain text"
-    assert demo_polish._escape_md("") == ""
-    assert demo_polish._escape_md(None) == ""
-
-
-def test_escape_md_escapes_v1_metacharacters():
-    r"""``_ * \` [`` must be backslash-escaped before Markdown V1 interp."""
-    assert demo_polish._escape_md("under_score") == "under\\_score"
-    assert demo_polish._escape_md("a*b") == "a\\*b"
-    assert demo_polish._escape_md("`code`") == "\\`code\\`"
-    assert demo_polish._escape_md("[link]") == "\\[link]"
-
-
-def test_escape_md_escapes_backslash_first():
-    """Backslashes must be escaped first so the metachar loop does not
-    double-escape what it just inserted.
-    """
-    assert demo_polish._escape_md("a\\b") == "a\\\\b"
-
-
 def test_demo_renders_real_jsonb_string_payload_with_confidence():
     """End-to-end: asyncpg-style JSONB-as-string must render correctly."""
     update = _make_update(user_id=77, message_text="/demo")
@@ -511,7 +490,7 @@ def test_demo_renders_real_jsonb_string_payload_with_confidence():
         _run(demo_polish.demo_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
     assert "81%" in body, "confidence must be parsed from JSON-string payload"
-    assert "—" not in body.split("Confidence: *")[1].split("*")[0]
+    assert "—" not in body.split("Confidence: <b>")[1].split("</b>")[0]
 
 
 def test_demo_sql_excludes_signals_with_separate_exit_rows():
@@ -537,21 +516,21 @@ def test_demo_sql_excludes_signals_with_separate_exit_rows():
     assert "sf.status = 'active'" in sql
 
 
-def test_demo_escapes_markdown_metacharacters_in_db_strings():
-    """Operator-supplied feed names + market questions must be escaped
-    before flowing into a ``ParseMode.MARKDOWN`` reply, otherwise Telegram
-    can reject the message or alter formatting.
+def test_demo_escapes_html_special_chars_in_db_strings():
+    """Operator-supplied feed names + market questions must be HTML-escaped
+    before flowing into a ``ParseMode.HTML`` reply, otherwise Telegram
+    can reject the message or render it incorrectly.
     """
     update = _make_update(user_id=88, message_text="/demo")
     rows = [
         {
-            "feed_name": "alpha_feed*v1",
+            "feed_name": "alpha & beta <feed>",
             "market_id": "m1",
             "side": "yes",
             "target_price": 0.62,
             "payload": {"confidence": 0.5},
             "published_at": datetime(2026, 5, 8, 11, 0, tzinfo=timezone.utc),
-            "market_question": "Will BTC > $100k by `Q4`? [poll]",
+            "market_question": "Will BTC > $100k & ETH < $10k?",
         },
     ]
     pool = _make_pool_with_rows(rows)
@@ -561,11 +540,10 @@ def test_demo_escapes_markdown_metacharacters_in_db_strings():
     ):
         _run(demo_polish.demo_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    # Underscores, asterisks, backticks, opening brackets in DB-supplied
-    # text must arrive escaped — otherwise Telegram parsing breaks.
-    assert "alpha\\_feed\\*v1" in body
-    assert "\\`Q4\\`" in body
-    assert "\\[poll]" in body
+    # HTML special characters in DB-supplied text must be entity-escaped.
+    assert "&amp;" in body, "& must be escaped to &amp;"
+    assert "&gt;" in body, "> must be escaped to &gt;"
+    assert "&lt;" in body, "< must be escaped to &lt;"
 
 
 def test_truncate_short_string_passthrough():

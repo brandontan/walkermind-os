@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import enum
+import html
 import logging
 from decimal import Decimal
 from typing import Optional
@@ -63,7 +64,7 @@ async def _edit_or_resend(chat_id: int, message_id: int, text: str) -> None:
             chat_id=chat_id,
             message_id=message_id,
             text=text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
         )
     except Exception:
         await notifications.send(chat_id, text)
@@ -142,10 +143,10 @@ def _build_reasoning(
     if copy_wallet:
         short = f"{copy_wallet[:6]}…{copy_wallet[-4:]}" if len(copy_wallet) > 10 else copy_wallet
         wr = f" · Win rate {copy_win_rate:.0f}%" if copy_win_rate is not None else ""
-        return f"💡 Copying {short}{wr}\n"
+        return f"💡 Copying {html.escape(short)}{html.escape(wr)}\n"
     if signal_reason:
         label = _SIGNAL_REASON_LABELS.get(signal_reason, signal_reason)
-        return f"💡 Reasoning: {label}\n"
+        return f"💡 Reasoning: {html.escape(label)}\n"
     return ""
 
 
@@ -183,16 +184,14 @@ class TradeNotifier:
             f"{_SEP}\n"
             "📋  TRADE OPENED\n"
             f"{_SEP}\n"
-            "```\n"
-            f"Market  │ {label[:28]}\n"
-            f"Side    │ {side_upper}\n"
+            f"<pre>Market  │ {html.escape(label[:28])}\n"
+            f"Side    │ {html.escape(side_upper)}\n"
             f"Size    │ ${size_usdc:.2f}\n"
             f"Entry   │ ${price:.4f}\n"
             f"TP      │ {_fmt_tp(tp_pct)}\n"
-            f"SL      │ {_fmt_sl(sl_pct)}\n"
-            "```\n"
+            f"SL      │ {_fmt_sl(sl_pct)}</pre>\n"
             f"{_SEP}\n"
-            f"Strategy: {strat}\n"
+            f"Strategy: {html.escape(strat)}\n"
             f"{reasoning}"
             f"{_SEP}"
         )
@@ -251,7 +250,7 @@ class TradeNotifier:
         await asyncio.sleep(_ANIM_DELAY)
         await _edit_or_resend(
             chat_id, msg_id,
-            f"📡 Signal found: {label} — {side.upper()} @ {price:.3f}",
+            f"📡 Signal found: {html.escape(label)} — {html.escape(side.upper())} @ {price:.3f}",
         )
 
         await asyncio.sleep(_ANIM_DELAY)
@@ -262,14 +261,14 @@ class TradeNotifier:
         icon = "\U0001f4c8" if side.lower() == "yes" else "\U0001f4c9"
         side_upper = side.upper()
         lines = [
-            f"{icon} *{tag} ENTRY — {side_upper}*",
-            label,
+            f"{icon} <b>{html.escape(tag)} ENTRY — {html.escape(side_upper)}</b>",
+            html.escape(label),
             f"Size: ${size_usdc:.2f} | Price: {price:.3f}",
             f"TP: {_fmt_tp(tp_pct)} | SL: {_fmt_sl(sl_pct)}",
             "Paper mode",
         ]
         if strategy_type and strategy_type != "manual":
-            lines.append(f"Strategy: {strategy_type}")
+            lines.append(f"Strategy: {html.escape(strategy_type)}")
         await _edit_or_resend(chat_id, msg_id, "\n".join(lines))
 
     async def notify_tp_hit(
@@ -291,12 +290,10 @@ class TradeNotifier:
             f"{_SEP}\n"
             "🎯  TAKE-PROFIT HIT\n"
             f"{_SEP}\n"
-            "```\n"
-            f"Market  │ {label[:28]}\n"
-            f"Side    │ {side.upper()}\n"
+            f"<pre>Market  │ {html.escape(label[:28])}\n"
+            f"Side    │ {html.escape(side.upper())}\n"
             f"Exit    │ ${exit_price:.4f}\n"
-            f"P&L     │ {pnl_sign}${abs(pnl_usdc):.2f}\n"
-            "```\n"
+            f"P&amp;L     │ {pnl_sign}${abs(pnl_usdc):.2f}</pre>\n"
             f"{_SEP}"
         )
         await self._send(
@@ -323,12 +320,10 @@ class TradeNotifier:
             f"{_SEP}\n"
             "🛑  STOP-LOSS HIT\n"
             f"{_SEP}\n"
-            "```\n"
-            f"Market  │ {label[:28]}\n"
-            f"Side    │ {side.upper()}\n"
+            f"<pre>Market  │ {html.escape(label[:28])}\n"
+            f"Side    │ {html.escape(side.upper())}\n"
             f"Exit    │ ${exit_price:.4f}\n"
-            f"P&L     │ {pnl_sign}${abs(pnl_usdc):.2f}\n"
-            "```\n"
+            f"P&amp;L     │ {pnl_sign}${abs(pnl_usdc):.2f}</pre>\n"
             f"{_SEP}"
         )
         await self._send(
@@ -353,9 +348,9 @@ class TradeNotifier:
         label = _market_label(market_question, market_id)
         tag = _mode_tag(mode)
         text = (
-            f"✅ *{tag} MANUAL CLOSE — {side.upper()}*\n"
-            f"{label}\n"
-            f"Exit: {exit_price:.3f} | P&L: *{_fmt_pnl(pnl_usdc)}*"
+            f"✅ <b>{html.escape(tag)} MANUAL CLOSE — {html.escape(side.upper())}</b>\n"
+            f"{html.escape(label)}\n"
+            f"Exit: {exit_price:.3f} | P&amp;L: <b>{html.escape(_fmt_pnl(pnl_usdc))}</b>"
         )
         await self._send(
             telegram_user_id, text,
@@ -378,9 +373,9 @@ class TradeNotifier:
         label = _market_label(market_question, market_id)
         tag = _mode_tag(mode)
         text = (
-            f"\U0001f6a8 *{tag} EMERGENCY CLOSE — {side.upper()}*\n"
-            f"{label}\n"
-            f"Exit: {exit_price:.3f} | P&L: *{_fmt_pnl(pnl_usdc)}*"
+            f"\U0001f6a8 <b>{html.escape(tag)} EMERGENCY CLOSE — {html.escape(side.upper())}</b>\n"
+            f"{html.escape(label)}\n"
+            f"Exit: {exit_price:.3f} | P&amp;L: <b>{html.escape(_fmt_pnl(pnl_usdc))}</b>"
         )
         await self._send(
             telegram_user_id, text,
@@ -413,12 +408,12 @@ class TradeNotifier:
         wallet_str = ""
         if target_wallet:
             wallet_str = (
-                f"\nCopying: `{target_wallet[:6]}…{target_wallet[-4:]}`"
+                f"\nCopying: <code>{html.escape(target_wallet[:6])}…{html.escape(target_wallet[-4:])}</code>"
             )
 
         text = (
-            f"{icon} *{tag} COPY TRADE — {side.upper()}*\n"
-            f"{label}\n"
+            f"{icon} <b>{html.escape(tag)} COPY TRADE — {html.escape(side.upper())}</b>\n"
+            f"{html.escape(label)}\n"
             f"Size: ${size_usdc:.2f} | Price: {price:.3f}\n"
             f"TP: {_fmt_tp(tp_pct)} | SL: {_fmt_sl(sl_pct)}"
             f"{wallet_str}\n"

@@ -12,6 +12,7 @@ handler can render a numbered fix-list. Every evaluation writes one
 """
 from __future__ import annotations
 
+import html
 import logging
 from dataclasses import dataclass, field
 from typing import Optional
@@ -262,16 +263,16 @@ async def evaluate(user_id: UUID) -> ChecklistResult:
 
 
 def render_telegram(result: ChecklistResult) -> str:
-    """Format a ``ChecklistResult`` into a Markdown-safe Telegram message."""
+    """Format a ``ChecklistResult`` into an HTML Telegram message."""
     if result.passed:
         return (
-            "✅ *Live trading ready.*\n\n"
+            "✅ <b>Live trading ready.</b>\n\n"
             "All eight activation gates passed. Toggle auto-trade in "
-            "/dashboard to activate. You will be asked to type *CONFIRM* "
+            "/dashboard to activate. You will be asked to type <b>CONFIRM</b> "
             "before live mode flips on."
         )
     lines: list[str] = [
-        "🔒 *Live trading not yet ready.*",
+        "🔒 <b>Live trading not yet ready.</b>",
         "",
         "Failed gates (must all pass before live activation):",
     ]
@@ -282,12 +283,7 @@ def render_telegram(result: ChecklistResult) -> str:
             continue
         n += 1
         hint = GATE_FIX_HINTS.get(outcome.name, "")
-        # Wrap the gate identifier in backticks (code style) rather than
-        # asterisks (bold). Gate names contain underscores, and legacy
-        # Telegram Markdown reads `*name_with_underscore*` as a botched
-        # italic span and rejects the whole message. Code spans treat
-        # the content as a literal so the underscores survive intact.
-        lines.append(f"{n}. `{outcome.name}` — {hint}")
+        lines.append(f"{n}. <code>{html.escape(outcome.name)}</code> — {html.escape(hint)}")
     lines.append("")
     lines.append("Run /live_checklist again after fixing each item.")
     return "\n".join(lines)

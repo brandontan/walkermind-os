@@ -47,7 +47,7 @@ def _retry():
 async def send(
     chat_id: int,
     text: str,
-    parse_mode: str = ParseMode.MARKDOWN,
+    parse_mode: str = ParseMode.HTML,
     reply_markup: Optional[Any] = None,
 ) -> bool:
     """Send a Telegram message with retry, swallowing permanent failures.

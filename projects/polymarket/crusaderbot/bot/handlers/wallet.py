@@ -1,6 +1,8 @@
 """Wallet menu: deposit address / balance / withdraw stub."""
 from __future__ import annotations
 
+import html
+
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -19,9 +21,9 @@ async def wallet_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     w = await get_wallet(user["id"])
     addr = w["deposit_address"] if w else "(not set)"
     await update.message.reply_text(
-        f"*💰 Wallet*\n\nDeposit address (Polygon USDC):\n`{addr}`\n\n"
+        f"<b>💰 Wallet</b>\n\nDeposit address (Polygon USDC):\n<code>{html.escape(addr)}</code>\n\n"
         "Tap an option below.",
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=wallet_menu(),
     )
 
@@ -35,9 +37,9 @@ async def wallet_root_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     w = await get_wallet(user["id"])
     addr = w["deposit_address"] if w else "(not set)"
     await q.message.reply_text(
-        f"*💰 Wallet*\n\nDeposit address (Polygon USDC):\n`{addr}`\n\n"
+        f"<b>💰 Wallet</b>\n\nDeposit address (Polygon USDC):\n<code>{html.escape(addr)}</code>\n\n"
         "Tap an option below.",
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=wallet_menu(),
     )
 
@@ -54,27 +56,27 @@ async def wallet_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     if sub == "deposit":
         await q.message.reply_text(
-            f"*📥 Deposit USDC on Polygon*\n\n`{addr}`\n_(tap to copy)_\n\n"
+            f"<b>📥 Deposit USDC on Polygon</b>\n\n<code>{html.escape(addr)}</code>\n<i>(tap to copy)</i>\n\n"
             "Send any amount of USDC (Polygon mainnet, contract "
             "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174). "
             "We confirm and credit you within ~2 minutes.",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
         )
     elif sub == "balance":
         ledger_bal = await get_balance(user["id"])
         on_chain = await get_usdc_balance(addr) if w else 0.0
         matic = await get_native_balance(addr) if w else 0.0
         await q.message.reply_text(
-            f"*💵 Balance*\n\n"
-            f"Ledger (tradable): *${ledger_bal:.2f}* USDC\n"
+            "<b>💵 Balance</b>\n\n"
+            f"Ledger (tradable): <b>${ledger_bal:.2f}</b> USDC\n"
             f"On-chain (deposit address): {on_chain:.4f} USDC · {matic:.4f} MATIC",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
         )
     elif sub == "withdraw":
         await q.message.reply_text(
-            "*📤 Withdraw* (manual gate — MVP)\n\n"
+            "<b>📤 Withdraw</b> (manual gate — MVP)\n\n"
             "Withdrawals are processed manually during MVP. "
-            "Please contact the operator with your desired amount and destination "
+            "Please contact admin with your desired amount and destination "
             "address. You'll receive confirmation within 24 hours.",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
         )

@@ -37,6 +37,7 @@ Awaiting keys used
 """
 from __future__ import annotations
 
+import html
 import logging
 import re
 from decimal import Decimal, InvalidOperation
@@ -173,34 +174,32 @@ def _fmt_usd(v: float | None) -> str:
 def _dashboard_text(tasks: list[dict]) -> str:
     if not tasks:
         return (
-            "🐋 *Copy Trade*\n"
+            "🐋 <b>Copy Trade</b>\n"
             "━━━━━━━━━━"
             "━━━━━━━━━━━━━━\n\n"
-            "_No wallets followed yet._\n\n"
+            "<i>No wallets followed yet.</i>\n\n"
             "Add a wallet to start mirroring trades automatically."
         )
 
     lines = [
-        "🐋 *Copy Trade*",
+        "🐋 <b>Copy Trade</b>",
         "━" * 24,
         "",
     ]
     for i, t in enumerate(tasks, 1):
         badge = {"active": "🟢", "paused": "⏸", "stopped": "🔴"}.get(t["status"], "❓")
-        # Escape Markdown special chars in user-supplied task name to prevent
-        # Telegram parse-entities error when name contains _, *, [, etc.
-        name = t["task_name"].replace("_", "\\_").replace("*", "\\*").replace("[", "\\[")
-        wallet = _truncate_wallet(t["wallet_address"])
-        amount = f"${float(t['copy_amount']):,.2f} ({t['copy_mode']})"
+        name = html.escape(t["task_name"])
+        wallet = html.escape(_truncate_wallet(t["wallet_address"]))
+        amount = f"${float(t['copy_amount']):,.2f} ({html.escape(t['copy_mode'])})"
         lines += [
-            f"*{i}. {name}*  {badge} `{t['status']}`",
-            f"   👛 `{wallet}`",
+            f"<b>{i}. {name}</b>  {badge} <code>{html.escape(t['status'])}</code>",
+            f"   👛 <code>{wallet}</code>",
             f"   💰 Copy: {amount}",
             f"   📊 Your PnL: —   🏦 Trader 30d: —",
             f"   📌 Active positions: —",
             "",
         ]
-    lines.append("📊 *Total Copy PnL: —*")
+    lines.append("📊 <b>Total Copy PnL: —</b>")
     return "\n".join(lines)
 
 
@@ -231,13 +230,13 @@ async def menu_copytrade_handler(
 
     if update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb,
+            text, parse_mode=ParseMode.HTML, reply_markup=kb,
         )
     elif update.callback_query is not None:
         await update.callback_query.answer()
         if update.callback_query.message is not None:
             await update.callback_query.message.edit_text(
-                text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb,
+                text, parse_mode=ParseMode.HTML, reply_markup=kb,
             )
 
 
@@ -276,9 +275,9 @@ async def copy_trade_callback(
             ctx.user_data.pop("awaiting", None)
         if q.message:
             await q.message.edit_text(
-                "➕ *Add Wallet*\n━" * 1 + "━" * 23 + "\n\n"
+                "➕ <b>Add Wallet</b>\n" + "━" * 24 + "\n\n"
                 "Choose how to add a wallet to copy:",
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=copy_trade_add_wallet_kb(),
             )
         return
@@ -290,10 +289,10 @@ async def copy_trade_callback(
             ctx.user_data["awaiting"] = "copytrade_paste"
         if q.message:
             await q.message.edit_text(
-                "📋 *Paste Wallet Address*\n━" + "━" * 23 + "\n\n"
+                "📋 <b>Paste Wallet Address</b>\n" + "━" * 24 + "\n\n"
                 "Send the wallet address you want to follow.\n"
-                "Format: `0x` + 40 hex characters",
-                parse_mode=ParseMode.MARKDOWN,
+                "Format: <code>0x</code> + 40 hex characters",
+                parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("✕ Cancel", callback_data="copytrade:add"),
                 ]]),
@@ -312,8 +311,8 @@ async def copy_trade_callback(
         if not wallets:
             if q.message:
                 await q.message.edit_text(
-                    "🐋 *Copy Trade*\n\nWallet data temporarily unavailable.",
-                    parse_mode=ParseMode.MARKDOWN,
+                    "🐋 <b>Copy Trade</b>\n\nWallet data temporarily unavailable.",
+                    parse_mode=ParseMode.HTML,
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("🔄 Retry", callback_data=f"copytrade:discover:{category}")],
                         [InlineKeyboardButton("↩️ Back", callback_data="copytrade:dashboard")],
@@ -324,7 +323,7 @@ async def copy_trade_callback(
         if q.message:
             await q.message.edit_text(
                 text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=discover_filter_kb(category),
             )
         return
@@ -337,7 +336,7 @@ async def copy_trade_callback(
         if q.message:
             await q.message.edit_text(
                 _wallet_stats_text(stats),
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=wallet_stats_kb(address),
             )
         return
@@ -378,12 +377,12 @@ async def copy_trade_callback(
         removed = await _legacy_deactivate_target(user["id"], wallet)
         await q.answer()
         reply = (
-            f"🛑 Stopped copying `{_truncate_wallet(wallet)}`."
+            f"🛑 Stopped copying <code>{html.escape(_truncate_wallet(wallet))}</code>."
             if removed
-            else f"No active copy target matching `{_truncate_wallet(wallet)}`."
+            else f"No active copy target matching <code>{html.escape(_truncate_wallet(wallet))}</code>."
         )
         if q.message:
-            await q.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
+            await q.message.reply_text(reply, parse_mode=ParseMode.HTML)
         return
 
     await q.answer()
@@ -407,8 +406,8 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
     wallet = _normalise_wallet(raw)
     if wallet is None:
         await update.message.reply_text(
-            "❌ Invalid address. Expected `0x` + 40 hex characters. Try again:",
-            parse_mode=ParseMode.MARKDOWN,
+            "❌ Invalid address. Expected <code>0x</code> + 40 hex characters. Try again:",
+            parse_mode=ParseMode.HTML,
         )
         return True  # consumed but awaiting stays set
 
@@ -418,7 +417,7 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
     stats = await fetch_wallet_stats(wallet)
     await update.message.reply_text(
         _wallet_stats_text(stats),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=wallet_stats_kb(wallet),
     )
     return True
@@ -430,10 +429,10 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
 
 
 _USAGE = (
-    "*/copytrade* commands:\n"
-    "`/copytrade add <wallet_address>`\n"
-    "`/copytrade remove <wallet_address>`\n"
-    "`/copytrade list`\n\n"
+    "<b>/copytrade</b> commands:\n"
+    "<code>/copytrade add &lt;wallet_address&gt;</code>\n"
+    "<code>/copytrade remove &lt;wallet_address&gt;</code>\n"
+    "<code>/copytrade list</code>\n\n"
     f"Max {MAX_COPY_TARGETS_PER_USER} active leaders per account."
 )
 
@@ -449,7 +448,7 @@ async def copy_trade_command(
         return
     args = ctx.args or []
     if not args:
-        await update.message.reply_text(_USAGE, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(_USAGE, parse_mode=ParseMode.HTML)
         return
     sub = args[0].lower()
     if sub == "add":
@@ -459,7 +458,7 @@ async def copy_trade_command(
     elif sub == "list":
         await _legacy_list(update, user["id"])
     else:
-        await update.message.reply_text(_USAGE, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(_USAGE, parse_mode=ParseMode.HTML)
 
 
 # ---------------------------------------------------------------------------
@@ -534,15 +533,15 @@ async def _legacy_add(
         return
     if len(args) != 1:
         await update.message.reply_text(
-            "Usage: `/copytrade add <wallet_address>`",
-            parse_mode=ParseMode.MARKDOWN,
+            "Usage: <code>/copytrade add &lt;wallet_address&gt;</code>",
+            parse_mode=ParseMode.HTML,
         )
         return
     wallet = _normalise_wallet(args[0])
     if wallet is None:
         await update.message.reply_text(
-            "❌ Invalid wallet address. Expected `0x` + 40 hex chars.",
-            parse_mode=ParseMode.MARKDOWN,
+            "❌ Invalid wallet address. Expected <code>0x</code> + 40 hex chars.",
+            parse_mode=ParseMode.HTML,
         )
         return
     result = await _insert_active_target(user_id, wallet)
@@ -553,13 +552,13 @@ async def _legacy_add(
         )
     elif result == "exists":
         await update.message.reply_text(
-            f"Already copying `{_truncate_wallet(wallet)}`.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"Already copying <code>{html.escape(_truncate_wallet(wallet))}</code>.",
+            parse_mode=ParseMode.HTML,
         )
     else:
         await update.message.reply_text(
-            f"✅ Now copying `{_truncate_wallet(wallet)}`.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"✅ Now copying <code>{html.escape(_truncate_wallet(wallet))}</code>.",
+            parse_mode=ParseMode.HTML,
         )
 
 
@@ -570,27 +569,27 @@ async def _legacy_remove(
         return
     if len(args) != 1:
         await update.message.reply_text(
-            "Usage: `/copytrade remove <wallet_address>`",
-            parse_mode=ParseMode.MARKDOWN,
+            "Usage: <code>/copytrade remove &lt;wallet_address&gt;</code>",
+            parse_mode=ParseMode.HTML,
         )
         return
     wallet = _normalise_wallet(args[0])
     if wallet is None:
         await update.message.reply_text(
-            "❌ Invalid wallet address. Expected `0x` + 40 hex chars.",
-            parse_mode=ParseMode.MARKDOWN,
+            "❌ Invalid wallet address. Expected <code>0x</code> + 40 hex chars.",
+            parse_mode=ParseMode.HTML,
         )
         return
     removed = await _legacy_deactivate_target(user_id, wallet)
     if removed:
         await update.message.reply_text(
-            f"🛑 Stopped copying `{_truncate_wallet(wallet)}`.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"🛑 Stopped copying <code>{html.escape(_truncate_wallet(wallet))}</code>.",
+            parse_mode=ParseMode.HTML,
         )
     else:
         await update.message.reply_text(
-            f"No active copy target matching `{_truncate_wallet(wallet)}`.",
-            parse_mode=ParseMode.MARKDOWN,
+            f"No active copy target matching <code>{html.escape(_truncate_wallet(wallet))}</code>.",
+            parse_mode=ParseMode.HTML,
         )
 
 
@@ -602,16 +601,16 @@ async def _legacy_list(update: Update, user_id: UUID) -> None:
     if not targets:
         await update.message.reply_text(
             "No active copy targets. Add one with "
-            "`/copytrade add <wallet_address>`.",
-            parse_mode=ParseMode.MARKDOWN,
+            "<code>/copytrade add &lt;wallet_address&gt;</code>.",
+            parse_mode=ParseMode.HTML,
         )
         return
-    lines = ["*Active copy targets*\n"]
+    lines = ["<b>Active copy targets</b>\n"]
     for t in targets:
         wallet = t["target_wallet_address"]
         added = t["created_at"].strftime("%Y-%m-%d")
         lines.append(
-            f"`{_truncate_wallet(wallet)}` · added {added} · "
+            f"<code>{html.escape(_truncate_wallet(wallet))}</code> · added {added} · "
             f"mirrored {t['trades_mirrored']}"
         )
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -621,23 +620,23 @@ async def _legacy_list(update: Update, user_id: UUID) -> None:
     )] for t in targets]
     await update.message.reply_text(
         "\n".join(lines),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(rows),
     )
 
 
 def _wallet_stats_text(stats: WalletStats) -> str:
-    wallet = _truncate_wallet(stats.address)
+    wallet = html.escape(_truncate_wallet(stats.address))
     header = (
-        "📊 *Wallet Stats*\n"
+        "📊 <b>Wallet Stats</b>\n"
         "━" * 24 + "\n"
-        f"`{wallet}`\n"
+        f"<code>{wallet}</code>\n"
     )
     if not stats.available:
         return (
             header
-            + "\n⚠️ _Stats unavailable — API error_\n\n"
-            "_You can still set up copy trading for this wallet._"
+            + "\n⚠️ <i>Stats unavailable — API error</i>\n\n"
+            "<i>You can still set up copy trading for this wallet.</i>"
         )
     return (
         header
@@ -646,8 +645,8 @@ def _wallet_stats_text(stats: WalletStats) -> str:
         + f"\n📈 Avg Trade: {_fmt_usd(stats.avg_trade)}"
         + f"\n📊 Trades: {stats.trades_count}"
         + f"\n🏦 Active Positions: {stats.active_positions}"
-        + f"\n🏷 Category: {stats.category}"
-        + "\n\n_Stats from Polymarket · refreshed every 5 min_"
+        + f"\n🏷 Category: {html.escape(stats.category or '')}"
+        + "\n\n<i>Stats from Polymarket · refreshed every 5 min</i>"
     )
 
 
@@ -656,24 +655,24 @@ def _leaderboard_text(wallets: list[WalletStats], active_filter: str) -> str:
         "crypto": "Crypto", "sports": "Sports", "politics": "Politics",
         "world": "World", "top_pnl": "Top PnL", "top_wr": "Top Win Rate",
     }
-    filter_label = label_map.get(active_filter, "Top PnL")
+    filter_label = html.escape(label_map.get(active_filter, "Top PnL"))
     if not wallets:
         return (
-            f"🔍 *Top Wallets — {filter_label}*\n"
+            f"🔍 <b>Top Wallets — {filter_label}</b>\n"
             "━" * 24 + "\n\n"
-            "⚠️ _Leaderboard unavailable. Try again shortly._"
+            "⚠️ <i>Leaderboard unavailable. Try again shortly.</i>"
         )
     lines = [
-        f"🔍 *Top Wallets — {filter_label}*",
+        f"🔍 <b>Top Wallets — {filter_label}</b>",
         "━" * 24,
         "",
     ]
     for i, w in enumerate(wallets, 1):
-        wallet = _truncate_wallet(w.address)
+        wallet = html.escape(_truncate_wallet(w.address))
         lines += [
-            f"*#{i}*  `{wallet}`",
+            f"<b>#{i}</b>  <code>{wallet}</code>",
             f"   💰 {_fmt_pnl(w.pnl_30d)}  🎯 WR: {_fmt_pct(w.win_rate)}",
-            f"   📊 Trades: {w.trades_count}  🏷 {w.category}",
+            f"   📊 Trades: {w.trades_count}  🏷 {html.escape(w.category or '')}",
             f"   🎯 Match: 0%",
             "",
         ]
@@ -735,16 +734,16 @@ def _fmt_wz_amount(wz: dict) -> str:
 
 
 def _step3_text(wz: dict) -> str:
-    wallet = _truncate_wallet(wz["wallet_addr"])
+    wallet = html.escape(_truncate_wallet(wz["wallet_addr"]))
     tp = f"+{float(wz['tp_pct']) * 100:.0f}%"
     sl = f"-{float(wz['sl_pct']) * 100:.0f}%"
     maxd = f"${float(wz['max_daily_spend']):.0f}"
     slip = f"{float(wz['slippage_pct']) * 100:.0f}%"
     min_t = f"${float(wz['min_trade_size']):.2f}"
     return (
-        "✅ *Confirm Copy Task*\n"
+        "✅ <b>Confirm Copy Task</b>\n"
         "━" * 24 + "\n\n"
-        f"👛 Wallet: `{wallet}`\n"
+        f"👛 Wallet: <code>{wallet}</code>\n"
         f"💰 Copy: {_fmt_wz_amount(wz)}\n"
         f"📈 Take Profit: {tp}\n"
         f"📉 Stop Loss: {sl}\n"
@@ -752,7 +751,7 @@ def _step3_text(wz: dict) -> str:
         f"🔀 Slippage: {slip}\n"
         f"📏 Min Trade: {min_t}\n"
         f"🎲 Mode: Paper\n\n"
-        "_Tap Start Copying to activate._"
+        "<i>Tap Start Copying to activate.</i>"
     )
 
 
@@ -763,7 +762,7 @@ def _step2_defaults_text(wz: dict) -> str:
     slip = f"{float(wz['slippage_pct']) * 100:.0f}%"
     min_t = f"${float(wz['min_trade_size']):.2f}"
     return (
-        "⚙️ *Risk Controls* — Step 2/3\n"
+        "⚙️ <b>Risk Controls</b> — Step 2/3\n"
         "━" * 24 + "\n\n"
         f"📈 Take Profit: {tp}\n"
         f"📉 Stop Loss: {sl}\n"
@@ -784,18 +783,18 @@ def _step2_edit_kb_from_wz(wz: dict) -> InlineKeyboardMarkup:
 
 
 def _edit_screen_text(task: CopyTradeTask) -> str:
-    wallet = _truncate_wallet(task.wallet_address)
-    name = task.task_name.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[")
+    wallet = html.escape(_truncate_wallet(task.wallet_address))
+    name = html.escape(task.task_name)
     badge = task.status_badge
     tp = f"+{float(task.tp_pct) * 100:.0f}%"
     sl = f"-{float(task.sl_pct) * 100:.0f}%"
     return (
-        f"✏️ *Edit Task — {name}*\n"
+        f"✏️ <b>Edit Task — {name}</b>\n"
         "━" * 24 + "\n\n"
-        f"👛 `{wallet}`  {badge} `{task.status}`\n"
-        f"💰 Copy: ${float(task.copy_amount):.2f} ({task.copy_mode})\n"
+        f"👛 <code>{wallet}</code>  {badge} <code>{html.escape(task.status)}</code>\n"
+        f"💰 Copy: ${float(task.copy_amount):.2f} ({html.escape(task.copy_mode)})\n"
         f"📈 TP: {tp}  📉 SL: {sl}\n\n"
-        "_Tap any setting to edit it._"
+        "<i>Tap any setting to edit it.</i>"
     )
 
 
@@ -820,16 +819,16 @@ async def wizard_enter_copy(
     wallet_addr = (q.data or "")[len("copytrade:copy:"):]
     ctx.user_data["wizard"] = _init_wizard(wallet_addr)
 
-    wallet = _truncate_wallet(wallet_addr)
+    wallet = html.escape(_truncate_wallet(wallet_addr))
     text = (
-        "🐋 *Copy This Wallet* — Step 1/3\n"
+        "🐋 <b>Copy This Wallet</b> — Step 1/3\n"
         "━" * 24 + "\n\n"
-        f"👛 `{wallet}`\n\n"
+        f"👛 <code>{wallet}</code>\n\n"
         "Choose how to size each copied trade:"
     )
     if q.message:
         await q.message.edit_text(
-            text, parse_mode=ParseMode.MARKDOWN,
+            text, parse_mode=ParseMode.HTML,
             reply_markup=wizard_amount_mode_kb(),
         )
     return COPY_AMOUNT
@@ -868,7 +867,7 @@ async def wizard_enter_edit(
     if q.message:
         await q.message.edit_text(
             _edit_screen_text(task),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=edit_task_main_kb(task),
         )
     return COPY_EDIT
@@ -891,25 +890,25 @@ async def step1_mode_select(
     wz = _wz(ctx)
     wz["copy_mode"] = "fixed" if mode == "fixed" else "proportional"
 
-    wallet = _truncate_wallet(wz.get("wallet_addr", ""))
+    wallet = html.escape(_truncate_wallet(wz.get("wallet_addr", "")))
     if mode == "fixed":
         text = (
-            "💵 *Fixed Amount* — Step 1/3\n"
+            "💵 <b>Fixed Amount</b> — Step 1/3\n"
             "━" * 24 + "\n\n"
-            f"👛 `{wallet}`\n\n"
+            f"👛 <code>{wallet}</code>\n\n"
             "Pick the dollar amount to copy per trade:"
         )
         kb = wizard_step1_fixed_kb()
     else:
         text = (
-            "📊 *% Mirror* — Step 1/3\n"
+            "📊 <b>% Mirror</b> — Step 1/3\n"
             "━" * 24 + "\n\n"
-            f"👛 `{wallet}`\n\n"
+            f"👛 <code>{wallet}</code>\n\n"
             "Mirror this % of the trader's position size:"
         )
         kb = wizard_step1_pct_kb()
     if q.message:
-        await q.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        await q.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
     return COPY_AMOUNT
 
 
@@ -930,7 +929,7 @@ async def step1_fixed_select(
     if q.message:
         await q.message.edit_text(
             _step2_defaults_text(wz),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_step2_kb(),
         )
     return COPY_RISK
@@ -953,7 +952,7 @@ async def step1_pct_select(
     if q.message:
         await q.message.edit_text(
             _step2_defaults_text(wz),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_step2_kb(),
         )
     return COPY_RISK
@@ -968,14 +967,14 @@ async def step1_back_to_mode(
         return COPY_AMOUNT
     await q.answer()
     wz = _wz(ctx)
-    wallet = _truncate_wallet(wz.get("wallet_addr", ""))
+    wallet = html.escape(_truncate_wallet(wz.get("wallet_addr", "")))
     if q.message:
         await q.message.edit_text(
-            "🐋 *Copy This Wallet* — Step 1/3\n"
+            "🐋 <b>Copy This Wallet</b> — Step 1/3\n"
             "━" * 24 + "\n\n"
-            f"👛 `{wallet}`\n\n"
+            f"👛 <code>{wallet}</code>\n\n"
             "Choose how to size each copied trade:",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_amount_mode_kb(),
         )
     return COPY_AMOUNT
@@ -996,16 +995,16 @@ async def step1_custom(
     wz["return_state"] = COPY_AMOUNT
 
     if field == "pct":
-        prompt = "Enter percentage (e.g. `15` for 15%):"
+        prompt = "Enter percentage (e.g. <code>15</code> for 15%):"
         back_data = "wizard:back:mode"
     else:
-        prompt = "Enter dollar amount (e.g. `7.50`):"
+        prompt = "Enter dollar amount (e.g. <code>7.50</code>):"
         back_data = "wizard:back:mode"
 
     if q.message:
         await q.message.edit_text(
-            f"✏️ *Custom {field.title()}*\n━" + "━" * 23 + "\n\n" + prompt,
-            parse_mode=ParseMode.MARKDOWN,
+            f"✏️ <b>Custom {html.escape(field.title())}</b>\n" + "━" * 24 + "\n\n" + prompt,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_custom_cancel_kb(back_data),
         )
     return COPY_CUSTOM
@@ -1028,7 +1027,7 @@ async def step2_keep(
     if q.message:
         await q.message.edit_text(
             _step3_text(wz),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_step3_kb(),
         )
     return COPY_CONFIRM
@@ -1046,7 +1045,7 @@ async def step2_edit(
     if q.message:
         await q.message.edit_text(
             _step2_defaults_text(wz),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=_step2_edit_kb_from_wz(wz),
         )
     return COPY_RISK
@@ -1067,17 +1066,17 @@ async def step2_custom_field(
     wz["return_state"] = COPY_RISK
 
     prompts = {
-        "tp":   "Enter take-profit % (e.g. `20` for +20%):",
-        "sl":   "Enter stop-loss % (e.g. `10` for -10%):",
-        "maxd": "Enter max daily spend in USD (e.g. `150`):",
-        "slip": "Enter slippage % (e.g. `5` for 5%):",
-        "min":  "Enter minimum trade size in USD (e.g. `1.00`):",
+        "tp":   "Enter take-profit % (e.g. <code>20</code> for +20%):",
+        "sl":   "Enter stop-loss % (e.g. <code>10</code> for -10%):",
+        "maxd": "Enter max daily spend in USD (e.g. <code>150</code>):",
+        "slip": "Enter slippage % (e.g. <code>5</code> for 5%):",
+        "min":  "Enter minimum trade size in USD (e.g. <code>1.00</code>):",
     }
     prompt = prompts.get(field, "Enter value:")
     if q.message:
         await q.message.edit_text(
-            f"✏️ *Edit Risk — {field.upper()}*\n━" + "━" * 23 + "\n\n" + prompt,
-            parse_mode=ParseMode.MARKDOWN,
+            f"✏️ <b>Edit Risk — {html.escape(field.upper())}</b>\n" + "━" * 24 + "\n\n" + prompt,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_custom_cancel_kb("wizard:back:step2edit"),
         )
     return COPY_CUSTOM
@@ -1095,11 +1094,11 @@ async def step2_back(
     wallet = _truncate_wallet(wz.get("wallet_addr", ""))
     if q.message:
         await q.message.edit_text(
-            "🐋 *Copy This Wallet* — Step 1/3\n"
-            "━" * 24 + "\n\n"
-            f"👛 `{wallet}`\n\n"
+            "🐋 <b>Copy This Wallet</b> — Step 1/3\n"
+            + "━" * 24 + "\n\n"
+            f"👛 <code>{html.escape(wallet)}</code>\n\n"
             "Choose how to size each copied trade:",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_amount_mode_kb(),
         )
     return COPY_AMOUNT
@@ -1154,13 +1153,13 @@ async def step3_confirm(
     ctx.user_data.pop("wizard", None)
     if q.message:
         await q.message.edit_text(
-            "✅ *Copy task created!*\n"
-            "━" * 24 + "\n\n"
-            f"👛 `{_truncate_wallet(wallet_addr)}`\n"
-            f"💰 {_fmt_wz_amount({**_DEFAULTS, 'copy_mode': task.copy_mode, 'copy_amount': task.copy_amount, 'copy_pct': task.copy_pct})}\n"
-            f"🎲 Mode: Paper\n\n"
-            "_Task is now active. No real capital deployed._",
-            parse_mode=ParseMode.MARKDOWN,
+            "✅ <b>Copy task created!</b>\n"
+            + "━" * 24 + "\n\n"
+            f"👛 <code>{html.escape(_truncate_wallet(wallet_addr))}</code>\n"
+            f"💰 {html.escape(_fmt_wz_amount({**_DEFAULTS, 'copy_mode': task.copy_mode, 'copy_amount': task.copy_amount, 'copy_pct': task.copy_pct}))}\n"
+            "🎲 Mode: Paper\n\n"
+            "<i>Task is now active. No real capital deployed.</i>",
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_success_kb(),
         )
     return ConversationHandler.END
@@ -1178,7 +1177,7 @@ async def step3_back(
     if q.message:
         await q.message.edit_text(
             _step2_defaults_text(wz),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_step2_kb(),
         )
     return COPY_RISK
@@ -1209,19 +1208,19 @@ async def edit_field_custom(
     wz["return_state"] = COPY_EDIT
 
     prompts = {
-        "amount": "Enter copy amount in USD (e.g. `10.00`):",
-        "tp":     "Enter take-profit % (e.g. `20` for +20%):",
-        "sl":     "Enter stop-loss % (e.g. `10` for -10%):",
-        "maxd":   "Enter max daily spend in USD (e.g. `150`):",
-        "slip":   "Enter slippage % (e.g. `5` for 5%):",
-        "min":    "Enter min trade size in USD (e.g. `1.00`):",
+        "amount": "Enter copy amount in USD (e.g. <code>10.00</code>):",
+        "tp":     "Enter take-profit % (e.g. <code>20</code> for +20%):",
+        "sl":     "Enter stop-loss % (e.g. <code>10</code> for -10%):",
+        "maxd":   "Enter max daily spend in USD (e.g. <code>150</code>):",
+        "slip":   "Enter slippage % (e.g. <code>5</code> for 5%):",
+        "min":    "Enter min trade size in USD (e.g. <code>1.00</code>):",
     }
     prompt = prompts.get(field, "Enter value:")
     back_data = f"wizard:eback:edit:{task_id_str}"
     if q.message:
         await q.message.edit_text(
-            f"✏️ *Edit — {field.upper()}*\n━" + "━" * 23 + "\n\n" + prompt,
-            parse_mode=ParseMode.MARKDOWN,
+            f"✏️ <b>Edit — {html.escape(field.upper())}</b>\n" + "━" * 24 + "\n\n" + prompt,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_custom_cancel_kb(back_data),
         )
     return COPY_CUSTOM
@@ -1260,7 +1259,7 @@ async def edit_field_preset(
     if task and q.message:
         await q.message.edit_text(
             _edit_screen_text(task),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=edit_task_main_kb(task),
         )
     return COPY_EDIT
@@ -1299,7 +1298,7 @@ async def edit_pause(
     if task and q.message:
         await q.message.edit_text(
             _edit_screen_text(task),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=edit_task_main_kb(task),
         )
     return COPY_EDIT
@@ -1319,10 +1318,10 @@ async def edit_delete_ask(
     task_id_str = parts[3]
     if q.message:
         await q.message.edit_text(
-            "🗑 *Delete Task?*\n━" + "━" * 23 + "\n\n"
+            "🗑 <b>Delete Task?</b>\n" + "━" * 24 + "\n\n"
             "This will permanently remove the copy task.\n"
             "Are you sure?",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=edit_delete_confirm_kb(task_id_str),
         )
     return COPY_EDIT
@@ -1391,7 +1390,7 @@ async def edit_delete_cancel(
     if task and q.message:
         await q.message.edit_text(
             _edit_screen_text(task),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=edit_task_main_kb(task),
         )
     return COPY_EDIT
@@ -1409,10 +1408,10 @@ async def edit_pnl(
     task_id_str = parts[2] if len(parts) >= 3 else "?"
     if q.message:
         await q.message.reply_text(
-            "📊 *Task P&L*\n━" + "━" * 23 + "\n\n"
-            "_P&L tracking will be available once the copy execution engine is live._\n\n"
+            "📊 <b>Task P&amp;L</b>\n" + "━" * 24 + "\n\n"
+            "<i>P&amp;L tracking will be available once the copy execution engine is live.</i>\n\n"
             "🎲 Mode: Paper",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
         )
     return COPY_EDIT
 
@@ -1438,9 +1437,9 @@ async def edit_rename(
 
     if q.message:
         await q.message.edit_text(
-            "✏️ *Rename Task*\n━" + "━" * 23 + "\n\n"
+            "✏️ <b>Rename Task</b>\n" + "━" * 24 + "\n\n"
             "Type the new name (max 50 chars):",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_custom_cancel_kb(f"wizard:eback:edit:{task_id_str}"),
         )
     return COPY_CUSTOM
@@ -1508,7 +1507,7 @@ async def custom_input_handler(
         if task:
             await update.message.reply_text(
                 _edit_screen_text(task),
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=edit_task_main_kb(task),
             )
         return COPY_EDIT
@@ -1544,7 +1543,7 @@ async def custom_input_handler(
         # Advance to step 2
         await update.message.reply_text(
             _step2_defaults_text(wz),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_step2_kb(),
         )
         return COPY_RISK
@@ -1553,7 +1552,7 @@ async def custom_input_handler(
         _apply_risk_field(wz, field, raw)
         await update.message.reply_text(
             _step2_defaults_text(wz),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=_step2_edit_kb_from_wz(wz),
         )
         return COPY_RISK
@@ -1574,7 +1573,7 @@ async def custom_input_handler(
         if task:
             await update.message.reply_text(
                 _edit_screen_text(task),
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=edit_task_main_kb(task),
             )
         return COPY_EDIT
@@ -1639,7 +1638,7 @@ async def custom_input_back(
         if task and q.message:
             await q.message.edit_text(
                 _edit_screen_text(task),
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=edit_task_main_kb(task),
             )
         return COPY_EDIT
@@ -1648,7 +1647,7 @@ async def custom_input_back(
         if q.message:
             await q.message.edit_text(
                 _step2_defaults_text(wz),
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=wizard_step2_kb(),
             )
         return COPY_RISK
@@ -1657,11 +1656,11 @@ async def custom_input_back(
         wallet = _truncate_wallet(wz.get("wallet_addr", ""))
         if q.message:
             await q.message.edit_text(
-                "🐋 *Copy This Wallet* — Step 1/3\n"
-                "━" * 24 + "\n\n"
-                f"👛 `{wallet}`\n\n"
+                "🐋 <b>Copy This Wallet</b> — Step 1/3\n"
+                + "━" * 24 + "\n\n"
+                f"👛 <code>{html.escape(wallet)}</code>\n\n"
                 "Choose how to size each copied trade:",
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=wizard_amount_mode_kb(),
             )
         return COPY_AMOUNT
@@ -1683,9 +1682,9 @@ async def wizard_cancel(
     ctx.user_data.pop("wizard", None)
     if q.message:
         await q.message.edit_text(
-            "➕ *Add Wallet*\n━" + "━" * 23 + "\n\n"
+            "➕ <b>Add Wallet</b>\n" + "━" * 24 + "\n\n"
             "Choose how to add a wallet to copy:",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=copy_trade_add_wallet_kb(),
         )
     return ConversationHandler.END
