@@ -33,7 +33,7 @@ EDGE_DEVIATION_PCT: float = 0.08       # 8% deviation from 6h mean triggers edge
 MOMENTUM_CANDLES: int = 3              # consecutive candles in one direction
 
 # Shared config
-MIN_LIQUIDITY: float = 1_000.0
+MIN_LIQUIDITY: float = 10_000.0
 DEDUP_WINDOW_HOURS: int = 2
 SIGNAL_EXPIRY_HOURS: int = 4
 DEFAULT_SIGNAL_SIZE_USDC: float = 10.0
