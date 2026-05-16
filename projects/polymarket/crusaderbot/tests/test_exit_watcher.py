@@ -378,26 +378,38 @@ def _patch_registry(
 ):
     """Patch registry calls: list, record_close_failure, reset, update_price.
 
-    Also patches ``exit_watcher._fetch_live_price`` to return ``None``
-    immediately so run_once tests stay hermetic — no network calls to the
-    Gamma API, no retry backoff delays. With live_price=None the watcher
-    falls back to position.current_price() exactly as before the live-fetch
-    change, keeping all existing position-level assertions valid.
+    ``_fetch_live_price`` is patched to return each position's own
+    ``current_price()`` keyed by (market_id, side). This keeps tests hermetic
+    (no Gamma API calls) while also preventing the MARKET_EXPIRED retry path
+    from triggering — two consecutive None results would now close the position
+    as expired and bypass TP/SL evaluation entirely.
+
+    Phase B (``list_open_on_resolved_markets``) defaults to empty so existing
+    tests are unaffected by the two-phase sweep.
     """
     record_failure = AsyncMock(return_value=record_failure_returns)
     reset_failure = AsyncMock(return_value=None)
     update_price = AsyncMock(return_value=None)
+    close_expired_noop = AsyncMock(return_value=True)
     list_open = AsyncMock(return_value=positions)
-    fetch_live_price_noop = AsyncMock(return_value=None)
+    list_open_resolved = AsyncMock(return_value=[])
+
+    pos_prices = {(p.market_id, p.side): p.current_price() for p in positions}
+
+    async def _fetch_price(market_id: str, side: str) -> float | None:
+        return pos_prices.get((market_id, side))
+
     return (
         record_failure, reset_failure, update_price, list_open,
         [
             patch.object(registry, "list_open_for_exit", list_open),
+            patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+            patch.object(registry, "close_as_expired", close_expired_noop),
             patch.object(registry, "record_close_failure", record_failure),
             patch.object(registry, "reset_close_failure", reset_failure),
             patch.object(registry, "update_current_price", update_price),
-            # Prevent live HTTP calls to Gamma API in hermetic test runs.
-            patch.object(exit_watcher, "_fetch_live_price", fetch_live_price_noop),
+            # Return actual position prices — no live HTTP calls to Gamma API.
+            patch.object(exit_watcher, "_fetch_live_price", _fetch_price),
         ],
     )
 
@@ -424,12 +436,12 @@ def test_run_once_tp_hit_closes_and_alerts():
     for p_ in patches:
         p_.start()
     try:
-        n = _run(exit_watcher.run_once(close_submitter=_submitter))
+        result = _run(exit_watcher.run_once(close_submitter=_submitter))
     finally:
         for p_ in patches:
             p_.stop()
 
-    assert n == 1
+    assert result.submitted == 1
     assert len(closed) == 1
     assert closed[0]["reason"] == ExitReason.TP_HIT.value
     assert len(captured.tp_hit) == 1
@@ -601,11 +613,11 @@ def test_run_once_hold_updates_current_price_only():
     for p_ in patches:
         p_.start()
     try:
-        n = _run(exit_watcher.run_once(close_submitter=_submitter))
+        result = _run(exit_watcher.run_once(close_submitter=_submitter))
     finally:
         for p_ in patches:
             p_.stop()
-    assert n == 0
+    assert result.submitted == 0
     assert submit_calls == []
     update_price.assert_awaited_once_with(
         pos.id, pytest.approx(0.40), pos.user_id, pnl_usdc=pytest.approx(0.0)
@@ -729,3 +741,79 @@ def test_evaluate_does_not_mutate_position():
         p.applied_tp_pct, p.applied_sl_pct, p.force_close_intent,
         p.close_failure_count,
     ) == snapshot
+
+
+# ---------------------------------------------------------------------------
+# MARKET_EXPIRED: Phase A (None-price retry) and Phase B (resolved markets).
+# ---------------------------------------------------------------------------
+
+def test_run_once_none_price_after_retry_closes_as_expired():
+    """Phase A: _fetch_live_price returns None on both attempts → MARKET_EXPIRED."""
+    captured_expired: list[dict] = []
+
+    async def _mock_expired_alert(**kw):
+        captured_expired.append(kw)
+
+    pos = _make_position(yes_price=0.40)
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[pos])
+    list_open_resolved = AsyncMock(return_value=[])
+    fetch_none = AsyncMock(return_value=None)
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        patch.object(exit_watcher, "_fetch_live_price", fetch_none),
+        _patch_audit_noop(),
+        patch.object(monitoring_alerts, "alert_user_market_expired", _mock_expired_alert),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 1
+    assert result.submitted == 0
+    assert result.held == 0
+    # Two fetch attempts: initial + one retry before declaring expired.
+    assert fetch_none.await_count == 2
+    close_expired.assert_awaited_once_with(pos.id, pos.user_id, pos.size_usdc)
+    assert len(captured_expired) == 1
+    assert captured_expired[0]["market_id"] == pos.market_id
+
+
+def test_run_once_market_expired_on_resolved_market():
+    """Phase B: open position on resolved market → closed as MARKET_EXPIRED directly."""
+    captured_expired: list[dict] = []
+
+    async def _mock_expired_alert(**kw):
+        captured_expired.append(kw)
+
+    pos = _make_position(market_resolved=True)
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[])
+    list_open_resolved = AsyncMock(return_value=[pos])
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        _patch_audit_noop(),
+        patch.object(monitoring_alerts, "alert_user_market_expired", _mock_expired_alert),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 1
+    assert result.submitted == 0
+    close_expired.assert_awaited_once_with(pos.id, pos.user_id, pos.size_usdc)
+    assert len(captured_expired) == 1

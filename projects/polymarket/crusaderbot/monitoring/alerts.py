@@ -415,6 +415,31 @@ async def alert_user_manual_close(
     await notifications.send(telegram_user_id, text)
 
 
+async def alert_user_market_expired(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    size_usdc: float,
+    mode: str,
+) -> None:
+    """Notify the position owner that the market expired and capital was returned.
+
+    pnl_usdc is always 0.0 for expired positions — the original stake is
+    returned in full, so the user needs to know their funds are safe.
+    """
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"⏰ <b>[{html.escape(mode.upper())}] Market expired</b>\n"
+        f"{label}\n"
+        f"Side: <b>{html.escape(side.upper())}</b>\n"
+        f"Capital returned: <b>${size_usdc:.2f} USDC</b>\n"
+        "Position closed — market is no longer active on Polymarket."
+    )
+    await notifications.send(telegram_user_id, text)
+
+
 async def alert_user_close_failed(
     *,
     telegram_user_id: int,

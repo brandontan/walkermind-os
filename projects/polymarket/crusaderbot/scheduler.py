@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import html
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import asyncio
@@ -357,16 +357,20 @@ async def _process_candidate(user: dict, cand) -> None:
 
 # ---------------- Exit watcher ----------------
 
-async def check_exits() -> None:
-    """Drive the exit-watcher worker for one tick.
+async def check_exits() -> dict:
+    """Drive the exit-watcher worker for one tick. Returns RunResult as dict.
 
-    Priority chain (force_close_intent > tp_hit > sl_hit > strategy_exit >
-    hold), TP/SL snapshot enforcement, retry-once-on-CLOB-error, and the
-    per-position close_failure_count tracking all live in
-    ``domain.execution.exit_watcher``. This wrapper exists so APScheduler's
-    job table keeps its long-standing ``check_exits`` entry point.
+    The dict is captured by the APScheduler listener via ``event.retval`` and
+    written to ``job_runs.metadata`` so operators can inspect per-tick counts
+    (submitted/expired/held/errors) directly from the DB.
     """
-    await exit_watcher.run_once()
+    result = await exit_watcher.run_once()
+    return {
+        "submitted": result.submitted,
+        "expired": result.expired,
+        "held": result.held,
+        "errors": result.errors,
+    }
 
 
 # ---------------- Order lifecycle ----------------
@@ -543,13 +547,16 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(watch_deposits, "interval", seconds=s.DEPOSIT_WATCH_INTERVAL,
                   id="deposit_watch", max_instances=1, coalesce=True)
     sched.add_job(run_signal_scan, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
-                  id="signal_scan", max_instances=1, coalesce=True)
+                  id="signal_scan", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(sf_scan_job.run_once, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
-                  id="signal_following_scan", max_instances=1, coalesce=True)
+                  id="signal_following_scan", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(market_signal_scanner.run_job, "interval",
                   seconds=s.MARKET_SIGNAL_SCAN_INTERVAL,
                   id=market_signal_scanner.JOB_ID, max_instances=1, coalesce=True,
-                  replace_existing=True)
+                  replace_existing=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(market_sync.run_job, "interval",
                   seconds=1800,
                   id=market_sync.JOB_ID, max_instances=1, coalesce=True)
