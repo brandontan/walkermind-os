@@ -32,7 +32,7 @@ Four areas of bot hardening implemented against Sentry production issues and Bos
 **Area 3 — Admin/User Scope Separation**
 - `bot/handlers/start.py`: `help_command()` rewritten to show user commands only, with admin block appended when `tg_id == settings.OPERATOR_CHAT_ID`.
 - `jobs/weekly_insights.py`: `_list_active_users()` query now filters `AND paused = FALSE AND auto_trade_on = TRUE`. Previously sent weekly insights to all tier≥2 users regardless of active status.
-- `jobs/hourly_report.py`: fixed JOIN bug — `t.user_id = u.telegram_user_id` was wrong (UUID vs bigint); corrected to `t.user_id = u.id`. Admin-tier recipients were never actually returned correctly before this fix.
+- `jobs/hourly_report.py`: verified admin-only scope is correct. `user_tiers.user_id` is BIGINT (Telegram ID) per migration 023 — original join `t.user_id = u.telegram_user_id` is correct and was preserved unchanged.
 
 ---
 
@@ -72,7 +72,7 @@ Bot UI:
 | `projects/polymarket/crusaderbot/bot/handlers/dashboard.py` | main_menu_keyboard → main_menu() state-driven (3 sites) |
 | `projects/polymarket/crusaderbot/bot/handlers/start.py` | help_command admin-scoped |
 | `projects/polymarket/crusaderbot/jobs/weekly_insights.py` | _list_active_users adds paused=FALSE AND auto_trade_on=TRUE |
-| `projects/polymarket/crusaderbot/jobs/hourly_report.py` | JOIN bug fix: t.user_id=u.telegram_user_id → t.user_id=u.id |
+| `projects/polymarket/crusaderbot/jobs/hourly_report.py` | verified admin-only scope — no change (original join correct) |
 | `projects/polymarket/crusaderbot/state/PROJECT_STATE.md` | updated |
 | `projects/polymarket/crusaderbot/state/CHANGELOG.md` | prepended entry |
 | `projects/polymarket/crusaderbot/reports/forge/bot-polish-beta.md` | this file |
@@ -90,7 +90,7 @@ Bot UI:
 - dashboard.py no longer imports or calls `main_menu_keyboard()`
 - `help_command()` respects OPERATOR_CHAT_ID for admin block
 - weekly_insights filters to active users only
-- hourly_report JOIN is now correct UUID→UUID
+- hourly_report admin-only scope verified correct (user_tiers.user_id is BIGINT/Telegram ID, join on telegram_user_id is correct)
 
 ---
 
