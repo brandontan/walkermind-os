@@ -286,7 +286,7 @@ def test_show_preset_picker_renders_all_three(monkeypatch):
     ))
     assert len(replies) == 1
     text = replies[0]
-    assert "Auto Trade" in text
+    assert "Auto Mode" in text  # V5 AUTOBOT branding: header changed from "Auto Trade" to "Auto Mode"
     # MVP keyboard: "Choose Strategy" CTA → directs user to preset:picker
     kb = kws[0]["reply_markup"]
     all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
@@ -313,8 +313,8 @@ def test_show_preset_status_falls_back_to_picker_when_no_preset(monkeypatch):
     asyncio.run(presets_h.show_preset_status(
         update, ctx=SimpleNamespace(user_data={}),
     ))
-    # The picker text leads with "Auto Trade" (hierarchy tree header).
-    assert "Auto Trade" in replies[0]
+    # V5 AUTOBOT branding: header changed from "Auto Trade" to "Auto Mode".
+    assert "Auto Mode" in replies[0]
 
 
 def test_show_preset_status_renders_running_card(monkeypatch):
@@ -499,8 +499,8 @@ def test_switch_yes_clears_preset_and_shows_picker(monkeypatch):
     )
     set_auto.assert_awaited_once_with(uid, False)
     set_p.assert_awaited_once_with(uid, False)
-    # Picker text was rendered after the switch.
-    assert any("Auto Trade" in r for r in replies)
+    # Picker text was rendered after the switch. V5 AUTOBOT: header is "Auto Mode".
+    assert any("Auto Mode" in r for r in replies)
 
 
 def test_stop_intent_shows_confirmation(monkeypatch):
