@@ -7,9 +7,9 @@ Usage:
     async def my_premium_handler(update, context):
         ...
 
-FREE  — only /start, /status, /help
-PREMIUM — all trading commands
-ADMIN   — all commands + admin panel
+Two roles only: `user` (default — full paper access) and `admin`
+(OPERATOR_CHAT_ID or ADMIN). This decorator gates admin-only handlers;
+non-admin features are open to every user.
 """
 from __future__ import annotations
 
@@ -25,8 +25,8 @@ from ...services.tiers import TIER_ADMIN, TIER_PREMIUM, get_user_tier, meets_tie
 log = structlog.get_logger(__name__)
 
 _UPGRADE_MESSAGES: dict[str, str] = {
-    TIER_PREMIUM: "🔒 This feature is not available yet.",
-    TIER_ADMIN: "⛔ Admin access required.",
+    TIER_PREMIUM: "This feature is not available.",
+    TIER_ADMIN: "Admin access required.",
 }
 
 HandlerFn = Callable[..., Awaitable[Any]]
@@ -65,7 +65,7 @@ def require_access_tier(min_tier: str) -> Callable[[HandlerFn], HandlerFn]:
                     handler=handler.__name__,
                 )
                 msg = _UPGRADE_MESSAGES.get(
-                    min_tier, f"Access requires {min_tier} tier."
+                    min_tier, "This feature is not available."
                 )
                 await update.effective_message.reply_text(
                     msg, parse_mode="Markdown"
