@@ -6,6 +6,7 @@
 ---
 
 ## Right Now
+- [ ] webtrader-v3-and-bot-polish — PR #1069 open (WARP/webtrader-v3-and-bot-polish, 2026-05-16). Tactical Terminal v3.2 atomic delivery: 15 new shared components + Advanced Mode toggle + 6 page rewrites + bot template foundation (EMOJI/DIV/_table + 5 alert templates) + command consolidation + nav:* callback namespace. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN. npm build clean, ruff clean, 1400 pytest pass. MAJOR, FULL RUNTIME INTEGRATION. Awaiting WARP•SENTINEL validation.
 - [x] crusaderbot-phase5-ux-rebuild — MERGED PR #1055 (2026-05-16). Full UX rebuild: 6 screens, group=-1 nav fix, presets.py, messages.py, migration 028. ruff+compileall clean. MAJOR, NARROW INTEGRATION.
 - [x] mvp-cleanup — WARP/CRUSADERBOT-MVP-CLEANUP (2026-05-15). ParseMode HTML migration (17 handlers + notifier + domain/activation), operator→admin purge, 24 .bak files deleted, 3 dead keyboard functions removed. ruff+compileall clean. STANDARD, NARROW INTEGRATION. PR open — awaiting WARP🔹CMD review.
 - [ ] crusaderbot-ux-patch-1 — PR open (WARP/CRUSADERBOT-UX-PATCH-1, 2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION. Awaiting WARP🔹CMD review and merge.

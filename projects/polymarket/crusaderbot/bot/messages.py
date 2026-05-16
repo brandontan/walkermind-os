@@ -1,12 +1,43 @@
-"""Message template builders — Phase 5 UX Rebuild.
+"""Message template builders — Phase 5 UX Rebuild + Tactical Terminal polish.
 
 All financial blocks use <pre> tags for monospace rendering (parse_mode=HTML).
 All external data is escaped via html.escape() before insertion.
+
+The Tactical Terminal v3.2 polish (DIV / EMOJI / new alert templates)
+lives alongside the legacy templates so handlers can migrate piecewise.
 """
 from __future__ import annotations
 
 import html
 from decimal import Decimal
+
+
+# ── Tactical Terminal palette ─────────────────────────────────────────────────
+# Unified emoji set — every new message MUST use these constants instead of
+# inlining glyphs. Existing templates still inline emoji and will be migrated
+# as their handlers are touched.
+EMOJI: dict[str, str] = {
+    "ok":       "✅",
+    "err":      "❌",
+    "warn":     "⚠️",
+    "info":     "ℹ️",
+    "signal":   "📡",
+    "position": "📊",
+    "money":    "💰",
+    "alert":    "🚨",
+    "shield":   "🛡️",
+    "tp":       "🎯",
+    "sl":       "🛑",
+    "robot":    "🤖",
+    "lock":     "🔒",
+    "fire":     "🔥",
+    "spark":    "✨",
+    "chart":    "📈",
+    "down":     "📉",
+}
+
+# Heavy horizontal divider — width chosen to fit Telegram's mobile column.
+DIV = "━" * 24
 
 
 def _signed(val: Decimal | float) -> str:
@@ -23,6 +54,151 @@ def _pct(val: Decimal | float) -> str:
 
 def _fmt(val: Decimal | float) -> str:
     return f"${float(val):,.2f}"
+
+
+def _table(rows: list[tuple[str, str]], width: int = 14) -> str:
+    """Right-pad keys to `width` so values align in a <pre> block.
+
+    Inputs are NOT html-escaped — escape at call site if they include
+    user-provided text. Returns the inside of a <pre>...</pre> block
+    (no enclosing tags).
+    """
+    lines = []
+    for key, val in rows:
+        # Telegram <pre> blocks render in monospace; whitespace is preserved.
+        lines.append(f"{key.ljust(width)}{val}")
+    return "\n".join(lines)
+
+
+# ── Tactical Terminal alert templates (new) ──────────────────────────────────
+#
+# Seven canonical alert events for the bot polish pass. Each renders an
+# HTML-escaped block with a heavy divider, emoji indicator, and aligned
+# <pre> table for numeric data.
+
+def signal_alert_text(
+    market_question: str,
+    side: str,
+    price: float,
+    edge_bps: int,
+    source: str = "edge_finder",
+) -> str:
+    return (
+        f"<b>{EMOJI['signal']} Signal · {html.escape(source).upper()}</b>\n"
+        f"{DIV}\n\n"
+        f"<b>{html.escape(market_question)}</b>\n\n"
+        "<pre>"
+        + _table(
+            [
+                ("Side:",  html.escape(side.upper())),
+                ("Price:", f"{price * 100:.1f}¢"),
+                ("Edge:",  f"+{edge_bps} bps"),
+            ]
+        )
+        + "</pre>"
+    )
+
+
+def position_open_text(
+    market_question: str,
+    side: str,
+    entry_price: float,
+    size_usdc: float,
+    tp_pct: float,
+    sl_pct: float,
+) -> str:
+    return (
+        f"<b>{EMOJI['position']} Position Opened</b>\n"
+        f"{DIV}\n\n"
+        f"<b>{html.escape(market_question)}</b>\n\n"
+        "<pre>"
+        + _table(
+            [
+                ("Side:",   html.escape(side.upper())),
+                ("Entry:",  f"{entry_price * 100:.1f}¢"),
+                ("Size:",   _fmt(size_usdc)),
+                ("TP:",     f"+{tp_pct:.1f}%"),
+                ("SL:",     f"−{sl_pct:.1f}%"),
+            ]
+        )
+        + "</pre>"
+    )
+
+
+def position_close_text(
+    market_question: str,
+    reason: str,  # "tp" | "sl" | "force" | "manual" | "expired"
+    entry_price: float,
+    exit_price: float,
+    pnl_usdc: float,
+    pnl_pct: float,
+) -> str:
+    reason_label = {
+        "tp":      f"{EMOJI['tp']} Take Profit",
+        "sl":      f"{EMOJI['sl']} Stop Loss",
+        "force":   f"{EMOJI['alert']} Force Close",
+        "manual":  f"{EMOJI['ok']} Manual Close",
+        "expired": f"{EMOJI['info']} Expired",
+    }.get(reason, f"{EMOJI['info']} Closed")
+    return (
+        f"<b>{reason_label}</b>\n"
+        f"{DIV}\n\n"
+        f"<b>{html.escape(market_question)}</b>\n\n"
+        "<pre>"
+        + _table(
+            [
+                ("Entry:", f"{entry_price * 100:.1f}¢"),
+                ("Exit:",  f"{exit_price * 100:.1f}¢"),
+                ("P&L:",   _signed(pnl_usdc)),
+                ("%:",     f"{_pct(pnl_pct)}%"),
+            ]
+        )
+        + "</pre>"
+    )
+
+
+def daily_summary_text(
+    date_label: str,
+    trades: int,
+    wins: int,
+    losses: int,
+    pnl_usdc: float,
+    pnl_pct: float,
+    equity_usdc: float,
+) -> str:
+    win_rate = (wins / trades * 100.0) if trades else 0.0
+    return (
+        f"<b>{EMOJI['chart']} Daily Summary · {html.escape(date_label)}</b>\n"
+        f"{DIV}\n\n"
+        "<pre>"
+        + _table(
+            [
+                ("Trades:",   str(trades)),
+                ("Wins/Loss:", f"{wins}W / {losses}L"),
+                ("Win Rate:",  f"{win_rate:.1f}%"),
+                ("P&L:",       _signed(pnl_usdc)),
+                ("%:",         f"{_pct(pnl_pct)}%"),
+                ("Equity:",    _fmt(equity_usdc)),
+            ]
+        )
+        + "</pre>"
+    )
+
+
+def health_alert_text(
+    component: str,
+    severity: str,  # "ok" | "warn" | "err"
+    detail: str | None = None,
+) -> str:
+    severity_emoji = EMOJI.get(severity, EMOJI["info"])
+    body = (
+        f"<b>{severity_emoji} Health · {html.escape(component)}</b>\n"
+        f"{DIV}\n\n"
+        f"Status: <b>{html.escape(severity.upper())}</b>"
+    )
+    if detail:
+        body += f"\n\n{html.escape(detail)}"
+    return body
 
 
 # ── Screen 01 — Welcome ────────────────────────────────────────────────────────

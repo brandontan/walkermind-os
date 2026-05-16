@@ -271,7 +271,10 @@ def test_preset_picker_is_two_col():
     assert len(kb.inline_keyboard[0]) == 2
     assert len(kb.inline_keyboard[1]) == 2
     assert len(kb.inline_keyboard[2]) == 1  # 5th preset alone
-    # Nav row: Back and Home both use dashboard:main
+    # Nav row uses the new shared home_back_row helper:
+    #   Back  → legacy dashboard:main target (preserves in-flight messages)
+    #   Home  → new nav:home prefix routed by dispatcher._nav_cb
     nav = kb.inline_keyboard[3]
     assert len(nav) == 2
-    assert all(btn.callback_data == "dashboard:main" for btn in nav)
+    callback_data = {btn.callback_data for btn in nav}
+    assert callback_data == {"dashboard:main", "nav:home"}

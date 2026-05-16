@@ -1,63 +1,57 @@
-import { useCallback, useEffect, useState } from "react";
-import { CustomizeDrawer } from "../components/CustomizeDrawer";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AdvancedOnly } from "../components/AdvancedGate";
+import { HeroCard } from "../components/HeroCard";
+import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { StrategyCard } from "../components/StrategyCard";
-import { makeApi, type AutoTradeState, type CustomizeParams } from "../lib/api";
+import { TopBar } from "../components/TopBar";
+import { makeApi, type AutoTradeState } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
-// Preset keys match domain/preset/presets.py — display names adapted to spec
+// Preset keys mirror domain/preset/presets.py.
+// Display surface follows the v3.2 mock (Conservative / Balanced / Aggressive).
 const PRESETS = [
   {
     preset_key:  "signal_sniper",
-    emoji:       "🎯",
-    name:        "Safe Scout",
-    description: "Low frequency signal trading. Best for capital preservation.",
+    name:        "Conservative",
+    description: "Low risk. Capped at 20% capital per position. Slow but steady.",
     risk:        "safe" as const,
-    tp_pct:      15,
-    sl_pct:      8,
     capital_pct: 20,
-    freq:        "Low",
+    tp_pct:      10,
+    sl_pct:      5,
   },
   {
     preset_key:  "full_auto",
-    emoji:       "⚡",
-    name:        "Full Auto",
-    description: "All strategies active. Balanced exposure and steady returns.",
+    name:        "Balanced",
+    description: "Medium risk. Up to 40% capital. Balanced TP/SL for steady growth.",
     risk:        "balanced" as const,
+    capital_pct: 40,
     tp_pct:      20,
     sl_pct:      15,
-    capital_pct: 80,
-    freq:        "Med",
   },
   {
     preset_key:  "value_hunter",
-    emoji:       "🔥",
     name:        "Aggressive",
-    description: "Mispriced market edge model. High reward, requires patience.",
+    description: "High risk. Up to 60% capital. Targets bigger wins, accepts deeper drawdowns.",
     risk:        "aggressive" as const,
-    tp_pct:      25,
-    sl_pct:      12,
-    capital_pct: 100,
-    freq:        "High",
+    capital_pct: 60,
+    tp_pct:      30,
+    sl_pct:      20,
   },
 ];
 
 export function AutoTradePage() {
   const { user } = useAuth();
-  const api = makeApi(user?.token ?? null);
+  const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [state, setState] = useState<AutoTradeState | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setState(await api.getAutotrade());
-  }, [user?.token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api]);
 
   useEffect(() => { void load(); }, [load]);
-
-  useSSE(user?.token ?? null, {
-    settings: () => void load(),
-  });
+  useSSE(user?.token ?? null, { settings: () => void load() });
 
   async function handleToggle() {
     if (!state) return;
@@ -75,80 +69,97 @@ export function AutoTradePage() {
     await load();
   }
 
-  async function handleCustomize(params: CustomizeParams) {
-    await api.customizeStrategy(params);
-    setDrawerOpen(false);
-    await load();
-  }
+  if (!state) return (
+    <>
+      <TopBar />
+      <div className="p-4 text-ink-3 text-sm font-mono">Loading…</div>
+    </>
+  );
 
-  if (!state) return <div className="p-4 text-muted text-sm">Loading…</div>;
-
-  const activePreset = PRESETS.find((p) => p.preset_key === state.active_preset);
+  const active = PRESETS.find((p) => p.preset_key === state.active_preset);
+  const heroValue = active ? active.name.toUpperCase() : "IDLE";
 
   return (
-    <div className="pb-28 px-4 animate-page-in">
-      <div className="flex items-center justify-between pt-6 pb-4">
-        <h1 className="text-xl font-bold text-primary">Auto Trade</h1>
-      </div>
+    <>
+      <TopBar />
+      <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
 
-      {/* Active strategy status card */}
-      <div className="bg-surface border border-border rounded-2xl p-5 mb-5">
-        <div className="flex items-center justify-between mb-1">
-          <div>
-            <p className="text-primary font-semibold text-base">
-              {activePreset
-                ? `${activePreset.emoji} ${activePreset.name}`
-                : (state.active_preset ?? "No preset selected")}
-            </p>
-            <p className="text-muted text-xs mt-0.5 capitalize">{state.risk_profile} risk</p>
-          </div>
-          <button
-            onClick={handleToggle}
-            disabled={loading}
-            className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
-              state.auto_trade_on
-                ? "bg-green/10 text-green border border-green/30 hover:bg-green/20"
-                : "bg-muted/10 text-muted border border-border hover:border-gold hover:text-gold"
-            }`}
-          >
-            {state.auto_trade_on ? "Pause" : "Resume"}
-          </button>
-        </div>
-        {state.tp_pct > 0 && (
-          <div className="flex gap-4 text-xs text-muted mt-3">
-            <span>TP <span className="text-green font-medium font-mono">{(state.tp_pct * 100).toFixed(0)}%</span></span>
-            <span>SL <span className="text-red font-medium font-mono">{(state.sl_pct * 100).toFixed(0)}%</span></span>
-            <span>Cap <span className="text-primary font-medium font-mono">{(state.capital_alloc_pct * 100).toFixed(0)}%</span></span>
-          </div>
-        )}
-      </div>
+        <HeroCard
+          label="Auto Trade"
+          value={heroValue}
+          valueFontSize={42}
+          prefix=""
+          statusLabel={state.auto_trade_on ? "STRATEGY ACTIVE" : "STRATEGY PAUSED"}
+          metaItems={
+            <>
+              <span className={state.auto_trade_on ? "text-grn font-bold" : "text-ink-2 font-bold"}>
+                {state.auto_trade_on ? "● RUNNING" : "● PAUSED"}
+              </span>
+              <span className="text-ink-4">│</span>
+              <span>{active ? active.risk.toUpperCase() : "—"}</span>
+            </>
+          }
+          {...(state.auto_trade_on
+            ? { ctaDanger: { label: "🛑 Stop Auto Trade", onClick: () => void handleToggle() } }
+            : {
+                ctaPrimary:   { label: loading ? "Starting…" : "▶ Start Auto Trade", onClick: () => void handleToggle() },
+                ctaSecondary: { label: "Edit Risk", onClick: () => { /* future drawer */ } },
+              })}
+        />
 
-      {/* Strategy selector cards */}
-      <div className="flex flex-col gap-3 mb-5">
+        <SectionTitle>Select Strategy</SectionTitle>
         {PRESETS.map((p) => (
           <StrategyCard
             key={p.preset_key}
-            {...p}
+            preset_key={p.preset_key}
+            name={p.name}
+            description={p.description}
+            risk={p.risk}
+            tp_pct={p.tp_pct}
+            sl_pct={p.sl_pct}
+            capital_pct={p.capital_pct}
             isActive={state.active_preset === p.preset_key}
             onActivate={handleActivate}
           />
         ))}
+
+        <AdvancedOnly>
+          <SectionTitle>Configuration</SectionTitle>
+          <SettingsGroup title="Active Parameters">
+            <SettingsRow
+              name="Capital Allocation"
+              desc="Max % of balance per trade"
+              control={`${Math.round(state.capital_alloc_pct * 100)}%`}
+            />
+            <SettingsRow
+              name="Take Profit"
+              desc="Auto-close when price moves +%"
+              control={`+${Math.round(state.tp_pct * 100)}%`}
+            />
+            <SettingsRow
+              name="Stop Loss"
+              desc="Auto-close when price drops −%"
+              control={`−${Math.round(state.sl_pct * 100)}%`}
+            />
+            <SettingsRow
+              name="Risk Profile"
+              desc="Current preset risk tier"
+              control={state.risk_profile.toUpperCase()}
+            />
+          </SettingsGroup>
+        </AdvancedOnly>
       </div>
+    </>
+  );
+}
 
-      {/* Customize */}
-      <button
-        onClick={() => setDrawerOpen(true)}
-        className="w-full py-3 rounded-xl border border-border text-muted text-sm font-medium hover:border-gold hover:text-gold transition-colors"
-      >
-        ⚙ Customize Active Strategy
-      </button>
-
-      <CustomizeDrawer
-        open={drawerOpen}
-        initial={{ tp_pct: state.tp_pct, sl_pct: state.sl_pct, capital_alloc_pct: state.capital_alloc_pct }}
-        onSave={handleCustomize}
-        onClose={() => setDrawerOpen(false)}
-      />
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5">
+      <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
+        <span className="w-3 h-px bg-gold" aria-hidden />
+        {children}
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ from __future__ import annotations
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from . import grid_rows
+from ._common import home_back_row
 
 
 def settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
@@ -31,37 +32,36 @@ def settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 def tp_preset_kb(current_tp: float | None) -> InlineKeyboardMarkup:
-    """Step 1 of 2: Take Profit preset selection."""
-    current_str = f"+{current_tp:.0f}%" if current_tp is not None else "not set"
-    _ = current_str  # shown in message text, not in keyboard
+    """Step 1 of 2: Take Profit preset selection. Max 2 cols for mobile."""
+    _ = current_tp  # shown in message text, not in keyboard
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("+5%",  callback_data="tp_set:5"),
             InlineKeyboardButton("+10%", callback_data="tp_set:10"),
-            InlineKeyboardButton("+15%", callback_data="tp_set:15"),
         ],
         [
-            InlineKeyboardButton("+25%",      callback_data="tp_set:25"),
-            InlineKeyboardButton("✏️ Custom", callback_data="tp_set:custom"),
+            InlineKeyboardButton("+15%", callback_data="tp_set:15"),
+            InlineKeyboardButton("+25%", callback_data="tp_set:25"),
         ],
-        [InlineKeyboardButton("⬅ Back", callback_data="settings:hub")],
+        [InlineKeyboardButton("✏️ Custom", callback_data="tp_set:custom")],
+        home_back_row("settings:hub"),
     ])
 
 
 def sl_preset_kb(current_sl: float | None) -> InlineKeyboardMarkup:
-    """Step 2 of 2: Stop Loss preset selection."""
+    """Step 2 of 2: Stop Loss preset selection. Max 2 cols for mobile."""
     _ = current_sl  # shown in message text, not in keyboard
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("-5%",  callback_data="sl_set:5"),
             InlineKeyboardButton("-8%",  callback_data="sl_set:8"),
-            InlineKeyboardButton("-10%", callback_data="sl_set:10"),
         ],
         [
-            InlineKeyboardButton("-15%",      callback_data="sl_set:15"),
-            InlineKeyboardButton("✏️ Custom", callback_data="sl_set:custom"),
+            InlineKeyboardButton("-10%", callback_data="sl_set:10"),
+            InlineKeyboardButton("-15%", callback_data="sl_set:15"),
         ],
-        [InlineKeyboardButton("⬅ Back", callback_data="settings:hub")],
+        [InlineKeyboardButton("✏️ Custom", callback_data="sl_set:custom")],
+        home_back_row("settings:hub"),
     ])
 
 
