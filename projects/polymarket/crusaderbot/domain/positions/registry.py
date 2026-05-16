@@ -196,6 +196,10 @@ async def list_open_on_resolved_markets() -> list[OpenPositionForExit]:
               JOIN users u ON u.id = p.user_id
              WHERE p.status = 'open'
                AND m.resolved = TRUE
+               AND (
+                   m.winning_side IS NULL
+                   OR m.winning_side != p.side
+               )
             """
         )
     return [

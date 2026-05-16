@@ -53,6 +53,13 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_POLL_INTERVAL_SECONDS: float = 30.0
 
+# Per-position consecutive None-price tick counter. A None result on a single
+# tick may be a transient Gamma outage (tenacity already retries network errors
+# 3x internally). Only declare MARKET_EXPIRED after this many consecutive ticks
+# of None so a brief API hiccup cannot close an active position incorrectly.
+_EXPIRED_TICK_THRESHOLD: int = 3
+_price_fail_counts: dict[object, int] = {}  # position.id (UUID) -> consecutive None ticks
+
 
 class StrategyExitEvaluator(Protocol):
     """Hook contract for per-strategy exit decisions.
@@ -381,12 +388,15 @@ async def run_once(
     Phase A — normal positions (``m.resolved = FALSE`` in local DB):
       1. Fetch live price from Gamma.
       2. If None, retry once (cache miss means a fresh HTTP call each time).
-      3. If still None → close as MARKET_EXPIRED; skip evaluate/act.
-      4. Otherwise evaluate TP/SL/force/strategy and act.
+      3. If still None → increment per-position fail counter; skip close.
+      4. Only close as MARKET_EXPIRED when fail counter >= _EXPIRED_TICK_THRESHOLD
+         (3 consecutive ticks ≈ 90 seconds), guarding against transient API outages.
+      5. Successful price fetch resets the counter for that position.
 
-    Phase B — positions on already-resolved markets (``m.resolved = TRUE``):
-      These are excluded from Phase A's query entirely. Close them as
-      MARKET_EXPIRED directly — no price fetch needed.
+    Phase B — positions on resolved markets where the position is on the losing
+      side (``m.resolved=TRUE AND m.winning_side != p.side``) or the market has no
+      declared winner (``m.winning_side IS NULL``). Winning positions are excluded —
+      they collect terminal-value payoff via the redemption pipeline.
 
     Per-position errors are caught and logged so a single bad row never
     poisons the rest of the batch.
@@ -413,9 +423,21 @@ async def run_once(
             if live_price is None and not p.force_close_intent:
                 live_price = await _fetch_live_price(p.market_id, p.side)
                 if live_price is None:
-                    if await _close_expired_position(p):
-                        expired += 1
+                    # Increment the consecutive-None counter for this position.
+                    # Only close after _EXPIRED_TICK_THRESHOLD consecutive ticks
+                    # to avoid incorrectly expiring positions during a transient
+                    # Gamma outage (tenacity already retries network errors 3x).
+                    fail_count = _price_fail_counts.get(p.id, 0) + 1
+                    _price_fail_counts[p.id] = fail_count
+                    if fail_count >= _EXPIRED_TICK_THRESHOLD:
+                        if await _close_expired_position(p):
+                            expired += 1
+                            _price_fail_counts.pop(p.id, None)
                     continue
+                else:
+                    _price_fail_counts.pop(p.id, None)  # price recovered, reset
+            elif not p.force_close_intent:
+                _price_fail_counts.pop(p.id, None)  # healthy price on first fetch, reset
             decision = await evaluate(p, strategy_evaluator, live_price=live_price)
             if decision.should_exit:
                 submitted += 1
