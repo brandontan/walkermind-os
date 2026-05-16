@@ -1,9 +1,7 @@
-# fly.toml — CrusaderBot on Fly.io
-# Fly.io apps v2 format (flyctl v0.2+)
+# fly.toml app configuration file generated for crusaderbot on 2026-05-16T08:49:22Z
 #
-# Secrets (TELEGRAM_BOT_TOKEN, DATABASE_URL, REDIS_URL, ALCHEMY_POLYGON_*,
-# WALLET_ENCRYPTION_KEY, OPERATOR_CHAT_ID, ...) are NOT defined here.
-# Set them via `fly secrets set KEY=VALUE -a crusaderbot` before deploying.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
 app = "crusaderbot"
 primary_region = "iad"
@@ -46,8 +44,11 @@ kill_timeout = "30s"
     hard_limit = 100
 
 [[vm]]
-  size   = "shared-cpu-1x"
-  memory = "512mb"
+  size = 'shared-cpu-1x'
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024
 
 [metrics]
   port = 8080
