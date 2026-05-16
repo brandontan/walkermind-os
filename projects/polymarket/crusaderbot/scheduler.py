@@ -488,17 +488,27 @@ async def redeem_hourly() -> None:
 
 
 async def sweep_deposits() -> None:
-    """Nightly batch sweep stub — would move per-user balances to hot pool.
+    """Nightly logical deposit sweep — marks confirmed deposits swept.
 
-    For MVP we only mark deposits as swept in DB (logical sweep, not on-chain).
-    Real on-chain sweep is gated behind EXECUTION_PATH_VALIDATED.
+    Accounting-only: flips ``deposits.swept`` so per-user balances are
+    reconciled. The on-chain hot-pool transfer is intentionally deferred
+    behind ``EXECUTION_PATH_VALIDATED`` (no real capital moves in paper
+    mode). Idempotent: a re-run only touches rows still ``swept=FALSE``.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "UPDATE deposits SET swept=TRUE WHERE swept=FALSE RETURNING 1"
-        )
-    logger.info("sweep_deposits: %s deposits marked", n)
+        async with conn.transaction():
+            count = await conn.fetchval(
+                "WITH u AS ("
+                " UPDATE deposits SET swept=TRUE WHERE swept=FALSE RETURNING 1"
+                ") SELECT COUNT(*) FROM u"
+            )
+    logger.info("sweep_deposits: %s deposits marked swept", count)
+    await audit.write(
+        actor_role="bot",
+        action="deposit_sweep",
+        payload={"count": int(count)},
+    )
 
 
 def _job_tracker_listener(event) -> None:
