@@ -229,7 +229,7 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    lines = ["<b>📋 Full History</b>", "━━━━━━━━━━━━━━━━━━━━━━━━", ""]
+    lines = ["<b>📋 Full History</b>", "━━━━━━━━━━━━━━━━━━━━━━━━━━", ""]
     for r in rows:
         pnl = float(r["pnl_usdc"] or 0)
         emoji = "✅" if pnl >= 0 else "❌"
