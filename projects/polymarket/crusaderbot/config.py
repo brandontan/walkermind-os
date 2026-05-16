@@ -137,10 +137,12 @@ class Settings(BaseSettings):
     MASTER_WALLET_PRIVATE_KEY: Optional[str] = None
 
     # --- Activation guards ---
-    # Per user revision: live engine is fully built and reachable.
-    # Default for every NEW USER/TRADE is still paper. Live requires
-    # ALL guards true + Tier 4 user approval.
-    ENABLE_LIVE_TRADING: bool = True
+    # Paper-safe default: False. A live order is only ever reachable when an
+    # operator EXPLICITLY overrides this via env (fly.toml / .env) AND every
+    # other guard below is true AND the user is Tier 4. Defaulting False means
+    # a dev/test/local boot WITHOUT fly.toml can never silently arm live
+    # trading. Production behaviour is unchanged — fly.toml forces this false.
+    ENABLE_LIVE_TRADING: bool = False
     EXECUTION_PATH_VALIDATED: bool = False
     CAPITAL_MODE_CONFIRMED: bool = False
     # Set to True ONLY after WARP•SENTINEL validates the risk assertion layer
