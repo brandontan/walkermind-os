@@ -1,30 +1,18 @@
-Last Updated : 2026-05-16 14:00
-Status       : WARP/CRUSADERBOT-PHASE5-FIX-R1 open. 3 UX bugs fixed: <pre> COPY CODE removed from all dashboard screens, persistent 5-button ReplyKeyboard added, My Trades callback hardened with try/except. STANDARD, NARROW INTEGRATION. Production PAPER ONLY.
+Last Updated : 2026-05-16 15:30
+Status       : deploy-test-report complete. Test suite 1398 pass. UX screens all verified clean via static analysis. Deploy BLOCKED — fly CLI not available in cloud execution environment. WARP🔹CMD manual deploy required. Production PAPER ONLY.
 
 [COMPLETED]
+- deploy-test-report complete (2026-05-16). Test suite 1398 pass, 1 skip. UX 6 screens static analysis: all pass. fly CLI not available — deploy not executed. STANDARD, NARROW INTEGRATION.
+- WARP/CRUSADERBOT-PHASE5-FIX-R1 PR open (2026-05-16). 3 UX bugs: COPY CODE removed from dashboard/autotrade/trades screens; persistent 5-button ReplyKeyboard (main_menu_keyboard); My Trades show_trades DB error hardened with try/except + group=-1 handler. 119 tests green. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-PHASE5-UX-REBUILD MERGED PR #1055 (2026-05-16). Full UX rebuild: 6 screens, group=-1 nav fix, presets.py, messages.py, migration 028. ruff+compileall clean. MAJOR, NARROW INTEGRATION.
 - crusaderbot-ux-bugfix complete (2026-05-15). 5 UX bugs: autotrade_toggle_cb dashboard refresh, trades nav_row, insights_kb nav, Active Monitor dedicated view, startup /tmp lock cooldown, /resetonboard admin command, curly-quote audit (zero hits). ruff+compileall clean. STANDARD, NARROW INTEGRATION.
-- crusaderbot-operator-hotfix complete (2026-05-15). Replaced 6 "operator guards" occurrences with "activation guards" across main.py, api/admin.py, api/health.py. Display strings + log + docstring. Validation grep → zero hits. MINOR, FOUNDATION.
-- mvp-cleanup complete (2026-05-15). ParseMode.MARKDOWN/V2 → HTML across 17 handler files + notifier + domain/activation. html.escape() on all external variables. operator→admin in 5 files. 24 .bak files deleted. 3 dead legacy keyboard functions removed. ruff+compileall clean. STANDARD, NARROW INTEGRATION.
-- crusaderbot-ux-patch-1 PR open (2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout fix (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION.
-- crusaderbot-mvp-runtime-ux MERGED PR #1049 (2026-05-15). 5-preset system (whale_mirror+hybrid added), capital decoupling via capital_for_risk_profile(), state-driven main_menu() 3-layout, HTML blockquote UX throughout, copy-trade pipeline completion, scanner state exposure, tier wording cleanup. Closes #1036, #1034. MAJOR, FULL RUNTIME INTEGRATION. 1405 tests green.
-- V5 "AUTOBOT" UI Overhaul MERGED PR #1045. Dashboard pulse, monospaced financials, 6-button menu, English localization. STANDARD, NARROW INTEGRATION.
-- live-execution-user-id-guards MERGED PR #1021. close_position() AND user_id=$N hardening; 5 isolation tests; MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
-- compact-hierarchy-readability-regression MERGED PR #1032 on warp/fix-telegram-mvp-ux-readability-regression. Compact hierarchy readability regression fix + traceability/state sync; STANDARD, NARROW INTEGRATION.
-- Premium UX v4 (Hybrid Luxury) — PR #1026 merged bd8fe42d. STANDARD, NARROW INTEGRATION.
-
-[COMPLETED]
-- WARP/CRUSADERBOT-PHASE5-FIX-R1 PR open (2026-05-16). 3 UX bugs: <pre> COPY CODE removed from dashboard/autotrade/trades screens; persistent 5-button ReplyKeyboard (main_menu_keyboard); My Trades show_trades DB error hardened with try/except + group=-1 handler. 119 tests green. STANDARD, NARROW INTEGRATION.
-- WARP/CRUSADERBOT-PHASE5-UX-REBUILD MERGED PR #1055 (2026-05-16). Full UX rebuild: 6 screens, group=-1 nav fix, presets.py, messages.py, migration 028. ruff+compileall clean. MAJOR, NARROW INTEGRATION.
-- crusaderbot-ux-bugfix complete (2026-05-15). 5 UX bugs: autotrade_toggle_cb dashboard refresh, trades nav_row, insights_kb nav, Active Monitor dedicated view, startup /tmp lock cooldown, /resetonboard admin command, curly-quote audit (zero hits). ruff+compileall clean. STANDARD, NARROW INTEGRATION.
-- crusaderbot-operator-hotfix complete (2026-05-15). Replaced 6 "operator guards" occurrences with "activation guards" across main.py, api/admin.py, api/health.py. Display strings + log + docstring. Validation grep → zero hits. MINOR, FOUNDATION.
-- mvp-cleanup complete (2026-05-15). ParseMode.MARKDOWN/V2 → HTML across 17 handler files + notifier + domain/activation. html.escape() on all external variables. operator→admin in 5 files. 24 .bak files deleted. 3 dead legacy keyboard functions removed. ruff+compileall clean. STANDARD, NARROW INTEGRATION.
-- crusaderbot-ux-patch-1 PR open (2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout fix (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION.
-- crusaderbot-mvp-runtime-ux MERGED PR #1049 (2026-05-15). 5-preset system (whale_mirror+hybrid added), capital decoupling via capital_for_risk_profile(), state-driven main_menu() 3-layout, HTML blockquote UX throughout, copy-trade pipeline completion, scanner state exposure, tier wording cleanup. Closes #1036, #1034. MAJOR, FULL RUNTIME INTEGRATION. 1405 tests green.
-- V5 "AUTOBOT" UI Overhaul MERGED PR #1045. Dashboard pulse, monospaced financials, 6-button menu, English localization. STANDARD, NARROW INTEGRATION.
-- live-execution-user-id-guards MERGED PR #1021. close_position() AND user_id=$N hardening; 5 isolation tests; MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
-- compact-hierarchy-readability-regression MERGED PR #1032 on warp/fix-telegram-mvp-ux-readability-regression. Compact hierarchy readability regression fix + traceability/state sync; STANDARD, NARROW INTEGRATION.
-- Premium UX v4 (Hybrid Luxury) — PR #1026 merged bd8fe42d. STANDARD, NARROW INTEGRATION.
+- crusaderbot-operator-hotfix complete (2026-05-15). Replaced 6 "operator guards" occurrences with "activation guards" across main.py, api/admin.py, api/health.py. MINOR, FOUNDATION.
+- mvp-cleanup complete (2026-05-15). ParseMode.MARKDOWN/V2 → HTML across 17 handler files. STANDARD, NARROW INTEGRATION.
+- crusaderbot-mvp-runtime-ux MERGED PR #1049 (2026-05-15). 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline. MAJOR, FULL RUNTIME INTEGRATION. 1405 tests green.
+- V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
+- live-execution-user-id-guards MERGED PR #1021. MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
+- compact-hierarchy-readability-regression MERGED PR #1032. STANDARD, NARROW INTEGRATION.
+- Premium UX v4 (Hybrid Luxury) — PR #1026 merged. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
 - Closed beta observation / paper-mode runtime monitoring active.
@@ -42,12 +30,13 @@ Status       : WARP/CRUSADERBOT-PHASE5-FIX-R1 open. 3 UX bugs fixed: <pre> COPY 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required: phase5-fix-r1 (STANDARD). Report: projects/polymarket/crusaderbot/reports/forge/phase5-fix-r1.md.
+- WARP🔹CMD manual deploy required: fly CLI not available in cloud environment. Apply migration 027+028 first, then fly deploy from local machine. Report: projects/polymarket/crusaderbot/reports/forge/deploy-test-report.md.
 - Apply migration 028 (preset_activated_at) to production before deploying Phase 5 code to Fly.io.
 - Apply migration 027 (notifications_on) to production before deploying to Fly.io.
-- Deploy merged changes to Fly.io production (PAPER ONLY — activation guards remain OFF).
+- Run live Telegram smoke test (walk3r69 / @CrusaderBot) after manual deploy.
 
 [KNOWN ISSUES]
+- fly CLI not installed in cloud execution environment — deploy step requires WARP🔹CMD manual execution from fly CLI machine.
 - migration 027 (notifications_on) must be applied to production before deploying PR #1049 + PR #1055 code on Fly.io.
 - pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-runtime-ux; separate cleanup lane required.
 - WARP🔹CMD to verify Fly.io production deploy of PR #1049 + PR #1055 changes before activating on Fly.io.
