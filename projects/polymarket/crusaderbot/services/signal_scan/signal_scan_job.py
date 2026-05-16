@@ -68,7 +68,7 @@ _engine: TradeEngine = TradeEngine()
 
 
 async def _load_enrolled_users() -> list[dict[str, Any]]:
-    """Active users enrolled in signal_following with Tier 3+ and auto_trade_on."""
+    """Active users enrolled in signal_following strategy with auto_trade_on."""
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -96,7 +96,6 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
               AND us.enabled        = TRUE
               AND u.auto_trade_on   = TRUE
               AND u.paused          = FALSE
-              AND (u.access_tier >= 3 OR COALESCE(s.trading_mode, 'paper') != 'live')
             """,
             _STRATEGY_NAME,
         )

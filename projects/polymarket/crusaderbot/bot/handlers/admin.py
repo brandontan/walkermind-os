@@ -318,8 +318,7 @@ async def _send_status(message) -> None:
     cache_ok = await ping_cache()
     async with pool.acquire() as conn:
         users_n = await conn.fetchval("SELECT COUNT(*) FROM users")
-        funded_n = await conn.fetchval("SELECT COUNT(*) FROM users WHERE access_tier>=3")
-        live_n = await conn.fetchval("SELECT COUNT(*) FROM users WHERE access_tier>=4")
+        admin_n = await conn.fetchval("SELECT COUNT(*) FROM user_tiers WHERE tier='ADMIN'")
         open_paper = await conn.fetchval(
             "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='paper'")
         open_live = await conn.fetchval(
@@ -328,7 +327,7 @@ async def _send_status(message) -> None:
     await message.reply_text(
         "<b>🩺 System status</b>\n\n"
         f"DB: {'✅' if db_ok else '❌'}  Cache: {'✅' if cache_ok else '❌'}\n"
-        f"Users: {users_n} · Funded: {funded_n} · Live: {live_n}\n"
+        f"Users: {users_n} · Admins: {admin_n}\n"
         f"Open positions: {open_paper} paper · {open_live} live\n\n"
         f"Guards:\n"
         f"  ENABLE_LIVE_TRADING={s.ENABLE_LIVE_TRADING}\n"
@@ -434,7 +433,7 @@ async def _collect_dashboard_snapshot() -> dict[str, Any]:
         async with pool.acquire() as conn:
             snapshot["db_ok"] = await conn.fetchval("SELECT 1") == 1
             snapshot["active_users"] = int(await conn.fetchval(
-                "SELECT COUNT(*) FROM users WHERE access_tier >= 2"
+                "SELECT COUNT(*) FROM users"
             ) or 0)
             snapshot["open_positions"] = int(await conn.fetchval(
                 "SELECT COUNT(*) FROM positions WHERE status = 'open'"
@@ -587,7 +586,7 @@ async def _broadcast_pause(ctx: ContextTypes.DEFAULT_TYPE | None,
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT telegram_user_id FROM users "
-                "WHERE auto_trade_on = TRUE OR access_tier >= 2"
+                "WHERE auto_trade_on = TRUE"
             )
     except Exception as exc:  # noqa: BLE001
         logger.error("killswitch broadcast user lookup failed: %s", exc)
