@@ -1,73 +1,81 @@
+type Risk = "safe" | "balanced" | "aggressive";
+
 interface StrategyCardProps {
-  name:        string;
   preset_key:  string;
-  emoji:       string;
+  name:        string;
   description: string;
-  risk:        "safe" | "balanced" | "aggressive";
+  risk:        Risk;
   tp_pct:      number;
   sl_pct:      number;
   capital_pct: number;
-  freq:        string;
   isActive:    boolean;
   onActivate:  (key: string) => void;
 }
 
-const RISK_BADGE: Record<string, { label: string; color: string }> = {
-  safe:       { label: "SAFE",     color: "text-green bg-green/10 border-green/30" },
-  balanced:   { label: "BALANCED", color: "text-gold  bg-gold/10  border-gold/30"  },
-  aggressive: { label: "HIGH",     color: "text-red   bg-red/10   border-red/30"   },
+const NAME_TONE: Record<Risk, string> = {
+  safe:       "text-grn",
+  balanced:   "text-gold",
+  aggressive: "text-red",
 };
 
 export function StrategyCard({
-  name, preset_key, emoji, description, risk,
-  tp_pct, sl_pct, capital_pct, freq,
+  preset_key, name, description, risk,
+  tp_pct, sl_pct, capital_pct,
   isActive, onActivate,
 }: StrategyCardProps) {
-  const badge = RISK_BADGE[risk] ?? RISK_BADGE.balanced;
-
   return (
-    <div
-      className={`border rounded-2xl p-4 transition-colors ${
-        isActive
-          ? "border-gold bg-gold/5"
-          : "border-border bg-card hover:border-border/60"
+    <button
+      type="button"
+      onClick={() => onActivate(preset_key)}
+      className={`relative w-full text-left mb-2 p-4 clip-card-lg cursor-pointer transition-all border ${
+        isActive ? "border-gold" : "border-border-1 hover:border-border-3"
       }`}
+      style={
+        isActive
+          ? {
+              background:
+                "linear-gradient(135deg, rgba(245,200,66,0.05) 0%, var(--surface,#0D1322) 50%)",
+            }
+          : { background: "var(--surface,#0D1322)" }
+      }
     >
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{emoji}</span>
-          <span className="text-primary font-semibold">{name}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${badge.color}`}>
-            {badge.label}
-          </span>
-          {isActive && (
-            <span className="text-xs px-2 py-0.5 rounded-full border border-gold/40 bg-gold/10 text-gold font-semibold">
-              ✓ ACTIVE
-            </span>
-          )}
-        </div>
-      </div>
-      <p className="text-muted text-sm mb-3">{description}</p>
-      <div className="flex gap-4 text-xs text-muted mb-4">
-        <span>TP <span className="text-green font-medium font-mono">{tp_pct}%</span></span>
-        <span>SL <span className="text-red font-medium font-mono">{sl_pct}%</span></span>
-        <span>Cap <span className="text-primary font-medium font-mono">{capital_pct}%</span></span>
-        <span>Freq <span className="text-primary font-medium">{freq}</span></span>
-      </div>
-      {isActive ? (
-        <div className="text-center text-xs font-semibold text-gold border border-gold/25 rounded-button py-2 bg-gold/5">
-          ✓ ACTIVE
-        </div>
-      ) : (
-        <button
-          onClick={() => onActivate(preset_key)}
-          className="w-full py-2 text-sm font-semibold rounded-button bg-gold/10 text-gold border border-gold/30 hover:bg-gold/20 active:scale-95 transition-all"
-        >
-          Switch to {name}
-        </button>
+      {isActive && (
+        <span
+          className="absolute top-0 left-0 w-full h-0.5 bg-gold pointer-events-none"
+          style={{ boxShadow: "0 0 12px var(--gold,#F5C842)" }}
+          aria-hidden
+        />
       )}
+      <div className="flex justify-between items-start mb-2.5">
+        <div className={`font-display text-[22px] leading-none tracking-[0.5px] uppercase ${NAME_TONE[risk]}`}>
+          {name}
+        </div>
+        {isActive && (
+          <span className="font-mono text-[9px] font-bold tracking-[2px] text-gold inline-flex items-center gap-1">
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-grn"
+              style={{ boxShadow: "0 0 8px var(--grn,#00FF9C)" }}
+              aria-hidden
+            />
+            ACTIVE
+          </span>
+        )}
+      </div>
+      <p className="text-[13px] text-ink-2 leading-[1.4] mb-3">{description}</p>
+      <div className="flex gap-3.5 font-mono text-[10px] text-ink-3 tracking-[0.5px]">
+        <Stat label="Capital"     value={`≤ ${capital_pct}%`} />
+        <Stat label="Take Profit" value={`+${tp_pct}%`} />
+        <Stat label="Stop Loss"   value={`−${sl_pct}%`} />
+      </div>
+    </button>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span>{label}</span>
+      <span className="text-ink-1 font-bold text-[11px]">{value}</span>
     </div>
   );
 }
