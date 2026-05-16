@@ -175,7 +175,8 @@ def wizard_step2_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton("✅ Keep Defaults", callback_data="wizard:keep"),
         InlineKeyboardButton("✏️ Edit",           callback_data="wizard:risk:edit"),
     ]
-    return InlineKeyboardMarkup(grid_rows(buttons) + [home_back_row("wizard:back:step1")])
+    back = InlineKeyboardButton("← Back", callback_data="wizard:back:step1")
+    return InlineKeyboardMarkup(grid_rows(buttons) + [[back]])
 
 
 def wizard_step2_edit_kb(

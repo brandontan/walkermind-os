@@ -1457,13 +1457,11 @@ def test_signals_list_with_subs_attaches_keyboard():
 
 def test_signal_subs_list_kb_one_row_per_subscription():
     kb = signal_subs_list_kb([("alpha", "Alpha"), ("beta", "Beta")])
-    assert len(kb.inline_keyboard) == 3  # 2 subscription rows + Home row
+    assert len(kb.inline_keyboard) == 2
     assert kb.inline_keyboard[0][0].callback_data == "signals:off:alpha"
     assert kb.inline_keyboard[1][0].callback_data == "signals:off:beta"
-    assert kb.inline_keyboard[2][0].callback_data == "nav:home"
 
 
 def test_signal_subs_list_kb_empty_when_no_entries():
     kb = signal_subs_list_kb([])
-    assert len(kb.inline_keyboard) == 1  # Home row only
-    assert kb.inline_keyboard[0][0].callback_data == "nav:home"
+    assert list(kb.inline_keyboard) == []
