@@ -1,61 +1,43 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AdvancedOnly } from "../components/AdvancedGate";
+import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
+import { Toggle } from "../components/Toggle";
+import { TopBar } from "../components/TopBar";
 import { makeApi, type UserSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
-
-interface ToggleRowProps {
-  label: string;
-  on: boolean;
-  onToggle: () => void;
-}
-
-function ToggleRow({ label, on, onToggle }: ToggleRowProps) {
-  return (
-    <div className="flex items-center justify-between px-4 py-3.5">
-      <p className="text-primary text-sm">{label}</p>
-      <button
-        onClick={onToggle}
-        className="relative shrink-0 transition-colors"
-        style={{ width: 44, height: 24 }}
-        aria-pressed={on}
-      >
-        <span
-          className="block rounded-full transition-colors"
-          style={{
-            width: 44,
-            height: 24,
-            background: on ? "#F5C842" : "#1A2332",
-          }}
-        />
-        <span
-          className="absolute top-0.5 rounded-full bg-white transition-transform"
-          style={{
-            width: 20,
-            height: 20,
-            left: 2,
-            transform: on ? "translateX(20px)" : "translateX(0)",
-          }}
-        />
-      </button>
-    </div>
-  );
-}
+import { useUiMode } from "../lib/uiMode";
 
 export function SettingsPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const api = makeApi(user?.token ?? null);
+  const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
+  const { advanced, toggle: toggleAdvanced } = useUiMode();
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [tradingMode, setTradingMode] = useState<string>("paper");
 
-  useEffect(() => {
-    api.getSettings().then(setSettings).catch(console.error);
-  }, [user?.token]); // eslint-disable-line react-hooks/exhaustive-deps
+  const load = useCallback(async () => {
+    const [s, dash] = await Promise.all([api.getSettings(), api.getDashboard()]);
+    setSettings(s);
+    setTradingMode(dash.trading_mode);
+  }, [api]);
 
-  async function handleNotifToggle() {
+  useEffect(() => { void load(); }, [load]);
+
+  // All three notification toggles bind to the single `notifications_on`
+  // backend flag. Granular per-event preferences need a backend schema
+  // extension — tracked as follow-up in the forge report.
+  async function handleNotifToggle(next: boolean) {
     if (!settings) return;
-    const updated = { ...settings, notifications_on: !settings.notifications_on };
-    setSettings(updated);
-    await api.updateSettings({ notifications_on: updated.notifications_on });
+    const optimistic = { ...settings, notifications_on: next };
+    setSettings(optimistic);
+    try {
+      await api.updateSettings({ notifications_on: next });
+    } catch (e) {
+      // Roll back optimistic update on failure.
+      setSettings({ ...optimistic, notifications_on: !next });
+      console.error("notif toggle failed", e);
+    }
   }
 
   function handleLogout() {
@@ -63,55 +45,127 @@ export function SettingsPage() {
     navigate("/auth", { replace: true });
   }
 
-  if (!settings) return <div className="p-4 text-muted text-sm">Loading…</div>;
+  if (!settings) return (
+    <>
+      <TopBar />
+      <div className="p-4 text-ink-3 text-sm font-mono">Loading…</div>
+    </>
+  );
 
   const notifOn = settings.notifications_on;
 
   return (
-    <div className="pb-28 px-4 animate-page-in">
-      <div className="pt-6 pb-4">
-        <h1 className="text-xl font-bold text-primary">Settings</h1>
+    <>
+      <TopBar />
+      <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+
+        {/* Display group — master Advanced Mode toggle */}
+        <SettingsGroup title="Display">
+          <SettingsRow
+            emphasis
+            name={<>⚡ Advanced Mode</>}
+            desc="Show technical data, terminal logs, market IDs, and full diagnostics"
+            control={
+              <Toggle
+                checked={advanced}
+                onChange={toggleAdvanced}
+                ariaLabel="Toggle advanced mode"
+              />
+            }
+          />
+        </SettingsGroup>
+
+        {/* Notifications */}
+        <SettingsGroup title="Notifications">
+          <SettingsRow
+            name="Trade Opened"
+            desc="Alert when a position opens"
+            control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-opened alerts" />}
+          />
+          <SettingsRow
+            name="Trade Closed"
+            desc="Alert on TP / SL / expiry"
+            control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-closed alerts" />}
+          />
+          <SettingsRow
+            name="Daily Report"
+            desc="End-of-day P&L summary"
+            control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle daily report" />}
+          />
+        </SettingsGroup>
+
+        {/* Account */}
+        <SettingsGroup title="Account">
+          <SettingsRow
+            name="Mode"
+            desc="Trading environment"
+            control={<ModePill mode={tradingMode} />}
+          />
+          <SettingsRow
+            name="Username"
+            desc="Telegram"
+            control={`@${user?.firstName ?? "—"}`}
+          />
+          <AdvancedOnly>
+            <SettingsRow
+              name="User ID"
+              desc="Telegram ID"
+              control={user?.userId ?? "—"}
+            />
+            <SettingsRow
+              name="Risk Profile"
+              desc="Current tier"
+              control={settings.risk_profile.toUpperCase()}
+            />
+            <SettingsRow
+              name="Activation Guards"
+              desc="Live trading enabled when all guards pass"
+              control={<span className="text-gold">🔒 LOCKED</span>}
+            />
+          </AdvancedOnly>
+        </SettingsGroup>
+
+        {/* Disconnect */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-colors w-full text-red border cursor-pointer mt-2"
+          style={{
+            background: "rgba(255,45,85,0.08)",
+            borderColor: "rgba(255,45,85,0.3)",
+          }}
+        >
+          ⚠ Disconnect Account
+        </button>
+
+        <p className="text-ink-4 text-xs text-center mt-6 font-mono tracking-[0.5px]">
+          System in paper trading mode. No real capital deployed.
+        </p>
       </div>
+    </>
+  );
+}
 
-      {/* Notifications group */}
-      <p className="text-muted text-xs uppercase tracking-wide mb-2 px-1">Notifications</p>
-      <div className="bg-card border border-border rounded-2xl divide-y divide-border mb-5">
-        <ToggleRow label="Trade Opened"     on={notifOn} onToggle={handleNotifToggle} />
-        <ToggleRow label="Trade Closed"     on={notifOn} onToggle={handleNotifToggle} />
-        <ToggleRow label="Daily Report"     on={notifOn} onToggle={handleNotifToggle} />
-        <ToggleRow label="Kill Switch Alert" on={notifOn} onToggle={handleNotifToggle} />
-      </div>
-
-      {/* Account group */}
-      <p className="text-muted text-xs uppercase tracking-wide mb-2 px-1">Account</p>
-      <div className="bg-card border border-border rounded-2xl divide-y divide-border mb-5">
-        <div className="flex items-center justify-between px-4 py-3.5">
-          <p className="text-primary text-sm">Mode</p>
-          <span className="px-2 py-0.5 rounded-full border border-gold/25 bg-gold/10 text-gold text-xs font-medium">
-            PAPER
-          </span>
-        </div>
-        <div className="flex items-center justify-between px-4 py-3.5">
-          <p className="text-primary text-sm">Username</p>
-          <p className="text-muted text-sm">{user?.firstName}</p>
-        </div>
-        <div className="flex items-center justify-between px-4 py-3.5">
-          <p className="text-primary text-sm">Tier</p>
-          <p className="text-muted text-sm capitalize">{settings.risk_profile}</p>
-        </div>
-      </div>
-
-      {/* Disconnect */}
-      <button
-        onClick={handleLogout}
-        className="w-full py-3 rounded-xl border border-red/30 text-red text-sm font-semibold hover:bg-red/10 active:scale-95 transition-all"
-      >
-        Disconnect
-      </button>
-
-      <p className="text-muted/40 text-xs text-center mt-6">
-        System in paper trading mode. No real capital deployed.
-      </p>
-    </div>
+function ModePill({ mode }: { mode: string }) {
+  const live = mode === "live";
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 py-1 pl-2 pr-2.5 font-mono text-[9px] font-bold tracking-[1.5px] clip-card-sm"
+      style={
+        live
+          ? {
+              background: "rgba(0,255,156,0.08)",
+              border: "1px solid rgba(0,255,156,0.3)",
+              color: "var(--grn,#00FF9C)",
+            }
+          : {
+              background: "rgba(245,200,66,0.08)",
+              border: "1px solid rgba(245,200,66,0.3)",
+              color: "var(--gold,#F5C842)",
+            }
+      }
+    >
+      {live ? "LIVE" : "PAPER"}
+    </span>
   );
 }

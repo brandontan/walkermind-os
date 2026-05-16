@@ -5,6 +5,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ...domain.preset import RECOMMENDED_PRESET, list_presets
 from . import grid_rows
+from ._common import home_back_row
 
 
 def preset_picker() -> InlineKeyboardMarkup:
@@ -17,21 +18,20 @@ def preset_picker() -> InlineKeyboardMarkup:
         buttons.append(InlineKeyboardButton(
             label, callback_data=f"preset:pick:{p.key}",
         ))
-    return InlineKeyboardMarkup(grid_rows(buttons) + [[
-        InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
-        InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
-    ]])
+    return InlineKeyboardMarkup(grid_rows(buttons) + [home_back_row("dashboard:main")])
 
 
 def preset_confirm(preset_key: str) -> InlineKeyboardMarkup:
-    buttons = [
-        InlineKeyboardButton("▶ Start Auto Trade",
-                             callback_data=f"preset:activate:{preset_key}"),
-        InlineKeyboardButton("🛠 Customize",
-                             callback_data=f"preset:customize:{preset_key}"),
-        InlineKeyboardButton("❌ Cancel", callback_data="preset:picker"),
-    ]
-    return InlineKeyboardMarkup(grid_rows(buttons))
+    """Confirm screen: Activate + Customize (2-col) + Cancel below."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("▶ Start Auto Trade",
+                                 callback_data=f"preset:activate:{preset_key}"),
+            InlineKeyboardButton("🛠 Customize",
+                                 callback_data=f"preset:customize:{preset_key}"),
+        ],
+        [InlineKeyboardButton("❌ Cancel", callback_data="preset:picker")],
+    ])
 
 
 def preset_status(paused: bool) -> InlineKeyboardMarkup:
@@ -46,8 +46,7 @@ def preset_status(paused: bool) -> InlineKeyboardMarkup:
          InlineKeyboardButton("🔄 Switch", callback_data="preset:switch")],
         [pause_btn,
          InlineKeyboardButton("🛑 Stop",  callback_data="preset:stop")],
-        [InlineKeyboardButton("⬅ Back", callback_data="dashboard:main"),
-         InlineKeyboardButton("🏠 Home", callback_data="dashboard:main")],
+        home_back_row("dashboard:main"),
     ])
 
 
@@ -137,8 +136,7 @@ def wizard_custom_input_kb(back_target: str) -> InlineKeyboardMarkup:
 
 def wizard_done_kb() -> InlineKeyboardMarkup:
     """Success screen navigation."""
-    buttons = [
-        InlineKeyboardButton("🏠 Home",          callback_data="dashboard:main"),
+    return InlineKeyboardMarkup([[
         InlineKeyboardButton("📊 Auto Trade Status", callback_data="preset:status"),
-    ]
-    return InlineKeyboardMarkup(grid_rows(buttons))
+        InlineKeyboardButton("🏠 Home",              callback_data="dashboard:main"),
+    ]])
