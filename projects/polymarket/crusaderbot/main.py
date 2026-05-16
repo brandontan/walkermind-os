@@ -20,7 +20,7 @@ from .api import admin as api_admin, health as api_health, ops as api_ops
 from .webtrader.backend import sse as webtrader_sse
 from .webtrader.backend.router import router as web_router
 from .bot.dispatcher import register as register_handlers
-from .cache import close_cache, init_cache
+from .cache import close_cache, get_cache, init_cache, set_cache
 from .config import get_settings, validate_required_env
 from .database import close_pool, init_pool, run_migrations
 from .domain.strategy import bootstrap_default_strategies
@@ -41,6 +41,9 @@ scheduler_app = None
 # Remains None in polling mode — the endpoint rejects all requests in that case.
 _webhook_secret: str | None = None
 _webhook_mode_active: bool = False
+
+_STARTUP_DEDUP_KEY = "startup_notif_sent"
+_STARTUP_DEDUP_TTL = 60  # seconds — covers Fly.io rolling deploy overlap
 
 
 @asynccontextmanager
@@ -147,17 +150,31 @@ async def lifespan(_: FastAPI):
     # Operator-only boot alert — must NEVER target a regular user's chat_id.
     # Guard ensures the send is skipped rather than misdirected when
     # OPERATOR_CHAT_ID is not yet configured.
+    # 60-second Redis dedup prevents duplicate alerts during Fly.io rolling
+    # deploys where old and new instances overlap briefly.
     if settings.OPERATOR_CHAT_ID:
-        await notifications.send(
-            settings.OPERATOR_CHAT_ID,
-            f"🟢 CrusaderBot up\nenv: {settings.APP_ENV}\n"
-            f"mode: {'webhook' if use_webhook else 'polling'}\n"
-            f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
-            f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
-            f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
-            f"{'✅ activation guards OPEN — live trading enabled' if all_guards_ready else '🔒 activation guards LOCKED — all trades route to paper'}",
-            parse_mode=None,
-        )
+        _notif_suppressed = False
+        try:
+            _notif_suppressed = bool(await get_cache(_STARTUP_DEDUP_KEY))
+        except Exception as exc:
+            log.warning("startup dedup cache check failed — proceeding: %s", exc)
+        if _notif_suppressed:
+            log.info("startup notification suppressed (duplicate within 60s)")
+        else:
+            try:
+                await set_cache(_STARTUP_DEDUP_KEY, "1", ttl=_STARTUP_DEDUP_TTL)
+            except Exception as exc:
+                log.warning("startup dedup cache set failed: %s", exc)
+            await notifications.send(
+                settings.OPERATOR_CHAT_ID,
+                f"🟢 CrusaderBot up\nenv: {settings.APP_ENV}\n"
+                f"mode: {'webhook' if use_webhook else 'polling'}\n"
+                f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
+                f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
+                f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
+                f"{'✅ activation guards OPEN — live trading enabled' if all_guards_ready else '🔒 activation guards LOCKED — all trades route to paper'}",
+                parse_mode=None,
+            )
 
     # --- observability: startup alert + dependency probe ---
     # Fly.io starts a fresh machine on every deploy or VM restart, so a boot
@@ -167,9 +184,6 @@ async def lifespan(_: FastAPI):
     # run_health_checks() is bounded by its own per-check 3s timeout, so
     # awaiting it here is safe.
     try:
-        monitoring_alerts.schedule_alert(
-            monitoring_alerts.alert_startup(restart_detected=True),
-        )
         if missing_env:
             # One aggregated page covers all missing keys; per-variable
             # alerts would collide on the same cooldown bucket and silently

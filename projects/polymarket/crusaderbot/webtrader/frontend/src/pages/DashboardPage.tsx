@@ -74,6 +74,13 @@ export function DashboardPage() {
       {/* Topbar */}
       <div className="flex items-center justify-between pt-6 pb-4">
         <div className="flex items-center gap-2">
+          <img
+            src="/crusaderbot-logo.png"
+            alt="CrusaderBot"
+            width={32}
+            height={32}
+            style={{ objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(245,200,66,0.5))" }}
+          />
           <span className="font-bold text-lg text-primary tracking-tight">CrusaderBot</span>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green/25 bg-green/10 text-green text-xs font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-green animate-status-pulse" />

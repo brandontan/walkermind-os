@@ -1,7 +1,8 @@
-Last Updated : 2026-05-16 16:45
-Status       : trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep live on main. Migration 030 + Fly.io deploy required to close 5 stuck positions. Production PAPER ONLY.
+Last Updated : 2026-05-16 23:59
+Status       : startup-logo-fix PR open (claude/fix-startup-logo-update-NtuVK, STANDARD). Startup dedup live; WebTrader logo code in place; PNG binary pending WARP🔹CMD. trading-unblock MERGED PR #1065 — migration 030 + Fly.io deploy required. Production PAPER ONLY.
 
 [COMPLETED]
+- startup-logo-fix PR open (2026-05-16). 60s Redis dedup on startup notification; duplicate alert_startup call removed; logo img added to DashboardPage topbar (32px) and AuthPage (80px); public/ dir created. Logo PNG binary pending. STANDARD, NARROW INTEGRATION.
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061 (2026-05-16). exit_watcher live Gamma price fetch + pnl_usdc persistence + signal_scan open-position dedup guard + WebTrader YES/NO badges and date+time display. MAJOR, FULL RUNTIME INTEGRATION.
 - WARP/CRUSADERBOT-WEBTRADER-REDESIGN PR open (2026-05-16). WebTrader premium frontend redesign: Syne + JetBrains Mono fonts, new dark palette (#080A0F bg, gold #F5C842 accent), 5 pages + 5 components reskinned, Recharts PnL chart, ambient gradients, fadeSlideUp transitions. npm build clean. STANDARD, NARROW INTEGRATION.
@@ -36,11 +37,13 @@ Status       : trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-ph
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for startup-logo-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/startup-logo-fix.md. Tier: STANDARD. Deliver crusaderbot-logo.png binary to webtrader/frontend/public/ before merge.
 - Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
 - WARP🔹CMD review required for webtrader-redesign (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-redesign.md. Tier: STANDARD.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 
 [KNOWN ISSUES]
+- crusaderbot-logo.png binary not yet in repo — WebTrader logo img references will render broken until PNG committed to webtrader/frontend/public/ by WARP🔹CMD.
 - 5 positions stuck open — trading-unblock MERGED PR #1065. Will auto-close as MARKET_EXPIRED within 1 exit_watch tick (60s) after migration 030 applied and Fly.io deploy completes.
 - fly CLI not installed in cloud execution environment — deploy step requires WARP🔹CMD manual execution from fly CLI machine.
 - migration 027 (notifications_on) must be applied to production before deploying PR #1049 + PR #1055 code on Fly.io.
