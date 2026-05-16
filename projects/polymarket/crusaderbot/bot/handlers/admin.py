@@ -578,29 +578,36 @@ _KS_USAGE = (
 
 
 async def _broadcast_pause(ctx: ContextTypes.DEFAULT_TYPE | None,
-                           message: str) -> int:
+                           message: str,
+                           *,
+                           pre_fetched_ids: list[int] | None = None) -> int:
     if ctx is None:
         return 0
-    try:
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT telegram_user_id FROM users "
-                "WHERE auto_trade_on = TRUE"
-            )
-    except Exception as exc:  # noqa: BLE001
-        logger.error("killswitch broadcast user lookup failed: %s", exc)
-        return 0
+    if pre_fetched_ids is not None:
+        tg_ids = pre_fetched_ids
+    else:
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT telegram_user_id FROM users "
+                    "WHERE auto_trade_on = TRUE"
+                )
+            tg_ids = [int(r["telegram_user_id"]) for r in rows
+                      if r["telegram_user_id"] is not None]
+        except Exception as exc:  # noqa: BLE001
+            logger.error("killswitch broadcast user lookup failed: %s", exc)
+            return 0
 
     sent = 0
-    for r in rows:
+    for tg_id in tg_ids:
         try:
-            await notifications.send(int(r["telegram_user_id"]), message)
+            await notifications.send(tg_id, message)
             sent += 1
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "killswitch broadcast send failed user=%s err=%s",
-                r["telegram_user_id"], exc,
+                tg_id, exc,
             )
     return sent
 
@@ -613,6 +620,20 @@ async def _apply_killswitch_action(
     broadcast_via_ctx: ContextTypes.DEFAULT_TYPE | None,
 ) -> None:
     """Shared implementation for ``/killswitch`` and the inline buttons."""
+    # For lock: capture recipients before set_active() flips auto_trade_on to FALSE.
+    lock_recipients: list[int] = []
+    if action == "lock":
+        try:
+            _pool = get_pool()
+            async with _pool.acquire() as _conn:
+                _rows = await _conn.fetch(
+                    "SELECT telegram_user_id FROM users WHERE auto_trade_on = TRUE"
+                )
+            lock_recipients = [int(r["telegram_user_id"]) for r in _rows
+                               if r["telegram_user_id"] is not None]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("lock broadcast pre-fetch failed: %s", exc)
+
     try:
         result = await ops_kill_switch.set_active(
             action=action, actor_id=actor_id,
@@ -662,6 +683,7 @@ async def _apply_killswitch_action(
             "🔒 Auto-trade has been locked by admin due to an "
             "incident. Your auto-trade has been turned OFF — re-enable "
             "from /dashboard once confirmed safe.",
+            pre_fetched_ids=lock_recipients,
         )
 
 
