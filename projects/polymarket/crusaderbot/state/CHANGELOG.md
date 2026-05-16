@@ -1,3 +1,4 @@
+2026-05-16 23:59 | claude/unblock-trading-positions-l13YL | trading-unblock MERGED PR #1065: P1-A 3-tick threshold + P1-B winning-side guard; CI green; deploy pending migration 030
 2026-05-16 23:30 | claude/unblock-trading-positions-l13YL | trading-unblock: exit_watcher two-phase MARKET_EXPIRED sweep + close_as_expired atomic tx + signal scan startup immediate + job_runs metadata JSONB; MAJOR, NARROW INTEGRATION
 2026-05-16 18:00 | WARP/CRUSADERBOT-AUTOTRADE-RUNTIME | Auto-trade runtime fix: exit_watcher live Gamma price fetch + pnl_usdc persistence + signal_scan open-position dedup guard + WebTrader YES/NO badges and date+time display; MAJOR, FULL RUNTIME INTEGRATION
 2026-05-16 14:00 | WARP/CRUSADERBOT-PHASE5-FIX-R1 | Phase 5 UX Fix R1: removed <pre> COPY CODE from dashboard/autotrade/trades; added persistent 5-button ReplyKeyboard (main_menu_keyboard); My Trades show_trades hardened; group=-1 handlers for 4 new persistent buttons; STANDARD, NARROW INTEGRATION
