@@ -13,13 +13,28 @@ _DEMO_FEED_ID = "00000000-0000-0000-0001-000000000001"
 
 
 async def _enroll_signal_following(user_id: UUID) -> None:
-    """Enroll a new user in signal_following strategy and subscribe to demo feed.
+    """Enroll user in signal_following strategy and subscribe to demo feed.
 
-    Idempotent — safe to call on retries or existing users.
-    No-op if demo feed is not yet seeded in DB.
+    Idempotent — safe to call on every /start for every user.
+    Self-heals the demo feed if migrations ran before any users existed.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
+        # Self-heal: seed demo feed using this user as operator if feed is missing.
+        # Covers the fresh-DB case where migration 031 ran before any users existed.
+        await conn.execute(
+            """
+            INSERT INTO signal_feeds (id, name, slug, operator_id, status, description,
+                                      subscriber_count, is_demo, created_at, updated_at)
+            VALUES ($2::uuid,
+                    'CrusaderBot Demo Feed', 'crusaderbot-demo',
+                    $1, 'active',
+                    'Auto-generated demo feed for paper trading. Signals from edge_finder strategy.',
+                    0, TRUE, NOW(), NOW())
+            ON CONFLICT DO NOTHING
+            """,
+            user_id, _DEMO_FEED_ID,
+        )
         await conn.execute(
             """
             INSERT INTO user_strategies (user_id, strategy_name, weight, enabled, created_at)
@@ -32,10 +47,7 @@ async def _enroll_signal_following(user_id: UUID) -> None:
             """
             INSERT INTO user_signal_subscriptions (user_id, feed_id, subscribed_at, is_demo)
             SELECT $1, $2::uuid, NOW(), TRUE
-            WHERE EXISTS (
-                SELECT 1 FROM signal_feeds WHERE id = $2::uuid AND status = 'active'
-            )
-            AND NOT EXISTS (
+            WHERE NOT EXISTS (
                 SELECT 1 FROM user_signal_subscriptions
                  WHERE user_id = $1
                    AND feed_id = $2::uuid
@@ -49,7 +61,6 @@ async def _enroll_signal_following(user_id: UUID) -> None:
 async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
     pool = get_pool()
     _is_new_user = False
-    _needs_enrollment = False
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
@@ -72,7 +83,6 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
                     await conn.execute(
                         "UPDATE users SET access_tier=3 WHERE id=$1", row["id"],
                     )
-                    _needs_enrollment = True
                 if username and username != row["username"]:
                     await conn.execute(
                         "UPDATE users SET username=$1 WHERE id=$2",
@@ -97,13 +107,12 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
             logger.exception(
                 "paper seed failed for new user user_id=%s", row["id"]
             )
-    if _is_new_user or _needs_enrollment:
-        try:
-            await _enroll_signal_following(row["id"])
-        except Exception:
-            logger.exception(
-                "signal enrollment failed for user user_id=%s", row["id"]
-            )
+    try:
+        await _enroll_signal_following(row["id"])
+    except Exception:
+        logger.exception(
+            "signal enrollment failed for user user_id=%s", row["id"]
+        )
     return dict(row)
 
 
