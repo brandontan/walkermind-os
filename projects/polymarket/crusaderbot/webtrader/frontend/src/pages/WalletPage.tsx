@@ -21,9 +21,9 @@ export function WalletPage() {
 
   if (!wallet) return <div className="p-4 text-muted text-sm">Loading…</div>;
 
-  function truncateHash(hash: string): string {
-    if (hash.length <= 14) return hash;
-    return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+  function truncateHash(note: string): string {
+    if (!note.startsWith("0x") || note.length <= 14) return note;
+    return `${note.slice(0, 6)}…${note.slice(-4)}`;
   }
 
   function formatDate(iso: string): string {
