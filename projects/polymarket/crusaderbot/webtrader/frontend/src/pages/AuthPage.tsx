@@ -15,6 +15,19 @@ export function AuthPage() {
     <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-[360px] text-center">
         <div className="mb-8">
+          <img
+            src="/crusaderbot-logo.png"
+            alt="CrusaderBot"
+            width={80}
+            height={80}
+            style={{
+              objectFit: "contain",
+              filter: "drop-shadow(0 0 12px rgba(245,200,66,0.4))",
+              margin: "0 auto 16px",
+              display: "block",
+            }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
           <h1 className="text-3xl font-bold text-primary tracking-tight">
             Crusader<span className="text-amber">Bot</span>
           </h1>
