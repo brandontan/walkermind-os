@@ -74,6 +74,29 @@ async def _noop_refresh_cb(update, ctx) -> None:
     await show_dashboard_for_cb(update, ctx, refresh=True)
 
 
+async def _nav_cb(update, ctx) -> None:
+    """Tactical Terminal polish — handles `nav:*` callback prefixes.
+
+    The new `_common.py` keyboard helpers emit:
+      - nav:home    → return to dashboard
+      - nav:back    → re-render dashboard (handlers can override per-flow)
+      - nav:refresh → silent refresh + re-render dashboard
+      - nav:noop    → silently absorb (used by pagination indicator)
+    """
+    q = update.callback_query
+    if q is None:
+        return
+    await q.answer()
+    sub = (q.data or "").split(":", 1)[-1]
+    if sub == "noop":
+        return
+    if sub == "refresh":
+        await show_dashboard_for_cb(update, ctx, refresh=True)
+        return
+    # nav:home and nav:back default to the main dashboard surface.
+    await show_dashboard_for_cb(update, ctx)
+
+
 async def _global_error_handler(update: object, ctx) -> None:
     logger.error("unhandled bot error: %s", ctx.error, exc_info=ctx.error)
 
@@ -104,6 +127,8 @@ async def _text_router(update, ctx) -> None:
 def register(app: Application) -> None:
     # ── group=-1: primary nav — fires BEFORE ConversationHandlers ────────────────
     app.add_handler(CallbackQueryHandler(_menu_nav_cb, pattern=r"^menu:"), group=-1)
+    # Tactical Terminal polish — nav:* prefix for new keyboards (home/back/refresh/noop).
+    app.add_handler(CallbackQueryHandler(_nav_cb, pattern=r"^nav:"), group=-1)
     # Persistent keyboard text buttons — interrupt any ConversationHandler state
     app.add_handler(MessageHandler(
         filters.Regex(r"^📊 Dashboard$"), dashboard), group=-1)
@@ -153,11 +178,10 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("chart",           portfolio_chart_h.chart_command))
     app.add_handler(CommandHandler("market",          market_card.market_command))
     app.add_handler(CommandHandler("referral",        referral.referral_command))
-    app.add_handler(CommandHandler("scan",            signal_following.signals_command))
-    app.add_handler(CommandHandler("pnl",             dashboard))
-    app.add_handler(CommandHandler("close",           positions.show_positions))
+    # NB: aliases (/scan, /pnl, /close, /trades, /mode) consolidated away —
+    # use canonical commands (/signals, /dashboard, /positions, /activity,
+    # /settings). One alias kept for back-compat:
     app.add_handler(CommandHandler("trades",          my_trades))
-    app.add_handler(CommandHandler("mode",            settings_handler.settings_root))
 
     # ── Phase 5F copy-trade wizard (before general copytrade: handler) ──────────
     app.add_handler(copy_trade.build_wizard_handler())
