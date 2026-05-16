@@ -1,12 +1,9 @@
-"""Phase 5D / UX-V3 — menu layout + route coverage.
+"""V5 AUTOBOT — menu layout + route coverage.
 
-Updated for v3 7-button main menu (WARP/TELEGRAM-UX-V3).
-Preserves full coverage intent of original Phase 5D suite:
+Updated for V5 fixed 5-button main menu (WARP/telegram-ux-v5-overhaul).
   * grid_rows helper
-  * main_menu: 7 buttons in 4 rows (3x2 + 1x1)
-  * MAIN_MENU_ROUTES: all 7 v3 routes registered
-  * Copy Trade route accessible via settings/secondary nav (not root)
-  * menu_copytrade_handler: placeholder + inline buttons
+  * main_menu: 5 buttons in 3 rows (2+2+1) — fixed layout, no state-driving
+  * MAIN_MENU_ROUTES: V5 routes + backward-compat aliases
   * dashboard_nav, wallet_menu, emergency_menu, preset_picker 2-col layouts
 """
 from __future__ import annotations
@@ -51,50 +48,57 @@ def test_grid_rows_custom_cols():
     assert rows == [[0, 1, 2], [3, 4, 5]]
 
 
-# ---------- main_menu MVP (ReplyKeyboard) ------------------------------------
+# ---------- main_menu V5 AUTOBOT (ReplyKeyboard) -----------------------------
 
-# MVP state-driven main_menu — "running bot" state labels
-MVP_RUNNING_BUTTONS = {
-    "📊 Active Monitor",
+V5_MENU_BUTTONS = {
+    "📊 Dashboard",
     "💼 Portfolio",
+    "🤖 Auto Mode",
     "⚙️ Settings",
-    "🚨 Emergency",
+    "❓ Help",
 }
 
 
-def test_main_menu_has_four_buttons():
-    # Running state: 4 buttons in 1+2+1 layout
+def test_main_menu_has_five_buttons():
+    # V5 fixed grid: 5 buttons regardless of bot state
     kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 4
+    assert len(all_buttons) == 5
 
 
 def test_main_menu_layout_three_rows():
-    # All states: 3 rows
+    # V5: 3 rows (2+2+1)
     kb = main_menu()
     assert len(kb.keyboard) == 3
 
 
-def test_main_menu_running_row0_is_single_active_monitor():
-    # Running state: row0=[Active Monitor] (single CTA)
-    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
-    assert len(kb.keyboard[0]) == 1
-    assert kb.keyboard[0][0].text == "📊 Active Monitor"
-    # row1=[Portfolio, Settings] (pair)
+def test_main_menu_row0_is_dashboard_and_portfolio():
+    # V5: row0=[Dashboard, Portfolio]
+    kb = main_menu()
+    assert len(kb.keyboard[0]) == 2
+    labels_row0 = {btn.text for btn in kb.keyboard[0]}
+    assert labels_row0 == {"📊 Dashboard", "💼 Portfolio"}
+
+
+def test_main_menu_row1_is_automode_and_settings():
+    # V5: row1=[Auto Mode, Settings]
+    kb = main_menu()
     assert len(kb.keyboard[1]) == 2
+    labels_row1 = {btn.text for btn in kb.keyboard[1]}
+    assert labels_row1 == {"🤖 Auto Mode", "⚙️ Settings"}
 
 
-def test_main_menu_last_row_has_emergency():
-    # All states: last row is [🚨 Emergency]
+def test_main_menu_last_row_is_help():
+    # V5: last row is [❓ Help] (single)
     kb = main_menu()
     assert len(kb.keyboard[-1]) == 1
-    assert kb.keyboard[-1][0].text == "🚨 Emergency"
+    assert kb.keyboard[-1][0].text == "❓ Help"
 
 
-def test_main_menu_expected_running_buttons():
+def test_main_menu_v5_buttons():
     kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     labels = {btn.text for row in kb.keyboard for btn in row}
-    assert labels == MVP_RUNNING_BUTTONS
+    assert labels == V5_MENU_BUTTONS
 
 
 def test_main_menu_signals_removed():
@@ -109,8 +113,8 @@ def test_main_menu_contains_portfolio_button():
     assert "💼 Portfolio" in labels
 
 
-def test_main_menu_running_has_settings_not_my_trades():
-    # Running state: Settings is present; My Trades and Auto-Trade are NOT on main menu
+def test_main_menu_contains_settings_not_old_autotrade():
+    # V5: Settings present; old "🤖 Auto-Trade" label gone
     kb = main_menu(strategy_key="signal_sniper", auto_on=True)
     labels = [btn.text for row in kb.keyboard for btn in row]
     assert "⚙️ Settings" in labels
@@ -118,11 +122,13 @@ def test_main_menu_running_has_settings_not_my_trades():
     assert "🤖 Auto-Trade" not in labels
 
 
-def test_main_menu_contains_emergency():
-    # All states: Emergency is always present in last row
-    kb = main_menu()
-    labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "🚨 Emergency" in labels
+def test_main_menu_fixed_layout_ignores_state():
+    # V5: layout is identical regardless of auto_on / strategy_key
+    kb_off = main_menu(strategy_key=None, auto_on=False)
+    kb_on = main_menu(strategy_key="full_auto", auto_on=True)
+    labels_off = {btn.text for row in kb_off.keyboard for btn in row}
+    labels_on = {btn.text for row in kb_on.keyboard for btn in row}
+    assert labels_off == labels_on == V5_MENU_BUTTONS
 
 
 # ---------- MAIN_MENU_ROUTES V5 -------------------------------------------
@@ -135,45 +141,49 @@ def test_portfolio_route_registered():
     assert "💼 Portfolio" in MAIN_MENU_ROUTES
 
 
-def test_active_monitor_route_registered():
-    # Bot-running state: Active Monitor routes to dashboard
-    assert "📊 Active Monitor" in MAIN_MENU_ROUTES
+def test_v5_dashboard_route_registered():
+    # V5: "📊 Dashboard" is now the primary route
+    assert "📊 Dashboard" in MAIN_MENU_ROUTES
 
 
-def test_dashboard_label_not_a_route():
-    # "📊 Dashboard" is no longer a reply-keyboard button in any state
-    assert "📊 Dashboard" not in MAIN_MENU_ROUTES
+def test_v5_auto_mode_route_registered():
+    assert "🤖 Auto Mode" in MAIN_MENU_ROUTES
 
 
-def test_auto_trade_not_a_route():
-    # Auto-Trade lives in the inline dashboard keyboard, not the reply keyboard
+def test_v5_help_route_registered():
+    assert "❓ Help" in MAIN_MENU_ROUTES
+
+
+def test_auto_trade_label_not_a_route():
+    # Old "🤖 Auto-Trade" label gone
     assert "🤖 Auto-Trade" not in MAIN_MENU_ROUTES
 
 
 def test_emergency_route_not_in_text_router():
-    # Emergency moved to group=-1 dispatcher handler so it fires before
-    # ConversationHandler text states; it is no longer in MAIN_MENU_ROUTES.
+    # Emergency in group=-1 dispatcher — not in text router
     assert "🚨 Emergency" not in MAIN_MENU_ROUTES
 
 
-def test_all_main_menu_routes_present():
+def test_all_v5_main_menu_routes_present():
     expected = {
-        "📊 Active Monitor", "💼 Portfolio", "⚙️ Settings",
-        "🚀 Start Autobot", "⚙️ Configure Strategy",
+        "📊 Dashboard", "💼 Portfolio", "🤖 Auto Mode",
+        "⚙️ Settings", "❓ Help",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 
 
-def test_active_monitor_and_portfolio_are_different_handlers():
-    monitor_handler = MAIN_MENU_ROUTES["📊 Active Monitor"]
-    portfolio_handler = MAIN_MENU_ROUTES["💼 Portfolio"]
-    assert monitor_handler is not portfolio_handler
+def test_backward_compat_aliases_present():
+    # Old labels still resolve so existing deep-links / cached keyboards don't break
+    for alias in ("📊 Active Monitor", "🚀 Start Autobot", "⚙️ Configure Strategy"):
+        assert alias in MAIN_MENU_ROUTES, f"backward-compat alias missing: {alias}"
 
 
-def test_active_monitor_and_settings_are_different_handlers():
-    monitor_handler = MAIN_MENU_ROUTES["📊 Active Monitor"]
-    settings_handler = MAIN_MENU_ROUTES["⚙️ Settings"]
-    assert monitor_handler is not settings_handler
+def test_dashboard_and_portfolio_are_different_handlers():
+    assert MAIN_MENU_ROUTES["📊 Dashboard"] is not MAIN_MENU_ROUTES["💼 Portfolio"]
+
+
+def test_dashboard_and_settings_are_different_handlers():
+    assert MAIN_MENU_ROUTES["📊 Dashboard"] is not MAIN_MENU_ROUTES["⚙️ Settings"]
 
 
 # ---------- menu_copytrade_handler (via settings/secondary nav) ------------

@@ -117,7 +117,7 @@ def _preset_picker_text(active_preset_key: str | None = None) -> str:
         active_label = f"{emoji} {label}"
 
     lines = [
-        "<b>🤖 Auto Trade</b>",
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>",
         "",
         f"Active: {active_label}",
         "",
@@ -166,7 +166,7 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
     tp_pct = float(s.get("tp_pct") or p.tp_pct) * 100
     sl_pct = float(s.get("sl_pct") or p.sl_pct) * 100
     return (
-        "<b>📊 Auto Trade Status</b>\n\n"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>\n\n"
         "<b>Strategy</b>\n"
         f"├─ {p.emoji} {p.name}\n"
         f"└─ State: {state}\n\n"
@@ -458,7 +458,7 @@ def _cwz(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
 
 def _step1_text(p: Preset) -> str:
     return (
-        "🤖 Auto Trade / Configure / Capital\n"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Capital\n"
         "\n"
         "Preset\n"
         f"└ {p.emoji} {p.name}\n"
@@ -469,7 +469,7 @@ def _step1_text(p: Preset) -> str:
 
 def _step2_text() -> str:
     return (
-        "🤖 Auto Trade / Configure / Take Profit\n"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Take Profit\n"
         "\n"
         "Auto-close winning positions at:"
     )
@@ -477,7 +477,7 @@ def _step2_text() -> str:
 
 def _step3_text() -> str:
     return (
-        "🤖 Auto Trade / Configure / Stop Loss\n"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Stop Loss\n"
         "\n"
         "Auto-close losing positions at:"
     )
@@ -488,7 +488,7 @@ def _step5_text(wz: dict, p: Preset) -> str:
     tp = round(wz["tp_pct"] * 100)
     sl = round(wz["sl_pct"] * 100)
     return (
-        "🤖 Auto Trade / Configure / Review\n"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Review\n"
         "\n"
         "Preset\n"
         f"└ {p.emoji} {p.name}\n"

@@ -64,6 +64,9 @@ async def _menu_nav_cb(update, ctx) -> None:
         await emergency_root_cb(update, ctx)
     elif sub == "settings":
         await settings_handler.settings_hub_root(update, ctx)
+    elif sub == "portfolio":
+        from .handlers.positions import show_portfolio
+        await show_portfolio(update, ctx)
 
 
 async def _noop_refresh_cb(update, ctx) -> None:

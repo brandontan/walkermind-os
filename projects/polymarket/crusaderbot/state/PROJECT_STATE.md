@@ -1,5 +1,5 @@
-Last Updated : 2026-05-16 22:48
-Status       : tg-ux-polish PR open (WARP/CRUSADERBOT-TG-UX-POLISH, MINOR). Telegram message formatting polish: parse_mode fixes in settings.py, 26-char separator standardisation, bold headers + pre blocks, keyboard anchor. Production PAPER ONLY.
+Last Updated : 2026-05-17 00:00
+Status       : telegram-ux-v5-overhaul PR open (WARP/telegram-ux-v5-overhaul, STANDARD). V5 AUTOBOT branding + 5-button fixed menu + pulse dashboard + code-wrapped financials. Production PAPER ONLY.
 
 [COMPLETED]
 - webtrader-v3-and-bot-polish MERGED PR #1069 (2026-05-16). Tactical Terminal v3.2 atomic delivery — frontend: 15 new shared components (TopBar/Ticker/HeroCard/StatCard/StatsGrid/Terminal/PositionCard/EmptyState/Toggle/FilterTabs/WalletCard/AddressCard/SettingsGroup/AdvancedGate + StrategyCard rewrite), UiMode context with localStorage persist, scanline+grain+ambient atmosphere, clip-path HUD geometry, 6 pages rewritten; bot: messages.py EMOJI/DIV/_table + 5 new alert templates (signal/position_open/position_close/daily_summary/health), keyboards/_common.py shared row helpers (home_back_row/confirm_cancel_row/pagination_row), dispatcher.py drops 4 aliases (/pnl /close /scan /mode) + adds _nav_cb for nav:* prefix, keyboards/presets.py + settings.py 2-col mobile cleanup; tests 1400 pass 0 fail; npm build 62 modules clean; ruff clean. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN. MAJOR, FULL RUNTIME INTEGRATION.
@@ -19,6 +19,7 @@ Status       : tg-ux-polish PR open (WARP/CRUSADERBOT-TG-UX-POLISH, MINOR). Tele
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- telegram-ux-v5-overhaul PR open (WARP/telegram-ux-v5-overhaul). Awaiting WARP🔹CMD review (STANDARD tier). Report: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-overhaul.md.
 - tg-ux-polish PR open (WARP/CRUSADERBOT-TG-UX-POLISH). Awaiting WARP🔹CMD review (MINOR tier). Report: projects/polymarket/crusaderbot/reports/forge/tg-ux-polish.md.
 - runtime-autotrade-fix PR open (WARP/CRUSADERBOT-RUNTIME-AUTOTRADE-FIX). Awaiting WARP🔹CMD merge decision (STANDARD tier). Report: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md.
 - Closed beta observation / paper-mode runtime monitoring active.
@@ -41,6 +42,7 @@ Status       : tg-ux-polish PR open (WARP/CRUSADERBOT-TG-UX-POLISH, MINOR). Tele
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for telegram-ux-v5-overhaul (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-overhaul.md. Tier: STANDARD.
 - WARP🔹CMD review required for tg-ux-polish (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/tg-ux-polish.md. Tier: MINOR. Verify: /settings renders bold header + separator; /autotrade active status shows [🏠 Home]; all bubbles consistent width on mobile.
 - WARP🔹CMD review required for runtime-autotrade-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md. Tier: STANDARD. Post-merge: /start fresh account → verify Balance: $1,000; auto-trade enabled → confirm no false market_expired within 5 min.
 - WARP/full-callback-prefix-migration (MEDIUM, F-02+F-03). Rewrite remaining 8 keyboard modules to use _common.py helpers + nav:/act:/cfg: namespace; drop legacy patterns from bot/dispatcher.py once all senders migrate. Linear tracking item filed under team CrusaderBot.

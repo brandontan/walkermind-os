@@ -73,7 +73,7 @@ def _risk_kb() -> InlineKeyboardMarkup:
 # ── Step texts ────────────────────────────────────────────────────────────────
 
 _WELCOME_TEXT = (
-    "<b>🤖 CRUSADERBOT</b>\n"
+    "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
     "Your autonomous Polymarket trading copilot.\n\n"
     "<blockquote>📑 Mode: Paper  •  🟢 Status: Ready</blockquote>\n\n"
     "Paper trading lets you test strategies with virtual capital — no real money, no risk.\n\n"
@@ -81,9 +81,9 @@ _WELCOME_TEXT = (
 )
 
 _WALLET_TEXT = (
-    "<b>💰 PAPER WALLET INITIALIZED</b>\n\n"
+    "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Wallet Ready</b>\n\n"
     "<blockquote>"
-    "Balance  $1,000.00 USDC\n"
+    "Balance  <code>$1,000.00 USDC</code>\n"
     "Mode     Paper (Safe)"
     "</blockquote>\n\n"
     "Your paper wallet has been credited with $1,000.\n"
