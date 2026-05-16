@@ -748,7 +748,12 @@ def test_evaluate_does_not_mutate_position():
 # ---------------------------------------------------------------------------
 
 def test_run_once_none_price_after_retry_closes_as_expired():
-    """Phase A: _fetch_live_price returns None on both attempts → MARKET_EXPIRED."""
+    """Phase A: _fetch_live_price returns None for _EXPIRED_TICK_THRESHOLD ticks → MARKET_EXPIRED.
+
+    The per-position counter is pre-seeded to _EXPIRED_TICK_THRESHOLD - 1 so that
+    a single run_once() call (2 fetch attempts within that tick) crosses the threshold
+    and closes the position. This matches the 3-tick / ~90s guard added by P1-A.
+    """
     captured_expired: list[dict] = []
 
     async def _mock_expired_alert(**kw):
@@ -765,6 +770,9 @@ def test_run_once_none_price_after_retry_closes_as_expired():
         patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
         patch.object(registry, "close_as_expired", close_expired),
         patch.object(exit_watcher, "_fetch_live_price", fetch_none),
+        # Pre-seed counter to threshold - 1 so this tick crosses the threshold.
+        patch.dict(exit_watcher._price_fail_counts,
+                   {pos.id: exit_watcher._EXPIRED_TICK_THRESHOLD - 1}),
         _patch_audit_noop(),
         patch.object(monitoring_alerts, "alert_user_market_expired", _mock_expired_alert),
     ]
@@ -779,7 +787,7 @@ def test_run_once_none_price_after_retry_closes_as_expired():
     assert result.expired == 1
     assert result.submitted == 0
     assert result.held == 0
-    # Two fetch attempts: initial + one retry before declaring expired.
+    # Two fetch attempts within this tick: initial + one retry before declaring expired.
     assert fetch_none.await_count == 2
     close_expired.assert_awaited_once_with(pos.id, pos.user_id, pos.size_usdc)
     assert len(captured_expired) == 1
