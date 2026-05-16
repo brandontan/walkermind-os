@@ -42,8 +42,8 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Tier gate — preset activation is configuration only, so allowlist (Tier 2)
-# is enough. Live trading still requires the dashboard toggle's full gate.
+# Preset activation is paper configuration only and open to every user.
+# Live trading still requires the dashboard toggle's full activation gate.
 # ---------------------------------------------------------------------------
 
 async def _ensure_tier2(update: Update) -> Tuple[dict | None, bool]:

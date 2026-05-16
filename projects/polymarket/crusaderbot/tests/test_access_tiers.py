@@ -357,7 +357,7 @@ def test_admin_root_shows_help_for_admin_tier_no_args():
 
     upd.message.reply_text.assert_awaited_once()
     text = upd.message.reply_text.await_args[0][0]
-    assert "Admin panel" in text or "admin panel" in text.lower()
+    assert "Admin" in text
 
 
 def test_admin_root_routes_users_subcommand():
@@ -408,7 +408,7 @@ def test_admin_root_settier_invalid_tier():
         _run(admin_h.admin_root(upd, _ctx("settier", "12345", "GODMODE")))
 
     text = upd.message.reply_text.await_args[0][0]
-    assert "Invalid tier" in text
+    assert "Invalid role" in text
 
 
 def test_admin_root_settier_success():
@@ -427,11 +427,11 @@ def test_admin_root_settier_success():
         "projects.polymarket.crusaderbot.bot.handlers.admin.audit.write",
         new=AsyncMock(),
     ):
-        _run(admin_h.admin_root(upd, _ctx("settier", "99999", "PREMIUM")))
+        _run(admin_h.admin_root(upd, _ctx("settier", "99999", "admin")))
 
     text = upd.message.reply_text.await_args[0][0]
     assert "99999" in text
-    assert "PREMIUM" in text
+    assert "admin" in text
 
 
 def test_admin_root_routes_stats():

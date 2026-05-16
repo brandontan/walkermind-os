@@ -16,8 +16,8 @@ TIER_BROWSE = 1
 TIER_ALLOWLISTED = 2
 
 _TIER_LABELS: dict[int, str] = {
-    TIER_BROWSE: "Tier 1 — Browse only",
-    TIER_ALLOWLISTED: "Tier 2 — Community allowlisted",
+    TIER_BROWSE: "User",
+    TIER_ALLOWLISTED: "User",
 }
 
 

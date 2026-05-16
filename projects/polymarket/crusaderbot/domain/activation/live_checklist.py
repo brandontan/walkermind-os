@@ -67,11 +67,10 @@ GATE_FIX_HINTS: dict[str, str] = {
     GATE_RISK_PROFILE_CONFIGURED:
         "Pick a risk profile via /setup → Risk Profile.",
     GATE_TWO_FACTOR_SETUP:
-        "Complete 2FA setup before live trading is permitted. Contact the "
-        "operator until self-serve 2FA ships.",
+        "Complete 2FA setup before live trading is permitted. Contact an "
+        "admin until self-serve 2FA ships.",
     GATE_OPERATOR_ALLOWLIST:
-        "Live trading requires operator approval (Tier 4). Request access "
-        "from the operator and wait for /allowlist tier_4 approval.",
+        "Live trading requires admin approval. Request access from an admin.",
 }
 
 
