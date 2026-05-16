@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { BottomNav } from "./components/BottomNav";
 import { AuthContext, useAuth, useAuthState } from "./lib/auth";
 import { useSSE } from "./lib/sse";
+import { UiModeContext, useUiModeState } from "./lib/uiMode";
 import { AuthPage } from "./pages/AuthPage";
 import { AutoTradePage } from "./pages/AutoTradePage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -14,39 +15,16 @@ function AppShell() {
   const location = useLocation();
   const isAuth = location.pathname === "/auth";
 
-  // Keep a single SSE connection alive at app level (no-op when token is null)
+  // Keep a single SSE connection alive at app level (no-op when token is null).
   useSSE(user?.token ?? null, {});
 
   return (
-    <div className="min-h-screen bg-bg text-primary font-sans flex justify-center overflow-hidden">
-      {/* Ambient background gradients — fixed, pointer-events-none */}
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{ zIndex: 0 }}
-        aria-hidden="true"
-      >
-        <div
-          className="absolute"
-          style={{
-            width: "500px",
-            height: "500px",
-            top: "-120px",
-            left: "-120px",
-            background: "radial-gradient(ellipse at center, rgba(245,200,66,0.05) 0%, transparent 70%)",
-          }}
-        />
-        <div
-          className="absolute"
-          style={{
-            width: "500px",
-            height: "500px",
-            bottom: "-120px",
-            right: "-120px",
-            background: "radial-gradient(ellipse at center, rgba(77,158,255,0.05) 0%, transparent 70%)",
-          }}
-        />
-      </div>
-      <div className="w-full max-w-mobile relative" style={{ zIndex: 1 }}>
+    <div className="min-h-screen text-ink-1 font-sans flex justify-center overflow-hidden">
+      {/* Ambient washes — Tactical Terminal v3.2 */}
+      <div className="ambient amb-gold" aria-hidden />
+      <div className="ambient amb-blue" aria-hidden />
+
+      <div className="w-full max-w-mobile relative" style={{ zIndex: 1, paddingBottom: "96px" }}>
         <Routes>
           <Route path="/" element={<Navigate to={user ? "/dashboard" : "/auth"} replace />} />
           <Route path="/auth" element={<AuthPage />} />
@@ -80,12 +58,15 @@ function AppShell() {
 
 export function App() {
   const authState = useAuthState();
+  const uiMode = useUiModeState();
 
   return (
     <AuthContext.Provider value={authState}>
-      <BrowserRouter basename="/dashboard">
-        <AppShell />
-      </BrowserRouter>
+      <UiModeContext.Provider value={uiMode}>
+        <BrowserRouter basename="/dashboard">
+          <AppShell />
+        </BrowserRouter>
+      </UiModeContext.Provider>
     </AuthContext.Provider>
   );
 }
