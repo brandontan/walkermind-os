@@ -227,11 +227,11 @@ async def watch_deposits() -> None:
     ]])
     for tg_id, amt, tx, tier_promoted in notify_after:
         if tier_promoted:
-            tail = "You're now Tier 3 — auto-trade unlocked."
+            tail = "Your balance is credited and ready."
         else:
             tail = (
-                f"Below minimum (${float(min_deposit):.2f} USDC) — "
-                "Tier 3 not yet unlocked. Top up to enable auto-trade."
+                f"Credited. Live trading needs a minimum balance of "
+                f"${float(min_deposit):.2f} USDC (paper auto-trade is always available)."
             )
         await notifications.send(
             tg_id,
