@@ -27,19 +27,21 @@ async def _fetch_trades(user_id: UUID) -> tuple[list[dict], list[dict]]:
     pool = get_pool()
     async with pool.acquire() as conn:
         open_rows = await conn.fetch(
-            """SELECT id, market_id, market_question, side, entry_price,
-                      size_usdc, current_price, opened_at
-               FROM positions
-               WHERE user_id = $1 AND status = 'open'
-               ORDER BY opened_at DESC
+            """SELECT p.id, p.market_id, m.question AS market_question, p.side, p.entry_price,
+                      p.size_usdc, p.current_price, p.opened_at
+               FROM positions p
+               LEFT JOIN markets m ON m.id = p.market_id
+               WHERE p.user_id = $1 AND p.status = 'open'
+               ORDER BY p.opened_at DESC
                LIMIT 10""",
             user_id,
         )
         closed_rows = await conn.fetch(
-            """SELECT market_question, pnl_usdc, closed_at
-               FROM positions
-               WHERE user_id = $1 AND status = 'closed'
-               ORDER BY closed_at DESC
+            """SELECT m.question AS market_question, p.pnl_usdc, p.closed_at
+               FROM positions p
+               LEFT JOIN markets m ON m.id = p.market_id
+               WHERE p.user_id = $1 AND p.status = 'closed'
+               ORDER BY p.closed_at DESC
                LIMIT 5""",
             user_id,
         )
@@ -140,8 +142,10 @@ async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """SELECT market_question, entry_price, current_price, size_usdc
-               FROM positions WHERE id = $1 AND user_id = $2 AND status = 'open'""",
+            """SELECT m.question AS market_question, p.entry_price, p.current_price, p.size_usdc
+               FROM positions p
+               LEFT JOIN markets m ON m.id = p.market_id
+               WHERE p.id = $1 AND p.user_id = $2 AND p.status = 'open'""",
             pos_id, user["id"],
         )
     if row is None:
@@ -211,10 +215,11 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT market_question, side, pnl_usdc, size_usdc, closed_at
-               FROM positions
-               WHERE user_id = $1 AND status = 'closed'
-               ORDER BY closed_at DESC LIMIT 20""",
+            """SELECT m.question AS market_question, p.side, p.pnl_usdc, p.size_usdc, p.closed_at
+               FROM positions p
+               LEFT JOIN markets m ON m.id = p.market_id
+               WHERE p.user_id = $1 AND p.status = 'closed'
+               ORDER BY p.closed_at DESC LIMIT 20""",
             user["id"],
         )
     if not rows:

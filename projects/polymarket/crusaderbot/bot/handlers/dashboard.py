@@ -17,7 +17,7 @@ from telegram.ext import ContextTypes
 from ...database import get_pool
 from ...users import upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
-from ..keyboards import main_menu_keyboard, p5_dashboard_kb
+from ..keyboards import main_menu, p5_dashboard_kb
 from ..messages import dashboard_text
 
 logger = logging.getLogger(__name__)
@@ -175,10 +175,14 @@ async def show_dashboard(
     )
     if target is None:
         return
+    nav_kb = main_menu(
+        strategy_key="set" if has_preset else None,
+        auto_on=user.get("auto_trade_on", False),
+    )
     await target.reply_text(
         text,
         parse_mode=ParseMode.HTML,
-        reply_markup=main_menu_keyboard(),
+        reply_markup=nav_kb,
     )
 
 
@@ -195,17 +199,21 @@ async def show_dashboard_for_cb(
     text, has_preset = await _build_dashboard_message(user)
     kb = p5_dashboard_kb(has_preset)
 
+    nav_kb = main_menu(
+        strategy_key="set" if has_preset else None,
+        auto_on=user.get("auto_trade_on", False),
+    )
     if q is not None and q.message is not None:
         try:
             await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
                 await q.message.reply_text(
-                    text, parse_mode=ParseMode.HTML, reply_markup=main_menu_keyboard(),
+                    text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
                 )
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=main_menu_keyboard(),
+            text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
         )
 
 

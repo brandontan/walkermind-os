@@ -30,7 +30,7 @@ from typing import Optional
 from uuid import UUID
 
 import structlog
-from telegram import InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
 from ... import notifications
@@ -172,6 +172,7 @@ class TradeNotifier:
         signal_reason: Optional[str] = None,
         copy_wallet: Optional[str] = None,
         copy_win_rate: Optional[float] = None,
+        position_id: Optional[str] = None,
     ) -> None:
         """Send trade OPEN receipt card with optional reasoning block."""
         label = _market_label(market_question, market_id)
@@ -195,10 +196,20 @@ class TradeNotifier:
             f"{reasoning}"
             f"{_SEP}"
         )
+        if position_id:
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📋 View Trade", callback_data=f"mytrades:open:{position_id}"),
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
+        else:
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.ENTRY,
             market_id=market_id,
+            reply_markup=kb,
         )
 
     async def animated_entry_sequence(
@@ -296,6 +307,11 @@ class TradeNotifier:
             f"P&amp;L     │ {pnl_sign}${abs(pnl_usdc):.2f}</pre>\n"
             f"{_SEP}"
         )
+        if reply_markup is None:
+            reply_markup = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📈 My Trades", callback_data="menu:trades"),
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.TP_HIT, market_id=market_id,
@@ -326,6 +342,11 @@ class TradeNotifier:
             f"P&amp;L     │ {pnl_sign}${abs(pnl_usdc):.2f}</pre>\n"
             f"{_SEP}"
         )
+        if reply_markup is None:
+            reply_markup = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📈 My Trades", callback_data="menu:trades"),
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.SL_HIT, market_id=market_id,
@@ -352,6 +373,11 @@ class TradeNotifier:
             f"{html.escape(label)}\n"
             f"Exit: {exit_price:.3f} | P&amp;L: <b>{html.escape(_fmt_pnl(pnl_usdc))}</b>"
         )
+        if reply_markup is None:
+            reply_markup = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📈 My Trades", callback_data="menu:trades"),
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.MANUAL, market_id=market_id,
@@ -377,9 +403,14 @@ class TradeNotifier:
             f"{html.escape(label)}\n"
             f"Exit: {exit_price:.3f} | P&amp;L: <b>{html.escape(_fmt_pnl(pnl_usdc))}</b>"
         )
+        emergency_kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("📈 My Trades", callback_data="menu:trades"),
+            InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+        ]])
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.EMERGENCY, market_id=market_id,
+            reply_markup=emergency_kb,
         )
 
     async def notify_copy_trade_entry(

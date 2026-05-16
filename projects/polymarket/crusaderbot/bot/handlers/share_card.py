@@ -28,9 +28,10 @@ async def _fetch_trade(trade_id: str) -> dict | None:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT market_question, market_id, pnl_usdc, size_usdc, exit_price
-            FROM positions
-            WHERE id=$1 AND status='closed'
+            SELECT m.question AS market_question, p.market_id, p.pnl_usdc, p.size_usdc, p.exit_price
+            FROM positions p
+            LEFT JOIN markets m ON m.id = p.market_id
+            WHERE p.id=$1 AND p.status='closed'
             """,
             uid,
         )

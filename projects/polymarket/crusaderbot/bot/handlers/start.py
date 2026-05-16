@@ -237,13 +237,41 @@ def build_start_handler() -> ConversationHandler:
 
 
 async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message is None:
+    if update.message is None or update.effective_user is None:
         return
+    from ...config import get_settings
+    settings = get_settings()
+    tg_id = update.effective_user.id
+    is_op = bool(settings.OPERATOR_CHAT_ID and tg_id == settings.OPERATOR_CHAT_ID)
+
+    user_commands = (
+        "<b>📋 Commands</b>\n\n"
+        "/start — Welcome &amp; onboarding\n"
+        "/dashboard — Main dashboard\n"
+        "/trades — View your trades\n"
+        "/positions — Open positions\n"
+        "/settings — Configure preferences\n"
+        "/preset — Strategy presets\n"
+        "/wallet — Wallet &amp; deposits\n"
+        "/emergency — Emergency controls\n"
+        "/insights — P&amp;L insights\n"
+        "/chart — Portfolio chart\n"
+        "/summary_on — Enable daily summary\n"
+        "/summary_off — Disable daily summary\n"
+        "/help — This help\n"
+    )
+
+    admin_commands = (
+        "\n<b>🔧 Admin</b>\n"
+        "/admin — Admin panel\n"
+        "/ops_dashboard — Ops overview\n"
+        "/health — System health\n"
+        "/jobs — Scheduler jobs\n"
+        "/killswitch — Emergency kill\n"
+        "/auditlog — Audit trail\n"
+    ) if is_op else ""
+
     await update.message.reply_text(
-        "<b>ℹ️ CrusaderBot Help</b>\n\n"
-        "/start — Main menu / onboarding\n"
-        "/settings — Notification &amp; mode settings\n"
-        "/help — This message\n\n"
-        "Use the inline buttons to navigate all screens.",
+        user_commands + admin_commands,
         parse_mode=ParseMode.HTML,
     )

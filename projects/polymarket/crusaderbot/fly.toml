@@ -13,7 +13,7 @@ kill_timeout = "30s"
 
 [deploy]
   release_command = "python -m crusaderbot.scripts.seed_operator_tier"
-  strategy = "rolling"
+  strategy = "immediate"
 
 [env]
   APP_ENV                       = "production"

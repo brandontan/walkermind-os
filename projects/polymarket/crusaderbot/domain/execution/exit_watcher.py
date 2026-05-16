@@ -269,12 +269,14 @@ async def _act_on_decision(
                      "failure_count": new_count,
                      "error": (result.error or "")[:500]},
         )
-        await monitoring_alerts.alert_user_close_failed(
-            telegram_user_id=position.telegram_user_id,
-            market_id=position.market_id,
-            market_question=position.market_question,
-            side=position.side,
-            error=result.error or "unknown",
+        logger.info(
+            "close_failed (user notif suppressed, operator alert active)",
+            extra={
+                "position_id": str(position.id),
+                "market_id": position.market_id,
+                "side": position.side,
+                "error": (result.error or "unknown")[:200],
+            },
         )
         await monitoring_alerts.alert_operator_close_failed_persistent(
             position_id=position.id,
@@ -359,13 +361,15 @@ async def _close_expired_position(position: OpenPositionForExit) -> bool:
                 "mode": position.mode,
             },
         )
-        await monitoring_alerts.alert_user_market_expired(
-            telegram_user_id=position.telegram_user_id,
-            market_id=position.market_id,
-            market_question=position.market_question,
-            side=position.side,
-            size_usdc=position.size_usdc,
-            mode=position.mode,
+        logger.info(
+            "market_expired position closed (user notif suppressed)",
+            extra={
+                "position_id": str(position.id),
+                "market_id": position.market_id,
+                "side": position.side,
+                "size_usdc": position.size_usdc,
+                "mode": position.mode,
+            },
         )
         return True
     except Exception as exc:

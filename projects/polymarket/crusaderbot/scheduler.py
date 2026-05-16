@@ -6,6 +6,8 @@ import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
 import asyncio
 from apscheduler.events import (
     EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, EVENT_JOB_SUBMITTED,
@@ -219,6 +221,10 @@ async def watch_deposits() -> None:
     if all_ok:
         await _write_cursor("usdc_deposits", scanned_to)
 
+    deposit_kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("💰 Wallet", callback_data="menu:wallet"),
+        InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+    ]])
     for tg_id, amt, tx, tier_promoted in notify_after:
         if tier_promoted:
             tail = "You're now Tier 3 — auto-trade unlocked."
@@ -231,6 +237,7 @@ async def watch_deposits() -> None:
             tg_id,
             f"✅ <b>Deposit confirmed:</b> ${float(amt):.2f} USDC\n"
             f"<code>{html.escape(tx)}</code>\n{html.escape(tail)}",
+            reply_markup=deposit_kb,
         )
 
 
