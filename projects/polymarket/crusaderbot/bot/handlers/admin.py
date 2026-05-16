@@ -1,4 +1,6 @@
-"""Operator-only admin commands. Requires update.effective_user.id == OPERATOR_CHAT_ID."""
+"""Admin-only commands. Caller must be the admin (OPERATOR_CHAT_ID) or hold
+the ADMIN role. OPERATOR_CHAT_ID is infrastructure (alert routing + root
+admin), not a user-facing role."""
 from __future__ import annotations
 
 import html
@@ -52,14 +54,20 @@ async def _reject_silently(update: Update) -> None:
             pass
 
 
+# Two-role model: 'user' / 'admin'. Mapped onto the underlying tier
+# column (which the DB CHECK constraint still pins to FREE/ADMIN) so no
+# migration is required. Legacy FREE/PREMIUM/ADMIN are still accepted.
+_ROLE_MAP = {"USER": "FREE", "ADMIN": "ADMIN"}
+
 _ADMIN_HELP = (
-    "<b>⚙️ Admin panel</b>\n\n"
-    "Commands:\n"
-    "  /admin users — list all users + tiers\n"
-    "  /admin settier {user_id} {tier} — change tier (FREE/PREMIUM/ADMIN)\n"
-    "  /admin stats — totals and paper PNL\n"
-    "  /admin broadcast {message} — send to all users\n"
-    "  /resetonboard {telegram_user_id} — reset onboarding for testing"
+    "<b>🛠 Admin</b>\n\n"
+    "• Runtime Health — /ops_dashboard, /health\n"
+    "• User Monitor — /admin users, /admin stats\n"
+    "• Emergency Stop — /kill, /resume, /killswitch\n"
+    "• Logs — /auditlog, /jobs\n"
+    "• Roles — /admin settier {user_id} {user|admin}\n"
+    "• Broadcast — /admin broadcast {message}\n"
+    "• /resetonboard {telegram_user_id} — reset onboarding for testing"
 )
 
 
@@ -79,7 +87,7 @@ async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     is_op = _is_operator(update)
     if not is_op:
         if not await _is_admin_user(update):
-            await update.message.reply_text("⛔ Admin access required.")
+            await update.message.reply_text("Admin access required.")
             return
 
     args = list(ctx.args or [])
@@ -132,7 +140,7 @@ async def _admin_users(message) -> None:
 async def _admin_settier(message, args: list[str], actor_id: int) -> None:
     if len(args) < 2:
         await message.reply_text(
-            "Usage: <code>/admin settier {user_id} {FREE|PREMIUM|ADMIN}</code>",
+            "Usage: <code>/admin settier {user_id} {user|admin}</code>",
             parse_mode=ParseMode.HTML,
         )
         return
@@ -145,9 +153,10 @@ async def _admin_settier(message, args: list[str], actor_id: int) -> None:
             parse_mode=ParseMode.HTML,
         )
         return
+    raw_tier = _ROLE_MAP.get(raw_tier, raw_tier)
     if raw_tier not in VALID_TIERS:
         await message.reply_text(
-            f"Invalid tier <code>{html.escape(raw_tier)}</code>. Valid: FREE, PREMIUM, ADMIN",
+            f"Invalid role <code>{html.escape(args[1])}</code>. Valid: user, admin",
             parse_mode=ParseMode.HTML,
         )
         return
@@ -158,8 +167,9 @@ async def _admin_settier(message, args: list[str], actor_id: int) -> None:
         payload={"target_user_id": target_uid, "tier": raw_tier,
                  "assigned_by": actor_id},
     )
+    role_label = "admin" if raw_tier == "ADMIN" else "user"
     await message.reply_text(
-        f"✅ User <code>{target_uid}</code> set to <b>{html.escape(raw_tier)}</b>.",
+        f"✅ User <code>{target_uid}</code> set to <b>{role_label}</b>.",
         parse_mode=ParseMode.HTML,
     )
 
@@ -188,7 +198,7 @@ async def _admin_stats(message) -> None:
     await message.reply_text(
         "<b>📊 Admin Stats</b>\n\n"
         f"Total users: {total_users}\n"
-        f"Tiers — FREE: {free_n} · PREMIUM: {premium_n} · ADMIN: {admin_n}\n"
+        f"Roles — Users: {free_n + premium_n} · Admins: {admin_n}\n"
         f"Open positions: {open_positions}\n"
         f"Paper PNL (all time): ${float(paper_pnl):+,.2f}",
         parse_mode=ParseMode.HTML,
@@ -230,7 +240,7 @@ async def resetonboard_command(update: Update,
     if update.message is None:
         return
     if not await _is_admin_user(update):
-        await update.message.reply_text("⛔ Admin access required.")
+        await update.message.reply_text("Admin access required.")
         return
     args = ctx.args or []
     if not args:
@@ -332,7 +342,7 @@ async def _send_status(message) -> None:
 async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_operator(update) or update.message is None:
         if update.message:
-            await update.message.reply_text("⛔ Admin access required.")
+            await update.message.reply_text("Admin access required.")
         return
     args = ctx.args or []
     if not args:
@@ -361,10 +371,10 @@ async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     await force_set_tier(user["id"], tier)
     await audit.write(actor_role="operator", action="allowlist", user_id=user["id"],
                       payload={"new_tier": tier})
-    await update.message.reply_text(f"✅ {target} promoted to Tier {tier}.")
+    await update.message.reply_text(f"✅ {target} access updated by admin.")
     await notifications.send(
         user["telegram_user_id"],
-        f"🎉 You've been promoted to Tier {tier}. New features unlocked!",
+        "✅ Your access has been updated by an admin.",
     )
 
 

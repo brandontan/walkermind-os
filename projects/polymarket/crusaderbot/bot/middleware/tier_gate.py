@@ -33,7 +33,7 @@ from ...services.user_service import get_user_by_telegram_id
 
 log = structlog.get_logger(__name__)
 
-TIER_DENIED_MESSAGE = "🔒 This feature is not available yet."
+TIER_DENIED_MESSAGE = "This feature is not available."
 
 HandlerFn = Callable[..., Awaitable[Any]]
 
