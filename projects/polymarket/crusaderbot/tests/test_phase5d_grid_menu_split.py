@@ -150,15 +150,16 @@ def test_auto_trade_not_a_route():
     assert "🤖 Auto-Trade" not in MAIN_MENU_ROUTES
 
 
-def test_emergency_route_registered():
-    # Emergency IS a route in the MVP state-driven menu
-    assert "🚨 Emergency" in MAIN_MENU_ROUTES
+def test_emergency_route_not_in_text_router():
+    # Emergency moved to group=-1 dispatcher handler so it fires before
+    # ConversationHandler text states; it is no longer in MAIN_MENU_ROUTES.
+    assert "🚨 Emergency" not in MAIN_MENU_ROUTES
 
 
 def test_all_main_menu_routes_present():
     expected = {
         "📊 Active Monitor", "💼 Portfolio", "⚙️ Settings",
-        "🚨 Emergency", "🚀 Start Autobot", "⚙️ Configure Strategy",
+        "🚀 Start Autobot", "⚙️ Configure Strategy",
     }
     assert expected <= set(MAIN_MENU_ROUTES.keys())
 
