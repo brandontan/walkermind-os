@@ -1,8 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export type SSEHandlers = Record<string, (data: unknown) => void>;
 
 export function useSSE(token: string | null, handlers: SSEHandlers) {
+  // Keep a ref so event listeners always call the latest handler without reconnecting
+  const handlersRef = useRef<SSEHandlers>(handlers);
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }); // no deps — update on every render
+
   useEffect(() => {
     if (!token) return;
 
@@ -19,10 +25,17 @@ export function useSSE(token: string | null, handlers: SSEHandlers) {
         backoff = 1000;
       });
 
-      for (const [event, handler] of Object.entries(handlers)) {
-        es.addEventListener(event, (e: MessageEvent) => {
+      // Route each known SSE event type through the ref so callers
+      // always see the latest handler closures (fixes stale filter state).
+      const EVENT_TYPES = [
+        "orders", "fills", "positions", "settings",
+        "system", "portfolio", "alerts",
+      ] as const;
+
+      for (const eventType of EVENT_TYPES) {
+        es.addEventListener(eventType, (e: MessageEvent) => {
           try {
-            handler(JSON.parse((e as MessageEvent).data));
+            handlersRef.current[eventType]?.(JSON.parse(e.data));
           } catch {
             // ignore malformed events
           }
@@ -47,5 +60,5 @@ export function useSSE(token: string | null, handlers: SSEHandlers) {
       clearTimeout(reconnectTimeout);
       es?.close();
     };
-  }, [token]); // re-connect when token changes
+  }, [token]); // re-connect only when token changes
 }

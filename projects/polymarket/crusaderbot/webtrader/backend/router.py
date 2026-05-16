@@ -282,12 +282,12 @@ async def get_settings_endpoint(user: _CurrentUser):
     user_id = user["user_id"]
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT risk_profile, notifications_on FROM users WHERE id=$1::uuid",
+            "SELECT risk_profile, notifications_on FROM user_settings WHERE user_id=$1::uuid",
             user_id,
         )
     return {
-        "risk_profile": row["risk_profile"] if row and "risk_profile" in row.keys() else "balanced",
-        "notifications_on": row["notifications_on"] if row and "notifications_on" in row.keys() else True,
+        "risk_profile": row["risk_profile"] if row else "balanced",
+        "notifications_on": bool(row["notifications_on"]) if row else True,
     }
 
 
@@ -301,6 +301,10 @@ async def update_settings(body: UserSettingsUpdate, user: _CurrentUser):
     if body.risk_profile is not None:
         params.append(body.risk_profile)
         updates.append(f"risk_profile=${len(params)}")
+
+    if body.notifications_on is not None:
+        params.append(body.notifications_on)
+        updates.append(f"notifications_on=${len(params)}")
 
     if not updates:
         return {"updated": False}
