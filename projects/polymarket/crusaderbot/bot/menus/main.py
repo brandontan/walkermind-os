@@ -38,7 +38,6 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     # Bot running state
     "📊 Active Monitor":     dashboard.dashboard,
     "💼 Portfolio":          positions.show_portfolio,
-    "🚨 Emergency":          emergency.emergency_root,
     # Strategy set, bot OFF state
     "🚀 Start Autobot":      presets.show_preset_picker,
     # No strategy state

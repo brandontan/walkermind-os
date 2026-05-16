@@ -113,6 +113,8 @@ def register(app: Application) -> None:
         filters.Regex(r"^💰 Wallet$"), wallet_root), group=-1)
     app.add_handler(MessageHandler(
         filters.Regex(r"^📈 My Trades$"), show_trades), group=-1)
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^🚨 Emergency$"), emergency_root), group=-1)
 
     # ── Phase 5 start / onboarding ConversationHandler ─────────────────────────
     app.add_handler(build_start_handler())

@@ -466,7 +466,8 @@ def test_menu_routes_wallet_not_registered():
     assert handler is None
 
 
-def test_menu_routes_emergency_registered():
-    # Emergency IS a route in MVP UX (was not in V6)
+def test_menu_routes_emergency_not_in_text_router():
+    # Emergency is registered at group=-1 in dispatcher (not MAIN_MENU_ROUTES)
+    # so it fires before any ConversationHandler text state — prevents wizard blocking.
     handler = get_menu_route("🚨 Emergency")
-    assert handler is not None
+    assert handler is None
